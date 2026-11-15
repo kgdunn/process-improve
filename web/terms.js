@@ -43,6 +43,7 @@ let keyboard = false; // whether the reader last moved with the keyboard rather 
 let from = null; // the control the keyboard left for the pop-up's link
 let hoverTimer = null;
 let leaveTimer = null;
+let placed = { top: 0, left: 0 }; // where the shown word was in the window when its pop-up was put beside it
 let holders = null; // the hidden definitions a control's aria-describedby names
 const holderIds = new Map(); // a definition's text, to the id of the element that holds it
 
@@ -118,6 +119,7 @@ function wordFor(control) {
  */
 function place(word, above) {
   const at = word.getBoundingClientRect();
+  placed = { top: at.top, left: at.left };
   const box = beside?.isConnected ? beside.getBoundingClientRect() : at;
   const { offsetWidth: w, offsetHeight: h } = tip;
   const up = Math.min(at.top, box.top) - 8 - h;
@@ -326,11 +328,14 @@ export function installTerms(entries, terms = {}) {
     if (tip.dataset.how === "keyboard" || tip.contains(e.target)) hide();
   });
 
-  // A pop-up stays where it opened, so scrolling closes it; one that follows the keyboard follows its word.
+  // A pop-up stays where it opened, so a scroll that moves its word closes it; one that follows the keyboard follows
+  // its word. A scroll that leaves the word where it was (the page held still as the bar above it changed) closes nothing.
   document.addEventListener(
     "scroll",
     () => {
       if (!shown) return;
+      const { top, left } = shown.getBoundingClientRect();
+      if (Math.abs(top - placed.top) < 1 && Math.abs(left - placed.left) < 1) return;
       if (tip.dataset.how === "keyboard") place(shown, false);
       else hide();
     },

@@ -1559,3 +1559,121 @@ def test_no_quote_of_the_graph_shows_a_mark_of_the_book_s_source(context, site):
         shown = page.evaluate(QUOTE)
         assert not MARKS.search(shown["text"]), f"{term['id']}: {shown['text']}"
         assert shown["formulas"] == term["quote"].count(":math:"), term["id"]
+
+
+# --------------------------------------------------------------------------- names that keep clear (#1258)
+# The names drawn, by their boxes as drawn: the pairs that lie on each other, and each name that is not under its
+# term, with the sides of its term it is on (two at a corner) and whether it is in fact there.
+NAMES = """() => { const cy = window.conceptMap.cy;
+  const box = (n) => n.renderedBoundingBox({ includeNodes: false, includeEdges: false, includeLabels: true });
+  const hit = (a, b) => a.x1 < b.x2 && b.x1 < a.x2 && a.y1 < b.y2 && b.y1 < a.y2;
+  const named = cy.nodes('.term.lab').filter((n) => n.visible());
+  const pairs = [];
+  named.forEach((a, i) => named.slice(i + 1).forEach((b) => {
+    if (hit(box(a), box(b))) pairs.push(`${a.data('label')} / ${b.data('label')}`); }));
+  const SIDES = ['up', 'low', 'right', 'left'];
+  const moved = named.filter((n) => SIDES.some((side) => n.hasClass(side))).map((n) => {
+    const b = box(n), p = n.renderedPosition(), sides = SIDES.filter((side) => n.hasClass(side));
+    const there = { up: b.y2 <= p.y + 1, low: b.y1 >= p.y - 1, right: b.x1 >= p.x - 1, left: b.x2 <= p.x + 1 };
+    return { name: n.data('label'), sides, wanted: n.hasClass('nb'), there: sides.every((side) => there[side]) }; });
+  return { pairs, moved, named: named.length, wanted: named.filter((n) => n.hasClass('nb')).length }; }"""
+
+
+def _select(page: Any, name: str) -> None:  # noqa: ANN401 - a Playwright Page
+    """Find a term by its name and open it from the results, as a reader would."""
+    page.fill("#q", name)
+    page.locator("#results button").first.click()
+    page.wait_for_function("(name) => document.querySelector('#card h2').textContent === name", arg=name)
+    _settled(page)
+
+
+FONTS = pytest.mark.parametrize("wide_font", [False, True], ids=["the page's font", "a wider font"])
+
+
+@FONTS
+@pytest.mark.parametrize("others", [False, True], ids=["this book alone", "compared with the other textbooks"])
+@pytest.mark.parametrize("name", ["Interaction", "Screening", "Main effect"])
+def test_the_names_of_a_selected_term_s_neighbours_take_a_clear_place_by_their_terms(
+    context, site, name, others, wide_font
+):
+    """Each is drawn whatever it lands on, so it tries every place by its term before it lands on another name."""
+    if wide_font:  # a name's place is reckoned from its size as drawn, which a reader's font decides
+        _in_a_wide_font(context)
+    page = _open(context, site)
+    if others:
+        page.click(SWITCH)
+        _settled(page)
+    _select(page, name)
+    names = page.evaluate(NAMES)
+    assert names["wanted"] >= 4, "the term's neighbours are named"
+    assert names["pairs"] == [], "and no name lies on another"
+    assert [name for name in names["moved"] if name["wanted"]], "which took a name above or beside its term"
+    assert all(name["there"] for name in names["moved"]), "where the name is then drawn"
+    if not others:
+        assert not [name for name in names["moved"] if not name["wanted"]], (
+            "a name nobody asked for stays under its term"
+        )
+
+
+@FONTS
+@pytest.mark.parametrize("others", [False, True], ids=["this book alone", "compared with the other textbooks"])
+def test_where_no_place_by_a_term_is_clear_its_name_lands_on_as_little_as_it_can(context, site, others, wide_font):
+    """Nine neighbours close around one term: five pairs of names lay on each other while a name kept its place."""
+    if wide_font:
+        _in_a_wide_font(context)
+    page = _open(context, site)
+    if others:
+        page.click(SWITCH)
+        _settled(page)
+    _select(page, "Fractional factorial")
+    names = page.evaluate(NAMES)
+    assert names["wanted"] == 9
+    assert len(names["pairs"]) <= 2
+    assert len([name for name in names["moved"] if name["wanted"]]) >= 3
+
+
+# Each topic's name at the furthest zoom, by its box as drawn: whether it is beside its topic (clear of the circle),
+# whether it then lies on another topic or leaves the map, and whether a name still inside reaches past its ring.
+TOPIC_NAMES = """() => { const cy = window.conceptMap.cy, wide = cy.width(), high = cy.height();
+  const topics = cy.nodes('.topic').filter((n) => n.visible());
+  const circle = (n) => ({ ...n.renderedPosition(), r: n.renderedWidth() / 2 });
+  const off = (b, c) => Math.hypot(Math.max(b.x1 - c.x, 0, c.x - b.x2), Math.max(b.y1 - c.y, 0, c.y - b.y2));
+  const hit = (a, b) => a.x1 < b.x2 && b.x1 < a.x2 && a.y1 < b.y2 && b.y1 < a.y2;
+  const names = topics.map((n) => {
+    const b = n.renderedBoundingBox({ includeNodes: false, includeEdges: false, includeLabels: true });
+    const own = circle(n), beside = off(b, own) >= own.r - 3;   // a name's box is a little larger than its letters
+    return { name: n.data('label'), beside, box: b,
+      onTopic: topics.some((t) => t !== n && off(b, circle(t)) < circle(t).r - 3),
+      inView: b.x1 >= 0 && b.y1 >= 0 && b.x2 <= wide && b.y2 <= high,
+      overRim: !beside && (b.x2 - b.x1) / 2 > own.r }; });
+  return names.map((a) => ({ ...a, box: undefined, onName: names.some((b) => b !== a && hit(a.box, b.box)) })); }"""
+
+
+@FONTS
+@pytest.mark.parametrize(
+    ("context_options", "beside", "left_inside"),
+    [(PHONE, 3, 3), ({"viewport": {"width": 1280, "height": 560}}, 5, 1)],
+    ids=["a phone", "a short window"],
+)
+def test_while_books_are_compared_a_small_topic_s_name_is_beside_it_where_there_is_room(
+    context, site, beside, left_inside, wide_font
+):
+    """A name wider than its topic covered the sides of the topic's ring: five of them, on a phone."""
+    if wide_font:
+        _in_a_wide_font(context)
+    page = _open(context, site)
+    page.click(SWITCH)
+    _settled(page)
+    names = page.evaluate(TOPIC_NAMES)
+    moved = [name for name in names if name["beside"]]
+    assert len(moved) >= beside, "the names too wide for their topics are beside them"
+    for name in moved:
+        assert not name["onTopic"], f"{name['name']}: clear of every other topic"
+        assert not name["onName"], f"{name['name']}: and of every other topic's name"
+        assert name["inView"], f"{name['name']}: and inside the map"
+    assert len([name for name in names if name["overRim"]]) <= left_inside, "a name with no side clear stays inside"
+    page.click(SWITCH)
+    _settled(page)
+    assert not [name["name"] for name in page.evaluate(TOPIC_NAMES) if name["beside"]], (
+        "with no rings, a name is inside"
+    )

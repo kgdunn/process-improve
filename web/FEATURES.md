@@ -498,7 +498,8 @@ Also:
 *On a phone or at a desk, at your level, in light or dark.*
 
 - **Three steps, one page.** A bar names the study and Design, Run and Learn, each marked with
-  how far it has got.
+  how far it has got. It says what the app is doing, and the page under it stays where it is
+  when that line comes and goes.
 - **Three ways in.** Start a new study, explore a worked example, or browse the design
   catalog. A fourth button analyses data you have.
 - **A reading level.** Beginner, Intermediate or Adventurous. Each level adds designs, charts
@@ -652,7 +653,9 @@ What a careful reader, or an organisation, asks before using a tool.
   the app's reading level.
   - *Details:* An address that names an idea opens at the map, on that idea. "Compare
     books" sets two other textbooks beside this one: the links go, and a ring on each topic
-    and each term says which of the three books has it.
+    and each term says which of the three books has it. The names of a selected idea's
+    neighbours take whichever place by their idea is clear, and a topic's name too wide for
+    its ring is beside the topic.
 - **[The multivariate page](mva/).** For data with many measurements of each row: PCA and
   PLS on an example or your own file.
   - *Details:* A data table with each variable's distribution in its heading, linked score,

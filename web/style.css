@@ -625,7 +625,7 @@ section { scroll-margin-top: 120px; }
 @media (min-width: 1100px) {
   .workspace { display: grid; grid-template-columns: minmax(340px, 420px) minmax(0, 1fr); gap: 20px; align-items: start; }
   .brief {
-    position: sticky; top: calc(var(--bar-height, 72px) + 12px); max-height: calc(100vh - var(--bar-height, 72px) - 24px);
+    position: sticky; top: calc(var(--bar-room, 72px) + 12px); max-height: calc(100vh - var(--bar-room, 72px) - 24px);
     overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
   }
   .brief .card:last-child { margin-bottom: 0; }
