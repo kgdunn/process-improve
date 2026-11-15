@@ -17,6 +17,9 @@ Under the table it lists where readers came from: the site that linked here, or 
 carried. A link posted somewhere can name the place, as ``https://factori.al/?ref=linkedin``,
 which counts its visits apart even when the browser names no site, as an app's own browser
 often does not. A tag is a word for a place, never for a person: the report counts visits.
+A place is listed only for a reader whose browser went on to ask for the page's stylesheet or
+scripts. A robot that sends a made-up Referer, to be listed in reports like this one, asks for
+the page alone.
 
 Robots, link-preview fetchers and the deploy's own checks (headless Chromium, Python's urllib)
 are not readers. Run it on the server, as a user that can read the log:
@@ -78,6 +81,11 @@ CARD = "/og-card.png"
 #: anything else is not counted.
 REF = "ref"
 TAG = re.compile(r"[a-z0-9][a-z0-9_-]{0,23}")
+#: What a reader's browser asks for after a page: its stylesheet and its scripts. A robot that sends a made-up
+#: Referer to be listed where readers came from (referrer spam) asks for the page alone, so only a reader that
+#: asked for one of these names a place.
+#: shortcut: a robot that runs a whole browser is listed; name its site in a list here when one shows up.
+BROWSER_FILES = (".css", ".js")
 #: A bar for each row of the report, from none to the most a page had in a row.
 BARS = " ▁▂▃▄▅▆▇█"
 #: User agents that are not a reader at a browser: robots, link-preview fetchers, monitors, and
@@ -153,9 +161,14 @@ def came_from(query: str, referer: str) -> str | None:
 
 
 def tally(entries: Iterable[dict], since: datetime) -> tuple[dict[str, Day], Counter[str]]:
-    """Add up the requests made since ``since``: what each day saw, and where readers came from."""
+    """Add up the requests made since ``since``: what each day saw, and where readers came from.
+
+    A reader is a network and a browser. Where one came from is counted once its browser has asked for a page's
+    stylesheet or scripts, at any time since ``since``: the page comes first in the log, so it is counted last.
+    """
     days: dict[str, Day] = defaultdict(Day)
-    referrers: Counter[str] = Counter()
+    came: list[tuple[tuple[str, str], str]] = []  # each page view that names a place: its reader, and the place
+    browsers: set[tuple[str, str]] = set()
     for entry in entries:
         when = datetime.fromtimestamp(entry.get("ts", 0), UTC)
         request = entry["request"]
@@ -163,19 +176,21 @@ def tally(entries: Iterable[dict], since: datetime) -> tuple[dict[str, Day], Cou
             continue
         day = days[when.strftime("%Y-%m-%d")]
         asked, agent = urlsplit(request.get("uri", "")), header(request, "User-Agent")
-        path = asked.path
+        path, reader = asked.path, (request.get("client_ip") or request.get("remote_ip", ""), agent)
         if path == CARD and PREVIEWER.search(agent):
             day.previews += 1
         elif NOT_A_READER.search(agent):
             continue
         elif name := page(path):
             day.pages[name] += 1
-            day.readers.add((request.get("client_ip") or request.get("remote_ip", ""), agent))
+            day.readers.add(reader)
             if source := came_from(asked.query, header(request, "Referer")):
-                referrers[source] += 1
+                came.append((reader, source))
         elif path == PYTHON and urlsplit(header(request, "Referer")).path == WORKER:
             day.python += 1
-    return days, referrers
+        elif path.endswith(BROWSER_FILES):
+            browsers.add(reader)
+    return days, Counter(source for reader, source in came if reader in browsers)
 
 
 def kept(path: Path) -> dict[str, dict[str, int]]:

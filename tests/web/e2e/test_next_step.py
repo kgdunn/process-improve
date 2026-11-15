@@ -86,9 +86,9 @@ def test_the_worked_example_s_results_call_for_a_new_study_further_along(page, f
     assert headers(page, "#next-out table") == ["Factor", "Range now", "Next study"]
     moved = {r["name"]: r for r in first_paint["next"]["recommendation"]["ranges"]}
     assert next_rows(page) == [
-        ["T", "150 to 200 degC", "175 to 225 degC"],
-        ["P", "1 to 3 bar", f"{num(moved['P']['low'])} to {num(moved['P']['high'])} bar"],
-        ["F", "10 to 20 L/min", "10 to 20 L/min"],
+        ["Temperature", "150 to 200 degC", "175 to 225 degC"],
+        ["Pressure", "1 to 3 bar", f"{num(moved['Pressure']['low'])} to {num(moved['Pressure']['high'])} bar"],
+        ["Flow", "10 to 20 L/min", "10 to 20 L/min"],
     ]
     assert page.is_hidden("#next-out .next__why p"), "why, and what then, are folded until opened"
     assert offered(page) == [], "its Box-Behnken design fits the full quadratic with runs to spare"
@@ -115,7 +115,7 @@ def test_the_new_study_opens_in_design_with_the_moved_ranges(page):
     settled(page)
     assert page.get_attribute("#workspace", "data-phase") == "plan"
     table = factor_table(page)
-    assert [f["name"] for f in table] == ["T", "P", "F"]
+    assert [f["name"] for f in table] == ["Temperature", "Pressure", "Flow"]
     assert (table[0]["low"], table[0]["high"]) == ("175", "225")
     assert (table[2]["low"], table[2]["high"]) == ("10", "20")
     assert page.input_value("#response") == "Yield", "the brief is this study's"
@@ -305,5 +305,7 @@ def test_a_study_in_which_nothing_stands_out_widens_its_ranges_once(blank_page):
 
 
 def test_the_factors_of_the_worked_example_are_the_brief_s(first_paint):
-    """The worked example's factors are the ones the tests above move: T, P and F, as tests/web/_support.py has them."""
-    assert [f["name"] for f in first_paint["inputs"]["design"]["factors"]] == [f["name"] for f in FACTORS]
+    """The worked example's factors are the ones the tests above move, over the ranges tests/web/_support.py has."""
+    factors = first_paint["inputs"]["design"]["factors"]
+    assert [f["name"] for f in factors] == ["Temperature", "Pressure", "Flow"]
+    assert [(f["low"], f["high"], f["units"]) for f in factors] == [(f["low"], f["high"], f["units"]) for f in FACTORS]

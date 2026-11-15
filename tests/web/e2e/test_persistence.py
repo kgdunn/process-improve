@@ -88,7 +88,7 @@ def test_a_reader_who_comes_back_picks_up_where_they_left_off(context, page):
     assert page.url == page_url(context), "the run sheet is the reader's own: the address no longer names the example"
     again = come_back(context)
     assert again.text_content(BANNER).startswith(
-        f"Picked up where you left off: {YIELD}Full factorial (2-level) in T, P and F"
+        f"Picked up where you left off: {YIELD}Full factorial (2-level) in Temperature, Pressure and Flow"
     )
     assert again.is_hidden("#demo-banner")
     assert again.get_attribute("#workspace", "data-phase") == "learn", "a study with results opens on its analysis"
@@ -155,7 +155,7 @@ def test_a_result_typed_just_before_the_next_design_is_saved_with_its_design(con
     page.clock.resume()
     saved(page, 2)
     page.click("#library summary")
-    page.click("#library-list >> text=Full factorial (2-level) in T, P and F")
+    page.click("#library-list >> text=Full factorial (2-level) in Temperature, Pressure and Flow")
     settled(page)
     assert results(page)[0] == "12.5"
 
@@ -182,15 +182,19 @@ def test_your_studies_opens_an_earlier_study_and_deletes_one(page):
     generate(page, design_type="ccd", n_center_points=2)
     saved(page, 2)
     page.click("#library summary")
-    page.click("#library-list >> text=Full factorial (2-level) in T, P and F")
+    page.click("#library-list >> text=Full factorial (2-level) in Temperature, Pressure and Flow")
     settled(page)
     assert page.input_value("#design-type") == "full_factorial"
-    assert page.text_content(BANNER) == f"Opened {YIELD}Full factorial (2-level) in T, P and F."
+    assert page.text_content(BANNER) == f"Opened {YIELD}Full factorial (2-level) in Temperature, Pressure and Flow."
     assert len(run_sheet(page)) == 8
     assert all(results(page)), "with its results"
 
-    page.click(f"#library-list >> role=button[name='Delete {YIELD}Central composite (CCD) in T, P and F']")
-    page.wait_for_selector(f"#library-list >> text=Deleted {YIELD}Central composite (CCD) in T, P and F.")
+    page.click(
+        f"#library-list >> role=button[name='Delete {YIELD}Central composite (CCD) in Temperature, Pressure and Flow']"
+    )
+    page.wait_for_selector(
+        f"#library-list >> text=Deleted {YIELD}Central composite (CCD) in Temperature, Pressure and Flow."
+    )
     saved(page, 1)
     page.click("#library-list >> role=button[name='Undo']")
     saved(page, 2)
@@ -215,9 +219,11 @@ def test_your_studies_puts_delete_at_the_right_end_of_each_row(page):
         row = button.locator("xpath=ancestor::li")
         return tuple(round(b["x"] + b["width"]) for b in (button.bounding_box(), row.bounding_box()))
 
-    end, row = right_ends(f"Delete {YIELD}Full factorial (2-level) in T, P and F")
+    end, row = right_ends(f"Delete {YIELD}Full factorial (2-level) in Temperature, Pressure and Flow")
     assert end == row
-    page.click(f"#library-list >> role=button[name='Delete {YIELD}Full factorial (2-level) in T, P and F']")
+    page.click(
+        f"#library-list >> role=button[name='Delete {YIELD}Full factorial (2-level) in Temperature, Pressure and Flow']"
+    )
     end, row = right_ends("Undo")
     assert end == row
 
@@ -263,7 +269,7 @@ def test_a_link_opens_the_design_and_its_results_in_another_browser(open_context
     elsewhere.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
     settled(elsewhere)
     assert elsewhere.text_content(BANNER).startswith(
-        f"Opened from a link: {YIELD}Full factorial (2-level) in T, P and F."
+        f"Opened from a link: {YIELD}Full factorial (2-level) in Temperature, Pressure and Flow."
     )
     assert elsewhere.input_value("#response") == "Yield", "the response as the reader described it travels too"
     assert run_sheet(elsewhere) == run_sheet(page)

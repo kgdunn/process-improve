@@ -99,6 +99,11 @@ The report lists such visits as `?ref=linkedin`, apart from the rest. A tag is u
 digits, `-` or `_`, read in lower case; any other is not counted. Use a word for a place, never
 one for each person: the report counts visits, not people. The app drops the tag from its
 address once open, so a reload, or the address copied on, is not counted again.
+
+A place is listed only for a reader whose browser went on to ask for the page's stylesheet or
+scripts. That keeps referrer spam out: a robot that sends a made-up site as the page that
+linked here, to be listed in reports like this one, asks for the page alone. Its page views are
+still in the table. A robot that runs a whole browser would be listed.
 The report reads the log for the days it holds and the kept counts for older days. It is the
 `factorial-usage` that `setup.sh` installed: run `setup.sh` again to install a newer one.
 

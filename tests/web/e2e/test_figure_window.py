@@ -110,7 +110,9 @@ def test_every_chart_has_a_button_that_opens_it_in_a_window_of_its_own(page):
     assert page.text_content("dialog.figure .figure__caption") == card.locator("figcaption").text_content()
     names = "(plot) => plot.data.map((trace) => trace.name)"
     assert (
-        page.locator("dialog.figure .plot").evaluate(names) == card.locator(".plot").evaluate(names) == ["T", "P", "F"]
+        page.locator("dialog.figure .plot").evaluate(names)
+        == card.locator(".plot").evaluate(names)
+        == ["Temperature", "Pressure", "Flow"]
     )
     assert page.locator("dialog.figure .plot").get_attribute("aria-label") == "Average result at each setting"
 
@@ -381,7 +383,9 @@ def test_a_chart_with_no_card_has_the_button_above_it(page):
     page.wait_for_function(SHOWN)
     assert page.text_content("#figure-title") == "Which terms these runs tell apart"
     code = page.locator("dialog.figure code").text_content()
-    assert 'compared = compare_designs({"runs": X[["T", "P", "F"]]})' in code, "from the runs of step 2"
+    assert 'compared = compare_designs({"runs": X[["Temperature", "Pressure", "Flow"]]})' in code, (
+        "from the runs of step 2"
+    )
     assert page.is_hidden("dialog.figure .figure__steps"), "the one chart on show: there is none to step to"
 
 
@@ -398,7 +402,7 @@ def test_a_figure_s_window_shows_the_python_that_draws_it(page):
     assert "result = generate_design(" in code
     assert "analysis = analyze_experiment(" in code
     assert '# The figure "Interaction of the two factors", as the library draws it' in code
-    assert 'plot_type="interaction",\n    factors_to_plot=["T", "P"],' in code
+    assert 'plot_type="interaction",\n    factors_to_plot=["Temperature", "Pressure"],' in code
     assert code.count("import plotly.graph_objects as go") == 1
     assert code.rstrip().endswith("figure.show()")
 
@@ -411,8 +415,8 @@ def test_a_figure_s_window_shows_the_python_that_draws_it(page):
 
 def test_a_surface_s_code_holds_the_others_at_the_best_settings_as_its_caption_says(page):
     expand(page, "contour")
-    assert "with F at 18.04 L/min, its best setting" in page.text_content("dialog.figure .figure__caption")
-    held = page.locator("dialog.figure code").text_content().split('hold_values={"F": ')[1].split("}")[0]
+    assert "with Flow at 18.04 L/min, its best setting" in page.text_content("dialog.figure .figure__caption")
+    held = page.locator("dialog.figure code").text_content().split('hold_values={"Flow": ')[1].split("}")[0]
     assert float(held) == pytest.approx((18.04 - 15) / 5, abs=1e-3), "18.04 L/min, in coded units"
 
 
@@ -430,7 +434,7 @@ def test_a_figure_the_page_draws_itself_shows_the_python_that_draws_it_too(page)
     code = page.locator("dialog.figure code").text_content()
     assert '# The figure "True response surface": the process the results were simulated from, with no noise' in code
     assert "truth = TrueProcess(" in code
-    assert 'points["F"] = ' in code, "held at the best settings, as the fitted surface beside it"
+    assert 'points["Flow"] = ' in code, "held at the best settings, as the fitted surface beside it"
     page.keyboard.press("Escape")
     page.click("#best-chart .expand")
     page.wait_for_function(SHOWN)

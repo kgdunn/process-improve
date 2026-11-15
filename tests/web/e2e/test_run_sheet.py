@@ -28,14 +28,14 @@ def test_the_runs_are_listed_in_the_order_to_make_them(page):
 
 
 def test_a_column_heading_sorts_the_sheet_up_then_down(page):
-    sort_by(page, "T")
+    sort_by(page, "Temperature")
     settings = [float(row[2]) for row in run_sheet(page)]
     assert settings == sorted(settings)
-    assert sorted_on(page)["T"] == "ascending"
+    assert sorted_on(page)["Temperature"] == "ascending"
     assert sorted_on(page)["Run order"] == "none"
-    sort_by(page, "T")
+    sort_by(page, "Temperature")
     assert [float(row[2]) for row in run_sheet(page)] == sorted(settings, reverse=True)
-    assert sorted_on(page)["T"] == "descending"
+    assert sorted_on(page)["Temperature"] == "descending"
 
 
 def test_runs_still_to_do_sort_last_either_way(page):
@@ -72,7 +72,7 @@ def test_the_run_sheet_downloads_as_csv_with_its_results(page):
     saved = caught.value
     assert saved.suggested_filename == "box_behnken-15-runs.csv"
     lines = Path(saved.path()).read_bytes().decode().split("\r\n")
-    assert lines[0] == "Std order,Run order,T,P,F,Yield"
+    assert lines[0] == "Std order,Run order,Temperature,Pressure,Flow,Yield"
     assert len(lines) == 17, "the headings, fifteen runs, and the last line's end"
     assert all(line.split(",")[-1] for line in lines[1:16]), "every run has its result"
     assert page.evaluate("window.__pi.calls.length") == asked, "Python is not asked"

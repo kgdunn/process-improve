@@ -680,9 +680,9 @@ DEMO: dict[str, Any] = {
     "design": {
         "design_type": "box_behnken",
         "factors": [
-            {"name": "T", "low": 150, "high": 200, "units": "degC"},
-            {"name": "P", "low": 1, "high": 3, "units": "bar"},
-            {"name": "F", "low": 10, "high": 20, "units": "L/min"},
+            {"name": "Temperature", "low": 150, "high": 200, "units": "degC"},
+            {"name": "Pressure", "low": 1, "high": 3, "units": "bar"},
+            {"name": "Flow", "low": 10, "high": 20, "units": "L/min"},
         ],
         "response": "Yield",
         "response_info": {

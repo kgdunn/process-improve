@@ -94,7 +94,7 @@ def test_the_coefficients_are_listed_most_significant_first_each_between_the_end
     assert [row[0] for row in coefficient_rows(page)][-1] == max(fitted, key=lambda c: c["p_value"])["label"]
     table.locator("thead button.sort", has_text="Term").click()
     by_name = [row[0] for row in coefficient_rows(page)]
-    assert by_name[:2] == ["F", "F²"], "any heading sorts by its own column, as in every table"
+    assert by_name[:2] == ["Flow", "Flow²"], "any heading sorts by its own column, as in every table"
     assert sorted(by_name) == sorted(row[0] for row in rows)
 
 
@@ -232,7 +232,7 @@ def test_choosing_a_model_analyses_the_results_again(page):
     choose(page, model="main_effects")
     settled(page)
     assert calls(page, "api_analyze_runs")[-1]["payload"]["model"] == "main_effects"
-    assert terms_fitted(page) == sorted(["Intercept", "T", "P", "F"])
+    assert terms_fitted(page) == sorted(["Intercept", "Temperature", "Pressure", "Flow"])
 
 
 def test_choosing_a_transform_analyses_the_response_on_its_scale_and_as_measured_again(page):
@@ -367,7 +367,10 @@ def test_a_design_that_cannot_fit_the_aim_is_analysed_as_designed(blank_page):
 # --------------------------------------------------------------------------- what the results say, and each run
 def test_learn_opens_on_what_the_results_say_in_sentences(page):
     findings = page.locator("#findings li").all_text_contents()
-    assert findings[0] == "T matters most: raising T from 150 to 200 degC raises Yield by 7.9 %, on average."
+    assert (
+        findings[0]
+        == "Temperature matters most: raising Temperature from 150 to 200 degC raises Yield by 7.9 %, on average."
+    )
     assert page.locator("#analysis h3").first.text_content() == "What the results say"
     assert page.locator("#findings").evaluate(
         "(list) => list.compareDocumentPosition(document.querySelector('#analysis .equation')) & 4"
@@ -402,14 +405,17 @@ def test_a_simpler_model_is_proposed_when_asked_and_fitted_when_accepted(page):
     page.wait_for_function("document.querySelector('#simplify-words').textContent.startsWith('The results support')")
     said = page.text_content("#simplify-words")
     assert said.startswith(
-        "The results support T, P, F, T·P and F², without T·F, P·F, T² and P². Adjusted R² would be "
+        "The results support Temperature, Pressure, Flow, Temperature·Pressure and Flow², "
+        "without Temperature·Flow, Pressure·Flow, Temperature² and Pressure². Adjusted R² would be "
     )
     assert len(coefficient_rows(page)) == 10, "the model is fitted as it was until the reader accepts"
     before = page.evaluate("window.__pi.count('api_analyze_runs')")
     page.click("#simplify-apply")
     page.wait_for_function(f"window.__pi.count('api_analyze_runs') > {before}")
     settled(page)
-    assert terms_fitted(page) == sorted(["Intercept", "T", "P", "F", "T·P", "F²"])
+    assert terms_fitted(page) == sorted(
+        ["Intercept", "Temperature", "Pressure", "Flow", "Temperature·Pressure", "Flow²"]
+    )
     assert page.text_content("#simplify-words") == "", "the proposal was of the analysis before"
     assert page.locator("#term-list input:checked").count() == 5, "ticked in the list, for the reader to change"
 
@@ -545,7 +551,7 @@ def test_a_model_of_terms_picked_from_its_results_says_so_until_the_reader_choos
     simplified(page)
     assert page.locator("#findings li").last.text_content().startswith(PICKED)
     assert calls(page, "api_analyze_runs")[-1]["payload"]["model"] == {
-        "terms": [["T"], ["P"], ["F"], ["T", "P"], ["F", "F"]]
+        "terms": [["Temperature"], ["Pressure"], ["Flow"], ["Temperature", "Pressure"], ["Flow", "Flow"]]
     }, "Python is asked for the terms: that they were picked is the page's to say"
     at = page.evaluate("[...document.querySelectorAll('#term-list input')].findLastIndex((box) => box.checked)")
     box = page.locator("#term-list input").nth(at)

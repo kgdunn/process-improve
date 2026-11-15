@@ -177,7 +177,7 @@ ALL_MIXTURES = ("simplex_lattice", "simplex_centroid", "extreme_vertices")
 #: Every process the page simulates results from; ``test_simulation`` checks it against ``SCENARIOS``.
 ALL_SCENARIOS = ("reactor", "main_effects", "interaction", "optimum", "nothing", "random")
 
-#: Three factors in their own units, as the worked example has them.
+#: Three factors in their own units: the worked example's ranges, under letters, for the studies a test makes.
 FACTORS = [
     {"name": "T", "low": 150, "high": 200, "units": "degC"},
     {"name": "P", "low": 1, "high": 3, "units": "bar"},

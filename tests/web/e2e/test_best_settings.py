@@ -72,11 +72,11 @@ def test_the_worked_example_says_where_to_run_its_process(page, first_paint):
         == f"These settings give the highest Yield the model predicts: {num(best['predicted'])}%."
     )
     assert headers(page, "#best-out table")[:3] == ["Factor", "Best setting", "Where it lies"]
-    f = next(s for s in best["settings"] if s["name"] == "F")
+    f = next(s for s in best["settings"] if s["name"] == "Flow")
     assert table_rows(page, "#best-out table.data:not(.known-table)") == [
-        ["T", "200 degC", "high end; a higher Yield may lie above"],
-        ["P", "1 bar", "low end; a higher Yield may lie below"],
-        ["F", f"{num(f['value'])} L/min", "inside its range, at its peak"],
+        ["Temperature", "200 degC", "high end; a higher Yield may lie above"],
+        ["Pressure", "1 bar", "low end; a higher Yield may lie below"],
+        ["Flow", f"{num(f['value'])} L/min", "inside its range, at its peak"],
     ]
     low, high = best["prediction"]
     known = table_rows(page, "#best-out .known-table")
@@ -89,7 +89,7 @@ def test_the_worked_example_says_where_to_run_its_process(page, first_paint):
     two = lambda h: f"{float(f'{h:.2g}'):g}"  # noqa: E731 - a leverage, as the page writes it
     assert known[2][1] == f"{two(best['leverage'])}, above the runs': {two(best['max_leverage'])} at most"
     text = page.text_content("#best-out")
-    assert "A next study could move the ranges along the steepest ascent: T up 25 degC, P down" in text
+    assert "A next study could move the ranges along the steepest ascent: Temperature up 25 degC, Pressure down" in text
     assert "These settings lie beyond the runs, so the prediction leans on the model there" in text
     assert page.locator("#best-out .warnings li").count() == 1, "a Box-Behnken design has no run at a corner"
     assert calls(page, "api_best_settings") == [], "the build found them, with the rest of the worked example"
@@ -113,7 +113,7 @@ def test_how_tightly_to_hold_each_factor_is_drawn_as_bars(page, first_paint):
     sensitivity = {s["name"]: s for s in first_paint["best"]["sensitivity"]}
     (down, names, lowered), (up, _, raised), (pale, *_) = traces
     assert (down, up, pale) == ("Lowered 5% of its range", "Raised 5% of its range", "Outside your ranges or limits")
-    assert names == ["T", "P", "F"], "the factor that moves the prediction most at the top"
+    assert names == ["Temperature", "Pressure", "Flow"], "the factor that moves the prediction most at the top"
     assert lowered == [sensitivity[n]["down"] for n in names]
     assert raised == [sensitivity[n]["up"] for n in names]
     assert page.is_hidden("#best-chart figcaption"), "its legend, its axis and its heading's definition say the rest"
@@ -121,12 +121,15 @@ def test_how_tightly_to_hold_each_factor_is_drawn_as_bars(page, first_paint):
 
 def test_a_star_marks_the_best_settings_on_the_surface_drawn_through_them(page, first_paint):
     best = first_paint["best"]
-    assert stars(page) == [[best["coded"]["T"], best["coded"]["P"]]] * 2, "on the fitted and the true surface"
+    assert stars(page) == [[best["coded"]["Temperature"], best["coded"]["Pressure"]]] * 2, (
+        "on the fitted and the true surface"
+    )
     caption = page.locator("#charts figure", has_text="Fitted response surface").locator("figcaption").text_content()
-    f = next(s for s in best["settings"] if s["name"] == "F")
+    f = next(s for s in best["settings"] if s["name"] == "Flow")
     assert caption == (
-        f"Drawn over T and P, the two factors with the largest main effects, with F at {num(f['value'])} L/min, its "
-        "best setting; the star marks the best settings; the dots are the runs."
+        "Drawn over Temperature and Pressure, the two factors with the largest main effects, "
+        f"with Flow at {num(f['value'])} L/min, its best setting; the star marks the best settings; "
+        "the dots are the runs."
     )
 
 
@@ -184,7 +187,7 @@ def test_confirmation_runs_added_while_practising_are_simulated_and_judged(page,
     assert headers(page)[-1] == "Confirmation run"
     at = first_paint["best"]["confirm_at"]
     rows = confirmation_rows(page)
-    assert [row[:5] for row in rows] == [["", str(order), "200", "1", num(at["F"])] for order in (16, 17, 18)]
+    assert [row[:5] for row in rows] == [["", str(order), "200", "1", num(at["Flow"])] for order in (16, 17, 18)]
     assert page.locator("#design-table input.sim").count() == 18, "their results simulated too"
     assert "15 completed runs" in page.text_content("#analysis"), "they do not enter the fit"
     assert page.text_content("#badge-run") == "15 of 15", "Run counts the designed runs; Learn judges these"

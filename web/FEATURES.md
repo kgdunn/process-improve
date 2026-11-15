@@ -546,7 +546,9 @@ Also:
   - *Details:* A link can open the form with a request written, as "Request it" does beside
     each design the app does not make yet. Nothing is sent until you press Send.
 - **A footer to scan.** What Factorial is in a sentence, a button to this list, links in named
-  groups, and what is kept on the device.
+  groups, what is kept on the device, and which version of the app you have.
+  - *Details:* The version is the commit the app was built from, as a link to it, and the day of
+    that commit. A report sent from Feedback names the same commit and day.
 
 ### Learn the method
 
@@ -557,6 +559,8 @@ Also:
   its idea in the concept map. The book opens in one tab beside the app, and a later link goes
   to that tab.
 - **The worked example.** It opens at once, and can be run again in the tab.
+  - *Details:* A reactor's yield, studied over Temperature, Pressure and Flow in the 15 runs
+    of a Box-Behnken design.
 - **Practice on a known process.** It shows the true model beside the fitted one.
 - **What Factorial does.** This list, as a page of the app. A point that ends with Show me
   opens the app on an example of it, at the part of the page that has it. Each of the 17

@@ -143,10 +143,14 @@ for mixture in bootstrap.MIXTURES:
 levels = [*abc[:2], {"name": "Catalyst", "type": "categorical", "levels": ["X", "Y", "Z"]}]
 call("api_make_design", {"design_type": "full_factorial", "factors": levels})
 call("api_make_design", {"design_type": "full_factorial", "factors": abc, "n_blocks": 2})
-limits = [{"expression": "T + 25*P <= 215"}, {"expression": "400 <= 3*T + 5*P <= 600"}]
+limits = [
+    {"expression": "Temperature + 25*Pressure <= 215"},
+    {"expression": "400 <= 3*Temperature + 5*Pressure <= 600"},
+]
 call("api_limits", {"factors": factors, "constraints": limits})
 limited = held(call("api_make_design", {"design_type": "d_optimal", "factors": factors, "constraints": limits}))
-call("api_outside_limits", {"spec": limited["spec"], "settings": {"T": 200, "P": 3, "F": 20}})
+at_the_ends = {"Temperature": 200, "Pressure": 3, "Flow": 20}
+call("api_outside_limits", {"spec": limited["spec"], "settings": at_the_ends})
 call("api_candidates", {"factors": factors, "model": "main_quadratic", "search": True})
 call("api_candidates", {"factors": factors, "model": "interactions", "constraints": limits})
 plan = call("api_compare_plan", {"factors": factors})

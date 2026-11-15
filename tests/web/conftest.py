@@ -22,7 +22,7 @@ import pytest
 from process_improve.experiments import design_catalog
 from tests.web._browser import REPORTS, launch
 from tests.web._build import build
-from tests.web._support import BUILD_SCRIPT, REPRODUCTION_SAMPLE, WEB, Api, held_of, load_module, no_bytecode
+from tests.web._support import BUILD_SCRIPT, FACTORS, REPRODUCTION_SAMPLE, WEB, Api, held_of, load_module, no_bytecode
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -108,9 +108,11 @@ def worked_example(api: Api) -> dict[str, Any]:
     """Run the worked example as the page runs it live: its inputs, its design, and its simulated results.
 
     Shared by every test of the session: read it through the ``demo``, ``design``, ``held`` and
-    ``simulated`` fixtures, which copy it.
+    ``simulated`` fixtures, which copy it. The tests name its factors by letter (``FACTORS``), where the page
+    names them in full: a name is a label, so the runs, the results and every number are the page's.
     """
     demo = api.ok("api_catalogue")["demo"]
+    demo["design"]["factors"] = copy.deepcopy(FACTORS)
     design = api.ok("api_make_design", demo["design"])
     held = held_of(design)
     simulated = api.ok(

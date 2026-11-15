@@ -342,6 +342,26 @@ def commit() -> str | None:
     return head.stdout.strip() or None
 
 
+def committed(sha: str | None) -> str | None:
+    """Give the day the commit ``sha`` was made, as ``2026-11-13``, if git can tell.
+
+    The page dates its version by it.
+    """
+    git = shutil.which("git")
+    if sha is None or git is None:
+        return None
+    shown = subprocess.run(  # noqa: S603
+        [git, "show", "-s", "--format=%cs", sha],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        encoding="utf-8",
+    )
+    day = shown.stdout.strip()
+    return day if re.fullmatch(r"\d{4}-\d{2}-\d{2}", day) else None
+
+
 @functools.cache
 def load_bootstrap() -> ModuleType:
     """Load ``web/bootstrap.py`` from its file, as ``web/worker.js`` loads it into Pyodide."""
@@ -2098,6 +2118,7 @@ def assemble(out_dir: Path, dist: Path = ROOT / "dist" / "web", *, service_worke
         "bytecode": python if all(compiled) else None,  # the Python the app's own modules are compiled for
         "service_worker": service_worker,
         "commit": commit(),
+        "committed": committed(commit()),
         "plotly": version("plotly"),
         "plotly_js": get_plotlyjs_version(),
         "on_demand": exact_files(on_demand_pins(version("plotly")), python),

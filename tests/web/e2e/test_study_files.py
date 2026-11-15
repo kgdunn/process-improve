@@ -32,7 +32,10 @@ def two_studies(page) -> list[str]:
     practise(page)
     saved_studies(page, lambda saved: len(saved) == 2 and all(any(s["responses"]) for s in saved))
     page.wait_for_function("document.querySelector('#library-count').textContent === '2'")
-    return [f"{YIELD}Full factorial (2-level) in T, P and F", f"{YIELD}Central composite (CCD) in T, P and F"]
+    return [
+        f"{YIELD}Full factorial (2-level) in Temperature, Pressure and Flow",
+        f"{YIELD}Central composite (CCD) in Temperature, Pressure and Flow",
+    ]
 
 
 def downloaded(page, click: str, tmp_path: Path) -> tuple[str, dict]:
@@ -115,7 +118,7 @@ def test_a_study_s_own_file_opens_it_on_the_page_in_another_browser(page, open_c
     with page.expect_download() as download:
         button.click()
     name = download.value.suggested_filename
-    assert name == "yield-maximise-full-factorial-2-level-in-t-p-and-f.factorial.json"
+    assert name == "yield-maximise-full-factorial-2-level-in-temperature.factorial.json"
     download.value.save_as(tmp_path / name)
     other = opened_page(open_context, site)
     other.click("#library summary")
@@ -155,12 +158,12 @@ def test_share_hands_the_study_s_file_to_the_share_sheet(open_context, site):
     practise(page)
     page.wait_for_function("document.querySelector('#library-count').textContent === '1'")
     page.click("#library summary")
-    title = f"{YIELD}Full factorial (2-level) in T, P and F"
+    title = f"{YIELD}Full factorial (2-level) in Temperature, Pressure and Flow"
     page.get_by_role("button", name=f"Share {title}").click()
     page.wait_for_function("window.__shared")
     shared = page.evaluate("window.__shared")
     assert shared["title"] == title
-    assert shared["name"] == "yield-maximise-full-factorial-2-level-in-t-p-and-f.factorial.json"
+    assert shared["name"] == "yield-maximise-full-factorial-2-level-in-temperature.factorial.json"
     assert [s["study"]["title"] for s in json.loads(shared["text"])["studies"]] == [title]
 
 

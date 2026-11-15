@@ -522,6 +522,7 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 .foot__actions button { padding: 4px 10px; font-size: inherit; }
 /* What removing the copy does, under the button that removes it: shown in the states that offer that button. */
 .foot__note { font-size: 0.85em; }
+.foot__version { margin: 18px 0 0; color: var(--muted); font-size: 0.85rem; }
 #offline:not([data-state="opens"], [data-state="whole"], [data-state="failed"]) .foot__note { display: none; }
 
 /* New study and the worked example: buttons in the header, and a banner while the worked example is

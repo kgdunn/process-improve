@@ -38,6 +38,15 @@ def marks(page) -> dict:
     return page.evaluate(MARKS)
 
 
+def marks_run(run: int) -> str:
+    """Return the page's test that the charts mark ``run``, and not a run the pointer was over before it moved.
+
+    A press on a step's tab leaves the pointer there. When the page then scrolls, a row of a table can come under
+    it and be marked for a moment, before the pointer moves to the row a test rests it on.
+    """
+    return f"({MARKS})().residuals === {run}"
+
+
 def marked_rows(page) -> dict[str, list[str]]:
     """Return the runs of the rows marked in the run sheet and in the table of each run."""
     rows = "(rows) => rows.map((row) => row.dataset.run)"
@@ -161,7 +170,7 @@ def test_a_row_of_the_run_sheet_marks_its_run_on_the_charts(page):
     row = page.locator("#design-table tbody tr").nth(5)
     run = int(row.get_attribute("data-run"))
     rest_on(page, row.locator("td").first)
-    page.wait_for_function(MARKED)
+    page.wait_for_function(marks_run(run))
     assert marks(page) == dict.fromkeys(["contour", "true_contour", "residuals"], run), "on the charts drawn so far"
     assert marked_rows(page)["sheet"] == [str(run)]
     page.mouse.move(2, 2)
