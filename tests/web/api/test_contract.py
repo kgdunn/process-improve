@@ -330,6 +330,73 @@ READS: dict[str, list[str]] = {
         "more_responses{}.[]: number?",
         "more_sources{}.[]: str?",
     ],
+    "trade-offs": [
+        "candidates.settings{}.[]: number",
+        "candidates.responses{}.[]: number?",
+        "candidates.d[]: number",
+        "candidates.far[]: int",
+        "held: list",
+        "alternatives: list",
+        "asked.drawn: int",
+        "asked.seed: int",
+    ],
+    "trade-offs with other settings as good": [
+        "alternatives[].settings{}: any",
+        "alternatives[].responses{}: number?",
+        "alternatives[].d{}: number",
+        "alternatives[].composite: number",
+        "held[].name: str",
+        "held[].value: str",
+    ],
+    "settings for targets": [
+        "responses[].name: str",
+        "responses[].label: str",
+        "responses[].units: str",
+        "responses[].target: number",
+        "responses[].predicted: number",
+        "responses[].prediction[]: number",
+        "reached: bool",
+        "settings[].name: str",
+        "settings[].kind: str",
+        "settings[].value: any",
+        "leverage: number",
+        "max_leverage: number",
+        "leverage_of: str",
+        "extrapolating: bool",
+        "share: number",
+        "tried: int",
+        "near: number",
+        "confirm_at{}: any",
+        "overlay.x: str",
+        "overlay.y: str",
+        "overlay.grid[]: number",
+        "overlay.ticks{}.tickvals[]: number",
+        "overlay.ticks{}.ticktext[]: str",
+        "overlay.responses[].name: str",
+        "overlay.responses[].z[].[]: number",
+        "overlay.responses[].levels[]: number",
+        "overlay.acceptable: list?",
+        "overlay.runnable: list?",
+        "overlay.runs[].[]: number",
+        "overlay.at[]: number",
+        "overlay.held[].name: str",
+        "overlay.held[].value: any",
+        "search.held: dict",
+        "search.formulas{}: str",
+        "search.targets{}: number",
+        "search.reach{}: number",
+        "search.drawn: int",
+        "search.seed: int",
+    ],
+    "one factor solved for": [
+        "response: str",
+        "factor: str",
+        "target: number",
+        "solutions[].value: number",
+        "solutions[].interval[]: number?",
+        "nearest.value: number",
+        "nearest.predicted: number",
+    ],
     "balance": [
         "balanced: bool",
         "aimed[]: str",
@@ -605,6 +672,10 @@ READS: dict[str, list[str]] = {
         "result.values{}.power_quadratic: number?",
         "result.fds{}.fraction[]: number",
         "result.fds{}.variance[]: number",
+        "result.fds_asked.model: str",
+        "result.fds_asked.n_samples: number",
+        "result.fds_asked.fds_resolution: number",
+        "result.fds_asked.random_state: number",
         "result.correlations{}.terms[]: str",
         "result.correlations{}.matrix[].[]: number?",
     ],
@@ -843,6 +914,10 @@ ENTRY_POINTS = {
     "upload with kept settings": "api_read_workbook",
     "relabel of several responses": "api_relabel",
     "balance": "api_balance",
+    "trade-offs": "api_trade_offs",
+    "trade-offs with other settings as good": "api_trade_offs",
+    "settings for targets": "api_target_settings",
+    "one factor solved for": "api_solve_for",
     "balance confirmed": "api_balance",
     "nothing to balance": "api_balance",
     "mixture design": "api_make_design",
@@ -932,6 +1007,10 @@ def values_at(result: dict, path: str) -> list[Any]:
 THREE_DESIGN = {"design_type": "box_behnken", "factors": FACTORS, "responses": THREE}
 
 
+#: What the page asks to solve one factor from the others: T, for the yield to be 62%, with P and F where they are.
+SOLVED_FOR = {"response": "Yield", "target": 62.0, "factor": "T", "settings": {"P": 2, "F": 15}}
+
+
 def several_responses(api) -> dict[str, Callable[[], dict]]:
     """Return the requests about a study of three responses: its design, its simulation, its workbook and a renaming."""
 
@@ -954,6 +1033,26 @@ def several_responses(api) -> dict[str, Callable[[], dict]]:
         design, sim = simulated()
         results = {"responses": sim["responses"], "more_responses": {n: m["responses"] for n, m in sim["more"].items()}}
         return {**design, **results, "models": {"Cost": "interactions"}, "goals": {"Yield": {"importance": 4}}}
+
+    def traded() -> dict:
+        sent = balanced()
+        return {**sent, "at": api.ok("api_balance", sent)["coded"]}
+
+    def traded_twice() -> dict:
+        """Two responses whose balance has two bests, far apart and nearly as good, with a supplier held at a level."""
+        factors = [*FACTORS[:2], {"name": "S", "low": "A", "high": "B", "units": ""}]
+        responses = [THREE[0], THREE[1]]
+        made = api.ok("api_make_design", {"design_type": "full_factorial", "factors": factors, "responses": responses})
+        design = {key: made[key] for key in ("spec", "columns", "rows")}
+        at = [dict(zip(design["columns"], row, strict=True)) for row in design["rows"]]
+        t, p = [(r["T"] - 175) / 25 for r in at], [r["P"] - 2 for r in at]
+        results = {
+            "responses": [60 + 5 * a * b for a, b in zip(t, p, strict=True)],
+            "more_responses": {"Cost": [20 + 0.2 * a + 0.2 * b for a, b in zip(t, p, strict=True)]},
+        }
+        sent = {**design, **results, "models": {"Yield": "interactions", "Cost": "interactions"}}
+        sent["goals"] = {"Cost": {"high": 30.0}}
+        return {**sent, "at": api.ok("api_balance", sent)["coded"]}
 
     def confirmed() -> dict:
         sent = balanced()
@@ -981,6 +1080,10 @@ def several_responses(api) -> dict[str, Callable[[], dict]]:
         "upload of several responses": uploaded,
         "relabel of several responses": relabelled,
         "balance": balanced,
+        "trade-offs": traded,
+        "trade-offs with other settings as good": traded_twice,
+        "settings for targets": lambda: {**balanced(), "targets": {"Yield": 62.0, "Cost": 60.0}},
+        "one factor solved for": lambda: {**balanced(), **SOLVED_FOR},
         "balance confirmed": confirmed,
         "nothing to balance": learning,
     }

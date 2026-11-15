@@ -6441,6 +6441,8 @@ def compare(request: dict) -> dict:
             )["fds"]["curve"]
         fds[sized] = {"fraction": curve["fraction"], "variance": curve["prediction_variance"]}
     result["fds"] = fds
+    # What each curve was asked of the library with, for the code the page shows of the figure.
+    result["fds_asked"] = {"model": formula, "n_samples": FDS_SAMPLES, "fds_resolution": FDS_POINTS, "random_state": 1}
     return result
 
 
@@ -7466,6 +7468,18 @@ class _FittedModel:
             return x @ self.beta, None
         return x @ self.beta, self.t * np.sqrt(self.mse * np.einsum("ij,jk,ik->i", x, self.inverse, x))
 
+    def over(self, point: dict[str, float], names: list[str], settings: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Return the prediction and the leverage at each row of ``settings``, the other columns as at ``point``.
+
+        ``settings`` holds coded settings of the columns ``names``, a row each.
+        """
+        if self.spec is not None:
+            point = {**point, **_held_columns(point, self.spec)}
+        frame = pd.DataFrame({name: np.full(len(settings), float(point[name])) for name in self.names})
+        frame[names] = settings
+        x = _model_matrix(frame, self.terms, self.names)
+        return x @ self.beta, np.einsum("ij,jk,ik->i", x, self.inverse, x)
+
     def average_of(self, point: dict[str, float], runs: int) -> list[float] | None:
         """Return the prediction interval for the average of ``runs`` new runs at a point; None without error left."""
         if self.mse is None or self.t is None:
@@ -8335,38 +8349,16 @@ def balance(request: dict) -> dict:
     more. A mixture's responses are balanced over its blends, each fitted with its Scheffé model (see
     :func:`_balanced_blend`).
     """
-    whole = _checked_spec(request.get("spec") or {})
+    whole, every_run, aimed, fits, goals = _balance_fits(request)
     transforms = whole.get("analysis_transforms") or {}
-    # Each transformed response is balanced on its model's scale, its range's ends put there (see _scaled_range).
-    every_run, whole = _on_model_scale(_runs_frame(request, whole), whole)
-    design = _design_runs(every_run)
-    aimed = [r for r in _responses(whole) if r.get("goal") in AIMED and (r["goal"] != "target" or "target" in r)]
     if len(aimed) < 2:  # two responses or more are balanced
         return {"balanced": False, "aimed": [r["name"] for r in aimed]}
-    mixture = _mixture(whole)
-    names = [f["name"] for f in whole["factors"]]
-    categorical = _categorical_names(whole)
-    raw_goals = request.get("goals") or {}
-    raw_models = request.get("models") or {}
-    if not isinstance(raw_goals, dict) or not isinstance(raw_models, dict):
-        raise ValueError("The page sent goals for the responses this page did not write.")  # noqa: TRY004
-    fits: dict[str, _FittedModel] = {}
-    goals: list[dict[str, Any]] = []
-    for r in aimed:
-        spec = _for_response(whole, r["name"])
-        model = raw_models.get(r["name"]) or spec["model"]
-        model = _mixture_model(model) if mixture else _checked_model(model, names, categorical)
-        results = pd.to_numeric(design[r["name"]], errors="coerce").dropna()
-        if results.empty:
-            raise ValueError(f"Enter results for {_words(r)} first: the balance is found on each response's model.")
-        fits[r["name"]] = _blend_fit(design, spec, model) if mixture else _fitted(design, spec, model)
-        goals.append(_balance_goal(r, results, _scaled_range(raw_goals.get(r["name"]), r, transforms.get(r["name"]))))
-    if mixture:
+    if _mixture(whole):
         return _balanced_blend(every_run, whole, aimed, fits, goals)
     region = _spec_region(whole)
     found = _balance_search(fits, goals, whole, region)
     point = _full_point(whole, found["x"], found["levels"])
-    in_model = set().union(*(_factors_in(fit.out["coefficients"], spec) for fit in fits.values()))
+    in_model = set().union(*(_factors_in(fit.out["coefficients"], whole) for fit in fits.values()))
     numeric = [f for f in whole["factors"] if not _categorical(f)]
     still = np.zeros(len(numeric))  # no way to move from the balanced settings is said, so no end has a "beyond"
     reply = {
@@ -8383,6 +8375,542 @@ def balance(request: dict) -> dict:
         },
     }
     return _balance_put_back(reply, transforms)
+
+
+def _balance_fits(
+    request: dict,
+) -> tuple[dict[str, Any], pd.DataFrame, list[dict], dict[str, _FittedModel], list[dict[str, Any]]]:
+    """Return what a balance is found on: the study, its runs, the responses with a goal, their fits and their goals.
+
+    The study and its runs are on each model's scale (see :func:`_on_model_scale`). With fewer than two
+    responses with a goal there is nothing to balance, and no fit or goal is made.
+    """
+    whole = _checked_spec(request.get("spec") or {})
+    transforms = whole.get("analysis_transforms") or {}
+    # Each transformed response is balanced on its model's scale, its range's ends put there (see _scaled_range).
+    every_run, whole = _on_model_scale(_runs_frame(request, whole), whole)
+    design = _design_runs(every_run)
+    aimed = [r for r in _responses(whole) if r.get("goal") in AIMED and (r["goal"] != "target" or "target" in r)]
+    fits: dict[str, _FittedModel] = {}
+    goals: list[dict[str, Any]] = []
+    if len(aimed) < 2:  # two responses or more are balanced
+        return whole, every_run, aimed, fits, goals
+    mixture = _mixture(whole)
+    names = [f["name"] for f in whole["factors"]]
+    categorical = _categorical_names(whole)
+    raw_goals = request.get("goals") or {}
+    raw_models = request.get("models") or {}
+    if not isinstance(raw_goals, dict) or not isinstance(raw_models, dict):
+        raise ValueError("The page sent goals for the responses this page did not write.")  # noqa: TRY004
+    for r in aimed:
+        spec = _for_response(whole, r["name"])
+        model = raw_models.get(r["name"]) or spec["model"]
+        model = _mixture_model(model) if mixture else _checked_model(model, names, categorical)
+        results = pd.to_numeric(design[r["name"]], errors="coerce").dropna()
+        if results.empty:
+            raise ValueError(f"Enter results for {_words(r)} first: the balance is found on each response's model.")
+        fits[r["name"]] = _blend_fit(design, spec, model) if mixture else _fitted(design, spec, model)
+        goals.append(_balance_goal(r, results, _scaled_range(raw_goals.get(r["name"]), r, transforms.get(r["name"]))))
+    return whole, every_run, aimed, fits, goals
+
+
+#: The trade-off chart of a balance: how many candidate settings are drawn, evenly, from the factors' ranges (those
+#: the limits rule out are then left out), the seed they are drawn with, how many other settings nearly as good as
+#: the balanced ones the search may report, and how far, coded, such settings lie from the balanced ones at least.
+TRADE_OFF_DRAWN = 2000
+TRADE_OFF_SEED = 1
+TRADE_OFF_ALTERNATIVES = 3
+TRADE_OFF_APART = 0.5
+
+
+def trade_offs(request: dict) -> dict:
+    """Return what the trade-off chart of a balance draws: candidate settings, each response there, and alternatives.
+
+    The request is the balance's (see :func:`balance`), with ``at``: the balanced settings it found, every
+    factor coded, as its reply's ``coded``. The candidates are :data:`TRADE_OFF_DRAWN` settings of the numeric
+    factors drawn evenly from their ranges, without those the limits on the settings rule out; each categorical
+    factor is at the balanced settings' level (``held``), and each block at the average block. ``candidates``
+    holds, a list each, in the candidates' order: every numeric factor's setting in its own units
+    (``settings``), every balanced response's prediction (``responses``, in its units), the overall
+    desirability ``d``, and ``far``, 1 where some response's model predicts further from its runs than any
+    run lies (its leverage above the runs' largest): a guess, as the page draws it.
+
+    ``alternatives`` are other settings nearly as good as the balanced ones, and at least
+    :data:`TRADE_OFF_APART` coded units from them and from each other: optima the library's search found
+    from other starts (``optimize_responses`` with ``n_alternatives``), each with its settings, each
+    response's prediction and desirability there, and its overall desirability. ``asked`` is what the
+    candidates were drawn with, for the code the page shows.
+
+    shortcut: the candidates keep each categorical factor at the balanced level; draw them at every level once
+    a study's trade-off between levels is asked for.
+    """
+    from process_improve.experiments import optimize_responses  # noqa: PLC0415 - loaded when a balance is asked for
+
+    spec, _, aimed, fits, goals = _balance_fits(request)
+    numeric = [f for f in spec["factors"] if not _categorical(f)]
+    if len(aimed) < 2 or _mixture(spec) or not numeric:
+        raise ValueError("The trade-offs are drawn for two responses or more with a goal, over factors with ranges.")
+    point = _point_sent(request.get("at"), spec)
+    names = [f["name"] for f in numeric]
+    transforms = spec.get("analysis_transforms") or {}
+    region = _spec_region(spec)
+    coefficients, blocks = _searched_models(fits, spec)
+    levels = {f["name"]: point[f["name"]] for f in spec["factors"] if _categorical(f)}
+    held = {**blocks, **_held_columns(levels, spec)}
+    models = {name: _held_at(c, held) for name, c in coefficients.items()}
+    tried = np.random.default_rng(TRADE_OFF_SEED).uniform(-1.0, 1.0, size=(TRADE_OFF_DRAWN, len(numeric)))
+    if region is not None:
+        tried = tried[region.feasible(tried[:, [names.index(n) for n in region.names]])]
+    far = np.zeros(len(tried), dtype=bool)
+    for fit in fits.values():
+        far |= fit.over(point, names, tried)[1] > fit.max_leverage * (1 + 1e-9) + 1e-12
+    with _listening():
+        found = optimize_responses(
+            [{"response_name": n, "coefficients": m, "factor_names": names} for n, m in models.items()],
+            goals=[_desirability_of(g) for g in goals],
+            factor_ranges={f["name"]: {"low": f["low"], "high": f["high"]} for f in numeric},
+            region=region,
+            n_alternatives=TRADE_OFF_ALTERNATIVES,
+        )["desirability"]
+    balanced = np.array([point[n] for n in names])
+    in_model = set().union(*(_factors_in(fit.out["coefficients"], spec) for fit in fits.values()))
+    others = []
+    for other in [
+        found,
+        *found.get("alternatives", []),
+    ]:  # the search's own best is another choice when it is elsewhere
+        # A factor in no model changes nothing, so a search stops anywhere along it: it is at the center here, as
+        # at the balanced settings, and settings that differ in it alone are not other settings.
+        x = _unmodelled_at_centre(np.array([other["optimal_coded"][n] for n in names]), names, in_model, region)
+        if all(float(np.linalg.norm(x - seen)) >= TRADE_OFF_APART for seen in [balanced, *(o["x"] for o in others)]):
+            others.append({"x": x, **other})
+
+    def in_its_units(name: str, values: Any) -> list:  # noqa: ANN401 - numbers, on the model's scale
+        return _put_back(_figures(np.asarray(values, dtype=float)), transforms.get(name))
+
+    return {
+        "candidates": {
+            "settings": {
+                f["name"]: _figures((f["low"] + f["high"]) / 2 + tried[:, i] * (f["high"] - f["low"]) / 2)
+                for i, f in enumerate(numeric)
+            },
+            "responses": {
+                g["response"]: in_its_units(g["response"], _predict(models[g["response"]], names, tried)) for g in goals
+            },
+            "d": _figures(_overall(models, goals, names, tried)),
+            "far": far.astype(int).tolist(),
+        },
+        "held": [
+            {"name": f["name"], "value": _level_at(f, point[f["name"]])} for f in spec["factors"] if _categorical(f)
+        ],
+        "alternatives": [
+            {
+                "settings": {f["name"]: _in_units(f, float(o["x"][i])) for i, f in enumerate(numeric)},
+                "responses": {n: _put_back(float(v), transforms.get(n)) for n, v in o["predicted_responses"].items()},
+                "d": {n: float(v) for n, v in o["individual_desirability"].items()},
+                "composite": float(o["composite_desirability"]),
+            }
+            for o in others
+        ],
+        "asked": {"drawn": TRADE_OFF_DRAWN, "seed": TRADE_OFF_SEED},
+    }
+
+
+def _point_sent(raw: object, spec: dict) -> dict[str, float]:
+    """Return the balanced settings the page sends back, every factor coded, refusing what the page did not write."""
+    names = {f["name"] for f in spec["factors"]}
+    if not isinstance(raw, dict) or set(raw) != names:
+        raise ValueError("The page sent balanced settings this page did not write.")
+    point = {name: _number(value) for name, value in raw.items()}
+    if any(value is None or not -1 - AT_EDGE <= value <= 1 + AT_EDGE for value in point.values()):
+        raise ValueError("The page sent balanced settings this page did not write.")
+    return {name: float(value) for name, value in point.items()}  # type: ignore[arg-type]
+
+
+#: Settings for a target: how many settings are tried, drawn evenly from the factors' ranges (those the limits rule
+#: out are then left out), over every combination of the categorical factors' levels up to this many; the seed they
+#: are drawn with; how near its target a response must be predicted for settings to give it, as a share of the
+#: range of its results; and how many settings of one factor a response is followed over to find where it meets a
+#: target.
+TARGET_DRAWN = 20_000
+TARGET_LEVELS = 12
+TARGET_SEED = 1
+TARGET_NEAR = 0.02
+SOLVE_POINTS = 401
+
+#: How near its target a prediction counts as on it when one factor is solved for, as a share of the larger of the
+#: target and the range of the predictions: what rounding leaves.
+SOLVE_ON = 1e-9
+
+
+def target_settings(request: dict) -> dict:
+    """Find the settings at which each response named is predicted at its target: the models run backwards.
+
+    ``targets`` holds a target for each response to reach, by its column, in the response's units; each
+    is fitted with its own model (``models``, by its column; the design's without one) to the runs that
+    have its result. :data:`TARGET_DRAWN` settings are drawn evenly from the numeric factors' ranges,
+    without those the limits on the settings rule out, at each combination of the categorical factors'
+    levels, and every response is predicted at each. Settings give the targets when each response is
+    predicted within :data:`TARGET_NEAR` of the range of its results from its target. Of the settings that
+    do, the answer is the one nearest the centre of the ranges, which is where the runs of most designs
+    are gathered; when none does, it is the one whose predictions miss by least. From there a
+    least-squares step moves the numeric factors to meet the targets exactly where the models can, staying
+    by that setting and inside the ranges. It is kept when the limits allow where it ends and no response
+    within reach of its target is moved out of it. A numeric factor in no response's model is at its centre.
+
+    The reply lists each response's target, its prediction at the answer with its 95% intervals and
+    whether it is within reach of its target (``given``); whether every one is (``reached``); the settings,
+    coded and in their own units, with ``confirm_at`` rounded for the plant; the leverage there against the
+    runs' for the model that leans furthest; ``share``, the part of the settings tried that give the targets;
+    the ``overlay`` over two factors (``pair``, when the reader chose them) of the line along which each
+    response is predicted at its target, the others at the answer, with the design's runs marked (see
+    :func:`_target_overlay`); and ``search``, what the code the page shows needs.
+    """
+    from scipy import optimize  # noqa: PLC0415 - scipy is loaded with the library
+
+    whole = _checked_spec(request.get("spec") or {})
+    if _mixture(whole):
+        raise ValueError("The blend that gives a target is not found on this page yet: set it under What if.")
+    transforms = whole.get("analysis_transforms") or {}
+    every_run, whole = _on_model_scale(_runs_frame(request, whole), whole)
+    design = _design_runs(every_run)
+    numeric = [f for f in whole["factors"] if not _categorical(f)]
+    if not numeric:
+        raise ValueError("A target is met by moving a factor with a range, and this study has none.")
+    names = [f["name"] for f in numeric]
+    targets = _targets_sent(request.get("targets"), whole, transforms)
+    fits, near = _target_fits(request, whole, design, list(targets))
+    region = _spec_region(whole)
+    rng = np.random.default_rng(TARGET_SEED)
+    combinations = _level_combinations(whole)
+    drawn = rng.uniform(-1.0, 1.0, size=(TARGET_DRAWN // len(combinations), len(numeric)))
+    if region is not None:
+        drawn = drawn[region.feasible(drawn[:, [names.index(n) for n in region.names]])]
+    if not len(drawn):
+        raise ValueError("The limits on the settings leave no setting to try.")
+
+    def missed(levels: dict[str, float], settings: np.ndarray) -> np.ndarray:
+        """Return how far each response is predicted from its target at each setting, in units of its reach."""
+        point = {**dict.fromkeys(names, 0.0), **levels}
+        return np.column_stack([(fits[n].over(point, names, settings)[0] - targets[n]) / near[n] for n in targets])
+
+    best, giving = _start_of_those_tried(drawn, combinations, missed)
+    start, levels = best["x"], best["levels"]
+    # Meet the targets exactly where the models can, staying by the setting found: a small pull keeps it there.
+    stay = math.sqrt(1e-4)
+    polished = optimize.least_squares(
+        lambda x: np.concatenate([missed(levels, x[None, :])[0], stay * (x - start)]), start, bounds=(-1.0, 1.0)
+    ).x
+    allowed = region is None or bool(region.feasible(polished[None, [names.index(n) for n in region.names]])[0])
+    after = missed(levels, polished[None, :])[0]
+    # The step lowers the misses taken together, which can push one response out of reach to bring the others
+    # nearer: settings that give every target are left only for settings that give them all too.
+    closer = float((after**2).sum()) <= best["miss"] + 1e-12 and (not best["given"] or np.abs(after).max() <= 1.0)
+    in_model = set().union(*(_factors_in(fit.out["coefficients"], whole) for fit in fits.values()))
+    x = _unmodelled_at_centre(polished if allowed and closer else start, names, in_model, region)
+    point = _full_point(whole, x, levels)
+    responses = _targets_at(whole, targets, near, fits, point)
+    leaning = max(responses, key=lambda r: r["leverage"] / r["max_leverage"] if r["max_leverage"] else 0.0)
+    coefficients, blocks = _searched_models(fits, whole)
+    held = {**blocks, **_held_columns(levels, whole)}
+    goals = [
+        {"response": n, "goal": "target", "target": t, "low": t - near[n], "high": t + near[n]}
+        for n, t in targets.items()
+    ]
+    surfaces = {"models": {n: _held_at(c, held) for n, c in coefficients.items()}, "x": x, "levels": levels}
+    reply = {
+        "responses": responses,
+        "reached": all(r["given"] for r in responses),
+        "coded": point,
+        "settings": _settings_reply(whole, point, in_model, np.zeros(len(numeric)), 1.0),
+        "confirm_at": _practical(whole, point, region),
+        "leverage": leaning["leverage"],
+        "max_leverage": leaning["max_leverage"],
+        "leverage_of": leaning["name"],
+        "extrapolating": any(r["extrapolating"] for r in responses),
+        "share": giving / (len(drawn) * len(combinations)),
+        "tried": len(drawn) * len(combinations),
+        "near": TARGET_NEAR,
+        "overlay": _target_overlay(whole, surfaces, goals, region, _pair_sent(request.get("pair"), names), design),
+        "search": {
+            "held": _used(held, [c for fit in fits.values() for c in fit.out["coefficients"]]),
+            "formulas": {n: fit.formula for n, fit in fits.items()},
+            "targets": targets,
+            "reach": near,
+            "drawn": TARGET_DRAWN // len(combinations),
+            "seed": TARGET_SEED,
+        },
+    }
+    return _targets_put_back(reply, transforms)
+
+
+def _target_overlay(
+    spec: dict,
+    found: dict,
+    goals: list[dict],
+    region: DesignRegion | None,
+    pair: list[str] | None,
+    design: pd.DataFrame,
+) -> dict[str, Any] | None:
+    """Return each response's surface over two factors with the line of its target, and the design's runs marked.
+
+    It is :func:`_overlay`'s, the other factors at the settings found, but each response has one level drawn, its
+    target: every setting on that line gives the target, and where the responses' lines cross, the settings give
+    them all. A response's reach is thinner than the grid, so nothing is shaded (``acceptable`` is None). ``runs``
+    adds where the design's runs lie over the two factors, coded, each place once, whatever their other settings.
+    """
+    overlay = _overlay(spec, found, goals, region, pair)
+    if overlay is None:
+        return None
+    targets = {goal["response"]: goal["target"] for goal in goals}
+    overlay = {
+        **overlay,
+        "responses": [{**surface, "levels": [targets[surface["name"]]]} for surface in overlay["responses"]],
+        "acceptable": None,
+    }
+    factors = {f["name"]: f for f in spec["factors"]}
+    coded = [
+        (design[n].to_numpy(dtype=float) - (factors[n]["low"] + factors[n]["high"]) / 2)
+        / ((factors[n]["high"] - factors[n]["low"]) / 2)
+        for n in (overlay["x"], overlay["y"])
+    ]
+    return {**overlay, "runs": np.unique(np.column_stack(coded).round(6), axis=0).tolist()}
+
+
+def _start_of_those_tried(
+    drawn: np.ndarray,
+    combinations: list[dict[str, float]],
+    missed: Callable[[dict[str, float], np.ndarray], np.ndarray],
+) -> tuple[dict[str, Any], int]:
+    """Return the setting to start from, of those tried at each combination of levels, and how many give the targets.
+
+    Of the settings that give the targets, it is the nearest the centre of the ranges; with none, the one whose
+    predictions miss by least. ``missed`` gives how far each response is predicted from its target at each
+    setting, in units of its reach: settings give the targets when none is further than 1.
+    """
+    best: dict[str, Any] | None = None
+    giving = 0
+    for levels in combinations:
+        miss = missed(levels, drawn)
+        given = np.abs(miss).max(axis=1) <= 1.0
+        giving += int(given.sum())
+        score = np.where(given, (drawn**2).sum(axis=1), np.inf) if given.any() else (miss**2).sum(axis=1)
+        at = int(np.argmin(score))
+        found = {"levels": levels, "x": drawn[at], "given": bool(given[at]), "miss": float((miss[at] ** 2).sum())}
+        found["rank"] = (not found["given"], float((drawn[at] ** 2).sum()) if found["given"] else found["miss"])
+        if best is None or found["rank"] < best["rank"]:
+            best = found
+    assert best is not None  # there is always one combination of levels, the empty one
+    return best, giving
+
+
+def _targets_sent(raw: object, spec: dict, transforms: dict[str, str]) -> dict[str, float]:
+    """Return the target the reader typed for each response, by its column, on the scale its model is fitted on."""
+    known = {r["name"]: r for r in _responses(spec)}
+    if not isinstance(raw, dict) or not raw or not set(raw) <= set(known):
+        raise ValueError("Type a target for a response, or for more than one.")
+    targets = {}
+    for name, value in raw.items():
+        target = _number(value)
+        if target is None:
+            raise ValueError(f"The target of {_words(known[name])} must be a number.")
+        transform = transforms.get(name)
+        if transform is not None and not _in_domain(pd.Series([target]), transform).all():
+            raise ValueError(
+                f"The {TRANSFORMS[transform]['words']} of {_words(known[name])} needs a target {_least(transform)}."
+            )
+        targets[name] = target if transform is None else float(_to_model_scale(target, transform))
+    return targets
+
+
+def _target_fits(
+    request: dict, spec: dict, design: pd.DataFrame, names: list[str]
+) -> tuple[dict[str, _FittedModel], dict[str, float]]:
+    """Return each named response's fit, and how near its target counts as given: a share of its results' range."""
+    factors = [f["name"] for f in spec["factors"]]
+    categorical = _categorical_names(spec)
+    raw_models = request.get("models") or {}
+    if not isinstance(raw_models, dict):
+        raise ValueError("The page sent models for the responses this page did not write.")  # noqa: TRY004
+    known = {r["name"]: r for r in _responses(spec)}
+    fits, near = {}, {}
+    for name in names:
+        one = _for_response(spec, name)
+        results = pd.to_numeric(design[name], errors="coerce").dropna()
+        if results.empty:
+            raise ValueError(f"Enter results for {_words(known[name])} first: its target is met on its model.")
+        fits[name] = _fitted(design, one, _checked_model(raw_models.get(name) or one["model"], factors, categorical))
+        spread = float(results.max() - results.min())
+        near[name] = TARGET_NEAR * (spread if spread > 0 else max(abs(float(results.max())), 1.0))
+    return fits, near
+
+
+def _level_combinations(spec: dict) -> list[dict[str, float]]:
+    """Return each combination of the categorical factors' levels, coded: the first :data:`TARGET_LEVELS` of them.
+
+    shortcut: a study with more combinations than that has only the first tried; try them all once such a study
+    asks for the settings of a target.
+    """
+    coded = [
+        [(f["name"], -1.0 + 2.0 * i / (len(_levels_of(f)) - 1)) for i in range(len(_levels_of(f)))]
+        for f in spec["factors"]
+        if _categorical(f)
+    ]
+    return [dict(levels) for levels in itertools.islice(itertools.product(*coded), TARGET_LEVELS)]
+
+
+def _targets_at(
+    spec: dict,
+    targets: dict[str, float],
+    near: dict[str, float],
+    fits: dict[str, _FittedModel],
+    point: dict[str, float],
+) -> list[dict[str, Any]]:
+    """Describe each response at the settings found: its target, its prediction and intervals, and its leverage."""
+    known = {r["name"]: r for r in _responses(spec)}
+    out = []
+    for name, target in targets.items():
+        fit = fits[name]
+        predicted, confidence, prediction, leverage = fit.at(point)
+        out.append(
+            {
+                "name": name,
+                "label": _words(known[name]),
+                "units": known[name].get("units", ""),
+                "target": target,
+                "predicted": predicted,
+                "confidence": confidence,
+                "prediction": prediction,
+                "given": abs(predicted - target) <= near[name] * (1 + 1e-9),
+                "leverage": leverage,
+                "max_leverage": fit.max_leverage,
+                "extrapolating": leverage > fit.max_leverage * (1 + 1e-9) + 1e-12,
+            }
+        )
+    return out
+
+
+def _pair_sent(raw: object, names: list[str]) -> list[str] | None:
+    """Return the two numeric factors the reader chose to draw over, or None to draw over the two that matter most."""
+    if raw is None:
+        return None
+    if not isinstance(raw, list) or len(raw) != 2 or raw[0] == raw[1] or not set(raw) <= set(names):
+        raise ValueError("Choose two different factors with ranges to draw over.")
+    return [str(name) for name in raw]
+
+
+def _targets_put_back(reply: dict[str, Any], transforms: dict[str, str]) -> dict[str, Any]:
+    """Put what the settings for a target say in each transformed response's units back in them."""
+    if not transforms:
+        return reply
+    said = ("target", "predicted", "confidence", "prediction")
+    responses = [
+        {**r, **{k: _put_back(r[k], transforms[r["name"]]) for k in said}, "transform": transforms[r["name"]]}
+        if r["name"] in transforms
+        else r
+        for r in reply["responses"]
+    ]
+    out = {**reply, "responses": responses}
+    if reply.get("overlay"):
+        surfaces = reply["overlay"]["responses"]
+        out["overlay"] = {**reply["overlay"], "responses": [_surface_put_back(s, transforms) for s in surfaces]}
+    return out
+
+
+def solve_for(request: dict) -> dict:
+    """Find the setting of one factor at which a response is predicted at a target, the other factors held.
+
+    ``response`` and ``target`` name the response and what it should be; ``factor`` is the numeric factor to
+    solve for; ``settings`` holds every other factor: a numeric one's setting in its own units, a
+    categorical one's level. The response's model is followed over :data:`SOLVE_POINTS` settings of the factor
+    across its range, and each place it crosses the target is a solution. With residual degrees of freedom a
+    solution has an interval: the settings around it at which the 95% confidence interval of the prediction
+    still holds the target, so the factor is known no better than that; an end of ``interval`` is None where
+    it runs to the end of the range. Without a solution, ``nearest`` is the setting at which the prediction
+    comes closest. A factor that does not change the prediction at these settings is refused: it is not in the
+    model, or its effect cancels there.
+    """
+    whole = _checked_spec(request.get("spec") or {})
+    if _mixture(whole):
+        raise ValueError("A component cannot move alone: set the blend under What if.")
+    transforms = whole.get("analysis_transforms") or {}
+    every_run, whole = _on_model_scale(_runs_frame(request, whole), whole)
+    name = request.get("response")
+    targets = _targets_sent({name: request.get("target")} if isinstance(name, str) else None, whole, transforms)
+    fits, _ = _target_fits(request, whole, _design_runs(every_run), [name])
+    fit, target, transform = fits[name], targets[name], transforms.get(name)
+    factor = next((f for f in whole["factors"] if f["name"] == request.get("factor") and not _categorical(f)), None)
+    if factor is None:
+        raise ValueError("Choose a factor with a range to solve for.")
+    point = _point_of(request.get("settings"), whole, factor["name"])
+    grid = np.linspace(-1.0, 1.0, SOLVE_POINTS)
+    predicted, leverage = fit.over(point, [factor["name"]], grid[:, None])
+    if np.ptp(predicted) <= ROUND_OFF * max(float(np.abs(predicted).max()), 1.0):
+        # Not in the model, or its effect cancels at these settings: every setting of it predicts the same.
+        known = {r["name"]: r for r in _responses(whole)}
+        raise ValueError(
+            f"{factor['name']} does not change {_words(known[name])} at these settings, by its model: "
+            "no setting of it gives the target more than another."
+        )
+    gap = predicted - target
+    # A prediction within rounding of the target is on it: a target met at the very end of the range is then a
+    # solution whichever side of it the arithmetic lands, as it differs between machines.
+    gap[np.abs(gap) <= SOLVE_ON * max(abs(target), float(np.ptp(predicted)), 1.0)] = 0.0
+    half = None if fit.mse is None or fit.t is None else fit.t * np.sqrt(fit.mse * leverage)
+    in_units = lambda coded: float((factor["low"] + factor["high"]) / 2 + coded * (factor["high"] - factor["low"]) / 2)  # noqa: E731
+
+    def interval(at: int, value: float) -> list[float | None] | None:
+        """Return the settings around a solution whose confidence interval holds the target, the solution among them.
+
+        The solution lies between places ``at`` and ``at + 1`` of the grid: the interval runs out from there, place
+        by place, while the interval of the prediction holds the target.
+        """
+        if half is None:
+            return None
+        holds = np.abs(gap) <= half
+        low, high = at + 1, at
+        while low > 0 and holds[low - 1]:
+            low -= 1
+        while high < len(grid) - 1 and holds[high + 1]:
+            high += 1
+        return [
+            None if low == 0 else min(value, in_units(grid[low])),
+            None if high == len(grid) - 1 else max(value, in_units(grid[high])),
+        ]
+
+    solutions = []
+    for i in np.flatnonzero(gap[:-1] * gap[1:] <= 0):
+        # Where the line between two settings meets the target; on it at both, where the first is.
+        along = gap[i] / (gap[i] - gap[i + 1]) if gap[i] != gap[i + 1] else 0.0
+        value = in_units(grid[i] + (grid[i + 1] - grid[i]) * along)
+        if not solutions or abs(value - solutions[-1]["value"]) > 1e-9 * abs(factor["high"] - factor["low"]):
+            solutions.append({"value": value, "interval": interval(int(i), value)})
+    closest = int(np.argmin(np.abs(gap)))
+    return {
+        "response": name,
+        "factor": factor["name"],
+        "target": _put_back(target, transform),
+        "solutions": solutions,
+        "nearest": {"value": in_units(grid[closest]), "predicted": _put_back(float(predicted[closest]), transform)},
+    }
+
+
+def _point_of(raw: object, spec: dict, but: str) -> dict[str, float]:
+    """Return the settings the page sends as a point, every factor coded; the factor ``but`` is at its centre."""
+    if not isinstance(raw, dict):
+        raise ValueError("The page sent settings this page did not write.")  # noqa: TRY004
+    point = {}
+    for f in spec["factors"]:
+        if f["name"] == but:
+            point[f["name"]] = 0.0
+        elif _categorical(f):
+            levels = _levels_of(f)
+            if raw.get(f["name"]) not in levels:
+                raise ValueError(f"Set {f['name']} to one of its levels: {', '.join(levels)}.")
+            point[f["name"]] = -1.0 + 2.0 * levels.index(raw[f["name"]]) / (len(levels) - 1)
+        else:
+            point[f["name"]] = _coded_value(_factor_of(f), _setting_of(f, raw))
+    return point
 
 
 def _scaled_range(raw: object, response: dict, transform: str | None) -> object:
@@ -8536,23 +9064,15 @@ def _balance_search(
 
     numeric = [f for f in spec["factors"] if not _categorical(f)]
     numeric_names = [f["name"] for f in numeric]
-    coefficients = {
-        name: [{"term": c["term"], "coefficient": c["coefficient"]} for c in fit.out["coefficients"]]
-        for name, fit in fits.items()
-    }
+    coefficients, blocks = _searched_models(fits, spec)
     in_model = set().union(*(_factors_in(c, spec) for c in coefficients.values()))
-    columns = _model_columns(spec)
-    blocks = {c["term"]: 0.0 for cs in coefficients.values() for c in cs if _block_contrast(c["term"], columns)}
     desirable = [_desirability_of(g) for g in goals]
-    weights = [g["importance"] for g in goals]
 
     def held_models(levels: dict[str, float]) -> dict[str, list[dict]]:
         return {name: _held_at(c, {**blocks, **_held_columns(levels, spec)}) for name, c in coefficients.items()}
 
     def overall(models: dict[str, list[dict]], points: np.ndarray) -> np.ndarray:
-        predicted = [_predict(models[g["response"]], numeric_names, points) for g in goals]
-        each = [[individual_desirability(float(v), g) for v in p] for p, g in zip(predicted, desirable, strict=True)]
-        return np.array([composite_desirability(list(d), weights) for d in zip(*each, strict=True)])
+        return _overall(models, goals, numeric_names, points)
 
     points = _sample(len(numeric), region)
     combinations = _searched_levels(spec, in_model, lambda levels: float(overall(held_models(levels), points).max()))
@@ -8586,6 +9106,26 @@ def _balance_search(
     assert best is not None  # there is always one combination of levels, the empty one
     _relay(best.pop("heard"))
     return best
+
+
+def _searched_models(fits: dict[str, _FittedModel], spec: dict) -> tuple[dict[str, list[dict]], dict[str, float]]:
+    """Return each response's model as a search takes it, and its block contrasts at 0: the average block."""
+    coefficients = {
+        name: [{"term": c["term"], "coefficient": c["coefficient"]} for c in fit.out["coefficients"]]
+        for name, fit in fits.items()
+    }
+    columns = _model_columns(spec)
+    blocks = {c["term"]: 0.0 for cs in coefficients.values() for c in cs if _block_contrast(c["term"], columns)}
+    return coefficients, blocks
+
+
+def _overall(models: dict[str, list[dict]], goals: list[dict], names: list[str], points: np.ndarray) -> np.ndarray:
+    """Return the overall desirability D at coded settings of ``names``, a row each, on models with the levels held."""
+    desirable = [_desirability_of(g) for g in goals]
+    weights = [g["importance"] for g in goals]
+    predicted = [_predict(models[g["response"]], names, points) for g in goals]
+    each = [[individual_desirability(float(v), g) for v in p] for p, g in zip(predicted, desirable, strict=True)]
+    return np.array([composite_desirability(list(d), weights) for d in zip(*each, strict=True)])
 
 
 def _balanced_responses(
@@ -8637,7 +9177,9 @@ def _balanced_confirmation(
     ]
 
 
-def _overlay(spec: dict, found: dict, goals: list[dict], region: DesignRegion | None) -> dict[str, Any] | None:
+def _overlay(
+    spec: dict, found: dict, goals: list[dict], region: DesignRegion | None, pair: list[str] | None = None
+) -> dict[str, Any] | None:
     """Return the overlay of the acceptable ranges over two numeric factors, the others at the balanced settings.
 
     The two factors are those that move the responses' desirabilities most: each factor's main effects,
@@ -8658,7 +9200,7 @@ def _overlay(spec: dict, found: dict, goals: list[dict], region: DesignRegion | 
         for c in found["models"][goal["response"]]:
             if c["term"] in size:
                 size[c["term"]] += abs(c["coefficient"]) / (goal["high"] - goal["low"])
-    pair = sorted(names, key=lambda n: -size[n])[:2]
+    pair = pair or sorted(names, key=lambda n: -size[n])[:2]
     axis = np.linspace(-1.0, 1.0, OVERLAY_POINTS)
     u, v = np.meshgrid(axis, axis)  # v down the rows, u across: z[row][column] as Plotly draws it
     points = np.tile(found["x"], (u.size, 1))
@@ -9742,6 +10284,21 @@ def api_best_settings(payload: str) -> str:
 def api_balance(payload: str) -> str:
     """JSON wrapper around :func:`balance`."""
     return _reply(balance, payload)
+
+
+def api_trade_offs(payload: str) -> str:
+    """JSON wrapper around :func:`trade_offs`."""
+    return _reply(trade_offs, payload)
+
+
+def api_target_settings(payload: str) -> str:
+    """JSON wrapper around :func:`target_settings`."""
+    return _reply(target_settings, payload)
+
+
+def api_solve_for(payload: str) -> str:
+    """JSON wrapper around :func:`solve_for`."""
+    return _reply(solve_for, payload)
 
 
 def api_next_runs(payload: str) -> str:

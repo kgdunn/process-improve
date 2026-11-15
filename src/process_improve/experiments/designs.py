@@ -1038,7 +1038,9 @@ def generate_design(  # noqa: PLR0913
         optimal families only (``"d_optimal"``, ``"i_optimal"``, ``"a_optimal"``, ``"e_optimal"``,
         ``"g_optimal"``, ``"k_optimal"``). One row per
         fixed run, one column per factor, in the same coding as the returned design: continuous
-        factors in coded ``[-1, 1]`` units, categorical factors as level labels.
+        factors in coded ``[-1, 1]`` units, categorical factors as level labels, and mixture
+        components as proportions that sum to 1 (blends already made, to which an optimal
+        mixture design adds the blends that say most beside them).
         The fixed runs occupy the first rows of the result and ``budget`` counts them, so
         ``budget`` must exceed ``len(fixed_runs)``. A common use is to seed a centre point. Raises
         ``ValueError`` if given for a non-optimal ``design_type``.

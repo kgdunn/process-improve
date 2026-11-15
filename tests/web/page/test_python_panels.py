@@ -34,6 +34,7 @@ from tests.web._support import (
 )
 from tests.web.api.test_book_examples import catalogue
 from tests.web.api.test_charts import _limited
+from tests.web.api.test_contract import curved
 
 
 def page_code(node: str, function: str, *args: object) -> str:
@@ -1436,3 +1437,329 @@ def test_the_notebook_draws_each_figure_after_the_analysis_it_is_of(api, node, m
     assert len(other["cells"]) == len(book["cells"]) - 6, (
         "figures of a response the notebook does not analyse are left out"
     )
+
+
+# --------------------------------------------------------------------------- the figures beyond the analysis's charts
+def drawn_by(monkeypatch, code: str):
+    """Return the figure a figure's whole code draws, run as a reader would run it."""
+    go = pytest.importorskip("plotly.graph_objects", reason="the page installs plotly for its first chart")
+    monkeypatch.setattr(go.Figure, "show", lambda *_, **__: None)  # a reader's own window, which a test has none of
+    return run(code)
+
+
+@pytest.mark.slow
+def test_the_pareto_plot_s_code_draws_each_coefficient_s_size_with_its_interval(api, node, monkeypatch):
+    demo = api.ok("api_catalogue")["demo"]
+    held = held_of(api.ok("api_make_design", demo["design"]))
+    responses = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 1})["responses"]
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    bars = own_figure(node, monkeypatch, steps_of(held, responses, analysis), "pareto", held["spec"]).data[0]
+    shown = sorted(
+        (c for c in analysis["coefficients"] if c["term"] != "Intercept"), key=lambda c: -abs(c["coefficient"])
+    )
+    assert list(bars.y) == [c["term"] for c in shown], "the largest first"
+    np.testing.assert_allclose(bars.x, [abs(c["coefficient"]) for c in shown], atol=1e-9)
+    np.testing.assert_allclose(bars.error_x.array, [c["ci_high"] - c["coefficient"] for c in shown], atol=1e-9)
+    assert list(bars.marker.color) == ["#E69F00" if c["coefficient"] > 0 else "#0072B2" for c in shown]
+
+
+@pytest.mark.slow
+def test_the_pareto_plot_s_code_judges_a_fit_of_every_run_by_lenth_s_margins(api, node, monkeypatch):
+    spec = {"design_type": "plackett_burman", "factors": factors_named(*"ABCDEFG"), "n_center_points": 0}
+    held = held_of(api.ok("api_make_design", spec))
+    responses = api.ok("api_simulate", {**held, "scenario": "main_effects", "seed": 1})["responses"]
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    assert analysis["lenth"], "Lenth's margins, which the page draws"
+    assert analysis["coefficients"][1]["ci_high"] is None, "no run is left to judge by"
+    about = {"lenth": True, "model": analysis["formula"], "complete": True}
+    figure = own_figure(node, monkeypatch, steps_of(held, responses, analysis), "pareto", held["spec"], about)
+    assert figure.data[0].error_x.array is None
+    margins = [shape.x0 for shape in figure.layout.shapes]
+    np.testing.assert_allclose(margins, [analysis["lenth"]["ME"] / 2, analysis["lenth"]["SME"] / 2], rtol=1e-9)
+
+
+def same_map(heatmap, terms: list[str], matrix: list[list]) -> None:
+    """Assert that a map drawn by the code holds the page's: its terms in order, and each pair's correlation."""
+    assert list(heatmap.x) == list(heatmap.y) == terms
+    np.testing.assert_allclose(
+        np.asarray(heatmap.z, dtype=float), np.asarray(matrix, dtype=float), atol=1e-9, equal_nan=True
+    )
+
+
+@pytest.mark.slow
+def test_the_design_s_correlation_map_code_draws_the_page_s_map(api, node, monkeypatch):
+    spec = {"design_type": "fractional_factorial", "factors": factors_named(*"ABCDE")}
+    held = held_of(api.ok("api_make_design", spec))
+    found = api.ok("api_correlations", held)
+    to_do = [None] * len(held["rows"])  # the map is of the runs: it is drawn before any has a result
+    steps = (("designCode", [held["spec"]]), ("resultsCode", [held, to_do]), ("correlationCode", [list("ABCDE")]))
+    same_map(drawn_by(monkeypatch, panel(node, *steps))["figure"].data[0], found["terms"], found["matrix"])
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("limits", [[], LIMITS[:1]], ids=["the cube", "inside limits"])
+def test_the_comparison_s_figures_code_draws_the_page_s_curves_and_maps(api, node, monkeypatch, limits):
+    made, held_designs = generate_all(api, FACTORS, "main_quadratic", limits)
+    compared = api.ok("api_compare", {"model": "main_quadratic", "designs": held_designs})
+    designs = [
+        {"label": m["label"], "design_type": m["design_type"], "options": m["design"]["spec"]["options"]} for m in made
+    ]
+    stored = made[0]["design"]["spec"].get("constraints", [])
+    compare = ("compareCode", [FACTORS, designs, "main_quadratic", stored])
+    fds = panel(node, compare, ("comparisonFigureCode", [{"asked": compared["fds_asked"], "limits": stored}]))
+    curves = drawn_by(monkeypatch, fds)["figure"].data
+    assert [curve.name for curve in curves] == list(compared["fds"]), "a curve for each design that fits the model"
+    for curve in curves:
+        np.testing.assert_allclose(curve.x, compared["fds"][curve.name]["fraction"], atol=1e-12)
+        np.testing.assert_allclose(curve.y, compared["fds"][curve.name]["variance"], rtol=1e-9)
+    label = compared["designs"][-1]
+    one = panel(node, compare, ("comparisonFigureCode", [{"label": label}]))
+    theirs = compared["correlations"][label]
+    same_map(drawn_by(monkeypatch, one)["figure"].data[0], theirs["terms"], theirs["matrix"])
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("transform", [None, "log"])
+def test_the_code_of_how_tightly_to_hold_each_factor_moves_each_as_the_page_does(
+    api, node, monkeypatch, worked_example, transform
+):
+    held, responses = aimed(worked_example["held"], "maximize"), worked_example["simulated"]["responses"]
+    if transform:
+        held = {**held, "spec": {**held["spec"], "analysis_transforms": {held["spec"]["response"]: transform}}}
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    best = api.ok("api_best_settings", {**held, "responses": responses})
+    moved = [s for s in best["sensitivity"] if s["in_model"]]
+    names = [s["name"] for s in moved]
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, responses]),
+        ("analyseCode", [analysis["formula"], True, held["spec"]]),
+        ("bestCode", [best, held["spec"], analysis["formula"], True]),
+        ("sensitivityCode", [names, held["spec"], analysis["formula"], True]),
+    )
+    lowered, raised = drawn_by(monkeypatch, code)["figure"].data
+    assert list(lowered.y) == list(raised.y) == names
+    np.testing.assert_allclose(lowered.x, [s["down"] for s in moved], atol=1e-6)
+    np.testing.assert_allclose(raised.x, [s["up"] for s in moved], atol=1e-6)
+
+
+@pytest.mark.slow
+def test_the_overlay_s_code_draws_each_response_s_surface_and_boundary_as_the_page_does(api, node, monkeypatch):
+    held, simulation = three_responses(api)
+    goals = {"Yield": {"importance": 5, "shape": "more"}, "Cost": {"high": 70.0}}
+    request = {**held, **sent_of(by_name(simulation)), "models": {"Cost": "interactions"}, "goals": goals}
+    balance = api.ok("api_balance", request)
+    overlay = balance["overlay"]
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, by_name(simulation), simulation]),
+        ("balanceCode", [balance, held["spec"]]),
+        ("overlayCode", [overlay, held["spec"]]),
+    )
+    namespace = drawn_by(monkeypatch, code)
+    drawn = {trace.name: np.asarray(trace.z, dtype=float) for trace in namespace["figure"].data}
+    corners = np.ix_([0, -1], [0, -1])  # the page's grid is finer than the library's: the two share their corners
+    for surface in overlay["responses"]:
+        np.testing.assert_allclose(drawn[surface["name"]][corners], np.asarray(surface["z"])[corners], rtol=1e-5)
+    # Each response is bounded where the page draws its boundary, and the others are held at the balanced settings.
+    bounded = {r["name"]: [r[end] for end in ("low", "high") if end in r] for r in namespace["responses"]}
+    assert bounded == {surface["name"]: surface["levels"] for surface in overlay["responses"]}
+    assert [overlay["x"], overlay["y"]] == ["T", "P"]
+    held_at = {h["name"]: h["value"] for h in overlay["held"]}
+    assert namespace["balanced"]["optimal_actual"]["F"] == pytest.approx(held_at["F"], abs=1e-6)
+    assert drawn["Sweet spot"].max() == 1, "where every response is acceptable"
+
+
+@pytest.mark.slow
+def test_the_what_if_curve_s_code_predicts_the_curve_the_panel_draws(api, node, monkeypatch, worked_example):
+    held = curved(worked_example["held"])
+    fit = api.ok("api_functional", held)
+    at = {"T": 0.6, "P": -0.5, "F": 0.2}  # the panel's settings, as the columns of X
+    design = {key: held[key] for key in ("spec", "columns", "rows")}
+    to_do = [None] * len(held["rows"])  # the study's only results are its curves
+    steps = (
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [design, to_do]),
+        ("curveCode", [design, held["curves"], fit, at]),
+    )
+    namespace = drawn_by(monkeypatch, panel(node, *steps))
+    row = np.array([np.prod([at[name] for name in parts]) for parts in fit["terms"]])
+    shown = np.asarray(fit["mean"]) + row @ np.asarray(fit["map"])  # as the page draws it: best.js curveAt
+    np.testing.assert_allclose(namespace["predicted"]["curve"].iloc[0], shown, rtol=1e-6, atol=1e-6)
+    assert namespace["predicted"]["n_bootstrap"] == len(fit["replicates"]), "as many replicates as the page's bands"
+    high, low, predicted = namespace["figure"].data
+    assert list(predicted.x) == fit["points"] == held["spec"]["curve"]["argument"]["values"]
+    assert np.all(np.asarray(high.y) >= np.asarray(predicted.y))
+    assert np.all(np.asarray(low.y) <= np.asarray(predicted.y))
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("limits", [{}, {"Purity": [62, 64], "Cost": [None, 62]}], ids=["every setting", "limited"])
+def test_the_trade_off_chart_s_code_tries_the_page_s_settings_and_draws_its_line(api, node, monkeypatch, limits):
+    held, simulation = three_responses(api)
+    request = {**held, **sent_of(by_name(simulation)), "models": {"Cost": "interactions"}}
+    balance = api.ok("api_balance", request)
+    tried = api.ok("api_trade_offs", {**request, "at": balance["coded"]})
+    view = {"asked": tried["asked"], "across": "Yield", "up": "Cost", "colour": "Purity", "limits": limits}
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, by_name(simulation), simulation]),
+        ("balanceCode", [balance, held["spec"]]),
+        ("tradeOffCode", [view, balance, held["spec"]]),
+    )
+    namespace = drawn_by(monkeypatch, code)
+    candidates = tried["candidates"]
+    for name, shown in candidates["responses"].items():  # the page rounds each to six figures
+        np.testing.assert_allclose(namespace["cloud"][name], shown, rtol=1e-5)
+    np.testing.assert_allclose(175 + 25 * namespace["tried"]["T"], candidates["settings"]["T"], rtol=1e-5)
+    # The page's own line, from web/best.js, over the settings that meet the limits.
+    ends = {name: [None, None] for name in candidates["responses"]} | limits
+    meets = javascript(node, source("best.js"), [("meetsLimits", [candidates["responses"], ends])])[0]
+    assert namespace["kept"].index.tolist() == [i for i, met in enumerate(meets) if met]
+    across = [-v for v in candidates["responses"]["Yield"]]
+    front = javascript(node, source("best.js"), [("frontier", [across, candidates["responses"]["Cost"], meets])])[0]
+    assert namespace["front"].tolist() == front
+    cloud, line, star = namespace["figure"].data
+    assert len(cloud.x) == sum(meets)
+    np.testing.assert_allclose(line.x, np.sort(np.asarray(candidates["responses"]["Yield"])[front]), rtol=1e-5)
+    assert (np.diff(line.x) >= 0).all(), "joined from left to right"
+    by = {r["name"]: r["predicted"] for r in balance["responses"]}
+    assert [star.x[0], star.y[0]] == pytest.approx([by["Yield"], by["Cost"]], abs=1e-6)
+
+
+def assert_same_target_settings(namespace: dict, found: dict, spec: dict) -> None:
+    """Assert that the code finds the page's settings for the targets, its predictions there, and its share."""
+    ranges = {f["name"]: f["high"] - f["low"] for f in spec["factors"] if isinstance(f.get("low"), (int, float))}
+    for setting in found["settings"]:
+        if setting["kind"] == "numeric":
+            tolerance = 1e-5 * ranges[setting["name"]]
+            assert namespace["settings"][setting["name"]] == pytest.approx(setting["value"], abs=tolerance)
+    for r in found["responses"]:
+        assert namespace["reached"][r["name"]] == pytest.approx(r["predicted"], rel=1e-5), r["name"]
+    if not found["search"]["held"]:  # the page's share is over every level it tried; the code's at the level found
+        assert float(namespace["giving"].mean()) == pytest.approx(found["share"], abs=1e-12)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    ("targets", "reached"),
+    [({"Yield": 62.0}, True), ({"Yield": 62.0, "Cost": 60.0}, True), ({"Yield": 500.0}, False)],
+    ids=["one target", "two targets", "out of reach"],
+)
+def test_the_target_settings_code_finds_the_page_s_settings(api, node, targets, reached):
+    held, simulation = three_responses(api)
+    request = {**held, **sent_of(by_name(simulation)), "models": {"Cost": "interactions"}}
+    found = api.ok("api_target_settings", {**request, "targets": targets})
+    assert found["reached"] is reached
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, by_name(simulation), simulation]),
+        ("targetCode", [found, held["spec"]]),
+    )
+    assert_same_target_settings(run(code), found, held["spec"])
+
+
+@pytest.mark.slow
+def test_the_target_settings_code_holds_a_categorical_factor_and_keeps_to_the_limits(api, node):
+    factors = [*FACTORS[:2], {"name": "S", "low": "A", "high": "B", "units": ""}]
+    spec = {"design_type": "full_factorial", "factors": factors, "responses": THREE[:2], "n_center_points": 3}
+    held = held_of(api.ok("api_make_design", spec))
+    x = coded(run_sheet(held), factors)
+    yields = (60 + 4 * x["T"] - 2 * x["P"] + 3 * x["S"] + x["T"] * x["P"]).tolist()
+    costs = (20 + 2 * x["T"] + x["P"] + 0.5 * x["S"]).tolist()
+    request = {**held, "responses": yields, "more_responses": {"Cost": costs}, "models": {"Yield": "interactions"}}
+    found = api.ok("api_target_settings", {**request, "targets": {"Yield": 66.0}})  # reached only with S at B
+    assert found["search"]["held"] == {"S": 1.0}
+    steps = (("designCode", [held["spec"]]), ("resultsCode", [held, {"Yield": yields, "Cost": costs}]))
+    code = panel(node, *steps, ("targetCode", [found, held["spec"]]))
+    assert "held_at(" in code
+    assert_same_target_settings(run(code), found, held["spec"])
+
+    limit = [{"expression": "T + 25*P <= 215"}]
+    held = held_of(
+        api.ok(
+            "api_make_design",
+            {"design_type": "d_optimal", "factors": FACTORS[:2], "responses": THREE[:2], "constraints": limit},
+        )
+    )
+    x = coded(run_sheet(held), FACTORS[:2])
+    yields = (60 + 4 * x["T"] + 2 * x["P"] - 3 * x["T"] ** 2).tolist()
+    costs = (20 + 3 * x["T"] + x["P"]).tolist()
+    request = {**held, "responses": yields, "more_responses": {"Cost": costs}}
+    found = api.ok("api_target_settings", {**request, "targets": {"Yield": 63.0, "Cost": 23.5}})
+    steps = (("designCode", [held["spec"]]), ("resultsCode", [held, {"Yield": yields, "Cost": costs}]))
+    code = panel(node, *steps, ("targetCode", [found, held["spec"]]))
+    assert "region = DesignRegion(factors, constraints)" in code
+    namespace = run(code)
+    assert_same_target_settings(namespace, found, held["spec"])
+    assert namespace["settings"]["T"] + 25 * namespace["settings"]["P"] <= 215 + 1e-6
+
+
+@pytest.mark.slow
+def test_the_target_settings_code_searches_a_transformed_response_on_its_scale(api, node):
+    held, simulation = three_responses(api)
+    held = {**held, "spec": {**held["spec"], "analysis_transforms": {"Yield": "log"}}}
+    request = {**held, **sent_of(by_name(simulation))}
+    found = api.ok("api_target_settings", {**request, "targets": {"Yield": 62.0, "Cost": 60.0}})
+    assert found["search"]["targets"]["Yield"] == pytest.approx(np.log(62.0))
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, by_name(simulation), simulation]),
+        ("targetCode", [found, held["spec"]]),
+    )
+    assert_same_target_settings(run(code), found, held["spec"])
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("transform", [None, "log"])
+def test_the_target_chart_s_code_draws_each_response_s_line_as_the_page_does(api, node, monkeypatch, transform):
+    held, simulation = three_responses(api)
+    if transform:
+        held = {**held, "spec": {**held["spec"], "analysis_transforms": {"Yield": transform}}}
+    request = {**held, **sent_of(by_name(simulation)), "models": {"Cost": "interactions"}}
+    found = api.ok("api_target_settings", {**request, "targets": {"Yield": 62.0, "Cost": 60.0}, "pair": ["T", "F"]})
+    overlay = found["overlay"]
+    assert [overlay["x"], overlay["y"]] == ["T", "F"], "the two factors the reader chose"
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, by_name(simulation), simulation]),
+        ("targetCode", [found, held["spec"]]),
+        ("targetOverlayCode", [overlay, held["spec"]]),
+    )
+    yields, costs, star = drawn_by(monkeypatch, code)["figure"].data
+    for line, surface, target in zip((yields, costs), overlay["responses"], (62.0, 60.0), strict=True):
+        assert line.name == surface["name"]
+        np.testing.assert_allclose(np.asarray(line.z, dtype=float), surface["z"], rtol=1e-5)  # the page rounds to six
+        assert line.contours.start == line.contours.end == pytest.approx(target)
+        assert surface["levels"] == pytest.approx([target])
+    assert [star.x[0], star.y[0]] == pytest.approx(overlay["at"], abs=1e-5)
+
+
+@pytest.mark.slow
+def test_the_target_settings_code_fits_a_factor_nested_in_another_as_the_page_does(api, node):
+    """S + P + S:T, T's effect within each level of S: the code adds S's indicators to X, as the page fits them."""
+    levels = {"name": "S", "type": "categorical", "levels": ["a", "b", "c"], "units": ""}
+    spec = {"design_type": "full_factorial", "factors": [*FACTORS[:2], levels], "n_center_points": 0, "n_replicates": 2}
+    held = held_of(api.ok("api_make_design", spec))
+    sheet = run_sheet(held)
+    x = coded(sheet, FACTORS[:2])
+    slope = sheet["S"].map({"a": 1.0, "b": 3.0, "c": 5.0})
+    responses = (60 + slope * x["T"] + 2 * x["P"] + np.arange(len(sheet)) % 4 * 0.1).tolist()
+    name = held["spec"]["response"]
+    request = {**held, "responses": responses, "models": {name: {"terms": [["S"], ["P"], ["S", "T"]]}}}
+    found = api.ok("api_target_settings", {**request, "targets": {name: 64.0}})
+    assert found["reached"]
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, responses]),
+        ("targetCode", [found, held["spec"]]),
+    )
+    assert 'X["S_I1"] = (runs["S"] == "a").astype(float)' in code
+    assert_same_target_settings(run(code), found, held["spec"])

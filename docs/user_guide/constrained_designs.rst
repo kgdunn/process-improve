@@ -227,12 +227,13 @@ over those points.
    print(region.feasible(points).all())  # True
    print(round(float((points[:, 0] == -1).mean()), 1))  # 0.6: vanillin is left out (coded -1)
 
-``optimize_responses`` searches the same region. A search cannot step from 0 to the
-minimum, so each one keeps the set of ingredients its start uses; from the best result
-the neighbouring sets are then tried, one ingredient left out or brought in, or one
-exchanged for another, until none is better. The optimum below leaves ``vanillin`` out:
-in coded units the response gains 2 from it and 3 from ``maltol``, and loses 6 times
-their product, so either alone beats both together.
+``optimize_responses`` searches the same region, and how it does so depends on the
+models (:ref:`constrained-optimum-search`). The model below has an interaction, so the
+optimum is searched for: a search cannot step from 0 to the minimum, so each one keeps
+the set of ingredients its start uses, and the sets next to the best results are then
+tried. The optimum leaves ``vanillin`` out: in coded units the response gains 2 from it
+and 3 from ``maltol``, and loses 6 times their product, so either alone beats both
+together.
 
 .. code-block:: python
 
@@ -253,10 +254,48 @@ their product, so either alone beats both together.
    print({name: round(value, 6) for name, value in best["optimal_actual"].items()})
    # {'vanillin': 0.0, 'maltol': 50.0, 'sugar': 20.0}
 
-The search over the sets is a local one: it ends at a setting that no single change of
-that kind improves, which for a model without interactions between the ingredients is
-the best there is in the cases tried against an exact method, and is not a proof in
-general. A Pareto front (``method="pareto_front"``) keeps the sets its starts use.
+.. _constrained-optimum-search:
+
+How the optimum is found, and when it is proven
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Which ingredients to use is a choice among very many sets (26 ingredients of which 8
+to 14 are used give more than 40 million), and a search that tries the sets one at a
+time can end at a good set that is not the best. ``optimize_responses`` therefore
+takes one of two routes, and the result says which in ``proven_optimal``.
+
+*Every model and every constraint is a straight line.* This is the usual case for a
+formulation of many ingredients, whose runs support a model without interactions. Each
+desirability is then a ramp that is a straight line in the ingredients, and the best
+setting is found by mixed-integer linear programming, which does not search from
+starting points: it bounds the desirability of every set of ingredients and returns
+the setting together with the proof that no setting of the region scores higher (to
+one part in a million of the composite desirability). Several responses, targets,
+``in_range`` limits, weights and importances are all covered, as are ingredients left
+out or used at no less than a minimum, limits on how many are used, group totals, and
+blends beside process factors. Where ingredients can be left out, that setting is the
+one reported and ``proven_optimal`` is True. Where none can, the region is one piece
+and the setting reported is still the search's own, so that a study kept earlier shows
+the settings it showed; ``proven_optimal`` then says whether that setting reaches the
+bound (the search can stop a little short along a factor of small effect). One
+condition for the proof where ingredients are left out: every
+ingredient that a ``count_nonzero`` rule counts has a ``min_when_used``. Without one
+the ingredient counts as used at any amount above 0, the best setting may be one that
+is approached and never reached, and the optimum is searched for instead.
+
+*A model has an interaction or a squared term, or a constraint is curved.* No such
+proof is to be had at a cost worth paying, so the optimum is searched for, with three
+aids. The searches start from the most promising settings of as many different sets
+of ingredients, chosen among the region's candidate blends. From the best results the
+sets next to them are tried: one ingredient left out or brought in, or one exchanged
+for another. And each model is replaced by its tangent at the best setting, a straight
+line, for which the best set is found exactly as above; the search then continues on
+the models themselves from there. Against the best of every allowed set of ten
+ingredients, with blending interactions in three responses, this found the best
+setting in all of 44 cases; it is still a search, and ``proven_optimal`` is False,
+unless the composite desirability reaches 1, which nothing exceeds.
+
+A Pareto front (``method="pareto_front"``) keeps the sets its starts use.
 
 .. _constrained-count-rules:
 
@@ -314,6 +353,19 @@ them:
    )
    print(one_of_three.metadata["inestimable_columns"])  # {'A:B': 1, 'A:C': 1, 'B:C': 1}
 
+``evaluate_design`` leaves the same columns out, so the design is judged on the model
+it was built for, and says so in a note. The default model of ``analyze_experiment``
+leaves those interactions out too, with a warning that no run has the two factors
+both above their lowest values.
+
+.. code-block:: python
+
+   from process_improve.experiments import evaluate_design
+
+   judged = evaluate_design(one_of_three, model="interactions", metric="vif")
+   print(list(judged["vif"]))  # ['A', 'B', 'C', 'D', 'A:D', 'B:D', 'C:D']
+   print("inestimable_columns" in judged["notes"])  # True
+
 ``DesignRegion`` knows the rule. A run that uses too many factors, or too few, is
 outside the region, and ``sample`` draws only sets that the rule allows: before the
 rule acts each of the four factors is left out half the time, so the 11 sets of at most
@@ -328,10 +380,10 @@ two of them are as likely as one another, and 6 of the 11 use two factors.
    drawn = pieces.sample(20_000, np.random.default_rng(1))
    print(round(float(((drawn > -1 + 1e-9).sum(axis=1) == 2).mean()), 1))  # 0.5, as 6 of 11
 
-``optimize_responses`` returns an optimum that the rule allows: each search keeps the
-set of factors its start uses, and the neighbouring sets tried from the best result are
-the allowed ones. Below, every factor adds to the response and ``A`` adds the most, so
-with at most one factor in use the optimum is ``A`` alone.
+``optimize_responses`` returns an optimum that the rule allows. Below, every factor
+adds to the response and ``A`` adds the most, so with at most one factor in use the
+optimum is ``A`` alone. The model has no interaction and the rule is a count, so the
+optimum is proven (:ref:`constrained-optimum-search`).
 
 .. code-block:: python
 
@@ -349,6 +401,7 @@ with at most one factor in use the optimum is ``A`` alone.
    )["desirability"]
    print({name: round(value, 6) for name, value in one["optimal_actual"].items()})
    # {'A': 10.0, 'B': 0.0, 'C': 0.0, 'D': 0.0}
+   print(one["proven_optimal"])  # True
 
 A design type that cannot follow the rule, such as a factorial or a central composite
 design, is refused. The descriptions of one convex region (``vertices``,
@@ -818,7 +871,8 @@ them:
    print(fifths.design_actual[pairs[0]].sum(axis=1).round(9).unique())  # [0.2]
 
 Whichever column of a bucket is left out, the columns kept span the same model over
-the region, so the design does not depend on the choice.
+the region, so the design does not depend on the choice. ``evaluate_design`` leaves
+the same columns out and says so in ``result["notes"]["inestimable_columns"]``.
 
 *A component left out, or used at no less than a minimum.* ``min_when_used`` works on a
 mixture component as on an amount (:ref:`constrained-min-when-used`): the component is
@@ -842,6 +896,30 @@ Such a mixture region is not sampled, since its pieces have no common measure th
 sampler draws from: ``DesignRegion.sample`` raises, an I- or G-optimal design averages
 over the candidate blends, and a search starts from the region's vertices and edge
 midpoints.
+
+A component that a ``count_nonzero`` rule counts should have a ``min_when_used``.
+Without one it counts as used at any share above 0, so "at least three components" is
+met by two of them and a trace of the third.
+
+*More blends beside the ones already made.* Pass the blends that were made as
+``fixed_runs``, with an optimal ``design_type``. They are the first runs of the new
+design, as given, the budget counts them, and the other runs are the blends that add
+most to them for the model, under the same constraints. The model may be larger than
+the one the first blends were chosen for.
+
+.. code-block:: python
+
+   made = blended.design_actual[["x1", "x2", "x3"]]
+   more = generate_design(
+       trio,
+       design_type="d_optimal",
+       budget=14,
+       model_type="scheffe_quadratic",
+       fixed_runs=made,
+       random_state=1,
+   )
+   print(more.metadata["n_fixed_runs"], len(more.design_actual))  # 10 14
+   print(more.design_actual[["x1", "x2", "x3"]].iloc[:10].equals(made))  # True
 
 Mixture components with process factors
 ---------------------------------------

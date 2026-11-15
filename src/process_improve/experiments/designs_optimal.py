@@ -571,10 +571,12 @@ def _dispatch_mixture_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.
         scheffe_matrix,
     )
 
-    if req.fixed_runs is not None or req.hard_to_change:
-        raise ValueError("fixed_runs and hard_to_change are not supported for mixture designs.")
+    if req.hard_to_change:
+        raise ValueError("hard_to_change is not supported for mixture designs.")
     n_terms = scheffe_matrix(np.ones((1, len(req.factors))), req.model_type).shape[1]
-    options = ConstrainedOptions(model_type=req.model_type, criterion=criterion, candidates=req.candidates)
+    options = ConstrainedOptions(
+        model_type=req.model_type, criterion=criterion, candidates=req.candidates, fixed_runs=req.fixed_runs
+    )
     return constrained_mixture_design(
         req.factors, req.budget or n_terms + 3, req.constraints, options, req.random_state
     )

@@ -38,6 +38,11 @@ def _runs(**change: object) -> Callable[[Example], dict]:
     return lambda ex: {**ex["held"], "responses": ex["simulated"]["responses"], **change}
 
 
+def _aimed_at(target: object, **change: object) -> Callable[[Example], dict]:
+    """Build a request for the settings that give the worked example's response a target, changed."""
+    return lambda ex: {**_runs(**change)(ex), "targets": {ex["held"]["spec"]["response"]: target}}
+
+
 def _zipped(size: int) -> str:
     """Return a zip file of one part of ``size`` zero bytes, in base64: small as sent, whatever it unpacks to."""
     held = io.BytesIO()
@@ -114,6 +119,24 @@ SUPPLIED = {
     "columns": ["Std order", "Run order", "T", "S", "y"],
     "rows": [[1, 1, 150, "A", None], [2, 2, 200, "A", None], [3, 3, 150, "B", None], [4, 4, 200, "B", None]],
     "responses": [10.0, 12.5, 11.0, 14.0],
+}
+
+
+#: A 2^2 factorial in a supplier and a shift, replicated: no factor has a range.
+LEVELS_ALONE = {
+    "spec": {
+        "design_type": "full_factorial",
+        "factors": [
+            {"name": "S", "low": "A", "high": "B", "units": ""},
+            {"name": "Shift", "low": "day", "high": "night", "units": ""},
+        ],
+        "response": "y",
+        "model": "main_effects",
+        "options": {},
+    },
+    "columns": ["Std order", "Run order", "S", "Shift", "y"],
+    "rows": [[i + 1, i + 1, "AB"[i % 2], ("day", "night")[i // 2 % 2], None] for i in range(8)],
+    "responses": [10.0, 12.5, 11.0, 14.0, 10.4, 12.1, 11.3, 13.6],
 }
 
 
@@ -385,6 +408,111 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_outside_limits",
         lambda ex: {"spec": ex["held"]["spec"], "settings": {"T": 210, "P": 2, "F": 15}},
         "Set T to a number from 150 to 200.",
+    ),
+    # The trade-offs between the responses, which the page asks for at the balanced settings it holds.
+    "trade-offs with no balanced settings": (
+        "api_trade_offs",
+        _balanced(),
+        "The page sent balanced settings this page did not write.",
+    ),
+    "trade-offs at settings past the ranges": (
+        "api_trade_offs",
+        _balanced(at={"T": 0.2, "P": 1.5, "F": 0.0}),
+        "The page sent balanced settings this page did not write.",
+    ),
+    "trade-offs with one response aimed": (
+        "api_trade_offs",
+        _balanced({"name": "Cost", "label": "Cost", "goal": "learn"}, at={"T": 0.0, "P": 0.0, "F": 0.0}),
+        "The trade-offs are drawn for two responses or more with a goal, over factors with ranges.",
+    ),
+    # The settings that give a target, and one factor solved for from the others.
+    "no target typed": (
+        "api_target_settings",
+        _runs(targets={}),
+        "Type a target for a response, or for more than one.",
+    ),
+    "a target for a response the study does not measure": (
+        "api_target_settings",
+        _runs(targets={"Colour": 3}),
+        "Type a target for a response, or for more than one.",
+    ),
+    "a target that is no number": (
+        "api_target_settings",
+        _aimed_at("high"),
+        "The target of Yield must be a number.",
+    ),
+    "a target the log cannot take": (
+        "api_target_settings",
+        lambda ex: {
+            **_aimed_at(0)(ex),
+            "spec": {**ex["held"]["spec"], "analysis_transforms": {ex["held"]["spec"]["response"]: "log"}},
+        },
+        "The log of Yield needs a target above 0.",
+    ),
+    "a target for a response with no result yet": (
+        "api_target_settings",
+        _balanced(costs=[None] * 15, targets={"Cost": 20}),
+        "Enter results for Cost first: its target is met on its model.",
+    ),
+    "a target with models that are not models": (
+        "api_target_settings",
+        _aimed_at(62, models=["quadratic"]),
+        "The page sent models for the responses this page did not write.",
+    ),
+    "a factor solved for that changes nothing": (
+        "api_solve_for",
+        lambda ex: {
+            **_runs()(ex),
+            "models": {ex["held"]["spec"]["response"]: {"terms": [["T"], ["P"]]}},
+            "response": ex["held"]["spec"]["response"],
+            "target": 60,
+            "factor": "F",
+            "settings": {"T": 175, "P": 2, "F": 15},
+        },
+        "F does not change Yield at these settings, by its model: no setting of it gives the target more than another.",
+    ),
+    "a target's chart over one factor twice": (
+        "api_target_settings",
+        _aimed_at(62, pair=["T", "T"]),
+        "Choose two different factors with ranges to draw over.",
+    ),
+    "a target inside limits that leave no setting": (
+        "api_target_settings",
+        lambda ex: {
+            **_aimed_at(62)(ex),
+            "spec": {**ex["held"]["spec"], "constraints": [{"expression": "T + P + F <= 0"}]},
+        },
+        "The limits on the settings leave no setting to try.",
+    ),
+    "a target in a study of levels alone": (
+        "api_target_settings",
+        lambda _: {**LEVELS_ALONE, "targets": {"y": 12}},
+        "A target is met by moving a factor with a range, and this study has none.",
+    ),
+    "a blend for a target": (
+        "api_target_settings",
+        _mixed(targets={"y": 1}),
+        "The blend that gives a target is not found on this page yet: set it under What if.",
+    ),
+    "a component solved for alone": (
+        "api_solve_for",
+        _mixed(response="y", target=1, factor="A", settings={}),
+        "A component cannot move alone: set the blend under What if.",
+    ),
+    "a factor of levels solved for": (
+        "api_solve_for",
+        lambda _: {**SUPPLIED, "response": "y", "target": 12, "factor": "S", "settings": {"T": 175, "S": "A"}},
+        "Choose a factor with a range to solve for.",
+    ),
+    "a factor solved for at a level that is not the other's": (
+        "api_solve_for",
+        lambda _: {**SUPPLIED, "response": "y", "target": 12, "factor": "T", "settings": {"S": "C"}},
+        "Set S to one of its levels: A, B.",
+    ),
+    "a factor solved for at settings that are not settings": (
+        "api_solve_for",
+        lambda _: {**SUPPLIED, "response": "y", "target": 12, "factor": "T", "settings": ["A"]},
+        "The page sent settings this page did not write.",
     ),
     # The settings that balance the responses, and the goals the reader sets for them.
     "goals that are not goals": (

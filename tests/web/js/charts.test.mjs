@@ -746,3 +746,19 @@ describe("the curve predicted at the what-if settings", () => {
     assert.equal(dotted.connectgaps, false);
   });
 });
+
+describe("the chart of what one response costs another", async () => {
+  const { TRADE_MARKS, tradeOffFigure } = await import("../../../web/charts.js");
+  const PAGE = { fg: "#1d1d1f", muted: "#5f6368", line: "#dcd8ce", accent: "#2c5f7c", warn: "#a35f00", ok: "#1e7b3a", error: "#b3261e" };
+  const purity = { name: "Purity", label: "Purity", units: "%", goal: "target", target: 63 };
+  const cost = { name: "Cost", label: "Cost", units: "$/kg", goal: "minimize" };
+  const tried = [61, 65, 63, 62, 64].map((across, at) => ({ at, across, up: 20 + at, far: 0, words: `setting ${at}` }));
+
+  test("the line of the best trade-off is joined from left to right, whatever order its settings are best in", () => {
+    // Nearest the target first, as the best settings are found: 63, then 62 and 64 on either side, then 61 and 65.
+    const view = { across: purity, up: cost, tried, front: [2, 3, 4, 0, 1], balanced: { across: 63, up: 22 } };
+    const line = tradeOffFigure(view, PAGE).data.find((trace) => trace.name === TRADE_MARKS.front);
+    assert.deepEqual(line.x, [61, 62, 63, 64, 65]);
+    assert.deepEqual(line.y, [20, 23, 22, 24, 21], "each point with its own value of the other response");
+  });
+});

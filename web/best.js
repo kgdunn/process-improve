@@ -791,3 +791,131 @@ export function whatIfSentences(responses, broken = []) {
   }
   return said;
 }
+
+// ---------------------------------------------------------------- the trade-offs between the responses
+/**
+ * How far a response's value falls short of what its goal asks for, to compare two values by: the smaller, the
+ * better. To maximise, a larger value is better; to minimise, a smaller one; for a target, one nearer the target.
+ */
+export const shortfall = (goal, value) =>
+  goal.goal === "maximize" ? -value : goal.goal === "minimize" ? value : Math.abs(value - goal.target);
+
+/**
+ * Which candidate settings meet every limit the reader typed: ``responses`` holds each response's prediction at
+ * every candidate (bootstrap.trade_offs), and ``limits`` a response's two ends, the least and the most it may be,
+ * null for an end left open. A candidate with no prediction for a limited response, one past its transform's range,
+ * does not meet the limit.
+ */
+export function meetsLimits(responses, limits) {
+  const n = Object.values(responses)[0]?.length ?? 0;
+  const ends = Object.entries(limits).filter(([name, [low, high]]) => name in responses && (low !== null || high !== null));
+  return Array.from({ length: n }, (_, i) =>
+    ends.every(([name, [low, high]]) => {
+      const value = responses[name][i];
+      return value !== null && (low === null || value >= low) && (high === null || value <= high);
+    }),
+  );
+}
+
+/**
+ * The best trade-off between two responses among the candidates kept: those that no other candidate kept beats
+ * on both. ``across`` and ``up`` are each candidate's shortfall on the two responses (see ``shortfall``). Returns
+ * their places among the candidates, from the best on the first response to the best on the second. It is found
+ * among the settings tried, so it is as close to the true trade-off as they are dense.
+ */
+export function frontier(across, up, kept) {
+  const order = across.map((_, i) => i).filter((i) => kept[i] && across[i] !== null && up[i] !== null);
+  order.sort((a, b) => across[a] - across[b] || up[a] - up[b]);
+  const front = [];
+  let best = Infinity;
+  for (const i of order) {
+    if (up[i] < best) {
+      front.push(i);
+      best = up[i];
+    }
+  }
+  return front;
+}
+
+// ---------------------------------------------------------------- the settings that give a target
+/** "the target" for one response with a target, "every target" for more. */
+const theTargets = (found) => (found.responses.length === 1 ? "the target" : "every target");
+
+/** Whether the models can give the targets inside the ranges, as the sentence over the settings found says it. */
+export function targetLead(found, { limits = false } = {}) {
+  if (found.reached) return `These settings give ${theTargets(found)}, by the models.`;
+  const inside = limits ? "inside your ranges and limits" : "inside your ranges";
+  return `No settings ${inside} give ${theTargets(found)}, by the models. These come closest.`;
+}
+
+/**
+ * How many of the settings tried give the targets, and which of them the answer is; nothing when none does.
+ * ``found`` is bootstrap.target_settings' reply: its ``share`` of the ``tried`` settings, each response within
+ * ``near`` of the range of its results from its target.
+ */
+export function targetShare(found) {
+  if (!found.reached || !found.share) return "";
+  const percent = Number((100 * found.share).toPrecision(2));
+  const many = percent < 0.1 ? "Fewer than 1 in 1,000" : `About ${percent}%`;
+  const one = found.responses.length === 1;
+  return (
+    `${many} of the ${found.tried.toLocaleString("en")} settings tried give ${theTargets(found)} to within ` +
+    `${Number((100 * found.near).toPrecision(2))}% of the range of ${one ? "the response's" : "each response's"} results: ` +
+    "more than one setting does. These are the ones nearest the center of your ranges, where your runs are gathered."
+  );
+}
+
+/** The rows of the table of each response at the settings found: its target, its prediction and its interval. */
+export function targetRows(found) {
+  return found.responses.map((r) => [
+    r.label,
+    withUnit(r.target, r.units),
+    withUnit(r.predicted, r.units),
+    r.prediction ? rangeWords(r.prediction, r.units) : "",
+  ]);
+}
+
+/**
+ * What one factor must be for a response to meet its target, the others held: a sentence for each setting that does,
+ * or the nearest the response comes. ``solved`` is bootstrap.solve_for's reply; ``held`` says where the other factors
+ * are, as settingsWords writes them; ``units`` are the factor's and the response's, and ``label`` the response's.
+ */
+export function solveSentences(solved, { held = "", units = "", label = solved.response, responseUnits = "" } = {}) {
+  const others = held ? `With ${held} held, ` : "";
+  const target = `${label} ${withUnit(solved.target, responseUnits)}`;
+  if (!solved.solutions.length) {
+    const closest = `${withUnit(solved.nearest.predicted, responseUnits)}, at ${solved.factor} = ${withUnit(solved.nearest.value, units)}`;
+    return [`${others}no setting of ${solved.factor} in its range gives ${target}, by the model. The prediction comes closest at ${closest}.`];
+  }
+  return solved.solutions.map((s) => {
+    const said = `${others}${solved.factor} = ${withUnit(s.value, units)} gives ${target}, by the model.`;
+    if (!s.interval) return `${said} The fit uses every run, so it has no interval.`;
+    const [low, high] = s.interval;
+    const from = low === null ? "the low end of its range" : withUnit(low, units);
+    const to = high === null ? "the high end of its range" : withUnit(high, units);
+    return `${said} From ${from} to ${to}, the 95% confidence interval of the prediction still holds the target.`;
+  });
+}
+
+/**
+ * The caption of the chart of the settings that give the targets: the two factors drawn and where the others are held,
+ * what a line, the star, the dots and the grey mean, and the responses with no line, which no setting drawn brings to
+ * its target. ``overlay`` and ``responses`` are bootstrap.target_settings'; ``factors`` the spec's, for their units.
+ */
+export function targetCaption(overlay, factors = [], responses = []) {
+  const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
+  const at = (h) => (typeof h.value === "string" ? `${h.name} at ${h.value}` : `${h.name} at ${withUnit(h.value, units[h.name])}`);
+  const held = overlay.held ?? [];
+  const others = held.length ? `, with ${listed(held.map(at))}, as at the settings found` : "";
+  const lines =
+    overlay.responses.length === 1
+      ? "The line is where the response is predicted at its target: every setting on it gives the target."
+      : "Each line is where a response is predicted at its target: every setting on it gives that target, and where the lines cross, the settings give every target.";
+  const label = Object.fromEntries(responses.map((r) => [r.name, r.label]));
+  const undrawn = overlay.responses
+    .filter(({ z, levels }) => !(levels[0] > Math.min(...z.flat()) && levels[0] < Math.max(...z.flat())))
+    .map((surface) => label[surface.name] ?? surface.name);
+  const missed = undrawn.length ? ` No line for ${listed(undrawn)}: no setting drawn brings ${undrawn.length === 1 ? "it to its target" : "them to their targets"}.` : "";
+  const grey = overlay.runnable ? " Grey: settings outside your limits." : "";
+  return `Drawn over ${overlay.x} and ${overlay.y}${others}. ${lines} The star marks the settings found, and the dots your runs.${grey}${missed}`;
+}

@@ -50,9 +50,11 @@ from process_improve.experiments._desirability import (
     individual_desirability,
     overall_desirability,
 )
-from process_improve.experiments._uniform_sampling import UniformSampler
+from process_improve.experiments._exact_optimum import StraightRegion, exact_optimum
+from process_improve.experiments._uniform_sampling import UniformSampler, _affine_form
 
 if TYPE_CHECKING:
+    from process_improve.experiments._count_rules import UsedSets
     from process_improve.experiments.region import DesignRegion
 
 logger = logging.getLogger(__name__)
@@ -797,6 +799,10 @@ def _align_goals_to_models(
 _LEFT_OUT_TOL = 1e-9
 #: SLSQP iterations spent on a neighbouring set of factors before it is searched in full (if it is better by then).
 _SET_SCREEN_ITERATIONS = 8
+#: A coefficient of a fitted straight constraint this small, beside its largest, is rounding and is taken as 0.
+#: Left in a gradient (as 1e-15, say), it gave the limit of an ingredient that a search leaves out a slope on the
+#: ingredients in use, and SLSQP then stopped at its start.
+_FITTED_ZERO = 1e-12
 
 
 @dataclass
@@ -816,6 +822,8 @@ class _SearchSpace:
     gaps: list[tuple[int, float, float]] = field(default_factory=list)
     #: Whether a setting uses a number of factors that the region's count rules allow; None without such rules.
     allowed: Callable[[np.ndarray], bool] | None = None
+    #: The same space as bounds and straight constraints, for the exact search; None when a constraint is curved.
+    straight: StraightRegion | None = None
 
     def left_out(self, x: np.ndarray, column: int, zero: float) -> bool:
         """Whether ``x`` leaves the factor in ``column`` out."""
@@ -833,6 +841,18 @@ class _SearchSpace:
             bounds[j] = (zero, zero) if out else (minimum, bounds[j][1])
         return bounds
 
+    def constraints_at(self, start: np.ndarray) -> list[dict[str, Any]]:
+        """Return the constraints of a search from ``start``: those that a factor free to move enters.
+
+        A straight constraint on factors that the search holds fixed (the limits of an
+        ingredient that ``start`` leaves out) is a constant during it, so it cannot steer
+        the search, and whether it holds is for the test of the result. Most of a
+        formulation's ingredients are left out of any one blend, and so are most of
+        these constraints. A constraint without a gradient is kept.
+        """
+        free = np.array([low < high for low, high in self.bounds_at(start)])
+        return [c for c in self.constraints if "jac" not in c or np.any(c["jac"](start)[free] != 0.0)]
+
 
 def _search_space(
     factor_names: list[str],
@@ -840,6 +860,7 @@ def _search_space(
     region: DesignRegion | None,
     rng: np.random.Generator,
     n_starts: int,
+    score: Callable[[np.ndarray], float] | None = None,
 ) -> _SearchSpace:
     """Translate a search box, and optionally a :class:`DesignRegion`, into SLSQP inputs.
 
@@ -854,13 +875,15 @@ def _search_space(
 
     A factor with a ``min_when_used`` is left out by about half of the starts (see
     :meth:`DesignRegion.sample`), and the space records its minimum, so each search stays
-    on the set of factors its start uses (:meth:`_SearchSpace.bounds_at`).
+    on the set of factors its start uses (:meth:`_SearchSpace.bounds_at`). With ``score``,
+    which is smaller for a better setting, the starts of such a region are the most
+    promising of many (see :func:`_region_starts`).
     """
     bounds = _resolve_search_bounds(search_bounds, factor_names)
     lows, highs = np.array(bounds).T
     if region is None:
         starts = [(lows + highs) / 2.0, *(rng.uniform(lows, highs) for _ in range(n_starts - 1))]
-        return _SearchSpace(bounds, [], starts)
+        return _SearchSpace(bounds, [], starts, straight=StraightRegion(bounds))
 
     if region.rules is not None:
         example = ", ".join(f"{name}={levels[0]!r}" for name, levels in region.rules.levels.items())
@@ -881,33 +904,152 @@ def _search_space(
     components = [factor_names.index(n) for n in region.mixture_names]
     for j in components:
         bounds[j] = region.bounds[region.names.index(factor_names[j])]
-    constraints: list[dict[str, Any]] = [
-        {"type": "ineq", "fun": lambda x, g=g: -float(g(x[idx][None, :])[0])} for g in region.inequalities
-    ]
+    limits = tuple(np.array(region.bounds, dtype=float).T)
+    forms = [_straight_form(_affine_form(g, *limits), idx, len(factor_names)) for g in region.inequalities]
+    constraints = [_slsqp_inequality(g, form, idx) for g, form in zip(region.inequalities, forms, strict=True)]
+    straight = _straight_region(bounds, forms, components, gaps, sets)
     if components:
-        constraints.append({"type": "eq", "fun": lambda x: float(x[components].sum() - 1.0)})
+        ones = np.zeros(len(factor_names))
+        ones[components] = 1.0
+        constraints.append({"type": "eq", "fun": lambda x: float(x[components].sum() - 1.0), "jac": lambda _x: ones})
+
+    def placed(sample: np.ndarray) -> np.ndarray:
+        start = np.empty(len(factor_names))
+        start[idx] = sample
+        return start
+
+    in_region = None if score is None else (lambda sample: score(placed(sample)))
+    starts = [placed(sample) for sample in _region_starts(region, (lows[idx], highs[idx]), rng, n_starts, in_region)]
+    allowed = None if sets is None else (lambda x: bool(sets.allows(x[idx][None, :])[0]))
+    return _SearchSpace(bounds, constraints, starts, gaps, allowed, straight)
+
+
+#: With a score, the starts of a region whose factors can be left out are the best of this many times as many settings.
+_START_CANDIDATES = 30
+
+
+def _region_starts(
+    region: DesignRegion,
+    box: tuple[np.ndarray, np.ndarray],
+    rng: np.random.Generator,
+    n_starts: int,
+    score: Callable[[np.ndarray], float] | None = None,
+) -> np.ndarray:
+    """Return up to ``n_starts`` settings of the region's columns to search from, uniform over it where it is sampled.
+
+    ``box`` is the search box in the region's columns, which may reach beyond the coded cube.
+
+    A search keeps the set of factors its start uses, so in a region whose factors can
+    be left out the starts decide which sets are searched at all. With ``score`` they
+    are chosen, not drawn: of the region's candidate blends, or of ``_START_CANDIDATES``
+    times as many draws from it, the best by ``score`` of as many different sets.
+    """
+    sets = region._sets
+    choose = bool(region.gaps) and score is not None
+    if not n_starts:
+        return np.empty((0, len(region.names)))
     if any(region.names[j] in region.mixture_names for j, _minimum in region.gaps):
         # A region with such a component is not sampled: the searches start from its vertices and edge midpoints.
         points = region.support_points()
-        samples = points[rng.choice(len(points), size=n_starts, replace=len(points) < n_starts)]
+        if not choose:
+            points = points[rng.choice(len(points), size=n_starts, replace=len(points) < n_starts)]
     elif region.kind != "box":
-        samples = region.sample(n_starts, rng)
-    else:  # uniform over the search box cut by the constraints, which may reach beyond the coded cube
-        box = (lows[idx], highs[idx])
-        samples = UniformSampler(
+        points = region.sample(n_starts, rng)
+    else:  # uniform over the search box cut by the constraints
+        points = UniformSampler(
             region.inequalities,
             box,
-            lambda m: rng.uniform(*box, size=(m, len(idx))),
+            lambda m: rng.uniform(*box, size=(m, len(box[0]))),
             seeds=region.seed_points,
             tolerances=region._widen(),  # so a start passes region.feasible()
             gaps=region.gaps,  # so the starts differ in which factors with a min_when_used they leave out
             allowed=None if sets is None else sets.allows,
-        ).draw(n_starts, rng)
-    starts = [np.empty(len(factor_names)) for _ in range(n_starts)]
-    for start, sample in zip(starts, samples, strict=True):
-        start[idx] = sample
-    allowed = None if sets is None else (lambda x: bool(sets.allows(x[idx][None, :])[0]))
-    return _SearchSpace(bounds, constraints, starts, gaps, allowed)
+        ).draw(n_starts * (_START_CANDIDATES if choose else 1), rng)
+    if not choose:
+        return points
+    assert score is not None
+    columns = [column for column, _minimum in region.gaps]
+    used = points[:, columns] > np.array([region.bounds[column][0] for column in columns]) + _LEFT_OUT_TOL
+    best_of_each_set: dict[bytes, int] = {}
+    for i in np.argsort([score(point) for point in points], kind="stable"):
+        best_of_each_set.setdefault(used[i].tobytes(), int(i))
+    return points[list(best_of_each_set.values())[:n_starts]]
+
+
+def _straight_form(
+    form: tuple[np.ndarray, float] | None, idx: list[int], n_factors: int
+) -> tuple[np.ndarray, float] | None:
+    """Return a fitted straight constraint ``a @ x <= b`` over the model's factors, its rounding taken as 0.
+
+    ``form`` is over the region's columns, which ``idx`` places among the model's
+    factors; None, for a curved constraint, stays None.
+    """
+    if form is None:
+        return None
+    a, b = form
+    row = np.zeros(n_factors)
+    row[idx] = np.where(np.abs(a) > _FITTED_ZERO * np.abs(a).max(), a, 0.0)
+    return row, b
+
+
+def _straight_region(
+    bounds: list[tuple[float, float]],
+    forms: list[tuple[np.ndarray, float] | None],
+    components: list[int],
+    gaps: list[tuple[int, float, float]],
+    sets: UsedSets | None,
+) -> StraightRegion | None:
+    """Return the search space as the exact search takes it, or None when that search does not apply.
+
+    It does not when a constraint is curved. Nor when a factor that a count rule counts
+    has no ``min_when_used``: it is in use at any amount above 0, however small, so the
+    best setting may be one that is approached and never reached, and there is no best
+    setting to prove.
+
+    ``gaps`` is in the order of ``sets.optional``, so a count rule's members are positions in it.
+    """
+    rows = [form for form in forms if form is not None]
+    if len(rows) < len(forms) or any(minimum <= zero for _column, zero, minimum in gaps):
+        return None
+    members = sets._members if sets is not None else []
+    counts = [(list(counted), rule.at_least - always, rule.at_most - always) for counted, always, rule in members]
+    return StraightRegion(bounds, rows, components, gaps, counts)
+
+
+def _slsqp_inequality(
+    g: Callable[[np.ndarray], np.ndarray], form: tuple[np.ndarray, float] | None, idx: list[int]
+) -> dict[str, Any]:
+    """Return a region's inequality ``g(x) <= 0`` as SLSQP's ``-g(x) >= 0``, with its gradient when ``g`` is straight.
+
+    Without a gradient SLSQP estimates one by finite differences, a call of ``g`` per
+    factor at every iteration. A formulation of 45 ingredients has a limit for each group
+    total, and those estimates took nearly all of a search's time. ``form`` is the
+    ``(a, b)`` of ``g(x) = a @ x - b`` over the model's factors (see :func:`_straight_form`),
+    or None when ``g`` is curved, and ``idx`` places the region's columns among them.
+    """
+    constraint: dict[str, Any] = {"type": "ineq", "fun": lambda x: -float(g(x[idx][None, :])[0])}
+    if form is not None:
+        gradient = -form[0]
+        constraint["jac"] = lambda _x: gradient
+    return constraint
+
+
+def _straight_models(
+    fitted_models: list[dict[str, Any]], factor_names: list[str]
+) -> list[tuple[np.ndarray, float]] | None:
+    """Return each model's slopes and intercept, or None when a model has a term of more than one factor."""
+    models = []
+    for fitted in fitted_models:
+        slopes, intercept = np.zeros(len(factor_names)), 0.0
+        for parts, coefficient in _parsed_terms(fitted["coefficients"], factor_names):
+            if len(parts) > 1:
+                return None
+            if parts:
+                slopes[factor_names.index(parts[0])] += coefficient
+            else:
+                intercept += coefficient
+        models.append((slopes, intercept))
+    return models
 
 
 def _region_for_method(region: DesignRegion | None, method: str) -> DesignRegion | None:
@@ -933,7 +1075,12 @@ def _multistart_results(
     results = []
     for x0 in space.starts:
         res = optimize.minimize(
-            objective, x0, method="SLSQP", bounds=space.bounds_at(x0), constraints=space.constraints, options=options
+            objective,
+            x0,
+            method="SLSQP",
+            bounds=space.bounds_at(x0),
+            constraints=space.constraints_at(x0),
+            options=options,
         )
         if accept(res.x) and np.isfinite(res.fun):
             results.append(res)
@@ -967,7 +1114,7 @@ def _best_set_of_factors(
                 start,
                 method="SLSQP",
                 bounds=space.bounds_at(start),
-                constraints=space.constraints,
+                constraints=space.constraints_at(start),
                 options={**(options or {}), **limit},
             )
             better = np.isfinite(res.fun) and res.fun < best.fun - 1e-9 * max(1.0, abs(best.fun))
@@ -998,6 +1145,96 @@ def _best_set_of_factors(
                 best, improved = res, True
                 break  # the sets next to the new best are not the ones listed above
     return best
+
+
+#: How many times the search over the sets of factors may start again from a setting the models' tangents gave.
+_TANGENT_STEPS = 10
+#: A composite desirability within this of 1 is 1: the search has nothing left to find.
+_FULL_DESIRABILITY = 1e-12
+#: From how many of the best results, each of a different set of factors, the search over the sets is run.
+_SET_SEARCHES = 3
+#: The searches started in a region whose factors can be left out, each in the best setting of a different set.
+#: Over ten components in three responses with blending terms, the set of the best setting was among the 14
+#: most promising of 535 in every case tried, and first in most.
+_STARTS_OVER_SETS = 30
+
+
+def _of_different_sets(
+    results: list[optimize.OptimizeResult], space: _SearchSpace, n: int
+) -> list[optimize.OptimizeResult]:
+    """Return the first ``n`` of ``results`` that each use a different set of the factors that can be left out."""
+    kept: dict[tuple[bool, ...], optimize.OptimizeResult] = {}
+    for res in results:
+        kept.setdefault(tuple(space.left_out(res.x, j, zero) for j, zero, _minimum in space.gaps), res)
+    return list(kept.values())[:n]
+
+
+@dataclass
+class _SetSearch:
+    """The search for the best set of factors to use, for models that are not all straight lines.
+
+    Two searches take turns until neither improves the setting. :func:`_best_set_of_factors`
+    tries the sets next to the best one. The other replaces each model by its tangent at
+    the best setting, a straight line, for which the best set of factors is found exactly
+    (:func:`exact_optimum`); the search then runs on the models themselves from that
+    setting. The first sees only the neighbouring sets, and the second any set, as far
+    as the tangents describe the models there. Neither proves the result.
+    """
+
+    fitted_models: list[dict[str, Any]]
+    factor_names: list[str]
+    goals: list[dict[str, Any]]
+    importances: list[float] | None
+
+    def best(
+        self,
+        objective: Callable[[np.ndarray], float],
+        space: _SearchSpace,
+        accept: Callable[[np.ndarray], bool],
+        best: optimize.OptimizeResult,
+    ) -> optimize.OptimizeResult:
+        """Return the best result the two searches reach from ``best``."""
+        best = _best_set_of_factors(objective, space, accept, best, None)
+        for _ in range(_TANGENT_STEPS if space.straight is not None else 0):
+            start = self._from_tangents(space, best.x)
+            if start is None:
+                break
+            found = optimize.minimize(
+                objective, start, method="SLSQP", bounds=space.bounds_at(start), constraints=space.constraints_at(start)
+            )
+            if not (
+                np.isfinite(found.fun) and found.fun < best.fun - 1e-9 * max(1.0, abs(best.fun)) and accept(found.x)
+            ):
+                break
+            best = _best_set_of_factors(objective, space, accept, found, None)
+        return best
+
+    def _from_tangents(self, space: _SearchSpace, x: np.ndarray) -> np.ndarray | None:
+        """Return the best setting for the models' tangents at ``x``, or None when none scores above 0 for them."""
+        tangents = [_tangent(fitted["coefficients"], self.factor_names, x) for fitted in self.fitted_models]
+
+        def desirability(point: np.ndarray) -> float:
+            d_values = [
+                individual_desirability(float(slopes @ point + intercept), goal)
+                for (slopes, intercept), goal in zip(tangents, self.goals, strict=True)
+            ]
+            return overall_desirability(d_values, self.goals, self.importances)
+
+        assert space.straight is not None
+        found = exact_optimum(space.straight, tangents, self.goals, self.importances, desirability)
+        return None if found is None else found.x
+
+
+def _tangent(coefficients: list[dict[str, Any]], factor_names: list[str], x: np.ndarray) -> tuple[np.ndarray, float]:
+    """Return the slopes and the intercept of the straight line that touches a polynomial model at ``x``."""
+    position = {name: j for j, name in enumerate(factor_names)}
+    value, slopes = 0.0, np.zeros(len(factor_names))
+    for parts, coefficient in _parsed_terms(coefficients, factor_names):
+        columns = [position[part] for part in parts]
+        value += coefficient * float(np.prod(x[columns]))
+        for p, column in enumerate(columns):  # the product rule: each factor of the term in turn
+            slopes[column] += coefficient * float(np.prod(x[columns[:p] + columns[p + 1 :]]))
+    return slopes, value - float(slopes @ x)
 
 
 def _multistart_slsqp(
@@ -1077,13 +1314,22 @@ def _closest_to_specification(
     def ramps(z: np.ndarray) -> np.ndarray:
         return _ramp_values([f(z[:n]) for f in evaluators], goals)
 
-    constraints = [{"type": "ineq", "fun": lambda z: ramps(z) - z[n]}]
-    constraints += [{**c, "fun": lambda z, c=c: c["fun"](z[:n])} for c in space.constraints]
+    def with_t(c: dict[str, Any]) -> dict[str, Any]:
+        wider = {**c, "fun": lambda z: c["fun"](z[:n])}
+        if "jac" in c:  # the constraint does not depend on t
+            wider["jac"] = lambda z: np.append(c["jac"](z[:n]), 0.0)
+        return wider
+
+    every_ramp = {"type": "ineq", "fun": lambda z: ramps(z) - z[n]}
     best: tuple[float, np.ndarray] | None = None
     for x0 in space.starts:
         z0 = np.append(x0, min(1.0, float(ramps(np.append(x0, 0.0)).min())))
         res = optimize.minimize(
-            lambda z: -z[n], z0, method="SLSQP", bounds=[*space.bounds_at(x0), (None, 1.0)], constraints=constraints
+            lambda z: -z[n],
+            z0,
+            method="SLSQP",
+            bounds=[*space.bounds_at(x0), (None, 1.0)],
+            constraints=[every_ramp, *map(with_t, space.constraints_at(x0))],
         )
         x = res.x[:n]
         t = float(ramps(res.x).min())
@@ -1235,8 +1481,10 @@ def _optimize_desirability(  # noqa: PLR0913
     -------
     dict
         Optimal settings, predicted responses, individual and composite
-        desirability, ``within_region`` when a region is given, and
-        ``alternatives`` when *n_alternatives* is above 0.
+        desirability, ``within_region`` when a region is given,
+        ``alternatives`` when *n_alternatives* is above 0, and ``proven_optimal``:
+        whether no setting of the search region can score higher (see
+        :func:`_exact_result`, and a composite desirability of 1).
     """
     if align_goals:
         goals = _align_goals_to_models(fitted_models, goals)
@@ -1254,26 +1502,37 @@ def _optimize_desirability(  # noqa: PLR0913
     # behaviour). Resolved via the ENG-08 helper.
     rng = check_random_state(random_state)
 
-    # Start from the centre of the searched region, then sample across it, so
-    # that widening the bounds actually widens where the search looks.
-    space = _search_space(factor_names, search_bounds, region, rng, n_starts=10 + 10 * n_alternatives)
     limits = _response_limits(evaluators, goals)
-    space.constraints.extend(limits)
 
     def accept(x: np.ndarray) -> bool:
         within = _within_region(region, factor_names, x) is not False
         return within and all(c["fun"](x) >= -_LIMIT_TOL for c in limits)
 
-    # Start first from the setting closest to meeting every limit: from there the
-    # search can climb even when every other start sits where some d is 0, and on a
-    # tie at D = 0 it is the setting reported.
-    if (closest := _closest_to_specification(evaluators, goals, space, accept)) is not None:
-        space.starts.insert(0, closest)
-    results = _multistart_results(neg_composite, space, accept)
+    # With straight models over straight constraints the best setting is found exactly, and proven. That
+    # takes no starting points, which cost the most to find in a region whose factors can be left out.
+    space = _search_space(factor_names, search_bounds, region, rng, n_starts=0)
+    exact = _exact_result(fitted_models, factor_names, goals, importances, space, neg_composite, accept)
+    if exact is not None and exact.found.proven and space.gaps and not n_alternatives:
+        results = [exact]
+    else:
+        # Start from the centre of the searched region, then sample across it, so
+        # that widening the bounds actually widens where the search looks.
+        # Where factors can be left out a search keeps its start's set of them, so more sets are started from.
+        n_starts = (_STARTS_OVER_SETS if space.gaps else 10) + 10 * n_alternatives
+        space = _search_space(factor_names, search_bounds, region, rng, n_starts, score=neg_composite)
+        space.constraints.extend(limits)
+        if (first := _first_start(exact, evaluators, goals, space, accept)) is not None:
+            space.starts.insert(0, first)
+        results = _with_exact(_multistart_results(neg_composite, space, accept), exact, bool(space.gaps))
     if not results:
         raise _no_optimum(region, limits)
-    if space.gaps:
-        results.insert(0, _best_set_of_factors(neg_composite, space, accept, results[0], None))
+    proven = _is_proven(-results[0].fun, exact)
+    if space.gaps and not proven:
+        search = _SetSearch(fitted_models, factor_names, goals, importances)
+        leaders = _of_different_sets(results, space, _SET_SEARCHES)
+        results = sorted(
+            [*(search.best(neg_composite, space, accept, res) for res in leaders), *results], key=lambda res: res.fun
+        )
 
     best_result = results[0]
     composite_d = float(-best_result.fun)
@@ -1288,10 +1547,90 @@ def _optimize_desirability(  # noqa: PLR0913
 
     names = [m.get("response_name", "response") for m in fitted_models]
     scored = _Scored(factor_names, names, evaluators, goals, importances, factor_ranges, region)
-    result = scored.at(best_result.x) | {"optimizer_success": bool(best_result.success)}
+    proven = proven or _is_proven(composite_d, exact)  # the search over the sets may have reached the bound
+    result = scored.at(best_result.x) | {"optimizer_success": bool(best_result.success), "proven_optimal": proven}
     if n_alternatives:
         result["alternatives"] = [scored.at(x) for x in _alternatives(results, n_alternatives)]
     return result
+
+
+def _is_proven(desirability: float, exact: optimize.OptimizeResult | None) -> bool:
+    """Whether no setting of the search region scores above ``desirability``.
+
+    None does when it is 1, or when it reaches the bound of the exact search, whichever
+    search found the setting that scores it.
+    """
+    return desirability >= 1.0 - _FULL_DESIRABILITY or (exact is not None and exact.found.proves(desirability))
+
+
+def _first_start(
+    exact: optimize.OptimizeResult | None,
+    evaluators: list[Callable[[np.ndarray], float]],
+    goals: list[dict[str, Any]],
+    space: _SearchSpace,
+    accept: Callable[[np.ndarray], bool],
+) -> np.ndarray | None:
+    """Return the setting to search from first, or None when there is none.
+
+    Where factors can be left out it is the exact setting, when there is one. Otherwise it
+    is the setting closest to meeting every limit: from there the search can climb even
+    when every other start sits where some d is 0, and on a tie at D = 0 it is the
+    setting reported.
+    """
+    if exact is not None and space.gaps:
+        return exact.x
+    return _closest_to_specification(evaluators, goals, space, accept)
+
+
+#: A searched setting whose composite desirability is within this share of the exact one's is as good.
+_AS_GOOD = 1e-6
+
+
+def _with_exact(
+    searched: list[optimize.OptimizeResult], exact: optimize.OptimizeResult | None, left_out: bool
+) -> list[optimize.OptimizeResult]:
+    """Return the search's results, best first, with the exact one ahead of them where it is the one to report.
+
+    Where no factor can be left out (``left_out`` is False) the search's best setting is
+    reported as it was before there was an exact search, which then only says whether
+    that setting is proven: a kept study opens with the settings it showed. Such a region
+    is one piece, in which the search does not end at a poorer set of factors; it can
+    stop a little short along a factor of small effect, and it leaves a factor without
+    an effect where it began, in the middle of its range, where the exact search would
+    put it at an end.
+
+    Where factors can be left out the exact setting is reported, unless the search did
+    as well.
+    """
+    if exact is None or (searched and not left_out):
+        return searched
+    if searched and searched[0].fun <= exact.fun * (1.0 - _AS_GOOD):
+        return searched
+    return [exact, *searched]
+
+
+def _exact_result(
+    fitted_models: list[dict[str, Any]],
+    factor_names: list[str],
+    goals: list[dict[str, Any]],
+    importances: list[float] | None,
+    space: _SearchSpace,
+    neg_composite: Callable[[np.ndarray], float],
+    accept: Callable[[np.ndarray], bool],
+) -> optimize.OptimizeResult | None:
+    """Return the exact optimum as a search result that holds what was ``found``, or None when it does not apply.
+
+    It applies when every model is a straight line in the factors and every constraint of
+    the space is one (see :mod:`~process_improve.experiments._exact_optimum`), and some
+    setting scores above 0.
+    """
+    models = _straight_models(fitted_models, factor_names)
+    if models is None or space.straight is None:
+        return None
+    found = exact_optimum(space.straight, models, goals, importances, lambda x: -neg_composite(x))
+    if found is None or not accept(found.x):
+        return None
+    return optimize.OptimizeResult(x=found.x, fun=neg_composite(found.x), success=True, found=found)
 
 
 # ---------------------------------------------------------------------------
@@ -1947,6 +2286,10 @@ def _span(coding: dict[str, Any]) -> tuple[float, float]:
     return float(coding["low"]), float(coding["high"])
 
 
+#: The range under which a coded setting and an actual one are the same number.
+_AS_GIVEN = {"low": -1.0, "high": 1.0}
+
+
 def _ranges_from_coding(
     fitted_models: list[dict[str, Any]],
     factor_ranges: dict[str, dict[str, float]] | None,
@@ -1960,7 +2303,10 @@ def _ranges_from_coding(
     over the wrong region (-1 to +1 degC, say). A coded model instead says which actual
     settings its coded optimum stands for. A model without these keys, such as one
     written out by hand, is taken to be coded, as before. Mixture ``components`` (those
-    of the region searched) are proportions on either scale, so they are left out.
+    of the region searched) are proportions on either scale, so a model's coding of one
+    is left out, and a range given for one in *factor_ranges* is replaced by the range
+    that reports a setting as it is: the range given would read the proportion as a
+    coded setting and report an amount that no run has.
 
     Raises
     ------
@@ -1992,7 +2338,8 @@ def _ranges_from_coding(
                     "each. Fit them all with the same ranges: analyze_experiment(..., coding={...})."
                 )
                 raise ValueError(msg)
-    for factor, given in (factor_ranges or {}).items():
+    ranges = {factor: _AS_GIVEN if factor in components else given for factor, given in (factor_ranges or {}).items()}
+    for factor, given in ranges.items():
         if factor in implied and not np.allclose(_span(given), _span(implied[factor])):
             msg = (
                 f"factor_ranges gives {factor} from {given['low']} to {given['high']}, but the coefficients are coded "
@@ -2000,7 +2347,7 @@ def _ranges_from_coding(
                 "or fit with analyze_experiment(..., coding=factor_ranges) so that the two agree."
             )
             raise ValueError(msg)
-    return {**implied, **(factor_ranges or {})} or factor_ranges
+    return {**implied, **ranges} or None
 
 
 def _check_fitted_models(fitted_models: list[dict[str, Any]], method: str) -> None:
@@ -2194,7 +2541,9 @@ def optimize_responses(  # noqa: PLR0913
         Maps factor name to ``{"low": float, "high": float}`` in actual
         units.  Used for coded ↔ actual conversion. A coded model from
         ``analyze_experiment`` supplies the ranges of its own factors, and
-        a range given here for one of them must agree with it.
+        a range given here for one of them must agree with it. A range
+        for a mixture component of *region* is not used: a proportion is
+        the same on either scale, and is reported as it is.
     step_size : float
         Step length for steepest ascent/descent: the Euclidean distance, in
         coded units, between successive points on the path. Must be positive.
@@ -2244,6 +2593,19 @@ def optimize_responses(  # noqa: PLR0913
         replace *search_bounds*, and the optimum sums to 1. The desirability
         result then carries ``within_region``. Other methods ignore it, with a
         warning.
+
+        The desirability result also carries ``proven_optimal``: whether no
+        setting of the region scores higher than the one reported, to one
+        part in a million. When every model is a straight line in the factors
+        (no interaction or squared term) and every constraint is one, the
+        best setting and that bound are found by mixed-integer linear
+        programming. Where factors can be left out
+        (``Factor(min_when_used=...)``, ``count_nonzero`` limits) that
+        setting is the one reported, and it is proven. Elsewhere the setting
+        reported is the search's, as before, and is proven when it reaches
+        the bound. With a curved model or constraint the optimum is searched
+        for from starting points, and ``proven_optimal`` is False unless the
+        composite desirability reaches 1.
     random_state : int, Generator, or None
         Seed for the random starting points of the multistart search used by
         ``"desirability"`` and ``"pareto_front"``; the other methods are

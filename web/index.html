@@ -692,6 +692,26 @@
             <div class="plot"></div>
             <figcaption class="hint"></figcaption>
           </figure>
+          <!-- The trade-offs between the responses (app.js, with best.js; bootstrap.trade_offs): settings tried on
+               the models, each a point; the best one response can be for each value of another; limits that keep
+               only the settings that meet them; and other settings nearly as good as the balanced ones. -->
+          <div id="trade-offs" class="trade-offs" hidden>
+            <p class="hint" id="trade-about"></p>
+            <div class="trade-view" role="group" aria-label="What the chart of the trade-offs shows">
+              <label>Across <select id="trade-across"></select></label>
+              <label>Up <select id="trade-up"></select></label>
+              <label>Colour by <select id="trade-colour"></select></label>
+            </div>
+            <div class="scroll"><table id="trade-limits" class="data trade-limits" aria-label="Keep only the settings where each response lies between two limits"></table></div>
+            <p id="trade-count" class="hint" role="status"></p>
+            <figure id="trade-chart" class="chart">
+              <h4>What one response costs another</h4>
+              <div class="plot"></div>
+              <figcaption class="hint"></figcaption>
+            </figure>
+            <div id="trade-chosen" aria-live="polite"></div>
+            <div id="trade-nearly"></div>
+          </div>
           <div id="balance-confirm" class="confirm" hidden>
             <h4>Test them with <button type="button" class="term" data-term="confirmation-run">confirmation runs</button></h4>
             <div id="balance-confirm-out" aria-live="polite"></div>
@@ -742,6 +762,51 @@
           <details class="python" id="py-what-if" hidden>
             <summary>Show the Python code of these predictions</summary>
             <p class="hint">The design, its results and each response's prediction at these settings together, so it runs as it is.</p>
+            <pre><code></code></pre>
+            <button type="button" class="link copy">Copy the code</button>
+          </details>
+        </section>
+        <!-- The settings that give a target (app.js, with best.js; bootstrap.target_settings and solve_for): the reader
+             types what each response should be, and its model is run backwards to the settings it predicts that at. -->
+        <section id="target" class="best target" data-feature="panel:target" data-level="2" aria-labelledby="h-target" hidden>
+          <h3 id="h-target">Settings that give a target</h3>
+          <p class="hint">Type what a response should be, or what several should be, and the models are run backwards:
+            the settings at which they predict it.</p>
+          <div class="scroll"><table id="target-goals" class="data target-goals" aria-label="What each response should be"></table></div>
+          <p class="actions">
+            <label>Or match a run <select id="target-match"></select></label>
+            <button type="button" id="target-clear" class="link" hidden>Clear the targets</button>
+          </p>
+          <p id="target-problems" class="hint error" role="status" hidden></p>
+          <div id="target-out" aria-live="polite"></div>
+          <figure id="target-chart" class="chart" hidden>
+            <h4>Where the settings give the targets</h4>
+            <div class="trade-view" role="group" aria-label="The two factors the chart is drawn over">
+              <label>Across <select id="target-across"></select></label>
+              <label>Up <select id="target-up"></select></label>
+            </div>
+            <div class="plot"></div>
+            <figcaption class="hint"></figcaption>
+          </figure>
+          <p id="target-actions" class="actions" hidden>
+            <button type="button" id="target-confirm" class="button">Add 3 confirmation runs at these settings</button>
+            <button type="button" id="target-what-if" class="link">See them under What if</button>
+          </p>
+          <!-- One factor from the others (bootstrap.solve_for): what it must be for a response to meet its target,
+               with every other factor where the What if panel has it. -->
+          <div id="target-solve" class="target-solve" hidden>
+            <h4>One factor from the others</h4>
+            <p class="hint">What one factor must be for a response to meet its target, with the other factors where
+              What if has them.</p>
+            <div class="trade-view" role="group" aria-label="The factor to solve for, and the response whose target it should give">
+              <label>Solve for <select id="solve-factor"></select></label>
+              <label>to give the target of <select id="solve-response"></select></label>
+            </div>
+            <div id="solve-out" aria-live="polite"></div>
+          </div>
+          <details class="python" id="py-target" hidden>
+            <summary>Show the Python code of these settings</summary>
+            <p class="hint">The design, its results and the search for the settings that give the targets together, so it runs as it is.</p>
             <pre><code></code></pre>
             <button type="button" class="link copy">Copy the code</button>
           </details>

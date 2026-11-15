@@ -297,11 +297,35 @@ Also:
   shows where every response is acceptable.
   - *Details:* The settings of the best overall desirability, with each response's
     acceptable range, importance and shape to edit.
+- **What one goal costs another.** A chart puts one response against another, with thousands
+  of settings tried on the models: you see how much of one must be given up for the other.
+  Colour the points by a third response, type a limit on any response to keep only the
+  settings that meet it, and press a point to choose its settings.
+  - *Details:* 2,000 settings drawn evenly from the ranges the limits allow, each categorical
+    factor at the balanced settings' level. A line joins the settings no other betters on
+    both responses; a paler point is further from the runs than any run lies, by its leverage.
+    Settings chosen move the what-if panel there and can be tested with confirmation runs.
+    Other bests of the search within 5% of the balanced settings' overall desirability are
+    listed. The chart shows its Python.
 - **What if.** A slider for each factor. Each response's prediction follows at once. Settings
   can be kept with the study under a name.
   [Show me](https://factori.al/?example=worked&show=what-if)
   - *Details:* Its intervals and its leverage follow too.
 - **A target curve.** For a curve response, the settings whose predicted curve comes closest.
+- **Settings that give a target.** Type what a response should be, or what several should
+  be, or pick a run to match. The app runs the models backwards and gives the settings, with
+  each response's target beside what the models predict there.
+  [Show me](https://factori.al/?example=worked&show=target)
+  - *Details:* 20,000 settings tried on the models, inside the limits and at each level of a
+    categorical factor. Settings give a target when the response is predicted within 2% of
+    the range of its results from it. Of those, the answer is the one nearest the center of
+    the ranges, moved by least squares to meet the targets exactly where the models can. The
+    app says when no setting gives the targets, and when the settings lie beyond the runs. A
+    chart draws each response's line of settings over two factors of your choice, with the
+    runs. The settings go to the what-if panel, or are tested with confirmation runs. One
+    factor can be solved for from the others, with the settings around it at which the 95%
+    confidence interval of the prediction still holds the target. The section and its chart
+    show their Python.
 - **Check the answer.** One button adds three confirmation runs at the settings found, and the
   app judges them when their results are in.
   [Show me](https://factori.al/?example=worked&show=confirm)
@@ -393,9 +417,13 @@ Also:
   report or a slide.
   - *Details:* A PNG or an SVG in the shape shown, on white under its title. An image saved
     from a dark page has the light theme's colours.
-- **The Python that draws it.** Each of the 17 charts shows code that runs as it is.
-  - *Details:* The library's own call for the eleven the library draws, and Plotly's for the
-    six the page draws itself.
+- **The Python that draws it.** Each of the 17 charts shows code that runs as it is, and so
+  do the other figures.
+  - *Details:* The library's own call for the eleven charts the library draws, and Plotly's
+    for the six the page draws itself. The other figures with code are the Pareto plot of the
+    coefficients, how tightly to hold each factor, the overlay of the acceptable ranges, the
+    what-if curve, the FDS plot and the correlation maps. A mixture's triangle overlay and its
+    components' moves show none yet.
 - **One run, marked everywhere.** Rest on a run on a chart or in a table and it is ringed on
   every chart that draws the runs and shaded in the run sheet. A press or a tap keeps it;
   Escape lets it go.
@@ -468,9 +496,9 @@ Also:
     keyboard.
 - **A definition leads to its idea.** Under most definitions, "See it in context" opens the
   concept map at that idea, with the ideas around it and the way into the book.
-  - *Details:* 61 of the 78 terms have the link, and so does a design's name in the list of
-    designs. It opens in a tab of its own, so the study stays as it is. A finger, a mouse and
-    the keyboard each reach it.
+  - *Details:* 61 of the 78 terms have the link, and so do a design's name in the list of
+    designs and the words over that list, Spare runs and Power. It opens in a tab of its own,
+    so the study stays as it is. A finger, a mouse and the keyboard each reach it.
 - **A phone, a tablet or a desk.** The layout, the tables and the charts fit each.
 - **Light, dark or the system's colours.** The choice is kept in the browser.
 - **The keyboard and a screen reader.** Every control can be reached and has a name.

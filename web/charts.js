@@ -1181,6 +1181,13 @@ export const BALANCED_BLEND = "Balanced blend";
 
 /** What the overlay's shading means, as its legend says it. */
 export const SHADED = "Every response acceptable";
+/** What the dots of the runs are, as a legend names them. */
+export const RUNS_MADE = "Runs you made";
+/** What the star of the chart of the settings that give the targets marks. */
+export const FOUND = "Settings found";
+
+/** A response's line on that chart, as the legend names it: the response at its target, in its units. */
+export const targetName = (r) => `${r.label} at ${Number(Number(r.target).toPrecision(4))}${r.units === "%" ? "%" : r.units ? ` ${r.units}` : ""}`;
 export const GREYED = "Outside your limits";
 
 /**
@@ -1206,9 +1213,12 @@ export function boundaryDrawn(surface) {
  * every response is acceptable (a desirability above 0), each response's acceptable boundary a labelled line, greyed
  * where a limit on the settings rules the setting out, and a star at the balanced settings. ``overlay`` is
  * bootstrap.balance's, in coded units, ticked with the factors' own settings; ``responses`` are the reply's, for each
- * response's words and range; ``axes`` names each axis with its units.
+ * response's words and range; ``axes`` names each axis with its units. The settings that give a target draw the same
+ * picture (bootstrap.target_settings): there each response has one line, along which it is predicted at its target,
+ * ``named`` as the legend should have it; nothing is shaded (the overlay's ``acceptable`` is null); ``star`` says what
+ * the star marks; and the overlay's ``runs`` are drawn as dots.
  */
-export function overlayFigure(overlay, responses, axes, colours = palette()) {
+export function overlayFigure(overlay, responses, axes, colours = palette(), { shaded = SHADED, star = BALANCED, named = boundaryName } = {}) {
   const { grid } = overlay;
   const byName = Object.fromEntries(responses.map((r) => [r.name, r]));
   const lineColours = responseColours(colours);
@@ -1231,7 +1241,7 @@ export function overlayFigure(overlay, responses, axes, colours = palette()) {
     fillcolor: fill,
     line: { width: 0 },
   });
-  const data = [region(overlay.acceptable, withAlpha(colours.accent, 0.22), SHADED)];
+  const data = overlay.acceptable ? [region(overlay.acceptable, withAlpha(colours.accent, 0.22), shaded)] : [];
   if (overlay.runnable) data.push(region(overlay.runnable.map((row) => row.map((v) => 1 - v)), withAlpha(colours.muted, 0.45), GREYED));
   overlay.responses.forEach((surface, i) => {
     const r = byName[surface.name];
@@ -1246,7 +1256,7 @@ export function overlayFigure(overlay, responses, axes, colours = palette()) {
       x: grid,
       y: grid,
       z: surface.z,
-      name: boundaryName(r),
+      name: named(r),
       showscale: false,
       showlegend: false,
       autocontour: false,
@@ -1264,31 +1274,40 @@ export function overlayFigure(overlay, responses, axes, colours = palette()) {
     });
   });
   data.push(
-    {
-      type: "scatter",
-      mode: "markers",
-      name: SHADED,
-      x: [null],
-      y: [null],
-      marker: { symbol: "square", size: 12, color: withAlpha(colours.accent, 0.35) },
-      hoverinfo: "skip",
-    },
+    ...(overlay.acceptable
+      ? [{ type: "scatter", mode: "markers", name: shaded, x: [null], y: [null], marker: { symbol: "square", size: 12, color: withAlpha(colours.accent, 0.35) }, hoverinfo: "skip" }]
+      : []),
     ...(overlay.runnable
       ? [{ type: "scatter", mode: "markers", name: GREYED, x: [null], y: [null], marker: { symbol: "square", size: 12, color: withAlpha(colours.muted, 0.55) }, hoverinfo: "skip" }]
       : []),
     // A boundary that misses the settings drawn has no line, so no key: the caption says why.
     ...overlay.responses.flatMap((surface, i) =>
-      boundaryDrawn(surface) ? [legendKey(boundaryName(byName[surface.name]), lineColours[i % lineColours.length], RESPONSE_DASHES[i % RESPONSE_DASHES.length])] : [],
+      boundaryDrawn(surface) ? [legendKey(named(byName[surface.name]), lineColours[i % lineColours.length], RESPONSE_DASHES[i % RESPONSE_DASHES.length])] : [],
     ),
+    // The runs the models are fitted to, where the overlay has them: each place over the two factors, once.
+    ...(overlay.runs?.length
+      ? [
+          {
+            type: "scatter",
+            mode: "markers",
+            name: RUNS_MADE,
+            x: overlay.runs.map(([x]) => x),
+            y: overlay.runs.map(([, y]) => y),
+            marker: { color: colours.fg, size: 7 },
+            cliponaxis: false,
+            hoverinfo: "skip",
+          },
+        ]
+      : []),
     {
       type: "scatter",
       mode: "markers",
-      name: BALANCED,
+      name: star,
       x: [overlay.at[0]],
       y: [overlay.at[1]],
       marker: BEST_MARKER,
       cliponaxis: false,
-      hovertemplate: `${BALANCED}<extra></extra>`,
+      hovertemplate: `${star}<extra></extra>`,
     },
   );
   const axis = (name) => ({
@@ -1307,7 +1326,7 @@ export function overlayFigure(overlay, responses, axes, colours = palette()) {
       showlegend: true,
       margin: { t: 8 },
     },
-    height: 420 + 22 * Math.ceil((overlay.responses.length + 2) / 2),
+    height: 420 + 22 * Math.ceil((overlay.responses.length + 1 + (overlay.acceptable ? 1 : 0) + (overlay.runs?.length ? 1 : 0)) / 2),
   };
 }
 
@@ -1381,6 +1400,112 @@ export function blendOverlayFigure(overlay, responses, colours = palette()) {
       margin: { l: 36, r: 36, t: 48, b: 36 },
     },
     height: 440 + 22 * Math.ceil((overlay.responses.length + 2) / 2),
+  };
+}
+
+// ---------------------------------------------------------------- the trade-offs between the responses
+/** What each mark of the trade-off chart is, as its legend names it. */
+export const TRADE_MARKS = {
+  tried: "Settings tried",
+  far: "Tried, far from your runs",
+  front: "Best trade-off",
+  runs: RUNS_MADE,
+  chosen: "Settings chosen",
+  nearly: "Nearly as good",
+};
+
+/** What an axis says of a response with a goal: its name and units, and which way is better. */
+export function goalAxis(response) {
+  const better = { maximize: "more is better", minimize: "less is better" }[response.goal] ?? `nearer ${response.target} is better`;
+  return `${withUnits(response.label, response.units)}: ${better}`;
+}
+
+/**
+ * The trade-off between two responses, ``across`` and ``up`` (each a response of the balance: its ``name``,
+ * ``label``, ``units``, ``goal`` and ``target``). ``tried`` holds, for each candidate setting kept, its place among
+ * the candidates (``at``), its two predictions, whether it is far from the runs and the words of its settings; a
+ * candidate is a point, paler when it is far from the runs, and coloured by ``colour`` (its ``label``, ``units`` and a
+ * value for each candidate kept) when one is given. ``front`` is the best trade-off among them, as their places in
+ * ``tried``. ``runs`` are the runs made, each with its number and its two results; ``balanced`` and ``chosen`` the
+ * two predictions at the balanced settings and at the settings the reader chose (with ``spread``, half of each
+ * prediction interval, when the models give one); ``nearly`` the alternatives nearly as good.
+ */
+export function tradeOffFigure({ across, up, tried, front, colour = null, runs = [], balanced, chosen = null, nearly = [] }, colours = palette()) {
+  const cloud = (far) => {
+    const kept = tried.filter((one) => Boolean(one.far) === far);
+    const tint = colour
+      ? { color: kept.map((one) => colour.values[one.at]), colorscale: rampFor(SURFACE, colours), cmin: colour.least, cmax: colour.most }
+      : { color: colours.muted };
+    return {
+      type: "scatter",
+      mode: "markers",
+      name: far ? TRADE_MARKS.far : TRADE_MARKS.tried,
+      meta: "tried",
+      x: kept.map((one) => one.across),
+      y: kept.map((one) => one.up),
+      customdata: kept.map((one) => one.at),
+      text: kept.map((one) => one.words),
+      marker: {
+        ...tint,
+        size: 6,
+        opacity: far ? 0.22 : 0.6,
+        ...(colour && !far ? { showscale: true, colorbar: { title: { text: withUnits(colour.label, colour.units) } } } : {}),
+      },
+      hovertemplate: `%{text}<br>${across.label}: %{x:.4g}<br>${up.label}: %{y:.4g}<extra></extra>`,
+    };
+  };
+  const point = (name, at, marker, more = {}) => ({
+    type: "scatter",
+    mode: "markers",
+    name,
+    x: at.map((one) => one.across),
+    y: at.map((one) => one.up),
+    marker,
+    hovertemplate: `${name}<br>${across.label}: %{x:.4g}<br>${up.label}: %{y:.4g}<extra></extra>`,
+    ...more,
+  });
+  const spread = (half) => (half === null || half === undefined ? { visible: false } : { type: "data", array: [half], color: colours.fg, thickness: 1.5, width: 5 });
+  const data = [cloud(true), cloud(false)].filter((trace) => trace.x.length);
+  // The line is joined from left to right: a response with a target is as good on either side of it, so the best
+  // settings in order of how good they are would cross the target and come back.
+  const joined = [...front].sort((a, b) => tried[a].across - tried[b].across);
+  data.push({
+    type: "scatter",
+    mode: "lines",
+    name: TRADE_MARKS.front,
+    x: joined.map((i) => tried[i].across),
+    y: joined.map((i) => tried[i].up),
+    line: { color: colours.accent, width: 2.5 },
+    hoverinfo: "skip",
+  });
+  if (runs.length) {
+    data.push({
+      ...point(TRADE_MARKS.runs, runs, { color: colours.fg, size: 7 }),
+      mode: "markers+text",
+      meta: "runs", // each point is a run, named in its customdata: marked with the run on every other chart
+      customdata: runs.map((run) => [run.run]),
+      text: runs.map((run) => String(run.run)),
+      textposition: "top center",
+      textfont: { size: 10, color: colours.fg },
+      hovertemplate: `Run %{customdata[0]}<br>${across.label}: %{x:.4g}<br>${up.label}: %{y:.4g}<extra></extra>`,
+    });
+  }
+  if (nearly.length) data.push(point(TRADE_MARKS.nearly, nearly, { ...BEST_MARKER, size: 13, symbol: "star-open", color: colours.fg }));
+  data.push(point(BALANCED, [balanced], BEST_MARKER));
+  if (chosen) {
+    const marker = { ...TRUE_MARKER, color: colours.accent };
+    data.push(point(TRADE_MARKS.chosen, [chosen], marker, { error_x: spread(chosen.spread?.across), error_y: spread(chosen.spread?.up) }));
+  }
+  return {
+    data,
+    layout: {
+      xaxis: { title: { text: goalAxis(across) } },
+      yaxis: { title: { text: goalAxis(up) } },
+      legend: LEGEND_ABOVE,
+      showlegend: true,
+      hovermode: "closest",
+    },
+    height: 440,
   };
 }
 
