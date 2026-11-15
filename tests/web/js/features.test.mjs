@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 
-import { MOVED, SHOWN_FROM, addressOf, markdown, page, shownPart, slug } from "../../../web/features.js";
+import { MOVED, PICTURE_SIZE, SHOWN_FROM, addressOf, markdown, page, shownPart, slug } from "../../../web/features.js";
 
 const DOCUMENT = readFileSync(new URL("../../../web/FEATURES.md", import.meta.url), "utf8");
 
@@ -32,6 +32,36 @@ describe("the Markdown of the features document, as HTML", () => {
         "<p>For <code>some</code>, over two lines.</p></details></li><li>Next.</li></ul>",
     );
     assert.doesNotMatch(markdown("- A point.\n  It goes on."), /<details/, "a point with no such line has no fold");
+  });
+
+  test("a point's picture goes above it, keeps its room before it loads, and says nothing of its own", () => {
+    const [width, height] = PICTURE_SIZE;
+    const picture = `<img src="./chart-pictures/contour.webp" alt="" width="${width}" height="${height}" loading="lazy" decoding="async">`;
+    assert.equal(
+      markdown("- **A surface.** A map.\n  ![](chart-pictures/contour.webp)\n  - *Details:* More.\n- **No picture.** Words."),
+      `<ul class="feat-pictures"><li>${picture}<strong>A surface.</strong> A map.<details class="more"><summary>Details</summary>` +
+        "<p>More.</p></details></li><li><strong>No picture.</strong> Words.</li></ul>",
+    );
+    assert.doesNotMatch(markdown("- A point.\n  It goes on."), /feat-pictures|<img/, "a list with no picture is a list");
+  });
+
+  test("a picture is one of the app's own: any other address is shown as it is typed", () => {
+    for (const address of ["https://example.com/x.webp", "chart-pictures/../x.webp", "chart-pictures/x.png", "javascript:alert(1)"]) {
+      const html = markdown(`- **A point.** Words.\n  ![](${address})`);
+      assert.doesNotMatch(html, /<img/, address);
+      assert.match(html, /!\[\]\(/, "as typed");
+    }
+    assert.doesNotMatch(markdown("- **A point.** ![](chart-pictures/contour.webp) in its line."), /<img/, "nor one inside a line");
+  });
+
+  test("every chart of the document has a picture, and no other point has", () => {
+    const html = page(shownPart(DOCUMENT));
+    const lists = html.match(/<ul class="feat-pictures">.*?<\/ul>/gs);
+    assert.equal(lists.length, 1, "the charts, and no other list");
+    const items = lists[0].match(/<li>/g).length;
+    assert.equal(lists[0].match(/<img /g).length, items, "each of its points");
+    assert.equal(html.match(/<img /g).length, items, "and none elsewhere");
+    assert.match(DOCUMENT, new RegExp(`#### The ${items} charts`));
   });
 
   test("a table has its head, and scrolls sideways where it is too wide", () => {

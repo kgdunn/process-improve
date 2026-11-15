@@ -157,6 +157,8 @@
     const answer = await fetch("FEATURES.md", { cache: "no-cache" });
     if (!answer.ok) throw new Error(String(answer.status));
     list.innerHTML = page(shownPart(await answer.text()));
+    // A picture that cannot be had (no network, and a copy that has not seen it) leaves its card to its words.
+    for (const picture of all(".feat-pictures img")) picture.addEventListener("error", () => picture.remove());
     let stored = null;
     try {
       stored = localStorage.getItem(LEVEL_KEY);
