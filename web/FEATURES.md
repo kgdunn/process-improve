@@ -425,7 +425,10 @@ Also:
 - **Open any figure large.** Expand opens a figure over the page, in a shape you choose or
   drag it to, and keeps that shape for the next visit.
   - *Details:* The shapes are 16:9, 4:3, square or all the room, or the size its corner is
-    dragged to, with a mouse, a finger or the arrow keys. Plotly's tools zoom and turn it.
+    dragged to, with a mouse, a finger or the arrow keys. A drag across the figure zooms into
+    that part of it, or turns a figure in three dimensions; Plotly's tools move it and put it
+    back. On a touch screen a drag on a card scrolls the page, except on a figure in three
+    dimensions, which it turns.
 - **Step through the figures.** Use the window's arrows or the left and right keys.
 - **Save or copy a figure.** Take an image file, or an image on the clipboard to paste, for a
   report or a slide.
