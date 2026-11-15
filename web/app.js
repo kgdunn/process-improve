@@ -270,6 +270,7 @@ import {
   BOOK_TAB,
   EXAMPLE_PARAM,
   LINK_KEY,
+  REF_PARAM,
   SCENARIOS_HELD,
   SHOW_PARAM,
   WORKED,
@@ -7969,11 +7970,12 @@ function showPart(id) {
 }
 
 // The part a link asks for is read before the study opens, which clears the address of some links. The address
-// then loses the word: a reload, or a link copied from here, opens the study without the jump.
+// then loses the word, and the word for where the link was posted: a reload, or a link copied from here, opens the
+// study without the jump, and the usage report does not count it as one more visit from that place.
 const partAsked = partName(new URLSearchParams(location.search).get(SHOW_PARAM));
-if (new URLSearchParams(location.search).has(SHOW_PARAM)) {
+if ([SHOW_PARAM, REF_PARAM].some((word) => new URLSearchParams(location.search).has(word))) {
   const address = new URL(location.href);
-  address.searchParams.delete(SHOW_PARAM);
+  for (const word of [SHOW_PARAM, REF_PARAM]) address.searchParams.delete(word);
   history.replaceState(null, "", address);
 }
 start().then(() => showPart(partAsked));

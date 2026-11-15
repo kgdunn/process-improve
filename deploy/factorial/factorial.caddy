@@ -57,7 +57,8 @@ factori.al {
 	# 1 kB each); past that, the oldest go first. A design shared by link travels after
 	# the "#", which a browser never sends, so no design reaches this log. A link from the book
 	# names one of the book's examples in its query (/?book=pollutant), which does: the book's
-	# data, nothing of the reader's.
+	# data, nothing of the reader's. So does the word a posted link gives for where it was
+	# posted (/?ref=linkedin), which usage.py counts: the poster's word, not the reader's.
 	log {
 		output file /var/log/caddy/factorial-access.log {
 			roll_size 50MiB

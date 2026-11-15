@@ -85,6 +85,20 @@ Each page has a column: the app (Home), the concept map (Map), the design catalo
 other page (Other). Readers are distinct networks and browsers in a day, and over a week or a
 month their average a day; Python counts the app's worker starting Python. Under the table, a
 line of bars for each page shows its use over the period. Robots, link-preview fetchers and the deploy's own checks are not counted.
+
+Last, the report lists where readers came from: the site that linked here, as the browser names
+it. Many apps open a link in a browser of their own that names no site, so a link you post can
+name the place itself:
+
+```text
+https://factori.al/?ref=linkedin
+https://factori.al/?example=worked&ref=newsletter
+```
+
+The report lists such visits as `?ref=linkedin`, apart from the rest. A tag is up to 24 letters,
+digits, `-` or `_`, read in lower case; any other is not counted. Use a word for a place, never
+one for each person: the report counts visits, not people. The app drops the tag from its
+address once open, so a reload, or the address copied on, is not counted again.
 The report reads the log for the days it holds and the kept counts for older days. It is the
 `factorial-usage` that `setup.sh` installed: run `setup.sh` again to install a newer one.
 

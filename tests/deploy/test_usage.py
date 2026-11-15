@@ -171,6 +171,48 @@ def test_readers_name_the_sites_they_came_from_but_not_factori_al_itself():
     assert dict(referrers) == {"learnche.org": 2, "github.com": 1}
 
 
+def test_a_tagged_link_is_counted_by_its_tag_on_whichever_page_it_opens():
+    """A link says where it was posted (?ref=linkedin), which an app's own browser, sending no Referer, cannot."""
+    _, referrers = usage.tally(
+        [
+            logged("/?ref=linkedin"),
+            logged("/?example=worked&ref=LinkedIn", PHONE),
+            logged("/features.html?ref=linkedin"),
+            logged("/?ref=newsletter", referer="https://mail.example.com/inbox"),  # by its tag alone, counted once
+            logged("/", referer="https://www.linkedin.com/feed/"),
+            logged("/about.html", referer="https://factori.al/?ref=linkedin"),  # a page opened from the app after
+            logged("/?ref=linkedin", "Googlebot/2.1"),
+        ],
+        SINCE,
+    )
+    assert dict(referrers) == {"?ref=linkedin": 3, "?ref=newsletter": 1, "www.linkedin.com": 1}
+
+
+def test_the_app_drops_from_its_address_the_parameter_the_report_reads():
+    app = (Path(__file__).resolve().parents[2] / "web" / "campaign.js").read_text(encoding="utf-8")
+    assert f'export const REF_PARAM = "{usage.REF}";' in app
+
+
+@pytest.mark.parametrize(
+    "tag",
+    ["", "two%20words", "%1b%5B31mred", "-dash-first", "a" * 25, "caf%C3%A9", "a/b", "<b>"],
+    ids=["none", "a space", "an escape", "a dash first", "too long", "an accent", "a path", "markup"],
+)
+def test_a_tag_that_is_no_short_plain_word_is_not_counted(tag):
+    """The log holds whatever a request sent and the report prints it, so a tag is letters, digits, - and _."""
+    _, alone = usage.tally([logged(f"/?ref={tag}")], SINCE)
+    _, linked = usage.tally([logged(f"/?ref={tag}", referer="https://learnche.org/pid/contents")], SINCE)
+    assert (dict(alone), dict(linked)) == ({}, {"learnche.org": 1}), "the view is still a view, from the site it names"
+
+
+def test_the_longest_tag_fits_the_reports_column():
+    _, referrers = usage.tally([logged(f"/?ref={'a' * 24}"), logged("/?ref=q4_2026-launch")], SINCE)
+    assert dict(referrers) == {f"?ref={'a' * 24}": 1, "?ref=q4_2026-launch": 1}
+    days, _ = three_days()
+    rows = usage.report(days, {}, referrers, date(2026, 10, 10), date(2026, 10, 12)).splitlines()
+    assert rows[-2:] == [f"  ?ref={'a' * 24}       1", "  ?ref=q4_2026-launch                 1"]
+
+
 def test_requests_before_the_period_are_left_out():
     days, _ = usage.tally([logged("/", when="2026-09-30T23:59"), logged("/", when="2026-10-01T00:00")], SINCE)
     assert {name: d.pages["Home"] for name, d in days.items()} == {"2026-10-01": 1}

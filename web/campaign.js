@@ -668,6 +668,12 @@ export const tabOf = (href) => (inBook(href) ? { target: BOOK_TAB, rel: "opener"
  */
 export const SHOW_PARAM = "show";
 
+/**
+ * The query parameter a link says where it was posted by: https://factori.al/?ref=linkedin. The site's usage report
+ * counts the visits such a link brought (deploy/factorial/usage.py); the page does nothing with the word.
+ */
+export const REF_PARAM = "ref";
+
 /** The part of the page a link asks to be shown: its name if it is one a part could have, else null. */
 export function partName(text) {
   return typeof text === "string" && text.length <= 40 && BOOK_NAME.test(text) ? text : null;
