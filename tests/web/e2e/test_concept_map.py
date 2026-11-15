@@ -1388,14 +1388,20 @@ BOOKS_ROW = """() => { const box = (s) => document.querySelector(s).getBoundingC
 
 @pytest.mark.parametrize(
     ("context_options", "one_row"),
-    [({"viewport": {"width": 320, "height": 700}, "is_mobile": True}, False), (SMALL_PHONE, False), (PHONE, True)],
-    ids=["320 px", "360 px", "390 px"],
+    [
+        ({"viewport": {"width": 320, "height": 700}, "is_mobile": True}, False),
+        (SMALL_PHONE, False),
+        (PHONE, False),
+        ({"viewport": {"width": 412, "height": 900}, "is_mobile": True}, True),
+    ],
+    ids=["320 px", "360 px", "390 px", "412 px"],
 )
 def test_on_a_phone_the_kinds_are_large_and_the_switch_and_the_key_to_the_rings_share_a_row(context, site, one_row):
     """The switch says "Compare" on a phone, and everything stands closer, so that it and its key fit one line.
 
-    In a font of the usual width they do from 360 px; in DejaVu Sans, wider than any phone's own font, from 375 px.
-    Where the line is too short for both, the key goes under the switch, on one line of its own.
+    In a font of the usual width they do from 360 px; in DejaVu Sans, wider than any phone's own font, from 390 px,
+    with a few pixels to spare there and 14 at 412 px. Where the line is too short for both, the key goes under
+    the switch, on one line of its own. Each book's mark is a short line, longer than it is high by twice at least.
     """
     context.route("**/map/graph.json", lambda route: route.fulfill(json=TWO_OTHERS))  # two textbooks: the longest row
     page = _open(context, site)
@@ -1414,7 +1420,10 @@ def test_on_a_phone_the_kinds_are_large_and_the_switch_and_the_key_to_the_rings_
         beside = rows["key"]["top"] < rows["switch"]["bottom"] - 8
         assert beside or rows["switch"]["bottom"] <= rows["key"]["top"] + 1, "the key is beside its switch, or under it"
         if one_row:
-            assert beside, "from 375 px the switch and its key share the line, whatever the font"
+            assert beside, "at 412 px the switch and its key share the line, whatever the font"
+    marks = page.locator("#bookkey i").evaluate_all("(marks) => marks.map((m) => [m.offsetWidth, m.offsetHeight])")
+    assert len(marks) == 3
+    assert all(wide >= 2 * high for wide, high in marks), "a line, not a dot"
 
 
 def test_wider_than_a_phone_the_switch_has_its_whole_name(context, site):

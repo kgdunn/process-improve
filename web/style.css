@@ -1871,7 +1871,7 @@ main.map .lede { margin: 0; }
 .map-bookkey { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; min-height: 36px; }
 .map-bookkey.waits { opacity: 0.45; }   /* until the switch is on */
 .map-bookkey span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-.map-bookkey i { width: 14px; height: 6px; border-radius: 3px; flex: none; }
+.map-bookkey i { width: 18px; height: 5px; border-radius: 3px; flex: none; }   /* a short line, as a sector is */
 .map-bookkey svg { width: 24px; height: 24px; flex: none; }
 /* On a phone the switch says "Compare" (the full name stays for a screen reader) and everything stands closer, so
    that the switch and its key share the line on a phone of 360 px and up. The key is on one line from 320 px up,
@@ -1881,7 +1881,7 @@ main.map .lede { margin: 0; }
   .map-books .switch { gap: 6px; }
   .map-bookkey { gap: 2px 4px; }
   .map-bookkey span { gap: 3px; }
-  .map-bookkey i { width: 9px; }
+  .map-bookkey i { width: clamp(10px, 5vw - 7px, 16px); }   /* 11 px on a 360 px phone, 14 px at 412 px */
   .map-bookkey svg { width: 20px; height: 20px; }
 }
 .map-backed { font-size: 0.85rem; color: var(--muted); }
