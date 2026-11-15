@@ -332,7 +332,7 @@ button.term:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 .trade-view label { display: inline-flex; align-items: center; gap: 6px; font-size: 0.9rem; }
 .trade-view select { width: auto; max-width: 14em; }
 .trade-limits input { width: 6.5em; }
-.trade-limits td, .trade-limits th { white-space: nowrap; }
+.trade-limits td, .trade-limits th { white-space: nowrap; padding-right: 14px; }
 #trade-chosen .actions { margin-top: 6px; }
 /* The terms a reader ticks for the model: one group per kind of term, wrapping on a phone. */
 .terms { border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin: 0 0 12px; max-width: 100%; }
