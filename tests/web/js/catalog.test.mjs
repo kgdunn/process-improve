@@ -43,6 +43,7 @@ import {
   rowFactors,
   runBand,
   sizeMap,
+  sizeSentence,
   nextSteps,
   projected,
   projectionSummary,
@@ -362,6 +363,28 @@ describe("the map of factors and runs", () => {
     assert.equal(cellOf(asked, 5, 14).listed, 0, "a size asked for in the search box dims as one chosen does");
     const generated = sizeMap(CATALOG, state({ collection: "generated" }));
     assert.deepEqual(generated.map((row) => row.count).filter(Boolean), [1], "the central composite design alone");
+  });
+
+  test("a family kept dims the other families and takes none away, as a size does", () => {
+    const map = sizeMap(CATALOG, state({ families: ["ccd"] }));
+    assert.deepEqual(map.map((row) => row.count).filter(Boolean), [2, 1], "the map shows the families, so it counts them all");
+    assert.deepEqual(cellOf(map, 3, 8), { count: 1, step: 2, listed: 0 });
+    assert.deepEqual(cellOf(map, 3, 17), { count: 1, step: 3, listed: 1 });
+    assert.deepEqual(map[2].lanes.map((lane) => [lane.family, lane.marks[0].listed]), [["full_factorial", 0], ["ccd", 1]]);
+  });
+
+  test("the list's size is said in words under the map, once a size is kept", () => {
+    assert.equal(sizeSentence(CATALOG, state(), 3), null, "no size kept: nothing to say");
+    assert.equal(sizeSentence(CATALOG, state({ families: ["ccd"] }), 1), null, "a family alone is no size");
+    assert.equal(sizeSentence(CATALOG, state({ factors: [3, 3], runs: [5, 8] }), 2), "2 listed: 3 factors, 5 to 8 runs.");
+    assert.equal(
+      sizeSentence(CATALOG, state({ factors: [3, 3], runs: [17, 17], families: ["ccd"] }), 1),
+      "1 listed: Central composite, 3 factors, 17 runs.",
+      "the designs under one mark",
+    );
+    assert.equal(sizeSentence(CATALOG, state({ factors: [13, null], runs: [null, 4] }), 0), "0 listed: 13 factors or more, up to 4 runs.");
+    assert.equal(sizeSentence(CATALOG, state({ factors: [1, 1] }), 0), "0 listed: 1 factor.");
+    assert.equal(sizeSentence(CATALOG, state({ query: "3 factors" }), 2), "2 listed: 3 factors.", "a size asked for in the search box");
   });
 
   test("a design of more factors than the map has rows is in the last row", () => {

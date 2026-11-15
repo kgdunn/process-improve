@@ -5,11 +5,17 @@
 import { tabOf } from "./campaign.js";
 import {
   FAMILY_COLOURS,
+  MAP_ROWS,
   OTHER_COLOUR,
+  RUN_BANDS,
+  STEP_WORDS,
+  bandPlace,
+  bandWords,
   compareRows,
   projected,
   projectionSummary,
   projectionText,
+  rowWords,
 } from "./catalog-logic.js";
 
 // ---------------------------------------------------------------- small pieces of the document
@@ -207,6 +213,138 @@ export function drawTimeline(svg, bins, marks, [from, to]) {
   const brush = shape("rect", { x: 0, y: top, width: 0, height, class: "timeline__brush", visibility: "hidden" });
   svg.replaceChildren(...groups, ...ticks, ...flags, brush);
   return svg;
+}
+
+// ---------------------------------------------------------------- the map of factors and runs
+/** The fewest designs of each step of the map's colours, when a cell's colour says how many it holds. */
+export const COUNT_STEPS = [1, 5, 20, 50];
+
+/** The fill of a cell or a mark, as style.css names it: by what its designs estimate, or by how many they are. */
+const fillOf = (item, shade) => (shade === "count" ? `fill-${COUNT_STEPS.filter((least) => item.count >= least).length}` : `fill-${item.step ? item.step + 1 : 0}`);
+
+const designs = (n) => `${n} design${n === 1 ? "" : "s"}`;
+
+/** Where each row of each map was last drawn, so that a row moves from there when another opens. */
+const drawnAt = new WeakMap();
+
+/**
+ * Draw the map of the designs by their factors and runs (sizeMap, in catalog-logic.js) at the width its holder
+ * has. A row is a button with its number of factors, then a cell for each band of runs with the designs it
+ * holds; a cell with none in the list is pale. Over the cells run two lines: the fewest runs the main effects
+ * need, and the fewest the full quadratic needs. A row in ``opened`` has a lane for each family under it, with a
+ * mark for each run size, and the lines run straight down through them. ``shade`` says what a cell's colour is:
+ * what most of its designs estimate ("model"), or how many they are ("count"). The buttons, the cells and the
+ * marks name themselves (data-unfold, data-band, data-runs and data-family) for the page, which decides what a
+ * press does.
+ * ``moved`` is the row just opened or shut: the rows then slide from where they were.
+ */
+export function drawSizeMap(holder, rows, { opened, shade, moved = null }) {
+  const width = holder.clientWidth;
+  const head = 38, top = 20, rowH = 32, nameH = 15, laneH = 24;
+  const colW = (width - head) / RUN_BANDS.length;
+  const x = (runs) => head + bandPlace(runs) * colW;
+  const svg = shape("svg");
+  const names = shape("g", { class: "sizemap__bands", "aria-hidden": "true" });
+  RUN_BANDS.forEach((most, band) => {
+    const name = Number.isFinite(most) ? `≤${most}` : `${RUN_BANDS[band - 1] + 1}+`;
+    names.append(shape("text", { x: head + (band + 0.5) * colW, y: 12, "text-anchor": "middle" }, name));
+  });
+  const cells = shape("g");
+  const counts = shape("g", { "aria-hidden": "true" });
+  const lanes = shape("g");
+  const lines = [[], []]; // the points each of the two lines passes through
+  const at = {};
+  const parts = [];
+  let y = top;
+  let fresh = null;
+  for (const row of rows) {
+    const isOpen = opened.has(row.row);
+    const group = shape("g");
+    const numbers = shape("g");
+    at[row.row] = y;
+    parts.push([row.row, group], [row.row, numbers]);
+
+    const name = row.row > MAP_ROWS ? `${row.row}+` : String(row.row);
+    const chip = shape("g", { class: "sizemap__row", role: "button", tabindex: "0", "aria-expanded": String(isOpen), "data-unfold": row.row });
+    chip.setAttribute("aria-label", `${rowWords(row.row)}, ${designs(row.count)}: ${isOpen ? "close" : "open"} this row's families`);
+    chip.append(shape("rect", { x: 1, y: 2, width: head - 8, height: rowH - 4, rx: (rowH - 4) / 2 }), shape("text", { x: 1 + (head - 8) / 2, y: rowH / 2 + 4, "text-anchor": "middle" }, name));
+    group.append(chip);
+
+    row.cells.forEach((cell, band) => {
+      if (!cell.count) return;
+      const state = `${fillOf(cell, shade)}${cell.listed ? "" : " out"}`;
+      const words = `${rowWords(row.row)}, ${bandWords(band)}: ${designs(cell.count)}. Most estimate ${STEP_WORDS[cell.step]}.`;
+      const button = shape("g", { class: `sizemap__cell ${state}`, role: "button", tabindex: "-1", "data-row": row.row, "data-band": band });
+      button.setAttribute("aria-label", `${words} Press to list ${cell.count === 1 ? "it" : "them"}.`);
+      button.append(shape("rect", { x: head + band * colW + 1, y: 1, width: colW - 2, height: rowH - 2, rx: 3 }));
+      group.append(titled(button, words));
+      numbers.append(shape("text", { class: `sizemap__count ${state}`, x: head + (band + 0.5) * colW, y: rowH / 2 + 4, "text-anchor": "middle" }, String(cell.count)));
+    });
+    cells.append(group);
+    counts.append(numbers);
+
+    let tall = rowH;
+    if (isOpen) {
+      const block = shape("g");
+      parts.push([row.row, block]);
+      if (row.row === moved) fresh = block;
+      row.fewest.forEach((runs, i) => {
+        block.append(shape("text", { class: "sizemap__fewest", x: x(runs) + (i ? 5 : -5), y: rowH + 12, "text-anchor": i ? "start" : "end", "aria-hidden": "true" }, String(runs)));
+      });
+      let ly = rowH + 18;
+      row.lanes.forEach((lane, index) => {
+        const cy = ly + nameH + laneH / 2;
+        block.append(
+          shape("line", { class: "sizemap__rule", x1: head, x2: width, y1: ly + nameH + laneH, y2: ly + nameH + laneH }),
+          // A press beside a mark finds the nearest one: the marks of neighbouring sizes are a few pixels apart.
+          shape("rect", { class: "sizemap__lane", x: head, y: ly + nameH, width: width - head, height: laneH, "data-row": row.row, "data-lane": index }),
+        );
+        // The largest first, so that a small mark sits on a large one.
+        for (const mark of [...lane.marks].sort((a, b) => b.count - a.count)) {
+          const words = `${mark.runs} runs, ${lane.label}: ${designs(mark.count)} of ${rowWords(row.row)}. ${mark.count > 1 ? "Most estimate" : "It estimates"} ${STEP_WORDS[mark.step]}.`;
+          const dot = shape("circle", {
+            class: `sizemap__mark ${fillOf(mark, "model")}${mark.listed ? "" : " out"}`,
+            cx: x(mark.runs), cy, r: Math.min(10, 3 + 1.4 * Math.sqrt(mark.count)),
+            role: "button", tabindex: "-1", "data-row": row.row, "data-lane": index, "data-runs": mark.runs, "data-family": lane.family,
+          });
+          dot.setAttribute("aria-label", `${words} Press to list ${mark.count === 1 ? "it" : "them"}.`);
+          block.append(titled(dot, words));
+        }
+        block.append(shape("text", { class: "sizemap__family", x: head, y: ly + 11, "aria-hidden": "true" }, `${lane.label} · ${lane.count}`));
+        ly += nameH + laneH + 4;
+      });
+      tall = ly + 8;
+      lanes.append(block);
+    }
+    row.fewest.forEach((runs, i) => {
+      lines[i].push([x(runs), y + rowH / 2]);
+      if (isOpen) lines[i].push([x(runs), y + tall - 4]); // straight down through the row's families
+    });
+    y += tall;
+  }
+  const drawn = shape("g", { "aria-hidden": "true" });
+  lines.forEach((points, i) => {
+    const d = points.map(([px, py], n) => `${n ? "L" : "M"}${px.toFixed(1)} ${py.toFixed(1)}`).join(" ");
+    const endX = points.at(-1)[0];
+    drawn.append(
+      shape("path", { class: "sizemap__line sizemap__line--under", d }),
+      shape("path", { class: `sizemap__line${i ? "" : " sizemap__line--main"}`, d }),
+      shape("text", { class: "sizemap__name", x: Math.min(width - 40, Math.max(head + 34, endX)), y: y + 12, "text-anchor": "middle" }, i ? "full quadratic" : "main effects"),
+    );
+  });
+  svg.setAttribute("viewBox", `0 0 ${width} ${y + 20}`);
+  for (const [row, part] of parts) part.style.transform = `translate(0px, ${at[row]}px)`;
+  svg.append(names, cells, drawn, counts, lanes);
+  holder.replaceChildren(svg);
+
+  const before = drawnAt.get(holder);
+  drawnAt.set(holder, at);
+  if (moved === null || !before || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  for (const [row, part] of parts) {
+    if (before[row] === undefined || before[row] === at[row]) continue;
+    part.animate([{ transform: `translate(0px, ${before[row]}px)` }, { transform: `translate(0px, ${at[row]}px)` }], { duration: 260, easing: "cubic-bezier(0.2, 0.7, 0.2, 1)" });
+  }
+  for (const part of [fresh, drawn]) part?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, easing: "ease-out" });
 }
 
 // ---------------------------------------------------------------- designs side by side

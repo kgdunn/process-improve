@@ -1267,9 +1267,52 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
   margin: 0 0 12px; padding: 8px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
 }
 .catalog__map figcaption { margin: 4px 4px 0; }
-/* Under a finger a drag on the map scrolls the page, as on every card (charts.js): no box is drawn there. */
-@media (pointer: coarse) { .map__box { display: none; } }
-#map { min-height: 380px; }
+/* The map of the designs by their factors and runs (drawSizeMap, catalog-views.js), with its key above it. */
+.sizemap__tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin: 0 0 6px; }
+.sizemap__tools .link { font-size: 0.85rem; }
+.sizemap__key { display: flex; flex-wrap: wrap; gap: 3px 14px; margin: 0 0 8px; padding: 0; list-style: none; font-size: 0.8rem; color: var(--muted); }
+.sizemap__key li { display: flex; align-items: center; gap: 5px; }
+.sizemap__key svg { flex: none; width: 12px; height: 12px; }
+.sizemap__key .sizemap__ramp { width: 48px; }
+.sizemap__key .sizemap__stroke { width: 26px; height: 8px; }
+/* What a press on the map kept in the list, with the way down to it: the list is a screen or more below. */
+.sizemap__said { margin: 6px 4px 0; font-size: 0.9rem; }
+.sizemap svg { display: block; width: 100%; height: auto; overflow: visible; touch-action: pan-y; user-select: none; }
+.sizemap text { font-size: 11px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+.sizemap [role="button"] { cursor: pointer; }
+.sizemap [role="button"]:focus { outline: none; }
+/* A fill says what the designs of a cell or a mark estimate, or how many they are: the accent, stronger for more.
+   Each step has the ink that reads on it in both themes; the step for "none" is hollow, so no hue stands for it. */
+.catalog__map .fill-0 { --cell: var(--panel); --ink: var(--fg); fill: var(--panel); stroke: var(--muted); stroke-width: 1; }
+.catalog__map .fill-1 { --cell: color-mix(in srgb, var(--accent) 22%, var(--panel)); --ink: var(--fg); }
+.catalog__map .fill-2 { --cell: color-mix(in srgb, var(--accent) 45%, var(--panel)); --ink: var(--fg); }
+.catalog__map .fill-3 { --cell: color-mix(in srgb, var(--accent) 72%, var(--panel)); --ink: #1d1d1f; }
+.catalog__map .fill-4 { --cell: var(--accent); --ink: var(--accent-fg); }
+.catalog__map rect[class^="fill-"], .sizemap__cell rect, .sizemap__mark { fill: var(--cell); }
+.sizemap .out { opacity: 0.3; }
+.sizemap__cell:focus-visible rect, .sizemap__mark:focus-visible { stroke: var(--fg); stroke-width: 2.5; }
+/* A count is drawn over the lines, ringed in its cell's own colour, so a line never hides a number. */
+.sizemap text.sizemap__count { fill: var(--ink); stroke: var(--cell); stroke-width: 4px; stroke-linejoin: round; paint-order: stroke; pointer-events: none; }
+/* A pale cell's count is in the page's quiet ink, with no ring: the ring would be darker than the cell. */
+.sizemap text.sizemap__count.out { fill: var(--muted); stroke: none; opacity: 1; }
+.sizemap__row rect { fill: var(--bg); stroke: var(--line); }
+.sizemap .sizemap__row text { font-size: 12px; fill: var(--fg); }
+.sizemap__row[aria-expanded="true"] rect { fill: var(--accent); stroke: var(--accent); }
+.sizemap .sizemap__row[aria-expanded="true"] text { fill: var(--accent-fg); }
+.sizemap__row:focus-visible rect { stroke: var(--fg); stroke-width: 2.5; }
+/* The two lines of the fewest runs, in the red of the banner's centre runs: over the cells, under their counts. */
+.sizemap__line { fill: none; stroke: var(--mark-centre); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; pointer-events: none; }
+.sizemap__line--under { stroke: var(--panel); stroke-width: 6; }
+.sizemap__line--main { stroke-dasharray: 1 6; }
+.sizemap text.sizemap__name, .sizemap text.sizemap__family { fill: var(--fg); stroke: var(--panel); stroke-linejoin: round; paint-order: stroke; }
+.sizemap text.sizemap__name { stroke-width: 4px; }
+.sizemap text.sizemap__family { font-size: 12px; stroke-width: 6px; }
+.sizemap text.sizemap__fewest { stroke: var(--panel); stroke-width: 4px; stroke-linejoin: round; paint-order: stroke; }
+/* A row opened into its families: a lane for each, a mark for each run size, ringed so that marks read on marks. */
+.sizemap__rule { stroke: var(--line); stroke-width: 1; }
+.sizemap__lane { fill: transparent; cursor: pointer; }
+.sizemap__mark { stroke: var(--panel); stroke-width: 2; }
+.sizemap__mark.fill-0 { stroke: var(--muted); stroke-width: 1.5; }
 .catalog__listhead { display: flex; justify-content: flex-end; margin: 0 0 6px; font-size: 0.9rem; }
 .catalog__listhead select { margin-left: 6px; }
 .results { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
