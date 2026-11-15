@@ -57,6 +57,17 @@ def test_a_link_opens_the_worked_example_at_the_part_it_names(context, site, par
     assert shown["address"] == "?example=worked", "the address keeps the example and loses the part"
 
 
+def test_the_word_for_where_a_link_was_posted_leaves_the_address_and_changes_nothing_else(context, site):
+    """``?ref=linkedin`` is for the site's usage report: a reload, or the address copied on, is not counted again."""
+    page = opened(context, site, "example=worked&ref=linkedin&show=best")
+    page.wait_for_selector("#best.shown-part")
+    assert page.evaluate("location.search") == "?example=worked", "the example stays; the part and the place go"
+    alone = context.new_page()
+    alone.goto(f"{site}?ref=linkedin")
+    alone.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
+    assert alone.url == site, "a first visit by such a link opens the page as any other does"
+
+
 def test_a_part_in_a_fold_has_its_fold_opened_and_its_outline_goes_after_a_moment(context, site):
     page = opened(context, site, "example=worked&show=py-analyse")
     page.wait_for_selector("#py-analyse.shown-part")

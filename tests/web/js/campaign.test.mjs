@@ -16,6 +16,7 @@ import {
   MANY_FACTORS_FORMAT,
   ONE_FACTOR_FORMAT,
   SCENARIOS_HELD,
+  REF_PARAM,
   SHOW_PARAM,
   WHAT_IF_FORMAT,
   BOOK_TAB,
@@ -422,6 +423,7 @@ describe("one of the book's examples, named in a link", () => {
 
   test("a link names a part of the page to open at, ?show=, by the part's own name, and no other name is taken", () => {
     assert.equal(SHOW_PARAM, "show");
+    assert.equal(REF_PARAM, "ref"); // where a link was posted: the usage report's word, which the page only drops
     assert.equal(partName("best"), "best");
     assert.equal(partName("what-if"), "what-if");
     assert.equal(partName("py-analyse"), "py-analyse");
