@@ -200,7 +200,8 @@ def test_a_report_is_emailed_to_the_maintainer(server, outbox):
     text = mail.get_body(("plain",)).get_content()
     assert text.startswith(f"Topic: Algorithm or model\nReply to: {READER}\n\n{MESSAGE}\n")
     assert f"Study: https://factori.al/#c={STUDY}\n" in text
-    assert "  App commit: " + CONTEXT["commit"] in text
+    assert "App commit" not in text
+    assert text.endswith(f"\n\nVersion: {CONTEXT['commit']}\n"), "the version, on the last line"
     assert "  Charts on show: Coefficients; Response surface\n" in text
     assert "  Made: 2026-10-18 21:04 UTC\n" in text
     assert "    api_analyze_runs: Python stopped with LinAlgError: Singular matrix\n" in text
@@ -221,7 +222,7 @@ def test_a_report_of_a_message_alone_says_what_it_lacks(server, outbox):
     assert "Reply to: no address given\n" in text
     assert "Ça marche: ∑ and é read well." in text, "the reader's text as written, in UTF-8"
     assert "Study: not included\nScreenshot: not included\n" in text
-    assert text.endswith("Last Python errors: none\n")
+    assert text.endswith("Last Python errors: none\n\nVersion: not named by the page\n")
 
 
 def test_a_message_s_line_breaks_stay_in_the_body(server, outbox):

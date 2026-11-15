@@ -96,8 +96,8 @@ CONTEXT: dict[str, int | tuple[int, int]] = {
     "window": 40,
 }
 #: How the email names each of the context's texts, in the order it lists them; the stamp's rows name themselves.
+#: The commit is not among them: it is the version, on the email's last line.
 CONTEXT_LABELS = {
-    "commit": "App commit",
     "plotly_js": "Plotly.js",
     "tab": "Tab on show",
     "model": "Model",
@@ -336,7 +336,7 @@ class Mail:
 
 
 def body(report: Report) -> str:
-    """Return the email's text: the topic and who to reply to, the reader's message, then what came with it."""
+    """Return the email's text: the topic and who to reply to, the reader's message, what came with it, the version."""
     about = report.context or {}
     reply = report.email or "no address given"
     lines = [f"Topic: {TOPICS[report.topic]}", f"Reply to: {reply}", "", report.message, ""]
@@ -351,6 +351,8 @@ def body(report: Report) -> str:
     errors = about.get("errors", [])
     lines.append("  Last Python errors:" if errors else "  Last Python errors: none")
     lines += [f"    {error}" for error in errors]
+    # The version of the app the report came from, last, where it is found at once: the commit, and its day.
+    lines += ["", f"Version: {about.get('commit', 'not named by the page')}"]
     return "\n".join(lines) + "\n"
 
 

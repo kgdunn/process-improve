@@ -251,7 +251,7 @@ def test_the_footer_and_a_report_name_the_version_the_app_was_built_from(context
     assert (link.get_attribute("target"), link.get_attribute("rel")) == ("_blank", "noopener")
     assert link.get_attribute("aria-label") == "Commit 88ccccb on GitHub"
     open_feedback(page)
-    assert f"App commit: {commit}, 13 November 2026" in listed(page)
+    assert listed(page)[-1] == f"Version: {commit}, 13 November 2026", "last in what will be sent, as in the email"
     send(page)
     assert relay.reports[0]["context"]["commit"] == f"{commit}, 13 November 2026"
 
