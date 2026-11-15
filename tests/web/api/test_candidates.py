@@ -1,8 +1,8 @@
 """The designs that can learn the brief: ``api_candidates`` makes and scores them in one call, for Design.
 
 It is ``api_compare_plan`` and ``api_make_design`` for each design, then ``api_compare`` on
-them all, at the power for the response's smallest change worth finding. With five factors or
-more and a model beyond main effects, the optimal designs' slow search waits to be asked for.
+them all, at the power for the response's smallest change worth finding. An optimal design whose
+search is expected to take long waits to be asked for, with the seconds it may take.
 """
 
 from __future__ import annotations
@@ -57,11 +57,25 @@ def test_power_is_for_the_response_s_smallest_change_worth_finding(api):
 
 
 @pytest.mark.parametrize("model", ["main_quadratic", "quadratic", "interactions"])
-def test_with_five_factors_the_optimal_designs_wait_for_the_reader(api, model):
-    factors = factors_named(*"ABCDE")
-    listed = api.ok("api_candidates", {"factors": factors, "model": model})
-    assert [w["design_type"] for w in listed["waiting"]] == ["d_optimal", "i_optimal"]
-    assert not {m["design_type"] for m in listed["made"]} & {"d_optimal", "i_optimal"}
+def test_a_search_expected_to_take_long_waits_for_the_reader_with_its_seconds(api, bootstrap, model):
+    """Five factors: the D-optimal design's search is quick, and the I-optimal one's is the reader's to start."""
+    listed = api.ok("api_candidates", {"factors": factors_named(*"ABCDE"), "model": model})
+    made_for = bootstrap.OPTIMAL_MODEL[model]
+    seconds = bootstrap._search_seconds("i_optimal", 5, made_for)
+    assert bootstrap._search_seconds("d_optimal", 5, made_for) < bootstrap.SLOW_SEARCH <= seconds
+    assert listed["waiting"] == [{"design_type": "i_optimal", "label": "I-optimal", "seconds": pytest.approx(seconds)}]
+    made = {m["design_type"] for m in listed["made"]}
+    assert "d_optimal" in made
+    assert "i_optimal" not in made
+
+
+def test_a_search_is_expected_to_take_as_long_as_its_model_is_large_and_its_factors_many(bootstrap):
+    """The rate is the most a search took under Pyodide, so the seconds are a wait not to be passed."""
+    for design_type, rate in bootstrap.SEARCH_SECONDS.items():
+        assert bootstrap._search_seconds(design_type, 12, "quadratic") == pytest.approx(rate * 91 * 12)
+        assert bootstrap._search_seconds(design_type, 40, "main_effects") == pytest.approx(rate * 41 * 40)
+    assert bootstrap._search_seconds("box_behnken", 6, "quadratic") == 0, "a design that is not searched for"
+    assert bootstrap._search_seconds("i_optimal", 12, "quadratic") < 120, "and no search the page offers is long"
 
 
 def test_a_screening_aim_needs_no_wait_for_the_optimal_designs(api):
@@ -102,9 +116,10 @@ def test_with_limits_the_candidates_are_the_optimal_designs_inside_them(api):
     assert listed["result"]["region"] is not None
 
 
-def test_with_limits_from_five_factors_every_design_waits_for_the_search(api):
-    """With limits every design is an optimal one, so with five factors all of them wait to be asked for."""
-    request = {"factors": factors_named(*"ABCDE"), "model": "quadratic", "constraints": [{"expression": "A + B <= 1"}]}
+def test_with_limits_and_eight_factors_every_design_waits_for_the_search(api):
+    """With limits every design is an optimal one, and for a quadratic model in eight factors each search is long."""
+    factors = factors_named(*"ABCDEFGH")
+    request = {"factors": factors, "model": "quadratic", "constraints": [{"expression": "A + B <= 1"}]}
     listed = api.ok("api_candidates", request)
     assert (listed["made"], listed["result"]) == ([], None)
     assert [w["design_type"] for w in listed["waiting"]] == ["d_optimal", "i_optimal"]

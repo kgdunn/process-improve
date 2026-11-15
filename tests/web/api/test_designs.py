@@ -178,11 +178,29 @@ def test_ccd_uses_a_half_fraction_cube_from_six_factors(api):
 
 @pytest.mark.parametrize(
     ("design_type", "k", "word"),
-    [("dsd", 2, "3 to"), ("box_behnken", 2, "3 to"), ("fractional_factorial", 2, "3 to"), ("i_optimal", 7, "to 6")],
+    [("dsd", 2, "3 to"), ("box_behnken", 2, "3 to"), ("fractional_factorial", 2, "3 to"), ("ccd", 8, "to 7")],
 )
 def test_designs_outside_their_factor_range_are_refused(api, design_type, k, word):
-    spec = {"design_type": design_type, "factors": factors_named(*"ABCDEFG"[:k])}
+    spec = {"design_type": design_type, "factors": factors_named(*"ABCDEFGH"[:k])}
     assert word in api.error("api_make_design", spec)
+
+
+@pytest.mark.parametrize("design_type", ["d_optimal", "i_optimal", "a_optimal"])
+def test_an_optimal_design_is_limited_by_the_size_of_its_model_and_not_by_its_factors(api, bootstrap, design_type):
+    """Thirteen factors: their main effects are 14 coefficients, and with every interaction 92, one past the most."""
+    many = factors_named(*(f"X{i}" for i in range(13)))
+    made = api.ok("api_make_design", {"design_type": design_type, "factors": many, "model_type": "main_effects"})
+    assert (made["n_runs"], made["model"]) == (14 + bootstrap.SPARE_RUNS, "main_effects")
+    assert bootstrap._n_terms(13, "interactions") == bootstrap.MAX_OPTIMAL_TERMS + 1
+    refused = api.error("api_make_design", {"design_type": design_type, "factors": many, "model_type": "interactions"})
+    assert "has 92 coefficients" in refused
+    assert f"a model of up to {bootstrap.MAX_OPTIMAL_TERMS} on this page" in refused
+
+
+def test_the_largest_model_an_optimal_design_is_made_for_is_the_quadratic_in_twelve_factors(api, bootstrap):
+    twelve = factors_named(*(f"X{i}" for i in range(bootstrap.MAX_INTERACTION_FACTORS)))
+    made = api.ok("api_make_design", {"design_type": "d_optimal", "factors": twelve, "model_type": "quadratic"})
+    assert made["n_runs"] == bootstrap.MAX_OPTIMAL_TERMS + bootstrap.SPARE_RUNS
 
 
 def test_facts_name_main_effects_aliased_with_interactions(api):

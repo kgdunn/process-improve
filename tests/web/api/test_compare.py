@@ -33,7 +33,7 @@ from tests.web._support import FACTORS, coded, factors_named, generate_all, held
                 "i_optimal",
             ],
         ),
-        (8, ["fractional_factorial", "plackett_burman", "taguchi", "dsd", "d_optimal"]),
+        (8, ["fractional_factorial", "plackett_burman", "taguchi", "dsd", "d_optimal", "i_optimal"]),
     ],
 )
 def test_the_comparison_includes_every_design_the_factor_count_allows(api, n_factors, expected):
@@ -89,8 +89,8 @@ def test_optimal_designs_are_built_for_the_smallest_model_containing_the_compari
 
 
 def test_without_an_optimal_design_there_is_no_note_about_its_model(api):
-    """Nine factors are more than the optimal designs take on this page, so no note explains their model."""
-    factors = [{"name": f"X{i}", "low": 0, "high": 1} for i in range(9)]
+    """An optimal design takes numeric factors, so with a categorical one no note explains its model."""
+    factors = [*FACTORS, {"name": "S", "low": "A", "high": "B"}]
     plan = api.ok("api_compare_plan", {"factors": factors, "model": "main_quadratic"})
     assert not any(d["design_type"].endswith("_optimal") for d in plan["designs"])
     assert plan["notes"] == []

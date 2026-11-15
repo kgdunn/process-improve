@@ -1787,6 +1787,25 @@ export const EXPRESSION_LENGTH = 500;
 /** The designs that keep every run inside limits on the settings; mirrors bootstrap.REGION_DESIGNS. */
 export const REGION_DESIGNS = ["d_optimal", "i_optimal", "a_optimal"];
 
+/** The most coefficients of the model an optimal design is made for; mirrors bootstrap.MAX_OPTIMAL_TERMS. */
+export const MAX_OPTIMAL_TERMS = 91;
+
+/** The seconds a search takes in a browser, at most, for each coefficient and each factor; mirrors bootstrap.SEARCH_SECONDS. */
+export const SEARCH_SECONDS = { d_optimal: 0.016, i_optimal: 0.07, a_optimal: 0.06 };
+
+/** A search expected to take this many seconds or more is the reader's to start; mirrors bootstrap.SLOW_SEARCH. */
+export const SLOW_SEARCH = 5;
+
+/** The seconds a design's search is expected to take, at most: 0 for a design not searched for (bootstrap._search_seconds). */
+export const searchSeconds = (designType, k, model) => (SEARCH_SECONDS[designType] ?? 0) * nTerms(k, model) * k;
+
+/** A wait in words, as roughly as it is known: to 10 seconds under 45, and to half a minute from there. */
+export function waitWords(seconds) {
+  if (seconds < 45) return `about ${Math.max(10, Math.round(seconds / 10) * 10)} seconds`;
+  const minutes = Math.round(seconds / 30) / 2;
+  return minutes === 1 ? "about a minute" : `about ${minutes} minutes`;
+}
+
 /**
  * What a reader may type or paste in a limit for an operator, and the operator a limit is written with;
  * mirrors bootstrap._SYMBOLS: the signs for at most, at least and not equal, the minus sign and the en

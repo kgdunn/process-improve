@@ -725,6 +725,7 @@ READS: dict[str, list[str]] = {
     "slow candidates": [
         "waiting[].label: str",
         "waiting[].design_type: str",
+        "waiting[].seconds: number",
     ],
     # Past 12 factors, scored on power alone: the page hides "Compare them in detail" for no measures.
     "candidates of many factors": [
