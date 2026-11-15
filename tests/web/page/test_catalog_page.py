@@ -62,7 +62,8 @@ def test_every_file_the_catalog_loads_is_published(build_script):
     fetched = set(re.findall(r'fetch\(app\(`?"?([\w./-]+)', source("catalog.js")))
     assert {"style.css", "catalog.js", "index.html"} <= loaded, "the page's stylesheet, its script, and the app"
     assert {"campaign.js", "charts.js", "catalog-logic.js", "catalog-views.js"} <= imported
-    assert set(re.findall(r'from "\./([^"]+)"', source("catalog-views.js"))) == {"catalog-logic.js"}
+    # The views take the rule for a link out from campaign.js (tabOf), which catalog.js loads already.
+    assert set(re.findall(r'from "\./([^"]+)"', source("catalog-views.js"))) == {"campaign.js", "catalog-logic.js"}
     fields = "catalog/fields.json"  # the fields of the question at the top, which write_fields writes
     assert fetched == {"catalog/index.json", "wheels/manifest.json", "catalog/detail/", "catalog/errata.json", fields}
     assert source("catalog.js").count("fetch(") == len(fetched), "every fetch goes through app()"
