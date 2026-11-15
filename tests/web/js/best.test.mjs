@@ -962,3 +962,47 @@ describe("the settings that give a target", async () => {
     ]);
   });
 });
+
+describe("the settings that meet a specification", async () => {
+  const { shareWords, surestSentence, windowCaption, windowChance, windowLead } = await import("../../../web/best.js");
+  const one = { responses: [{ name: "Yield" }], held: [], share: 0.17325, likely: { 0.5: 0.1702, 0.9: 0.08655 } };
+  const two = { ...one, responses: [{ name: "Yield" }, { name: "Cost" }], held: [{ name: "S", value: "B" }] };
+
+  test("a share is written to a whole percent, to a tenth below ten, and as less than a tenth", () => {
+    assert.deepEqual([0.17325, 0.0344, 0.0004, 0, 1].map(shareWords), ["17%", "3.4%", "less than 0.1%", "0%", "100%"]);
+  });
+
+  test("the lead says over what share of the settings the predictions are inside the windows", () => {
+    assert.equal(windowLead(one), "By the models, 17% of the settings inside your ranges give the response inside its window.");
+    assert.equal(
+      windowLead(two, { limits: true }),
+      "By the models, 17% of the settings inside your ranges and limits give every response inside every window, with S at B.",
+    );
+    assert.equal(windowLead({ ...one, share: 0 }), "By the models, no setting inside your ranges gives the response inside its window.");
+  });
+
+  test("the chance is said for each line drawn, or why none can be given", () => {
+    assert.match(windowChance(one), /^One new run meets its window with a chance of 90% or more at 8\.7% of the settings, and of 50% or more at 17%\./);
+    assert.match(windowChance({ ...two, likely: { 0.5: 0.03, 0.9: 0 } }), /^At no setting does one new run meet every window with a chance of 90% or more; it does with 50% or more at 3% of them\./);
+    assert.match(windowChance({ ...one, likely: { 0.5: 0, 0.9: 0 } }), /with a chance of 90% or more, nor of 50%\. The noise is wide/);
+    assert.equal(windowChance({ ...one, likely: null }), "No runs are left to estimate the noise, so the chance that a new run meets its window cannot be given.");
+    assert.equal(windowChance({ ...one, share: 0 }), "");
+  });
+
+  test("the surest settings are said with their chance", () => {
+    const factors = [{ name: "T", kind: "numeric" }, { name: "S", kind: "categorical" }];
+    const surest = { settings: { T: 180.7, S: "B" }, probability: 0.9925 };
+    assert.equal(surestSentence({ ...two, surest }, factors, { T: "degC" }), "A new run is surest to meet every window at T = 180.7 degC, S at B: a chance of 99%.");
+    assert.match(surestSentence({ ...one, surest: { ...surest, probability: 0.9996 } }, factors), /: a chance of more than 99%\.$/);
+    assert.equal(surestSentence({ ...one, surest: null }, factors), "");
+  });
+
+  test("the chart's caption says what is drawn, and the line of the surest chance when there is one", () => {
+    const overlay = { x: "T", y: "P", held: [{ name: "F", value: 15 }], probability: [[0.2]], chances: [0.5, 0.9], runnable: [[1]] };
+    const said = windowCaption(overlay, [{ name: "F", units: "L/min" }]);
+    assert.match(said, /^Drawn over T and P, with F at 15 L\/min, as What if has it\. Shaded where every response is predicted inside its window; /);
+    assert.match(said, /Inside the line of 90%, a new run meets every window at least that often/);
+    assert.match(said, /The star marks the settings What if holds, and the dots your runs\. Grey: settings outside your limits\.$/);
+    assert.doesNotMatch(windowCaption({ ...overlay, probability: null, runnable: null, held: [] }), /Inside the line|Grey|as What if has/);
+  });
+});

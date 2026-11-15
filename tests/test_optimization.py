@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import warnings
+from types import MappingProxyType
 
 import numpy as np
 import pandas as pd
@@ -25,6 +26,7 @@ from process_improve.experiments.optimization import (
     _parse_term,
     _steepest_path,
     evaluate_model,
+    feasible_region,
     optimize_responses,
 )
 from process_improve.experiments.region import DesignRegion
@@ -1714,3 +1716,167 @@ class TestCanonicalForms:
         assert form["origin"] == pytest.approx({"X1": 0.0, "X2": 0.0, "X3": 0.0})
         assert form["origin_response"] == pytest.approx(0.0)
         assert form["offsets"] == pytest.approx([0.0, 0.0, 0.0])
+
+
+class TestFeasibleRegion:
+    """The settings at which every response is predicted inside its window, and how surely a new run is."""
+
+    #: y = 50 + 10 A, as the optimiser takes a model. A test that changes it works on a copy.
+    LINE = MappingProxyType(
+        {
+            "response_name": "y",
+            "coefficients": [{"term": "Intercept", "coefficient": 50.0}, {"term": "A", "coefficient": 10.0}],
+            "factor_names": ["A"],
+        }
+    )
+    ALONG_A = pd.DataFrame({"A": [-1.0, -0.5, 0.0, 0.5, 1.0]})
+
+    @staticmethod
+    def _fitted(replicates: int = 1) -> tuple[dict, object, pd.DataFrame]:
+        """Fit a quadratic in two coded factors, and return it as a model with its scatter, and as statsmodels' fit."""
+        import statsmodels.formula.api as smf
+
+        corners = [(-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0), (-1.0, 0.0), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0)]
+        design = pd.DataFrame([*corners, (0.0, 0.0), (0.0, 0.0), (0.0, 0.0)] * replicates, columns=["A", "B"])
+        noise = np.random.default_rng(7).normal(0.0, 0.4, len(design))
+        design["y"] = 40 + 5 * design["A"] - 2 * design["B"] - 3 * design["A"] ** 2 + design["A"] * design["B"] + noise
+        fit = smf.ols("y ~ A + B + A:B + I(A ** 2)", data=design).fit()
+        model = {
+            "response_name": "y",
+            "coefficients": [{"term": term, "coefficient": float(value)} for term, value in fit.params.items()],
+            "factor_names": ["A", "B"],
+            "mse_residual": float(fit.mse_resid),
+            "df_residual": float(fit.df_resid),
+            "unscaled_covariance": fit.normalized_cov_params.to_numpy(),
+        }
+        return model, fit, design
+
+    @staticmethod
+    def _grid(points: int = 21) -> pd.DataFrame:
+        axis = np.linspace(-1, 1, points)
+        a, b = np.meshgrid(axis, axis)
+        return pd.DataFrame({"A": a.ravel(), "B": b.ravel()})
+
+    def test_a_linear_response_is_inside_its_window_exactly_where_its_line_is(self) -> None:
+        """The line y = 50 + 10 A is between 45 and 55 from A = -0.5 to 0.5, the ends counted as inside."""
+        region = feasible_region([self.LINE], {"y": (45, 55)}, self.ALONG_A)
+        assert region["y"].tolist() == [40.0, 45.0, 50.0, 55.0, 60.0]
+        assert region["feasible"].tolist() == [False, True, True, True, False]
+        assert region.index.equals(self.ALONG_A.index)
+
+    @pytest.mark.parametrize(
+        ("window", "inside"),
+        [((None, 50), [True, True, True, False, False]), ((50, None), [False, False, True, True, True])],
+    )
+    def test_an_end_of_none_is_open(self, window: tuple, inside: list[bool]) -> None:
+        assert feasible_region([self.LINE], {"y": window}, self.ALONG_A)["feasible"].tolist() == inside
+
+    def test_every_response_must_be_inside_its_window(self) -> None:
+        falling = {**self.LINE, "response_name": "z", "coefficients": [{"term": "A", "coefficient": -4.0}]}
+        region = feasible_region([self.LINE, falling], {"y": (45, 60), "z": (None, 0)}, self.ALONG_A)
+        assert region["z"].tolist() == [4.0, 2.0, 0.0, -2.0, -4.0]
+        assert region["feasible"].tolist() == [False, False, True, True, True], "y from -0.5 up, and z from 0 up"
+
+    def test_the_probability_is_the_share_of_a_new_run_s_distribution_inside_the_window(self) -> None:
+        """A new run is Student's t about its prediction, by the standard error of an observation."""
+        from scipy import stats
+
+        model, fit, _ = self._fitted()
+        points = self._grid(5)
+        region = feasible_region([model], {"y": (36, 43)}, points)
+        predicted = fit.get_prediction(points)
+        scatter = np.sqrt(predicted.var_pred_mean + fit.mse_resid)
+        np.testing.assert_allclose(region["y"], predicted.predicted_mean, atol=1e-10)
+        expected = stats.t.cdf((43 - predicted.predicted_mean) / scatter, fit.df_resid) - stats.t.cdf(
+            (36 - predicted.predicted_mean) / scatter, fit.df_resid
+        )
+        np.testing.assert_allclose(region["probability"], expected, atol=1e-10)
+        one_sided = feasible_region([model], {"y": (None, 43)}, points)["probability"]
+        np.testing.assert_allclose(
+            one_sided, stats.t.cdf((43 - predicted.predicted_mean) / scatter, fit.df_resid), atol=1e-10
+        )
+
+    def test_a_prediction_on_the_window_s_end_has_an_even_chance(self) -> None:
+        """Half of a new run's distribution lies each side of its prediction, when the other end is far away."""
+        model, _, _ = self._fitted()
+        at = pd.DataFrame({"A": [0.25], "B": [-0.5]})
+        predicted = float(feasible_region([model], {"y": (None, None)}, at)["y"].iloc[0])
+        region = feasible_region([model], {"y": (predicted, predicted + 1000)}, at)
+        assert region["probability"].iloc[0] == pytest.approx(0.5, abs=1e-9)
+        assert bool(region["feasible"].iloc[0])
+
+    def test_the_responses_probabilities_multiply(self) -> None:
+        model, _, _ = self._fitted()
+        other = {**model, "response_name": "z"}
+        points = self._grid(5)
+        alone = feasible_region([model], {"y": (36, 43)}, points)["probability"]
+        also = feasible_region([other], {"z": (38, None)}, points)["probability"]
+        both = feasible_region([model, other], {"y": (36, 43), "z": (38, None)}, points)["probability"]
+        np.testing.assert_allclose(both, alone * also, atol=1e-12)
+
+    def test_more_runs_widen_the_settings_that_meet_the_window_with_a_high_probability(self) -> None:
+        """Four times the runs: the fit is surer, so more of the settings meet the window nine times in ten."""
+        window, points = {"y": (37, 44)}, self._grid()
+        few, _, _ = self._fitted()
+        many = {**few, "unscaled_covariance": few["unscaled_covariance"] / 4, "df_residual": 4 * 11 - 5}
+        sure_few = feasible_region([few], window, points)["probability"] >= 0.9
+        sure_many = feasible_region([many], window, points)["probability"] >= 0.9
+        inside = feasible_region([few], window, points)["feasible"]
+        assert 0 < sure_few.sum() < sure_many.sum() < inside.sum()
+        assert (sure_few <= sure_many).all(), "every setting that was sure stays sure"
+        assert (sure_many <= inside).all(), "and none is sure where the prediction itself is outside"
+
+    def test_a_window_narrower_than_the_noise_is_met_with_a_low_probability_everywhere(self) -> None:
+        model, _, _ = self._fitted()
+        region = feasible_region([model], {"y": (40.0, 40.1)}, self._grid())
+        assert region["feasible"].any()
+        assert region["probability"].max() < 0.2
+
+    @pytest.mark.parametrize("without", ["mse_residual", "df_residual", "unscaled_covariance"])
+    def test_a_model_without_its_scatter_gives_the_region_and_no_probability(self, without: str) -> None:
+        model, _, _ = self._fitted()
+        bare = {key: value for key, value in model.items() if key != without}
+        region = feasible_region([bare], {"y": (36, 43)}, self._grid(5))
+        assert region["feasible"].any()
+        assert region["probability"].isna().all()
+
+    def test_a_fit_with_no_degrees_of_freedom_left_gives_no_probability(self) -> None:
+        model, _, _ = self._fitted()
+        assert (
+            feasible_region([{**model, "df_residual": 0}], {"y": (36, 43)}, self._grid(5))["probability"].isna().all()
+        )
+
+    def test_a_model_of_the_intercept_alone_is_the_same_at_every_setting(self) -> None:
+        flat = {**self.LINE, "coefficients": [{"term": "Intercept", "coefficient": 3.0}]}
+        region = feasible_region([flat], {"y": (2, 4)}, self.ALONG_A)
+        assert region["y"].tolist() == [3.0] * 5
+        assert region["feasible"].all()
+
+    def test_no_settings_give_an_empty_region(self) -> None:
+        region = feasible_region([self.LINE], {"y": (45, 55)}, self.ALONG_A.iloc[:0])
+        assert list(region.columns) == ["y", "feasible", "probability"]
+        assert len(region) == 0
+
+    def test_the_windows_must_name_the_models_responses(self) -> None:
+        with pytest.raises(ValueError, match=r"The windows name the responses \['z'\], and the models \['y'\]"):
+            feasible_region([self.LINE], {"z": (45, 55)}, self.ALONG_A)
+        with pytest.raises(ValueError, match="give one window for each model"):
+            feasible_region([self.LINE, self.LINE], {"y": (45, 55)}, self.ALONG_A)
+
+    def test_a_window_upside_down_is_refused(self) -> None:
+        with pytest.raises(ValueError, match="The window of 'y' runs from 55 down to 45: give its low end first"):
+            feasible_region([self.LINE], {"y": (55, 45)}, self.ALONG_A)
+
+    def test_the_points_must_hold_every_factor_of_a_model(self) -> None:
+        with pytest.raises(ValueError, match=r"no column for the factor\(s\) \['A'\] of the model of 'y'"):
+            feasible_region([self.LINE], {"y": (45, 55)}, pd.DataFrame({"B": [0.0]}))
+
+    def test_a_term_that_is_not_of_the_factors_is_refused(self) -> None:
+        odd = {**self.LINE, "coefficients": [{"term": "C(A)[T.1]", "coefficient": 1.0}]}
+        with pytest.raises(ValueError, match="Cannot evaluate the model term"):
+            feasible_region([odd], {"y": (45, 55)}, self.ALONG_A)
+
+    def test_it_is_exported_with_the_optimiser(self) -> None:
+        from process_improve import experiments
+
+        assert experiments.feasible_region is feasible_region

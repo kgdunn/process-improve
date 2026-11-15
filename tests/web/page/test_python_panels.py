@@ -1741,6 +1741,137 @@ def test_the_target_chart_s_code_draws_each_response_s_line_as_the_page_does(api
     assert [star.x[0], star.y[0]] == pytest.approx(overlay["at"], abs=1e-5)
 
 
+#: The settings the specification's tests judge through: the center of the worked example's ranges.
+CENTER = {"T": 175, "P": 2, "F": 15}
+
+
+def assert_same_specification(namespace: dict, found: dict) -> None:
+    """Assert that the code judges the page's settings: the same share, the same chances, the same surest settings."""
+    judged = namespace["judged"]
+    assert len(judged) == found["tried"]
+    assert float(judged["feasible"].mean()) == pytest.approx(found["share"], abs=1e-12)
+    if found["likely"] is None:
+        assert judged["probability"].isna().all()
+        return
+    for chance, share in found["likely"].items():
+        assert float(namespace["likely"][float(chance)]) == pytest.approx(share, abs=1e-12), chance
+    surest = found["surest"]
+    assert float(judged["probability"][namespace["surest"]]) == pytest.approx(surest["probability"], abs=1e-9)
+    for name, value in namespace["settings"].items():
+        assert value == pytest.approx(surest["settings"][name], rel=1e-9), name
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("transform", [None, "log"])
+def test_the_specification_s_code_judges_the_page_s_settings_and_draws_its_chart(api, node, monkeypatch, transform):
+    held, simulation = three_responses(api)
+    if transform:
+        held = {**held, "spec": {**held["spec"], "analysis_transforms": {"Yield": transform}}}
+    request = {**held, **sent_of(by_name(simulation)), "models": {"Cost": "interactions"}}
+    windows = {"Yield": [58.0, None], "Cost": [None, 62.0]}
+    found = api.ok("api_specification", {**request, "windows": windows, "at": {**CENTER, "P": 2.5}, "pair": ["T", "F"]})
+    assert 0 < found["likely"]["0.9"] < found["share"] < 1
+    overlay = found["overlay"]
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, by_name(simulation), simulation]),
+        ("windowCode", [found, held["spec"]]),
+        ("windowOverlayCode", [overlay, held["spec"]]),
+    )
+    namespace = drawn_by(monkeypatch, code)
+    assert_same_specification(namespace, found)
+    shaded, chance, star = namespace["figure"].data
+    np.testing.assert_allclose(np.asarray(chance.z, dtype=float), overlay["probability"], atol=2e-6)
+    assert (chance.contours.start, chance.contours.end) == (0.5, 0.9)
+    assert [star.x[0], star.y[0]] == pytest.approx(overlay["at"])
+    # The page shades inside the window's ends and the code on them too: the two agree off the ends themselves.
+    surfaces = [np.asarray(s["z"]) for s in overlay["responses"]]
+    off = (np.abs(surfaces[0] - 58.0) > 1e-3) & (np.abs(surfaces[1] - 62.0) > 1e-3)
+    assert np.array_equal(np.asarray(shaded.z, dtype=int)[off], np.asarray(overlay["acceptable"])[off])
+
+
+@pytest.mark.slow
+def test_the_specification_s_code_holds_a_categorical_factor_and_keeps_to_the_limits(api, node):
+    factors = [*FACTORS[:2], {"name": "S", "low": "A", "high": "B", "units": ""}]
+    spec = {"design_type": "full_factorial", "factors": factors, "responses": THREE[:2], "n_center_points": 3}
+    held = held_of(api.ok("api_make_design", spec))
+    x = coded(run_sheet(held), factors)
+    noise = np.random.default_rng(2).normal(0.0, 0.3, len(x))
+    yields = (60 + 4 * x["T"] - 2 * x["P"] + 3 * x["S"] + x["T"] * x["P"] + noise).tolist()
+    costs = (20 + 2 * x["T"] + x["P"] + 0.5 * x["S"] + noise[::-1]).tolist()
+    request = {**held, "responses": yields, "more_responses": {"Cost": costs}, "models": {"Yield": "interactions"}}
+    asked = {"windows": {"Yield": [62.0, None], "Cost": [None, 22.0]}, "at": {"T": 175, "P": 2, "S": "B"}}
+    found = api.ok("api_specification", {**request, **asked})
+    assert found["search"]["at"]["S"] == 1.0
+    steps = (("designCode", [held["spec"]]), ("resultsCode", [held, {"Yield": yields, "Cost": costs}]))
+    assert_same_specification(run(panel(node, *steps, ("windowCode", [found, held["spec"]]))), found)
+
+    limit = [{"expression": "T + 25*P <= 215"}]
+    held = held_of(
+        api.ok(
+            "api_make_design",
+            {"design_type": "d_optimal", "factors": FACTORS[:2], "responses": THREE[:2], "constraints": limit},
+        )
+    )
+    x = coded(run_sheet(held), FACTORS[:2])
+    noise = np.random.default_rng(4).normal(0.0, 0.2, len(x))
+    yields = (60 + 4 * x["T"] + 2 * x["P"] - 3 * x["T"] ** 2 + noise).tolist()
+    costs = (20 + 3 * x["T"] + x["P"] + noise[::-1]).tolist()
+    request = {**held, "responses": yields, "more_responses": {"Cost": costs}}
+    found = api.ok("api_specification", {**request, "windows": {"Cost": [None, 19.0]}, "at": {"T": 160, "P": 1.5}})
+    steps = (("designCode", [held["spec"]]), ("resultsCode", [held, {"Yield": yields, "Cost": costs}]))
+    code = panel(node, *steps, ("windowCode", [found, held["spec"]]))
+    assert "region = DesignRegion(factors, constraints)" in code
+    namespace = run(code)
+    assert_same_specification(namespace, found)
+    assert namespace["settings"]["T"] + 25 * namespace["settings"]["P"] <= 215 + 1e-6
+
+
+@pytest.mark.slow
+def test_the_specification_s_code_fits_a_study_in_blocks_at_the_average_block(api, node):
+    spec = {"design_type": "full_factorial", "factors": FACTORS, "n_center_points": 2, "n_blocks": 2}
+    held = held_of(api.ok("api_make_design", spec))
+    x = coded(run_sheet(held), FACTORS)
+    block = np.where(np.asarray([row[held["columns"].index("Block")] for row in held["rows"]]) == 1, 1.5, -1.5)
+    yields = (60 + 4 * x["T"] - 2 * x["P"] + block + np.random.default_rng(6).normal(0.0, 0.3, len(x))).tolist()
+    name = held["spec"]["response"]
+    found = api.ok("api_specification", {**held, "responses": yields, "windows": {name: [59.0, 63.0]}, "at": CENTER})
+    assert found["search"]["at"]["Block1"] == 0.0
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, yields]),
+        ("windowCode", [found, held["spec"]]),
+    )
+    assert 'columns = X.drop(columns="Block").assign(**contrasts)' in code
+    assert_same_specification(run(code), found)
+
+
+@pytest.mark.slow
+def test_the_specification_s_code_gives_no_chance_when_the_fit_leaves_no_run_for_the_noise(api, node, monkeypatch):
+    spec = {"design_type": "full_factorial", "factors": FACTORS[:2], "responses": THREE[:1], "n_center_points": 0}
+    held = held_of(api.ok("api_make_design", spec))
+    x = coded(run_sheet(held), FACTORS[:2])
+    yields = (60 + 4 * x["T"] - 2 * x["P"] + x["T"] * x["P"]).tolist()
+    request = {**held, "responses": yields, "models": {"Yield": "interactions"}}
+    found = api.ok("api_specification", {**request, "windows": {"Yield": [59.0, 62.0]}, "at": {"T": 175, "P": 2}})
+    assert found["likely"] is None
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, yields]),
+        ("windowCode", [found, held["spec"]]),
+        ("windowOverlayCode", [found["overlay"], held["spec"]]),
+    )
+    namespace = drawn_by(monkeypatch, code)
+    assert_same_specification(namespace, found)
+    assert [trace.name for trace in namespace["figure"].data] == [
+        "Every response inside its window",
+        "What-if settings",
+    ]
+
+
 @pytest.mark.slow
 def test_the_target_settings_code_fits_a_factor_nested_in_another_as_the_page_does(api, node):
     """S + P + S:T, T's effect within each level of S: the code adds S's indicators to X, as the page fits them."""

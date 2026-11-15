@@ -56,7 +56,7 @@ if TYPE_CHECKING:
         omars_minimum_runs,
         omars_trade_off_table,
     )
-    from process_improve.experiments.optimization import optimize_responses
+    from process_improve.experiments.optimization import feasible_region, optimize_responses
     from process_improve.experiments.projections import evaluate_projections
     from process_improve.experiments.pseudocomponents import from_pseudocomponents, to_pseudocomponents
     from process_improve.experiments.random_effects import (
@@ -136,7 +136,7 @@ _WHERE = {
         "omars_trade_off_table",
         "OmarsTradeOffTableEntry",
     ),
-    "optimization": ("optimize_responses",),
+    "optimization": ("feasible_region", "optimize_responses"),
     "projections": ("evaluate_projections",),
     "pseudocomponents": ("from_pseudocomponents", "to_pseudocomponents"),
     "random_effects": (
@@ -247,6 +247,7 @@ __all__ = [
     "evaluate_projections",
     "expand_grid",
     "expected_mean_squares",
+    "feasible_region",
     "fit_across_blocks",
     "fit_gaussian_process",
     "from_pseudocomponents",
