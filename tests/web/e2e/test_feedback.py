@@ -17,7 +17,7 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 
 from tests.web._support import WEB
-from tests.web.e2e._page import overflowing, reveal, settled
+from tests.web.e2e._page import first_paint_done, overflowing, reveal, settled
 
 #: The parts of the dialog: what the reader writes in, and what it says once the report has gone.
 DIALOG = "#feedback-dialog"
@@ -233,6 +233,32 @@ def test_a_message_too_short_or_an_address_that_is_not_one_is_said_and_nothing_i
     page.click("#feedback-send")
     page.wait_for_selector(SENT, state="visible")
     assert len(relay.reports) == 1
+
+
+def test_the_footer_and_a_report_name_the_version_the_app_was_built_from(context, site, relay, plotly_js):
+    """The build's manifest names the commit and its day: the foot of the page shows them, and a report carries them."""
+    commit = "88ccccbbe212e09c53d9f69b3ee7193262cc165a"
+    built = {"plotly_js": plotly_js[0], "commit": commit, "committed": "2026-11-13"}
+    context.route(f"{site}wheels/manifest.json", lambda route: route.fulfill(json=built))
+    page = context.new_page()
+    page.goto(f"{site}?example=worked")
+    first_paint_done(page)
+    version = page.locator("footer #version")
+    version.scroll_into_view_if_needed()
+    assert version.text_content() == "Version 88ccccb, 13 November 2026."
+    link = version.locator("a")
+    assert link.get_attribute("href") == f"https://github.com/kgdunn/process-improve/commit/{commit}"
+    assert (link.get_attribute("target"), link.get_attribute("rel")) == ("_blank", "noopener")
+    assert link.get_attribute("aria-label") == "Commit 88ccccb on GitHub"
+    open_feedback(page)
+    assert f"App commit: {commit}, 13 November 2026" in listed(page)
+    send(page)
+    assert relay.reports[0]["context"]["commit"] == f"{commit}, 13 November 2026"
+
+
+def test_a_page_that_was_not_built_shows_no_version(page):
+    """The tests' manifest names no commit, as a plain preview has none: the footer says nothing of a version."""
+    assert page.is_hidden("footer #version")
 
 
 def test_a_link_opens_feedback_with_a_request_for_a_design_written_and_sends_nothing_itself(context, site, relay):

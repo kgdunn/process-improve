@@ -153,6 +153,7 @@ import {
   NUMERIC,
   OPTIMAL_MODEL,
   REGION_DESIGNS,
+  REPOSITORY,
   ROMAN,
   SCREEN_FROM,
   SLOW_SEARCH,
@@ -212,6 +213,9 @@ import {
   listNames,
   mixtureProblem,
   nTerms,
+  dayWords,
+  shortCommit,
+  versionText,
   searchSeconds,
   waitWords,
   nameProblem,
@@ -576,6 +580,7 @@ const state = {
   plotlyJs: null, // the Plotly.js version the Python plotly package names
   charted: null, // the figures drawn for the response on show: their keys and the charts' reply they were drawn from
   commit: null, // the commit the app was built from, as its manifest names it
+  committed: null, // the day of that commit, as 2026-11-13, when the build could tell
   campaign: null, // this browser's record of the study on the page, {id, created, title}; null for the worked example
   example: false, // the worked example is on the page, as the build made it or as run again here
   exampleBrief: null, // the worked example's brief, as briefKey gives it
@@ -3418,7 +3423,7 @@ async function feedbackContext() {
     link: null,
   });
   return {
-    commit: state.commit,
+    commit: versionText(state.commit, state.committed),
     plotly_js: state.plotlyJs,
     tab: PHASE_NAMES[state.phase],
     model: state.analysis ? modelWords() : null,
@@ -7320,15 +7325,29 @@ async function readManifest() {
     const res = await fetch("wheels/manifest.json", { cache: "no-store" });
     if (res.ok) {
       const manifest = await res.json();
-      const { plotly_js: plotlyJs, commit } = manifest;
+      const { plotly_js: plotlyJs, commit, committed } = manifest;
       state.plotlyJs ??= plotlyJs ?? null;
       state.commit = commit ?? null;
+      state.committed = committed ?? null;
+      showVersion();
       return manifest;
     }
   } catch {
     /* a plain local preview has no manifest */
   }
   return {};
+}
+
+/** Say at the foot of the page which version is on it: the commit, as a link to it, and the day it was made. */
+function showVersion() {
+  const version = $("#version");
+  version.hidden = !state.commit;
+  if (!state.commit) return;
+  const commit = link(`${REPOSITORY}/commit/${state.commit}`, shortCommit(state.commit), "_blank");
+  commit.title = state.commit;
+  commit.setAttribute("aria-label", `Commit ${shortCommit(state.commit)} on GitHub`);
+  const day = dayWords(state.committed);
+  version.replaceChildren("Version ", commit, day ? `, ${day}.` : ".");
 }
 
 // ---------------------------------------------------------------- rendering helpers
