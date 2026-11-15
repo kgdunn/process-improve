@@ -26,8 +26,9 @@ is written for them:
 - **Headings are the page's parts.** A `##` heading is a step of a study. A `###` heading is
   a part that folds, and the line in italics under it is what the fold says while closed.
 - **A point can end with "Show me".** It is a link to `https://factori.al/?example=<name>&show=<part>`
-  (or `?book=<name>`): the app opens that example at the part of its page with that id. On the
-  page the link stays within the copy of the app it is served from.
+  (or `?book=<name>`): the app opens that example at the part of its page with that id, and
+  shows the part whatever the reading level. On the page the link stays within the copy of the
+  app it is served from.
 - **A chart has its picture.** It is on a line of its own under the chart's point,
   `![](chart-pictures/<key>.webp)`, where the key is the chart's in `CHARTS` (`web/logic.js`). The
   page puts it above the point. [`CONTRIBUTING.md`](../CONTRIBUTING.md#the-browser-app-is-tested)
