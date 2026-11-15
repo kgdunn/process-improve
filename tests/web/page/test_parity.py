@@ -367,6 +367,13 @@ def test_the_form_opens_on_a_new_study_with_bootstrap_s_defaults(api, bootstrap)
     assert int(ids["n_center_points"]["value"]) == made["spec"]["options"]["n_center_points"], "bootstrap's default"
 
 
+def test_the_worked_example_names_its_factors_in_full_and_the_tests_name_them_by_letter(bootstrap):
+    """A first visit reads Temperature, Pressure and Flow. The tests' own studies are the same factors under letters."""
+    example = bootstrap.DEMO["design"]["factors"]
+    assert [factor["name"] for factor in example] == ["Temperature", "Pressure", "Flow"]
+    assert [{**factor, "name": letter} for factor, letter in zip(example, "TPF", strict=True)] == FACTORS
+
+
 # --------------------------------------------------------------------------- rules web/logic.js repeats
 def test_the_page_gives_an_optimal_design_bootstrap_s_spare_runs(bootstrap, node):
     assert javascript(node, source("logic.js"), [("SPARE_RUNS", [])]) == [bootstrap.SPARE_RUNS]
