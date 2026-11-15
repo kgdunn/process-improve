@@ -372,9 +372,13 @@ Also:
   report or a slide.
   - *Details:* A PNG or an SVG in the shape shown, on white under its title. An image saved
     from a dark page has the light theme's colours.
-- **The Python that draws it.** Each of the 17 charts shows code that runs as it is.
-  - *Details:* The library's own call for the eleven the library draws, and Plotly's for the
-    six the page draws itself.
+- **The Python that draws it.** Each of the 17 charts shows code that runs as it is, and so
+  do the other figures.
+  - *Details:* The library's own call for the eleven charts the library draws, and Plotly's
+    for the six the page draws itself. The other figures with code are the Pareto plot of the
+    coefficients, how tightly to hold each factor, the overlay of the acceptable ranges, the
+    what-if curve, the FDS plot and the correlation maps. A mixture's triangle overlay and its
+    components' moves show none yet.
 - **One run, marked everywhere.** Rest on a run on a chart or in a table and it is ringed on
   every chart that draws the runs and shaded in the run sheet. A press or a tap keeps it;
   Escape lets it go.

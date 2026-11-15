@@ -439,6 +439,10 @@ export function figureCode(title, options, model, complete = true, spec = null) 
   ].join("\n");
 }
 
+/** The runs and results a model is fitted to, as Python writes them: those with a result, on the model's scale. */
+const fittedTo = (spec, complete) =>
+  complete ? `X, ${onScale("y", transformOf(spec))}` : `X[done], ${onScale("y[done]", transformOf(spec))}`;
+
 /** A response as an axis names it: the reader's words for it, with its units. */
 function axisWords(spec) {
   const info = spec?.response_info ?? {};
@@ -491,6 +495,39 @@ const OWN_FIGURES = {
     ")",
     'figure.update_yaxes(autorange="reversed")  # the first term at the top, as the page lists them',
     ...shown(`Coefficient: ${axisWords(spec)}${transformOf(spec) ? ", on the scale the model is fitted on" : ""}`, "Term"),
+  ],
+  // The coefficients' other view. With ``about.lenth`` the fit uses every run, which leaves no interval: Lenth's
+  // margins judge the sizes then, from the model (``about.model``) fitted to the runs that have their result
+  // (``about.complete``: all of them).
+  pareto: (title, spec, { lenth = false, model = "", complete = true } = {}) => [
+    "import plotly.graph_objects as go",
+    ...(lenth ? ["from process_improve.experiments import analyze_experiment"] : []),
+    "",
+    `# The figure "${title}", as a Pareto plot: each term's size as a bar, the largest at the top, orange for a`,
+    "# positive coefficient and blue for a negative one.",
+    'terms = sorted((c for c in analysis["coefficients"] if c["term"] != "Intercept"), key=lambda c: -abs(c["coefficient"]))',
+    "figure = go.Figure(",
+    "    go.Bar(",
+    '        x=[abs(c["coefficient"]) for c in terms],',
+    '        y=[c["term"] for c in terms],',
+    '        orientation="h",',
+    '        marker_color=["#E69F00" if c["coefficient"] > 0 else "#0072B2" for c in terms],',
+    ...(lenth
+      ? []
+      : ['        error_x={"type": "data", "array": [0 if c.get("ci_high") is None else c["ci_high"] - c["coefficient"] for c in terms]},']),
+    "    )",
+    ")",
+    ...(lenth
+      ? [
+          "# The fit uses every run, so no coefficient has an interval: Lenth's margins of error judge their sizes.",
+          "# They are on the effects' scale, and an effect is twice its coefficient.",
+          `lenth = analyze_experiment(${fittedTo(spec, complete)}, model=${repr(model)}, analysis_type="lenth_method")["lenth_method"]`,
+          'figure.add_vline(x=lenth["ME"] / 2, line_dash="dash", annotation_text="ME")',
+          'figure.add_vline(x=lenth["SME"] / 2, line_dash="dot", annotation_text="SME")',
+        ]
+      : []),
+    'figure.update_yaxes(autorange="reversed")  # the largest at the top',
+    ...shown("|coefficient|, coded units", "Term"),
   ],
   levels: (title, spec) => {
     const factor = spec.factors[0];
@@ -623,6 +660,181 @@ const OWN_FIGURES = {
  */
 export function ownFigureCode(key, title, spec, about = {}) {
   return OWN_FIGURES[key]?.(title, spec, about)?.join("\n") ?? null;
+}
+
+/** A map of how far each pair of terms moves together, drawn from the frame ``correlations``: the page's colours. */
+const correlationMap = [
+  "figure = go.Figure(",
+  "    go.Heatmap(",
+  "        z=correlations.to_numpy(), x=list(correlations.columns), y=list(correlations.index),",
+  '        zmin=0, zmax=1, colorscale="Blues",',
+  "    )",
+  ")",
+  'figure.update_yaxes(autorange="reversed")  # the first term at the top',
+  "figure.show()",
+];
+
+/**
+ * The design's own correlation map, after step 2's ``X``: the absolute correlation between each pair of terms over
+ * the runs, as the comparison reckons it. ``factors`` names the columns of ``X`` that are factors.
+ */
+export function correlationCode(factors) {
+  return [
+    "import plotly.graph_objects as go",
+    "from process_improve.experiments import compare_designs",
+    "",
+    '# The figure "Correlation map": how far each pair of terms moves together over the runs. 0: the runs tell the',
+    "# two apart in full. 1: they cannot tell them apart at all.",
+    `compared = compare_designs({"runs": X[${repr(factors)}]})`,
+    "correlations = list(compared.correlations.values())[0]  # of the one design compared: these runs",
+    ...correlationMap,
+  ].join("\n");
+}
+
+/**
+ * A figure of the comparison, after its ``designs`` and ``comparison`` (compareCode): the FDS plot of every design,
+ * from what the page asked each curve with (``asked``: bootstrap.compare's ``fds_asked``), over the settings the
+ * limits leave when there are some; or, with ``label``, that design's correlation map.
+ */
+export function comparisonFigureCode({ asked = null, limits = [], label = null }) {
+  if (label !== null) {
+    return [
+      "import plotly.graph_objects as go",
+      "",
+      `# The figure "Correlation map, ${label}": how far each pair of terms moves together over the design's runs.`,
+      `correlations = comparison.correlations[${repr(label)}]`,
+      ...correlationMap,
+    ].join("\n");
+  }
+  return [
+    "import plotly.graph_objects as go",
+    "from process_improve.experiments import evaluate_design",
+    "",
+    '# The figure "Fraction of design space (FDS)": each design\'s prediction variance, in units of the noise',
+    "# variance, sorted over settings drawn evenly from the region. A design that cannot fit the model has no curve.",
+    "figure = go.Figure()",
+    "for label, design in zip(comparison.designs, designs.values()):",
+    '    if not comparison.values[label]["fits"]:',
+    "        continue",
+    "    curve = evaluate_design(",
+    `        design, model=${repr(asked.model)}, metric="fds", n_samples=${asked.n_samples},`,
+    `        fds_resolution=${asked.fds_resolution}, random_state=${asked.random_state},${limits.length ? " region=DesignRegion(factors, constraints)," : ""}`,
+    '    )["fds"]["curve"]',
+    '    figure.add_scatter(x=curve["fraction"], y=curve["prediction_variance"], name=label)',
+    ...shown("Fraction of the design space", "Prediction variance, in units of the noise variance"),
+  ].join("\n");
+}
+
+/**
+ * "How tightly to hold each factor", after the best settings' code (bestCode), which leaves the settings as ``at``
+ * and the prediction there as ``prediction``: each of ``names``, the numeric factors the model holds, moved alone
+ * by 5% of its range, 0.1 in coded units, and the change in the prediction. Null for a mixture, whose components
+ * do not move alone.
+ */
+export function sensitivityCode(names, spec, model, complete = true) {
+  if (isMixture(spec) || !names.length) return null;
+  const transform = transformOf(spec);
+  const fitted = fittedTo(spec, complete);
+  const back = (value) => (transform ? `(${SCALES[transform].back})(${value})` : value);
+  return [
+    "import plotly.graph_objects as go",
+    "",
+    '# The figure "How tightly to hold each factor": how much the prediction changes when one factor alone moves',
+    "# 5% of its range from the best settings, which is 0.1 in coded units.",
+    `names = ${repr(names)}`,
+    "moved = pd.concat([at.assign(**{name: at[name] + step}) for name in names for step in (-0.1, 0.1)], ignore_index=True)",
+    `there = analyze_experiment(${fitted}, model=${repr(model)}, analysis_type="prediction", new_points=moved)["predictions"]`,
+    `here = ${back('prediction["predictions"][0]["predicted"]')}`,
+    `change = [${back('p["predicted"]')} - here for p in there]  # lowered, then raised, for each factor in turn`,
+    "figure = go.Figure(",
+    "    [",
+    '        go.Bar(name="Lowered 5% of its range", y=names, x=change[0::2], orientation="h"),',
+    '        go.Bar(name="Raised 5% of its range", y=names, x=change[1::2], orientation="h"),',
+    "    ]",
+    ")",
+    ...shown(`Change in the prediction: ${axisWords(spec)}`, "Factor"),
+  ].join("\n");
+}
+
+/**
+ * The overlay of the responses' acceptable ranges, after the balance's code (balanceCode), which leaves each
+ * response's ``models`` entry, its ``goals`` entry and the ``balanced`` settings: the library's overlay plot over
+ * the two factors the page draws (``overlay.x`` and ``overlay.y``), the others held at the balanced settings. A
+ * response is bounded where the page draws its boundary: below to maximise, above to minimise, both for a target.
+ * Null for a mixture, whose overlay is over its triangle.
+ */
+export function overlayCode(overlay, spec) {
+  if (isMixture(spec) || overlay?.kind === "ternary" || !overlay) return null;
+  return [
+    "import plotly.graph_objects as go",
+    "from process_improve.experiments import visualize_doe",
+    "",
+    `# The figure of the acceptable ranges over ${overlay.x} and ${overlay.y}, in coded units, the other factors at the`,
+    "# balanced settings: each response's boundary, and the shaded region where every response is acceptable.",
+    "# A response to maximise is bounded below, one to minimise above, and one with a target on both sides.",
+    'bounds = {"maximize": ["low"], "minimize": ["high"], "target": ["low", "high"]}',
+    "responses = [",
+    '    {**model, "name": model["response_name"], **{end: goal[end] for end in bounds[goal["goal"]]}}',
+    "    for model, goal in zip(models, goals)",
+    "]",
+    `pair = ${repr([overlay.x, overlay.y])}`,
+    "chart = visualize_doe(",
+    '    plot_type="overlay",',
+    '    analysis_results={"optimization": {"responses": responses}},',
+    "    factors_to_plot=pair,",
+    '    hold_values={name: at for name, at in balanced["optimal_coded"].items() if name not in pair},',
+    '    backend="plotly",',
+    ")",
+    'figure = go.Figure(chart["plotly"])',
+    "figure.show()",
+  ].join("\n");
+}
+
+/**
+ * The curve the what-if panel draws, after step 2's ``X``: each run's curve (``curves``, a list per run of the
+ * design of one value per point, null where it was not read, or null for a run not measured), reduced and modelled as the
+ * page models it (``fit``: bootstrap.functional's reply, for its formula and its number of replicates), and the
+ * curve predicted at the panel's settings (``at``, the columns of ``X``) with its 95% bands.
+ */
+export function curveCode(design, curves, fit, at) {
+  const { spec } = design;
+  const kept = fittedRuns(design);
+  const { label, units, argument } = spec.curve;
+  const used = new Set([...spec.factors.flatMap(columnsOf), ...spec.factors.flatMap((f) => indicatorsIn(fit.formula, f).map(({ name }) => name))]);
+  const only = Object.fromEntries(Object.entries(at).filter(([name]) => used.has(name)));
+  const along = argument.units ? `${argument.label} (${argument.units})` : argument.label;
+  return [
+    "import pandas as pd",
+    "import plotly.graph_objects as go",
+    "from process_improve.experiments import analyze_functional_experiment",
+    "",
+    ...indicatorLines(spec, fit.formula),
+    "# Each run's curve, a row per run in the order of the runs above and a column per point along the curve.",
+    `points = ${repr(argument.values)}`,
+    "curves = pd.DataFrame(",
+    "    [",
+    ...curves.filter((_, i) => kept[i]).map((curve) => `        ${repr(curve ?? argument.values.map(() => null))},`),
+    "    ],",
+    "    columns=points,",
+    "    dtype=float,",
+    ")",
+    "measured = curves.notna().any(axis=1)  # a run with no point read has no curve yet",
+    "# The curves are reduced to a few scores, and each score is modelled against the factors, as a response is.",
+    "fit = analyze_functional_experiment(",
+    `    X[measured].reset_index(drop=True), curves[measured].reset_index(drop=True), model=${repr(fit.formula)},`,
+    ")",
+    "# The curve at the what-if settings, in coded units as the columns of X, with its 95% band for the whole curve.",
+    `at = pd.DataFrame([${repr(only)}])`,
+    `predicted = fit.predict(at, n_bootstrap=${fit.replicates.length}, random_state=0)`,
+    "figure = go.Figure(",
+    "    [",
+    '        go.Scatter(x=points, y=predicted["simultaneous_high"].iloc[0], line_width=0, showlegend=False),',
+    '        go.Scatter(x=points, y=predicted["simultaneous_low"].iloc[0], line_width=0, fill="tonexty", name="95% band"),',
+    '        go.Scatter(x=points, y=predicted["curve"].iloc[0], name="Predicted"),',
+    "    ]",
+    ")",
+    ...shown(along, units ? `${label} (${units})` : label),
+  ].join("\n");
 }
 
 /** The signal-to-noise ratio each goal reads a setting's readings by, of Taguchi's three: bootstrap.SN_KINDS. */

@@ -289,7 +289,7 @@ import {
 import { redrawRuns } from "./picture.js";
 import { drawFieldChart } from "./field-chart.js";
 import { RUN_ORDER_SEED, briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows } from "./report.js";
-import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, figureCode, forResponse, notebook, ownFigureCode, resultsCode, whatIfCode } from "./python.js";
+import { analyseCode, balanceCode, bestCode, compareCode, comparisonFigureCode, correlationCode, cumulative, curveCode, designCode, figureCode, forResponse, notebook, overlayCode, ownFigureCode, resultsCode, sensitivityCode, whatIfCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { CONTEXT, GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
@@ -2067,7 +2067,8 @@ async function showCorrelation() {
   words.replaceChildren(...correlationWords(found, prettyTerm).map((sentence) => el("p", "", sentence)));
   renderPairs(found);
   if (state.plotlyJs) {
-    await draw($("#correlation-plot"), () => correlationFigure(found.terms, found.matrix, found.k), state.plotlyJs, 360);
+    const python = figureAfter("run", () => correlationCode(design.spec.factors.map((f) => f.name)));
+    await draw($("#correlation-plot"), () => correlationFigure(found.terms, found.matrix, found.k), state.plotlyJs, 360, { python });
   }
 }
 $("#correlation").addEventListener("toggle", () => {
@@ -2629,7 +2630,9 @@ function showComparedCharts(result, hidden) {
   const box = $("#compare-charts");
   for (const card of box.querySelectorAll("figure[data-design]")) card.hidden = hidden.has(card.dataset.design);
   const fds = box.querySelector("figure.fds .plot");
-  if (fds && state.plotlyJs) draw(fds, fdsFigure(result.fds, { region: Boolean(result.region), hidden }), state.plotlyJs, 380);
+  if (fds && state.plotlyJs) {
+    draw(fds, fdsFigure(result.fds, { region: Boolean(result.region), hidden }), state.plotlyJs, 380, { python: fdsPython(result) });
+  }
 }
 
 /** Take a design from the detailed comparison into the plan, and close the comparison. */
@@ -2638,6 +2641,12 @@ function useDesign(item) {
   $("#compare-dialog").close();
   setStatus(`The ${item.label} design is chosen: make its run sheet when it is ready.`);
 }
+
+/** The code of the comparison's FDS plot, for its window: every design's curve, over the settings the limits leave. */
+const fdsPython = (result) =>
+  figureAfter("compare", () =>
+    comparisonFigureCode({ asked: result.fds_asked, limits: state.comparison?.made[0]?.design.spec.constraints ?? [] }),
+  );
 
 async function drawComparison(result, k, hidden) {
   const box = $("#compare-charts");
@@ -2659,7 +2668,7 @@ async function drawComparison(result, k, hidden) {
   fds.append(fdsTitle, fdsPlot, caption);
   box.append(fds);
   try {
-    await draw(fdsPlot, fdsFigure(result.fds, { region: Boolean(result.region), hidden }), version, 380);
+    await draw(fdsPlot, fdsFigure(result.fds, { region: Boolean(result.region), hidden }), version, 380, { python: fdsPython(result) });
     for (const label of result.designs) {
       const { terms, matrix } = result.correlations[label];
       const card = el("figure", "chart", "");
@@ -2670,7 +2679,8 @@ async function drawComparison(result, k, hidden) {
       title.append(term("Correlation map", { key: "correlation-map", alone: true }), `, ${label}`);
       card.append(title, plot);
       box.append(card);
-      await draw(plot, () => correlationFigure(terms, matrix, k), version, 320);
+      const python = figureAfter("compare", () => comparisonFigureCode({ label }));
+      await draw(plot, () => correlationFigure(terms, matrix, k), version, 320, { python });
     }
     box.append(
       el(
@@ -4334,7 +4344,8 @@ function coefficientCard(analysis, simulated) {
   const show = async (asked, version) => {
     const view = mixture ? "estimates" : asked;
     for (const button of buttons) button.setAttribute("aria-pressed", String(button.dataset.view === view));
-    if (version) await draw(plot, figure(view), version, figure(view)().height, { python: figurePython("coefficients") });
+    const python = figurePython(view === "pareto" ? "pareto" : "coefficients");
+    if (version) await draw(plot, figure(view), version, figure(view)().height, { python });
   };
   for (const button of buttons) {
     button.onclick = () => {
@@ -4441,12 +4452,27 @@ function figurePython(key, plots = null) {
 /** The code that draws one figure, after the analysis's: the library's call, or Plotly's for a figure of the page's. */
 function figureAlone(key, plots = null) {
   const options = plots?.plot_options?.[key];
-  const { formula, model } = state.analysis;
+  const { formula, model, coefficients, lenth } = state.analysis;
   const spec = shownSpec();
-  if (options) return figureCode(CHARTS[key].title, options, formula ?? model, designComplete() && !asideRuns().length, spec);
+  const complete = designComplete() && !asideRuns().length;
+  if (options) return figureCode(CHARTS[key].title, options, formula ?? model, complete, spec);
+  if (key === "pareto") {
+    // Lenth's margins stand in for the intervals a fit that uses every run does not have.
+    const margins = Boolean(lenth) && !coefficients.some((c) => c.ci_high !== null && c.ci_high !== undefined);
+    return ownFigureCode(key, CHARTS.coefficients.title, spec, { lenth: margins, model: formula ?? model, complete });
+  }
   const about = { contour: plots?.plot_options?.contour, cox: plots?.cox, process: processOf(spec.response) };
   return ownFigureCode(key, CHARTS[key].title, spec, about);
 }
+
+/**
+ * The code of a figure drawn from a step other than the analysis, for its window: the step's code, after the steps
+ * it builds on, and then ``lines``, which draw the figure. Nothing while the step shows no code, or with no lines.
+ */
+const figureAfter = (step, lines) => () => {
+  const code = stepCode[step] && lines();
+  return code ? cumulative(...[...(BUILDS_ON[step] ?? []), step].map((s) => stepCode[s]).filter(Boolean), code) : null;
+};
 
 /** The figures drawn for the response on show, each with the code that draws it: the last cells of its notebook. */
 function figuresCharted() {
@@ -4710,8 +4736,14 @@ async function drawBestChart() {
   const caption = card.querySelector("figcaption");
   caption.textContent = blend ? BLEND_SENSITIVITY : sensitivityCaption(best);
   caption.hidden = !caption.textContent; // the legend, the axis and the heading's definition say the rest
+  // The code moves each numeric factor the model holds, as the bars drawn do.
+  const python = figureAfter("best", () => {
+    const { formula, model } = state.analysis;
+    const names = sensitivity.map((s) => s.name);
+    return sensitivityCode(names, shownSpec(), formula ?? model, designComplete() && !asideRuns().length);
+  });
   try {
-    await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height);
+    await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height, { python });
   } catch {
     card.hidden = true; // the table and the sentences above hold what it shows
   }
@@ -5007,8 +5039,9 @@ async function drawBalanceChart() {
   card.querySelector("figcaption").textContent = triangle
     ? blendOverlayCaption(b.overlay, b.responses)
     : overlayCaption(b.overlay, state.design.spec.factors, b.responses);
+  const python = figureAfter("balance", () => overlayCode(b.overlay, state.design.spec));
   try {
-    await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height);
+    await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height, { python });
   } catch {
     card.hidden = true; // the tables and the sentences above hold what it shows
   }
@@ -5196,7 +5229,11 @@ function renderCurve(at) {
   const { label, units, argument } = state.design.spec.curve;
   const words = { label, units, along: argument.label, alongUnits: argument.units };
   const goal = target ? { points: argument.values, values: target } : null;
-  if (state.plotlyJs) draw($("#what-if-curve-plot"), () => curveFigure(fit.points, curveAt(fit, at), words, goal), state.plotlyJs);
+  // The code fits the curves again and predicts the one drawn: it builds on the run sheet, as the panel's own does.
+  const python = figureAfter("run", () => curveCode(state.design, state.curves, fit, at));
+  if (state.plotlyJs) {
+    draw($("#what-if-curve-plot"), () => curveFigure(fit.points, curveAt(fit, at), words, goal), state.plotlyJs, undefined, { python });
+  }
   $("#what-if-curve-said").textContent = curveSaid(fit);
 }
 

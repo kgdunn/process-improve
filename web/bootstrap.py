@@ -6441,6 +6441,8 @@ def compare(request: dict) -> dict:
             )["fds"]["curve"]
         fds[sized] = {"fraction": curve["fraction"], "variance": curve["prediction_variance"]}
     result["fds"] = fds
+    # What each curve was asked of the library with, for the code the page shows of the figure.
+    result["fds_asked"] = {"model": formula, "n_samples": FDS_SAMPLES, "fds_resolution": FDS_POINTS, "random_state": 1}
     return result
 
 
