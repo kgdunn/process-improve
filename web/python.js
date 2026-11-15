@@ -1063,7 +1063,7 @@ export function windowCode(found, spec) {
     'print(judged["feasible"].mean())  # the share of the settings at which every prediction is inside its window',
     ...(found.likely
       ? [
-          `likely = {chance: (judged["probability"] >= chance).mean() for chance in ${repr(Object.keys(found.likely).map(Number)).replace("[", "(").replace("]", ")")}}`,
+          `likely = {chance: (judged["probability"] >= chance).mean() for chance in ${repr(Object.keys(found.likely).map(Number))}}`,
           "print(likely)  # the share at which one new run meets every window with each chance or more",
           'surest = judged["probability"].idxmax()',
           `ranges = ${repr(Object.fromEntries(numeric.map((f) => [f.name, [f.low, f.high]])))}`,
