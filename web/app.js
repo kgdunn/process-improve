@@ -444,19 +444,20 @@ let pythonSaid = 0;
 function setStatus(text, state = "ok") {
   statusTicket += 1;
   const box = $("#status");
-  box.querySelector(".status__text").textContent = text;
+  heldUnderBar(() => (box.querySelector(".status__text").textContent = text)); // a longer line may take a second row
   box.dataset.state = state;
   clearTimeout(statusTimer);
-  const show = () => {
-    box.hidden = false;
-    box.classList.remove("fading");
-  };
+  const show = () =>
+    heldUnderBar(() => {
+      box.hidden = false;
+      box.classList.remove("fading");
+    });
   if (state === "ok") {
     if (box.hidden) return; // nothing to say that the page does not already show
     show();
     statusTimer = setTimeout(() => {
       box.classList.add("fading");
-      statusTimer = setTimeout(() => (box.hidden = true), STATUS_FADE);
+      statusTimer = setTimeout(() => heldUnderBar(() => (box.hidden = true)), STATUS_FADE);
     }, STATUS_SHOWN);
   } else if (state === "error" || !box.hidden) {
     show();
@@ -465,14 +466,31 @@ function setStatus(text, state = "ok") {
   }
 }
 
+/**
+ * Change the status line, which is in the study's bar: the bar grows or shrinks with it, and the page under the
+ * bar would move by as much, out from under the reader's eyes and mouse. The page is scrolled back by however far
+ * it moved, so what is under the bar stays where it is in the window. At the very top of the page there is nothing
+ * to scroll back over, and there it still moves. (The brief, where it is pinned beside Run and Learn, is pinned
+ * under the room the bar has when its line shows, and so does not move with the line at all.)
+ */
+function heldUnderBar(change) {
+  const under = $("#workspace");
+  const top = under.getBoundingClientRect().top;
+  change();
+  const moved = under.getBoundingClientRect().top - top;
+  if (moved) scrollBy({ top: moved, behavior: "instant" });
+}
+
 /** Take the status line away at once: what it said no longer holds, and nothing takes its place. */
 function clearStatus() {
   statusTicket += 1;
   clearTimeout(statusTimer);
   const box = $("#status");
-  box.querySelector(".status__text").textContent = "";
+  heldUnderBar(() => {
+    box.querySelector(".status__text").textContent = "";
+    box.hidden = true;
+  });
   box.dataset.state = "ok";
-  box.hidden = true;
 }
 
 /**
@@ -7415,9 +7433,15 @@ try {
 } catch {
   /* storage refused: no hint, rather than one on every visit */
 }
-// The study bar stays at the top as the page scrolls; the brief beside it starts below it.
+// The study bar stays at the top as the page scrolls; the brief beside it is pinned below it: below the most room
+// the bar has taken at this width, not the room it takes now. The bar is a row taller while its status line shows,
+// and a brief pinned under its height would move down and back with every line.
+let barRoom = { width: 0, height: 0 };
 new ResizeObserver(([entry]) => {
-  document.documentElement.style.setProperty("--bar-height", `${Math.ceil(entry.borderBoxSize[0].blockSize)}px`);
+  const [{ inlineSize, blockSize }] = entry.borderBoxSize;
+  const [width, height] = [Math.round(inlineSize), Math.ceil(blockSize)];
+  barRoom = { width, height: width === barRoom.width ? Math.max(barRoom.height, height) : height };
+  document.documentElement.style.setProperty("--bar-room", `${barRoom.height}px`);
 }).observe($("#studybar"));
 
 for (const name of Object.keys(PANES)) $(`#go-${name}`).onclick = () => showPhase(name);

@@ -484,7 +484,8 @@ Also:
 *On a phone or at a desk, at your level, in light or dark.*
 
 - **Three steps, one page.** A bar names the study and Design, Run and Learn, each marked with
-  how far it has got.
+  how far it has got. It says what the app is doing, and the page under it stays where it is
+  when that line comes and goes.
 - **Three ways in.** Start a new study, explore a worked example, or browse the design
   catalog. A fourth button analyses data you have.
 - **A reading level.** Beginner, Intermediate or Adventurous. Each level adds designs, charts
