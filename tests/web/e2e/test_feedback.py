@@ -296,7 +296,10 @@ def test_the_screenshot_box_is_ticked_and_a_jpeg_of_the_tab_is_sent(page, relay)
     main = page.evaluate(
         "(({width, height}) => [width, height])(document.querySelector('main').getBoundingClientRect())"
     )
-    assert width * height <= 4_000_000 * 1.01
+    scale = min(2, (16_000_000 / (main[0] * main[1])) ** 0.5)
+    assert scale > 1, "the page is drawn larger than it is, so its text is sharp"
+    assert width == pytest.approx(main[0] * scale, rel=0.01)
+    assert width * height <= 16_000_000 * 1.01
     assert width / height == pytest.approx(main[0] / main[1], rel=0.02), "the whole of the page, its shape kept"
 
 

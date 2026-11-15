@@ -8,7 +8,9 @@ import {
   ISSUES,
   LINK_MAX,
   MAIL_TO,
+  JPEG_QUALITIES,
   MAX_PIXELS,
+  MAX_SCALE,
   MAX_SCREENSHOT,
   MAX_STUDY,
   MESSAGE_MAX,
@@ -22,6 +24,7 @@ import {
   emailProblem,
   failureWords,
   fitContext,
+  fittingScreenshot,
   issueUrl,
   keepError,
   mailtoUrl,
@@ -152,11 +155,36 @@ describe("the screenshot", () => {
     }
   });
 
-  test("is taken at scale 1, or smaller to hold about 4 megapixels", () => {
-    assert.equal(screenshotScale(1280, 900), 1);
+  test("is drawn at twice the page's size, or smaller to hold 16 megapixels", () => {
+    assert.deepEqual([MAX_PIXELS, MAX_SCALE], [16_000_000, 2]);
+    assert.equal(screenshotScale(1280, 900), 2);
+    assert.equal(screenshotScale(390, 844), 2, "a phone's screen");
     const scale = screenshotScale(1280, 8000);
-    assert.ok(scale < 1);
-    assert.ok(Math.abs(1280 * scale * 8000 * scale - MAX_PIXELS) < 1, "the long pane at 4 MP, its shape kept");
+    assert.ok(scale > 1 && scale < 2, "a long page is still drawn larger than it is");
+    assert.ok(Math.abs(1280 * scale * 8000 * scale - MAX_PIXELS) < 1, "the long pane at 16 MP, its shape kept");
+    assert.ok(screenshotScale(390, 60_000) < 1, "and only a very long one is drawn smaller");
+  });
+
+  test("is taken again at a lower quality while it is larger than the relay takes", async () => {
+    const jpeg = (bytes) => `data:image/jpeg;base64,${"A".repeat(Math.ceil((bytes * 4) / 3))}`;
+    const asked = [];
+    const sizes = { 0.8: MAX_SCREENSHOT + 1000, 0.6: MAX_SCREENSHOT - 1000, 0.4: 1000 };
+    const take = async (quality) => {
+      asked.push(quality);
+      return jpeg(sizes[quality]);
+    };
+    const shot = await fittingScreenshot(take);
+    assert.deepEqual(asked, [0.8, 0.6], "the best quality first, and no further once one fits");
+    assert.equal(screenshotProblem(shot), "");
+
+    asked.length = 0;
+    assert.equal(screenshotProblem(await fittingScreenshot(async (quality) => (asked.push(quality), jpeg(100)))), "");
+    assert.deepEqual(asked, [0.8], "a screenshot that fits is taken once");
+
+    asked.length = 0;
+    const large = await fittingScreenshot(async (quality) => (asked.push(quality), jpeg(MAX_SCREENSHOT + 1000)));
+    assert.deepEqual(asked, JPEG_QUALITIES, "each quality is tried");
+    assert.match(screenshotProblem(large), /larger than 2 MB/, "and one still too large goes unsent, with why");
   });
 });
 
