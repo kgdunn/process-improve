@@ -63,9 +63,15 @@ const CONTEXT_LABELS = {
   window: "Window",
 };
 
-/** A screenshot: the most pixels it holds, and the quality of its JPEG. */
-export const MAX_PIXELS = 4_000_000;
-export const JPEG_QUALITY = 0.8;
+/**
+ * A screenshot: the most pixels it holds, the most it is enlarged, and the qualities of its JPEG, the best first.
+ * 16 megapixels is as large as a canvas is in Safari on a phone. At that size and the best quality the app's page
+ * made a JPEG of 0.9 to 1.3 MB (Nov 2026), within the 2 MB the relay takes. Twice the page's own size is as sharp
+ * as a phone's screen shows it.
+ */
+export const MAX_PIXELS = 16_000_000;
+export const MAX_SCALE = 2;
+export const JPEG_QUALITIES = [0.8, 0.6, 0.4];
 
 /** A JPEG as a data: URL, which is how a report carries its screenshot. */
 const JPEG_URL = "data:image/jpeg;base64,";
@@ -138,9 +144,24 @@ export function studyProblem(packed) {
   return /^[A-Za-z0-9_-]+$/.test(packed) ? "" : "Your study could not be packed, so the report goes without it.";
 }
 
-/** The scale a screenshot of a box this size is taken at: 1, or less to hold it to MAX_PIXELS. */
-export const screenshotScale = (width, height) =>
-  width * height > MAX_PIXELS ? Math.sqrt(MAX_PIXELS / (width * height)) : 1;
+/**
+ * The scale a screenshot of a box this size is taken at: MAX_SCALE, or less to hold it to MAX_PIXELS. The page is
+ * drawn again at that scale, not copied from the screen, so its text is sharp at any scale.
+ */
+export const screenshotScale = (width, height) => Math.min(MAX_SCALE, Math.sqrt(MAX_PIXELS / (width * height)));
+
+/**
+ * A screenshot that fits a report: ``take`` makes one at a quality, and is asked for a lower quality while the one
+ * it made is larger than the relay takes. The last is returned as it is, for screenshotProblem to refuse.
+ */
+export async function fittingScreenshot(take) {
+  let shot = null;
+  for (const quality of JPEG_QUALITIES) {
+    shot = await take(quality);
+    if (decodedSize(shot.slice(JPEG_URL.length)) <= MAX_SCREENSHOT) break;
+  }
+  return shot;
+}
 
 /** The Python errors a report carries, after one more: the last few, each cut to the length the relay takes. */
 export function keepError(errors, error) {
@@ -318,20 +339,20 @@ async function post(url, report) {
 /**
  * A screenshot of ``root``, the page's main element, as a JPEG data: URL. modern-screenshot, imported only now, draws
  * the page through SVG's foreignObject, so the browser itself applies the page's CSS, color-mix() among it. A dialog is
- * left out, the page's own background fills what is transparent, and a page longer than MAX_PIXELS allows is scaled
- * down whole. No font is fetched: the page's are the system's.
+ * left out, the page's own background fills what is transparent, and the page is drawn whole, at twice its size or
+ * as large as MAX_PIXELS allows. No font is fetched: the page's are the system's.
  */
 async function takeScreenshot(root) {
   const { domToJpeg } = await import("./vendor/modern-screenshot.mjs");
   const { width, height } = root.getBoundingClientRect();
-  return domToJpeg(root, {
+  const drawn = {
     scale: screenshotScale(width, height),
-    quality: JPEG_QUALITY,
     backgroundColor: getComputedStyle(document.body).backgroundColor,
     filter: (node) => node.nodeName !== "DIALOG",
     font: false,
     timeout: 10_000,
-  });
+  };
+  return fittingScreenshot((quality) => domToJpeg(root, { ...drawn, quality }));
 }
 
 /** The dialog's form: built once, from fixed text, the first time a Feedback button is pressed. */

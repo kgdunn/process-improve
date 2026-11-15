@@ -158,7 +158,35 @@ import {
   SLOW_SEARCH,
   searchSeconds,
   waitWords,
+  REPOSITORY,
+  dayWords,
+  shortCommit,
+  versionText,
 } from "../../../web/logic.js";
+
+describe("the version of the app", () => {
+  const commit = "88ccccbbe212e09c53d9f69b3ee7193262cc165a";
+
+  test("is dated in words", () => {
+    assert.equal(dayWords("2026-11-13"), "13 November 2026");
+    assert.equal(dayWords("2026-01-05"), "5 January 2026");
+    for (const not of [null, undefined, "", "2026-13-01", "2026-11-00", "13 November 2026", "2026-11-13T10:00:00Z"]) {
+      assert.equal(dayWords(not), null, String(not));
+    }
+  });
+
+  test("goes with a report as the whole commit and its day, within the 64 characters the relay takes", () => {
+    assert.equal(versionText(commit, "2026-11-13"), `${commit}, 13 November 2026`);
+    assert.equal(versionText(commit, null), commit, "a build that could not tell the day names the commit alone");
+    assert.equal(versionText(null, "2026-11-13"), null, "and a preview that was not built names nothing");
+    assert.ok(versionText(commit, "2026-09-30").length <= 64, "the longest month");
+  });
+
+  test("is shown by the commit's first seven characters, which lead to it on GitHub", () => {
+    assert.equal(shortCommit(commit), "88ccccb");
+    assert.equal(REPOSITORY, "https://github.com/kgdunn/process-improve");
+  });
+});
 
 describe("the design's settings", () => {
   test("a model's coefficients, intercept included", () => {

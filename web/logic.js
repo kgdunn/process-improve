@@ -153,6 +153,27 @@ export const CHOSEN_TERMS = "terms";
 /** The most factors a study has; mirrors bootstrap.MAX_FACTORS. */
 export const MAX_FACTORS = 40;
 
+/** The repository the app is built from, where a version's commit can be read. */
+export const REPOSITORY = "https://github.com/kgdunn/process-improve";
+
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/** A day in words, as a version is dated: "13 November 2026" for "2026-11-13", and null for what is not a day. */
+export function dayWords(day) {
+  const [, year, month, date] = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day ?? "") ?? [];
+  const named = MONTHS[Number(month) - 1];
+  return named && Number(date) >= 1 && Number(date) <= 31 ? `${Number(date)} ${named} ${year}` : null;
+}
+
+/**
+ * The version of the app a build names, as a report of a problem carries it: the whole commit, then the day it was
+ * made when the build knows it; null with no commit, as in a preview that was not built.
+ */
+export const versionText = (commit, day) => (commit ? [commit, dayWords(day)].filter(Boolean).join(", ") : null);
+
+/** The commit as the footer shows it: its first seven characters, which name it as GitHub does. */
+export const shortCommit = (commit) => commit.slice(0, 7);
+
 /** What the page calls the blocks, where a term of the model moves with them. */
 export const THE_BLOCKS = "the blocks";
 

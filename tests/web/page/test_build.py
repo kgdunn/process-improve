@@ -219,6 +219,7 @@ def test_assemble_lays_out_what_the_page_and_its_worker_read(build_script, tmp_p
         "bytecode": None,
         "service_worker": True,
         "commit": build_script.commit(),
+        "committed": build_script.committed(build_script.commit()),
         "plotly": version("plotly"),
         "plotly_js": get_plotlyjs_version(),
         "on_demand": None,
@@ -326,6 +327,17 @@ def test_the_manifest_names_the_commit_the_app_was_built_from(build_script, tmp_
     )
 
 
+def test_the_manifest_dates_the_commit_when_git_can_tell_its_day(build_script, tmp_path, monkeypatch):
+    """The footer's version is the commit and its day: a commit this checkout does not hold has no day."""
+    monkeypatch.delenv("GITHUB_SHA", raising=False)
+    here = _assemble_around(build_script, tmp_path / "here", b"a wheel", monkeypatch)
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", here["committed"])
+    assert here["committed"] == build_script.committed(here["commit"])
+    monkeypatch.setenv("GITHUB_SHA", "0123abc")
+    assert _assemble_around(build_script, tmp_path / "ci", b"a wheel", monkeypatch)["committed"] is None
+    assert build_script.committed(None) is None
+
+
 # --------------------------------------------------------------------------- the packages installed on demand
 def _release(files: list[str], requires: list[str] | None = None) -> dict:
     """Return PyPI's record of a release, as far as the build reads it."""
@@ -410,9 +422,9 @@ def test_the_manifest_holds_the_exact_files_the_build_resolved(build_script, tmp
 
 def test_the_page_reads_only_what_the_manifest_holds():
     """The worker installs the wheel and the plotly release named there, from the exact files in ``on_demand`` when
-    the build resolved them; app.js draws with the Plotly.js named there, and a report from the Feedback dialog
-    names the commit; the copy kept for use without a network follows ``service_worker``. ``bytecode`` is for a
-    reader of the manifest, and for the tests.
+    the build resolved them; app.js draws with the Plotly.js named there, and the footer and a report from the
+    Feedback dialog name the commit and its day; the copy kept for use without a network follows
+    ``service_worker``. ``bytecode`` is for a reader of the manifest, and for the tests.
     """
     read = {
         name
@@ -421,7 +433,8 @@ def test_the_page_reads_only_what_the_manifest_holds():
     }
     for names in re.findall(r"const \{ ([^}]+) \} = manifest;", source("app.js")):
         read |= {name.split(":")[0].strip() for name in names.split(",")}
-    assert read == {"wheel", "glue", "plotly", "plotly_js", "on_demand", "commit", "service_worker"}
+    held = {"wheel", "glue", "plotly", "plotly_js", "on_demand", "commit", "committed", "service_worker"}
+    assert read == held
 
 
 # --------------------------------------------------------------------------- the book's examples
