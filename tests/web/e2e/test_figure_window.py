@@ -116,9 +116,8 @@ def test_every_chart_has_a_button_that_opens_it_in_a_window_of_its_own(page):
 
     page.keyboard.press("Escape")
     page.wait_for_selector("dialog.figure", state="hidden")
-    assert page.locator("dialog.figure .plot").evaluate("(plot) => plot.data") is None, (
-        "its chart is taken down with it"
-    )
+    # Its chart is taken down with it: at the dialog's close event, which a browser raises a task after it is hidden.
+    page.wait_for_function("!document.querySelector('dialog.figure .plot').data")
     assert page.locator("dialog.figure .plot .main-svg").count() == 0
     assert card.locator(".expand").evaluate("(button) => button === document.activeElement"), (
         "back where it was pressed"
