@@ -330,6 +330,24 @@ READS: dict[str, list[str]] = {
         "more_responses{}.[]: number?",
         "more_sources{}.[]: str?",
     ],
+    "trade-offs": [
+        "candidates.settings{}.[]: number",
+        "candidates.responses{}.[]: number?",
+        "candidates.d[]: number",
+        "candidates.far[]: int",
+        "held: list",
+        "alternatives: list",
+        "asked.drawn: int",
+        "asked.seed: int",
+    ],
+    "trade-offs with other settings as good": [
+        "alternatives[].settings{}: any",
+        "alternatives[].responses{}: number?",
+        "alternatives[].d{}: number",
+        "alternatives[].composite: number",
+        "held[].name: str",
+        "held[].value: str",
+    ],
     "balance": [
         "balanced: bool",
         "aimed[]: str",
@@ -847,6 +865,8 @@ ENTRY_POINTS = {
     "upload with kept settings": "api_read_workbook",
     "relabel of several responses": "api_relabel",
     "balance": "api_balance",
+    "trade-offs": "api_trade_offs",
+    "trade-offs with other settings as good": "api_trade_offs",
     "balance confirmed": "api_balance",
     "nothing to balance": "api_balance",
     "mixture design": "api_make_design",
@@ -959,6 +979,26 @@ def several_responses(api) -> dict[str, Callable[[], dict]]:
         results = {"responses": sim["responses"], "more_responses": {n: m["responses"] for n, m in sim["more"].items()}}
         return {**design, **results, "models": {"Cost": "interactions"}, "goals": {"Yield": {"importance": 4}}}
 
+    def traded() -> dict:
+        sent = balanced()
+        return {**sent, "at": api.ok("api_balance", sent)["coded"]}
+
+    def traded_twice() -> dict:
+        """Two responses whose balance has two bests, far apart and nearly as good, with a supplier held at a level."""
+        factors = [*FACTORS[:2], {"name": "S", "low": "A", "high": "B", "units": ""}]
+        responses = [THREE[0], THREE[1]]
+        made = api.ok("api_make_design", {"design_type": "full_factorial", "factors": factors, "responses": responses})
+        design = {key: made[key] for key in ("spec", "columns", "rows")}
+        at = [dict(zip(design["columns"], row, strict=True)) for row in design["rows"]]
+        t, p = [(r["T"] - 175) / 25 for r in at], [r["P"] - 2 for r in at]
+        results = {
+            "responses": [60 + 5 * a * b for a, b in zip(t, p, strict=True)],
+            "more_responses": {"Cost": [20 + 0.2 * a + 0.2 * b for a, b in zip(t, p, strict=True)]},
+        }
+        sent = {**design, **results, "models": {"Yield": "interactions", "Cost": "interactions"}}
+        sent["goals"] = {"Cost": {"high": 30.0}}
+        return {**sent, "at": api.ok("api_balance", sent)["coded"]}
+
     def confirmed() -> dict:
         sent = balanced()
         at = api.ok("api_balance", sent)["confirm_at"]
@@ -985,6 +1025,8 @@ def several_responses(api) -> dict[str, Callable[[], dict]]:
         "upload of several responses": uploaded,
         "relabel of several responses": relabelled,
         "balance": balanced,
+        "trade-offs": traded,
+        "trade-offs with other settings as good": traded_twice,
         "balance confirmed": confirmed,
         "nothing to balance": learning,
     }

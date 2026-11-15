@@ -692,6 +692,26 @@
             <div class="plot"></div>
             <figcaption class="hint"></figcaption>
           </figure>
+          <!-- The trade-offs between the responses (app.js, with best.js; bootstrap.trade_offs): settings tried on
+               the models, each a point; the best one response can be for each value of another; limits that keep
+               only the settings that meet them; and other settings nearly as good as the balanced ones. -->
+          <div id="trade-offs" class="trade-offs" hidden>
+            <p class="hint" id="trade-about"></p>
+            <div class="trade-view" role="group" aria-label="What the chart of the trade-offs shows">
+              <label>Across <select id="trade-across"></select></label>
+              <label>Up <select id="trade-up"></select></label>
+              <label>Colour by <select id="trade-colour"></select></label>
+            </div>
+            <div class="scroll"><table id="trade-limits" class="data trade-limits" aria-label="Keep only the settings where each response lies between two limits"></table></div>
+            <p id="trade-count" class="hint" role="status"></p>
+            <figure id="trade-chart" class="chart">
+              <h4>What one response costs another</h4>
+              <div class="plot"></div>
+              <figcaption class="hint"></figcaption>
+            </figure>
+            <div id="trade-chosen" aria-live="polite"></div>
+            <div id="trade-nearly"></div>
+          </div>
           <div id="balance-confirm" class="confirm" hidden>
             <h4>Test them with <button type="button" class="term" data-term="confirmation-run">confirmation runs</button></h4>
             <div id="balance-confirm-out" aria-live="polite"></div>

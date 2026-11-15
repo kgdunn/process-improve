@@ -138,6 +138,7 @@ def test_the_numbers_the_document_repeats_in_its_sentences_are_the_app_s(bootstr
         f"One button adds {['', 'one', 'two', 'three'][app.CONFIRMATION_RUNS]} confirmation runs at the settings found",
         f"a note when one is above {app.VIF_HIGH:g}",
         f"{['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six'][len(app.SCENARIOS)]} processes with a known true model",
+        f"*Details:* {app.TRADE_OFF_DRAWN:,} settings drawn evenly from the ranges the limits allow",
         f"The glossary holds {len(glossary)} terms",
         f"{len(context)} of the {len(glossary)} terms have the link",
         f"The book's {len(book)} examples and {len(published)} published examples each open from a link",

@@ -1384,6 +1384,112 @@ export function blendOverlayFigure(overlay, responses, colours = palette()) {
   };
 }
 
+// ---------------------------------------------------------------- the trade-offs between the responses
+/** What each mark of the trade-off chart is, as its legend names it. */
+export const TRADE_MARKS = {
+  tried: "Settings tried",
+  far: "Tried, far from your runs",
+  front: "Best trade-off",
+  runs: "Runs you made",
+  chosen: "Settings chosen",
+  nearly: "Nearly as good",
+};
+
+/** What an axis says of a response with a goal: its name and units, and which way is better. */
+export function goalAxis(response) {
+  const better = { maximize: "more is better", minimize: "less is better" }[response.goal] ?? `nearer ${response.target} is better`;
+  return `${withUnits(response.label, response.units)}: ${better}`;
+}
+
+/**
+ * The trade-off between two responses, ``across`` and ``up`` (each a response of the balance: its ``name``,
+ * ``label``, ``units``, ``goal`` and ``target``). ``tried`` holds, for each candidate setting kept, its place among
+ * the candidates (``at``), its two predictions, whether it is far from the runs and the words of its settings; a
+ * candidate is a point, paler when it is far from the runs, and coloured by ``colour`` (its ``label``, ``units`` and a
+ * value for each candidate kept) when one is given. ``front`` is the best trade-off among them, as their places in
+ * ``tried``. ``runs`` are the runs made, each with its number and its two results; ``balanced`` and ``chosen`` the
+ * two predictions at the balanced settings and at the settings the reader chose (with ``spread``, half of each
+ * prediction interval, when the models give one); ``nearly`` the alternatives nearly as good.
+ */
+export function tradeOffFigure({ across, up, tried, front, colour = null, runs = [], balanced, chosen = null, nearly = [] }, colours = palette()) {
+  const cloud = (far) => {
+    const kept = tried.filter((one) => Boolean(one.far) === far);
+    const tint = colour
+      ? { color: kept.map((one) => colour.values[one.at]), colorscale: rampFor(SURFACE, colours), cmin: colour.least, cmax: colour.most }
+      : { color: colours.muted };
+    return {
+      type: "scatter",
+      mode: "markers",
+      name: far ? TRADE_MARKS.far : TRADE_MARKS.tried,
+      meta: "tried",
+      x: kept.map((one) => one.across),
+      y: kept.map((one) => one.up),
+      customdata: kept.map((one) => one.at),
+      text: kept.map((one) => one.words),
+      marker: {
+        ...tint,
+        size: 6,
+        opacity: far ? 0.22 : 0.6,
+        ...(colour && !far ? { showscale: true, colorbar: { title: { text: withUnits(colour.label, colour.units) } } } : {}),
+      },
+      hovertemplate: `%{text}<br>${across.label}: %{x:.4g}<br>${up.label}: %{y:.4g}<extra></extra>`,
+    };
+  };
+  const point = (name, at, marker, more = {}) => ({
+    type: "scatter",
+    mode: "markers",
+    name,
+    x: at.map((one) => one.across),
+    y: at.map((one) => one.up),
+    marker,
+    hovertemplate: `${name}<br>${across.label}: %{x:.4g}<br>${up.label}: %{y:.4g}<extra></extra>`,
+    ...more,
+  });
+  const spread = (half) => (half === null || half === undefined ? { visible: false } : { type: "data", array: [half], color: colours.fg, thickness: 1.5, width: 5 });
+  const data = [cloud(true), cloud(false)].filter((trace) => trace.x.length);
+  // The line is joined from left to right: a response with a target is as good on either side of it, so the best
+  // settings in order of how good they are would cross the target and come back.
+  const joined = [...front].sort((a, b) => tried[a].across - tried[b].across);
+  data.push({
+    type: "scatter",
+    mode: "lines",
+    name: TRADE_MARKS.front,
+    x: joined.map((i) => tried[i].across),
+    y: joined.map((i) => tried[i].up),
+    line: { color: colours.accent, width: 2.5 },
+    hoverinfo: "skip",
+  });
+  if (runs.length) {
+    data.push({
+      ...point(TRADE_MARKS.runs, runs, { color: colours.fg, size: 7 }),
+      mode: "markers+text",
+      meta: "runs", // each point is a run, named in its customdata: marked with the run on every other chart
+      customdata: runs.map((run) => [run.run]),
+      text: runs.map((run) => String(run.run)),
+      textposition: "top center",
+      textfont: { size: 10, color: colours.fg },
+      hovertemplate: `Run %{customdata[0]}<br>${across.label}: %{x:.4g}<br>${up.label}: %{y:.4g}<extra></extra>`,
+    });
+  }
+  if (nearly.length) data.push(point(TRADE_MARKS.nearly, nearly, { ...BEST_MARKER, size: 13, symbol: "star-open", color: colours.fg }));
+  data.push(point(BALANCED, [balanced], BEST_MARKER));
+  if (chosen) {
+    const marker = { ...TRUE_MARKER, color: colours.accent };
+    data.push(point(TRADE_MARKS.chosen, [chosen], marker, { error_x: spread(chosen.spread?.across), error_y: spread(chosen.spread?.up) }));
+  }
+  return {
+    data,
+    layout: {
+      xaxis: { title: { text: goalAxis(across) } },
+      yaxis: { title: { text: goalAxis(up) } },
+      legend: LEGEND_ABOVE,
+      showlegend: true,
+      hovermode: "closest",
+    },
+    height: 440,
+  };
+}
+
 // ---------------------------------------------------------------- a curve each run gives
 /** What the curve chart's legend calls each line, and the band it shades. */
 export const CURVE_LINES = {

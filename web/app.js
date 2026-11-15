@@ -35,6 +35,7 @@ import {
   shareContourScale,
   ternaryFigure,
   ternaryRange,
+  tradeOffFigure,
 } from "./charts.js";
 import {
   BLEND_SENSITIVITY,
@@ -86,6 +87,9 @@ import {
   withoutConfirmationRuns,
   columnsAt,
   curveAt,
+  frontier,
+  meetsLimits,
+  shortfall,
   keptAs,
   predictAt,
   scenarioProblem,
@@ -289,7 +293,7 @@ import {
 import { redrawRuns } from "./picture.js";
 import { drawFieldChart } from "./field-chart.js";
 import { RUN_ORDER_SEED, briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows } from "./report.js";
-import { analyseCode, balanceCode, bestCode, compareCode, comparisonFigureCode, correlationCode, cumulative, curveCode, designCode, figureCode, forResponse, notebook, overlayCode, ownFigureCode, resultsCode, sensitivityCode, whatIfCode } from "./python.js";
+import { analyseCode, balanceCode, bestCode, compareCode, comparisonFigureCode, correlationCode, cumulative, curveCode, designCode, figureCode, forResponse, notebook, overlayCode, ownFigureCode, resultsCode, sensitivityCode, tradeOffCode, whatIfCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { CONTEXT, GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
@@ -490,6 +494,9 @@ function toast(text, state = "ok") {
 }
 
 // ---------------------------------------------------------------- state
+/** The trade-offs' view of a study just opened: nothing tried, picked, limited or chosen yet. */
+const newTrade = () => ({ tried: null, across: null, up: null, colour: "", limits: {}, chosen: null });
+
 const state = {
   phase: "plan", // the phase on show: "plan", "run" or "learn"
   design: null, // what api_make_design returned, or the runs of an uploaded workbook
@@ -510,6 +517,9 @@ const state = {
   chartRequest: null,
   best: null, // the best settings for the response's goal, on the fitted model: what api_best_settings returned
   balance: null, // the settings that balance the responses with a goal: what api_balance returned
+  // The trade-offs between them: what api_trade_offs returned (tried), the two responses on the chart's axes and the
+  // one it is coloured by, each response's two limits, and the candidate setting or the alternative the reader chose.
+  trade: newTrade(),
   whatIf: null, // the what-if panel: each response's fit from api_predictors, the settings, the limits they break
   curve: { fit: null, problem: null, target: null }, // the curves' fit from api_functional, why there is none, a target
   scenarios: [], // the settings the reader kept from the what-if panel, each {name, settings}: the study's what_if
@@ -1972,6 +1982,7 @@ function showDesign(design, warnings = [], { save = true } = {}) {
   state.shown = resultNames()[0];
   state.models = {};
   state.goals = {};
+  state.trade = newTrade();
   state.scenarios = [];
   state.simulation = null;
   state.analysis = null;
@@ -3388,6 +3399,7 @@ async function readUpload(file) {
   setModel(r.spec.analysis_model ?? $("#model").value);
   state.models = { [names[0]]: modelChoice(), ...(r.spec.analysis_models ?? {}) };
   state.goals = {};
+  state.trade = newTrade();
   state.scenarios = r.what_if ?? [];
   clearBalance();
   clearWhatIf();
@@ -3498,6 +3510,7 @@ async function analyseRuns() {
     await findBalance();
     await findCurve();
     await findWhatIf();
+    findTradeOffs();
     return;
   }
   const mine = ++ticket;
@@ -3522,6 +3535,7 @@ async function analyseRuns() {
   await findBalance();
   await findCurve();
   await findWhatIf(); // after the best settings and the balance, which it opens at, and the curves it draws
+  findTradeOffs(); // last: the settings it tries take a moment, and nothing above waits for them
 }
 
 /** A button that opens Feedback on the topic of an algorithm or a model, beside a result that went wrong. */
@@ -4829,6 +4843,317 @@ function clearBalance() {
   state.balance = null;
   $("#balance").hidden = true;
   hidePython("balance");
+  clearTradeOffs();
+}
+
+// ---------------------------------------------------------------- the trade-offs between the responses
+let tradeTicket = 0;
+let tradeTimer = null;
+/** What the list of what colours the points calls the overall desirability: no response's column, which is a name. */
+const OVERALL_D = "(D)";
+
+/** Take the trade-offs away: there is no balance to draw them at, or the study is a mixture's. */
+function clearTradeOffs() {
+  tradeTicket += 1;
+  clearTimeout(tradeTimer);
+  // What was tried and the settings chosen are the balance's: with it gone they name factors and responses that may
+  // be renamed or removed by the time there is one again. The limits typed stay, for the same responses.
+  state.trade = { ...state.trade, tried: null, chosen: null };
+  $("#trade-offs").hidden = true;
+}
+
+/** Each factor's units, by its name, as the brief gives them. */
+const factorUnits = () => Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
+
+/**
+ * Try settings on the models of the balance (bootstrap.trade_offs) and show what one response costs another. It is
+ * asked after the balance is on the page, and its reply is dropped when another balance has been found meanwhile.
+ */
+async function findTradeOffs() {
+  const b = state.balance;
+  if (!b || blendStudy() || !b.settings.some((s) => s.kind !== "categorical")) {
+    clearTradeOffs();
+    return;
+  }
+  const mine = ++tradeTicket;
+  const reply = await call("api_trade_offs", { ...balanceAsked(), at: b.coded });
+  if (mine !== tradeTicket || state.balance !== b) return;
+  if (!reply.ok) {
+    clearTradeOffs(); // the balance stands without them
+    return;
+  }
+  const names = b.responses.map((r) => r.name);
+  const kept = (name, otherwise) => (names.includes(name) ? name : otherwise);
+  const across = kept(state.trade.across, names[0]);
+  const up = kept(state.trade.up === across ? null : state.trade.up, names.find((name) => name !== across));
+  const colour = state.trade.colour === OVERALL_D || names.includes(state.trade.colour) ? state.trade.colour : "";
+  const limits = Object.fromEntries(names.map((name) => [name, state.trade.limits[name] ?? [null, null]]));
+  // The settings chosen stay chosen while the models say the same of the settings tried, as after confirmation runs.
+  const before = state.trade.tried?.candidates.d;
+  const same = before?.length === reply.result.candidates.d.length && before.every((d, i) => d === reply.result.candidates.d[i]);
+  state.trade = { tried: reply.result, across, up, colour, limits, chosen: same ? state.trade.chosen : null };
+  renderTradeOffs();
+}
+
+/** The study's factors with each one's kind, as the what-if panel has them, or else as the brief does. */
+const tradeFactors = () =>
+  state.whatIf?.factors ??
+  state.design.spec.factors.map((f) => ({ ...f, kind: f.type === "categorical" || typeof f.low === "string" ? "categorical" : "numeric" }));
+
+/** The balance's entry for a response, by its column: its label, units, goal and prediction at the balanced settings. */
+const balanced = (name) => state.balance.responses.find((r) => r.name === name);
+
+/** Show the trade-offs: what the chart shows, each response's limits, the chart, and the settings nearly as good. */
+function renderTradeOffs() {
+  const { tried, across, up, colour, limits } = state.trade;
+  const responses = state.balance.responses;
+  $("#trade-offs").hidden = false;
+  const drawn = tried.candidates.d.length;
+  const held = tried.held.map((h) => `${h.name} at ${h.value}`).join(", ");
+  $("#trade-about").textContent =
+    `Each point is one of ${drawn.toLocaleString("en")} settings tried on the models${held ? `, with ${held}` : ""}, drawn evenly ` +
+    "from the ranges the limits allow. The line is the best one response can be for each value of the other. A paler " +
+    "point is further from your runs than any run lies: there the models guess. Press a point to choose its settings.";
+  const options = (chosen, list) =>
+    list.map(([value, text]) => `<option value="${escape(value)}"${value === chosen ? " selected" : ""}>${escape(text)}</option>`).join("");
+  const named = responses.map((r) => [r.name, withUnits(r.label, r.units)]);
+  $("#trade-across").innerHTML = options(across, named);
+  $("#trade-up").innerHTML = options(up, named);
+  $("#trade-colour").innerHTML = options(colour, [["", "Nothing"], ...named, [OVERALL_D, "Overall desirability, D"]]);
+  const t = $("#trade-limits");
+  const key = JSON.stringify(named);
+  if (t.dataset.key !== key) {
+    t.dataset.key = key;
+    const rows = responses.map((r) => {
+      const label = escape(r.label);
+      return (
+        `<tr data-response="${escape(r.name)}"><th scope="row">${escape(withUnits(r.label, r.units))}</th>` +
+        `<td data-label="At least"><input type="number" step="any" name="low" aria-label="${label}: keep only settings where it is at least"></td>` +
+        `<td data-label="At most"><input type="number" step="any" name="high" aria-label="${label}: keep only settings where it is at most"></td></tr>`
+      );
+    });
+    t.innerHTML = `<thead><tr><th scope="col">Keep only settings where</th><th scope="col">is at least</th><th scope="col">and at most</th></tr></thead><tbody>${rows.join("")}</tbody>`;
+  }
+  // Each box shows the limit the chart keeps to, unless the reader is typing in it: a study made again starts with none.
+  for (const tr of t.tBodies[0].rows) {
+    for (const [i, end] of ["low", "high"].entries()) {
+      const box = tr.querySelector(`[name="${end}"]`);
+      if (box !== document.activeElement) box.value = limits[tr.dataset.response][i] ?? "";
+    }
+  }
+  renderTradeNearly();
+  renderTradeChosen();
+  drawTradeChart();
+}
+
+/** What the trade-off chart draws of the settings tried: those that meet the limits, with the best trade-off among them. */
+function tradeDrawn() {
+  const { tried, across, up, colour, limits, chosen } = state.trade;
+  const { settings, responses, d, far } = tried.candidates;
+  const units = factorUnits();
+  const meets = meetsLimits(responses, limits);
+  const at = meets.flatMap((met, i) => (met && responses[across][i] !== null && responses[up][i] !== null ? [i] : []));
+  const words = (i) => Object.keys(settings).map((name) => `${name} ${withUnit(settings[name][i], units[name])}`).join(", ");
+  const points = at.map((i) => ({ at: i, across: responses[across][i], up: responses[up][i], far: far[i], words: words(i) }));
+  const [goalAcross, goalUp] = [balanced(across), balanced(up)];
+  const front = frontier(
+    points.map((p) => shortfall(goalAcross, p.across)),
+    points.map((p) => shortfall(goalUp, p.up)),
+    points.map(() => true),
+  );
+  const values = colour === OVERALL_D ? d : colour ? responses[colour] : null;
+  const shown = values ? at.map((i) => values[i]).filter((v) => v !== null) : [];
+  const tint = values && {
+    ...(colour === OVERALL_D ? { label: "Overall desirability, D", units: "" } : wordsOf(colour)),
+    values,
+    least: Math.min(...shown),
+    most: Math.max(...shown),
+  };
+  // The runs made that have both results, each by its number in the order the runs were made.
+  const results = fitted();
+  const runs = state.design.rows.flatMap((_, place) => {
+    const [x, y] = [results[across]?.[place], results[up]?.[place]];
+    return Number.isFinite(x) && Number.isFinite(y) ? [{ run: runOrderOf(place), across: x, up: y }] : [];
+  });
+  const nearly = tried.alternatives.map((a) => ({ across: a.responses[across], up: a.responses[up] }));
+  const star = { across: goalAcross.predicted, up: goalUp.predicted };
+  return { across: goalAcross, up: goalUp, tried: points, front, colour: tint, runs, balanced: star, chosen: chosen && chosenPoint(chosen), nearly, met: at.length };
+}
+
+/** The settings the reader chose, on the chart's two axes: their predictions, and half of each prediction interval. */
+function chosenPoint(chosen) {
+  const { across, up } = state.trade;
+  const w = state.whatIf;
+  const half = (name) => {
+    if (!w) return null;
+    const at = predictedAt(w, columnsAt(w.factors, chosen.settings)).find((r) => r.name === name)?.at;
+    return at?.prediction ? (at.prediction[1] - at.prediction[0]) / 2 : null;
+  };
+  return { across: chosen.responses[across], up: chosen.responses[up], spread: { across: half(across), up: half(up) } };
+}
+
+/** Draw the chart of the trade-offs, and say how many of the settings tried meet the limits. */
+async function drawTradeChart() {
+  const card = $("#trade-chart");
+  if (!state.trade.tried || !state.plotlyJs) {
+    card.hidden = true;
+    return;
+  }
+  const view = tradeDrawn();
+  const tried = state.trade.tried.candidates.d.length;
+  const limited = Object.values(state.trade.limits).some(([low, high]) => low !== null || high !== null);
+  $("#trade-count").textContent = !limited
+    ? ""
+    : view.met
+      ? `${view.met.toLocaleString("en")} of the ${tried.toLocaleString("en")} settings tried meet your limits.`
+      : "None of the settings tried meets every limit: loosen one.";
+  card.hidden = false;
+  card.querySelector("figcaption").textContent =
+    "The star is the balanced settings. Settings on the line cannot be bettered on one response without giving up some of the other.";
+  const plot = card.querySelector(".plot");
+  const python = figureAfter("balance", () => {
+    const { tried, across, up, colour, limits } = state.trade;
+    return tradeOffCode({ asked: tried.asked, across, up, colour, limits }, state.balance, state.design.spec);
+  });
+  try {
+    await draw(plot, () => tradeOffFigure(view), state.plotlyJs, 440, { python });
+  } catch {
+    card.hidden = true; // the tables above and below hold what it shows
+    return;
+  }
+  if (!plot.dataset.listens) {
+    plot.dataset.listens = "true";
+    plot.on("plotly_click", (event) => {
+      const point = event.points.find((p) => p.data.meta === "tried");
+      if (point) chooseCandidate(point.customdata);
+    });
+  }
+}
+
+/** The reader picked what the chart shows: another response on an axis, or what the points are coloured by. */
+function tradeViewChanged() {
+  if (!state.trade.tried) return;
+  let [across, up] = [$("#trade-across").value, $("#trade-up").value];
+  // The two axes show two responses: choosing one axis's response for the other swaps them.
+  if (across === up) [across, up] = across === state.trade.across ? [state.trade.up, up] : [across, state.trade.across];
+  state.trade = { ...state.trade, across, up, colour: $("#trade-colour").value };
+  renderTradeOffs();
+}
+
+/** The reader typed a limit on a response: the chart keeps the settings that meet it, a moment after the last key. */
+function tradeLimitTyped(e) {
+  const tr = e.target.closest("tr[data-response]");
+  if (!tr || !state.trade.tried) return;
+  const ends = ["low", "high"].map((end) => numberOrNull(tr.querySelector(`[name="${end}"]`).value));
+  state.trade = { ...state.trade, limits: { ...state.trade.limits, [tr.dataset.response]: ends } };
+  clearTimeout(tradeTimer);
+  tradeTimer = setTimeout(drawTradeChart, 300);
+}
+
+/** Choose one of the settings tried, by its place among them: its settings, and each response's prediction there. */
+function chooseCandidate(i) {
+  const { candidates, held } = state.trade.tried;
+  const settings = {
+    ...Object.fromEntries(Object.entries(candidates.settings).map(([name, values]) => [name, values[i]])),
+    ...Object.fromEntries(held.map((h) => [h.name, h.value])),
+  };
+  const responses = Object.fromEntries(Object.entries(candidates.responses).map(([name, values]) => [name, values[i]]));
+  chooseSettings({ settings, responses, d: candidates.d[i], far: Boolean(candidates.far[i]) });
+}
+
+/** Take some settings as the reader's choice: say them, mark them on the chart, and move the what-if panel there. */
+function chooseSettings(chosen) {
+  state.trade = { ...state.trade, chosen };
+  const w = state.whatIf;
+  if (chosen && w && settingsFit(w.factors, chosen.settings)) {
+    w.settings = { ...chosen.settings };
+    renderWhatIf();
+    checkWhatIfLimits();
+  }
+  renderTradeChosen();
+  drawTradeChart();
+}
+
+/** Say the settings chosen and each response there, with what to do with them; nothing when none is chosen. */
+function renderTradeChosen() {
+  const box = $("#trade-chosen");
+  const chosen = state.trade.chosen;
+  if (!chosen) {
+    box.replaceChildren();
+    return;
+  }
+  const factors = tradeFactors();
+  const rows = state.balance.responses.map((r) => [withUnits(r.label, r.units), num(chosen.responses[r.name]), num(r.predicted)]);
+  const actions = el("p", "actions", "");
+  for (const [act, text, cls] of [
+    ["confirm", `Add ${CONFIRMATION_RUNS} confirmation runs at these settings`, "button"],
+    ["what-if", "See them under What if", "link"],
+    ["back", "Back to the balanced settings", "link"],
+  ]) {
+    const button = el("button", cls, text);
+    button.type = "button";
+    button.dataset.act = act;
+    actions.append(button);
+  }
+  box.replaceChildren(
+    said("lead", `Settings chosen: ${settingsWords(factors, chosen.settings, factorUnits())}.`),
+    table(["Response", "Predicted at the settings chosen", "At the balanced settings"], rows),
+    ...noteList(chosen.far ? ["These settings are further from your runs than any run lies: the predictions there are a guess until a run confirms them."] : [], "warnings"),
+    actions,
+  );
+}
+
+/** A button under the settings chosen was pressed: confirm them with runs, go to What if, or let go of them. */
+function tradeChosenPressed(e) {
+  const act = e.target.closest("button[data-act]")?.dataset.act;
+  const chosen = state.trade.chosen;
+  if (!act || !chosen) return;
+  if (act === "confirm") addConfirmationRuns(chosen.settings, "the settings chosen");
+  if (act === "what-if") $("#what-if").scrollIntoView({ behavior: "smooth", block: "start" });
+  if (act === "back") {
+    chooseSettings(null);
+    if (state.whatIf) {
+      state.whatIf.settings = { ...whatIfStart(state.whatIf.factors, state.balance, state.best).settings };
+      renderWhatIf();
+      checkWhatIfLimits();
+    }
+  }
+}
+
+/** List the settings nearly as good as the balanced ones, each with a button that chooses it; nothing without any. */
+function renderTradeNearly() {
+  const box = $("#trade-nearly");
+  const { alternatives, held } = state.trade.tried;
+  if (!alternatives.length) {
+    box.replaceChildren();
+    return;
+  }
+  const factors = tradeFactors();
+  const units = factorUnits();
+  const responses = state.balance.responses;
+  const rows = alternatives.map((a, i) => {
+    const use = el("button", "link", "Choose");
+    use.type = "button";
+    use.dataset.nearly = String(i);
+    use.setAttribute("aria-label", `Choose the settings of row ${i + 1}`);
+    const settings = { ...a.settings, ...Object.fromEntries(held.map((h) => [h.name, h.value])) };
+    return [settingsWords(factors, settings, units), ...responses.map((r) => num(a.responses[r.name])), num(a.composite), use];
+  });
+  box.replaceChildren(
+    el("h4", "", "Other settings nearly as good"),
+    said("hint", `Each is another best of the search, far from the balanced settings, with an overall desirability within 5% of theirs (${num(state.balance.composite)}).`),
+    builtTable(["Settings", ...responses.map((r) => withUnits(r.label, r.units)), "D", "Choose"], rows),
+  );
+}
+
+/** "Choose" was pressed beside settings nearly as good: they become the reader's choice. */
+function tradeNearlyPressed(e) {
+  const i = e.target.closest("button[data-nearly]")?.dataset.nearly;
+  if (i === undefined) return;
+  const { alternatives, held } = state.trade.tried;
+  const a = alternatives[Number(i)];
+  const settings = { ...a.settings, ...Object.fromEntries(held.map((h) => [h.name, h.value])) };
+  chooseSettings({ settings, responses: a.responses, d: a.composite, far: false });
 }
 
 /** What the reader set of each response's goal, as Python takes it: only the responses with a goal, only what was set. */
@@ -4840,7 +5165,7 @@ function sentGoals() {
 /** Find the balance a moment after the reader last typed in its table, rather than on every key. */
 function scheduleBalance() {
   clearTimeout(balanceTimer);
-  balanceTimer = setTimeout(findBalance, 500);
+  balanceTimer = setTimeout(rebalance, 500);
 }
 
 /**
@@ -4854,10 +5179,19 @@ async function findBalance() {
     return;
   }
   const mine = ++balanceTicket;
-  const reply = await call("api_balance", { ...held(), ...splitResults(resultNames(), fitted()), models: modelsByName(), goals: sentGoals() });
+  const reply = await call("api_balance", balanceAsked());
   if (mine !== balanceTicket) return;
   renderBalance(reply);
   if (state.whatIf) renderWhatIf(); // the balanced settings it comes back to have moved
+}
+
+/** What the balance is asked with: the study, its results, each response's model and what the reader set of its goal. */
+const balanceAsked = () => ({ ...held(), ...splitResults(resultNames(), fitted()), models: modelsByName(), goals: sentGoals() });
+
+/** Find the balance again after the reader changed a goal, and then the trade-offs, which are drawn at it. */
+async function rebalance() {
+  await findBalance();
+  findTradeOffs();
 }
 
 /**
@@ -4874,6 +5208,7 @@ function renderBalance(reply) {
   if (!reply.ok) {
     // The responses cannot be balanced yet, as when one has no results: say why, and keep the goals as they are.
     state.balance = null;
+    clearTradeOffs(); // drawn at a balance that is no more
     $("#balance-out").replaceChildren(said("hint", reply.error));
     for (const id of ["#balance-chart", "#balance-confirm"]) $(id).hidden = true;
     hidePython("balance");
@@ -4994,7 +5329,7 @@ function goalChanged(e) {
   $("#balance-problems").hidden = !problem;
   scheduleSave();
   if (problem) return;
-  if (e.target.tagName === "SELECT") findBalance();
+  if (e.target.tagName === "SELECT") rebalance();
   else scheduleBalance();
 }
 
@@ -6193,6 +6528,7 @@ async function openCampaign(c, record, message) {
   state.shown = names[0];
   state.models = { [names[0]]: c.model, ...(c.more_models ?? {}) };
   state.goals = structuredClone(c.goals ?? {});
+  state.trade = newTrade();
   state.scenarios = structuredClone(c.what_if ?? []);
   clearBalance();
   clearWhatIf();
@@ -6502,6 +6838,28 @@ function table(columns, rows, terms = {}, { sortedBy = null, looks = {}, run = n
   t._looks = columns.map((c) => looks[c] ?? "");
   t._run = run; // for a table with a row a run: the run of a row, which marks it on every chart (fillBody)
   renderTable(t, columns, rows, sortedBy, [], terms);
+  wrap.append(t);
+  return wrap;
+}
+
+/**
+ * A table whose cells may hold an element, as a row's button is: its rows stay as given, where table()'s are text
+ * a reader can sort.
+ */
+function builtTable(columns, rows) {
+  const wrap = el("div", "scroll", "");
+  const t = el("table", "data", "");
+  const head = t.createTHead().insertRow();
+  for (const text of columns) {
+    const th = el("th", "", text);
+    th.scope = "col";
+    head.append(th);
+  }
+  const body = t.createTBody();
+  for (const row of rows) {
+    const tr = body.insertRow();
+    for (const cell of row) tr.insertCell().append(cell instanceof Node ? cell : String(cell ?? ""));
+  }
   wrap.append(t);
   return wrap;
 }
@@ -6904,8 +7262,12 @@ $("#what-if-kept-list").addEventListener("click", keptPressed);
 $("#balance-reset").onclick = () => {
   state.goals = {};
   scheduleSave();
-  findBalance();
+  rebalance();
 };
+for (const id of ["#trade-across", "#trade-up", "#trade-colour"]) $(id).addEventListener("change", tradeViewChanged);
+$("#trade-limits").addEventListener("input", tradeLimitTyped);
+$("#trade-chosen").addEventListener("click", tradeChosenPressed);
+$("#trade-nearly").addEventListener("click", tradeNearlyPressed);
 $("#remove-confirmation").onclick = removeConfirmationRuns;
 $("#download").onclick = downloadWorkbook;
 $("#csv").onclick = downloadCsv;

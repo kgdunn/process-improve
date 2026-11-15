@@ -1593,3 +1593,38 @@ def test_the_what_if_curve_s_code_predicts_the_curve_the_panel_draws(api, node, 
     assert list(predicted.x) == fit["points"] == held["spec"]["curve"]["argument"]["values"]
     assert np.all(np.asarray(high.y) >= np.asarray(predicted.y))
     assert np.all(np.asarray(low.y) <= np.asarray(predicted.y))
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("limits", [{}, {"Purity": [62, 64], "Cost": [None, 62]}], ids=["every setting", "limited"])
+def test_the_trade_off_chart_s_code_tries_the_page_s_settings_and_draws_its_line(api, node, monkeypatch, limits):
+    held, simulation = three_responses(api)
+    request = {**held, **sent_of(by_name(simulation)), "models": {"Cost": "interactions"}}
+    balance = api.ok("api_balance", request)
+    tried = api.ok("api_trade_offs", {**request, "at": balance["coded"]})
+    view = {"asked": tried["asked"], "across": "Yield", "up": "Cost", "colour": "Purity", "limits": limits}
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, by_name(simulation), simulation]),
+        ("balanceCode", [balance, held["spec"]]),
+        ("tradeOffCode", [view, balance, held["spec"]]),
+    )
+    namespace = drawn_by(monkeypatch, code)
+    candidates = tried["candidates"]
+    for name, shown in candidates["responses"].items():  # the page rounds each to six figures
+        np.testing.assert_allclose(namespace["cloud"][name], shown, rtol=1e-5)
+    np.testing.assert_allclose(175 + 25 * namespace["tried"]["T"], candidates["settings"]["T"], rtol=1e-5)
+    # The page's own line, from web/best.js, over the settings that meet the limits.
+    ends = {name: [None, None] for name in candidates["responses"]} | limits
+    meets = javascript(node, source("best.js"), [("meetsLimits", [candidates["responses"], ends])])[0]
+    assert namespace["kept"].index.tolist() == [i for i, met in enumerate(meets) if met]
+    across = [-v for v in candidates["responses"]["Yield"]]
+    front = javascript(node, source("best.js"), [("frontier", [across, candidates["responses"]["Cost"], meets])])[0]
+    assert namespace["front"].tolist() == front
+    cloud, line, star = namespace["figure"].data
+    assert len(cloud.x) == sum(meets)
+    np.testing.assert_allclose(line.x, np.sort(np.asarray(candidates["responses"]["Yield"])[front]), rtol=1e-5)
+    assert (np.diff(line.x) >= 0).all(), "joined from left to right"
+    by = {r["name"]: r["predicted"] for r in balance["responses"]}
+    assert [star.x[0], star.y[0]] == pytest.approx([by["Yield"], by["Cost"]], abs=1e-6)

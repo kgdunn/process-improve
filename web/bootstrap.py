@@ -7468,6 +7468,15 @@ class _FittedModel:
             return x @ self.beta, None
         return x @ self.beta, self.t * np.sqrt(self.mse * np.einsum("ij,jk,ik->i", x, self.inverse, x))
 
+    def leverages(self, point: dict[str, float], names: list[str], settings: np.ndarray) -> np.ndarray:
+        """Return the leverage at each row of ``settings``, coded for ``names``, the other columns as at ``point``."""
+        if self.spec is not None:
+            point = {**point, **_held_columns(point, self.spec)}
+        frame = pd.DataFrame({name: np.full(len(settings), float(point[name])) for name in self.names})
+        frame[names] = settings
+        x = _model_matrix(frame, self.terms, self.names)
+        return np.einsum("ij,jk,ik->i", x, self.inverse, x)
+
     def average_of(self, point: dict[str, float], runs: int) -> list[float] | None:
         """Return the prediction interval for the average of ``runs`` new runs at a point; None without error left."""
         if self.mse is None or self.t is None:
@@ -8337,38 +8346,16 @@ def balance(request: dict) -> dict:
     more. A mixture's responses are balanced over its blends, each fitted with its Scheffé model (see
     :func:`_balanced_blend`).
     """
-    whole = _checked_spec(request.get("spec") or {})
+    whole, every_run, aimed, fits, goals = _balance_fits(request)
     transforms = whole.get("analysis_transforms") or {}
-    # Each transformed response is balanced on its model's scale, its range's ends put there (see _scaled_range).
-    every_run, whole = _on_model_scale(_runs_frame(request, whole), whole)
-    design = _design_runs(every_run)
-    aimed = [r for r in _responses(whole) if r.get("goal") in AIMED and (r["goal"] != "target" or "target" in r)]
     if len(aimed) < 2:  # two responses or more are balanced
         return {"balanced": False, "aimed": [r["name"] for r in aimed]}
-    mixture = _mixture(whole)
-    names = [f["name"] for f in whole["factors"]]
-    categorical = _categorical_names(whole)
-    raw_goals = request.get("goals") or {}
-    raw_models = request.get("models") or {}
-    if not isinstance(raw_goals, dict) or not isinstance(raw_models, dict):
-        raise ValueError("The page sent goals for the responses this page did not write.")  # noqa: TRY004
-    fits: dict[str, _FittedModel] = {}
-    goals: list[dict[str, Any]] = []
-    for r in aimed:
-        spec = _for_response(whole, r["name"])
-        model = raw_models.get(r["name"]) or spec["model"]
-        model = _mixture_model(model) if mixture else _checked_model(model, names, categorical)
-        results = pd.to_numeric(design[r["name"]], errors="coerce").dropna()
-        if results.empty:
-            raise ValueError(f"Enter results for {_words(r)} first: the balance is found on each response's model.")
-        fits[r["name"]] = _blend_fit(design, spec, model) if mixture else _fitted(design, spec, model)
-        goals.append(_balance_goal(r, results, _scaled_range(raw_goals.get(r["name"]), r, transforms.get(r["name"]))))
-    if mixture:
+    if _mixture(whole):
         return _balanced_blend(every_run, whole, aimed, fits, goals)
     region = _spec_region(whole)
     found = _balance_search(fits, goals, whole, region)
     point = _full_point(whole, found["x"], found["levels"])
-    in_model = set().union(*(_factors_in(fit.out["coefficients"], spec) for fit in fits.values()))
+    in_model = set().union(*(_factors_in(fit.out["coefficients"], whole) for fit in fits.values()))
     numeric = [f for f in whole["factors"] if not _categorical(f)]
     still = np.zeros(len(numeric))  # no way to move from the balanced settings is said, so no end has a "beyond"
     reply = {
@@ -8385,6 +8372,156 @@ def balance(request: dict) -> dict:
         },
     }
     return _balance_put_back(reply, transforms)
+
+
+def _balance_fits(
+    request: dict,
+) -> tuple[dict[str, Any], pd.DataFrame, list[dict], dict[str, _FittedModel], list[dict[str, Any]]]:
+    """Return what a balance is found on: the study, its runs, the responses with a goal, their fits and their goals.
+
+    The study and its runs are on each model's scale (see :func:`_on_model_scale`). With fewer than two
+    responses with a goal there is nothing to balance, and no fit or goal is made.
+    """
+    whole = _checked_spec(request.get("spec") or {})
+    transforms = whole.get("analysis_transforms") or {}
+    # Each transformed response is balanced on its model's scale, its range's ends put there (see _scaled_range).
+    every_run, whole = _on_model_scale(_runs_frame(request, whole), whole)
+    design = _design_runs(every_run)
+    aimed = [r for r in _responses(whole) if r.get("goal") in AIMED and (r["goal"] != "target" or "target" in r)]
+    fits: dict[str, _FittedModel] = {}
+    goals: list[dict[str, Any]] = []
+    if len(aimed) < 2:  # two responses or more are balanced
+        return whole, every_run, aimed, fits, goals
+    mixture = _mixture(whole)
+    names = [f["name"] for f in whole["factors"]]
+    categorical = _categorical_names(whole)
+    raw_goals = request.get("goals") or {}
+    raw_models = request.get("models") or {}
+    if not isinstance(raw_goals, dict) or not isinstance(raw_models, dict):
+        raise ValueError("The page sent goals for the responses this page did not write.")  # noqa: TRY004
+    for r in aimed:
+        spec = _for_response(whole, r["name"])
+        model = raw_models.get(r["name"]) or spec["model"]
+        model = _mixture_model(model) if mixture else _checked_model(model, names, categorical)
+        results = pd.to_numeric(design[r["name"]], errors="coerce").dropna()
+        if results.empty:
+            raise ValueError(f"Enter results for {_words(r)} first: the balance is found on each response's model.")
+        fits[r["name"]] = _blend_fit(design, spec, model) if mixture else _fitted(design, spec, model)
+        goals.append(_balance_goal(r, results, _scaled_range(raw_goals.get(r["name"]), r, transforms.get(r["name"]))))
+    return whole, every_run, aimed, fits, goals
+
+
+#: The trade-off chart of a balance: how many candidate settings are drawn, evenly, from the factors' ranges (those
+#: the limits rule out are then left out), the seed they are drawn with, how many other settings nearly as good as
+#: the balanced ones the search may report, and how far, coded, such settings lie from the balanced ones at least.
+TRADE_OFF_DRAWN = 2000
+TRADE_OFF_SEED = 1
+TRADE_OFF_ALTERNATIVES = 3
+TRADE_OFF_APART = 0.5
+
+
+def trade_offs(request: dict) -> dict:
+    """Return what the trade-off chart of a balance draws: candidate settings, each response there, and alternatives.
+
+    The request is the balance's (see :func:`balance`), with ``at``: the balanced settings it found, every
+    factor coded, as its reply's ``coded``. The candidates are :data:`TRADE_OFF_DRAWN` settings of the numeric
+    factors drawn evenly from their ranges, without those the limits on the settings rule out; each categorical
+    factor is at the balanced settings' level (``held``), and each block at the average block. ``candidates``
+    holds, a list each, in the candidates' order: every numeric factor's setting in its own units
+    (``settings``), every balanced response's prediction (``responses``, in its units), the overall
+    desirability ``d``, and ``far``, 1 where some response's model predicts further from its runs than any
+    run lies (its leverage above the runs' largest): a guess, as the page draws it.
+
+    ``alternatives`` are other settings nearly as good as the balanced ones, and at least
+    :data:`TRADE_OFF_APART` coded units from them and from each other: optima the library's search found
+    from other starts (``optimize_responses`` with ``n_alternatives``), each with its settings, each
+    response's prediction and desirability there, and its overall desirability. ``asked`` is what the
+    candidates were drawn with, for the code the page shows.
+
+    shortcut: the candidates keep each categorical factor at the balanced level; draw them at every level once
+    a study's trade-off between levels is asked for.
+    """
+    from process_improve.experiments import optimize_responses  # noqa: PLC0415 - loaded when a balance is asked for
+
+    spec, _, aimed, fits, goals = _balance_fits(request)
+    numeric = [f for f in spec["factors"] if not _categorical(f)]
+    if len(aimed) < 2 or _mixture(spec) or not numeric:
+        raise ValueError("The trade-offs are drawn for two responses or more with a goal, over factors with ranges.")
+    point = _point_sent(request.get("at"), spec)
+    names = [f["name"] for f in numeric]
+    transforms = spec.get("analysis_transforms") or {}
+    region = _spec_region(spec)
+    coefficients, blocks = _searched_models(fits, spec)
+    levels = {f["name"]: point[f["name"]] for f in spec["factors"] if _categorical(f)}
+    held = {**blocks, **_held_columns(levels, spec)}
+    models = {name: _held_at(c, held) for name, c in coefficients.items()}
+    tried = np.random.default_rng(TRADE_OFF_SEED).uniform(-1.0, 1.0, size=(TRADE_OFF_DRAWN, len(numeric)))
+    if region is not None:
+        tried = tried[region.feasible(tried[:, [names.index(n) for n in region.names]])]
+    far = np.zeros(len(tried), dtype=bool)
+    for fit in fits.values():
+        far |= fit.leverages(point, names, tried) > fit.max_leverage * (1 + 1e-9) + 1e-12
+    with _listening():
+        found = optimize_responses(
+            [{"response_name": n, "coefficients": m, "factor_names": names} for n, m in models.items()],
+            goals=[_desirability_of(g) for g in goals],
+            factor_ranges={f["name"]: {"low": f["low"], "high": f["high"]} for f in numeric},
+            region=region,
+            n_alternatives=TRADE_OFF_ALTERNATIVES,
+        )["desirability"]
+    balanced = np.array([point[n] for n in names])
+    in_model = set().union(*(_factors_in(fit.out["coefficients"], spec) for fit in fits.values()))
+    others = []
+    for other in [
+        found,
+        *found.get("alternatives", []),
+    ]:  # the search's own best is another choice when it is elsewhere
+        # A factor in no model changes nothing, so a search stops anywhere along it: it is at the center here, as
+        # at the balanced settings, and settings that differ in it alone are not other settings.
+        x = _unmodelled_at_centre(np.array([other["optimal_coded"][n] for n in names]), names, in_model, region)
+        if all(float(np.linalg.norm(x - seen)) >= TRADE_OFF_APART for seen in [balanced, *(o["x"] for o in others)]):
+            others.append({"x": x, **other})
+
+    def in_its_units(name: str, values: Any) -> list:  # noqa: ANN401 - numbers, on the model's scale
+        return _put_back(_figures(np.asarray(values, dtype=float)), transforms.get(name))
+
+    return {
+        "candidates": {
+            "settings": {
+                f["name"]: _figures((f["low"] + f["high"]) / 2 + tried[:, i] * (f["high"] - f["low"]) / 2)
+                for i, f in enumerate(numeric)
+            },
+            "responses": {
+                g["response"]: in_its_units(g["response"], _predict(models[g["response"]], names, tried)) for g in goals
+            },
+            "d": _figures(_overall(models, goals, names, tried)),
+            "far": far.astype(int).tolist(),
+        },
+        "held": [
+            {"name": f["name"], "value": _level_at(f, point[f["name"]])} for f in spec["factors"] if _categorical(f)
+        ],
+        "alternatives": [
+            {
+                "settings": {f["name"]: _in_units(f, float(o["x"][i])) for i, f in enumerate(numeric)},
+                "responses": {n: _put_back(float(v), transforms.get(n)) for n, v in o["predicted_responses"].items()},
+                "d": {n: float(v) for n, v in o["individual_desirability"].items()},
+                "composite": float(o["composite_desirability"]),
+            }
+            for o in others
+        ],
+        "asked": {"drawn": TRADE_OFF_DRAWN, "seed": TRADE_OFF_SEED},
+    }
+
+
+def _point_sent(raw: object, spec: dict) -> dict[str, float]:
+    """Return the balanced settings the page sends back, every factor coded, refusing what the page did not write."""
+    names = {f["name"] for f in spec["factors"]}
+    if not isinstance(raw, dict) or set(raw) != names:
+        raise ValueError("The page sent balanced settings this page did not write.")
+    point = {name: _number(value) for name, value in raw.items()}
+    if any(value is None or not -1 - AT_EDGE <= value <= 1 + AT_EDGE for value in point.values()):
+        raise ValueError("The page sent balanced settings this page did not write.")
+    return {name: float(value) for name, value in point.items()}  # type: ignore[arg-type]
 
 
 def _scaled_range(raw: object, response: dict, transform: str | None) -> object:
@@ -8538,23 +8675,15 @@ def _balance_search(
 
     numeric = [f for f in spec["factors"] if not _categorical(f)]
     numeric_names = [f["name"] for f in numeric]
-    coefficients = {
-        name: [{"term": c["term"], "coefficient": c["coefficient"]} for c in fit.out["coefficients"]]
-        for name, fit in fits.items()
-    }
+    coefficients, blocks = _searched_models(fits, spec)
     in_model = set().union(*(_factors_in(c, spec) for c in coefficients.values()))
-    columns = _model_columns(spec)
-    blocks = {c["term"]: 0.0 for cs in coefficients.values() for c in cs if _block_contrast(c["term"], columns)}
     desirable = [_desirability_of(g) for g in goals]
-    weights = [g["importance"] for g in goals]
 
     def held_models(levels: dict[str, float]) -> dict[str, list[dict]]:
         return {name: _held_at(c, {**blocks, **_held_columns(levels, spec)}) for name, c in coefficients.items()}
 
     def overall(models: dict[str, list[dict]], points: np.ndarray) -> np.ndarray:
-        predicted = [_predict(models[g["response"]], numeric_names, points) for g in goals]
-        each = [[individual_desirability(float(v), g) for v in p] for p, g in zip(predicted, desirable, strict=True)]
-        return np.array([composite_desirability(list(d), weights) for d in zip(*each, strict=True)])
+        return _overall(models, goals, numeric_names, points)
 
     points = _sample(len(numeric), region)
     combinations = _searched_levels(spec, in_model, lambda levels: float(overall(held_models(levels), points).max()))
@@ -8588,6 +8717,26 @@ def _balance_search(
     assert best is not None  # there is always one combination of levels, the empty one
     _relay(best.pop("heard"))
     return best
+
+
+def _searched_models(fits: dict[str, _FittedModel], spec: dict) -> tuple[dict[str, list[dict]], dict[str, float]]:
+    """Return each response's model as a search takes it, and its block contrasts at 0: the average block."""
+    coefficients = {
+        name: [{"term": c["term"], "coefficient": c["coefficient"]} for c in fit.out["coefficients"]]
+        for name, fit in fits.items()
+    }
+    columns = _model_columns(spec)
+    blocks = {c["term"]: 0.0 for cs in coefficients.values() for c in cs if _block_contrast(c["term"], columns)}
+    return coefficients, blocks
+
+
+def _overall(models: dict[str, list[dict]], goals: list[dict], names: list[str], points: np.ndarray) -> np.ndarray:
+    """Return the overall desirability D at coded settings of ``names``, a row each, on models with the levels held."""
+    desirable = [_desirability_of(g) for g in goals]
+    weights = [g["importance"] for g in goals]
+    predicted = [_predict(models[g["response"]], names, points) for g in goals]
+    each = [[individual_desirability(float(v), g) for v in p] for p, g in zip(predicted, desirable, strict=True)]
+    return np.array([composite_desirability(list(d), weights) for d in zip(*each, strict=True)])
 
 
 def _balanced_responses(
@@ -9744,6 +9893,11 @@ def api_best_settings(payload: str) -> str:
 def api_balance(payload: str) -> str:
     """JSON wrapper around :func:`balance`."""
     return _reply(balance, payload)
+
+
+def api_trade_offs(payload: str) -> str:
+    """JSON wrapper around :func:`trade_offs`."""
+    return _reply(trade_offs, payload)
 
 
 def api_next_runs(payload: str) -> str:
