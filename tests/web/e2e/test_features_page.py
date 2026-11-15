@@ -95,7 +95,8 @@ def test_on_a_phone_the_footer_and_the_list_fit_the_screen(page, context, site):
     assert overflowing(listed) == []
     listed.evaluate("() => document.querySelectorAll('details').forEach((fold) => { fold.open = true; })")
     assert overflowing(listed) == [], "with every part and every line of details open too"
-    assert listed.locator("#features .scroll table").count() == 1, "the limits, in a box that scrolls if it must"
+    tables = listed.locator("#features .scroll table")
+    assert tables.count() == 2, "the limits and the library's designs, each in a box that scrolls if it must"
     level = listed.locator("#level label").evaluate_all("(labels) => labels.map((l) => l.getBoundingClientRect().top)")
     assert len(set(level)) == 1, "the three levels on one line"
 
@@ -219,7 +220,9 @@ def test_the_page_s_links_go_to_the_app_and_its_other_pages(context, site):
     inside = page.locator("#features a:not([href^='#']):not([href^='http']):not(.show-me)").evaluate_all(
         "(links) => links.map((link) => link.getAttribute('href'))"
     )
-    assert inside == ["about.html", "catalog/", "catalog/reproduced/", "map/", "mva/"]
+    pages = [href for href in inside if not href.startswith("./?request=")]
+    assert pages == ["about.html", "catalog/", "catalog/reproduced/", "map/", "mva/"]
+    assert len(inside) - len(pages) >= 5, "and a request for each design the app does not make yet"
     outside = page.locator("#features a[href^='http']")
     assert outside.count() >= 5
     tabs = outside.evaluate_all("(links) => links.map((link) => [new URL(link.href).hostname, link.target, link.rel])")
@@ -227,6 +230,20 @@ def test_the_page_s_links_go_to_the_app_and_its_other_pages(context, site):
     assert {(target, rel) for host, target, rel in tabs if host != "learnche.org"} == {("_blank", "noopener")}
     page.click("text=Start a study")
     page.wait_for_url(site)
+
+
+def test_request_it_opens_the_app_s_feedback_with_the_request_for_that_design_written(context, site):
+    page = features(context, site)
+    link = page.locator("#features a[href='./?request=supersaturated']")
+    assert link.count() == 1
+    assert (link.text_content(), link.get_attribute("aria-label")) == ("Request it", "Request it: supersaturated")
+    link.evaluate("(a) => { a.closest('details.feat-part').open = true; }")  # as a reader who opened its part
+    link.click()
+    page.wait_for_selector("#feedback-dialog[open]", timeout=30_000)
+    asked = "Please add the supersaturated design, which the process-improve library makes, to Factorial."
+    assert page.input_value("#feedback-message") == asked
+    assert page.url.startswith(site), "in this copy of the app, whatever address the document names"
+    assert "request=" not in page.url
 
 
 #: Each "Show me" of the document: the example it opens and the part of the app's page it asks for.

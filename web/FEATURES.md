@@ -12,7 +12,8 @@ rules keep it true:
 - A change to the app that a reader of the app would notice changes this document in the same
   pull request ([`CONTRIBUTING.md`](../CONTRIBUTING.md#the-browser-app-is-tested)).
 - [`tests/web/page/test_features.py`](../tests/web/page/test_features.py) fails when a design,
-  a chart, a process to practise on, a limit or a count below is not what the app has.
+  a chart, a process to practise on, a limit or a count below is not what the app has, or
+  when a design the library makes is not listed with what the library and the app take for it.
 
 The app's own page, [features.html](features.html), shows this document to its readers, so it
 is written for them:
@@ -89,12 +90,16 @@ The design list holds 16 designs. The reading level sets how many of them show.
 - **Central composite (CCD).** For 2 to 7 factors. For a response that curves, to find its best
   point: a factorial with runs added along each factor and at the center.
   - *Details:* Face-centred, rotatable, orthogonal, or an axial distance you type.
-- **D-optimal.** For 2 to 8 factors. The runs that pin down your model's effects best, for the
+- **D-optimal.** For 2 to 40 factors. The runs that pin down your model's effects best, for the
   number of runs you can afford, inside any limits on the settings.
-- **I-optimal.** For 2 to 6 factors. The runs that predict best across the ranges, for the
+  - *Details:* For a model of up to 91 coefficients: any model in up to 12 factors, and the
+    main effects in up to 40.
+- **I-optimal.** For 2 to 40 factors. The runs that predict best across the ranges, for the
   number of runs you can afford, inside any limits on the settings.
-- **A-optimal.** For 2 to 6 factors. The runs that know every effect of your model about
+  - *Details:* For a model of up to 91 coefficients, as the D-optimal design is.
+- **A-optimal.** For 2 to 40 factors. The runs that know every effect of your model about
   equally well, for the number of runs you can afford, inside any limits on the settings.
+  - *Details:* For a model of up to 91 coefficients, as the D-optimal design is.
 - **Space-filling (Latin hypercube).** For 2 to 8 factors. Runs spread evenly through the
   ranges, for a response whose shape is unknown, or for a machine-learning model.
   - *Details:* Maximin; up to 200 runs.
@@ -154,6 +159,10 @@ Also:
   left out says why. [Show me](https://factori.al/?example=worked&show=step-plan)
   - *Details:* Each is listed with its runs, spare runs and power. The app picks the fewest
     runs that leave three or more spare.
+- **A long search waits for you.** A design that takes time to find says how long, up to
+  about 2 minutes, and starts when you ask for it. You can stop it.
+  - *Details:* An optimal design whose search is expected to take 5 seconds or more. The time
+    follows the size of its model and the number of factors, not the number of runs.
 - **Compare designs side by side.** What each design costs in runs and what it gives in
   precision. A switch sets a design aside.
   - *Details:* Nine measures of each design (precision of the coefficients and of the
@@ -534,6 +543,8 @@ Also:
   [Show me](https://factori.al/?example=worked&show=library)
 - **Feedback.** Send it from the header, the footer or beside a result. A list shows what is
   sent.
+  - *Details:* A link can open the form with a request written, as "Request it" does beside
+    each design the app does not make yet. Nothing is sent until you press Send.
 - **A footer to scan.** What Factorial is in a sentence, a button to this list, links in named
   groups, and what is kept on the device.
 
@@ -677,9 +688,11 @@ What a careful reader, or an organisation, asks before using a tool.
 |---|---|
 | Factors in a study | 40 |
 | Factors whose interactions are modelled | 12 |
+| Coefficients in the model of an optimal design | 91 |
 | Responses in a study | 5 |
 | Levels of a categorical factor | 8 |
 | Limits on the settings | 8 |
+| Factors in a study with limits on the settings | 8 |
 | Blocks in a design the app makes | 8 |
 | Blocks in runs as given | 32 |
 | Replicates of each run | 10 |
@@ -694,6 +707,70 @@ What a careful reader, or an organisation, asks before using a tool.
 The first visit takes longest, as Python and its packages are fetched. In Chromium the app
 was ready in about 11 seconds on a first visit and about 8 seconds after (Nov 2026).
 
+### More in the Python library
+
+*The limits above are the app's own. The library it runs has more designs and analyses.*
+
+Factorial is one way to use `process-improve`, the Python library that it runs in your
+browser. The app keeps a study small enough for a web page to stay quick, so its limits are
+not the library's. A full factorial takes up to 7 factors in the app, and up to 15 in Python,
+with `pip install process-improve`.
+
+Each design the library makes, by the name its `generate_design` takes, with what the library
+takes for it and what the app takes:
+
+| Design | In the library | In the app |
+|---|---|---|
+| `full_factorial` | 1 to 15 factors | 1 to 7 factors |
+| `fractional_factorial` | 3 factors or more | 3 to 24 factors |
+| `plackett_burman` | 1 factor or more | 2 to 40 factors |
+| `box_behnken` | 3 factors or more | 3 to 7 factors |
+| `ccd` | 2 factors or more | 2 to 7 factors |
+| `dsd` | 3 factors or more | 3 to 40 factors |
+| `omars` | 3 factors or more | 3 to 5 factors |
+| `omars_ilp` | 3 to 15 factors | Not in the app yet. [Request it](https://factori.al/?request=omars_ilp). |
+| `d_optimal` | 1 factor or more | 2 to 40 factors |
+| `i_optimal` | 1 factor or more | 2 to 40 factors |
+| `a_optimal` | 1 factor or more | 2 to 40 factors |
+| `e_optimal` | 1 factor or more | Not in the app yet. [Request it](https://factori.al/?request=e_optimal). |
+| `g_optimal` | 1 factor or more | Not in the app yet. [Request it](https://factori.al/?request=g_optimal). |
+| `k_optimal` | 1 factor or more | Not in the app yet. [Request it](https://factori.al/?request=k_optimal). |
+| `mixture` | 2 components or more | 3 to 6 components |
+| `taguchi` | 1 to 42 factors | 2 to 40 factors |
+| `supersaturated` | 4 factors or more | Not in the app yet. [Request it](https://factori.al/?request=supersaturated). |
+| `latin_hypercube` | 1 factor or more | Not in the app yet. [Request it](https://factori.al/?request=latin_hypercube). |
+| `maximin_lhs` | 1 factor or more | 2 to 8 factors |
+| `uniform` | 1 factor or more | Not in the app yet. [Request it](https://factori.al/?request=uniform). |
+| `sobol` | 1 factor or more | 2 to 8 factors |
+| `halton` | 1 factor or more | Not in the app yet. [Request it](https://factori.al/?request=halton). |
+| `maximin` | 1 factor or more | Not in the app yet. [Request it](https://factori.al/?request=maximin). |
+| `maxpro` | 1 factor or more | Not in the app yet. [Request it](https://factori.al/?request=maxpro). |
+
+Where the library takes a number of factors or more, it sets no most of its own. The number
+of runs, and the time a search takes, are what limit a design then. In the app an optimal
+design is made for a model of up to 91 coefficients. In Python its model is as large as its
+runs can estimate.
+
+The library also does what the app leaves out:
+
+- **Factors that are hard to change.** A design that sets such a factor once for a group of
+  runs, and the analysis that those runs need.
+  - *Details:* A split-plot design from `generate_design` with `hard_to_change`, analysed by
+    `analyze_experiment` with `analysis_type="split_plot"`, as a strip-plot design is.
+- **Results that are counts, or pass and fail.** A model made for such results. The app
+  treats every result as a measured amount.
+  - *Details:* A generalized linear model: `analysis_type="glm"`, for a Poisson, binomial or
+    gamma response.
+- **Recipes with process settings.** The parts of a recipe beside factors such as a
+  temperature, in one design, and a recipe of more than 6 parts.
+  - *Details:* Mixture components and process factors given to `generate_design` together.
+- **Sources of variation.** How much of the spread in a result comes from the batch, the
+  operator or the measurement.
+  - *Details:* `variance_components`, and `multistratum_anova` for runs made in groups.
+- **Experiments on a computer model.** A fit that passes through every run, for a simulation
+  that gives the same answer each time.
+  - *Details:* A Gaussian process: `fit_gaussian_process`.
+
 ### What it does not do
 
 *Said plainly, so that nobody has to find out.*
@@ -703,7 +780,8 @@ The app does not have these, so do not describe it as having them.
 - Accounts, sign-in, shared workspaces, or a record of who changed what. There is no server
   to hold them.
 - Split-plot designs for hard-to-change factors, and supersaturated designs
-  ([#1225](https://github.com/kgdunn/process-improve/issues/1225)).
+  ([#1225](https://github.com/kgdunn/process-improve/issues/1225)). The library makes both:
+  see [More in the Python library](#more-in-the-python-library).
 - An assistant that turns a typed description into a brief
   ([#1224](https://github.com/kgdunn/process-improve/issues/1224)).
 - A guided plan for a whole campaign of studies

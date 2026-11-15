@@ -336,11 +336,11 @@
                   data-hint="Response surface with every run inside the factor ranges and none at the corners.">Box-Behnken</option>
                 <option value="ccd" data-options="n_center_points alpha n_replicates n_blocks" data-min-factors="2" data-max-factors="7"
                   data-hint="Response surface: factorial corners, axial points and center points.">Central composite (CCD)</option>
-                <option value="d_optimal" data-options="budget model_type n_replicates n_blocks" data-min-factors="2" data-max-factors="8"
+                <option value="d_optimal" data-options="budget model_type n_replicates n_blocks" data-min-factors="2" data-max-factors="40"
                   data-hint="Best estimates of the chosen model's coefficients for a fixed number of runs.">D-optimal</option>
-                <option value="i_optimal" data-options="budget model_type n_replicates n_blocks" data-min-factors="2" data-max-factors="6"
-                  data-hint="Most precise predictions, on average over the factor space, for a fixed number of runs. The search takes longest of the designs here: up to 20 s at six factors.">I-optimal</option>
-                <option value="a_optimal" data-options="budget model_type n_replicates n_blocks" data-min-factors="2" data-max-factors="6"
+                <option value="i_optimal" data-options="budget model_type n_replicates n_blocks" data-min-factors="2" data-max-factors="40"
+                  data-hint="Most precise predictions, on average over the factor space, for a fixed number of runs. The search takes longest of the designs here.">I-optimal</option>
+                <option value="a_optimal" data-options="budget model_type n_replicates n_blocks" data-min-factors="2" data-max-factors="40"
                   data-hint="Smallest average variance of the chosen model's coefficients for a fixed number of runs: each coefficient counts the same, where a D-optimal design lets one be known well at another's cost.">A-optimal</option>
                 <option value="maximin_lhs" data-options="budget n_replicates n_blocks" data-min-factors="2" data-max-factors="8"
                   data-hint="Runs spread evenly through the ranges, made for no model: each factor takes as many different settings as there are runs. For mapping a response whose shape is unknown, or for a machine-learning model.">Space-filling (Latin hypercube)</option>
@@ -361,6 +361,8 @@
             </label>
           </div>
           <p id="design-hint" class="hint"></p>
+          <!-- How long an optimal design's search takes, when it takes long: said before the reader starts it. -->
+          <p id="search-wait" class="hint warn" aria-live="polite" hidden></p>
           <p id="level-designs" class="hint level-more" hidden></p>
 
           <div class="row" id="options">

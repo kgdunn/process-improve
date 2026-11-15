@@ -146,6 +146,7 @@ import {
   MAX_FACTORS,
   MAX_INTERACTION_FACTORS,
   MAX_LEVEL_RUNS,
+  MAX_OPTIMAL_TERMS,
   MAX_REPLICATES,
   MAX_RESPONSES,
   MODES,
@@ -154,6 +155,7 @@ import {
   REGION_DESIGNS,
   ROMAN,
   SCREEN_FROM,
+  SLOW_SEARCH,
   SPARE_FOR_NOISE,
   SPARE_RUNS,
   SPACE_FILLING,
@@ -210,6 +212,8 @@ import {
   listNames,
   mixtureProblem,
   nTerms,
+  searchSeconds,
+  waitWords,
   nameProblem,
   planVerdict,
   modelKey,
@@ -318,7 +322,7 @@ import { FEATURES, LEVELS, LEVEL_KEY, designListed, levelOf, moreWords, readLeve
 import { installImport, openedWords } from "./import.js";
 import { pythonLine } from "./worker-rpc.js";
 import { installOffline } from "./offline.js";
-import { installFeedback, keepError } from "./feedback.js";
+import { REQUEST_PARAM, installFeedback, keepError, requestWords } from "./feedback.js";
 
 // Where Process Improvement using Data explains each design, method and measure the page uses.
 const BOOK = "https://learnche.org/pid/design-analysis-experiments";
@@ -1614,6 +1618,12 @@ function refreshDesign() {
   centre.min = centreNeeded ? 1 : 0;
   if (centreNeeded && Number(centre.value) < 1) centre.value = 1;
 
+  // An optimal design is made for a model of MAX_OPTIMAL_TERMS coefficients at most: a larger one is not offered.
+  const modelType = $("#model_type");
+  for (const choice of modelType.options) choice.disabled = nTerms(k, choice.value) > MAX_OPTIMAL_TERMS;
+  if (modelType.selectedOptions[0].disabled) modelType.value = "main_effects";
+  const tooLarge = [...modelType.options].some((choice) => choice.disabled);
+
   // A space-filling design is made for no model: its runs are so many a factor, and Learn fits the aim's model.
   const spread = SPACE_FILLING.includes(option.value);
   const p = nTerms(k, spread ? OPTIMAL_MODEL[currentAim()] : $("#model_type").value);
@@ -1623,7 +1633,8 @@ function refreshDesign() {
     ? `${SPACE_FILLING_RUNS} runs a factor is the usual start; Learn fits the model of your aim, which has ${p} coefficients.`
     : omars
       ? omarsHint(k)
-      : `The model has ${p} coefficients.`;
+      : `The model has ${p} coefficients.` +
+        (tooLarge ? ` With ${k} factors a larger model has more than ${MAX_OPTIMAL_TERMS}, the most an optimal design is made for here.` : "");
 
   const hint = $("#design-hint");
   const one = labelled.length === 1;
@@ -1661,6 +1672,14 @@ function refreshDesign() {
     hint.replaceChildren(...(book ? [`${option.dataset.hint} `, link(book, "More in the book")] : [option.dataset.hint]));
   }
   hint.classList.toggle("error", option.disabled);
+  // A search that takes long is the reader's to start: the wait is said before the button is pressed.
+  const seconds = option.disabled ? 0 : searchSeconds(option.value, k, $("#model_type").value);
+  const wait = $("#search-wait");
+  wait.hidden = seconds < SLOW_SEARCH;
+  wait.textContent = wait.hidden
+    ? ""
+    : `The search for this design takes up to ${waitWords(seconds)} in a browser: its model has ${p} coefficients in ` +
+      `${k} factors. It starts when you make the run sheet, and you can stop it.`;
   showTradeOff();
   showMakeable(showFactorProblems());
   $("#design-card").hidden = k < 1 && !state.design;
@@ -2434,11 +2453,12 @@ function markLevelRuns() {
 /** Which designs wait for the reader to ask for their search, as Design says it beside the button. */
 function waitingNote(c) {
   const one = c.waiting.length === 1;
+  const seconds = c.waiting.reduce((sum, w) => sum + w.seconds, 0);
   return el(
     "p",
     "hint",
-    `The ${listNames(c.waiting.map((w) => w.label))} design${one ? " takes" : "s take"} a while to search for ` +
-      `with ${factorCount()} factors.`,
+    `The ${listNames(c.waiting.map((w) => w.label))} design${one ? " takes" : "s take"} up to ${waitWords(seconds)} ` +
+      `to search for with ${factorCount()} factors. The search starts when you ask for it, and you can stop it.`,
   );
 }
 
@@ -7907,7 +7927,7 @@ document.addEventListener("visibilitychange", () => {
 });
 installLimits({ call, factors: readFactors, changed: limitsChanged, runs: picturedRuns });
 // A report of a problem: the study goes only when the reader ticks it, with its results, packed as a link carries it.
-installFeedback({
+const feedback = installFeedback({
   context: feedbackContext,
   study: () => packCampaign(shareable(currentCampaign(), true)),
   hasStudy: () => Boolean(state.design),
@@ -7973,12 +7993,18 @@ function showPart(id) {
 // then loses the word, and the word for where the link was posted: a reload, or a link copied from here, opens the
 // study without the jump, and the usage report does not count it as one more visit from that place.
 const partAsked = partName(new URLSearchParams(location.search).get(SHOW_PARAM));
-if ([SHOW_PARAM, REF_PARAM].some((word) => new URLSearchParams(location.search).has(word))) {
+// A request for a design the app does not make opens Feedback with the request written, for the reader to send.
+const requestAsked = requestWords(new URLSearchParams(location.search).get(REQUEST_PARAM));
+const read = [SHOW_PARAM, REF_PARAM, REQUEST_PARAM]; // the words of an address that are read once, then dropped
+if (read.some((word) => new URLSearchParams(location.search).has(word))) {
   const address = new URL(location.href);
-  for (const word of [SHOW_PARAM, REF_PARAM]) address.searchParams.delete(word);
+  for (const word of read) address.searchParams.delete(word);
   history.replaceState(null, "", address);
 }
-start().then(() => showPart(partAsked));
+start().then(() => {
+  showPart(partAsked);
+  if (requestAsked) feedback.open("interface", requestAsked);
+});
 loadFields();
 
 call("api_catalogue").then((reply) => {

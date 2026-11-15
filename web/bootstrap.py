@@ -118,6 +118,24 @@ MAX_FACTORS = 40
 #: made at resolution III or IV, and Learn fits the main effects, or the terms the reader chooses. logic.js mirrors it.
 MAX_INTERACTION_FACTORS = 12
 
+#: The most coefficients of the model an optimal design is made for: those of the largest model the page fits,
+#: the quadratic in :data:`MAX_INTERACTION_FACTORS` factors. The optimal designs are limited by this and not by a
+#: number of factors: the main effects of :data:`MAX_FACTORS` factors are 41 coefficients, and every two-factor
+#: interaction of 13 factors makes 92. logic.js mirrors it.
+MAX_OPTIMAL_TERMS = 1 + 2 * MAX_INTERACTION_FACTORS + MAX_INTERACTION_FACTORS * (MAX_INTERACTION_FACTORS - 1) // 2
+
+#: The seconds an optimal design's search takes in a browser, at most, for each coefficient of its model and each
+#: factor. Under Pyodide 314 in Node.js 22 (Nov 2026) the searches for a quadratic model in 6, 8 and 12 factors,
+#: every interaction in 12, and the main effects in 20 and 40 took from 1 to 14 s (D), 12 to 89 s (I) and 3 to
+#: 96 s (A), each within this rate. The runs asked for do not lengthen a search, which bounds its own work.
+#: logic.js mirrors it.
+SEARCH_SECONDS = {"d_optimal": 0.016, "i_optimal": 0.07, "a_optimal": 0.06}
+
+#: A search expected to take this many seconds or more is the reader's to start: the designs listed as the
+#: reader types leave it out until asked, so the list is not held up, and the design form says how long it
+#: takes. logic.js mirrors it.
+SLOW_SEARCH = 5
+
 #: The most factors the page compares designs for on every measure. G, the worst prediction, is searched for at
 #: every corner of the ranges, 2^k of them: a million at 20 factors. With more, the designs are scored as for a
 #: factor of several levels: their runs, their spare runs and their power (see :func:`_powers`).
@@ -134,11 +152,12 @@ MAX_NEXT_STEP_FACTORS = 24
 #:
 #: ``min_factors`` is what the construction needs. ``max_factors`` keeps the run
 #: sheet readable and the page responsive: a full factorial in 8 factors has 256
-#: runs, a Box-Behnken design jumps from 59 to 115 runs at 8 factors, and an
-#: I-optimal design for a quadratic in 6 factors already takes up to 20 s under
-#: WebAssembly. The screening designs whose construction is quick at any size take
-#: :data:`MAX_FACTORS`; a fraction stops at 24, since past it the library's search for
-#: its generators takes from seconds to minutes.
+#: runs, and a Box-Behnken design jumps from 59 to 115 runs at 8 factors. The screening
+#: designs whose construction is quick at any size take :data:`MAX_FACTORS`; a fraction
+#: stops at 24, since past it the library's search for its generators takes from seconds
+#: to minutes. The optimal designs take :data:`MAX_FACTORS` too: what limits them is the
+#: size of their model (:data:`MAX_OPTIMAL_TERMS`), and a search that takes long is the
+#: reader's to start (:data:`SLOW_SEARCH`).
 DESIGNS: dict[str, dict[str, Any]] = {
     "full_factorial": {
         "label": "Full factorial (2-level)",
@@ -220,18 +239,18 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "model": "quadratic",
         "options": ["budget", "model_type", "n_replicates", "n_blocks"],
         "min_factors": 2,
-        "max_factors": 8,
+        "max_factors": MAX_FACTORS,
     },
     "i_optimal": {
         "label": "I-optimal",
         "hint": (
             "Most precise predictions, on average over the factor space, for a fixed number of runs. "
-            "The search takes longest of the designs here: up to 20 s at six factors."
+            "The search takes longest of the designs here."
         ),
         "model": "quadratic",
         "options": ["budget", "model_type", "n_replicates", "n_blocks"],
         "min_factors": 2,
-        "max_factors": 6,
+        "max_factors": MAX_FACTORS,
     },
     "a_optimal": {
         "label": "A-optimal",
@@ -242,7 +261,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "model": "quadratic",
         "options": ["budget", "model_type", "n_replicates", "n_blocks"],
         "min_factors": 2,
-        "max_factors": 6,
+        "max_factors": MAX_FACTORS,
     },
     "maximin_lhs": {
         "label": "Space-filling (Latin hypercube)",
@@ -478,6 +497,10 @@ LIMIT_FUNCTIONS = ("abs", "sqrt", "exp", "log", "log10")
 
 #: The most numeric factors whose corners the page lists for marking: 2**8 = 256 settings, and the centre.
 PROBE_FACTORS = 8
+
+#: The most factors of a study with limits on the settings: those whose corners the page lists for marking. The
+#: picture of the settings that can be run is not drawn past 15 factors, where the region's corners are sampled.
+MAX_LIMITED_FACTORS = PROBE_FACTORS
 
 #: The share of a factor's range the limits must take off one end before the page says the range is narrower.
 NARROWED = 0.005
@@ -1901,10 +1924,10 @@ def _region_refusal(factors: list[Factor], region: DesignRegion, design_type: st
             f"The {DESIGNS[design_type]['label']} design cannot keep its runs inside limits on the settings: choose "
             "the D-optimal or I-optimal design, or remove the limits."
         )
-    most = max(DESIGNS[d]["max_factors"] for d in REGION_DESIGNS)
-    if len(factors) > most:
+    if len(factors) > MAX_LIMITED_FACTORS:
         raise ValueError(
-            f"With limits on the settings, the page makes designs in up to {most} factors; you have {len(factors)}."
+            f"With limits on the settings, the page makes designs in up to {MAX_LIMITED_FACTORS} factors; you have "
+            f"{len(factors)}."
         )
     if region.is_empty():
         raise ValueError("No setting in your ranges meets every limit: loosen a limit, or widen a range.")
@@ -2240,7 +2263,7 @@ def _design_options(spec: dict, design_type: str) -> dict[str, Any]:
     if "n_levels" in allowed and (levels := _levels(spec)) != TAGUCHI_LEVELS[0]:
         kwargs["n_levels"] = levels
     if "model_type" in allowed:
-        kwargs["model_type"] = _model_type(spec)
+        kwargs["model_type"] = _model_type(spec, design_type, n_factors)
     if "budget" in allowed:
         kwargs["budget"] = _budget(spec, design_type, n_factors, kwargs.get("model_type"))
     if "n_replicates" in allowed and (replicates := _replicates(spec)) > 1:
@@ -2250,12 +2273,30 @@ def _design_options(spec: dict, design_type: str) -> dict[str, Any]:
     return kwargs
 
 
-def _model_type(spec: dict) -> str:
-    """Read the model an optimal design is made for: one of :data:`MODELS`, the quadratic unless named."""
+def _model_type(spec: dict, design_type: str, k: int) -> str:
+    """Read the model an optimal design is made for: one of :data:`MODELS`, the quadratic unless named.
+
+    A model of more than :data:`MAX_OPTIMAL_TERMS` coefficients is refused: the page fits none so large.
+    """
     model_type = spec.get("model_type", "quadratic")
     if model_type not in MODELS:
         raise ValueError(f"Unknown model {model_type!r}.")
+    if (n_terms := _n_terms(k, model_type)) > MAX_OPTIMAL_TERMS:
+        raise ValueError(
+            f"The {model_type.replace('_', ' ')} model in {k} factors has {n_terms} coefficients, and the "
+            f"{DESIGNS[design_type]['label']} design is made for a model of up to {MAX_OPTIMAL_TERMS} on this page: "
+            "choose the main effects model, or fewer factors."
+        )
     return model_type
+
+
+def _search_seconds(design_type: str, k: int, model_type: str) -> float:
+    """Return the seconds a design's search is expected to take in a browser, at most: 0 for a design not searched for.
+
+    The time follows the size of the model and the number of factors (see :data:`SEARCH_SECONDS`), not the
+    runs asked for. logic.js's ``searchSeconds`` mirrors it.
+    """
+    return SEARCH_SECONDS.get(design_type, 0) * _n_terms(k, model_type) * k
 
 
 def _budget(spec: dict, design_type: str, k: int, model_type: str | None) -> int:
@@ -6627,12 +6668,6 @@ def _group_power(b: np.ndarray, block: np.ndarray, df: int) -> float:
     return float(stats.ncf.sf(critical, len(b), df, noncentrality))
 
 
-#: From this many factors, the optimal designs' search for a model beyond main effects takes seconds
-#: to tens of seconds (an I-optimal design in six factors, about 20 s in the browser), so the designs
-#: listed as the reader types leave them out until the reader asks for the search.
-SEARCH_FROM = 5
-
-
 def _compared_sentence(k: int) -> str:
     """Say how designs in more than :data:`MAX_COMPARED_FACTORS` factors are compared, and why."""
     return (
@@ -6647,20 +6682,21 @@ def candidates(request: dict) -> dict:
     The designs are :func:`compare_plan`'s, each made as :func:`make_design` makes it, with
     the library's warnings for it kept beside it, and all of them scored by :func:`compare` on
     the model the reader aims to learn, at the power for the response's smallest change worth
-    finding. A design that cannot be made is left out, with a note saying why. With
-    :data:`SEARCH_FROM` factors or more and a model beyond main effects, the optimal designs
-    are left out unless ``search`` is true, and listed in ``waiting``; with limits on the
-    settings they are the only designs, so then ``made`` can be empty and ``result`` null. Past
+    finding. A design that cannot be made is left out, with a note saying why. An optimal
+    design whose search is expected to take :data:`SLOW_SEARCH` seconds or more is left out
+    unless ``search`` is true, and listed in ``waiting`` with those ``seconds``, so the reader
+    chooses the wait; with limits on the settings the optimal designs are the only designs,
+    so then ``made`` can be empty and ``result`` null. Past
     :data:`MAX_COMPARED_FACTORS` factors the designs are scored as for a factor of several levels
     (see :func:`_powers`), and a note says why.
     """
     plan = compare_plan(request)
     k = len(request.get("factors") or [])
-    slow = k >= SEARCH_FROM and plan["model"] != "main_effects" and not request.get("search")
     made, waiting, notes = [], [], list(plan["notes"])
     for item in plan["designs"]:
-        if slow and "model_type" in DESIGNS[item["design_type"]]["options"]:
-            waiting.append({"design_type": item["design_type"], "label": item["label"]})
+        seconds = _search_seconds(item["design_type"], k, item["spec"].get("model_type", MODELS[0]))
+        if seconds >= SLOW_SEARCH and not request.get("search"):
+            waiting.append({"design_type": item["design_type"], "label": item["label"], "seconds": seconds})
             continue
         with _listening() as heard:
             try:

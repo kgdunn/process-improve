@@ -190,16 +190,25 @@ describe("the features document itself, as the page shows it", () => {
   test("every link is to another site, to a part of the page or to a page of the app: none leads into the repository", () => {
     const links = [...html.matchAll(/href="([^"]+)"/g)].map(([, href]) => href);
     assert.ok(links.length > 8);
-    for (const href of links) assert.match(href, /^(https:\/\/|#|about\.html$|catalog\/|map\/$|mva\/$|\.\/\?(example|book)=[a-z0-9-]+&amp;show=[a-z0-9-]+$)/, href);
-    assert.ok(links.filter((to) => to.startsWith("./?")).length >= 15, "the points that end with Show me");
+    const toTheApp = /^\.\/\?((example|book)=[a-z0-9-]+&amp;show=[a-z0-9-]+|request=[a-z_]+)$/;
+    for (const href of links) assert.match(href, new RegExp(`^(https://|#|about\\.html$|catalog/|map/$|mva/$)|${toTheApp.source}`), href);
+    assert.ok(links.filter((to) => to.includes("&amp;show=")).length >= 15, "the points that end with Show me");
+    assert.ok(links.filter((to) => to.startsWith("./?request=")).length >= 5, "and the designs the app does not make yet");
     const sites = links.filter((to) => to.startsWith("https://")).map((to) => new URL(to.replaceAll("&amp;", "&")).hostname);
     assert.ok(!sites.includes("factori.al"), "a link to the app stays within this copy of it");
     assert.ok(["about.html", "catalog/", "catalog/reproduced/", "map/", "mva/"].every((to) => links.includes(to)));
     for (const href of links.filter((to) => to.startsWith("#"))) assert.ok(ids.includes(href.slice(1)), href);
   });
 
+  test("a design the app does not make yet is requested by a link that names it for a screen reader", () => {
+    const requests = [...html.matchAll(/<a aria-label="Request it: ([a-z ]+)" href="\.\/\?request=([a-z_]+)">Request it<\/a>\./g)];
+    assert.ok(requests.length >= 5);
+    for (const [, said, design] of requests) assert.equal(said, design.replaceAll("_", " "));
+    assert.equal(requests.length, (html.match(/>Request it</g) ?? []).length, "every one of them");
+  });
+
   test("nothing of the Markdown is left as it was typed", () => {
-    assert.equal((html.match(/<table/g) ?? []).length, 1, "the limits");
+    assert.equal((html.match(/<table/g) ?? []).length, 2, "the limits, and the library's designs");
     assert.doesNotMatch(html, /\*\*|\]\(|^\||^#|<!--/m);
     assert.doesNotMatch(html.replace(/<code>.*?<\/code>/g, ""), /`|\*/);
   });

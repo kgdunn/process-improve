@@ -154,6 +154,10 @@ import {
   screeningSentence,
   screensOnly,
   tradeOffBeyond,
+  MAX_OPTIMAL_TERMS,
+  SLOW_SEARCH,
+  searchSeconds,
+  waitWords,
 } from "../../../web/logic.js";
 
 describe("the design's settings", () => {
@@ -161,6 +165,34 @@ describe("the design's settings", () => {
     assert.equal(nTerms(3, "main_effects"), 4);
     assert.equal(nTerms(3, "interactions"), 7);
     assert.equal(nTerms(3, "quadratic"), 10);
+  });
+
+  test("an optimal design's model is as large as the largest the page fits: the quadratic in 12 factors", () => {
+    assert.equal(MAX_OPTIMAL_TERMS, nTerms(MAX_INTERACTION_FACTORS, "quadratic"));
+    assert.ok(nTerms(40, "main_effects") <= MAX_OPTIMAL_TERMS, "the main effects of the most factors a study has");
+    assert.ok(nTerms(13, "interactions") > MAX_OPTIMAL_TERMS, "and no model with every interaction past 12 factors");
+  });
+
+  test("a search takes as long as its model's coefficients times its factors, and a design not searched for no time", () => {
+    assert.equal(searchSeconds("box_behnken", 6, "quadratic"), 0);
+    assert.equal(searchSeconds("i_optimal", 6, "quadratic"), 0.07 * 28 * 6);
+    assert.ok(searchSeconds("d_optimal", 6, "quadratic") < SLOW_SEARCH, "a D-optimal design of six factors is made at once");
+    assert.ok(searchSeconds("i_optimal", 6, "quadratic") >= SLOW_SEARCH, "and an I-optimal one is the reader's to start");
+    assert.ok(searchSeconds("i_optimal", 5, "main_effects") < SLOW_SEARCH);
+  });
+
+  test("a wait is said as roughly as it is known", () => {
+    const said = [5, 14, 15, 44, 45, 74, 75, 105].map(waitWords);
+    assert.deepEqual(said, [
+      "about 10 seconds",
+      "about 10 seconds",
+      "about 20 seconds",
+      "about 40 seconds",
+      "about a minute",
+      "about a minute",
+      "about 1.5 minutes",
+      "about 2 minutes",
+    ]);
   });
 
   test("a fraction opens at resolution IV, or III when three factors allow no more", () => {

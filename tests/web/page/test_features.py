@@ -3,7 +3,8 @@
 Most of the document is prose, kept true by review: a change to the app a reader would notice changes it in the
 same pull request (``CONTRIBUTING.md``, "The browser app is tested"). What can be counted is checked here: a
 design, a chart or a process to practise on that the document leaves out, and a limit or a count it states that
-is no longer the app's.
+is no longer the app's. One part sets the library beside the app, so that the app's limits are not read as
+the library's: its table is checked against the tools the library registers.
 """
 
 from __future__ import annotations
@@ -11,6 +12,11 @@ from __future__ import annotations
 import json
 import re
 
+import pytest
+
+from process_improve import experiments
+from process_improve.config import settings
+from process_improve.tool_spec import get_tool_specs
 from tests.web._support import APP_SOURCES, WEB, javascript, page, source
 
 FEATURES = source("FEATURES.md")
@@ -22,9 +28,11 @@ TEXT = re.sub(r"\s+", " ", FEATURES)
 LIMITS = {
     "Factors in a study": lambda app: app.MAX_FACTORS,
     "Factors whose interactions are modelled": lambda app: app.MAX_INTERACTION_FACTORS,
+    "Coefficients in the model of an optimal design": lambda app: app.MAX_OPTIMAL_TERMS,
     "Responses in a study": lambda app: app.MAX_RESPONSES,
     "Levels of a categorical factor": lambda app: app.MAX_LEVELS,
     "Limits on the settings": lambda app: app.MAX_CONSTRAINTS,
+    "Factors in a study with limits on the settings": lambda app: app.MAX_LIMITED_FACTORS,
     "Blocks in a design the app makes": lambda app: app.MAX_BLOCKS,
     "Blocks in runs as given": lambda app: app.MAX_GIVEN_BLOCKS,
     "Replicates of each run": lambda app: app.MAX_REPLICATES,
@@ -38,6 +46,22 @@ LIMITS = {
 }
 
 
+#: The part of the document that sets the library beside the app.
+LIBRARY = "### More in the Python library"
+
+#: Each point of that part on what the library does and the app does not, and the names its details give.
+#: A name is the library's while a registered tool or ``process_improve.experiments`` holds it, and the app is
+#: without it while ``web/bootstrap.py`` never writes it. The app's refusal of a process factor beside a
+#: mixture's components, which has no name of its own, is in ``tests/web/api/test_errors.py``.
+ONLY_IN_THE_LIBRARY = {
+    "Factors that are hard to change.": ("hard_to_change", "split_plot"),
+    "Results that are counts, or pass and fail.": ("glm",),
+    "Recipes with process settings.": (),
+    "Sources of variation.": ("variance_components", "multistratum_anova"),
+    "Experiments on a computer model.": ("fit_gaussian_process",),
+}
+
+
 def under(heading: str) -> str:
     """Return the document from under a heading to the next heading of its rank or above."""
     rank = heading.split(" ", 1)[0]
@@ -45,12 +69,16 @@ def under(heading: str) -> str:
     return re.split(rf"\n#{{1,{len(rank)}}} ", rest, maxsplit=1)[0]
 
 
-def table(heading: str) -> dict[str, str]:
-    """Return the first table under a heading of the document: each row's first cell, and its second."""
+def rows(heading: str) -> list[list[str]]:
+    """Return the rows of the first table under a heading of the document, each as its cells."""
     section = under(heading)
     lines = section[section.index("\n|") :].lstrip("\n").split("\n\n", 1)[0].splitlines()
-    rows = [[cell.strip() for cell in line.strip("|").split("|")] for line in lines]
-    return {row[0]: row[1] for row in rows[2:]}  # after the head and the rule under it
+    return [[cell.strip() for cell in line.strip("|").split("|")] for line in lines][2:]  # after the head and its rule
+
+
+def table(heading: str) -> dict[str, str]:
+    """Return the first table under a heading of the document: each row's first cell, and its second."""
+    return {row[0]: row[1] for row in rows(heading)}
 
 
 #: A point's picture, on a line of its own under it, as ``web/features.js`` reads it.
@@ -160,6 +188,112 @@ def test_the_limits_are_the_app_s(bootstrap):
         assert int(stated[what].replace(",", "")) == most(bootstrap), what
 
 
+def test_each_design_the_library_makes_is_listed_beside_what_the_app_takes_for_it(bootstrap):
+    """The library's designs are those its ``generate_design`` tool names: a new one fails here until it is listed."""
+    (tool,) = (spec for spec in get_tool_specs() if spec["name"] == "generate_design")
+    (named,) = (
+        choice["enum"] for choice in tool["input_schema"]["properties"]["design_type"]["anyOf"] if "enum" in choice
+    )
+    assert set(bootstrap.DESIGNS) <= set(named), "the app makes each of its designs by the library's name for it"
+    made = {design: [info] for design, info in bootstrap.DESIGNS.items()}
+    made[bootstrap.MIXTURE] = list(
+        bootstrap.MIXTURES.values()
+    )  # the app's three mixture designs are one to the library
+
+    def in_the_app(design: str) -> str:
+        if design not in made:
+            return f"Not in the app yet. [Request it](https://factori.al/?request={design})."
+        low = min(info["min_factors"] for info in made[design])
+        high = max(info["max_factors"] for info in made[design])
+        return f"{low} to {high} {'components' if design == bootstrap.MIXTURE else 'factors'}"
+
+    assert {design: app for design, _library, app in rows(LIBRARY)} == {f"`{d}`": in_the_app(d) for d in named}
+
+
+def test_a_design_the_app_does_not_make_links_to_feedback_with_the_request_written(node):
+    """The link's word is the one the page reads, and the page writes a request for each design the table names."""
+    asked = [re.search(r"\[Request it\]\(https://factori\.al/\?(\w+)=(\w+)\)\.$", app) for *_, app in rows(LIBRARY)]
+    words = {found[1] for found in asked if found}
+    designs = [found[2] for found in asked if found]
+    assert len(designs) >= 5, "the designs of the library that the app does not make"
+    (word, *written) = javascript(
+        node, source("feedback.js"), [("REQUEST_PARAM", []), *(("requestWords", [design]) for design in designs)]
+    )
+    assert words == {word}
+    assert written == [
+        f"Please add the {design} design, which the process-improve library makes, to Factorial." for design in designs
+    ]
+    assert "import { REQUEST_PARAM, installFeedback, keepError, requestWords }" in source("app.js"), "the app opens it"
+
+
+def test_what_the_library_alone_does_is_the_library_s_and_is_not_in_the_app(bootstrap):
+    part, tools, app = under(LIBRARY), json.dumps(get_tool_specs()), source("bootstrap.py")
+    said = [re.match(r"\*\*(.+?)\*\*", point).group(1) for point in points(LIBRARY)]
+    assert said == list(ONLY_IN_THE_LIBRARY), "a point the document adds or drops is added here, or dropped"
+    for name in (name for names in ONLY_IN_THE_LIBRARY.values() for name in names):
+        assert re.search(rf"`[^`]*\b{name}\b[^`]*`", part), f"{name}: named in the document, in code"
+        assert name in tools or hasattr(experiments, name), f"{name}: the library's"
+        assert name not in app, f"{name}: the app writes it now, so it is no longer the library's alone"
+
+
+def _made_by_the_library(design: str, k: int) -> object:
+    """Make a design of ``k`` factors with the library, with the runs or the model its kind of design needs."""
+    kind = {"type": "mixture"} if design == "mixture" else {"low": -1, "high": 1}
+    factors = [experiments.Factor(name=f"x{i}", **kind) for i in range(k)]
+    needs: dict[str, object] = {}
+    if design.endswith("_optimal"):
+        needs = {"budget": k + 3, "model_type": "main_effects"}
+    elif design in SPACE_FILLING_IN_THE_LIBRARY:
+        needs = {"budget": 8}
+    elif design == "supersaturated":
+        needs = {"budget": k}  # fewer runs than the k + 1 that estimate every main effect
+    return experiments.generate_design(factors, design_type=design, random_state=1, **needs)
+
+
+#: The library's designs that are made for no model, so take a number of runs.
+SPACE_FILLING_IN_THE_LIBRARY = ("latin_hypercube", "maximin_lhs", "uniform", "sobol", "halton", "maximin", "maxpro")
+
+
+def test_the_library_takes_for_each_design_the_factors_the_document_says():
+    """The least is made and one fewer refused; a most is made and one more refused.
+
+    The OMARS search is not made at its most, which takes minutes: its most is the library's cap on a design
+    that lists every combination. Where the document says "or more", the library sets no most, which nothing
+    short of every number of factors would show.
+    """
+    for name, library, _app in rows(LIBRARY):
+        design = name.strip("`")
+        said = re.fullmatch(r"(\d+) (?:factors?|components?) or more|(\d+) to (\d+) (?:factors|components)", library)
+        assert said, f"{design}: the library takes a least and more, or a least to a most"
+        least, most = int(said[1] or said[2]), int(said[3]) if said[3] else None
+        _made_by_the_library(design, least)
+        if design == "omars_ilp":
+            assert most == settings.max_factors_combinatorial
+        elif most:
+            _made_by_the_library(design, most)
+        for outside in ([least - 1] if least > 1 else []) + ([most + 1] if most else []):
+            with pytest.raises(ValueError, match=r"\d"):
+                _made_by_the_library(design, outside)
+
+
+def test_the_limits_the_document_sets_side_by_side_are_the_app_s_and_the_library_s(bootstrap):
+    """Its example of a limit that is the app's, and its sentence on the model of an optimal design."""
+    app, library = bootstrap.DESIGNS["full_factorial"]["max_factors"], settings.max_factors_combinatorial
+    assert f"A full factorial takes up to {app} factors in the app, and up to {library} in Python" in TEXT
+    assert ["`full_factorial`", f"1 to {library} factors", f"1 to {app} factors"] in rows(LIBRARY)
+    most = bootstrap.MAX_OPTIMAL_TERMS
+    assert f"In the app an optimal design is made for a model of up to {most} coefficients." in TEXT
+    # One more factor than the app models the interactions of: 92 coefficients, which the library designs for.
+    k = bootstrap.MAX_INTERACTION_FACTORS + 1
+    factors = [experiments.Factor(name=f"x{i}", low=0, high=1) for i in range(k)]
+    terms = bootstrap._n_terms(k, "interactions")
+    assert terms == most + 1
+    design = experiments.generate_design(
+        factors, design_type="d_optimal", model_type="interactions", budget=terms + 4, random_state=1
+    )
+    assert len(design.design) == terms + 4
+
+
 def test_the_numbers_the_document_repeats_in_its_sentences_are_the_app_s(bootstrap, node):
     """A number said twice is checked twice: each of these is in a sentence, apart from the table of limits."""
     app = bootstrap
@@ -175,6 +309,12 @@ def test_the_numbers_the_document_repeats_in_its_sentences_are_the_app_s(bootstr
         f"repeats of every run (up to {app.MAX_REPLICATES})",
         f"blocks such as days or batches (up to {app.MAX_BLOCKS})",
         f"Up to {app.MAX_CONSTRAINTS} inequalities",
+        (
+            f"For a model of up to {app.MAX_OPTIMAL_TERMS} coefficients: any model in up to "
+            f"{app.MAX_INTERACTION_FACTORS} factors"
+        ),
+        f"and the main effects in up to {app.MAX_FACTORS}.",
+        f"An optimal design whose search is expected to take {app.SLOW_SEARCH} seconds or more.",
         f"**Room for a large study.** Up to {app.MAX_FACTORS} factors.",
         f"Interactions are modelled for up to {app.MAX_INTERACTION_FACTORS}.",
         f"interactions of up to {['', 'one', 'two', 'three'][app.MAX_ORDER]} factors",

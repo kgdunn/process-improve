@@ -790,7 +790,14 @@ design is built from its geometry.
   pure-error estimate.
 
 Mixture constraints must be linear in the proportions, since the vertex enumeration
-relies on flat faces. On the full simplex (no bounds, no constraints) the design is
+relies on flat faces. A ratio of two linear expressions against a number is one of them:
+``"polymer / filler <= 4"`` is read as ``"polymer <= 4 * filler"``, and
+``"0.5 <= polymer / (solvent + filler) <= 2"`` as two such limits. Multiplying through
+keeps the inequality only where the denominator is positive, so the component bounds must
+hold it above zero; where they do not, the constraint is refused with the limit to write
+in its place.
+
+On the full simplex (no bounds, no constraints) the design is
 sized to the model: the pure components and the overall centroid for a linear model,
 plus the binary 50:50 blends for a quadratic one (the ``{q, 2}`` simplex lattice), plus
 the ternary blends for a special cubic one. With three components that is the 7-run

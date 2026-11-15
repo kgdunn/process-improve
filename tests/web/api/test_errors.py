@@ -783,6 +783,18 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _make(design_type="d_optimal", model_type="cubic"),
         "Unknown model 'cubic'.",
     ),
+    "an optimal design for a model of more coefficients than the page fits": (
+        "api_make_design",
+        lambda _: {
+            "design_type": "i_optimal",
+            "factors": factors_named(*(f"X{i}" for i in range(13))),
+            "model_type": "interactions",
+        },
+        (
+            "The interactions model in 13 factors has 92 coefficients, and the I-optimal design is made for a model "
+            "of up to 91 on this page: choose the main effects model, or fewer factors."
+        ),
+    ),
     "negative center points": (
         "api_make_design",
         _make(n_center_points=-1),

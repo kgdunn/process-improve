@@ -1347,7 +1347,7 @@ class DesignRegion:
                 out.append(None)
                 continue
             # parse_constraint checked, when the region was built, that the expression is a comparison.
-            compare = cast("ast.Compare", ast.parse(constraint.expression, mode="eval").body)
+            compare = cast("ast.Compare", ast.parse(self._limit_text(constraint), mode="eval").body)
             terms = [compare.left, *compare.comparators]
             pairs = []
             for op, left, right in zip(compare.ops, terms[:-1], terms[1:], strict=True):
@@ -1359,6 +1359,15 @@ class DesignRegion:
                 pairs.append((self._affine_actual(first, second, written), upper))
             out.append(_combine_forms(pairs, self.names))
         return out
+
+    def _limit_text(self, constraint: Constraint) -> str:
+        """Return a constraint as the region holds it: a ratio of components multiplied through, else as given."""
+        part = self if self.kind == "mixture" else self._parts[0] if self.kind == "mixture_process" else None
+        if part is None or constraint not in part.constraints:
+            return constraint.expression
+        from process_improve.experiments.designs_mixture_constrained import linear_limit  # noqa: PLC0415
+
+        return linear_limit(constraint.expression, part.factors)[0]
 
     def _affine_actual(
         self, first: Callable, second: Callable, written: tuple[ast.expr, ast.expr] | None = None
