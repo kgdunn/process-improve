@@ -1186,6 +1186,20 @@ export const RUNS_MADE = "Runs you made";
 /** What the star of the chart of the settings that give the targets marks. */
 export const FOUND = "Settings found";
 
+/** What the star of the chart of a specification marks: the settings its other factors are held at. */
+export const WHAT_IF_SETTINGS = "What-if settings";
+/** What the shading of that chart means. */
+export const IN_WINDOWS = "Every response inside its window";
+
+/** A response's window as that chart's legend names it: bounded below, above, or on both sides. */
+export const windowName = (r) => boundaryName({ ...r, goal: r.high === null ? "maximize" : r.low === null ? "minimize" : "target" });
+
+/** A line of equal chance on that chart, as its legend names it. */
+export const chanceName = (chance) => `${Math.round(100 * chance)}% chance a new run meets every window`;
+
+/** The dash of each line of equal chance, the surest last and solid. */
+const CHANCE_DASHES = ["dot", "solid"];
+
 /** A response's line on that chart, as the legend names it: the response at its target, in its units. */
 export const targetName = (r) => `${r.label} at ${Number(Number(r.target).toPrecision(4))}${r.units === "%" ? "%" : r.units ? ` ${r.units}` : ""}`;
 export const GREYED = "Outside your limits";
@@ -1216,7 +1230,9 @@ export function boundaryDrawn(surface) {
  * response's words and range; ``axes`` names each axis with its units. The settings that give a target draw the same
  * picture (bootstrap.target_settings): there each response has one line, along which it is predicted at its target,
  * ``named`` as the legend should have it; nothing is shaded (the overlay's ``acceptable`` is null); ``star`` says what
- * the star marks; and the overlay's ``runs`` are drawn as dots.
+ * the star marks; and the overlay's ``runs`` are drawn as dots. A specification draws it too (bootstrap.specification):
+ * its overlay's ``probability`` is the chance that a new run meets every window, drawn as a line for each of its
+ * ``chances``.
  */
 export function overlayFigure(overlay, responses, axes, colours = palette(), { shaded = SHADED, star = BALANCED, named = boundaryName } = {}) {
   const { grid } = overlay;
@@ -1273,6 +1289,27 @@ export function overlayFigure(overlay, responses, axes, colours = palette(), { s
       hovertemplate: `${r.label}: %{z:.4g}${r.units ? ` ${r.units}` : ""}<extra></extra>`,
     });
   });
+  // The lines of equal chance that a new run meets a specification, where the overlay has that chance: each line that
+  // crosses the settings drawn, in the page's own colour, the surest solid.
+  const chanced = (overlay.probability?.flat() ?? []).filter((v) => v !== null);
+  const chances = (overlay.chances ?? []).filter((chance) => chanced.some((v) => v >= chance) && chanced.some((v) => v < chance));
+  chances.forEach((chance, i) => {
+    data.push({
+      type: "contour",
+      x: grid,
+      y: grid,
+      z: overlay.probability,
+      name: chanceName(chance),
+      showscale: false,
+      showlegend: false,
+      autocontour: false,
+      // One level is drawn as the first of two, the second beyond any chance.
+      // Only the surest line is labelled: the line of an even chance lies on a window's own end, which has its label.
+      contours: { coloring: "none", start: chance, end: chance + 2, size: 2, showlabels: i === chances.length - 1, labelformat: ".0%", labelfont: { size: 11, color: colours.fg } },
+      line: { color: colours.fg, width: 2, dash: CHANCE_DASHES[CHANCE_DASHES.length - chances.length + i] },
+      hovertemplate: "Chance a new run meets every window: %{z:.0%}<extra></extra>",
+    });
+  });
   data.push(
     ...(overlay.acceptable
       ? [{ type: "scatter", mode: "markers", name: shaded, x: [null], y: [null], marker: { symbol: "square", size: 12, color: withAlpha(colours.accent, 0.35) }, hoverinfo: "skip" }]
@@ -1284,6 +1321,7 @@ export function overlayFigure(overlay, responses, axes, colours = palette(), { s
     ...overlay.responses.flatMap((surface, i) =>
       boundaryDrawn(surface) ? [legendKey(named(byName[surface.name]), lineColours[i % lineColours.length], RESPONSE_DASHES[i % RESPONSE_DASHES.length])] : [],
     ),
+    ...chances.map((chance, i) => legendKey(chanceName(chance), colours.fg, CHANCE_DASHES[CHANCE_DASHES.length - chances.length + i])),
     // The runs the models are fitted to, where the overlay has them: each place over the two factors, once.
     ...(overlay.runs?.length
       ? [
@@ -1326,7 +1364,7 @@ export function overlayFigure(overlay, responses, axes, colours = palette(), { s
       showlegend: true,
       margin: { t: 8 },
     },
-    height: 420 + 22 * Math.ceil((overlay.responses.length + 1 + (overlay.acceptable ? 1 : 0) + (overlay.runs?.length ? 1 : 0)) / 2),
+    height: 420 + 22 * Math.ceil((overlay.responses.length + 1 + (overlay.acceptable ? 1 : 0) + (overlay.runs?.length ? 1 : 0) + chances.length) / 2),
   };
 }
 

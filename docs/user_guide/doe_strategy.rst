@@ -418,6 +418,43 @@ units as well. When the data's extremes are not the levels that should be
 -1 and +1, as with a central composite design's axial runs, give the ranges
 instead: ``coding={"T": {"low": 150, "high": 200}, ...}``.
 
+The reverse question is which settings give results inside a specification,
+such as a yield from 78 to 82 with an impurity of 0.5 at most.
+:func:`~process_improve.experiments.feasible_region` takes the same models, a
+window for each response and the settings to judge, and says at each setting
+whether every prediction is inside its window, and how probable it is that one
+new run there meets them all:
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+   from process_improve.experiments import feasible_region
+
+   def model(name, intercept, a, b):
+       """One response's model in coded units, as ``optimize_responses`` takes it."""
+       terms = {"Intercept": intercept, "A": a, "B": b}
+       coefficients = [{"term": term, "coefficient": value} for term, value in terms.items()]
+       return {"response_name": name, "factor_names": ["A", "B"], "coefficients": coefficients}
+
+   models = [model("yield", 80.0, 4.0, -3.0), model("impurity", 0.4, 0.2, 0.1)]
+   axis = np.linspace(-1, 1, 41)  # coded settings, over two factors
+   grid = pd.DataFrame({"A": np.repeat(axis, 41), "B": np.tile(axis, 41)})
+   region = feasible_region(models, {"yield": (78, 82), "impurity": (None, 0.5)}, grid)
+   print(f"{region['feasible'].mean():.0%} of the ranges meets the specification")
+
+::
+
+   33% of the ranges meets the specification
+
+The ``probability`` column needs what the scatter of a new run is worked from,
+which a model holds as ``"mse_residual"``, ``"df_residual"`` and
+``"unscaled_covariance"`` (the inverse of ``X'X``, which a statsmodels fit
+holds as ``normalized_cov_params``). With them,
+``grid[region["probability"] >= 0.9]`` is where a new run meets the
+specification nine times in ten. Without them the region is still found, and
+the probability is NaN.
+
 See Also
 --------
 
@@ -428,3 +465,5 @@ See Also
   results after running experiments.
 - :func:`~process_improve.experiments.optimize_responses` - Find optimal
   factor settings for single or multiple responses.
+- :func:`~process_improve.experiments.feasible_region` - Find the settings
+  that meet a specification window on every response, and how surely.

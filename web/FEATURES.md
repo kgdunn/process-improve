@@ -326,6 +326,20 @@ Also:
     factor can be solved for from the others, with the settings around it at which the 95%
     confidence interval of the prediction still holds the target. The section and its chart
     show their Python.
+- **Settings that meet a specification.** Type the window a response must fall in, or the
+  windows of several, either end or both. The app says what share of the settings the models
+  put inside every window, and how surely one new run there meets them.
+  [Show me](https://factori.al/?example=worked&show=window)
+  - *Details:* 20,000 settings judged inside the limits, with the library's
+    `feasible_region`. The chance that one new run meets a window is the share of its
+    predictive distribution inside it, Student's t about the prediction by the standard
+    error of a new observation, multiplied over the responses. The app gives the share of
+    the settings at which that chance is 50% or more and 90% or more, and the settings at
+    which it is highest, which go to the what-if panel or get confirmation runs. A chart
+    shades the settings that meet the windows over two factors of your choice, the others
+    where What if has them, with a line for each chance and the runs. No chance is given
+    when the fit leaves no run to estimate the noise. The section and its chart show their
+    Python.
 - **Check the answer.** One button adds three confirmation runs at the settings found, and the
   app judges them when their results are in.
   [Show me](https://factori.al/?example=worked&show=confirm)
@@ -567,11 +581,14 @@ What a careful reader, or an organisation, asks before using a tool.
 
 #### With no network, or on your own server
 
-- **Use it with no network.** After a first visit the app is kept on your device. The footer
-  says what is kept and how much room it takes, and removes it when you ask.
-  - *Details:* A copy of the app, Python and its packages is kept in the browser: from about
-    170 MB to about 240 MB, as the browser counts it. One button adds the charts and the
-    workbooks (about 12 MB more). The copy holds this list and How Factorial works too. A
+- **Use it with no network.** After a first visit the app is saved on your device. The footer
+  says in plain words whether Factorial works without internet here and how much room it
+  takes, and each button says what it does.
+  - *Details:* A copy of the app, Python and its packages is saved in the browser: from about
+    170 MB to about 240 MB as most browsers count it, and about 510 MB as one does. One button
+    adds the charts and Excel files (12 MB more). One removes Factorial from the device, and
+    a line under it says what follows: the space is freed, Factorial then needs internet to
+    open, and saved studies stay. The copy holds this list and How Factorial works too. A
     larger page, such as the design catalog, is kept once it has been opened with a network;
     until then it says that it needs one, with the way back to the app.
 - **Your organisation can run its own copy.** The app is a folder of plain files that any web

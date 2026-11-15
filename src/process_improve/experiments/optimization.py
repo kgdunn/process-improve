@@ -20,6 +20,10 @@ Implemented methods
   Lagrange multiplier.
 - **pareto_front** - The non-dominated set over several responses, via
   augmented Chebyshev scalarisation on a Das-Dennis weight lattice.
+
+:func:`feasible_region` answers the reverse question: at which settings every
+response is predicted inside a specification window, and how surely a new run
+there meets it.
 """
 
 from __future__ import annotations
@@ -32,14 +36,14 @@ import math
 import numbers
 import re
 import warnings
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
 from patsy import PatsyError
-from scipy import optimize
+from scipy import optimize, stats
 
 from process_improve._random import check_random_state
 from process_improve._warnings import user_stacklevel
@@ -2753,3 +2757,155 @@ def optimize_responses(  # noqa: PLR0913
         )
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# The settings that meet a specification
+# ---------------------------------------------------------------------------
+
+
+def _inside_probability(
+    predicted: np.ndarray, standard_error: np.ndarray, df: float, low: float | None, high: float | None
+) -> np.ndarray:
+    """Return the chance that one new run falls between ``low`` and ``high``; an end of None is open.
+
+    The new run is distributed about its prediction as Student's t with the model's residual
+    degrees of freedom, scaled by the standard error of a new observation.
+    """
+    below_high = 1.0 if high is None else stats.t.cdf((high - predicted) / standard_error, df)
+    below_low = 0.0 if low is None else stats.t.cdf((low - predicted) / standard_error, df)
+    return np.asarray(below_high - below_low, dtype=float)
+
+
+def _matrix_over(model: dict[str, Any], points: pd.DataFrame, name: str) -> tuple[np.ndarray, np.ndarray]:
+    """Return a model's matrix over some settings, a column for each of its terms, and its coefficients."""
+    missing = [factor for factor in model["factor_names"] if factor not in points.columns]
+    if missing:
+        msg = f"The points have no column for the factor(s) {missing} of the model of {name!r}."
+        raise ValueError(msg)
+    parsed = _parsed_terms(model["coefficients"], model["factor_names"])
+    columns = [np.prod([points[part].to_numpy(dtype=float) for part in parts], axis=0) for parts, _ in parsed]
+    matrix = np.column_stack([np.broadcast_to(column, len(points)) for column in columns])
+    return matrix, np.array([coefficient for _, coefficient in parsed])
+
+
+def _new_run_scatter(model: dict[str, Any], matrix: np.ndarray) -> tuple[np.ndarray, float] | None:
+    """Return the standard error of one new run at each row of a model's matrix, and the fit's degrees of freedom.
+
+    None when the model does not hold its residual mean square, its residual degrees of freedom and its
+    unscaled covariance, or has no degrees of freedom left to estimate the error from.
+    """
+    mse, df, covariance = (model.get(key) for key in ("mse_residual", "df_residual", "unscaled_covariance"))
+    if mse is None or df is None or covariance is None or float(df) <= 0:
+        return None
+    leverage = np.einsum("ij,jk,ik->i", matrix, np.asarray(covariance, dtype=float), matrix)
+    return np.sqrt(float(mse) * (1.0 + leverage)), float(df)
+
+
+def feasible_region(
+    fitted_models: list[dict[str, Any]],
+    windows: Mapping[str, Sequence[float | None]],
+    points: pd.DataFrame,
+) -> pd.DataFrame:
+    """Say, at each of some settings, whether every response is predicted inside its window, and how surely.
+
+    The best settings answer "where is the response best?". This answers the reverse:
+    which settings give results inside a specification, such as a yield between 78 and
+    82 with an impurity below 0.5? The settings where every prediction is inside its
+    window are the region that meets the specification; those where a new run meets it
+    with a high probability, 0.9 say, are the design space of quality by design.
+
+    Parameters
+    ----------
+    fitted_models : list[dict]
+        Each response's model, as :func:`optimize_responses` takes it: its
+        ``"response_name"``, its ``"coefficients"`` (each a ``"term"`` and a
+        ``"coefficient"``) and its ``"factor_names"``. For the probability a model also
+        holds what the scatter of a new run about its prediction is worked from:
+
+        - ``"mse_residual"`` (float) - the residual mean square of the fit.
+        - ``"df_residual"`` (float) - its residual degrees of freedom.
+        - ``"unscaled_covariance"`` (2-D array) - the covariance of the coefficients
+          over the residual variance, the inverse of ``X'X``, its rows and columns in
+          the order of ``"coefficients"``. A statsmodels fit holds it as
+          ``normalized_cov_params``.
+    windows : Mapping[str, Sequence[float | None]]
+        Each response's window by its name, ``(low, high)``, on the scale its model was
+        fitted on. An end of ``None`` is open: ``(None, 0.5)`` is "0.5 at most".
+    points : pd.DataFrame
+        The settings to judge, a row each, in a column for each factor of the models,
+        on the scale the models were fitted on (coded, for a model from
+        ``analyze_experiment(..., coding="coded")``). A grid over two factors gives a
+        picture of the region; settings drawn evenly from the ranges give its share of
+        them, as the mean of ``feasible``.
+
+    Returns
+    -------
+    pd.DataFrame
+        A row for each of *points*, under its index:
+
+        - a column for each response, by its name: its prediction;
+        - ``"feasible"`` (bool) - whether every prediction is inside its window, the
+          ends counted as inside;
+        - ``"probability"`` (float) - the chance that one new run at those settings
+          meets every window, or NaN when a model does not hold what it is worked from.
+
+    Raises
+    ------
+    ValueError
+        If the windows and the models do not name the same responses, if a window's
+        low end is above its high end, or if *points* lacks a factor's column.
+
+    Notes
+    -----
+    A response's new run is distributed about its prediction as Student's t with the
+    residual degrees of freedom of its model, scaled by the standard error of a new
+    observation, ``sqrt(mse_residual * (1 + x' C x))``, where ``x`` is the settings'
+    row of the model matrix and ``C`` the unscaled covariance. The probability for
+    one response is the share of that distribution inside its window. The responses'
+    errors are taken as independent, so the probability of meeting every window is the
+    product over the responses; responses measured on the same run are often
+    correlated, and the product is then a guide, not an exact figure. More runs shrink
+    ``C`` and add degrees of freedom, so the region of a given probability grows
+    towards the region where the predictions are inside their windows, and never
+    beyond the window's own scatter: a window narrower than the noise is met with a
+    low probability at every setting.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> model = {
+    ...     "response_name": "y",
+    ...     "coefficients": [{"term": "Intercept", "coefficient": 50.0}, {"term": "A", "coefficient": 10.0}],
+    ...     "factor_names": ["A"],
+    ... }
+    >>> feasible_region([model], {"y": (45, 55)}, pd.DataFrame({"A": [-1.0, 0.0, 0.5, 1.0]}))["feasible"].tolist()
+    [False, True, True, False]
+    """
+    names = [model.get("response_name", f"Response {i + 1}") for i, model in enumerate(fitted_models)]
+    if sorted(names) != sorted(windows) or len(set(names)) != len(names):
+        msg = (
+            f"The windows name the responses {sorted(windows)}, and the models {sorted(names)}: "
+            "give one window for each model."
+        )
+        raise ValueError(msg)
+    out = pd.DataFrame(index=points.index)
+    feasible = np.ones(len(points), dtype=bool)
+    probability = np.ones(len(points), dtype=float)
+    for name, model in zip(names, fitted_models, strict=True):
+        low, high = windows[name]
+        if low is not None and high is not None and low > high:
+            msg = f"The window of {name!r} runs from {low} down to {high}: give its low end first."
+            raise ValueError(msg)
+        matrix, coefficients = _matrix_over(model, points, name)
+        predicted = matrix @ coefficients
+        out[name] = predicted
+        feasible &= (low is None or predicted >= low) & (high is None or predicted <= high)
+        scatter = _new_run_scatter(model, matrix)
+        if scatter is None:
+            probability[:] = np.nan
+        else:
+            probability *= _inside_probability(predicted, *scatter, low, high)
+    out["feasible"] = feasible
+    out["probability"] = probability
+    return out

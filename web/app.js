@@ -26,6 +26,8 @@ import {
   markedRun,
   onRunMarked,
   FOUND,
+  IN_WINDOWS,
+  WHAT_IF_SETTINGS,
   overlayFigure,
   paretoFigure,
   pressRun,
@@ -35,6 +37,7 @@ import {
   sensitivityFigure,
   shareContourScale,
   targetName,
+  windowName,
   ternaryFigure,
   ternaryRange,
   tradeOffFigure,
@@ -99,10 +102,14 @@ import {
   settingsWords,
   sliderStep,
   solveSentences,
+  surestSentence,
   targetCaption,
   targetLead,
   targetRows,
   targetShare,
+  windowCaption,
+  windowChance,
+  windowLead,
   whatIfRows,
   whatIfSentences,
   whatIfStart,
@@ -301,7 +308,7 @@ import {
 import { redrawRuns } from "./picture.js";
 import { drawFieldChart } from "./field-chart.js";
 import { RUN_ORDER_SEED, briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows } from "./report.js";
-import { analyseCode, balanceCode, bestCode, compareCode, comparisonFigureCode, correlationCode, cumulative, curveCode, designCode, figureCode, forResponse, notebook, overlayCode, ownFigureCode, resultsCode, sensitivityCode, targetCode, targetOverlayCode, tradeOffCode, whatIfCode } from "./python.js";
+import { analyseCode, balanceCode, bestCode, compareCode, comparisonFigureCode, correlationCode, cumulative, curveCode, designCode, figureCode, forResponse, notebook, overlayCode, ownFigureCode, resultsCode, sensitivityCode, targetCode, targetOverlayCode, tradeOffCode, whatIfCode, windowCode, windowOverlayCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { CONTEXT, GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
@@ -549,6 +556,9 @@ const state = {
   // The settings that give a target: each response's target as typed, what api_target_settings returned (found),
   // and the two factors the reader chose to draw its chart over.
   target: newTarget(),
+  // The settings that meet a specification: each response's window as typed, what api_specification returned
+  // (found), and the two factors the reader chose to draw its chart over.
+  window: newWindow(),
   whatIf: null, // the what-if panel: each response's fit from api_predictors, the settings, the limits they break
   curve: { fit: null, problem: null, target: null }, // the curves' fit from api_functional, why there is none, a target
   scenarios: [], // the settings the reader kept from the what-if panel, each {name, settings}: the study's what_if
@@ -1422,6 +1432,7 @@ function showRenamed({ spec, simulation, ...design }, names) {
   // The what-if fits and the balance, and any still on their way, name the old factors: the analysis below finds them again.
   clearWhatIf();
   clearTarget();
+  clearWindow();
   clearBalance();
   if (simulation) state.simulation = simulation;
   if (titled) state.campaign.title = titleOf(state.design.spec);
@@ -2014,12 +2025,14 @@ function showDesign(design, warnings = [], { save = true } = {}) {
   state.goals = {};
   state.trade = newTrade();
   state.target = newTarget();
+  state.window = newWindow();
   state.scenarios = [];
   state.simulation = null;
   state.analysis = null;
   clearBalance();
   clearWhatIf();
   clearTarget();
+  clearWindow();
   renderDesign(warnings);
   renderRuns();
   renderTruth(); // the process behind the old design's results goes with them
@@ -3433,10 +3446,12 @@ async function readUpload(file) {
   state.goals = {};
   state.trade = newTrade();
   state.target = newTarget();
+  state.window = newWindow();
   state.scenarios = r.what_if ?? [];
   clearBalance();
   clearWhatIf();
   clearTarget();
+  clearWindow();
   renderDesign(reply.warnings);
   renderRuns();
   renderTruth();
@@ -3531,6 +3546,7 @@ async function analyseRuns() {
     clearBalance();
     clearWhatIf();
     clearTarget();
+    clearWindow();
     setStatus("No results to analyse yet.");
     return;
   }
@@ -3547,6 +3563,7 @@ async function analyseRuns() {
     await findWhatIf();
     findTradeOffs();
     showTarget();
+    showWindow();
     return;
   }
   const mine = ++ticket;
@@ -3572,7 +3589,8 @@ async function analyseRuns() {
   await findCurve();
   await findWhatIf(); // after the best settings and the balance, which it opens at, and the curves it draws
   findTradeOffs(); // the settings it tries take a moment, and nothing above waits for them
-  showTarget(); // last, on the what-if panel's fits: its search takes a moment too
+  showTarget(); // on the what-if panel's fits: its search takes a moment too
+  showWindow(); // last: the windows are judged through the what-if panel's settings
 }
 
 /** A button that opens Feedback on the topic of an algorithm or a model, beside a result that went wrong. */
@@ -5559,6 +5577,7 @@ function renderWhatIf() {
   else hidePython("what-if");
   renderCurve(at);
   scheduleSolve(); // one factor is solved for from the others, which are where this panel has them
+  scheduleWindow(); // and the windows are judged through these settings
 }
 
 // ---------------------------------------------------------------- the curve at the what-if settings
@@ -6054,6 +6073,191 @@ async function solveFactor() {
   $("#solve-out").replaceChildren(...solveSentences(reply.result, words).map((text) => said("", text)));
 }
 
+// ---------------------------------------------------------------- the settings that meet a specification
+// The reader types a window for a response, or for several; Python judges settings against them with the library's
+// feasible_region (bootstrap.specification) and answers with the share of the ranges that meets them, how surely a
+// new run does, and the picture over two factors, the others where the what-if panel has them.
+let windowTicket = 0;
+let windowTimer = null;
+
+/** What the section holds for a study with no window typed yet: each response's two ends, and what Python answered. */
+function newWindow() {
+  return { windows: {}, found: null, pair: null };
+}
+
+/** Take the section away: there is no result, no factor with a range, or the study is a mixture's. */
+function clearWindow() {
+  windowTicket += 1;
+  clearTimeout(windowTimer);
+  // What the windows gave names the study's factors as they were: it is found again when the section comes back.
+  state.window = { ...state.window, found: null };
+  renderWindow();
+  $("#window").hidden = true;
+}
+
+/** The windows the reader typed, as Python takes them: only the responses with an end typed. */
+const sentWindows = () => Object.fromEntries(Object.entries(state.window.windows).filter(([, ends]) => ends.some((end) => end !== null)));
+
+/**
+ * Show the section, after each analysis: two boxes for each response's window, and then what the windows typed so
+ * far give on the results as they are now.
+ */
+function showWindow() {
+  // The windows are judged through the what-if panel's settings, so the section comes with that panel.
+  const responses = state.design && state.whatIf && !blendStudy() ? targetResponses() : [];
+  if (!responses.length || !rangedFactors().length) {
+    clearWindow();
+    return;
+  }
+  const names = responses.map((r) => r.name);
+  const ranged = rangedFactors().map((f) => f.name);
+  const windows = Object.fromEntries(Object.entries(state.window.windows).filter(([name]) => names.includes(name)));
+  const pair = state.window.pair?.every((name) => ranged.includes(name)) ? state.window.pair : null;
+  state.window = { ...state.window, windows, pair };
+  $("#window").hidden = false;
+  const t = $("#window-limits");
+  const key = JSON.stringify(responses);
+  if (t.dataset.key !== key) {
+    t.dataset.key = key;
+    const rows = responses.map((r) => {
+      const label = escape(r.label);
+      return (
+        `<tr data-response="${escape(r.name)}"><th scope="row">${escape(withUnits(r.label, r.units))}</th>` +
+        `<td data-label="At least"><input type="number" step="any" name="low" aria-label="${label}: at least"></td>` +
+        `<td data-label="At most"><input type="number" step="any" name="high" aria-label="${label}: at most"></td>` +
+        `<td data-label="Your results">${escape(`${num(r.least)} to ${withUnit(r.most, r.units)}`)}</td></tr>`
+      );
+    });
+    t.innerHTML = `<thead><tr><th scope="col">Response</th><th scope="col">At least</th><th scope="col">At most</th><th scope="col">Your results</th></tr></thead><tbody>${rows.join("")}</tbody>`;
+  }
+  showWindows();
+  findWindow();
+}
+
+/** Show the windows the section holds in their boxes; a box the reader is typing in keeps what is typed. */
+function showWindows() {
+  for (const tr of $("#window-limits").tBodies[0]?.rows ?? []) {
+    const ends = state.window.windows[tr.dataset.response] ?? [null, null];
+    for (const [i, end] of ["low", "high"].entries()) {
+      const box = tr.querySelector(`[name="${end}"]`);
+      if (box !== document.activeElement) box.value = ends[i] ?? "";
+    }
+  }
+}
+
+/** The reader typed an end of a window: what the windows give follows a moment after the last key. */
+function windowTyped(e) {
+  const tr = e.target.closest("tr[data-response]");
+  if (!tr) return;
+  const ends = ["low", "high"].map((end) => {
+    const value = numberOrNull(tr.querySelector(`[name="${end}"]`).value);
+    return Number.isFinite(value) ? value : null;
+  });
+  state.window = { ...state.window, windows: { ...state.window.windows, [tr.dataset.response]: ends } };
+  scheduleWindow();
+}
+
+/** Judge the windows again a moment from now: an end was typed, or the what-if panel's settings moved. */
+function scheduleWindow() {
+  clearTimeout(windowTimer);
+  if ($("#window").hidden) return;
+  // With no window typed nothing is asked of Python: what the last one gave, or why it was refused, goes at once.
+  if (Object.keys(sentWindows()).length) windowTimer = setTimeout(findWindow, 400);
+  else if (state.window.found || !$("#window-problems").hidden) findWindow();
+}
+
+/** The reader cleared the windows: the boxes empty, and what they gave goes. */
+function windowCleared() {
+  state.window = { ...state.window, windows: {} };
+  showWindows();
+  findWindow();
+}
+
+/** Judge the windows typed (bootstrap.specification), and show what they give; with none typed, nothing. */
+async function findWindow() {
+  clearTimeout(windowTimer);
+  const windows = sentWindows();
+  const { pair } = state.window;
+  const mine = ++windowTicket;
+  $("#window-clear").hidden = !Object.keys(windows).length;
+  $("#window").classList.toggle("in-use", Object.keys(windows).length > 0); // windows typed stay at every reading level
+  // The chart holds its other factors, and every categorical factor, where the what-if panel has them.
+  const asked = { ...fitsAsked(), windows, at: state.whatIf?.settings, ...(pair ? { pair } : {}) };
+  const reply = Object.keys(windows).length && state.whatIf ? await call("api_specification", asked) : null;
+  if (mine !== windowTicket) return;
+  $("#window-problems").textContent = reply && !reply.ok ? reply.error : "";
+  $("#window-problems").hidden = !reply || reply.ok;
+  state.window = { ...state.window, found: reply?.ok ? reply.result : null };
+  renderWindow();
+}
+
+/** Show what the windows give: the share of the settings, how surely a new run meets them, where it is surest, the chart. */
+function renderWindow() {
+  const found = state.window.found;
+  $("#window-actions").hidden = !found?.surest;
+  if (!found) {
+    $("#window-out").replaceChildren();
+    $("#window-chart").hidden = true;
+    hidePython("window");
+    return;
+  }
+  const more = [windowChance(found), surestSentence(found, tradeFactors(), factorUnits())].filter(Boolean);
+  $("#window-out").replaceChildren(
+    said("lead", windowLead(found, { limits: Boolean(state.design.spec.constraints?.length) })),
+    ...more.map((text) => said("", text)),
+  );
+  if (found.surest) $("#window-confirm").hidden = confirmedAt(state.design, found.surest.confirm_at);
+  showPython("window", windowCode(found, state.design.spec));
+  drawWindowChart();
+}
+
+/** Draw where every response is inside its window over two factors, with the lines of equal chance. */
+async function drawWindowChart() {
+  const found = state.window.found;
+  const card = $("#window-chart");
+  if (!found?.overlay || !state.plotlyJs) {
+    card.hidden = true;
+    return;
+  }
+  const { overlay } = found;
+  const units = factorUnits();
+  const ranged = rangedFactors().map((f) => f.name);
+  const options = (chosen) => ranged.map((name) => `<option value="${escape(name)}"${name === chosen ? " selected" : ""}>${escape(withUnits(name, units[name]))}</option>`).join("");
+  $("#window-across").innerHTML = options(overlay.x);
+  $("#window-up").innerHTML = options(overlay.y);
+  const axes = Object.fromEntries([overlay.x, overlay.y].map((name) => [name, withUnits(name, units[name])]));
+  const figure = () => overlayFigure(overlay, found.responses, axes, undefined, { shaded: IN_WINDOWS, star: WHAT_IF_SETTINGS, named: windowName });
+  card.hidden = false;
+  card.querySelector("figcaption").textContent = windowCaption(overlay, state.design.spec.factors);
+  const python = figureAfter("window", () => windowOverlayCode(overlay, state.design.spec));
+  try {
+    await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height, { python });
+  } catch {
+    card.hidden = true; // the sentences above hold what it shows
+  }
+}
+
+/** The reader chose the two factors the chart is drawn over: choosing one axis's factor for the other swaps them. */
+function windowPairChanged() {
+  const overlay = state.window.found?.overlay;
+  if (!overlay) return;
+  let [across, up] = [$("#window-across").value, $("#window-up").value];
+  if (across === up) [across, up] = across === overlay.x ? [overlay.y, up] : [across, overlay.x];
+  state.window = { ...state.window, pair: [across, up] };
+  findWindow();
+}
+
+/** Move the what-if panel to the settings at which a new run is surest to meet the windows, and go to it. */
+function windowToWhatIf() {
+  const w = state.whatIf;
+  const surest = state.window.found?.surest;
+  if (!surest || !w || !settingsFit(w.factors, surest.settings)) return;
+  w.settings = { ...surest.settings };
+  renderWhatIf();
+  checkWhatIfLimits();
+  $("#what-if").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 // ---------------------------------------------------------------- the next step
 // What the analysis points to next: a new study whose ranges move the way the best settings point (best.js), and the
 // ways to add runs to this study (bootstrap.next_runs), each for what its design cannot say yet. Adding runs keeps the
@@ -6330,6 +6534,7 @@ async function showBuiltExample() {
   }
   showWhatIf(example.predictors ?? null); // the build's fit, so the panel follows each move before Python starts
   showTarget(); // the boxes for a target: nothing is asked of Python until one is typed
+  showWindow(); // and those for a specification's windows
   if (example.next) state.next = { design: state.design, key: null, ...nextOf(example.next) }; // asked again on a change
   renderNext(); // what its results call for; its Box-Behnken design takes no runs added
   $("#demo-version").textContent = `process-improve ${example.version}`;
@@ -6432,6 +6637,7 @@ function newStudy() {
   clearBalance();
   clearWhatIf();
   clearTarget();
+  clearWindow();
   renderPicker();
   setModel("");
   for (const key of ["design", "run", "analyse", "best", "compare"]) hidePython(key);
@@ -6842,10 +7048,12 @@ async function openCampaign(c, record, message) {
   state.goals = structuredClone(c.goals ?? {});
   state.trade = newTrade();
   state.target = newTarget();
+  state.window = newWindow();
   state.scenarios = structuredClone(c.what_if ?? []);
   clearBalance();
   clearWhatIf();
   clearTarget();
+  clearWindow();
   state.simulation = c.simulation;
   state.analysis = null;
   state.example = false;
@@ -7051,6 +7259,7 @@ const BUILDS_ON = {
   balance: ["design", "run"],
   "what-if": ["design", "run"],
   target: ["design", "run"],
+  window: ["design", "run"],
 };
 const stepCode = {};
 
@@ -7596,6 +7805,11 @@ for (const id of ["#target-across", "#target-up"]) $(id).addEventListener("chang
 $("#target-confirm").addEventListener("click", () => addConfirmationRuns(state.target.found?.confirm_at, "the settings found"));
 $("#target-what-if").addEventListener("click", targetToWhatIf);
 for (const id of ["#solve-factor", "#solve-response"]) $(id).addEventListener("change", solveFactor);
+$("#window-limits").addEventListener("input", windowTyped);
+$("#window-clear").addEventListener("click", windowCleared);
+for (const id of ["#window-across", "#window-up"]) $(id).addEventListener("change", windowPairChanged);
+$("#window-confirm").addEventListener("click", () => addConfirmationRuns(state.window.found?.surest?.confirm_at, "the surest settings"));
+$("#window-what-if").addEventListener("click", windowToWhatIf);
 $("#remove-confirmation").onclick = removeConfirmationRuns;
 $("#download").onclick = downloadWorkbook;
 $("#csv").onclick = downloadCsv;

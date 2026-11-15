@@ -979,6 +979,137 @@ export function targetOverlayCode(overlay, spec) {
   ].join("\n");
 }
 
+/** A Python value for an end of a window: a number, or None for an end left open. */
+const endOf = (end) => (end === null ? "None" : String(end));
+
+/**
+ * The settings that meet a specification, after step 2's ``runs`` and ``X``: each response with a window fitted with
+ * its own model, with what the scatter of a new run about its prediction is worked from; the settings the page tried,
+ * every other column where the what-if panel has it; and the library's ``feasible_region`` over them, for the share
+ * at which every prediction is inside its window, how surely a new run is, and where it is surest. ``found`` is what
+ * bootstrap.specification answered: its ``search`` holds each response's fitted formula, its window on its model's
+ * scale, the settings held as the models' columns, and how the settings tried were drawn. Null for a mixture.
+ */
+export function windowCode(found, spec) {
+  if (isMixture(spec)) return null;
+  const numeric = spec.factors.filter((f) => !labelled(f));
+  const names = numeric.map((f) => f.name);
+  const { formulas, windows, at, drawn, seed } = found.search;
+  const limits = spec.constraints ?? [];
+  const scale = scaleLines(spec, Object.keys(formulas));
+  const blocked = Object.keys(at).some((name) => /^Block\d+_*$/.test(name));
+  const windowed = Object.entries(windows).map(([name, [low, high]]) => `${repr(name)}: (${endOf(low)}, ${endOf(high)})`);
+  return [
+    "import numpy as np",
+    "import pandas as pd",
+    `from process_improve.experiments import ${limits.length ? "DesignRegion, " : ""}analyze_experiment, feasible_region`,
+    "",
+    ...scale.lines.filter((line) => line !== "import numpy as np"),
+    ...indicatorLines(spec, Object.values(formulas).join(" + ")),
+    "# The window each response must fall in, (low, high), an end of None left open.",
+    ...(scale.lines.length ? ["# A transformed response's window is on its scale, as the page judges it."] : []),
+    `windows = {${windowed.join(", ")}}`,
+    ...(blocked
+      ? [
+          "# The columns the models are fitted on: X, with the library's block contrasts in place of the blocks, a column",
+          "# for each block but the last, which is -1 in every one.",
+          'blocks = sorted(runs["Block"].unique(), key=str)',
+          "contrasts = {",
+          '    f"Block{i + 1}": np.where(runs["Block"] == block, 1.0, np.where(runs["Block"] == blocks[-1], -1.0, 0.0))',
+          "    for i, block in enumerate(blocks[:-1])",
+          "}",
+          'columns = X.drop(columns="Block").assign(**contrasts)',
+        ]
+      : ["columns = X  # the columns the models are fitted on"]),
+    "",
+    "",
+    "def term_columns(terms, at):",
+    "    # Each term's column over the settings at: the product of its parts; a square is written I(name ** 2).",
+    '    part = lambda name: at[name[2:-6]] ** 2 if name.startswith("I(") else at[name]',
+    '    product = lambda term: np.ones(len(at)) if term == "Intercept" else np.prod([part(name) for name in term.split(":")], axis=0)',
+    "    return np.column_stack([product(term) for term in terms])",
+    "",
+    "",
+    "# Each response with a window, fitted with its own model to the runs that have its result, with what the scatter",
+    "# of a new run about its prediction is worked from: the fit's error, and the inverse of X'X of its model matrix.",
+    "models = []",
+    `for name, model in ${repr(formulas)}.items():`,
+    "    done = runs[name].notna()",
+    `    fit = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="coefficients", coding="actual")`,
+    '    matrix = term_columns([c["term"] for c in fit["coefficients"]], columns[done])',
+    "    models.append(",
+    "        {",
+    '            "response_name": name,',
+    '            "coefficients": fit["coefficients"],',
+    '            "factor_names": list(columns.columns),',
+    '            "mse_residual": fit["model_summary"]["mse_residual"],',
+    '            "df_residual": fit["model_summary"]["df_residual"],',
+    '            "unscaled_covariance": np.linalg.pinv(matrix.T @ matrix),',
+    "        }",
+    "    )",
+    "",
+    `# ${drawn} settings of the factors with a range, drawn evenly from their ranges in coded units (-1 is a factor's low`,
+    "# end, +1 its high end); every other column is where What if has it.",
+    `names = ${repr(names)}`,
+    `at = ${repr(at)}`,
+    `tried = pd.DataFrame(np.random.default_rng(${seed}).uniform(-1, 1, size=(${drawn}, ${names.length})), columns=names)`,
+    ...(limits.length
+      ? [
+          "region = DesignRegion(factors, constraints)",
+          "tried = tried[region.feasible(tried[list(region.names)].to_numpy())].reset_index(drop=True)  # inside the limits",
+        ]
+      : []),
+    "judged = feasible_region(models, windows, tried.assign(**{name: value for name, value in at.items() if name not in names}))",
+    'print(judged["feasible"].mean())  # the share of the settings at which every prediction is inside its window',
+    ...(found.likely
+      ? [
+          `likely = {chance: (judged["probability"] >= chance).mean() for chance in ${repr(Object.keys(found.likely).map(Number))}}`,
+          "print(likely)  # the share at which one new run meets every window with each chance or more",
+          'surest = judged["probability"].idxmax()',
+          `ranges = ${repr(Object.fromEntries(numeric.map((f) => [f.name, [f.low, f.high]])))}`,
+          "settings = {name: low + (tried[name][surest] + 1) / 2 * (high - low) for name, (low, high) in ranges.items()}",
+          'print(settings, judged["probability"][surest])  # where a new run is surest to meet them, and how sure',
+        ]
+      : []),
+  ].join("\n");
+}
+
+/**
+ * The chart of a specification, after its code (windowCode), which leaves the ``models``, the ``windows`` and the
+ * settings ``at``: the library's ``feasible_region`` over the page's grid of the two factors drawn (``overlay.x`` and
+ * ``overlay.y``), the other columns where the what-if panel has them, shaded where every prediction is inside its
+ * window, with a line for each chance the page draws when the chance can be given. Null without an overlay.
+ */
+export function windowOverlayCode(overlay, spec) {
+  if (isMixture(spec) || !overlay) return null;
+  const [low, high] = [Math.min(...overlay.chances), Math.max(...overlay.chances)];
+  const lines = `{"coloring": "none", "start": ${low}, "end": ${high}, "size": ${high - low}, "showlabels": True}`;
+  return [
+    "import plotly.graph_objects as go",
+    "",
+    `# The figure "Where every response is inside its window" over ${overlay.x} and ${overlay.y}, in coded units, every other`,
+    "# column where What if has it: shaded where every prediction is inside its window, with a line of equal chance",
+    "# that one new run meets every window.",
+    `pair = ${repr([overlay.x, overlay.y])}`,
+    `axis = np.linspace(-1, 1, ${overlay.grid.length})`,
+    "across, up = np.meshgrid(axis, axis)",
+    "over = pd.DataFrame({name: np.full(across.size, value) for name, value in at.items()})",
+    "over[pair[0]], over[pair[1]] = across.ravel(), up.ravel()",
+    "drawn = feasible_region(models, windows, over)",
+    "grid = lambda column: drawn[column].to_numpy(dtype=float).reshape(across.shape)",
+    "figure = go.Figure(",
+    "    [",
+    '        go.Heatmap(x=axis, y=axis, z=grid("feasible"), name="Every response inside its window", opacity=0.3, showscale=False),',
+    ...(overlay.probability
+      ? [`        go.Contour(x=axis, y=axis, z=grid("probability"), name="Chance a new run meets every window", contours=${lines}, showscale=False),`]
+      : []),
+    '        go.Scatter(x=[at[pair[0]]], y=[at[pair[1]]], mode="markers", name="What-if settings", marker={"symbol": "star", "size": 16}),',
+    "    ]",
+    ")",
+    ...shown(`${overlay.x} (coded)`, `${overlay.y} (coded)`),
+  ].join("\n");
+}
+
 /**
  * The curve the what-if panel draws, after step 2's ``X``: each run's curve (``curves``, a list per run of the
  * design of one value per point, null where it was not read, or null for a run not measured), reduced and modelled as the

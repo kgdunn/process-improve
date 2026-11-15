@@ -388,6 +388,42 @@ READS: dict[str, list[str]] = {
         "search.drawn: int",
         "search.seed: int",
     ],
+    "specification": [
+        "responses[].name: str",
+        "responses[].label: str",
+        "responses[].units: str",
+        "responses[].low: number?",
+        "responses[].high: number?",
+        "share: number",
+        "likely{}: number",
+        "surest.probability: number",
+        "surest.settings{}: any",
+        "surest.confirm_at{}: any",
+        "surest.responses{}: number",
+        "tried: int",
+        "held: list",
+        "overlay.x: str",
+        "overlay.y: str",
+        "overlay.grid[]: number",
+        "overlay.ticks{}.tickvals[]: number",
+        "overlay.ticks{}.ticktext[]: str",
+        "overlay.responses[].name: str",
+        "overlay.responses[].z[].[]: number",
+        "overlay.responses[].levels[]: number",
+        "overlay.acceptable[].[]: int",
+        "overlay.runnable: list?",
+        "overlay.probability[].[]: number",
+        "overlay.chances[]: number",
+        "overlay.runs[].[]: number",
+        "overlay.at[]: number",
+        "overlay.held[].name: str",
+        "overlay.held[].value: any",
+        "search.formulas{}: str",
+        "search.windows{}.[]: number?",
+        "search.at{}: number",
+        "search.drawn: int",
+        "search.seed: int",
+    ],
     "one factor solved for": [
         "response: str",
         "factor: str",
@@ -918,6 +954,7 @@ ENTRY_POINTS = {
     "trade-offs with other settings as good": "api_trade_offs",
     "settings for targets": "api_target_settings",
     "one factor solved for": "api_solve_for",
+    "specification": "api_specification",
     "balance confirmed": "api_balance",
     "nothing to balance": "api_balance",
     "mixture design": "api_make_design",
@@ -1011,6 +1048,10 @@ THREE_DESIGN = {"design_type": "box_behnken", "factors": FACTORS, "responses": T
 SOLVED_FOR = {"response": "Yield", "target": 62.0, "factor": "T", "settings": {"P": 2, "F": 15}}
 
 
+#: What the page asks of a specification: a window on two responses, judged through the center of the ranges.
+WINDOWS = {"windows": {"Yield": [58.0, None], "Cost": [None, 62.0]}, "at": {"T": 175, "P": 2, "F": 15}}
+
+
 def several_responses(api) -> dict[str, Callable[[], dict]]:
     """Return the requests about a study of three responses: its design, its simulation, its workbook and a renaming."""
 
@@ -1084,6 +1125,7 @@ def several_responses(api) -> dict[str, Callable[[], dict]]:
         "trade-offs with other settings as good": traded_twice,
         "settings for targets": lambda: {**balanced(), "targets": {"Yield": 62.0, "Cost": 60.0}},
         "one factor solved for": lambda: {**balanced(), **SOLVED_FOR},
+        "specification": lambda: {**balanced(), **WINDOWS},
         "balance confirmed": confirmed,
         "nothing to balance": learning,
     }
