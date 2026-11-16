@@ -498,11 +498,6 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         lambda _: {**LEVELS_ALONE, "targets": {"y": 12}},
         "A target is met by moving a factor with a range, and this study has none.",
     ),
-    "a blend for a target": (
-        "api_target_settings",
-        _mixed(targets={"y": 1}),
-        "The blend that gives a target is not found on this page yet: set it under What if.",
-    ),
     "a component solved for alone": (
         "api_solve_for",
         _mixed(response="y", target=1, factor="A", settings={}),
@@ -579,11 +574,6 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_specification",
         lambda _: {**LEVELS_ALONE, "windows": {"y": [11, 13]}, "at": {"S": "A", "Shift": "day"}},
         "A specification is met by moving a factor with a range, and this study has none.",
-    ),
-    "a blend for a specification": (
-        "api_specification",
-        _mixed(windows={"y": [1, 2]}, at={}),
-        "The blends that meet a specification are not found on this page yet.",
     ),
     # The settings that balance the responses, and the goals the reader sets for them.
     "goals that are not goals": (

@@ -7462,6 +7462,7 @@ class _FittedModel:
         self.terms = [c["term"] for c in self.out["coefficients"]]
         self.beta = np.array([c["coefficient"] for c in self.out["coefficients"]], dtype=float)
         x = _model_matrix(coded, self.terms, names)
+        self.fitted = x @ self.beta  # at the runs the model is fitted to
         self.inverse = np.linalg.pinv(x.T @ x)
         summary = self.out["model_summary"]
         self.df = int(summary["df_residual"])
@@ -7469,7 +7470,12 @@ class _FittedModel:
         self.t = float(stats.t.ppf(1 - (1 - LEVEL) / 2, self.df)) if self.df > 0 else None
         leverages = np.einsum("ij,jk,ik->i", x, self.inverse, x)
         self.max_leverage = float(leverages.max())
-        self.residuals: pd.Series | None = None  # by the run each belongs to, once _fitted has them
+        self.residuals: pd.Series | None = None  # by the run each belongs to, once with_residuals has them
+
+    def with_residuals(self, results: pd.Series) -> _FittedModel:
+        """Keep the fit's residuals by the run each belongs to: ``results`` are those it was fitted to, in its order."""
+        self.residuals = pd.Series(results.to_numpy(dtype=float) - self.fitted, index=results.index)
+        return self
 
     def row(self, point: dict[str, float]) -> np.ndarray:
         """Return a point's row of the model matrix, its settings coded, in the average block."""
@@ -7540,11 +7546,7 @@ def _fitted(runs: pd.DataFrame, spec: dict, model: str | list[str]) -> _FittedMo
         fit = _fit_estimable(
             coded, y[done].reset_index(drop=True).rename(spec["response"]), fitted, columns, _categorical_names(spec)
         )
-    found = _FittedModel(fit, coded, columns, spec if columns != names else None)
-    found.residuals = pd.Series(
-        y[done].to_numpy() - _model_matrix(coded, found.terms, columns) @ found.beta, index=runs.index[done]
-    )
-    return found
+    return _FittedModel(fit, coded, columns, spec if columns != names else None).with_residuals(y[done])
 
 
 def _model_matrix(coded: pd.DataFrame, terms: list[str], names: list[str]) -> np.ndarray:
@@ -8188,10 +8190,9 @@ def _blend_fit(runs: pd.DataFrame, spec: dict, model: str) -> _FittedModel:
     if not done.any():
         raise ValueError("Enter results first: the best blend is found on the model fitted to them.")
     blends = runs.loc[done, names].astype(float).reset_index(drop=True)
-    y = y[done].reset_index(drop=True).rename(spec["response"])
-    return _FittedModel(
-        {"out": _mixture_fit(blends, y, model, ["coefficients", "anova"]), "formula": model}, blends, names
-    )
+    results = y[done].reset_index(drop=True).rename(spec["response"])
+    fit = {"out": _mixture_fit(blends, results, model, ["coefficients", "anova"]), "formula": model}
+    return _FittedModel(fit, blends, names).with_residuals(y[done])
 
 
 def _on_bounds(found: dict[str, float], names: list[str], low: np.ndarray, high: np.ndarray) -> np.ndarray:
@@ -8625,7 +8626,7 @@ def target_settings(request: dict) -> dict:
 
     whole = _checked_spec(request.get("spec") or {})
     if _mixture(whole):
-        raise ValueError("The blend that gives a target is not found on this page yet: set it under What if.")
+        return _target_blend(request, whole)
     transforms = whole.get("analysis_transforms") or {}
     every_run, whole = _on_model_scale(_runs_frame(request, whole), whole)
     design = _design_runs(every_run)
@@ -8726,6 +8727,100 @@ def _target_overlay(
     return {**overlay, "runs": _runs_over(design, spec, overlay)}
 
 
+def _target_blend(request: dict, whole: dict) -> dict:
+    """Find the blend at which each response named is predicted at its target, on their Scheffé models.
+
+    It is :func:`target_settings` for a mixture. :data:`TARGET_DRAWN` blends are drawn evenly from the region
+    of blends (each component between its bounds, the proportions summing to 1), and every response is
+    predicted at each. Of the blends that give the targets, the answer is the one nearest the centre of the
+    region, the average of the blends drawn; when none does, it is the one whose predictions miss by least.
+    From there a least-squares step moves the blend to meet the targets exactly where the models can, staying
+    by it, inside the bounds and summing to 1; it is kept when no response within reach of its target is
+    moved out of it.
+
+    The reply is :func:`target_settings`'s, with each component's proportion in ``settings`` (see
+    :func:`_blend_settings`), the blend as it is weighed out in ``confirm_at`` and how it was rounded in
+    ``rounding`` (see :func:`_weighed`). ``overlay`` is drawn over the triangle of three components, each
+    response's line at its target and the design's blends marked (see :func:`_blend_picture`); it is None for more.
+    """
+    from scipy import optimize  # noqa: PLC0415 - scipy is loaded with the library
+
+    transforms = whole.get("analysis_transforms") or {}
+    every_run, whole = _on_model_scale(_runs_frame(request, whole), whole)
+    design = _design_runs(every_run)
+    names = [f["name"] for f in whole["factors"]]
+    targets = _targets_sent(request.get("targets"), whole, transforms)
+    fits, near = _target_fits(request, whole, design, list(targets))
+    drawn = DesignRegion(_components(whole)).sample(TARGET_DRAWN, np.random.default_rng(TARGET_SEED))
+    centre = drawn.mean(axis=0)
+    models = _blend_models(fits)
+
+    def missed(blends: np.ndarray) -> np.ndarray:
+        """Return how far each response is predicted from its target at each blend, in units of its reach."""
+        return np.column_stack([(_predict(models[n], names, blends) - targets[n]) / near[n] for n in targets])
+
+    best, giving = _start_of_those_tried(drawn - centre, [{}], lambda _, offsets: missed(offsets + centre))
+    start = best["x"] + centre
+    low, high = _bounds(whole)
+    # Meet the targets exactly where the models can, staying by the blend found: a small pull keeps it there.
+    polished = optimize.minimize(
+        lambda x: float((missed(x[None, :])[0] ** 2).sum() + 1e-4 * ((x - start) ** 2).sum()),
+        start,
+        method="SLSQP",
+        bounds=list(zip(low, high, strict=True)),
+        constraints={"type": "eq", "fun": lambda x: float(x.sum() - 1.0)},
+        options={"ftol": 1e-14},
+    ).x
+    moved = _on_bounds(dict(zip(names, polished.tolist(), strict=True)), names, low, high)
+    after = missed(moved[None, :])[0]
+    closer = float((after**2).sum()) <= best["miss"] + 1e-12 and (not best["given"] or np.abs(after).max() <= 1.0)
+    x = moved if closer and abs(float(moved.sum()) - 1.0) <= PROPORTION_TOLERANCE else start
+    point = dict(zip(names, x.tolist(), strict=True))
+    responses = _targets_at(whole, targets, near, fits, point)
+    leaning = max(responses, key=lambda r: r["leverage"] / r["max_leverage"] if r["max_leverage"] else 0.0)
+    confirm_at, rounding = _weighed(whole, x)
+    overlay = _blend_picture(whole, models, lambda name, z: (np.zeros(len(z), dtype=bool), [targets[name]]), x)
+    reply = {
+        "responses": responses,
+        "reached": all(r["given"] for r in responses),
+        "coded": point,
+        "settings": _blend_settings(whole, x, np.zeros(len(x)), 1.0),  # no way to move is said, as for a balance
+        "confirm_at": confirm_at,
+        "rounding": rounding,
+        "leverage": leaning["leverage"],
+        "max_leverage": leaning["max_leverage"],
+        "leverage_of": leaning["name"],
+        "extrapolating": any(r["extrapolating"] for r in responses),
+        "share": giving / len(drawn),
+        "tried": len(drawn),
+        "near": TARGET_NEAR,
+        # A response's reach is thinner than the grid, so nothing is shaded, as over two factors.
+        "overlay": overlay and {**overlay, "acceptable": None, "runs": _blends_run(design, names)},
+        "search": {
+            "held": {},
+            "formulas": {n: fit.formula for n, fit in fits.items()},
+            "targets": targets,
+            "reach": near,
+            "drawn": TARGET_DRAWN,
+            "seed": TARGET_SEED,
+        },
+    }
+    return _targets_put_back(reply, transforms)
+
+
+def _blend_models(fits: dict[str, _FittedModel]) -> dict[str, list[dict]]:
+    """Return each fit's Scheffé model as the terms and coefficients a blend is predicted from."""
+    return {
+        name: [{"term": c["term"], "coefficient": c["coefficient"]} for c in fit.out["coefficients"]]
+        for name, fit in fits.items()
+    }
+
+
+def _blends_run(design: pd.DataFrame, names: list[str]) -> list[list[float]]:
+    """Return the blends the design's runs were made at, each once, for a picture of the triangle to mark."""
+    return design[names].astype(float).drop_duplicates().to_numpy().tolist()
+
+
 def _start_of_those_tried(
     drawn: np.ndarray,
     combinations: list[dict[str, float]],
@@ -8791,7 +8886,11 @@ def _target_fits(
         results = pd.to_numeric(design[name], errors="coerce").dropna()
         if results.empty:
             raise ValueError(f"Enter results for {_words(known[name])} first: {asked} on its model.")
-        fits[name] = _fitted(design, one, _checked_model(raw_models.get(name) or one["model"], factors, categorical))
+        model = raw_models.get(name) or one["model"]
+        if _mixture(spec):  # a blend's, on its proportions
+            fits[name] = _blend_fit(design, one, _mixture_model(model))
+        else:
+            fits[name] = _fitted(design, one, _checked_model(model, factors, categorical))
         spread = float(results.max() - results.min())
         near[name] = TARGET_NEAR * (spread if spread > 0 else max(abs(float(results.max())), 1.0))
     return fits, near
@@ -8992,7 +9091,7 @@ def specification(request: dict) -> dict:
 
     whole = _checked_spec(request.get("spec") or {})
     if _mixture(whole):
-        raise ValueError("The blends that meet a specification are not found on this page yet.")
+        return _blend_specification(request, whole)
     transforms = whole.get("analysis_transforms") or {}
     every_run, whole = _on_model_scale(_runs_frame(request, whole), whole)
     design = _design_runs(every_run)
@@ -9028,18 +9127,8 @@ def specification(request: dict) -> dict:
             "confirm_at": _practical(whole, at_best, region),
             "responses": {n: _put_back(float(tried[n].iloc[best]), transforms.get(n)) for n in windows},
         }
-    known_responses = {r["name"]: r for r in _responses(whole)}
     reply = {
-        "responses": [
-            {
-                "name": n,
-                "label": _words(known_responses[n]),
-                "units": known_responses[n].get("units", ""),
-                "low": _put_back(low, transforms.get(n)),
-                "high": _put_back(high, transforms.get(n)),
-            }
-            for n, (low, high) in windows.items()
-        ],
+        "responses": _window_responses(whole, windows, transforms),
         "share": float(tried["feasible"].mean()),
         "likely": {f"{c:g}": float((chance >= c).mean()) for c in CHANCES} if known else None,
         "surest": surest,
@@ -9065,10 +9154,127 @@ def specification(request: dict) -> dict:
             "seed": SPECIFICATION_SEED,
         },
     }
-    if reply["overlay"] and transforms:
-        surfaces = reply["overlay"]["responses"]
-        reply["overlay"] = {**reply["overlay"], "responses": [_surface_put_back(s, transforms) for s in surfaces]}
-    return reply
+    return _windows_put_back(reply, transforms)
+
+
+def _window_responses(
+    spec: dict, windows: dict[str, tuple[float | None, float | None]], transforms: dict
+) -> list[dict]:
+    """Return each response with a window as the reply names it: its words, its units and its window in them."""
+    known = {r["name"]: r for r in _responses(spec)}
+    return [
+        {
+            "name": n,
+            "label": _words(known[n]),
+            "units": known[n].get("units", ""),
+            "low": _put_back(low, transforms.get(n)),
+            "high": _put_back(high, transforms.get(n)),
+        }
+        for n, (low, high) in windows.items()
+    ]
+
+
+def _windows_put_back(reply: dict[str, Any], transforms: dict[str, str]) -> dict[str, Any]:
+    """Put the surfaces a specification is drawn with back in each transformed response's units."""
+    if not reply["overlay"] or not transforms:
+        return reply
+    surfaces = [_surface_put_back(s, transforms) for s in reply["overlay"]["responses"]]
+    return {**reply, "overlay": {**reply["overlay"], "responses": surfaces}}
+
+
+def _blend_specification(request: dict, whole: dict) -> dict:
+    """Find the blends at which every response is predicted inside its window, and how surely a new run is.
+
+    It is :func:`specification` for a mixture. :data:`SPECIFICATION_DRAWN` blends are drawn evenly from the
+    region of blends and judged with the library's ``feasible_region`` on the responses' Scheffé models:
+    ``share``, ``likely`` and ``surest`` are :func:`specification`'s, of blends. A mixture has no what-if
+    panel to judge through and no level to hold, so ``held`` and ``levels`` are empty; ``surest`` gives the
+    blend as each component's proportion, and as it is weighed out in ``confirm_at`` (see :func:`_weighed`).
+    ``overlay`` is drawn over the triangle of three components (see :func:`_window_triangle`), None for more.
+    """
+    from process_improve.experiments import feasible_region  # noqa: PLC0415 - loaded when a window is typed
+
+    transforms = whole.get("analysis_transforms") or {}
+    every_run, whole = _on_model_scale(_runs_frame(request, whole), whole)
+    design = _design_runs(every_run)
+    names = [f["name"] for f in whole["factors"]]
+    windows = _windows_sent(request.get("windows"), whole, transforms)
+    fits, _ = _target_fits(request, whole, design, list(windows), asked="its window is judged")
+    drawn = DesignRegion(_components(whole)).sample(SPECIFICATION_DRAWN, np.random.default_rng(SPECIFICATION_SEED))
+    models = _region_models(fits)
+    correlation = _residual_correlation(fits)
+    judge = lambda blends: feasible_region(  # noqa: E731
+        models, windows, pd.DataFrame(blends, columns=names), residual_correlation=correlation
+    )
+    tried = judge(drawn)
+    chance = tried["probability"].to_numpy()
+    known = not bool(np.isnan(chance).any())
+    surest, x = None, None
+    if known:
+        best = int(np.argmax(chance))
+        x = drawn[best]
+        blend = dict(zip(names, x.tolist(), strict=True))
+        surest = {
+            "probability": float(chance[best]),
+            "coded": blend,
+            "settings": blend,
+            "confirm_at": _weighed(whole, x)[0],
+            "responses": {n: _put_back(float(tried[n].iloc[best]), transforms.get(n)) for n in windows},
+        }
+    reply = {
+        "responses": _window_responses(whole, windows, transforms),
+        "share": float(tried["feasible"].mean()),
+        "likely": {f"{c:g}": float((chance >= c).mean()) for c in CHANCES} if known else None,
+        "surest": surest,
+        "tried": len(drawn),
+        "held": [],
+        "levels": [],
+        "overlay": _window_triangle(whole, fits, windows, x, judge if known else None, design),
+        "search": {
+            "formulas": {n: fit.formula for n, fit in fits.items()},
+            "windows": {n: list(ends) for n, ends in windows.items()},
+            "at": {},
+            "correlation": None if correlation is None else correlation.tolist(),
+            "drawn": SPECIFICATION_DRAWN,
+            "seed": SPECIFICATION_SEED,
+        },
+    }
+    return _windows_put_back(reply, transforms)
+
+
+def _window_triangle(
+    spec: dict,
+    fits: dict[str, _FittedModel],
+    windows: dict[str, tuple[float | None, float | None]],
+    x: np.ndarray | None,
+    judge: Callable[[np.ndarray], pd.DataFrame] | None,
+    design: pd.DataFrame,
+) -> dict[str, Any] | None:
+    """Return the picture of a specification over the triangle of three components; None for more.
+
+    It is :func:`_blend_picture`'s: each response's surface with the ends of its window as the levels drawn,
+    and ``acceptable``, 1 at a blend where every prediction is inside its window, the ends counted as inside.
+    ``at`` is the blend at which a new run is surest to meet the windows, None when no chance can be given.
+    ``chances`` adds, for each of :data:`CHANCES`, the line along which one new run meets every window with
+    that chance (``judge`` gives the chance at some blends; None when it cannot be said), and ``runs`` the
+    blends the design's runs were made at.
+    """
+
+    def inside(name: str, z: np.ndarray) -> tuple[np.ndarray, list[float]]:
+        low, high = windows[name]
+        within = (z >= (-np.inf if low is None else low)) & (z <= (np.inf if high is None else high))
+        return within, [end for end in (low, high) if end is not None]
+
+    names = [f["name"] for f in spec["factors"]]
+    picture = _blend_picture(spec, _blend_models(fits), inside, x)
+    if picture is None:
+        return None
+    lines = None
+    if judge is not None:
+        grid, places = _ternary_grid(spec)
+        chance = judge(grid)["probability"].to_numpy()
+        lines = [{"chance": c, **_crossings(grid, places, chance, c)} for c in CHANCES]
+    return {**picture, "chances": lines, "runs": _blends_run(design, names)}
 
 
 def _residual_correlation(fits: dict[str, _FittedModel]) -> np.ndarray | None:
@@ -9292,8 +9498,8 @@ def _surface_put_back(surface: dict, transforms: dict[str, str]) -> dict:
     """Put a response's surface on the balance's overlay, and the levels drawn on it, back in its units."""
     if (transform := transforms.get(surface["name"])) is None:
         return surface
-    z = [[_put_back(v, transform) for v in row] for row in surface["z"]]
-    return {**surface, "z": z, "levels": _put_back(list(surface["levels"]), transform)}
+    # Rows over two factors, or a list over the triangle's blends: _put_back takes either, item by item.
+    return {**surface, "z": _put_back(surface["z"], transform), "levels": _put_back(list(surface["levels"]), transform)}
 
 
 def _balanced_at(
@@ -9634,11 +9840,30 @@ def _blend_overlay(
 ) -> dict[str, Any] | None:
     """Return the overlay of the acceptable ranges over the triangle of three components; None for more.
 
+    It is :func:`_blend_picture`'s: the levels drawn on a response are those its acceptable boundary is at
+    (as :func:`_acceptable` gives them), ``acceptable`` is 1 at a blend where every response has a
+    desirability above 0, and ``at`` is the balanced blend.
+    """
+    by_name = {goal["response"]: goal for goal in goals}
+    return _blend_picture(
+        spec, {name: models[name] for name in by_name}, lambda name, z: _acceptable(by_name[name], z), x
+    )
+
+
+def _blend_picture(
+    spec: dict,
+    models: dict[str, list[dict]],
+    drawn_on: Callable[[str, np.ndarray], tuple[np.ndarray, list[float]]],
+    x: np.ndarray | None,
+) -> dict[str, Any] | None:
+    """Return the responses over the triangle of three components, each with the levels drawn on it; None for more.
+
     Over the triangle's grid of blends (see :func:`_ternary_grid`), as ``a``, ``b`` and ``c``: each
-    response's prediction (``z``), the levels its acceptable boundary is at (``levels``, as
-    :func:`_acceptable` gives them) and where it crosses each (``lines``, see :func:`_crossings`);
-    ``acceptable``, 1 at a blend where every response has a desirability above 0; and ``at``, the
-    balanced blend. Four components or more make a solid, which no picture of the triangle holds.
+    response's prediction (``z``), the ``levels`` drawn on it and where it crosses each (``lines``, see
+    :func:`_crossings`); ``acceptable``, 1 at a blend every response accepts; and ``at``, the blend marked,
+    None for none. ``drawn_on`` gives, for a response's name and its predictions over the grid, where it
+    accepts a blend and the levels to draw. Four components or more make a solid, which no picture of the
+    triangle holds.
     """
     names = [f["name"] for f in spec["factors"]]
     if len(names) != 3:  # the triangle of three components
@@ -9646,13 +9871,13 @@ def _blend_overlay(
     grid, places = _ternary_grid(spec)
     acceptable = np.ones(len(grid), dtype=bool)
     surfaces = []
-    for goal in goals:
-        z = _predict(models[goal["response"]], names, grid)
-        inside, levels = _acceptable(goal, z)
+    for name, model in models.items():
+        z = _predict(model, names, grid)
+        inside, levels = drawn_on(name, z)
         acceptable &= inside
         surfaces.append(
             {
-                "name": goal["response"],
+                "name": name,
                 "z": [float(f"{v:.6g}") for v in z],
                 "levels": levels,
                 "lines": [_crossings(grid, places, z, level) for level in levels],
@@ -9666,7 +9891,7 @@ def _blend_overlay(
         "c": grid[:, 2].tolist(),
         "responses": surfaces,
         "acceptable": acceptable.astype(int).tolist(),
-        "at": x.tolist(),
+        "at": None if x is None else x.tolist(),
     }
 
 
