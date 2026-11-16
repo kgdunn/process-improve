@@ -532,6 +532,9 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
   margin: 16px 0 0; padding: 10px 14px; border-radius: 8px; font-size: 0.92rem;
   background: var(--panel); border: 1px dashed var(--accent);
 }
+/* The worked example's banner is one row where there is room: its words, then the button that runs it again. */
+#demo-banner:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 16px; }
+#demo-banner .actions { margin: 0; }
 
 /* The bar: the mark and the name, the study's name and its three phases, feedback and the colour mode, kept in
    reach while the page scrolls, with the status line under them. It opens the page, so it takes back the room main
@@ -633,6 +636,16 @@ section { scroll-margin-top: 120px; }
 .card h2, .pane h2 { margin-bottom: 4px; }
 .card > .hint:first-of-type { margin-top: 0; }
 .pane { margin: 0 0 16px; }
+/* The answer Learn opens with: where to run and what to expect there, before the evidence. */
+.answer {
+  margin: 4px 0 16px; padding: 14px 16px; background: var(--panel);
+  border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 10px;
+}
+.answer p { margin: 0 0 4px; }
+.answer__run { font-size: 1.15rem; font-weight: 600; }
+.answer__caution { color: var(--warn); }
+.answer .actions { margin: 6px 0 0; }
+
 /* The question. On Design it is the form itself, and its one line is not drawn. Over Run and Learn it is that line,
    which opens to the form, so the runs and the results have the page's width. */
 .question > summary { display: none; }

@@ -92,6 +92,28 @@ export function leadSentence(best, { label, units }) {
   return `No setting in your ranges reaches the target of ${withUnit(best.target, units)}. These come closest: ${predicted}.`;
 }
 
+/**
+ * The answer Learn opens with, from the best settings: where to run (``run``), and what the model expects there
+ * with its interval for the mean (``expect``). Each number is written as the panel of the best settings writes
+ * it. Null with no settings to state: a goal of learning, a target not yet typed, or a model no term of which
+ * changes the response. ``words`` is the response's {label, units}; ``blend`` words a mixture's best blend.
+ */
+export function answerWords(best, { label, units }, { blend = false } = {}) {
+  if (!best?.settings) return null;
+  const at = listed(best.settings.map((setting) => settingWords(setting, setting.units)));
+  const level = `${Math.round(100 * (best.level ?? 0.95))}%`;
+  const mean = best.confidence ? ` (${level} confidence interval for the mean: ${rangeWords(best.confidence, units)})` : "";
+  const predicted = `${withUnit(best.predicted, units)}${mean}`;
+  const expect =
+    best.goal !== "target"
+      ? `The model predicts the ${SUPERLATIVE[best.goal]} ${label} there: ${predicted}.`
+      : best.reached
+        ? `The model predicts ${label} on its target there: ${withUnit(best.target, units)}${mean}.`
+        : `No ${blend ? "blend within your bounds" : "setting in your ranges"} reaches the target of ` +
+          `${withUnit(best.target, units)}: ${blend ? "this one comes" : "these come"} closest, at ${predicted}.`;
+  return { run: `${blend ? "Blend" : "Run at"} ${at}.`, expect };
+}
+
 /** A leverage as the page writes it: two significant figures, enough to compare with the runs'. */
 const lev = (h) => String(Number(Number(h).toPrecision(2)));
 
