@@ -16,6 +16,13 @@
   --mark-run: #2c5f7c;
   --mark-centre: #a93226;
   --mark-edge: #a6a49e;
+  /* The four stages of a study, each a colour: Design, Run, Learn and what comes next. They are hues the page has
+     already (the accent, the two marks of state and the mark's centre run), so a theme that sets those sets these.
+     The welcome teaches them, the bar's numbers wear them, and the mark is drawn in them. */
+  --stage-plan: var(--accent);
+  --stage-run: var(--warn);
+  --stage-learn: var(--ok);
+  --stage-next: var(--mark-centre);
   /* The trade-off grid's bands, each a cell in the column that takes a pick and a muted one beside it. */
   --band-high: #cfe9d7;
   --band-high-away: #ebf5ee;
@@ -195,8 +202,12 @@ span.feedback-button__short { display: block; position: absolute; width: 1px; he
 .mark { flex: none; width: 30px; height: 30px; }
 .mark__edges { fill: none; stroke: var(--mark-edge); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 .mark__runs circle, .mark__centre { stroke: var(--bg); stroke-width: 1.6; }
-.mark__runs circle { fill: var(--mark-run); }
-.mark__centre { fill: var(--mark-centre); }
+/* The corners in the first three stages' colours, opposite corners alike, and the centre run in the fourth: as
+   tools/branding/app_mark.py draws the browser's icon. */
+.mark__runs circle:nth-child(3n + 1) { fill: var(--stage-plan); }
+.mark__runs circle:nth-child(3n + 2) { fill: var(--stage-run); }
+.mark__runs circle:nth-child(3n) { fill: var(--stage-learn); }
+.mark__centre { fill: var(--stage-next); }
 /* The tagline, before the line that says what Factorial is. */
 .tagline {
   margin: 0 6px 0 0; color: var(--muted); font-style: italic; white-space: nowrap;
@@ -241,8 +252,11 @@ section {
 /* While Python works, the mark's runs light up in a random run order, then clear in the same order. */
 .status__icon svg { display: none; width: 18px; height: 18px; }
 .status[data-state="busy"] .status__icon svg { display: block; }
-.status__icon circle { fill: var(--mark-run); opacity: 0.15; animation: run-order 2.4s infinite; }
-.status__icon circle:last-child { fill: var(--mark-centre); }
+.status__icon circle { opacity: 0.15; animation: run-order 2.4s infinite; }
+.status__icon circle:nth-child(3n + 1) { fill: var(--stage-plan); }
+.status__icon circle:nth-child(3n + 2) { fill: var(--stage-run); }
+.status__icon circle:nth-child(3n) { fill: var(--stage-learn); }
+.status__icon circle:last-child { fill: var(--stage-next); }
 .status__icon circle:nth-child(1) { animation-delay: 0.45s; }
 .status__icon circle:nth-child(2) { animation-delay: 0s; }
 .status__icon circle:nth-child(3) { animation-delay: 0.75s; }
@@ -525,9 +539,45 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 
 /* A banner while the worked example is the copy computed when the page was built, and the welcome of a first visit. */
 .banner p { margin: 4px 0; }
-/* The welcome of a first visit: what Factorial is, and two other ways in. */
-.welcome .lede { margin: 4px 0; }
-.welcome .actions { margin: 4px 0; gap: 4px 20px; }
+/* The welcome of a first visit: a greeting, three ways in, and the round trip of a study as four steps in the
+   stages' colours. It is no card: it is the page's own first screen, with the blank question under it. */
+.welcome {
+  display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 28px 56px; align-items: center;
+  max-width: 1120px; margin: 0 auto; padding: clamp(22px, 5vw, 56px) 4px clamp(20px, 4vw, 44px);
+  background: none; border: none; border-radius: 0;
+}
+@media (max-width: 760px) { .welcome { grid-template-columns: minmax(0, 1fr); } }
+.welcome__words { display: grid; gap: 14px; min-width: 0; }
+.welcome .tagline { margin: 0; font-size: 1.05rem; }
+.welcome h2 {
+  display: block; margin: 0; font-size: clamp(1.9rem, 5vw, 2.9rem); line-height: 1.1; letter-spacing: -0.01em;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "DejaVu Serif", serif; text-wrap: balance;
+}
+.welcome__lede { margin: 0; font-size: 1.12rem; color: var(--muted); max-width: 34em; }
+.welcome .actions { margin: 6px 0 0; gap: 10px 14px; align-items: center; }
+.welcome .actions .primary, .welcome .actions .button { border-radius: 999px; padding: 10px 20px; font-size: 1rem; }
+.welcome__steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; counter-reset: stage; min-width: 0; }
+.welcome__steps li {
+  display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: 14px; align-items: start; counter-increment: stage;
+}
+.welcome__steps li::before {
+  content: counter(stage); grid-row: span 2; width: 40px; height: 40px; border-radius: 50%; display: grid;
+  place-items: center; font-weight: 700; background: var(--stage); color: var(--accent-fg);
+}
+.welcome__steps b { font-size: 1.02rem; }
+.welcome__steps span { grid-column: 2; color: var(--muted); }
+.stage-plan { --stage: var(--stage-plan); }
+.stage-run { --stage: var(--stage-run); }
+.stage-learn { --stage: var(--stage-learn); }
+.stage-next { --stage: var(--stage-next); }
+.welcome__promise {
+  grid-column: 1 / -1; list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 26px;
+  color: var(--muted); font-size: 0.95rem;
+}
+.welcome__promise li { display: inline-flex; align-items: center; gap: 8px; }
+.welcome__promise li::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--stage-learn); }
+.welcome__promise li:nth-child(2)::before { background: var(--stage-plan); }
+.welcome__promise li:nth-child(3)::before { background: var(--stage-run); }
 .banner {
   margin: 16px 0 0; padding: 10px 14px; border-radius: 8px; font-size: 0.92rem;
   background: var(--panel); border: 1px dashed var(--accent);
@@ -584,10 +634,14 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
   border-radius: 6px 6px 0 0; background: none; padding: 6px 10px; color: var(--muted); font-size: 0.95rem;
 }
 .phases [role="tab"]:hover { color: var(--fg); }
-.phases [role="tab"][aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); font-weight: 600; }
+/* Each stage has its colour (--stage-*): its number wears it whether the stage is on show or not, and the stage on
+   show is underlined in it. The name is bold only for the stage on show, so colour is never the one sign of it. */
+#go-plan { --stage: var(--stage-plan); }
+#go-run { --stage: var(--stage-run); }
+#go-learn { --stage: var(--stage-learn); }
+.phases [role="tab"][aria-selected="true"] { color: var(--fg); border-bottom-color: var(--stage); font-weight: 600; }
 .phases [role="tab"]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.phases .step { width: 22px; height: 22px; font-size: 0.8rem; }
-.phases [role="tab"][aria-selected="false"] .step { background: var(--line); color: var(--fg); }
+.phases .step { width: 22px; height: 22px; font-size: 0.8rem; background: var(--stage); }
 .badge {
   margin-left: 2px; padding: 0 7px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; line-height: 1.5;
   background: var(--panel); border: 1px solid var(--line); color: var(--muted); white-space: nowrap;
@@ -623,7 +677,8 @@ section { scroll-margin-top: 120px; }
     flex: 1 1 0; min-width: 0; flex-wrap: wrap; justify-content: center; gap: 2px 4px; padding: 4px 2px;
     font-size: 0.9rem;
   }
-  .phases .step { display: none; }
+  /* No room for a stage's number: a dot of its colour stands for it. */
+  .phases .step { width: 8px; height: 8px; font-size: 0; }
   .phases .badge { margin: 0; font-size: 0.7rem; padding: 0 5px; }
 }
 
@@ -634,12 +689,22 @@ section { scroll-margin-top: 120px; }
   background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin: 0 0 16px;
 }
 .card h2, .pane h2 { margin-bottom: 4px; }
+/* The stage on show gives its colour to the rule over each of its cards and panes, to the answer's edge, to the tab
+   chosen inside it and to the button a reader presses there, so every screen says which stage it is. A button that
+   leads to the next stage wears that stage's colour. */
+.workspace[data-phase="plan"] { --stage: var(--stage-plan); }
+.workspace[data-phase="run"] { --stage: var(--stage-run); }
+.workspace[data-phase="learn"] { --stage: var(--stage-learn); }
+.workspace .card, .workspace .pane { border-top: 3px solid var(--stage); }
+.workspace .primary { background: var(--stage); border-color: var(--stage); }
+#generate { --stage: var(--stage-run); }
+#to-learn { --stage: var(--stage-learn); }
 .card > .hint:first-of-type { margin-top: 0; }
 .pane { margin: 0 0 16px; }
 /* The answer Learn opens with: where to run and what to expect there, before the evidence. */
 .answer {
   margin: 4px 0 16px; padding: 14px 16px; background: var(--panel);
-  border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 10px;
+  border: 1px solid var(--line); border-left: 4px solid var(--stage, var(--accent)); border-radius: 10px;
 }
 .answer p { margin: 0 0 4px; }
 .answer__run { font-size: 1.15rem; font-weight: 600; }
@@ -647,7 +712,11 @@ section { scroll-margin-top: 120px; }
 /* The checks under the answer: a row of headings, each with its mark, that open to a sentence and its statistic. */
 .checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 8px; align-items: start; margin: 0 0 16px; }
 .learn-check { padding: 6px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; font-size: 0.95rem; }
-.learn-check[data-state="look"] { border-color: var(--warn); }
+/* A check is tinted by what it found. Its mark, a tick, an exclamation mark or a question mark, still says it. */
+.learn-check[data-state="ok"] {
+  background: color-mix(in srgb, var(--ok) 12%, var(--panel)); border-color: color-mix(in srgb, var(--ok) 40%, var(--line));
+}
+.learn-check[data-state="look"] { background: color-mix(in srgb, var(--warn) 12%, var(--panel)); border-color: var(--warn); }
 .learn-check > summary { cursor: pointer; font-weight: 600; }
 .learn-check > summary::after { margin-left: 8px; font-weight: 700; }
 .learn-check[data-state="ok"] > summary::after { content: "✓"; color: var(--ok); }
@@ -948,7 +1017,7 @@ dialog.feedback { width: min(640px, 100vw - 32px); }
   border: none; border-bottom: 3px solid transparent; border-radius: 0; background: none;
   padding: 8px 14px; color: var(--muted);
 }
-.tabs [role="tab"][aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); font-weight: 600; }
+.tabs [role="tab"][aria-selected="true"] { color: var(--fg); border-bottom-color: var(--stage, var(--accent)); font-weight: 600; }
 /* The response Learn analyses, with several: a tab each, wrapping on a phone rather than pushing the page sideways. */
 .picker { display: flex; flex-wrap: wrap; gap: 4px 6px; margin: 8px 0 12px; }
 .picker [role="tab"] {
@@ -1055,7 +1124,7 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 .printed .lead { margin: 4px 0 8px; font-size: 1rem; font-weight: 600; }
 .printed table.data td:nth-child(3), .printed table.data td:nth-child(4) { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .printed .printed-model { margin: 8px 0 0; }
-.best { margin: 24px 0 0; padding: 14px 16px 16px; border-top: 2px solid var(--accent); }
+.best { margin: 24px 0 0; padding: 14px 16px 16px; border-top: 2px solid var(--stage, var(--accent)); }
 .best h3 { margin: 0 0 6px; font-size: 1.05rem; }
 /* Where to run: one card. The dials and each goal's panel were cards of their own, and are parts of this one. */
 .where .best { margin: 12px 0 0; padding: 0; border-top: 0; }

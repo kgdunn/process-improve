@@ -136,15 +136,34 @@
     </div>
   </nav>
 
-  <!-- A first visit, and any visit with nothing kept in the browser (app.js start): what Factorial is, in the words
-       the header had, and two ways in besides the blank question under it. They are buttons, so the welcome asks a
-       reader to read no more than the header did (tests/web/e2e/test_reading.py). -->
-  <div id="welcome" class="banner welcome" hidden>
-    <p class="lede"><span class="tagline">Sense it. Test it. Im<b>prove</b> it.</span> Design, Run and Learn from your
-      experiments. Nothing to install. Data never leaves your device.</p>
-    <p class="actions"><button type="button" id="welcome-example" class="link">See a worked example</button>
-      <button type="button" id="welcome-import" class="link">Analyse data you have</button></p>
-  </div>
+  <!-- A first visit, and any visit with nothing kept in the browser (app.js start): a welcome before the question.
+       It says what Factorial is for in a reader's own words, offers three ways in, and shows the round trip of a
+       study as four steps, each in its stage's colour (style.css --stage-*), so the colours mean something on every
+       screen after. The blank question stands under it; "Start my first experiment" puts the reader there. -->
+  <section id="welcome" class="welcome" aria-labelledby="h-welcome" hidden>
+    <div class="welcome__words">
+      <p class="tagline">Sense it. Test it. Im<b>prove</b> it.</p>
+      <h2 id="h-welcome">Find out what really makes the difference.</h2>
+      <p class="welcome__lede">Change a few things on purpose, measure, and Factorial reads the results back to you in
+        plain words.</p>
+      <p class="actions">
+        <button type="button" id="welcome-start" class="primary">Start my first experiment</button>
+        <button type="button" id="welcome-example" class="button">See a finished one</button>
+        <button type="button" id="welcome-import" class="link">Analyse data you have</button>
+      </p>
+    </div>
+    <ol class="welcome__steps" aria-label="The four steps of a study">
+      <li class="stage-plan"><b>Design</b> <span>Say what you want to learn. Get the fewest runs that can tell you.</span></li>
+      <li class="stage-run"><b>Run</b> <span>Make the runs and type what you measured, at the bench or on a phone.</span></li>
+      <li class="stage-learn"><b>Learn</b> <span>The answer in a sentence, with the evidence one press away.</span></li>
+      <li class="stage-next"><b>Next</b> <span>What the results call for: confirm, move on, or stop.</span></li>
+    </ol>
+    <ul class="welcome__promise">
+      <li>Free, with nothing to install</li>
+      <li>Your numbers stay on this device</li>
+      <li>Works without internet</li>
+    </ul>
+  </section>
 
   <div id="demo-banner" class="banner" hidden>
     <p>The worked example, computed with <span id="demo-version">process-improve</span>
