@@ -83,7 +83,7 @@ def test_the_worked_example_s_report_holds_the_study_and_what_learn_makes_of_it(
     heads = ["What the results say", "Coefficients", "ANOVA", "The best settings for your goal"]
     assert learn.locator("h3").all_text_contents() == heads
     assert learn.locator("li").first.text_content().startswith("Temperature matters most: ")
-    assert learn.locator("details[open] tbody tr").count() == 15, "each run as the model sees it, opened for paper"
+    assert learn.locator("details.diagnostics[open] tbody tr").count() == 15, "each run, opened for paper"
     assert learn.locator(".equation").text_content() == page.text_content("#analysis .equation")
     coefficients = learn.locator("table").first.locator("thead th").all_text_contents()
     assert coefficients == ["Term", "95% low", "Coefficient", "95% high", "Std. error", "p-value", "True value"]

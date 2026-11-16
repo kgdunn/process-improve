@@ -10,11 +10,14 @@
 
 (() => {
   // The tests see the whole of the features page: every point's details are opened once a tab (features.html keeps
-  // that choice under a key of its own), so a test of the switch can clear it and load the page again.
+  // that choice under a key of its own), so a test of the switch can clear it and load the page again. They see the
+  // whole of Learn too: its fold of the model, its tables and each run is open, as a reader who opened it has it
+  // (app.js keeps that choice under factorial-statistician), and a test of the fold closes it first.
   try {
     if (!sessionStorage.getItem("pi-details-seeded")) {
       sessionStorage.setItem("pi-details-seeded", "1");
       localStorage.setItem("factorial-features-details", "open");
+      localStorage.setItem("factorial-statistician", "open");
     }
   } catch {
     /* storage refused: the page's own default */

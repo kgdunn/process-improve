@@ -292,7 +292,7 @@ def test_a_box_behnken_design_with_a_factor_named_i_is_made_analysed_and_drawn(b
     assert status(page)[1] == "ok"
     terms = ["T", "I", "F", "T·I", "T·F", "I·F", "T²", "I²", "F²"]
     assert terms_fitted(page) == sorted(["Intercept", *terms])
-    anova = page.locator("#analysis > .scroll table").last.locator("tbody tr td:first-child").all_text_contents()
+    anova = page.locator("#statistician > .scroll table").last.locator("tbody tr td:first-child").all_text_contents()
     assert anova == [*terms, "Residual"]
     page.wait_for_function("document.querySelectorAll('#charts .js-plotly-plot').length === 4")
     assert "over T and I" in page.locator("#charts figcaption").first.text_content()
@@ -305,7 +305,7 @@ def test_a_blocked_design_shows_each_run_s_block_and_fits_the_blocks(blank_page)
     assert calls(page, "api_make_design")[-1]["payload"]["n_blocks"] == 2
     practise(page)
     assert "Block 1" in [row[0] for row in coefficient_rows(page)]
-    anova = page.locator("#analysis > .scroll table").last.locator("tbody tr td:first-child").all_text_contents()
+    anova = page.locator("#statistician > .scroll table").last.locator("tbody tr td:first-child").all_text_contents()
     assert "Block" in anova
     assert "The blocks are fitted as a fixed effect" in page.text_content("#analysis")
     code = page.text_content("#py-analyse code")
