@@ -292,11 +292,49 @@ export function roundsOf(records, id, digests = new Map()) {
  * (to learn, or a target not typed).
  */
 export function bestResult(responses, info = {}) {
-  const target = info.target === "" || info.target === null || info.target === undefined ? NaN : Number(info.target);
-  const short = { maximize: (v) => -v, minimize: (v) => v, target: (v) => Math.abs(v - target) }[info.goal];
+  const short = shortOf(info);
   const got = (responses ?? []).map((value, run) => ({ value, run })).filter((one) => isFiniteNumber(one.value));
-  if (!short || !got.length || (info.goal === "target" && !Number.isFinite(target))) return null;
+  if (!short || !got.length) return null;
   return got.reduce((best, one) => (short(one.value) < short(best.value) ? one : best));
+}
+
+/** How far a result falls short of a response's goal, as a function of the result: the less, the better. Null for a goal that names no best. */
+function shortOf(info = {}) {
+  const target = info.target === "" || info.target === null || info.target === undefined ? NaN : Number(info.target);
+  if (info.goal === "target") return Number.isFinite(target) ? (v) => Math.abs(v - target) : null;
+  return { maximize: (v) => -v, minimize: (v) => v }[info.goal] ?? null;
+}
+
+/**
+ * Every run of a campaign's rounds that has a result for its round's first response, round by round and each round
+ * in the order its runs were made: ``{ round, run, value, at }``, the run by its place on its round's run sheet.
+ * ``at`` is where the run was made in the two factors of ``pair``, by their names, or null for a round whose run
+ * sheet lacks one of them (or with no pair asked for). A round this browser does not keep has no runs here.
+ */
+export function campaignRuns(rounds, pair = null) {
+  return rounds.flatMap((one) => {
+    if (!one.record) return [];
+    const { columns, rows } = one.record.design;
+    const places = pair ? pair.map((name) => columns.indexOf(name)) : [];
+    const there = (row) => (pair && places.every((place) => place >= 0 && isFiniteNumber(row[place])) ? places.map((place) => row[place]) : null);
+    return one.record.responses
+      .map((value, run) => ({ round: one.round, run, value, at: there(rows[run]) }))
+      .filter((made) => isFiniteNumber(made.value));
+  });
+}
+
+/**
+ * The best result so far after each of some runs, in their order, for a response's goal (see bestResult); null
+ * throughout for a goal that names no best.
+ */
+export function bestSoFar(runs, info = {}) {
+  const short = shortOf(info);
+  let best = null;
+  return runs.map(({ value }) => {
+    if (!short) return null;
+    best = best === null || short(value) < short(best) ? value : best;
+    return best;
+  });
 }
 
 /** The most responses a study measures; mirrors bootstrap.MAX_RESPONSES, as logic.js does. */

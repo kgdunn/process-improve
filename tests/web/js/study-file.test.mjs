@@ -17,6 +17,9 @@ import {
   TARGETS_FORMAT,
   WHAT_IF_FORMAT,
   checkCampaign,
+  bestResult,
+  bestSoFar,
+  campaignRuns,
   packCampaign,
   roundsOf,
   shareable,
@@ -306,6 +309,34 @@ describe("the study file", () => {
     assert.deepEqual([lost[0].title, lost[0].record], ["Study a", null]);
     // Two studies written as each other's parent, by hand: each is listed once.
     assert.equal(roundsOf([study("x", 1, "y"), study("y", 2, "x")], "x").length, 2);
+  });
+
+  test("the runs of a campaign, round by round, and the best result so far for the goal", () => {
+    const sheet = (id, rows, responses) => ({ id, design: { columns: ["Std order", "Run order", "T", "Supplier", "y"], rows }, responses });
+    const rounds = [
+      { round: 1, record: sheet("a", [[1, 1, 150, "A", null], [2, 2, 200, "B", null], [3, 3, 175, "A", null]], [5, null, 9]) },
+      { round: 2, record: null, missing: true }, // named by a link, with no study at hand
+      { round: 2, record: sheet("b", [[1, 1, 225, "A", null], [2, 2, 250, "B", null]], [7, 8]) },
+    ]; // prettier-ignore
+    const runs = campaignRuns(rounds);
+    assert.deepEqual(runs.map((run) => [run.round, run.run, run.value]), [[1, 0, 5], [1, 2, 9], [2, 0, 7], [2, 1, 8]], "a run with no result yet is not one"); // prettier-ignore
+    assert.ok(runs.every((run) => run.at === null), "with no two factors asked for, no place");
+    assert.deepEqual(campaignRuns(rounds, ["T", "Std order"]).map((run) => run.at), [[150, 1], [175, 3], [225, 1], [250, 2]]); // prettier-ignore
+    assert.deepEqual(campaignRuns(rounds, ["T", "Supplier"])[0].at, null, "a factor with levels has no place on an axis");
+    assert.deepEqual(campaignRuns(rounds, ["T", "Flow"])[0].at, null, "nor has a factor the round did not have");
+
+    assert.deepEqual(bestSoFar(runs, { goal: "maximize" }), [5, 9, 9, 9]);
+    assert.deepEqual(bestSoFar(runs, { goal: "minimize" }), [5, 5, 5, 5]);
+    assert.deepEqual(bestSoFar(runs, { goal: "target", target: "7.4" }), [5, 9, 7, 7], "the nearest to the target");
+    assert.deepEqual(bestSoFar(runs, { goal: "target", target: "" }), [null, null, null, null], "a target not typed names no best");
+    assert.deepEqual(bestSoFar(runs, { goal: "learn" }), [null, null, null, null]);
+    assert.deepEqual(bestSoFar([], { goal: "maximize" }), []);
+
+    assert.deepEqual(bestResult([5, null, 9], { goal: "maximize" }), { value: 9, run: 2 });
+    assert.deepEqual(bestResult([5, null, 9], { goal: "minimize" }), { value: 5, run: 0 });
+    assert.deepEqual(bestResult([5, null, 9], { goal: "target", target: 8 }), { value: 9, run: 2 });
+    assert.equal(bestResult([null, null], { goal: "maximize" }), null, "no result yet");
+    assert.equal(bestResult([5], {}), null);
   });
 
   test("an earlier Factorial, of format 7, refuses a study with a target or a window as saved by a later one", async () => {

@@ -42,6 +42,9 @@ import {
   curveFigure,
   mapFigure,
   MAP_MARKS,
+  campaignRunsFigure,
+  campaignMapFigure,
+  CAMPAIGN_MARKS,
   plotPoint,
   fdsFigure,
   markBest,
@@ -876,6 +879,81 @@ test("a report's charts take the light theme's colours, as style.css gives them"
   const start = css.indexOf(":root {");
   const light = css.slice(start, css.indexOf("}", start));
   for (const [name, colour] of Object.entries(LIGHT)) assert.match(light, new RegExp(`--${name}: ${colour};`), name);
+});
+
+describe("a campaign's two charts: every run in order, and every run where it was made", () => {
+  const colours = { ...COLOURS, panel: "#fff" };
+  const words = { label: "Yield", units: "%", goal: "maximize" };
+  // Three rounds: two runs, one run, three runs, each with its place over T and P.
+  const runs = [
+    { round: 1, run: 0, value: 60, at: [150, 1] },
+    { round: 1, run: 2, value: 64, at: [200, 3] },
+    { round: 2, run: 0, value: 63, at: [175, 2] },
+    { round: 3, run: 0, value: 66, at: [225, 2] },
+    { round: 3, run: 1, value: 65, at: [250, 1] },
+    { round: 3, run: 2, value: 69, at: [250, 3] },
+  ];
+  const best = [60, 64, 64, 66, 66, 69];
+
+  test("every run in the order they were made, a mark each, coloured by its round", () => {
+    const { data, layout } = campaignRunsFigure(runs, best, words, colours);
+    const rounds = data.filter((trace) => trace.mode === "markers");
+    assert.deepEqual(rounds.map((trace) => trace.name), ["Round 1", "Round 2", "Round 3"]); // prettier-ignore
+    assert.deepEqual(rounds.map((trace) => trace.x), [[1, 2], [3], [4, 5, 6]], "counted through the campaign"); // prettier-ignore
+    assert.deepEqual(rounds.map((trace) => trace.y), [[60, 64], [63], [66, 65, 69]]); // prettier-ignore
+    assert.deepEqual(rounds[0].customdata, [1, 3], "each mark knows its run of its own round");
+    assert.equal(new Set(rounds.map((trace) => trace.marker.color)).size, 3, "a colour a round");
+    assert.equal(rounds[0].hovertemplate, "Round 1, run %{customdata}<br>Yield: %{y:.4g} %<extra></extra>");
+    assert.deepEqual([layout.xaxis.range, layout.yaxis.title.text], [[0.5, 6.5], "Yield (%)"]);
+    assert.equal(campaignRunsFigure(runs.slice(0, 2), best.slice(0, 2), words, colours).data.filter((trace) => trace.mode === "markers").length, 1, "one round is one colour");
+  });
+
+  test("the best result so far is a stepped line, and a target a level one", () => {
+    const { data } = campaignRunsFigure(runs, best, words, colours);
+    const line = data.find((trace) => trace.name === CAMPAIGN_MARKS.best);
+    assert.deepEqual([line.x, line.y, line.line.shape], [[1, 2, 3, 4, 5, 6], best, "hv"]);
+    assert.ok(!data.some((trace) => trace.name === CAMPAIGN_MARKS.target), "no target to draw when the goal is the highest");
+    const none = campaignRunsFigure(runs, runs.map(() => null), { ...words, goal: "" }, colours).data; // prettier-ignore
+    assert.ok(!none.some((trace) => trace.name === CAMPAIGN_MARKS.best), "a goal that names no best draws no line of it");
+    const aimed = campaignRunsFigure(runs, best, { ...words, goal: "target", target: "65" }, colours).data;
+    const target = aimed.find((trace) => trace.name === CAMPAIGN_MARKS.target);
+    assert.deepEqual([target.x, target.y, target.line.dash], [[0.5, 6.5], [65, 65], "dash"]);
+    assert.ok(!campaignRunsFigure(runs, best, { ...words, goal: "target", target: "" }, colours).data.some((trace) => trace.name === CAMPAIGN_MARKS.target), "a target not typed is no line"); // prettier-ignore
+  });
+
+  const surface = (x, y, level) => ({ x, y, z: y.map((_, j) => x.map((_, i) => level + i + j)) });
+  const axes = [{ name: "T", units: "degC" }, { name: "P", units: "bar" }]; // prettier-ignore
+  const drawn = (count) =>
+    [
+      { round: 1, x: [150, 200], y: [1, 3], surface: surface([150, 175, 200], [1, 2, 3], 60) },
+      { round: 2, x: [175], y: [2], surface: surface([175, 200, 225], [1.5, 2, 2.5], 63) },
+      { round: 3, x: [225, 250, 250], y: [2, 1, 3], surface: null }, // its results are not all in: runs, and no model yet
+      { round: 4, x: [240], y: [2], surface: surface([230, 250, 270], [1, 2, 3], 66) },
+    ].slice(0, count);
+
+  for (const count of [1, 2, 4]) {
+    test(`the map of ${count} round${count === 1 ? "" : "s"}: each model inside its own ranges, and every run`, () => {
+      const rounds = drawn(count);
+      const { data, layout } = campaignMapFigure(rounds, { label: "Yield", units: "%", axes }, colours);
+      const surfaces = data.filter((trace) => trace.type === "contour");
+      const modelled = rounds.filter((one) => one.surface);
+      assert.equal(surfaces.length, modelled.length, "a model for each round that has one");
+      for (const [i, one] of modelled.entries()) {
+        // A round's model is drawn over that round's own ranges and nowhere else: the trace holds no other point.
+        assert.deepEqual([surfaces[i].x, surfaces[i].y, surfaces[i].z], [one.surface.x, one.surface.y, one.surface.z]);
+        assert.equal(surfaces[i].meta.round, one.round);
+        const box = layout.shapes[i];
+        assert.deepEqual([box.x0, box.x1, box.y0, box.y1], [one.surface.x[0], one.surface.x.at(-1), one.surface.y[0], one.surface.y.at(-1)]);
+      }
+      assert.equal(new Set(surfaces.map((trace) => `${trace.zmin}:${trace.zmax}`)).size, 1, "one scale of colour for every round");
+      assert.equal(surfaces.filter((trace) => trace.showscale).length, 1, "and one key to it");
+      const marks = data.filter((trace) => trace.type === "scatter");
+      assert.deepEqual(marks.map((trace) => trace.name), rounds.map((one) => `Round ${one.round}`)); // prettier-ignore
+      assert.deepEqual(marks.map((trace) => [trace.x, trace.y]), rounds.map((one) => [one.x, one.y])); // prettier-ignore
+      assert.deepEqual([layout.xaxis.title.text, layout.yaxis.title.text], ["T (degC)", "P (bar)"]);
+      assert.equal(layout.xaxis.range, undefined, "the axes reach as far as the rounds do");
+    });
+  }
 });
 
 describe("the what-if map: a response over two factors, where the dials are", () => {
