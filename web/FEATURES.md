@@ -412,7 +412,12 @@ Also:
 Nine charts come with the analysis. Eight more are one press away, under More charts.
 
 - **Coefficients.** How large each effect is, and how sure. Every fit has it, and it switches
-  to the book's Pareto plot. [Show me](https://factori.al/?example=worked&show=charts)
+  to the book's Pareto plot, and to the effects in the response's own units.
+  [Show me](https://factori.al/?example=worked&show=charts)
+  - *Details:* The view "Effects" draws how far each term moves the response over the
+    ranges: twice a coefficient, or the coefficient of a square. A band marks changes smaller
+    than the one you said is worth finding, so an effect can be seen to be real and still too
+    small to matter. A fit on a transform's scale, and a mixture, have no such view.
   ![](chart-pictures/coefficients.webp)
 - **The runs at each level.** The results at each level, side by side, for a study of one
   factor.
@@ -483,7 +488,7 @@ Also:
   do the other figures.
   - *Details:* The library's own call for the eleven charts the library draws, and Plotly's
     for the six the page draws itself. The other figures with code are the Pareto plot of the
-    coefficients, how tightly to hold each factor, the overlay of the acceptable ranges, the
+    coefficients and their effects, how tightly to hold each factor, the overlay of the acceptable ranges, the
     what-if curve, the FDS plot and the correlation maps. A mixture's triangle overlay and its
     components' moves show none yet.
 - **One run, marked everywhere.** Rest on a run on a chart or in a table and it is ringed on
