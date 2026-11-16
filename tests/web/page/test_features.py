@@ -425,7 +425,8 @@ def test_the_document_is_published_with_the_page_that_shows_it(build_script, nod
     assert shows <= set(APP_SOURCES)
     html = source("features.html")
     assert 'import { addressOf, page, shownPart } from "./features.js";' in html
-    assert 'import { LEVEL_KEY, readLevel } from "./levels.js";' in html, "the app's own reading level"
+    assert "levels.js" not in html, "the page keeps its own choice, and reads nothing of the app's reading level"
+    assert 'const DETAILS_KEY = "factorial-features-details";' in html
     assert 'fetch("FEATURES.md"' in html
     (mark,) = javascript(node, source("features.js"), [("SHOWN_FROM", [])])
     assert FEATURES.count(mark) == 1, "the line after which the page shows the document"

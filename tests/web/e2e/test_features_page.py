@@ -3,8 +3,8 @@
 The page shows ``web/FEATURES.md``, the document the app is described from, read in the browser: one text, so the
 page cannot say what the document does not. It shows it for a reader of the app: the headline points as cards, each
 part folded under a line that says what it holds, each point in plain words with its details a press away, a box
-that finds a word, and the app's own reading level. The footer is the way to it: what Factorial is in a sentence, a
-button to the page, and its links in groups, each under a line that names it.
+that finds a word, and a switch that opens every point's details. The footer is the way to it: what Factorial is in a
+sentence, a button to the page, and its links in groups, each under a line that names it.
 """
 
 from __future__ import annotations
@@ -32,10 +32,13 @@ SEEN = """() => { const all = (s) => [...document.querySelectorAll(s)];
     points: all('.feat-body li, .feat-body tbody tr').filter(drawn).length,
     asks: all('details.more > summary').filter(drawn).length,
     details: all('details.more > p').filter(drawn).length,
-    found: document.querySelector('#found').textContent, says: document.querySelector('#level-says').textContent,
-    level: document.documentElement.dataset.level }; }"""
+    found: document.querySelector('#found').textContent, says: document.querySelector('#details-says').textContent,
+    switched: document.querySelector('#details').checked }; }"""
 
-#: Where the app, the concept map and this page keep the reading level (levels.js).
+#: Where the page keeps whether every point's details are open: a key of its own, apart from the app's.
+DETAILS_KEY = "factorial-features-details"
+
+#: Where the app and the concept map keep their reading level, which this page leaves alone.
 LEVEL_KEY = "factorial-map-level"
 
 PHONE = {"viewport": {"width": 390, "height": 844}, "is_mobile": True}
@@ -97,8 +100,8 @@ def test_on_a_phone_the_footer_and_the_list_fit_the_screen(page, context, site):
     assert overflowing(listed) == [], "with every part and every line of details open too"
     tables = listed.locator("#features .scroll table")
     assert tables.count() == 2, "the limits and the library's designs, each in a box that scrolls if it must"
-    level = listed.locator("#level label").evaluate_all("(labels) => labels.map((l) => l.getBoundingClientRect().top)")
-    assert len(set(level)) == 1, "the three levels on one line"
+    switch = listed.locator(".feat-details").bounding_box()
+    assert switch["height"] >= 44, "the switch is a row a finger can press"
 
 
 # --------------------------------------------------------------------------- the page
@@ -146,15 +149,15 @@ def test_an_address_opens_at_its_part_and_one_from_when_the_parts_were_numbered_
     assert "more-at-factorial" in old.evaluate(SEEN)["open"]
 
 
-def test_the_reading_level_sets_the_details_and_is_the_app_s_own(context, site):
+def test_a_switch_opens_every_point_s_details_and_the_choice_is_the_page_s_own(context, site):
     page = features(context, site)
-    page.evaluate(f"localStorage.removeItem('{LEVEL_KEY}')")  # as on a first visit: the other tests run at the highest
+    page.evaluate(f"localStorage.removeItem('{DETAILS_KEY}')")  # as on a first visit: other tests have them open
     page.reload()
     page.wait_for_function(SHOWN)
+    level = page.evaluate(f"() => localStorage.getItem('{LEVEL_KEY}')")  # as the harness left it for the app
     page.click("#your-data-and-your-trust")
     first = page.evaluate(SEEN)
-    assert first["level"] == "2", "a first visit is at Intermediate, as the app's is"
-    assert page.is_checked("#level input[value='2']")
+    assert first["switched"] is False, "a first visit has the details closed"
     assert first["asks"] > 8, "each point's details are a press away"
     assert first["details"] == 0, "and none is open"
     assert first["says"] == "Each point in plain words. Press Details under a point for the rest."
@@ -163,28 +166,29 @@ def test_the_reading_level_sets_the_details_and_is_the_app_s_own(context, site):
     said = page.text_content(".feat-part[open] details.more[open] p")
     assert "no cookies and no tracking script" in said, "what only some readers ask is there for those who do"
 
-    page.click("#level >> text=Beginner")
-    plain = page.evaluate(SEEN)
-    assert (plain["level"], plain["asks"], plain["details"]) == ("1", 0, 0), "plain words alone"
-    assert plain["points"] == first["points"], "and no point is left out"
-    assert "stay in your browser" in page.text_content(".feat-part[open] .feat-body")
-    assert page.evaluate(f"() => localStorage.getItem('{LEVEL_KEY}')") == "1", "kept where the app keeps its level"
-
-    page.click("#level >> text=Adventurous")
+    page.check("#details")
     full = page.evaluate(SEEN)
-    assert full["level"] == "3"
     assert full["details"] == full["asks"] == first["asks"], "every line of details is open"
+    assert full["points"] == first["points"], "and the points are the same"
+    assert full["says"] == "Each point in plain words, with its details open."
+    assert page.evaluate(f"() => localStorage.getItem('{DETAILS_KEY}')") == "open"
     page.reload()
     page.wait_for_function(SHOWN)
-    assert page.is_checked("#level input[value='3']"), "a reload keeps the level"
-    app = context.new_page()
-    app.goto(site)
-    assert app.evaluate("() => document.documentElement.dataset.level") == "3", "and the app opens at it"
+    assert page.is_checked("#details"), "a reload keeps the choice"
+    page.click("#your-data-and-your-trust")
+    assert page.evaluate(SEEN)["details"] == first["asks"]
+
+    page.uncheck("#details")
+    closed = page.evaluate(SEEN)
+    assert (closed["asks"], closed["details"]) == (first["asks"], 0), "closed again, and still a press away"
+    assert page.evaluate(f"() => localStorage.getItem('{DETAILS_KEY}')") is None
+    assert page.evaluate(f"() => localStorage.getItem('{LEVEL_KEY}')") == level, "the app's level is not the page's"
+    assert page.evaluate("() => document.documentElement.dataset.level") is None, "and the page is drawn at no level"
 
 
 def test_the_box_finds_a_word_and_shows_what_mentions_it_alone(context, site):
     page = features(context, site)
-    page.click("#level >> text=Beginner")  # the level at which a line of details is not shown
+    page.uncheck("#details")  # closed, so that only the search opens a line of details
     before = page.evaluate(SEEN)
     page.fill("#find", "box-cox")
     found = page.evaluate(SEEN)
@@ -192,7 +196,7 @@ def test_the_box_finds_a_word_and_shows_what_mentions_it_alone(context, site):
     assert found["parts"] == found["open"] == ["understand-the-results"], "its part alone, opened"
     assert found["steps"] == ["Learn"]
     assert (found["cards"], found["points"]) == (0, 1)
-    assert found["details"] == 1, "the word is in the point's details, so they are shown, at any level"
+    assert found["details"] == 1, "the word is in the point's details, so they are opened to show it"
     assert "Box-Cox" in page.text_content(".feat-part[open] details.more[open] p")
     assert page.locator(".feat-part[open] h4").evaluate_all("(h) => h.filter((e) => e.checkVisibility()).length") == 1
 
@@ -358,5 +362,5 @@ def test_a_list_that_cannot_be_read_says_so(context, site, console):
     page.wait_for_function(SHOWN)
     assert page.text_content("#features .error").startswith("The list could not be read.")
     assert page.is_hidden("#find"), "with no list there is nothing to find a word in"
-    assert page.is_hidden("#level")
+    assert page.is_hidden("#details")
     assert page.locator("main a[href$='web/FEATURES.md']").count() == 1, "the document, in the repository"
