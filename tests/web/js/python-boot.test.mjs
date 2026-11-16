@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { describe, test } from "node:test";
 
-import { answer, installExact, onDemand, oneLine, provider } from "../../../web/python-boot.js";
+import { ASK_AGAIN, answer, installExact, loadWhole, onDemand, oneLine, provider } from "../../../web/python-boot.js";
 
 const RUNTIME = JSON.parse(fs.readFileSync(new URL("../../../web/runtime.json", import.meta.url), "utf8"));
 
@@ -172,6 +172,68 @@ describe("what the build resolved to exact files", () => {
     const { pyodide, asked } = standIn();
     await assert.rejects(installExact(pyodide, { packages: ["polars"], wheels: [] }), /lock file has no package polars/);
     assert.deepEqual(asked, []);
+  });
+});
+
+describe("the packages the start names, when the CDN refuses one", () => {
+  /** A release that loads a package only once it has been asked for more than `refusals` times. */
+  function unsteady(refusals) {
+    const { pyodide, asked } = standIn();
+    const tries = {};
+    pyodide.loadPackage = async (names) => {
+      asked.push(["from the release", names]);
+      for (const name of names) {
+        tries[name] = (tries[name] ?? 0) + 1;
+        if (tries[name] > (refusals[name] ?? 0)) pyodide.loadedPackages[name] = "default channel";
+      }
+    };
+    return { pyodide, asked };
+  }
+  /** What the start itself did: it asked for each package once, as Pyodide does unasked. */
+  const started = async (pyodide, packages) => pyodide.loadPackage(["numpy", "patsy", "packaging", "statsmodels"].filter((name) => packages.includes(name) || name !== "statsmodels"));
+  const quick = (said = [], waited = []) => [(status) => said.push(status), { pause: async (ms) => waited.push(ms) }];
+
+  test("with every package in, nothing more is asked, said or waited for", async () => {
+    const { pyodide, asked } = unsteady({});
+    await started(pyodide, ["statsmodels"]);
+    const [said, waited] = [[], []];
+    await loadWhole(pyodide, ["statsmodels"], ...quick(said, waited));
+    assert.equal(asked.length, 1, "the start's own asking alone");
+    assert.deepEqual([said, waited], [[], []]);
+  });
+
+  test("a package that did not arrive is asked for again, alone, after a wait, and the start goes on", async () => {
+    const { pyodide, asked } = unsteady({ patsy: 1 });
+    await started(pyodide, ["statsmodels"]);
+    assert.ok(pyodide.loadedPackages.statsmodels && !pyodide.loadedPackages.patsy, "Pyodide loads what needs it all the same");
+    const [said, waited] = [[], []];
+    await loadWhole(pyodide, ["statsmodels"], ...quick(said, waited));
+    assert.deepEqual(asked.at(-1), ["from the release", ["patsy"]], "what a named package depends on is checked too");
+    assert.deepEqual(waited, [ASK_AGAIN[0]]);
+    assert.deepEqual(said, ["Some of Python's packages did not arrive. Asking for them again..."]);
+    assert.ok(pyodide.loadedPackages.patsy);
+  });
+
+  test("it asks as often as there are waits, each time for what is still missing", async () => {
+    const { pyodide, asked } = unsteady({ numpy: 3, patsy: 2 });
+    await started(pyodide, ["statsmodels"]);
+    const waited = [];
+    await loadWhole(pyodide, ["statsmodels"], ...quick([], waited));
+    assert.deepEqual(asked.slice(1).map(([, names]) => names), [["numpy", "patsy"], ["numpy", "patsy"], ["numpy"]]); // prettier-ignore
+    assert.deepEqual(waited, ASK_AGAIN.slice(0, 3));
+    assert.ok(pyodide.loadedPackages.numpy);
+  });
+
+  test("a package that never arrives fails the start, which names it", async () => {
+    const { pyodide, asked } = unsteady({ numpy: 99 });
+    await started(pyodide, ["statsmodels"]);
+    await assert.rejects(loadWhole(pyodide, ["statsmodels"], ...quick()), /^Error: numpy could not be loaded from the Pyodide release$/);
+    assert.equal(asked.length, 1 + ASK_AGAIN.length);
+  });
+
+  test("the waits grow, and come to under a quarter of a minute", () => {
+    assert.deepEqual(ASK_AGAIN, [...ASK_AGAIN].sort((a, b) => a - b));
+    assert.ok(ASK_AGAIN.reduce((sum, ms) => sum + ms, 0) < 15_000);
   });
 });
 

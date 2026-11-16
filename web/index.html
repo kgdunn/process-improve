@@ -589,10 +589,13 @@
         <div id="answer" class="answer" hidden>
           <p id="answer-run" class="answer__run"></p>
           <p id="answer-expect"></p>
-          <p id="answer-caution" class="answer__caution" hidden></p>
           <p class="actions"><button type="button" id="answer-more" class="link">How sure this is, and how tightly to
             hold each setting</button></p>
         </div>
+        <!-- Whether to rely on the answer (app.js renderChecks, best.js learnChecks): the fit, the runs one by one,
+             the repeated runs, and the reach of the runs. Each opens to a sentence and its statistic; one to look
+             at is open already. -->
+        <div id="checks" class="checks" role="group" aria-label="Checks of the answer" hidden></div>
         <div class="row">
           <label>Model
             <select id="model">
