@@ -4615,7 +4615,7 @@ function homeTerms() {
 
 /** The model changed with no analysis on show: the terms above it follow. In an analysis's fold, its next one shows them. */
 function showTerms() {
-  if (!TERMS.box.closest("#statistician")) homeTerms();
+  if (!TERMS.box.closest("details.statistician")) homeTerms();
 }
 
 /**
