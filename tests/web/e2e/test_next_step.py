@@ -11,6 +11,8 @@ the end of the run sheet; the runs before keep their results.
 
 from __future__ import annotations
 
+import pytest
+
 from tests.web._support import FACTORS
 from tests.web.e2e._page import (
     calls,
@@ -301,6 +303,79 @@ def test_each_move_states_its_price_in_runs_beside_the_runs_the_study_has(blank_
     again = [price(page, f'.offer[data-kind="{kind}"]') for kind in offered(page)]
     assert all(said.endswith(" in this study.") and " more run" in said for said in again)
     assert all(int(said.split(": ")[1].split(" ")[0]) > 11 for said in again), "counted from the 11 runs it has now"
+
+
+def test_a_move_shows_its_runs_before_they_are_made_each_with_what_it_is_for(blank_page):
+    """Under a move's price: its runs in a table, and a picture of where they sit among the runs made."""
+    page = blank_page
+    generate(page, design_type="full_factorial", n_center_points=0)
+    enter_results(page, {i: 50 + i for i in range(8)})
+    settled(page)
+    reveal(page, "#next")
+    fold = page.locator('#next-out .offer[data-kind="center"] details.next__runs')
+    assert fold.locator("summary").text_content() == "See these 3 runs before they are made"
+    fold.locator("summary").click()
+    assert headers(page, '#next-out .offer[data-kind="center"] .next__runs table') == ["T", "P", "F", "What it is for"]
+    rows = fold.locator("tbody tr")
+    assert rows.count() == 3
+    assert rows.first.locator("td").all_text_contents() == [
+        "175 degC",
+        "2 bar",
+        "15 L/min",
+        "At the center of the ranges: it shows curvature, and how much runs differ.",
+    ]
+    picture = fold.locator("svg.space")
+    assert picture.locator(".space__edge").count() == 12, "a cube for three factors"
+    assert picture.locator(".space__run").count() == 8, "the corners the runs took"
+    assert picture.locator(".space__new").count() == 1, "three runs at one setting are one point"
+    middle = picture.evaluate(
+        """(svg) => {
+          const box = (one) => one.getBoundingClientRect();
+          const corners = [...svg.querySelectorAll('.space__run')].map(box);
+          const added = box(svg.querySelector('.space__new'));
+          const mean = (side, size) => corners.reduce((sum, one) => sum + one[side] + one[size] / 2, 0) / corners.length;
+          const off = (side, size) => Math.abs(added[side] + added[size] / 2 - mean(side, size));
+          return [off('left', 'width'), off('top', 'height')];
+        }"""
+    )
+    assert max(middle) < 1.5, "the center run is drawn at the middle of the cube"
+    assert picture.get_attribute("aria-label").startswith("Where these runs sit among the runs made, over T, P and F")
+    assert len(run_sheet(page)) == 8, "nothing is added by looking"
+
+
+def test_two_factors_are_drawn_as_a_square_and_a_factor_with_levels_has_no_picture(blank_page):
+    page = blank_page
+    set_factors(page, FACTORS[:2])
+    generate(page, design_type="full_factorial", n_center_points=0)
+    enter_results(page, {i: 50 + i for i in range(4)})
+    settled(page)
+    reveal(page, "#next")
+    fold = page.locator('#next-out .offer[data-kind="center"] details.next__runs')
+    fold.locator("summary").click()
+    assert fold.locator("svg.space .space__edge").count() == 4, "a square for two factors"
+    assert fold.locator("svg.space .space__run").count() == 4
+
+    supplier = {"name": "Supplier", "low": "A", "high": "B", "units": "", "type": "categorical"}
+    set_factors(page, [*FACTORS[:2], supplier])
+    generate(page, design_type="full_factorial", n_center_points=0)
+    enter_results(page, {i: 50 + i for i in range(8)})
+    settled(page)
+    reveal(page, "#next")
+    folds = page.locator("#next-out details.next__runs")
+    assert folds.count() >= 1
+    assert page.locator("#next-out svg.space").count() == 0, "a factor with levels has no place on an axis"
+    assert folds.first.locator("table").count() == 1, "the runs are still listed"
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
+def test_on_a_phone_a_move_s_runs_fit_the_screen(blank_page):
+    page = blank_page
+    generate(page, design_type="full_factorial", n_center_points=0)
+    enter_results(page, {i: 50 + i for i in range(8)})
+    settled(page)
+    reveal(page, "#next")
+    page.locator('#next-out .offer[data-kind="center"] details.next__runs summary').click()
+    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
 
 
 def test_a_new_study_s_runs_are_counted_apart(page):

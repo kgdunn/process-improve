@@ -292,6 +292,7 @@ import {
   screeningSentence,
   screensOnly,
   showsVif,
+  spacePoints,
   splitResults,
   spreadSentences,
   standouts,
@@ -3297,7 +3298,7 @@ async function downloadNotebook() {
 const REPORT_STEPS = ["design", "run", "analyse", "best", "balance"];
 
 /** What a report's copy of the page leaves out: what is there to use the page, and what the page hides. */
-const NOT_REPORTED = "[hidden], button:not(.term), input, select, textarea, details.python, .actions, .kept__do, .rounds__open, figure.chart, .simplify, .findings__more";
+const NOT_REPORTED = "[hidden], button:not(.term), input, select, textarea, details.python, .actions, .kept__do, .rounds__open, figure.chart, .simplify, .findings__more, svg.space";
 
 /**
  * The attributes a report's copy keeps: those that say how a cell spans, where a link goes, how a part looks, and
@@ -3987,6 +3988,58 @@ function sparkOf(lines, reach, words) {
   };
   draw([[-1, 0], [1, 0]], "spark__base");
   lines.forEach((points, i) => draw(points, i ? "spark__line spark__line--other" : "spark__line"));
+  return svg;
+}
+
+/** An element of a drawing, with its attributes. */
+function svgEl(tag, attributes = {}) {
+  const made = document.createElementNS(SVG, tag);
+  for (const [name, value] of Object.entries(attributes)) made.setAttribute(name, value);
+  return made;
+}
+
+/**
+ * A picture of the space two or three numeric factors span, as a square, or a cube seen from above its front corner:
+ * the settings the runs took as rings (``made``) and those of runs not yet made as filled points (``planned``), each
+ * a point of logic.js's spacePoints. Each factor runs along an edge, from the low end of its range to the high.
+ * ``words`` say the picture to a reader who does not see it.
+ */
+function spaceOf(made, planned, factors, words) {
+  const cube = factors.length === 3;
+  const at = cube ? ([t, p, f]) => [85 + 38 * t - 22 * p, 80 + 8 * t + 16 * p - 36 * f] : ([t, p]) => [85 + 52 * t, 80 - 52 * p];
+  const ends = [-1, 1];
+  const corners = cube ? ends.flatMap((t) => ends.flatMap((p) => ends.map((f) => [t, p, f]))) : ends.flatMap((t) => ends.map((p) => [t, p]));
+  const svg = svgEl("svg", { class: "space", viewBox: "0 0 170 170", role: "img", "aria-label": words });
+  corners.forEach((from, i) => {
+    for (const to of corners.slice(i + 1)) {
+      if (from.filter((level, k) => level !== to[k]).length !== 1) continue; // an edge joins corners one factor apart
+      const [[x1, y1], [x2, y2]] = [at(from), at(to)];
+      const behind = cube && [from, to].some((corner) => corner.every((level) => level === -1)); // the corner the cube hides
+      svg.append(svgEl("line", { class: behind ? "space__edge space__edge--back" : "space__edge", x1, y1, x2, y2 }));
+    }
+  });
+  const draw = (cls, r) => (levels) => {
+    const [cx, cy] = at(levels);
+    svg.append(svgEl("circle", { class: cls, cx: cx.toFixed(1), cy: cy.toFixed(1), r }));
+  };
+  made.forEach(draw("space__run", 3));
+  planned.forEach(draw("space__new", 4.5));
+  const short = (f) => (f.name.length > 16 ? `${f.name.slice(0, 15)}\u2026` : f.name);
+  const labels = cube
+    ? [
+        ["translate(38 146) rotate(12)", "start", `${short(factors[0])} \u2192`],
+        ["translate(112 148) rotate(-36)", "start", `\u2190 ${short(factors[1])}`],
+        ["translate(15 112) rotate(-90)", "start", `${short(factors[2])} \u2192`],
+      ]
+    : [
+        ["translate(85 152)", "middle", `${short(factors[0])} \u2192`],
+        ["translate(20 80) rotate(-90)", "middle", `${short(factors[1])} \u2192`],
+      ];
+  for (const [transform, anchor, text] of labels) {
+    const label = svgEl("text", { class: "space__label", transform, "text-anchor": anchor, "aria-hidden": "true" });
+    label.textContent = text;
+    svg.append(label);
+  }
   return svg;
 }
 
@@ -7292,11 +7345,32 @@ function addedRuns(next, others = false) {
     const add = el("button", "button", offer.label);
     add.type = "button";
     add.onclick = () => addRuns(offer.kind);
-    box.append(said("", `${offer.why}${blocked}`), priced(offer.runs), add);
+    box.append(said("", `${offer.why}${blocked}`), priced(offer.runs), ...offerRuns(offer), add);
     step.append(box);
   }
   step.append(...noteList(next.notes));
   return [step];
+}
+
+/**
+ * A move's runs before they are made, folded under its price: each run's settings and what the run is for, and, for
+ * a study of two or three numeric factors, where the runs sit among the runs made (spaceOf). Nothing is added by
+ * looking.
+ */
+function offerRuns(offer) {
+  if (!offer.added?.length) return [];
+  const design = state.design;
+  const factors = design.spec.factors;
+  const fold = el("details", "next__runs", "");
+  fold.append(el("summary", "", `See these ${offer.added.length} runs before they are made`));
+  if ([2, 3].includes(factors.length) && !factors.some(isCategorical)) {
+    const sheet = design.rows.map((row) => Object.fromEntries(design.columns.map((name, j) => [name, Number(row[j])])));
+    const words = `Where these runs sit among the runs made, over ${listNames(factors.map((f) => f.name))}: a filled point is a run to add.`;
+    fold.append(spaceOf(spacePoints(sheet, factors), spacePoints(offer.added, factors), factors, words));
+  }
+  const rows = offer.added.map((run, i) => [...factors.map((f) => stepSetting(f, run[f.name])), offer.reasons?.[i] ?? ""]);
+  fold.append(table([...factors.map((f) => f.name), "What it is for"], rows));
+  return [fold];
 }
 
 /**

@@ -10289,7 +10289,7 @@ EXTENSIONS: dict[str, dict[str, Any]] = {
     "replicate": {"augmentation": "replicate", "blocked": True, "name": "The runs made again"},
 }
 
-#: What each run a move adds is for, by the move's kind; an axial move's runs are of two sorts (see :func:`_run_reasons`).
+#: What each run a move adds is for, by the move's kind. An axial move's runs are of two sorts: see _run_reasons.
 RUN_REASONS = {
     "foldover": "A run made before, with every setting switched to its other end.",
     "center": "At the center of the ranges: it shows curvature, and how much runs differ.",

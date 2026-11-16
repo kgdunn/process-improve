@@ -611,6 +611,11 @@ Also:
   - *Details:* There is no budget to set against a price: what a campaign may spend is often
     decided a round at a time. A new study's runs are counted on their own. A round that is
     not in this browser is not counted, and the app says so.
+- **See a move's runs before you make them.** Under its price, each way of adding runs
+  lists the runs it would add, each with its settings and what that run is for.
+  - *Details:* With two or three numeric factors the runs are also drawn on a square or a
+    cube: a ring for each setting already run, a filled point for each run to add. Nothing
+    is added by looking.
 - **A campaign of rounds.** A study started from another is the next round of its campaign.
   Next lists the rounds: each one's runs, its best result so far, and a button that opens it.
   - *Details:* The link between two rounds goes with the study through its file, its link and

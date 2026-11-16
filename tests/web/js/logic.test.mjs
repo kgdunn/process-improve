@@ -167,6 +167,8 @@ import {
   dayWords,
   shortCommit,
   versionText,
+  codedLevel,
+  spacePoints,
 } from "../../../web/logic.js";
 
 describe("the version of the app", () => {
@@ -1925,5 +1927,27 @@ describe("the question in one line", () => {
     const line = questionLine("Yield", many);
     assert.ok(line.includes("x6 0 to 1 and 3 more"), line);
     assert.ok(!line.includes("x7"), line);
+  });
+});
+
+describe("runs as points of the space their factors span", () => {
+  const T = { name: "T", low: 150, high: 200 };
+  const P = { name: "P", low: 1, high: 3 };
+
+  test("a factor's value is coded from the low end of its range to the high", () => {
+    assert.equal(codedLevel(150, T), -1);
+    assert.equal(codedLevel(175, T), 0);
+    assert.equal(codedLevel(200, T), 1);
+    assert.equal(codedLevel(225, T), 2, "a setting past the range is past the corner");
+    assert.equal(codedLevel("2", P), 0, "a number typed as text is still a number");
+  });
+
+  test("each setting the runs took is one point, however often they took it", () => {
+    const runs = [{ T: 150, P: 1 }, { T: 200, P: 3 }, { T: 150, P: 1 }, { T: 175, P: 2 }];
+    assert.deepEqual(spacePoints(runs, [T, P]), [[-1, -1], [1, 1], [0, 0]]);
+  });
+
+  test("a run with no number for a factor is left out", () => {
+    assert.deepEqual(spacePoints([{ T: 150 }, { T: 200, P: NaN }, { T: 200, P: 3 }], [T, P]), [[1, 1]]);
   });
 });
