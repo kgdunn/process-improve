@@ -72,8 +72,15 @@ def test_next_is_the_fourth_stage_and_holds_what_the_results_call_for(page):
     assert re.sub(r"\s+", " ", tabs.last.text_content()).strip() == "4 Next"
     assert page.locator("#step-analyse #next").count() == 0, "the next step has left Learn"
     assert page.text_content("#learn-to-next") == "Next: what the results call for"
+    colour = "(one) => getComputedStyle(one).{}"
+    red = page.locator("#go-next .step").evaluate(colour.format("backgroundColor"))
+    assert red not in tabs.locator(".step").evaluate_all(
+        "(all) => all.slice(0, 3).map((one) => getComputedStyle(one).backgroundColor)"
+    )
+    assert page.locator("#learn-to-next").evaluate(colour.format("backgroundColor")) == red, "it wears Next's colour"
     page.click("#learn-to-next")
     assert page.get_attribute("#workspace", "data-phase") == "next"
+    assert page.locator("#step-next").evaluate(colour.format("borderTopColor")) == red, "as the stage it leads to does"
     assert page.get_attribute("#go-next", "aria-selected") == "true"
     assert page.is_visible("#step-next #next")
     assert page.text_content("#h-next-stage") == "What comes next"
