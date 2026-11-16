@@ -713,7 +713,10 @@ function showPhase(phase) {
     tab.tabIndex = on ? 0 : -1;
     $(pane).hidden = !on;
   }
-  if (phase !== "plan") cancelCandidates();
+  if (phase !== "plan") {
+    cancelCandidates();
+    $("#welcome").hidden = true; // a first look is over once the reader has left the question
+  }
   // The top of the workspace in view, under the study bar, when the phase starts above the window's top.
   const top = $("#workspace").getBoundingClientRect().top - $("#studybar").offsetHeight - 8;
   if (top < 0) window.scrollBy({ top, behavior: "instant" });
@@ -3609,6 +3612,12 @@ function scheduleAnalysis() {
 /** What Learn says while there is nothing to analyse. */
 const NOTHING_TO_LEARN = "No results yet: enter them in Run, or practise with simulated ones.";
 
+/** What Learn says of results that wait for Python to start: a study opened with its results is such a one. */
+const RESULTS_WAITING = "Your results are in. Their analysis follows once Python has started.";
+
+/** What Learn says with no analysis on show: that no result is in yet, or, before Python has started, that those in wait for it. */
+const learnEmpty = () => (!pythonReady && anyResult(state.results) ? RESULTS_WAITING : NOTHING_TO_LEARN);
+
 /** Take the analysis away: its runs or their results are gone. A reply still on its way is dropped. */
 function clearAnalysis() {
   ticket += 1;
@@ -3619,7 +3628,7 @@ function clearAnalysis() {
   $("#py-analyse").hidden = true;
   $("#charts").hidden = true;
   $("#charts").replaceChildren();
-  $("#analyse-empty").textContent = NOTHING_TO_LEARN;
+  $("#analyse-empty").textContent = learnEmpty();
   $("#analyse-empty").hidden = false;
   $("#to-learn").hidden = true;
   $("#learn-report").hidden = true;
@@ -7901,8 +7910,8 @@ async function start() {
   // Factorial is and offers the other ways in. A link that could not be opened has said so, in place of the welcome.
   showPhase("plan");
   if ($("#campaign-banner").textContent) return;
+  // The welcome has the first screen, and the keyboard starts at the top of it: the question is one press away.
   $("#welcome").hidden = false;
-  toFirstQuestion();
 }
 
 /** Put the keyboard at a blank question's first box, what the study measures. Not on a touch screen, where it would open the keys. */
@@ -8513,7 +8522,12 @@ $("#open-library").onclick = openLibrary;
 $("#answer-more").onclick = () => showPart("best");
 $("#menu-share").onclick = () => showPart("download");
 $("#menu-report").onclick = viewReport;
-// The welcome of a first visit offers the other ways in, by the menu's own buttons.
+// The welcome of a first visit leads to the blank question under it, and offers the other ways in by the menu's own
+// buttons.
+$("#welcome-start").onclick = () => {
+  $("#welcome").hidden = true;
+  $("#response").focus(); // on a touch screen too: the reader asked to start, and the first box is where
+};
 $("#welcome-example").onclick = () => $("#show-example").click();
 $("#welcome-import").onclick = () => $("#import-data").click();
 $("#run-example").onclick = runExample;

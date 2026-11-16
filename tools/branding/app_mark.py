@@ -7,6 +7,10 @@ each run is projected down the cube's diagonal. Six corners land on a hexagon. T
 draws centre runs. The lines are the hexagon and the three edges that meet at the corner nearest
 the eye, so the cube is seen from above.
 
+The mark wears the four colours of the app's stages (``--stage-*`` in ``web/style.css``): round
+the rim the corners are Design's blue, Run's ochre and Learn's green, opposite corners alike, and
+the centre run is the red of what comes next.
+
 Usage, from the repository root::
 
     python tools/branding/app_mark.py web
@@ -35,6 +39,11 @@ from process_improve.experiments import Factor, generate_design
 
 # The README banner's and social card's colours (tools/branding/social_card.py).
 NAVY, RED, SPINE, PAPER, INK, MUTED = "#2c5f7c", "#a93226", "#a6a49e", "#faf8f3", "#1d1d1f", "#5f6368"
+# The app's two other stage colours, as its light theme has them (--warn and --ok in web/style.css).
+OCHRE, GREEN = "#a35f00", "#1e7b3a"
+
+#: The colour of each corner round the rim, in turn: three stages' colours twice, so opposite corners are alike.
+RIM_COLOURS = (NAVY, OCHRE, GREEN) * 2
 
 #: The mark's geometry on a 64-unit square: the hexagon's radius, a run's radius, a line's width.
 SIZE, RIM, DOT, LINE = 64.0, 20.0, 6.0, 2.4
@@ -74,7 +83,10 @@ def svg(*, tile: bool) -> str:
     rim, (cx, cy), near = mark()
     hexagon = " ".join(f"{x:g},{y:g}" for x, y in rim)
     edges = "".join(f'<line x1="{cx:g}" y1="{cy:g}" x2="{x:g}" y2="{y:g}"/>' for x, y in near)
-    dots = "".join(f'<circle cx="{x:g}" cy="{y:g}" r="{DOT:g}"/>' for x, y in rim)
+    dots = "".join(
+        f'<circle cx="{x:g}" cy="{y:g}" r="{DOT:g}" fill="{colour}"/>'
+        for (x, y), colour in zip(rim, RIM_COLOURS, strict=True)
+    )
     back = f'<rect width="{SIZE:g}" height="{SIZE:g}" rx="14" fill="{PAPER}"/>' if tile else ""
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {SIZE:g} {SIZE:g}" role="img" aria-label="Factorial">'
@@ -83,7 +95,7 @@ def svg(*, tile: bool) -> str:
         f"{back}"
         f'<g fill="none" stroke="{SPINE}" stroke-width="{LINE:g}" stroke-linecap="round" stroke-linejoin="round">'
         f'<polygon points="{hexagon}"/>{edges}</g>'
-        f'<g fill="{NAVY}" stroke="{PAPER}" stroke-width="1.6">{dots}</g>'
+        f'<g stroke="{PAPER}" stroke-width="1.6">{dots}</g>'
         f'<circle cx="{cx:g}" cy="{cy:g}" r="{DOT:g}" fill="{RED}" stroke="{PAPER}" stroke-width="1.6"/>'
         "</svg>\n"
     )
@@ -101,8 +113,8 @@ def draw(ax: plt.Axes, origin: tuple[float, float], scale: float) -> None:
     for end in near:
         ax.plot(*zip(at(centre), at(end), strict=True), **line)
     edge = {"ec": PAPER, "lw": 1.6 * scale * 0.72, "zorder": 2}
-    for p in rim:
-        ax.add_patch(Circle(at(p), DOT * scale, fc=NAVY, **edge))
+    for p, colour in zip(rim, RIM_COLOURS, strict=True):
+        ax.add_patch(Circle(at(p), DOT * scale, fc=colour, **edge))
     ax.add_patch(Circle(at(centre), DOT * scale, fc=RED, **edge))
 
 
