@@ -20,14 +20,6 @@
     } catch {
       /* storage refused: the system's mode */
     }
-    /* The reading level (levels.js), put on the page before it is drawn, so no detail a beginner is not shown
-       flashes by. 2 is levels.DEFAULT_LEVEL, a first visit's. */
-    try {
-      const level = Number(localStorage.getItem("factorial-map-level"));
-      document.documentElement.dataset.level = level >= 1 && level <= 3 ? level : 2;
-    } catch {
-      document.documentElement.dataset.level = 2;
-    }
   </script>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -39,19 +31,13 @@
     Run and Learn. It runs in your browser tab, so your data never leaves your device. This is everything it does
     today.</p>
   <p><a class="button primary" href="./">Start a study</a></p>
-  <!-- What the reader steers the list with: a word to find, and the reading level the app and the concept map keep
-       (levels.js). At Beginner each point is in plain words; Intermediate adds its details where they are asked
-       for; Adventurous opens them all. -->
+  <!-- What the reader steers the list with: a word to find, and a switch that opens every point's details. Each
+       point is in plain words, with its details a press away; no point and no detail is ever left out. -->
   <div class="feat-tools">
     <label class="feat-find"><span class="visually-hidden">Find a word in this list</span>
       <input type="search" id="find" placeholder="Find a word: blocks, offline, Box-Cox..." autocomplete="off" spellcheck="false"></label>
-    <fieldset id="level" class="level-switch">
-      <legend>Level</legend>
-      <label><input type="radio" name="level" value="1"><span>Beginner</span></label>
-      <label><input type="radio" name="level" value="2"><span>Intermediate</span></label>
-      <label><input type="radio" name="level" value="3"><span>Adventurous</span></label>
-    </fieldset>
-    <p class="hint" id="level-says"></p>
+    <label class="feat-details"><input type="checkbox" id="details"> Open the details of every point</label>
+    <p class="hint" id="details-says"></p>
     <p class="hint" id="found" role="status"></p>
   </div>
   <!-- The list is FEATURES.md, the document the app is described from, read by features.js: one text, so the page
@@ -65,30 +51,29 @@
 </main>
 <script type="module">
   import { addressOf, page, shownPart } from "./features.js";
-  import { LEVEL_KEY, readLevel } from "./levels.js";
 
   const list = document.getElementById("features");
   const find = document.getElementById("find");
+  const switched = document.getElementById("details");
   const all = (selector, within = list) => [...within.querySelectorAll(selector)];
-  let level = 2;
+  /** Where the page keeps its one choice, apart from anything the app keeps: "open" while every detail is open. */
+  const DETAILS_KEY = "factorial-features-details";
+  let open = false;
 
-  /** Show the list at a level, and keep the choice where the app and the concept map keep theirs. */
-  const SAYS = [
-    "Each point in plain words.",
-    "Each point in plain words. Press Details under a point for the rest.",
-    "Each point in plain words, with its details open.",
-  ];
-  function setLevel(to, keep = true) {
-    level = to;
-    document.documentElement.dataset.level = level;
-    for (const radio of all('input[name="level"]', document)) radio.checked = Number(radio.value) === level;
-    document.getElementById("level-says").textContent = SAYS[level - 1];
-    for (const more of all("details.more")) more.open = level === 3;
+  /** Open every point's details, or close them to a press away, and keep the choice for the next visit. */
+  function setDetails(to, keep = true) {
+    open = to;
+    switched.checked = open;
+    document.getElementById("details-says").textContent = open
+      ? "Each point in plain words, with its details open."
+      : "Each point in plain words. Press Details under a point for the rest.";
+    for (const more of all("details.more")) more.open = open;
     if (!keep) return;
     try {
-      localStorage.setItem(LEVEL_KEY, String(level));
+      if (open) localStorage.setItem(DETAILS_KEY, "open");
+      else localStorage.removeItem(DETAILS_KEY);
     } catch {
-      /* storage refused: the level holds for this visit */
+      /* storage refused: the choice holds for this visit */
     }
   }
 
@@ -114,9 +99,7 @@
         shown += on && !entry.hidden && entry.tagName !== "P";
         const more = entry.querySelector("details.more");
         if (!more) continue;
-        const there = on && holds(more);
-        more.classList.toggle("found", there); // shown at every level
-        more.open = there || level === 3;
+        more.open = open || (on && holds(more)); // details that hold the words are opened to show them
       }
       // A heading, a list or a table with none of its points left goes with them.
       for (const group of all(".feat-body ul, .feat-body ol, .feat-body .scroll", part)) group.hidden = !group.querySelector("li:not([hidden]), tbody tr:not([hidden])");
@@ -161,12 +144,12 @@
     for (const picture of all(".feat-pictures img")) picture.addEventListener("error", () => picture.remove());
     let stored = null;
     try {
-      stored = localStorage.getItem(LEVEL_KEY);
+      stored = localStorage.getItem(DETAILS_KEY);
     } catch {
-      /* storage refused: the first visit's level */
+      /* storage refused: a first visit's, with the details closed */
     }
-    setLevel(readLevel(stored), false);
-    document.getElementById("level").onchange = (event) => setLevel(Number(event.target.value));
+    setDetails(stored === "open", false);
+    switched.onchange = () => setDetails(switched.checked);
     find.addEventListener("input", search);
     addEventListener("hashchange", goTo);
     // The address may name a part of the list, which was not there when the browser looked for it.

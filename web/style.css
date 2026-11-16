@@ -1149,7 +1149,9 @@ details.fold > :last-child { margin-bottom: 12px; }
 .feat-tools[hidden] { display: none; }
 .feat-find input { width: 100%; padding: 10px 12px; font: inherit; border: 1px solid var(--line); border-radius: 8px;
   background: var(--panel); color: var(--fg); }
-.features .level-switch { margin: 0; }
+/* The switch that opens every point's details: a row a finger can press. */
+.feat-details { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; width: fit-content; cursor: pointer; }
+.feat-details input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
 .about h2.feat-step { margin: 24px 0 6px; font-family: inherit; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.08em;
   text-transform: uppercase; color: var(--accent); }
 .feat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 8px 0; padding: 0;
@@ -1186,8 +1188,8 @@ details.fold > :last-child { margin-bottom: 12px; }
   .feat-body ul.feat-pictures { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .feat-pictures > li { padding: 6px 8px 8px; overflow-wrap: anywhere; }
 }
-/* What only some readers ask for, under its point: a word to press at Intermediate, open at Adventurous, and not
-   there at Beginner, but where the reader's own search found its words. */
+/* What only some readers ask for, under its point: a word to press, which the page's switch or the reader's own
+   search opens. */
 /* "Show me", at the end of a point: the way to the app, on an example of the point. */
 .show-me { margin-left: 2px; font-size: 0.85rem; font-weight: 600; white-space: nowrap; }
 .show-me::after { content: "\00a0\2192"; }
@@ -1196,7 +1198,6 @@ details.more > summary { display: inline; margin-left: 4px; padding: 10px 4px; f
   text-decoration: underline; white-space: nowrap; list-style: none; cursor: pointer; }
 details.more > summary::-webkit-details-marker { display: none; }
 details.more > p { margin: 4px 0 2px; font-size: 0.9rem; color: var(--muted); }
-:root[data-level="1"] details.more:not(.found) { display: none; }
 .features table.data { width: 100%; }
 .features table.data th, .features table.data td { text-align: left; vertical-align: top; }
 table.stack { width: 100%; }

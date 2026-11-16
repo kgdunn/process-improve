@@ -11,11 +11,13 @@
 (() => {
   // The tests see the whole page: the reading level (web/levels.js) is set to its highest once a tab, so a test of
   // the levels can clear or change it and load the page again. The concept map keeps its level under the same key,
-  // and its tests are of a first visit, so a tab that opens on the map is left alone.
+  // and its tests are of a first visit, so a tab that opens on the map is left alone. The features page's details
+  // are opened the same way (features.html keeps that choice under a key of its own).
   try {
     if (!location.pathname.includes("/map/") && !sessionStorage.getItem("pi-level-seeded")) {
       sessionStorage.setItem("pi-level-seeded", "1");
       localStorage.setItem("factorial-map-level", "3");
+      localStorage.setItem("factorial-features-details", "open");
     }
   } catch {
     /* storage refused: the page's own default */
