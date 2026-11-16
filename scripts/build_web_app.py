@@ -1627,7 +1627,7 @@ def page_head(*, title: str, description: str, path: str, up: str) -> str:
   <meta name="description" content="{description}">
   <link rel="canonical" href="https://factori.al/{path}">
   <link rel="icon" href="{up}favicon.svg" type="image/svg+xml">
-  <meta name="theme-color" content="#faf8f3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#f5f6f4" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#141517" media="(prefers-color-scheme: dark)">
   <script>
     try {{

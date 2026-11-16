@@ -1,4 +1,4 @@
-/* The palette is the package's: the README banner's navy runs and red centre runs on warm paper.
+/* The palette is the package's: the README banner's navy runs and red centre runs, on a neutral ground.
    Every text colour meets WCAG AA (4.5:1) on both the page and a panel, in both themes. */
 :root {
   /* The room the page leaves under the bar, for the status line to come and go in. */
@@ -7,10 +7,10 @@
   --corner: 2px;
   /* What the reader typed or measured is in ink; what Factorial worked out is in print. */
   --ink: #1c3fa6;
-  --bg: #faf8f3;
+  --bg: #f5f6f4;
   --fg: #1d1d1f;
   --muted: #5f6368;
-  --line: #dcd8ce;
+  --line: #d6d9d6;
   --panel: #ffffff;
   --accent: #2c5f7c;
   --accent-fg: #ffffff;
