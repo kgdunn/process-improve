@@ -1790,6 +1790,8 @@ export function whatIfCode(spec, formulas, at, settings, kept = [], profiled = n
     `at = pd.DataFrame([${repr(only(at))}])`,
     "# Each response's prediction there, from its own model fitted to the runs that have its result, with its 95%",
     "# confidence interval for the mean (ci_low to ci_high) and prediction interval for one new run (pi_low to pi_high).",
+    "# The 20 runs the panel draws are the 2.5%, 7.5%, ... 97.5% points of one new run there: pi_low is the least",
+    "# of them and pi_high the greatest.",
     `for name, model in ${repr(formulas)}.items():`,
     "    done = runs[name].notna()",
     `    prediction = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="prediction", new_points=at)`,

@@ -119,6 +119,11 @@ import {
   profilePieces,
   profileRange,
   profileWords,
+  rangeWords as intervalWords, // this file's own rangeWords writes a factor's range
+  runsAt,
+  insideWindow,
+  dotPiles,
+  runsWords,
   solveSentences,
   surestSentence,
   targetCaption,
@@ -3257,7 +3262,7 @@ async function downloadNotebook() {
 const REPORT_STEPS = ["design", "run", "analyse", "best", "balance"];
 
 /** What a report's copy of the page leaves out: what is there to use the page, and what the page hides. */
-const NOT_REPORTED = "[hidden], button:not(.term), input, select, textarea, details.python, .actions, figure.chart, .simplify, .findings__more";
+const NOT_REPORTED = "[hidden], button:not(.term), input, select, textarea, details.python, .actions, .kept__do, figure.chart, .simplify, .findings__more";
 
 /**
  * The attributes a report's copy keeps: those that say how a cell spans, where a link goes, how a part looks, and
@@ -6077,6 +6082,7 @@ function renderWhatIf() {
     ...(fitted ? [table(WHAT_IF_COLUMNS, whatIfRows(responses), WHAT_IF_TERMS)] : []),
     ...noteList(whatIfSentences(fitted ? responses : [], w.broken), "warnings"),
   );
+  drawRuns();
   const formulas = Object.fromEntries(w.responses.filter((r) => r.terms).map((r) => [r.name, r.formula]));
   const kept = state.scenarios.filter((s) => !keptProblem(w, s)).map((s) => ({ name: s.name, at: columnsAt(w.factors, s.settings) }));
   const profiled = profiledResponse(w);
@@ -6085,6 +6091,55 @@ function renderWhatIf() {
   renderCurve(at);
   scheduleSolve(); // one factor is solved for from the others, which are where this panel has them
   scheduleWindow(); // and the windows are judged through these settings
+}
+
+// ---------------------------------------------------------------- what if: a prediction as runs
+/** A drawing of runs, in the page's pixels: ``width`` across with ``pad`` at each side, a dot ``dot`` across, and ``foot`` under the dots for the two ends' numbers. */
+const RUNS = { width: 240, pad: 10, dot: 10, foot: 16 };
+
+/**
+ * Draw each fitted response's prediction as the runs a reader might get at the panel's settings (best.js runsAt), each
+ * as likely as the next: dots that pile up where a run is likelier, the outer two at the ends of the 95% prediction
+ * interval in the table above, and those inside the response's window filled. A response whose model has no interval
+ * has no runs to draw.
+ */
+function drawRuns() {
+  const w = state.whatIf;
+  if (!w) return;
+  const at = columnsAt(w.factors, w.settings);
+  const drawn = profiledResponses(w).flatMap((fit) => {
+    const runs = runsAt(fit, at);
+    return runs ? [runsFigure(fit, runs, state.window.windows[fit.name])] : [];
+  });
+  $("#what-if-runs").hidden = !drawn.length;
+  $("#what-if-runs").replaceChildren(...drawn);
+}
+
+/** One response's runs: the dots over a line, the window they are judged by shaded behind them, and what they say in words. */
+function runsFigure(fit, runs, ends = [null, null]) {
+  const windowed = ends.some((end) => end !== null);
+  const inside = insideWindow(runs, ends);
+  const { width, pad, dot, foot } = RUNS;
+  const [least, most] = [runs[0], runs.at(-1)];
+  const room = (most - least) * 0.1 || 1; // a little past the two ends, so the outer dots are whole
+  const [low, high] = [least - room, most + room];
+  const piles = dotPiles(runs, [low, high], Math.floor((width - 2 * pad) / dot));
+  const tall = (Math.max(...piles.map((pile) => pile.level)) + 1) * dot;
+  const across = (value) => pad + ((value - low) / (high - low)) * (width - 2 * pad);
+  const drawing = svgPart("svg", { class: "runs", viewBox: `0 0 ${width} ${tall + foot}`, width, height: tall + foot, "aria-hidden": "true" });
+  const [from, to] = [Math.max(low, ends[0] ?? low), Math.min(high, ends[1] ?? high)];
+  if (windowed && to > from) drawing.append(svgPart("rect", { class: "runs__window", x: across(from), y: 0, width: across(to) - across(from), height: tall }));
+  drawing.append(svgPart("line", { class: "runs__foot", x1: pad, x2: width - pad, y1: tall, y2: tall }));
+  piles.forEach(({ column, level }, i) => {
+    const run = svgPart("circle", { class: `runs__run${inside[i] ? " runs__run--inside" : ""}`, cx: pad + (column + 0.5) * dot, cy: tall - (level + 0.5) * dot, r: dot / 2 - 1.5 });
+    drawing.append(run);
+  });
+  for (const end of [least, most]) drawing.append(svgPart("text", { class: "runs__end", x: across(end), y: tall + foot - 3, "text-anchor": "middle" }, num(end)));
+  const figure = el("figure", "runs-figure", "");
+  figure.dataset.response = fit.name;
+  // The words say what the drawing shows, so a reader who does not see it loses nothing: the drawing is not read out.
+  figure.append(drawing, el("figcaption", "hint", runsWords(runs, inside, { label: fit.label, units: fit.units ?? "" }, windowed)));
+  return figure;
 }
 
 // ---------------------------------------------------------------- the curve at the what-if settings
@@ -6229,36 +6284,68 @@ function keepWhatIf(e) {
   toast(`Kept these settings as ${name}.`);
 }
 
-/** List the settings kept with the study below the panel, each with every response there, or why there is none. */
+/**
+ * List the settings kept with the study below the panel, side by side in one table: a row each, with each factor's
+ * setting, each response as predicted there over its 95% prediction interval, or why there is none, and its buttons.
+ */
 function renderKept() {
   const w = state.whatIf;
   $("#what-if-kept").hidden = !w || !state.scenarios.length;
   if ($("#what-if-kept").hidden) return;
   const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
-  $("#what-if-kept-list").replaceChildren(...state.scenarios.map((s) => keptItem(w, s, units)));
+  const fits = profiledResponses(w);
+  const t = el("table", "data what-if-kept", "");
+  t.setAttribute("aria-labelledby", "h-what-if-kept");
+  const head = t.createTHead().insertRow();
+  const headings = ["Kept as", ...w.factors.map((f) => withUnits(f.name, units[f.name])), ...fits.map((r) => withUnits(r.label, r.units)), "What to do"];
+  for (const [i, text] of headings.entries()) {
+    const th = el("th", i === headings.length - 1 ? "kept__do" : "", text);
+    th.scope = "col";
+    head.append(th);
+  }
+  const body = t.createTBody();
+  for (const s of state.scenarios) body.append(keptRow(w, s, units, fits));
+  const wrap = el("div", "scroll", "");
+  wrap.append(t);
+  const said = state.scenarios.flatMap((s) => (keptProblem(w, s, units) ? [] : whatIfSentences(predictedAt(w, columnsAt(w.factors, s.settings))).map((text) => `${s.name}: ${text}`)));
+  $("#what-if-kept-list").replaceChildren(wrap, ...noteList(said, "warnings"));
 }
 
-/** One kept setting in the list: its name and settings, each response there as the panel's table shows it, and its buttons. */
-function keptItem(w, s, units) {
-  const item = el("li", "", "");
-  const head = el("p", "", "");
-  head.append(el("strong", "", s.name), `: ${settingsWords(w.factors, s.settings, units)}`);
-  item.append(head);
-  const actions = el("p", "actions", "");
+/** One kept setting's row: its name, each factor's setting, each response there (or, across them, why there is none), and its buttons. */
+function keptRow(w, s, units, fits) {
+  const tr = el("tr", "", "");
+  tr.dataset.kept = s.name;
+  const name = el("th", "", s.name);
+  name.scope = "row";
+  tr.append(name);
+  for (const f of w.factors) {
+    const value = s.settings[f.name];
+    tr.append(el("td", "", value === undefined ? "" : f.kind === "numeric" ? num(value) : String(value)));
+  }
+  const actions = el("td", "kept__do", "");
   const problem = keptProblem(w, s, units);
   if (problem) {
-    item.append(said("hint", problem));
+    const why = el("td", "hint", problem);
+    why.colSpan = Math.max(1, fits.length);
+    tr.append(why);
   } else {
-    const responses = predictedAt(w, columnsAt(w.factors, s.settings));
-    item.append(table(WHAT_IF_COLUMNS, whatIfRows(responses), WHAT_IF_TERMS), ...noteList(whatIfSentences(responses), "warnings"));
+    const at = columnsAt(w.factors, s.settings);
+    for (const fit of fits) {
+      const { predicted, prediction } = predictAt(fit, at);
+      const cell = el("td", "", withUnit(predicted, fit.units));
+      if (prediction) cell.append(el("small", "", intervalWords(prediction, fit.units)));
+      tr.append(cell);
+    }
+    if (!fits.length) tr.append(el("td", "", ""));
+    actions.append(keptButton("show", s.name, "Show on the dials", "link", `Show the settings kept as ${s.name} on the dials`));
     const runs = `Add ${CONFIRMATION_RUNS} confirmation runs`;
     if (!confirmedAt(state.design, keptAt(s))) {
       actions.append(keptButton("confirm", s.name, runs, "button", `${runs} at the settings kept as ${s.name}`)); // none there yet
     }
   }
   actions.append(keptButton("delete", s.name, "Delete", "link", `Delete the settings kept as ${s.name}`));
-  item.append(actions);
-  return item;
+  tr.append(actions);
+  return tr;
 }
 
 /** A button of the kept settings ``name``; its accessible name, ``label``, starts with its ``text`` and names them. */
@@ -6270,13 +6357,18 @@ function keptButton(action, name, text, cls, label) {
   return button;
 }
 
-/** A button of a kept setting was pressed: make confirmation runs at the settings, or delete them. */
+/** A button of a kept setting was pressed: set the dials there, make confirmation runs at the settings, or delete them. */
 function keptPressed(e) {
   const button = e.target.closest("button[data-kept]");
   const s = button && state.whatIf ? state.scenarios.find((one) => one.name === button.dataset.kept) : null;
   if (!s) return;
   if (button.dataset.action === "confirm") {
     addConfirmationRuns(keptAt(s), `the settings kept as ${s.name}`);
+    return;
+  }
+  if (button.dataset.action === "show") {
+    setWhatIf(keptAt(s)); // every number of these settings is then in the panel's own table, its intervals and its leverage
+    toast(`The dials are at the settings kept as ${s.name}.`);
     return;
   }
   state.scenarios = state.scenarios.filter((one) => one !== s);
@@ -6654,6 +6746,7 @@ function showWindow() {
   const windows = Object.fromEntries(Object.entries(state.window.windows).filter(([name]) => names.includes(name)));
   const pair = state.window.pair?.every((name) => ranged.includes(name)) ? state.window.pair : null;
   state.window = { ...state.window, windows, pair };
+  drawRuns(); // a window that came with the study, or left with its response
   $("#window").hidden = false;
   const t = $("#window-limits");
   const key = JSON.stringify(responses);
@@ -6696,6 +6789,7 @@ function windowTyped(e) {
   state.window = { ...state.window, windows: { ...state.window.windows, [tr.dataset.response]: ends } };
   scheduleSave(); // the windows go with the study
   scheduleWindow();
+  drawRuns(); // the runs inside the window are the filled ones
 }
 
 /** Judge the windows again a moment from now: an end was typed, or the what-if panel's settings moved. */
@@ -6713,6 +6807,7 @@ function windowCleared() {
   showWindows();
   scheduleSave();
   findWindow();
+  drawRuns();
 }
 
 /** Judge the windows typed (bootstrap.specification), and show what they give; with none typed, nothing. */
