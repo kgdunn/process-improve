@@ -7320,6 +7320,11 @@ AIMED = ("maximize", "minimize", "target")
 #: The confidence level of the intervals at the best settings.
 LEVEL = 0.95
 
+#: How many runs the page draws a prediction as, each as likely as the next: the t values at the middle of that many
+#: equal shares. The least and the greatest of them are the two ends of the prediction interval at ``LEVEL``, which is
+#: what makes it 20 for 95%.
+PREDICTED_RUNS = round(1 / (1 - LEVEL))
+
 #: How far each numeric factor moves from the best settings, either way, to show how tightly it must be held: this
 #: share of its range, 0.1 in coded units.
 NUDGE = 0.05
@@ -7502,6 +7507,8 @@ class _FittedModel:
         self.df = int(summary["df_residual"])
         self.mse = float(summary["mse_residual"]) if self.df > 0 else None
         self.t = float(stats.t.ppf(1 - (1 - LEVEL) / 2, self.df)) if self.df > 0 else None
+        shares = (np.arange(PREDICTED_RUNS) + 0.5) / PREDICTED_RUNS
+        self.run_quantiles = stats.t.ppf(shares, self.df).tolist() if self.df > 0 else None
         leverages = np.einsum("ij,jk,ik->i", x, self.inverse, x)
         self.max_leverage = float(leverages.max())
         self.residuals: pd.Series | None = None  # by the run each belongs to, once with_residuals has them
@@ -9968,10 +9975,11 @@ def predictors(request: dict) -> dict:
     Each response with results is fitted with its own model (``models``, by its column; the design's
     without one) as Learn fits it (:func:`_fitted`). Its reply holds the formula fitted, for the code
     the page shows, and what :meth:`_FittedModel.at` needs: each term as the columns it multiplies
-    (``I(T ** 2)`` as ``T`` twice), the coefficients, ``(X'X)^-1``, the residual mean square and the
-    t value of 95% intervals (both None without residual degrees of freedom), and the largest
-    leverage of the runs fitted. The page (``predictAt`` in ``web/best.js``) then gives the
-    prediction, its intervals and its leverage as the reader moves a setting, at once. A block
+    (``I(T ** 2)`` as ``T`` twice), the coefficients, ``(X'X)^-1``, the residual mean square, the
+    t value of 95% intervals and the t values of ``PREDICTED_RUNS`` equally likely runs (all None
+    without residual degrees of freedom), and the largest leverage of the runs fitted. The page
+    (``predictAt`` and ``runsAt`` in ``web/best.js``) then gives the prediction, its intervals, its
+    leverage and the runs a reader might get as the reader moves a setting, at once. A block
     contrast is 0 in the average block, where the page predicts, so its term, its coefficient and
     its row and column of ``(X'X)^-1`` are left out: they add nothing there.
 
@@ -10023,6 +10031,7 @@ def _predictor(fitted: _FittedModel) -> dict[str, Any]:
         "inverse": fitted.inverse[np.ix_(kept, kept)].tolist(),
         "mse": fitted.mse,
         "t": fitted.t,
+        "run_quantiles": fitted.run_quantiles,
         "df": fitted.df,
         "level": LEVEL,
         "max_leverage": fitted.max_leverage,

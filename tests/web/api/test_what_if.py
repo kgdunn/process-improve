@@ -13,6 +13,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
+from scipy import stats
 from statsmodels.formula.api import ols
 
 from tests.web._support import FACTORS, held_of, javascript, run_sheet, source
@@ -161,12 +162,34 @@ def test_at_the_balanced_settings_each_response_is_as_the_balance_shows_it(api, 
         assert at["prediction"] == pytest.approx(shown["prediction"], rel=1e-12)
 
 
+def test_a_prediction_as_runs_is_twenty_equally_likely_runs_that_span_the_prediction_interval(api, node):
+    """Each run is the t quantile at the middle of a twentieth, so the outer two are the 95% interval's two ends."""
+    held = made(api, "ccd", [T, P], alpha="face_centered")
+    reply = api.ok(
+        "api_predictors", {**held, "responses": noisy(run_sheet(held)).tolist(), "models": {"y": "quadratic"}}
+    )
+    [fit] = reply["responses"]
+    shares = (np.arange(20) + 0.5) / 20
+    assert fit["run_quantiles"] == pytest.approx(stats.t.ppf(shares, fit["df"]), rel=1e-12)
+    assert fit["run_quantiles"][-1] == pytest.approx(fit["t"], rel=1e-12)
+    assert fit["run_quantiles"][0] == pytest.approx(-fit["t"], rel=1e-12)
+    settings = random_settings([T, P], 3)
+    module = source("best.js")
+    columns = javascript(node, module, [("columnsAt", [reply["factors"], s]) for s in settings])
+    runs = javascript(node, module, [("runsAt", [fit, c]) for c in columns])
+    for at, drawn, (page,) in zip(columns, runs, predicted_in_js(node, reply, settings), strict=True):
+        assert len(drawn) == 20, at
+        assert [drawn[0], drawn[-1]] == pytest.approx(page["prediction"], rel=1e-12), "the interval the table shows"
+        assert np.mean(drawn) == pytest.approx(page["predicted"], rel=1e-12), "spread evenly about the prediction"
+        assert drawn == sorted(drawn), "least first"
+
+
 # --------------------------------------------------------------------------- what cannot be predicted
 def test_a_model_with_no_runs_left_over_predicts_with_no_interval(api, node):
     held = made(api, "full_factorial", [T, P], n_center_points=0)
     reply = api.ok("api_predictors", {**held, "responses": [1.0, 2.0, 4.0, 3.5], "models": {"y": "interactions"}})
     [fit] = reply["responses"]
-    assert (fit["df"], fit["mse"], fit["t"]) == (0, None, None)
+    assert (fit["df"], fit["mse"], fit["t"], fit["run_quantiles"]) == (0, None, None, None)
     [(page,)] = predicted_in_js(node, reply, [{"T": 175.0, "P": 2.0}])
     assert page["predicted"] == pytest.approx(2.625)
     assert (page["confidence"], page["prediction"]) == (None, None)
