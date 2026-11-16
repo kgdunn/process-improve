@@ -66,6 +66,29 @@ export async function installExact(pyodide, { packages, wheels }) {
   if (wheels.length) await install(pyodide, wheels, { deps: false });
 }
 
+/** How long the start waits before each time it asks again for packages that did not arrive, in ms. */
+export const ASK_AGAIN = [1000, 3000, 9000];
+
+/**
+ * Ask again for the packages of the release that the start did not get. Pyodide only logs a download that
+ * failed, and Python then stops at the first import of what is missing. A CDN that refuses a file serves it a
+ * moment later, and what did arrive is kept, so each try asks for less. `packages` are those the start named,
+ * and each is checked with all it depends on, as the release's lock file lists them. `say(status)` is told once
+ * that the start is asking again; `waits` holds the wait before each try, and `pause(ms)` waits it. With a package
+ * still missing after the last try, the start fails and names it.
+ */
+export async function loadWhole(pyodide, packages, say = () => {}, { waits = ASK_AGAIN, pause = (ms) => new Promise((go) => setTimeout(go, ms)) } = {}) {
+  const names = lockEntries(pyodide.lockfile, packages).map((entry) => entry.name);
+  const lacking = () => names.filter((name) => !pyodide.loadedPackages[name]);
+  for (const ms of waits) {
+    if (!lacking().length) return;
+    say("Some of Python's packages did not arrive. Asking for them again...");
+    await pause(ms);
+    await pyodide.loadPackage(lacking());
+  }
+  if (lacking().length) throw new Error(`${lacking().join(", ")} could not be loaded from the Pyodide release`);
+}
+
 /**
  * What start-up leaves out, since designing an experiment needs none of it: for each module Python may say a call
  * lacks (bootstrap.py's ON_DEMAND), what is installed for it, and what the status line calls it and says it is for.
@@ -160,6 +183,7 @@ export async function startPython(root, say, { fitting = false } = {}) {
   // Named here, the packages download while the interpreter starts, not after it.
   const packages = fitting ? [...runtime.packages, ...runtime.fitting] : runtime.packages;
   const pyodide = await loadPyodide({ indexURL, packages });
+  await loadWhole(pyodide, packages, say); // a download the CDN refused is asked for again, not left for an import to find
   say("Installing process-improve...");
   // deps: false, since every package the page runs is loaded above, from the Pyodide release, or installed when a
   // call first needs it, pinned: micropip must not fetch an unpinned dependency of its own, and the release need
