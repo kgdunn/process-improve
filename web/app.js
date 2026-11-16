@@ -257,6 +257,7 @@ import {
   responseProblems,
   DEFAULT_RESPONSE,
   responseTitle,
+  questionLine,
   responsesOf,
   responsesTitle,
   runBadge,
@@ -657,6 +658,10 @@ const PANES = { plan: "#step-plan", run: "#step-run", learn: "#step-analyse" };
  * the brief are made once Design is on show.
  */
 function showPhase(phase) {
+  // On Design the question is the form itself. Over Run and Learn it is one line, closed on the way in from Design
+  // and left as the reader has it between the two.
+  if (phase === "plan") $("#question").open = true;
+  else if ($("#workspace").dataset.phase === "plan") $("#question").open = false;
   state.phase = phase;
   $("#workspace").dataset.phase = phase;
   for (const [name, pane] of Object.entries(PANES)) {
@@ -715,6 +720,9 @@ function renderBadges() {
  * known only by the column name the page gives it ("y"), as a study opened from the catalog can be, names nothing:
  * the bar then shows the study's own name, as Your studies lists it.
  */
+/** What the bar calls a study with no response named yet. */
+const NEW_STUDY = "A new study";
+
 function renderStudyBar() {
   const info = readResponseInfo();
   const name = info.label ?? state.design?.spec.response ?? "";
@@ -727,7 +735,7 @@ function renderStudyBar() {
         ? (state.campaign?.title ?? titleOf(state.design.spec))
         : name
           ? responseTitle(info, name)
-          : "A new study";
+          : NEW_STUDY;
   const k = readFactors().length;
   const noun = mixturePlanned() ? "component" : "factor";
   const about = state.design
@@ -736,7 +744,20 @@ function renderStudyBar() {
       ? `${k} ${noun}${k === 1 ? "" : "s"}`
       : "";
   $("#study-about").textContent = about ? `· ${about}` : "";
+  renderQuestion();
   renderBadges();
+}
+
+/** The question in one line, which Run and Learn show in place of the brief: the response, the factors and the aim. */
+function renderQuestion() {
+  const title = $("#study-title").textContent;
+  // A mixture's model is its own, so its aim is not a choice and is left out.
+  const aim = document.querySelector('input[name="aim"]:checked:not(:disabled)')?.closest("label").querySelector("strong");
+  $("#question-says").textContent = questionLine(
+    title === NEW_STUDY ? "" : title,
+    readFactors(),
+    aim?.textContent.replace(/\s+/g, " ").trim(),
+  );
 }
 
 // ---------------------------------------------------------------- the responses
@@ -1453,6 +1474,7 @@ function setAim(aim) {
   if (radio) radio.checked = true;
   $("#model_type").value = OPTIMAL_MODEL[currentAim()];
   showAim();
+  renderQuestion();
 }
 
 function showAim() {
@@ -7657,11 +7679,6 @@ try {
 } catch {
   /* storage refused: no hint, rather than one on every visit */
 }
-// The study bar stays at the top as the page scrolls, and the brief beside it is pinned below it. The bar is one
-// row on a wide window and two on a narrow one, so its height is read off it; the status line is no part of it.
-new ResizeObserver(([entry]) => {
-  document.documentElement.style.setProperty("--bar-room", `${Math.ceil(entry.borderBoxSize[0].blockSize)}px`);
-}).observe($("#studybar"));
 
 for (const name of Object.keys(PANES)) $(`#go-${name}`).onclick = () => showPhase(name);
 arrowKeys($(".phases"), (tab) => showPhase(tab.id.replace("go-", "")));

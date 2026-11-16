@@ -13,9 +13,16 @@ from itertools import pairwise
 import pytest
 
 from tests.web._support import ALL_DESIGNS, NO_BOOK_PAGE, factors_named
-from tests.web.e2e._page import choose, factor_table, generate, reveal, run_sheet, set_factors, settled
+from tests.web.e2e._page import choose, factor_table, generate, open_question, reveal, run_sheet, set_factors, settled
 
 NAMES = "ABCDEFGHJKLM"
+
+
+@pytest.fixture
+def page(page):
+    """Return the worked example with its question open: it opens on Learn, where the question is one line."""
+    open_question(page)
+    return page
 
 
 def disabled_designs(page) -> list[str]:
@@ -161,6 +168,7 @@ def test_a_blank_response_is_the_y_the_design_is_made_with(blank_page):
     generate(page)
     assert not stale(page)
     assert page.locator("#design-table thead th button.sort").last.text_content() == "y"
+    open_question(page)  # the run sheet is on Run, where the question is one line
     page.fill("#response", "y")
     assert not stale(page), "typing the name it stands for changes nothing"
 

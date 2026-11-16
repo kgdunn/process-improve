@@ -40,6 +40,12 @@ def reveal(page: Any, selector: str) -> None:  # noqa: ANN401 - a Playwright Pag
         page.click(f"#go-{pane}")
 
 
+def open_question(page: Any) -> None:  # noqa: ANN401 - a Playwright Page
+    """Show the question's form where the page is: Design has it, and over Run and Learn its one line opens to it."""
+    if page.is_hidden("#brief"):
+        page.click("#question > summary")
+
+
 def settled(page: Any, timeout: float = 30_000) -> None:  # noqa: ANN401 - a Playwright Page
     """Wait until no call to Python is in flight and the status line is no longer busy."""
     page.wait_for_function(

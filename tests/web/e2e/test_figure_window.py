@@ -14,17 +14,19 @@ import pytest
 from tests.web.e2e._page import first_paint_done, reveal
 from tests.web.e2e.test_charts import MORE_TITLES, open_more
 
-#: Whether every chart on the page is drawn at the width its box has now.
+#: Whether every chart on the page is drawn at the width its box has now. A box one of three in a row is a fraction
+#: of a pixel wide, which its clientWidth rounds, so the two agree to within a pixel.
 FITTED = """(box) => {
   const plots = [...document.querySelectorAll(`${box} .js-plotly-plot`)].filter((p) => p.clientWidth);
-  return plots.length > 0 && plots.every((p) => p._fullLayout.width === p.clientWidth);
+  return plots.length > 0 && plots.every((p) => Math.abs(p._fullLayout.width - p.clientWidth) < 1);
 }"""
 
 #: Whether the window's chart is drawn at the size of its frame.
 SHOWN = """() => {
   const plot = document.querySelector('dialog.figure[open] .plot');
   const drawn = plot?._fullLayout;
-  return Boolean(drawn) && drawn.width === plot.clientWidth && drawn.height === plot.clientHeight;
+  const near = (a, b) => Math.abs(a - b) < 1;
+  return Boolean(drawn) && near(drawn.width, plot.clientWidth) && near(drawn.height, plot.clientHeight);
 }"""
 
 TOUCH = {"viewport": {"width": 820, "height": 1100}, "has_touch": True, "is_mobile": True}
