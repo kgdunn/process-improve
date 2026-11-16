@@ -5826,7 +5826,7 @@ function drawProfiles(w) {
   w.range = profileRange(profiles, w.dragging ? w.range : null);
   const words = fit ? { label: fit.label, units: fit.units ?? "" } : null;
   $("#what-if-about").textContent = fit
-    ? `Each picture is ${fit.label} against one factor, the others where you set them, with its 95% band; the line is dashed beyond the runs. Drag on a picture, move its slider or type a value.`
+    ? `Each picture is ${fit.label} against one factor, the others as set; dashed beyond the runs. Drag it, or type a value.`
     : "Move a setting, and each response's prediction follows.";
   w.factors.forEach((f, i) => {
     const profile = $("#what-if-settings").children[i].querySelector("svg.profile");
