@@ -333,6 +333,7 @@ button.term:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 .trade-view select { width: auto; max-width: 14em; }
 .trade-limits input { width: 6.5em; }
 .trade-limits td, .trade-limits th { white-space: nowrap; padding-right: 14px; }
+.trade-limits th:nth-child(2), .trade-limits td:nth-child(2) { text-align: left; } /* the box, under its heading */
 #trade-chosen .actions { margin-top: 6px; }
 /* The settings that give a target: each response's box and slider, a bar for where a setting lies in its range. */
 .target-goals input[type="number"] { width: 6.5em; }
