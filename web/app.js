@@ -109,6 +109,11 @@ import {
   settingsFit,
   settingsWords,
   sliderStep,
+  PROFILE_POINTS,
+  profileOf,
+  profilePieces,
+  profileRange,
+  profileWords,
   solveSentences,
   surestSentence,
   targetCaption,
@@ -5759,17 +5764,22 @@ function renderWhatIfControls() {
   box.replaceChildren(...state.whatIf.factors.map((f) => whatIfControl(f, units[f.name])));
 }
 
-/** One factor's control in the what-if panel, its row named by the factor. */
+/**
+ * One factor's dial in the what-if panel, named by the factor: its profile (drawProfiles), which takes a drag, over
+ * the slider and the number box that set it from the keyboard.
+ */
 function whatIfControl(f, units) {
   const row = el("div", "what-if-factor", "");
   row.dataset.factor = f.name;
   const name = el("span", "what-if-name", withUnits(f.name, units));
+  const profile = svgPart("svg", { class: "profile", role: "img" });
+  takeDrag(profile, (e) => dragProfile(e, f));
   if (f.kind === "categorical") {
     const select = el("select", "", "");
     select.name = "level";
     select.setAttribute("aria-label", f.name);
     for (const level of f.levels) select.append(new Option(level, level));
-    row.append(name, select);
+    row.append(name, profile, select);
     return row;
   }
   const [low, high] = [Math.min(f.low, f.high), Math.max(f.low, f.high)];
@@ -5780,8 +5790,141 @@ function whatIfControl(f, units) {
   const box = el("input", "", "");
   Object.assign(box, { type: "number", name: "number", min: String(low), max: String(high), step: "any" });
   box.setAttribute("aria-label", withUnits(f.name, units));
-  row.append(name, slider, box, el("span", "what-if-range", span));
+  row.append(name, profile, slider, box, el("span", "what-if-range", span));
   return row;
+}
+
+/**
+ * Let a drawing of the what-if panel take a press and a drag: ``moved`` is given each pointer event that sets
+ * something. A mouse or a pen sets where it presses. A finger that lands on the drawing may be about to scroll the
+ * page past it, so a touch sets nothing until it moves sideways, or lifts where it landed: the browser takes an up
+ * or down swipe for the page (the drawing's touch-action), and tells the drawing nothing more of it.
+ */
+function takeDrag(drawing, moved) {
+  const held = (e) => drawing.hasPointerCapture(e.pointerId) && Boolean(state.whatIf);
+  const set = (e) => {
+    state.whatIf.dragging = true;
+    moved(e);
+  };
+  drawing.addEventListener("pointerdown", (e) => {
+    drawing.setPointerCapture(e.pointerId);
+    if (e.pointerType !== "touch" && state.whatIf) set(e);
+  });
+  drawing.addEventListener("pointermove", (e) => held(e) && set(e));
+  drawing.addEventListener("pointerup", (e) => e.pointerType === "touch" && held(e) && set(e));
+  drawing.addEventListener("lostpointercapture", () => {
+    if (!state.whatIf?.dragging) return;
+    state.whatIf.dragging = false;
+    renderWhatIf(); // the profiles' scale held still for the drag: it now fits them as they are
+  });
+}
+
+/**
+ * A profile's drawing, in the page's pixels: as wide as its dial (``width`` until the dial is on show), ``height``
+ * tall, with ``pad`` of room about the plot, which puts its two ends over the ends of the slider's travel.
+ */
+const PROFILE = { width: 240, height: 132, pad: 10 };
+
+/** A part of an SVG drawing, with its attributes. */
+function svgPart(tag, attributes = {}, text = "") {
+  const part = document.createElementNS(SVG, tag);
+  for (const [name, value] of Object.entries(attributes)) part.setAttribute(name, value);
+  part.textContent = text;
+  return part;
+}
+
+/** The response whose profiles the panel draws: the one Learn shows when its model is fitted, else the first that is. */
+const profiledResponse = (w) => w.responses.find((r) => r.name === state.shown && r.terms) ?? w.responses.find((r) => r.terms) ?? null;
+
+/**
+ * Draw each factor's profile for one response (best.js profileOf): its prediction as that factor alone moves, with
+ * the 95% confidence band, dashed where the settings lie beyond the runs, and a mark where the factor is set. Every
+ * profile of the row is drawn to one scale. With no response fitted (a study of curves alone) there is none to draw.
+ */
+function drawProfiles(w) {
+  const fit = profiledResponse(w);
+  const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
+  const profiles = fit ? w.factors.map((f) => profileOf(fit, w.factors, w.settings, f.name)) : [];
+  w.range = profileRange(profiles, w.dragging ? w.range : null);
+  const words = fit ? { label: fit.label, units: fit.units ?? "" } : null;
+  $("#what-if-about").textContent = fit
+    ? `Each picture is ${fit.label} against one factor, the others as set; dashed beyond the runs. Drag it, or type a value.`
+    : "Move a setting, and each response's prediction follows.";
+  w.factors.forEach((f, i) => {
+    const profile = $("#what-if-settings").children[i].querySelector("svg.profile");
+    profile.toggleAttribute("hidden", !fit);
+    if (!fit) return;
+    const width = profile.clientWidth || PROFILE.width;
+    profile.setAttribute("viewBox", `0 0 ${width} ${PROFILE.height}`);
+    profile.setAttribute("aria-label", profileWords(f, profiles[i], words, units[f.name]));
+    profile.replaceChildren(...profileParts(f, profiles[i], w.range, w.settings[f.name], words, width));
+  });
+}
+
+/** The parts of one profile's drawing: the scale's two ends, the band, the line in its pieces, and the mark. */
+function profileParts(f, points, range, value, { units }, width) {
+  const { height, pad } = PROFILE;
+  const numeric = f.kind === "numeric";
+  const [low, high] = numeric ? [points[0].value, points.at(-1).value] : [0, points.length - 1];
+  const across = (v) => pad + (high > low ? ((width - 2 * pad) * (v - low)) / (high - low) : (width - 2 * pad) / 2);
+  const up = (v) => height - pad - ((height - 2 * pad) * (v - range[0])) / (range[1] - range[0]);
+  const x = (point) => across(numeric ? point.value : points.indexOf(point));
+  const at = (point, v = point.predicted) => `${x(point).toFixed(1)},${up(v).toFixed(1)}`;
+  const parts = [
+    svgPart("text", { class: "profile__end", x: 4, y: 12 }, withUnit(range[1], units)),
+    svgPart("text", { class: "profile__end", x: 4, y: height - 4 }, withUnit(range[0], units)),
+  ];
+  const banded = points.every((point) => point.confidence);
+  if (!numeric) {
+    for (const point of points) {
+      if (banded) parts.push(svgPart("line", { class: "profile__bar", x1: x(point), x2: x(point), y1: up(point.confidence[0]), y2: up(point.confidence[1]) })); // prettier-ignore
+      const chosen = point.value === value;
+      parts.push(svgPart("circle", { class: `profile__level${chosen ? " profile__level--set" : ""}`, cx: x(point), cy: up(point.predicted), r: chosen ? 6 : 4 })); // prettier-ignore
+    }
+    return parts;
+  }
+  if (banded) {
+    const edge = (end) => points.map((point) => at(point, point.confidence[end]));
+    parts.push(svgPart("polygon", { class: "profile__band", points: [...edge(0), ...edge(1).reverse()].join(" ") }));
+  }
+  for (const piece of profilePieces(points)) {
+    const cls = piece.beyond ? "profile__line profile__line--beyond" : "profile__line";
+    parts.push(svgPart("polyline", { class: cls, points: piece.points.map((point) => at(point)).join(" ") }));
+  }
+  // The mark: where the factor is set, and what the model predicts there, read off the profile's own points.
+  const after = Math.max(1, points.findIndex((point) => point.value >= value));
+  const [before, next] = [points[after - 1], points[after]];
+  const share = next.value > before.value ? (value - before.value) / (next.value - before.value) : 0;
+  const predicted = before.predicted + share * (next.predicted - before.predicted);
+  parts.push(
+    svgPart("line", { class: "profile__at", x1: across(value), x2: across(value), y1: pad, y2: height - pad }),
+    svgPart("circle", { class: "profile__set", cx: across(value), cy: up(predicted), r: 6 }),
+  );
+  return parts;
+}
+
+/** The reader pressed or dragged on a profile: its factor is set where the pointer is, to the slider's step. */
+function dragProfile(e, f) {
+  const drawing = e.currentTarget; // the plot is inside the drawing's border, PROFILE.pad from each side
+  const left = drawing.getBoundingClientRect().left + drawing.clientLeft + PROFILE.pad;
+  const share = Math.min(1, Math.max(0, (e.clientX - left) / (drawing.clientWidth - 2 * PROFILE.pad)));
+  if (f.kind === "categorical") {
+    setWhatIf(f.name, f.levels[Math.round(share * (f.levels.length - 1))]);
+    return;
+  }
+  const [low, high] = [Math.min(f.low, f.high), Math.max(f.low, f.high)];
+  const step = sliderStep(f);
+  const stepped = low + Math.round((share * (high - low)) / step) * step;
+  setWhatIf(f.name, Math.min(high, Math.max(low, Number(stepped.toPrecision(12)))));
+}
+
+/** Set one factor of the panel: every response follows at once, and the limits the settings break a moment later. */
+function setWhatIf(name, value) {
+  if (state.whatIf.settings[name] === value) return;
+  state.whatIf.settings = { ...state.whatIf.settings, [name]: value };
+  renderWhatIf();
+  clearTimeout(whatIfLimitsTimer);
+  whatIfLimitsTimer = setTimeout(checkWhatIfLimits, 150);
 }
 
 /** Show the settings the panel holds in its controls; a number box the reader is typing in keeps what is typed. */
@@ -5818,6 +5961,7 @@ function renderWhatIf() {
   const start = whatIfStart(w.factors, state.balance, state.best);
   $("#what-if").hidden = false;
   showWhatIfSettings();
+  drawProfiles(w);
   $("#what-if-back").textContent = WHAT_IF_BACK[start.from];
   $("#what-if-back").hidden = w.factors.every((f) => start.settings[f.name] === w.settings[f.name]);
   // a study whose only results so far are its curves has no response to list: the curve below is the prediction
@@ -5828,7 +5972,8 @@ function renderWhatIf() {
   );
   const formulas = Object.fromEntries(w.responses.filter((r) => r.terms).map((r) => [r.name, r.formula]));
   const kept = state.scenarios.filter((s) => !keptProblem(w, s)).map((s) => ({ name: s.name, at: columnsAt(w.factors, s.settings) }));
-  if (fitted) showPython("what-if", whatIfCode(state.design.spec, formulas, at, w.settings, kept));
+  const profiled = profiledResponse(w);
+  if (fitted) showPython("what-if", whatIfCode(state.design.spec, formulas, at, w.settings, kept, profiled && { name: profiled.name, points: PROFILE_POINTS }));
   else hidePython("what-if");
   renderCurve(at);
   scheduleSolve(); // one factor is solved for from the others, which are where this panel has them
@@ -5922,10 +6067,7 @@ function whatIfChanged(e) {
     if (value === null) return; // a number half typed: the panel waits for the rest
     value = Math.min(Math.max(value, Math.min(f.low, f.high)), Math.max(f.low, f.high)); // the models hold inside the range
   }
-  state.whatIf.settings = { ...state.whatIf.settings, [f.name]: value };
-  renderWhatIf();
-  clearTimeout(whatIfLimitsTimer);
-  whatIfLimitsTimer = setTimeout(checkWhatIfLimits, 150);
+  setWhatIf(f.name, value);
 }
 
 /** Ask Python which limits on the settings the panel's settings break, and say so; a study without limits breaks none. */
@@ -8119,6 +8261,10 @@ $("#what-if-settings").addEventListener("change", (e) => {
   const row = e.target.closest("[data-factor]");
   if (e.target.name === "number" && row && state.whatIf) e.target.value = num(state.whatIf.settings[row.dataset.factor]);
 });
+// A profile is drawn to its dial's width, which the page knows once the panel is on show, and again when it changes.
+new ResizeObserver(() => {
+  if (state.whatIf && !$("#what-if").hidden) drawProfiles(state.whatIf);
+}).observe($("#what-if-settings"));
 $("#what-if-back").onclick = whatIfBack;
 $("#what-if-keep").addEventListener("submit", keepWhatIf);
 $("#what-if-kept-list").addEventListener("click", keptPressed);

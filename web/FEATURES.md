@@ -343,10 +343,17 @@ Also:
     Settings chosen move the what-if panel there and can be tested with confirmation runs.
     Other bests of the search within 5% of the balanced settings' overall desirability are
     listed. The chart shows its Python.
-- **What if.** A slider for each factor. Each response's prediction follows at once. Settings
+- **What if.** A dial for each factor: a picture of the response against that factor, with
+  the others where you set them, over a slider and a box for its value. Drag on a picture,
+  move the slider or type a value, and each response's prediction follows at once. Settings
   can be kept with the study under a name.
   [Show me](https://factori.al/?example=worked&show=what-if)
-  - *Details:* Its intervals and its leverage follow too.
+  - *Details:* Each picture has the 95% confidence band, and its line is dashed where the
+    settings lie beyond the runs. The pictures share one scale, so a steeper line is a larger
+    effect, and the scale holds still while you drag. A factor with levels has a dot for each.
+    With several responses the pictures are of the one Learn shows, and the table under them
+    has every response with its intervals and its leverage. The Python gives the same
+    profiles.
 - **A target curve.** For a curve response, the settings whose predicted curve comes closest.
 - **Settings that give a target.** Type what a response should be, or what several should
   be, or pick a run to match. The app runs the models backwards and gives the settings, with

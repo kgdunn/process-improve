@@ -843,6 +843,73 @@ export function keptAs(typed, kept, held) {
   return { name, problem: null };
 }
 
+/** How many points a numeric factor's profile is drawn through, its two ends among them. */
+export const PROFILE_POINTS = 25;
+
+/**
+ * One factor's profile for a response: what the response's model predicts as that factor alone moves, the others
+ * where ``settings`` has them. ``fit`` is the response's, as bootstrap.predictors sends it, and ``factors`` its list.
+ * A numeric factor has a point at each of PROFILE_POINTS values from its low end to its high end, a categorical one
+ * at each of its levels. Each point is its ``value`` with what predictAt gives there: ``predicted``, the
+ * ``confidence`` interval for the mean (null when the fit has no run left to measure the noise), and whether the
+ * settings lie beyond the runs (``extrapolating``).
+ */
+export function profileOf(fit, factors, settings, name) {
+  const f = factors.find((one) => one.name === name);
+  const [low, high] = [Math.min(f.low, f.high), Math.max(f.low, f.high)];
+  const across = Array.from({ length: PROFILE_POINTS }, (_, i) => low + ((high - low) * i) / (PROFILE_POINTS - 1));
+  return (f.kind === "numeric" ? across : f.levels).map((value) => {
+    const { predicted, confidence, extrapolating } = predictAt(fit, columnsAt(factors, { ...settings, [name]: value }));
+    return { value, predicted, confidence, extrapolating };
+  });
+}
+
+/**
+ * The lowest and the highest that any of the ``profiles`` reaches, band and all: the one scale a row of profiles is
+ * drawn to, so a steeper line is a larger effect. A level response is given room about its value. ``within`` is a
+ * range to hold as well, which keeps the scale still while the reader drags.
+ */
+export function profileRange(profiles, within = null) {
+  const reached = profiles.flat().flatMap((point) => [point.predicted, ...(point.confidence ?? [])]);
+  const all = [...reached, ...(within ?? [])].filter(Number.isFinite);
+  if (!all.length) return null;
+  const [low, high] = [Math.min(...all), Math.max(...all)];
+  const room = high > low ? 0 : Math.max(Math.abs(low) * 0.05, 0.5);
+  return [low - room, high + room];
+}
+
+/**
+ * A profile's line as the pieces it is drawn in: each a run of neighbouring points that are all within the runs, or
+ * all beyond them (``beyond``), which the page draws dashed. A piece beyond the runs starts and ends at the points
+ * within them that it joins, so the line has no gap.
+ */
+export function profilePieces(points) {
+  const pieces = [];
+  points.forEach((point, i) => {
+    const last = pieces.at(-1);
+    if (last && last.beyond === point.extrapolating) last.points.push(point);
+    else pieces.push({ beyond: point.extrapolating, points: last && point.extrapolating ? [points[i - 1], point] : [point] });
+    if (last && last.beyond && !point.extrapolating) last.points.push(point);
+  });
+  return pieces;
+}
+
+/**
+ * A profile in words, for a reader who does not see it: the response at the factor's two ends (or at each level of
+ * a categorical factor), where it is highest when that is inside the range, and whether part of it lies beyond the
+ * runs. ``words`` is the response's ``label`` and ``units``; ``units`` the factor's.
+ */
+export function profileWords(f, points, { label, units }, factorUnits = "") {
+  const at = (point) => `${withUnit(point.predicted, units)} at ${f.kind === "numeric" ? withUnit(point.value, factorUnits) : point.value}`;
+  const beyond = points.some((point) => point.extrapolating) ? " Part of it lies beyond the runs." : "";
+  if (f.kind !== "numeric") return `${label} at each level of ${f.name}: ${listed(points.map(at))}.${beyond}`;
+  const [first, last] = [points[0], points.at(-1)];
+  const top = points.reduce((best, point) => (point.predicted > best.predicted ? point : best));
+  const bottom = points.reduce((best, point) => (point.predicted < best.predicted ? point : best));
+  const inside = [first, last].includes(top) ? ([first, last].includes(bottom) ? "" : `, lowest at ${at(bottom)}`) : `, highest at ${at(top)}`;
+  return `${label} against ${f.name}, the other factors where they are set: ${at(first)}, ${at(last)}${inside}.${beyond}`;
+}
+
 /** The step of a numeric factor's slider: about a hundredth of its range, as 1, 2 or 5 times a power of ten. */
 export function sliderStep(f) {
   const raw = Math.abs(f.high - f.low) / 100;

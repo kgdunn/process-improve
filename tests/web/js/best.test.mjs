@@ -68,6 +68,11 @@ import {
   settingsWords,
   sliderStep,
   whatIfRows,
+  PROFILE_POINTS,
+  profileOf,
+  profilePieces,
+  profileRange,
+  profileWords,
   whatIfSentences,
   whatIfStart,
 } from "../../../web/best.js";
@@ -864,6 +869,67 @@ describe("what if", () => {
     assert.deepEqual(at.prediction, [15 - single, 15 + single]);
     assert.equal(at.extrapolating, true, "0.75 is above the runs' 0.5");
     assert.equal(predictAt(FIT, { T: 0 }).extrapolating, false, "the center's 0.25 is within");
+  });
+
+  test("a factor's profile is the prediction as it alone moves, the others where they are set", () => {
+    const settings = { T: 160, Catalyst: "B" };
+    const profile = profileOf(FIT, PREDICTED, settings, "T");
+    assert.equal(profile.length, PROFILE_POINTS);
+    assert.deepEqual([profile[0].value, profile.at(-1).value], [150, 200], "from its low end to its high end");
+    assert.deepEqual([profile[0].predicted, profile[12].predicted, profile.at(-1).predicted], [11, 10, 15]); // 10 + 2 x + 3 x²
+    for (const point of profile) {
+      const at = predictAt(FIT, columnsAt(PREDICTED, { ...settings, T: point.value }));
+      assert.deepEqual([point.predicted, point.confidence, point.extrapolating], [at.predicted, at.confidence, at.extrapolating]);
+    }
+    assert.deepEqual(profile.map((point) => point.extrapolating).join("").replaceAll("true", "1").replaceAll("false", "0"), "1110000000000000000000111");
+    assert.equal(profileOf(FIT, [{ ...PREDICTED[0], low: 200, high: 150 }, PREDICTED[1]], settings, "T")[0].value, 150, "a range typed high to low");
+
+    const levels = profileOf(FIT, PREDICTED, settings, "Catalyst");
+    assert.deepEqual(levels.map((point) => point.value), ["A", "B", "C"]); // prettier-ignore
+    const there = predictAt(FIT, columnsAt(PREDICTED, settings)).predicted;
+    assert.deepEqual(levels.map((point) => point.predicted), [there, there, there], "a factor the model does not hold moves nothing"); // prettier-ignore
+    assert.equal(profileOf({ ...FIT, mse: null, t: null }, PREDICTED, settings, "T")[0].confidence, null, "a fit of every run has no band");
+  });
+
+  test("the profiles of a row share one scale, which holds still while the reader drags", () => {
+    const profiles = ["T", "Catalyst"].map((name) => profileOf(FIT, PREDICTED, { T: 160, Catalyst: "B" }, name));
+    const ends = profiles.flat().flatMap((point) => [point.predicted, ...point.confidence]);
+    assert.deepEqual(profileRange(profiles), [Math.min(...ends), Math.max(...ends)], "the bands are inside it");
+    assert.deepEqual(profileRange(profiles, [-100, 100]), [-100, 100]);
+    assert.deepEqual(profileRange([[{ predicted: 5, confidence: null }]]), [4.5, 5.5], "a level response has room about it");
+    assert.deepEqual(profileRange([[{ predicted: 400, confidence: null }]]), [380, 420]);
+    assert.equal(profileRange([]), null);
+  });
+
+  test("a profile's line is in pieces, dashed where the settings lie beyond the runs, and has no gap", () => {
+    const profile = profileOf(FIT, PREDICTED, { T: 160, Catalyst: "B" }, "T");
+    const pieces = profilePieces(profile);
+    assert.deepEqual(pieces.map((piece) => [piece.beyond, piece.points.length]), [[true, 4], [false, 19], [true, 4]]); // prettier-ignore
+    assert.equal(pieces[0].points.at(-1), pieces[1].points[0], "a dashed piece ends where the solid one starts");
+    assert.equal(pieces[1].points.at(-1), pieces[2].points[0]);
+    const within = profilePieces(profile.map((point) => ({ ...point, extrapolating: false })));
+    assert.deepEqual(within.map((piece) => [piece.beyond, piece.points.length]), [[false, PROFILE_POINTS]]); // prettier-ignore
+    assert.deepEqual(profilePieces([]), []);
+  });
+
+  test("a profile is said in words: the two ends, a turn inside the range, and whether part lies beyond the runs", () => {
+    const words = { label: "Yield", units: "%" };
+    const settings = { T: 160, Catalyst: "B" };
+    assert.equal(
+      profileWords(PREDICTED[0], profileOf(FIT, PREDICTED, settings, "T"), words, "degC"),
+      "Yield against T, the other factors where they are set: 11% at 150 degC, 15% at 200 degC, lowest at 9.667% at 166.7 degC. Part of it lies beyond the runs.",
+    );
+    const hill = { ...FIT, coefficients: [10, 2, -3], max_leverage: 2 };
+    assert.equal(
+      profileWords(PREDICTED[0], profileOf(hill, PREDICTED, settings, "T"), words),
+      "Yield against T, the other factors where they are set: 5% at 150, 9% at 200, highest at 10.33% at 183.3.",
+    );
+    const slope = { ...FIT, coefficients: [10, 2, 0], max_leverage: 2 };
+    assert.equal(profileWords(PREDICTED[0], profileOf(slope, PREDICTED, settings, "T"), words), "Yield against T, the other factors where they are set: 8% at 150, 12% at 200.");
+    assert.equal(
+      profileWords(PREDICTED[1], profileOf(slope, PREDICTED, settings, "Catalyst"), words),
+      "Yield at each level of Catalyst: 8.8% at A, 8.8% at B and 8.8% at C.",
+    );
   });
 
   test("a fit on the log scale predicts the median, its intervals put back end by end", () => {
