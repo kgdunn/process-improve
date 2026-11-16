@@ -5764,19 +5764,7 @@ function whatIfControl(f, units) {
   row.dataset.factor = f.name;
   const name = el("span", "what-if-name", withUnits(f.name, units));
   const profile = svgPart("svg", { class: "profile", role: "img" });
-  profile.addEventListener("pointerdown", (e) => {
-    profile.setPointerCapture(e.pointerId);
-    state.whatIf.dragging = true;
-    dragProfile(e, f);
-  });
-  profile.addEventListener("pointermove", (e) => {
-    if (profile.hasPointerCapture(e.pointerId)) dragProfile(e, f);
-  });
-  profile.addEventListener("lostpointercapture", () => {
-    if (!state.whatIf?.dragging) return;
-    state.whatIf.dragging = false;
-    renderWhatIf(); // the scale held still for the drag: it now fits the profiles as they are
-  });
+  takeDrag(profile, (e) => dragProfile(e, f));
   if (f.kind === "categorical") {
     const select = el("select", "", "");
     select.name = "level";
@@ -5795,6 +5783,31 @@ function whatIfControl(f, units) {
   box.setAttribute("aria-label", withUnits(f.name, units));
   row.append(name, profile, slider, box, el("span", "what-if-range", span));
   return row;
+}
+
+/**
+ * Let a drawing of the what-if panel take a press and a drag: ``moved`` is given each pointer event that sets
+ * something. A mouse or a pen sets where it presses. A finger that lands on the drawing may be about to scroll the
+ * page past it, so a touch sets nothing until it moves sideways, or lifts where it landed: the browser takes an up
+ * or down swipe for the page (the drawing's touch-action), and tells the drawing nothing more of it.
+ */
+function takeDrag(drawing, moved) {
+  const held = (e) => drawing.hasPointerCapture(e.pointerId) && Boolean(state.whatIf);
+  const set = (e) => {
+    state.whatIf.dragging = true;
+    moved(e);
+  };
+  drawing.addEventListener("pointerdown", (e) => {
+    drawing.setPointerCapture(e.pointerId);
+    if (e.pointerType !== "touch" && state.whatIf) set(e);
+  });
+  drawing.addEventListener("pointermove", (e) => held(e) && set(e));
+  drawing.addEventListener("pointerup", (e) => e.pointerType === "touch" && held(e) && set(e));
+  drawing.addEventListener("lostpointercapture", () => {
+    if (!state.whatIf?.dragging) return;
+    state.whatIf.dragging = false;
+    renderWhatIf(); // the profiles' scale held still for the drag: it now fits them as they are
+  });
 }
 
 /**

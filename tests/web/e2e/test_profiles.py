@@ -246,3 +246,24 @@ def test_on_a_phone_the_dials_are_one_under_another_and_a_swipe_still_scrolls(wh
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
     for one in profiles.values():
         assert one["mark"][0] <= one["width"], "drawn to the dial's own width"
+
+
+PHONE = {"viewport": {"width": 390, "height": 844}, "is_mobile": True, "has_touch": True}
+
+
+@pytest.mark.parametrize("context_options", [PHONE])
+def test_a_finger_that_lands_on_a_profile_sets_nothing_until_it_lifts(what_if):
+    """An up or down swipe that starts on a profile is the page's: the browser cancels it, and no factor has moved."""
+    page = what_if
+    profile = page.locator('#what-if-settings [data-factor="Temperature"] svg.profile')
+    profile.evaluate("(one) => one.scrollIntoView({ block: 'center' })")  # clear of the study's bar
+    box = profile.bounding_box()
+    at = {"x": box["x"] + box["width"] * 0.3, "y": box["y"] + box["height"] / 2}
+    touch = page.context.new_cdp_session(page)
+    touch.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [at]})
+    assert setting(page, "Temperature") == 200, "the finger is down, and nothing is set"
+    touch.send("Input.dispatchTouchEvent", {"type": "touchCancel", "touchPoints": []})
+    assert setting(page, "Temperature") == 200, "a swipe the browser took for the page sets nothing"
+    page.touchscreen.tap(at["x"], at["y"])
+    page.wait_for_function("Number(document.querySelector('#what-if-settings input[name=number]').value) < 200")
+    assert setting(page, "Temperature") == pytest.approx(165, abs=1.5), "a tap sets the factor where it landed"
