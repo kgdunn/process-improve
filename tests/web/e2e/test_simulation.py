@@ -22,6 +22,7 @@ from tests.web.e2e._page import (
     set_factors,
     settled,
     status,
+    study_menu,
     type_results,
 )
 
@@ -57,7 +58,7 @@ def test_results_simulated_for_a_study_left_meanwhile_stay_out_of_the_new_one(bl
     page.click("#tab-simulate")
     page.click("#simulate")
     assert status(page) == ("Simulating the results...", "busy")
-    page.click("#new-study")
+    study_menu(page, "#new-study")
     page.evaluate("window.__pi.release('api_simulate')")
     settled(page)
     assert page.get_attribute("#workspace", "data-phase") == "plan"

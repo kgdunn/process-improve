@@ -537,8 +537,16 @@ Also:
   - *Details:* The line names up to six factors with their ranges and counts the rest. A
     change made there is the study's, and a changed plan is flagged as before. The line is
     closed on the way in from Design, and stays as you leave it between Run and Learn.
-- **Three ways in.** Start a new study, explore a worked example, or browse the design
-  catalog. A fourth button analyses data you have.
+- **A first visit is welcomed.** It opens on a blank question, under a line that says what
+  Factorial is and offers a worked example, or to analyse data you have.
+  - *Details:* A question begun there is kept as a draft. A reader with a study kept in the
+    browser is picked up where they left off, with no welcome.
+- **One menu holds every way in.** The study's name in the bar opens it: a new study, your
+  studies, the worked example, data you have, and the design catalog. It also shares the
+  study and shows its report.
+  - *Details:* The menu is a list of buttons under a button. Tab walks it, and a choice,
+    Escape, or a press elsewhere closes it. On a wide screen the bar also links to the design
+    catalog and to how Factorial works.
 - **Nothing is held back.** Every design, chart and option is on the page for every reader.
   No setting takes a part of the page away.
 - **Words explained where you meet them.** A term on the page has a dotted underline and
@@ -563,7 +571,8 @@ Also:
 - **Errors in one sentence.** Each says what to change. A name the analysis would refuse is
   refused as it is typed, with a name that works.
 - **Your work is kept.** Every study is saved in the browser as you work, with a draft of a
-  question not yet finished. Your studies lists them, to open, share or delete.
+  question not yet finished. Your studies, in the study's menu, lists them, to open, share
+  or delete.
   [Show me](https://factori.al/?example=worked&show=library)
 - **Feedback.** Send it from the bar, the footer or beside a result. A list shows what is
   sent.

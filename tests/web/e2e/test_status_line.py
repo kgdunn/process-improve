@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.web.e2e._page import generate, reveal, settled
+from tests.web.e2e._page import UNDER_BAR, generate, reveal, settled
 
 WORD = '#panel-simulate .term[data-term="noise"]'
 TIP = ".term-tip:popover-open"
@@ -109,9 +109,9 @@ def test_a_scroll_that_moves_a_word_still_closes_its_definition(sheet_page):
 
 
 #: At the top of the page: the bar's foot, the line's box, and the top of what the page puts first under the bar.
-TOP = """() => { const box = (s) => document.querySelector(s).getBoundingClientRect();
-  return { bar: box('#studybar').bottom, line: [box('#status').top, box('#status').bottom], first: box('.ways').top,
-           sheet: box('#design-table').top }; }"""
+TOP = f"""() => {{ const box = (s) => document.querySelector(s).getBoundingClientRect();
+  return {{ bar: box('#studybar').bottom, line: [box('#status').top, box('#status').bottom], first: {UNDER_BAR},
+           sheet: box('#design-table').top }}; }}"""
 
 
 @pytest.mark.parametrize(

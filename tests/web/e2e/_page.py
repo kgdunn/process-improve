@@ -46,6 +46,24 @@ def open_question(page: Any) -> None:  # noqa: ANN401 - a Playwright Page
         page.click("#question > summary")
 
 
+#: The top of what the page puts first under the study's bar, whichever part that is.
+UNDER_BAR = """(() => { let at = document.querySelector('#studybar').nextElementSibling;
+  while (at && !at.getClientRects().length) at = at.nextElementSibling;
+  return at.getBoundingClientRect().top; })()"""
+
+
+def study_menu(page: Any, entry: str) -> None:  # noqa: ANN401 - a Playwright Page
+    """Press an entry of the study's menu, as a reader would: the study's name in the bar, then the entry."""
+    page.click("#study-button")
+    page.click(entry)
+
+
+def open_library(page: Any) -> None:  # noqa: ANN401 - a Playwright Page
+    """Show Your studies, from the study's menu, unless it is on show already."""
+    if not page.locator("#library").evaluate("(box) => box.open"):
+        study_menu(page, "#open-library")
+
+
 def settled(page: Any, timeout: float = 30_000) -> None:  # noqa: ANN401 - a Playwright Page
     """Wait until no call to Python is in flight and the status line is no longer busy."""
     page.wait_for_function(

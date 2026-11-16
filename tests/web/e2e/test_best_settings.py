@@ -24,6 +24,7 @@ from tests.web.e2e._page import (
     saved_studies,
     settled,
     status,
+    study_menu,
     type_results,
 )
 
@@ -213,7 +214,7 @@ def test_confirmation_runs_simulated_for_a_study_left_meanwhile_stay_out_of_the_
     page.evaluate("window.__pi.hold('api_simulate')")
     reveal(page, "#best")
     page.click("#add-confirmation")
-    page.click("#new-study")
+    study_menu(page, "#new-study")
     page.evaluate("window.__pi.release('api_simulate')")
     settled(page)
     assert page.get_attribute("#workspace", "data-phase") == "plan"

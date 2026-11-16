@@ -24,7 +24,7 @@ from typing import Any
 
 import pytest
 
-from tests.web.e2e._page import headers, run_sheet, settled
+from tests.web.e2e._page import headers, open_library, run_sheet, settled
 from tests.web.e2e.test_responses import pick, tabs
 
 GOLDEN = Path(__file__).parent / "golden"
@@ -126,12 +126,12 @@ def test_a_file_written_by_an_earlier_release_opens_every_study_in_it(open_conte
     page.set_input_files("#study-upload", str(STUDY_FILE))
     page.wait_for_selector(BANNER, state="visible")
     assert page.text_content(BANNER) == f"{len(CASES)} studies added from {STUDY_FILE.name}."
-    page.click("#library summary")
+    open_library(page)
     titles = page.locator("#library-list li .library__study button").all_text_contents()
     assert sorted(titles) == sorted(case["title"] for case in CASES)
     for case in CASES:
         if not page.locator("#library").evaluate("(box) => box.open"):
-            page.click("#library summary")  # opening a study folds the list away
+            open_library(page)  # opening a study folds the list away
         page.locator("#library-list li .library__study button", has_text=case["title"]).click()
         settled(page)
         assert page.text_content(BANNER).startswith(f"Opened {case['title']}"), case["name"]

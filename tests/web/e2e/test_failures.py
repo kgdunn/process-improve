@@ -11,7 +11,7 @@ import time
 
 import pytest
 
-from tests.web.e2e._page import status
+from tests.web.e2e._page import UNDER_BAR, status
 
 pytestmark = pytest.mark.parametrize("transport", ["worker"])
 
@@ -45,8 +45,8 @@ def test_a_refused_python_download_is_reported_and_nothing_waits_for_it(context,
     refused[0].abort("blockedbyclient")
     assert "pyodide.mjs" in failed_to_start(page)
     # An error stays, so it has room of its own in the bar, and lies on nothing the page puts under it.
-    line, bar, first = (page.locator(part).bounding_box() for part in ("#status", "#studybar", ".ways"))
-    assert line["y"] + line["height"] <= bar["y"] + bar["height"] <= first["y"]
+    line, bar = (page.locator(part).bounding_box() for part in ("#status", "#studybar"))
+    assert line["y"] + line["height"] <= bar["y"] + bar["height"] <= page.evaluate(UNDER_BAR)
     assert page.text_content("#run-example") == "Run it again in your browser"
     assert page.is_disabled("#run-example")
     for control in ("#generate", "#simulate", "#upload"):

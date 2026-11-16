@@ -29,6 +29,7 @@ from tests.web.e2e._page import (
     set_factors,
     settled,
     status,
+    study_menu,
     type_results,
 )
 
@@ -55,8 +56,7 @@ def test_an_analysis_dropped_for_a_new_study_does_not_leave_the_status_line_busy
     page.evaluate("window.__pi.hold('api_analyze_runs')")
     enter_results(page, {0: 70})
     assert status(page) == ("Analysing...", "busy")
-    reveal(page, "#new-study")
-    page.click("#new-study")
+    study_menu(page, "#new-study")
     page.evaluate("window.__pi.release('api_analyze_runs')")
     settled(page)
     assert page.is_hidden("#status")

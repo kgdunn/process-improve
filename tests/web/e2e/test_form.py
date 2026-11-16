@@ -13,7 +13,17 @@ from itertools import pairwise
 import pytest
 
 from tests.web._support import ALL_DESIGNS, NO_BOOK_PAGE, factors_named
-from tests.web.e2e._page import choose, factor_table, generate, open_question, reveal, run_sheet, set_factors, settled
+from tests.web.e2e._page import (
+    choose,
+    factor_table,
+    generate,
+    open_question,
+    reveal,
+    run_sheet,
+    set_factors,
+    settled,
+    study_menu,
+)
 
 NAMES = "ABCDEFGHJKLM"
 
@@ -234,7 +244,7 @@ def test_a_typed_distance_at_the_corners_radius_keeps_a_center_run(page):
 
 def test_replicates_chosen_for_one_design_do_not_carry_over_to_the_next_one_loaded(page):
     choose(page, n_replicates=3)
-    page.click("#show-example")
+    study_menu(page, "#show-example")
     settled(page)
     assert page.input_value("#n_replicates") == "1", "the worked example is made once"
 

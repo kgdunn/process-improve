@@ -24,6 +24,7 @@ from tests.web.e2e._page import (
     set_factors,
     settled,
     status,
+    study_menu,
     type_limit,
 )
 
@@ -219,7 +220,7 @@ def test_the_map_follows_the_design_while_it_is_open_and_is_asked_for_once_a_des
 def test_a_table_of_the_reader_s_own_shows_which_factors_moved_together(fresh_page):
     """Where the map earns its place: runs nobody designed, whose factors moved as the process did."""
     page = fresh_page
-    page.click("#import-data")
+    study_menu(page, "#import-data")
     table = "A,B,C,y\n" + "".join(f"{a},{b},{c},{10 + a + c}\n" for a, b, c in CORRELATED_RUNS)
     page.fill("#import-text", table)
     page.click("#import-read")

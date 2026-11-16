@@ -13,12 +13,14 @@ from tests.web.e2e._page import (
     candidates_done,
     first_paint_done,
     name_response,
+    open_library,
     practise,
     reveal,
     run_sheet,
     saved_studies,
     set_factors,
     settled,
+    study_menu,
 )
 
 DEVICES = [{"viewport": {"width": 1280, "height": 900}}, {"viewport": {"width": 390, "height": 844}, "is_mobile": True}]
@@ -117,8 +119,7 @@ def test_practise_on_the_worked_example_then_a_study_of_ones_own_kept_as_a_file(
     assert _best(page)
 
     # A study of one's own, practised on before the real runs.
-    reveal(page, "#new-study")
-    page.click("#new-study")
+    study_menu(page, "#new-study")
     set_factors(page, [{"name": "Speed", "low": 100, "high": 300, "units": "rpm"}, *REACTOR])
     candidates_done(page)
     reveal(page, "#candidates")
@@ -135,7 +136,7 @@ def test_practise_on_the_worked_example_then_a_study_of_ones_own_kept_as_a_file(
     # Kept as a file, and opened on another computer.
     saved = saved_studies(page, lambda saved: len(saved) == 1)
     assert len(saved) == 1, "the worked example is not kept, the reader's own study is"
-    page.click("#library summary")
+    open_library(page)
     with page.expect_download() as download:
         page.locator("#library-list li").first.get_by_role("button", name="Download").click()
     file = tmp_path / download.value.suggested_filename
