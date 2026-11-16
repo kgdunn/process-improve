@@ -294,6 +294,7 @@ def blank_page(fresh_page: Any) -> Any:  # noqa: ANN401 - a Playwright Page
 
     The study has no run sheet yet; the designs that can learn the brief are listed before it is returned.
     """
+    fresh_page.click("#welcome-start")  # the way in a first visit offers: the welcome gives way to the question
     set_factors(fresh_page, FACTORS)
     candidates_done(fresh_page)
     return fresh_page
