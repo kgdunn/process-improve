@@ -531,6 +531,12 @@ Also:
   - *Details:* The bar is one row on a desk, about 50 px tall, and two on a phone. A line
     under it says what the app is doing. That line is no part of the bar, so neither the bar
     nor the page moves when it comes and goes. An error stays, in room of its own.
+- **The question in one line.** On Run and Learn the response, the factors and the aim are one
+  line, so the runs and the results have the page's width. "Change" opens the same form that
+  Design has.
+  - *Details:* The line names up to six factors with their ranges and counts the rest. A
+    change made there is the study's, and a changed plan is flagged as before. The line is
+    closed on the way in from Design, and stays as you leave it between Run and Learn.
 - **Three ways in.** Start a new study, explore a worked example, or browse the design
   catalog. A fourth button analyses data you have.
 - **Nothing is held back.** Every design, chart and option is on the page for every reader.
