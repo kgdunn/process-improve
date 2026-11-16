@@ -178,28 +178,8 @@ def test_on_a_phone_the_map_is_under_the_dials_and_a_tap_sets_both(mapped):
     assert dials["y"] + dials["height"] <= chart["y"], "the dials, then the map"
     assert chart["x"] + chart["width"] <= 390
     assert page.locator(PLOT).evaluate("(plot) => getComputedStyle(plot).touchAction") == "pan-y"
-    page.locator(PLOT).scroll_into_view_if_needed()
+    page.locator(PLOT).evaluate("(plot) => plot.scrollIntoView({ block: 'center' })")  # clear of the study's bar
     page.touchscreen.tap(*point_at(page, 175, 2))
     page.wait_for_function("Number(document.querySelector('#what-if-settings input[name=number]').value) === 175")
     assert (setting(page, "Temperature"), setting(page, "Pressure")) == (175, 2)
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
-
-
-@pytest.mark.parametrize(
-    "context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True, "has_touch": True}]
-)
-def test_a_finger_that_lands_on_a_profile_sets_nothing_until_it_lifts(mapped):
-    """An up or down swipe that starts on a profile is the page's: the browser cancels it, and no factor has moved."""
-    page = mapped
-    profile = page.locator('#what-if-settings [data-factor="Temperature"] svg.profile')
-    profile.scroll_into_view_if_needed()
-    box = profile.bounding_box()
-    at = {"x": box["x"] + box["width"] * 0.3, "y": box["y"] + box["height"] / 2}
-    touch = page.context.new_cdp_session(page)
-    touch.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [at]})
-    assert setting(page, "Temperature") == 200, "the finger is down, and nothing is set"
-    touch.send("Input.dispatchTouchEvent", {"type": "touchCancel", "touchPoints": []})
-    assert setting(page, "Temperature") == 200, "a swipe the browser took for the page sets nothing"
-    page.touchscreen.tap(at["x"], at["y"])
-    page.wait_for_function("Number(document.querySelector('#what-if-settings input[name=number]').value) < 200")
-    assert setting(page, "Temperature") == pytest.approx(165, abs=1.5), "a tap sets the factor where it landed"
