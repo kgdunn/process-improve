@@ -51,7 +51,9 @@ BUDGET = {
     # reader would else have to work out of the tables below them. The settings that give a target and those that
     # meet a specification add 4 words, the label of the run to match: their headings and their boxes' labels say
     # what to type, so neither has a hint. The what-if panel's hint says what its pictures are, some 13 words more.
-    "the worked example's analysis": 420,
+    # A prediction as 20 runs has a sentence of 10 words: it says what the drawing shows, to a reader who does not
+    # see the drawing too, so it is not cut.
+    "the worked example's analysis": 425,
     "the comparison in detail": 175,
 }
 
