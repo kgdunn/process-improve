@@ -4303,7 +4303,16 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
         else:
             _checked_model(one, names, labelled)
     # read_workbook checks what_if itself.
-    dropped = ("response_info", "responses", "aim", "constraints", "analysis_transforms", "what_if", "curve")
+    dropped = (
+        "response_info",
+        "responses",
+        "aim",
+        "constraints",
+        "analysis_transforms",
+        "what_if",
+        "builds_on",
+        "curve",
+    )
     checked = {key: value for key, value in spec.items() if key not in dropped}
     limits = _checked_constraints(spec.get("constraints"), factors)
     transforms = _checked_transforms(spec, responses)
@@ -5165,6 +5174,8 @@ def read_workbook(request: dict) -> dict:
         reply["more_sources"] = {name: results[name][1] for name in names[1:]}
     if stored.get("what_if"):
         reply["what_if"] = _kept_settings(stored["what_if"])
+    if stored.get("builds_on"):
+        reply["builds_on"] = _built_on(stored["builds_on"])
     if spec.get("curve") is not None:
         reply["curves"] = _curves_read(curve_sheet, spec["curve"], runs)
     return reply
@@ -5190,6 +5201,41 @@ def _kept_settings(value: object) -> list[dict[str, Any]]:
     ):
         raise ValueError("The page sent kept settings this page did not write.")
     return [{"name": one["name"], "settings": dict(one["settings"])} for one in value]
+
+
+#: The most studies a study builds on (``BUILT_ON_HELD`` in ``web/campaign.js``).
+BUILT_ON_HELD = 4
+
+
+def _built_on(value: object) -> list[dict[str, Any]]:
+    """Check the studies a study builds on, the round before it, as ``checkBuiltOn`` in ``web/campaign.js`` checks them.
+
+    Each is the ``id`` that names the earlier study, the ``sha256`` of its runs and results when this
+    one was built on it (None when the browser could not work one out), and its ``title`` then. A
+    workbook carries them so the study is still a round of its campaign when it comes back.
+    """
+    if not isinstance(value, list) or len(value) > BUILT_ON_HELD or not all(map(_built_on_one, value)):
+        raise ValueError("The page sent a study this one builds on that this page did not write.")
+    return [
+        {"id": one["id"], "sha256": one.get("sha256"), **({"title": one["title"]} if one.get("title") else {})}
+        for one in value
+    ]
+
+
+def _built_on_one(one: object) -> bool:
+    """Say whether one study built on is an id of one line, a SHA-256 or none, and a title of one line or none."""
+    if not isinstance(one, dict):
+        return False
+    name, digest, title = one.get("id"), one.get("sha256"), one.get("title")
+    line = lambda text, most: (  # noqa: E731
+        isinstance(text, str) and len(text) <= most and not any(unicodedata.category(ch) == "Cc" for ch in text)
+    )
+    return (
+        line(name, 100)
+        and bool(name.strip())
+        and (digest is None or (isinstance(digest, str) and re.fullmatch(r"[0-9a-f]{64}", digest) is not None))
+        and (title is None or line(title, 200))
+    )
 
 
 def _kept_one(one: object) -> bool:
@@ -5258,6 +5304,8 @@ def workbook(request: dict) -> dict:
         spec = {**spec, "simulated": {k: simulated.get(k) for k in ("scenario", "sigma", "seed")}}
     if request.get("what_if"):
         spec = {**spec, "what_if": _kept_settings(request["what_if"])}
+    if request.get("builds_on"):
+        spec = {**spec, "builds_on": _built_on(request["builds_on"])}
     curves = None
     if spec.get("curve") is not None:
         points = len(spec["curve"]["argument"]["values"])
@@ -7320,6 +7368,11 @@ AIMED = ("maximize", "minimize", "target")
 #: The confidence level of the intervals at the best settings.
 LEVEL = 0.95
 
+#: How many runs the page draws a prediction as, each as likely as the next: the t values at the middle of that many
+#: equal shares. The least and the greatest of them are the two ends of the prediction interval at ``LEVEL``, which is
+#: what makes it 20 for 95%.
+PREDICTED_RUNS = round(1 / (1 - LEVEL))
+
 #: How far each numeric factor moves from the best settings, either way, to show how tightly it must be held: this
 #: share of its range, 0.1 in coded units.
 NUDGE = 0.05
@@ -7502,6 +7555,8 @@ class _FittedModel:
         self.df = int(summary["df_residual"])
         self.mse = float(summary["mse_residual"]) if self.df > 0 else None
         self.t = float(stats.t.ppf(1 - (1 - LEVEL) / 2, self.df)) if self.df > 0 else None
+        shares = (np.arange(PREDICTED_RUNS) + 0.5) / PREDICTED_RUNS
+        self.run_quantiles = stats.t.ppf(shares, self.df).tolist() if self.df > 0 else None
         leverages = np.einsum("ij,jk,ik->i", x, self.inverse, x)
         self.max_leverage = float(leverages.max())
         self.residuals: pd.Series | None = None  # by the run each belongs to, once with_residuals has them
@@ -9968,10 +10023,11 @@ def predictors(request: dict) -> dict:
     Each response with results is fitted with its own model (``models``, by its column; the design's
     without one) as Learn fits it (:func:`_fitted`). Its reply holds the formula fitted, for the code
     the page shows, and what :meth:`_FittedModel.at` needs: each term as the columns it multiplies
-    (``I(T ** 2)`` as ``T`` twice), the coefficients, ``(X'X)^-1``, the residual mean square and the
-    t value of 95% intervals (both None without residual degrees of freedom), and the largest
-    leverage of the runs fitted. The page (``predictAt`` in ``web/best.js``) then gives the
-    prediction, its intervals and its leverage as the reader moves a setting, at once. A block
+    (``I(T ** 2)`` as ``T`` twice), the coefficients, ``(X'X)^-1``, the residual mean square, the
+    t value of 95% intervals and the t values of ``PREDICTED_RUNS`` equally likely runs (all None
+    without residual degrees of freedom), and the largest leverage of the runs fitted. The page
+    (``predictAt`` and ``runsAt`` in ``web/best.js``) then gives the prediction, its intervals, its
+    leverage and the runs a reader might get as the reader moves a setting, at once. A block
     contrast is 0 in the average block, where the page predicts, so its term, its coefficient and
     its row and column of ``(X'X)^-1`` are left out: they add nothing there.
 
@@ -10023,6 +10079,7 @@ def _predictor(fitted: _FittedModel) -> dict[str, Any]:
         "inverse": fitted.inverse[np.ix_(kept, kept)].tolist(),
         "mse": fitted.mse,
         "t": fitted.t,
+        "run_quantiles": fitted.run_quantiles,
         "df": fitted.df,
         "level": LEVEL,
         "max_leverage": fitted.max_leverage,
@@ -10232,6 +10289,35 @@ EXTENSIONS: dict[str, dict[str, Any]] = {
     "replicate": {"augmentation": "replicate", "blocked": True, "name": "The runs made again"},
 }
 
+#: What each run a move adds is for, by the move's kind. An axial move's runs are of two sorts: see _run_reasons.
+RUN_REASONS = {
+    "foldover": "A run made before, with every setting switched to its other end.",
+    "center": "At the center of the ranges: it shows curvature, and how much runs differ.",
+    "optimal": "Chosen for the model: with the runs before, it lets every term be estimated.",
+    "replicate": "A run made before, made again: the two show how much runs differ.",
+}
+
+
+def _run_reasons(kind: str, new: np.ndarray, factors: list[dict]) -> list[str]:
+    """Say what each run a move adds is for: a sentence a run, in the runs' order, for the page to list them by.
+
+    ``new`` holds the runs, coded, a row each. An axial run is named by the factor it moves to an end of its
+    range; a run at the center, among axial runs, ties them to the runs made before.
+    """
+    if kind != "axial":
+        return [RUN_REASONS[kind]] * len(new)
+    reasons = []
+    for row in new:
+        moved = [j for j, value in enumerate(row) if abs(value) > ALIAS_TOLERANCE]
+        if not moved:
+            reasons.append("At the center: it ties these runs to the runs made before.")
+            continue
+        name = factors[moved[0]]["name"]
+        end = "high" if row[moved[0]] > 0 else "low"
+        reasons.append(f"{name} at its {end} end, the others at their center: it shows how {name} curves.")
+    return reasons
+
+
 #: How many center runs Learn adds to a design that has none: the library's own number.
 EXTRA_CENTER_RUNS = 3
 
@@ -10262,6 +10348,8 @@ def next_runs(request: dict) -> dict:
     a reason the reader can act on. Each offer is one of :data:`EXTENSIONS`, in that order, and
     only where it applies: ``kind``, its ``label`` for the button, the ``runs`` it adds, ``why`` in a
     sentence or two, ``model``, the largest model the design then estimates in full, and ``blocked``.
+    ``added`` holds the runs themselves before they are made, each factor's setting by its name, and
+    ``reasons`` what each is for, so the page can show a move's runs and its price before a reader pays it.
     An extension whose runs would break a limit on the settings is not offered, and ``notes`` says so.
     A mixture is offered nothing: its runs are blends, which these extensions do not make.
     """
@@ -10279,7 +10367,9 @@ def next_runs(request: dict) -> dict:
             notes.append(f"{name} would fall outside your limits on the settings, so Learn does not offer them.")
             continue
         shown = {key: made[key] for key in ("kind", "label", "why", "model", "blocked")}
-        offers.append(shown | {"runs": len(made["new"])})
+        runs = [{f["name"]: _setting(f, row[j]) for j, f in enumerate(spec["factors"])} for row in made["new"]]
+        reasons = _run_reasons(kind, made["new"], spec["factors"])
+        offers.append(shown | {"runs": len(runs), "added": runs, "reasons": reasons})
     return {"offers": offers, "notes": notes, "recommendation": recommendation, "waiting": waiting}
 
 

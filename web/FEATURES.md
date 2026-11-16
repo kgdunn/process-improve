@@ -1,8 +1,9 @@
 # Factorial: what the app does
 
 Factorial is the browser app of `process-improve`, at <https://factori.al/>. It plans a
-designed experiment, takes its results and analyses them, in three steps: Design, Run and
-Learn. Python runs inside the browser tab, so a study never reaches a server.
+designed experiment, takes its results, analyses them and says what to run next, in four
+steps: Design, Run, Learn and Next. Python runs inside the browser tab, so a study never
+reaches a server.
 
 This document lists what the app does today. Use it to describe the app elsewhere. Three
 rules keep it true:
@@ -247,14 +248,24 @@ Also:
     reader who does not see it. "Show the numbers" puts each finding's coefficient, its 95%
     interval and its p-value under it. The report holds the pictures too.
 - **Choose how much the model holds.** As designed, the factors on their own, the factors
-  and how pairs of them act together, curves as well, or the terms you choose.
-  - *Details:* As designed, main effects, main effects and two-factor interactions, the full
-    quadratic, or terms you choose (interactions of up to three factors, and squares).
+  and how pairs of them act together, or curves as well.
+  - *Details:* As designed, main effects, main effects and two-factor interactions, or the
+    full quadratic. The list says "Your terms" while the model is one you built term by
+    term.
 - **The model and its tables, a press away.** The equation, the fit, the table of the
   effects, the analysis of variance and each run are under one heading, "For the
   statistician". Learn reads in sentences until you open it.
   - *Details:* The heading stays as you leave it, open or closed, for the next fit and the
     next visit. The report holds every table either way.
+- **The model as terms to press.** Under "For the statistician", every term the model may
+  hold is there, with the model's own ticked. One press takes a term out or puts it in, and
+  the answer, its checks and the findings follow.
+  - *Details:* Main effects, interactions of up to three factors, and squares. A term put in
+    brings the main effects it is made of; a term taken out takes nothing with it, so a
+    factor nested in another can be written. Terms the design cannot tell apart are one
+    term, written "A·B = C·D". "As designed" goes back to the design's own model, and "Keep
+    the clear terms" fits the terms the results support at once. A model that cannot be
+    fitted keeps its terms on show, so a term can be put back.
 - **The size of each effect, and how sure it is.** A table of the effects, the surest
   first. With simulated results each stands beside its true value.
   - *Details:* Coefficients with 95% intervals and p-values, ordered by p-value.
@@ -294,7 +305,8 @@ Also:
   and Learn, the report and the code all say it was left out.
 - **Simplify the model.** The app proposes the terms worth keeping. Nothing is fitted until
   you accept, and the app then says the terms were picked from the same results. The offer
-  stands with the terms that show no sign of an effect, in what the results say.
+  stands with the terms that show no sign of an effect, in what the results say. "Keep the
+  clear terms", beside the model's terms, does the same in one press.
   - *Details:* Stepwise selection by AICc that keeps an interaction only with both its main
     effects.
 - **How steady repeated runs are.** Where a setting was run more than once: its average and
@@ -323,6 +335,13 @@ Also:
 
 #### From the results to a decision
 
+- **One card answers where to run.** The dials and the map of What if set the factors. Under
+  them you choose what the settings are for: the best for your goal, a target to hit, or a
+  window to stay in. That goal's settings are found under the dials.
+  [Show me](https://factori.al/?example=worked&show=where)
+  - *Details:* A goal is offered when the study has what it needs: a response with no goal
+    has no best settings. A link to a part of a goal chooses that goal. The report holds
+    every goal's part, whichever is on show.
 - **The best settings for your goal.** They are inside the ranges and the limits, with what to
   expect there and how far a single run may fall from it. The app warns when the answer leans
   on the model beyond the runs, and says how tightly to hold each factor.
@@ -343,10 +362,37 @@ Also:
     Settings chosen move the what-if panel there and can be tested with confirmation runs.
     Other bests of the search within 5% of the balanced settings' overall desirability are
     listed. The chart shows its Python.
-- **What if.** A slider for each factor. Each response's prediction follows at once. Settings
+- **What if.** A dial for each factor: a picture of the response against that factor, with
+  the others where you set them, over a slider and a box for its value. Drag on a picture,
+  move the slider or type a value, and each response's prediction follows at once. Settings
   can be kept with the study under a name.
   [Show me](https://factori.al/?example=worked&show=what-if)
-  - *Details:* Its intervals and its leverage follow too.
+  - *Details:* Each picture has the 95% confidence band, and its line is dashed where the
+    settings lie beyond the runs. The pictures share one scale, so a steeper line is a larger
+    effect, and the scale holds still while you drag. A factor with levels has a dot for each.
+    With several responses each has its row of pictures, on its own scale, and the table
+    under them has every response with its intervals and its leverage. The Python gives the
+    profiles of the response Learn shows.
+- **A map beside the dials.** The response over two factors, with the others where the dials
+  have them. Press or drag on it to set both factors at once. It marks where the dials are,
+  stars the best settings, and fades where the settings lie beyond the runs.
+  - *Details:* On a laptop the dials and the map are in view together. The two factors are
+    those you gave the response surface among the charts, else the first two numeric ones.
+    The star is drawn when the map passes through the best settings. On a phone a tap sets
+    both factors, and an up or down swipe still scrolls the page. Its window shows the Python
+    that draws the same surface.
+- **A prediction as 20 runs.** Under the dials, each response is drawn as 20 runs you might
+  get at those settings, each as likely as the next. A run inside the response's window is
+  filled, and one outside it is a ring.
+  - *Details:* The least and the greatest of the 20 are the two ends of the 95% prediction
+    interval in the table beside them. The dots pile up where a run is likelier. A model
+    with no run left to estimate the noise has no runs to draw.
+- **Kept settings, side by side.** Settings kept under a name sit in one table: a row each,
+  with every factor's setting and every response as predicted there, over its 95%
+  prediction interval.
+  - *Details:* A row puts its settings back on the dials, which then give every number of
+    them, adds confirmation runs there, or is deleted. Settings past a limit, or outside a
+    range edited since, say so in their row. The report holds the table.
 - **A target curve.** For a curve response, the settings whose predicted curve comes closest.
 - **Settings that give a target.** Type what a response should be, or what several should
   be, or pick a run to match. The app runs the models backwards and gives the settings, with
@@ -396,11 +442,6 @@ Also:
 - **Check the answer.** One button adds three confirmation runs at the settings found, and the
   app judges them when their results are in.
   [Show me](https://factori.al/?example=worked&show=confirm)
-- **What to do next.** What the results call for, with one button: more runs for this design,
-  confirmation runs, or a new study with its ranges moved towards better results.
-  [Show me](https://factori.al/?example=worked&show=next)
-  - *Details:* Runs added to the design are a fold-over, axial runs, center runs, runs chosen
-    for the model, or every run again. The new study's ranges move along the steepest ascent.
 
 #### Data you have already
 
@@ -542,7 +583,8 @@ Also:
   - *Details:* The study is packed after the `#`, which a browser sends to no server.
 - **Move your studies.** One study or all of them as a file, to take to another browser or
   another computer.
-  - *Details:* The study file (.json) is plain JSON and carries a SHA-256 of each study.
+  - *Details:* The study file (.json) is plain JSON and carries a SHA-256 of each study. A
+    study that builds on another names it there, so a file of both holds the campaign.
 - **Old studies keep opening.** A link or a file saved by an earlier version opens in a
   later one.
   - *Details:* An earlier version refuses a newer study in a sentence, and opens no part of
@@ -551,6 +593,42 @@ Also:
 - **Examples by name.** The book's 19 examples and 3 published examples each open from a
   link.
   - *Details:* With `?book=<name>` and with `?example=<name>`.
+
+## Next
+
+### Plan the next round
+
+*What the results call for, and the rounds of a campaign.*
+
+- **What to do next.** What the results call for, with one button: more runs for this design,
+  confirmation runs, or a new study with its ranges moved towards better results.
+  [Show me](https://factori.al/?example=worked&show=next)
+  - *Details:* Runs added to the design are a fold-over, axial runs, center runs, runs chosen
+    for the model, or every run again. The new study's ranges move along the steepest ascent.
+- **Every move has its price.** Each way to go on says how many runs it adds and what the
+  study then holds: "8 more runs: 19 in this study". A campaign says how many runs it holds
+  so far.
+  - *Details:* There is no budget to set against a price: what a campaign may spend is often
+    decided a round at a time. A new study's runs are counted on their own. A round that is
+    not in this browser is not counted, and the app says so.
+- **See a move's runs before you make them.** Under its price, each way of adding runs
+  lists the runs it would add, each with its settings and what that run is for.
+  - *Details:* With two or three numeric factors the runs are also drawn on a square or a
+    cube: a ring for each setting already run, a filled point for each run to add. Nothing
+    is added by looking.
+- **A campaign of rounds.** A study started from another is the next round of its campaign.
+  Next lists the rounds: each one's runs, its best result so far, and a button that opens it.
+  - *Details:* The link between two rounds goes with the study through its file, its link and
+    its workbook. A study's own file holds the rounds before it; a link holds the one study
+    and names the round before. The app says when a run or a result of an earlier round
+    changed after a later round was built on it. A study that stands alone lists no rounds.
+- **The campaign on one map and one chart.** Every run of every round where it was made,
+  over two factors, with each round's model drawn inside that round's own ranges. Beside it,
+  every run in the order they were made, with the best result so far.
+  - *Details:* A box marks each round's ranges, and one scale of colour serves every round.
+    The two factors are those of the map beside the dials. A choice shows the campaign as it
+    stood after an earlier round. A target is a level line. Each chart opens large and shows
+    Python that draws it.
 
 ## Around the study
 

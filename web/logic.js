@@ -238,20 +238,43 @@ export function combinations(items, size) {
 }
 
 /**
- * Every term a model of these factors may hold, as the page lists them to tick: {term, label, group},
+ * Every term a model of these factors may hold, as the page lists them to press: {term, label, group},
  * where a term is a list of factor names: one for a main effect, two or three for an interaction,
  * and one name twice for a square, as bootstrap.py reads them. Past MAX_INTERACTION_FACTORS factors,
  * whose interactions are too many to list (40 factors have 9880 of three), the interactions listed are
- * those the reader named: the ones in ``named``.
+ * those the reader named: the ones in ``named``, the terms now in the model.
+ *
+ * Terms the design cannot tell apart are one term. ``aliases`` is the design's groups of them, each a list of
+ * labels with the one to keep first (bootstrap._aliased_groups): the first is written with the others,
+ * "A·B = C·D", and the others are not listed, unless the model holds one of them, which must stay in reach.
  */
-export function candidateTerms(factors, named = []) {
+export function candidateTerms(factors, named = [], aliases = []) {
   const names = factors.map((f) => f.name);
   const group = (label, terms) => terms.map((term) => ({ term, label: termLabel(term), group: label }));
   const interactions = screensOnly(names.length)
     ? group("Interactions you name", named.filter((term) => term.length > 1 && term[0] !== term[1] && term.every((n) => names.includes(n))))
     : [...group("Two-factor interactions", combinations(names, 2)), ...group("Three-factor interactions", combinations(names, 3))];
-  return [...group("Main effects", names.map((n) => [n])), ...interactions, ...group("Squares", squared(factors))];
+  const every = [...group("Main effects", names.map((n) => [n])), ...interactions, ...group("Squares", squared(factors))];
+  const inModel = new Set(named.map(termLabel));
+  const others = new Set(aliases.flatMap((same) => same.slice(1)).filter((label) => !inModel.has(label)));
+  const sameAs = new Map(aliases.map((same) => [same[0], same.slice(1).filter((label) => others.has(label))]));
+  return every
+    .filter(({ label }) => !others.has(label))
+    .map((one) => (sameAs.get(one.label)?.length ? { ...one, label: [one.label, ...sameAs.get(one.label)].join(" = ") } : one));
 }
+
+/**
+ * The main effects a term put into a model brings with it: those of its factors the model lacks. A main effect
+ * brings none. ``terms`` is the model with the term in it or not.
+ */
+export function mainEffectsBrought(terms, term) {
+  if (term.length < 2) return [];
+  const held = new Set(terms.filter((one) => one.length === 1).map((one) => one[0]));
+  return [...new Set(term)].filter((name) => !held.has(name)).map((name) => [name]);
+}
+
+/** What the page says when a term put in brought main effects with it: "T·P brought T and P with it." */
+export const broughtWords = (term, brought) => `${termLabel(term)} brought ${listNames(brought.map(termLabel))} with it.`;
 
 /** The interaction of two factors as a term, its factors in the design's order; null for a factor and itself. */
 export const interactionOf = (a, b, names) => (a === b ? null : [a, b].sort((x, y) => names.indexOf(x) - names.indexOf(y)));
@@ -2234,4 +2257,21 @@ export function planVerdict(points, plan) {
   if (below >= MOST * total) return "You have more factors than most experiments here.";
   if (above >= MOST * total) return "You have fewer factors than most experiments here.";
   return "Experiments here often have as many factors as yours.";
+}
+
+/** A value of a numeric factor on the scale every design is drawn on: -1 at the low end of its range, +1 at the high. */
+export const codedLevel = (value, f) => (2 * Number(value) - Number(f.low) - Number(f.high)) / (Number(f.high) - Number(f.low));
+
+/**
+ * Some runs as points of the space that numeric ``factors`` span, for a picture of it: each run's level of every
+ * factor, coded (see codedLevel), one point for each setting the runs took however often they took it. A run is
+ * its settings by the factors' names; one without a number for a factor is left out.
+ */
+export function spacePoints(runs, factors) {
+  const points = new Map();
+  for (const run of runs) {
+    const point = factors.map((f) => (isFiniteNumber(run[f.name]) ? codedLevel(run[f.name], f) : NaN));
+    if (point.every(Number.isFinite)) points.set(point.map((level) => level.toFixed(3)).join(" "), point);
+  }
+  return [...points.values()];
 }

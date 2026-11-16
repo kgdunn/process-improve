@@ -68,6 +68,18 @@ import {
   settingsWords,
   sliderStep,
   whatIfRows,
+  PROFILE_POINTS,
+  MAP_POINTS,
+  mapPair,
+  surfaceOf,
+  profileOf,
+  runsAt,
+  insideWindow,
+  dotPiles,
+  runsWords,
+  profilePieces,
+  profileRange,
+  profileWords,
   whatIfSentences,
   whatIfStart,
 } from "../../../web/best.js";
@@ -864,6 +876,137 @@ describe("what if", () => {
     assert.deepEqual(at.prediction, [15 - single, 15 + single]);
     assert.equal(at.extrapolating, true, "0.75 is above the runs' 0.5");
     assert.equal(predictAt(FIT, { T: 0 }).extrapolating, false, "the center's 0.25 is within");
+  });
+
+  test("a prediction as runs: one for each t value Python sent, the outer two at the ends of the prediction interval", () => {
+    // Five equally likely runs here: the t values at the middle of five equal shares, the outer two the interval's own.
+    const fit = { ...FIT, run_quantiles: [-2.447, -0.8, 0, 0.8, 2.447] };
+    const runs = runsAt(fit, { T: 1 });
+    const single = Math.sqrt(4 * 1.75);
+    assert.deepEqual(runs, [-2.447, -0.8, 0, 0.8, 2.447].map((q) => 15 + q * single));
+    assert.deepEqual([runs[0], runs.at(-1)], predictAt(fit, { T: 1 }).prediction, "the same two numbers as the interval");
+    assert.equal(runsAt({ ...fit, mse: null, t: null, run_quantiles: null }, { T: 1 }), null, "a fit of every run has no noise to draw");
+    assert.equal(runsAt(FIT, { T: 1 }), null, "nor has a fit sent without its runs' t values");
+
+    // A response fitted on a log scale has its runs put back, as its interval is; one that cannot be put back draws none.
+    const logged = runsAt({ ...fit, coefficients: [1, 0.1, 0], transform: "log" }, { T: 1 });
+    assert.deepEqual([logged[0], logged.at(-1)], predictAt({ ...fit, coefficients: [1, 0.1, 0], transform: "log" }, { T: 1 }).prediction);
+    assert.ok(logged.every((run, i) => i === 0 || run > logged[i - 1]), "least first, as on the scale it is fitted on");
+    assert.equal(runsAt({ ...fit, transform: "inverse" }, { T: 1 }), null, "-1/y above 0 is a result without bound");
+  });
+
+  test("the runs inside a window, an end of which may be open", () => {
+    const runs = [1, 2, 3, 4, 5];
+    assert.deepEqual(insideWindow(runs, [2, 4]), [false, true, true, true, false], "an end is inside");
+    assert.deepEqual(insideWindow(runs, [null, 2.5]), [true, true, false, false, false]);
+    assert.deepEqual(insideWindow(runs, [4.5, null]), [false, false, false, false, true]);
+    assert.deepEqual(insideWindow(runs), [true, true, true, true, true], "with no window, every one");
+  });
+
+  test("runs pile up in the column they fall in", () => {
+    assert.deepEqual(dotPiles([0, 1, 1.1, 1.2, 4], [0, 4], 4), [
+      { column: 0, level: 0 },
+      { column: 1, level: 0 },
+      { column: 1, level: 1 },
+      { column: 1, level: 2 },
+      { column: 3, level: 0 }, // the high end is in the last column, not past it
+    ]);
+    assert.deepEqual(dotPiles([2, 2], [2, 2], 4), [{ column: 0, level: 0 }, { column: 0, level: 1 }], "runs that are all one value"); // prettier-ignore
+  });
+
+  test("the runs in words: how far they reach, and how many a window passes", () => {
+    const runs = [58.21, 60, 62, 64, 66.14];
+    const words = { label: "Yield", units: "%" };
+    assert.equal(runsWords(runs, insideWindow(runs), words), "Yield as 5 runs you might get: 58.21 to 66.14%.");
+    assert.equal(runsWords(runs, insideWindow(runs, [60, null]), words, true), "Yield as 5 runs you might get: 58.21 to 66.14%. 4 of them are inside your window.");
+    assert.equal(runsWords([1, 3], [false, false], { label: "Cost", units: "$/kg" }, true), "Cost as 2 runs you might get: 1 to 3 $/kg. 0 of them are inside your window.");
+  });
+
+  test("a factor's profile is the prediction as it alone moves, the others where they are set", () => {
+    const settings = { T: 160, Catalyst: "B" };
+    const profile = profileOf(FIT, PREDICTED, settings, "T");
+    assert.equal(profile.length, PROFILE_POINTS);
+    assert.deepEqual([profile[0].value, profile.at(-1).value], [150, 200], "from its low end to its high end");
+    assert.deepEqual([profile[0].predicted, profile[12].predicted, profile.at(-1).predicted], [11, 10, 15]); // 10 + 2 x + 3 x²
+    for (const point of profile) {
+      const at = predictAt(FIT, columnsAt(PREDICTED, { ...settings, T: point.value }));
+      assert.deepEqual([point.predicted, point.confidence, point.extrapolating], [at.predicted, at.confidence, at.extrapolating]);
+    }
+    assert.deepEqual(profile.map((point) => point.extrapolating).join("").replaceAll("true", "1").replaceAll("false", "0"), "1110000000000000000000111");
+    assert.equal(profileOf(FIT, [{ ...PREDICTED[0], low: 200, high: 150 }, PREDICTED[1]], settings, "T")[0].value, 150, "a range typed high to low");
+
+    const levels = profileOf(FIT, PREDICTED, settings, "Catalyst");
+    assert.deepEqual(levels.map((point) => point.value), ["A", "B", "C"]); // prettier-ignore
+    const there = predictAt(FIT, columnsAt(PREDICTED, settings)).predicted;
+    assert.deepEqual(levels.map((point) => point.predicted), [there, there, there], "a factor the model does not hold moves nothing"); // prettier-ignore
+    assert.equal(profileOf({ ...FIT, mse: null, t: null }, PREDICTED, settings, "T")[0].confidence, null, "a fit of every run has no band");
+  });
+
+  test("the profiles of a row share one scale, which holds still while the reader drags", () => {
+    const profiles = ["T", "Catalyst"].map((name) => profileOf(FIT, PREDICTED, { T: 160, Catalyst: "B" }, name));
+    const ends = profiles.flat().flatMap((point) => [point.predicted, ...point.confidence]);
+    assert.deepEqual(profileRange(profiles), [Math.min(...ends), Math.max(...ends)], "the bands are inside it");
+    assert.deepEqual(profileRange(profiles, [-100, 100]), [-100, 100]);
+    assert.deepEqual(profileRange([[{ predicted: 5, confidence: null }]]), [4.5, 5.5], "a level response has room about it");
+    assert.deepEqual(profileRange([[{ predicted: 400, confidence: null }]]), [380, 420]);
+    assert.equal(profileRange([]), null);
+  });
+
+  test("a profile's line is in pieces, dashed where the settings lie beyond the runs, and has no gap", () => {
+    const profile = profileOf(FIT, PREDICTED, { T: 160, Catalyst: "B" }, "T");
+    const pieces = profilePieces(profile);
+    assert.deepEqual(pieces.map((piece) => [piece.beyond, piece.points.length]), [[true, 4], [false, 19], [true, 4]]); // prettier-ignore
+    assert.equal(pieces[0].points.at(-1), pieces[1].points[0], "a dashed piece ends where the solid one starts");
+    assert.equal(pieces[1].points.at(-1), pieces[2].points[0]);
+    const within = profilePieces(profile.map((point) => ({ ...point, extrapolating: false })));
+    assert.deepEqual(within.map((piece) => [piece.beyond, piece.points.length]), [[false, PROFILE_POINTS]]); // prettier-ignore
+    assert.deepEqual(profilePieces([]), []);
+  });
+
+  test("a profile is said in words: the two ends, a turn inside the range, and whether part lies beyond the runs", () => {
+    const words = { label: "Yield", units: "%" };
+    const settings = { T: 160, Catalyst: "B" };
+    assert.equal(
+      profileWords(PREDICTED[0], profileOf(FIT, PREDICTED, settings, "T"), words, "degC"),
+      "Yield against T, the other factors where they are set: 11% at 150 degC, 15% at 200 degC, lowest at 9.667% at 166.7 degC. Part of it lies beyond the runs.",
+    );
+    const hill = { ...FIT, coefficients: [10, 2, -3], max_leverage: 2 };
+    assert.equal(
+      profileWords(PREDICTED[0], profileOf(hill, PREDICTED, settings, "T"), words),
+      "Yield against T, the other factors where they are set: 5% at 150, 9% at 200, highest at 10.33% at 183.3.",
+    );
+    const slope = { ...FIT, coefficients: [10, 2, 0], max_leverage: 2 };
+    assert.equal(profileWords(PREDICTED[0], profileOf(slope, PREDICTED, settings, "T"), words), "Yield against T, the other factors where they are set: 8% at 150, 12% at 200.");
+    assert.equal(
+      profileWords(PREDICTED[1], profileOf(slope, PREDICTED, settings, "Catalyst"), words),
+      "Yield at each level of Catalyst: 8.8% at A, 8.8% at B and 8.8% at C.",
+    );
+  });
+
+  test("the map is over the two factors chosen when both are numeric, else the first two numeric ones", () => {
+    const three = [PREDICTED[0], PREDICTED[1], { name: "P", kind: "numeric", low: 1, high: 3 }, { name: "F", kind: "numeric", low: 10, high: 20 }];
+    assert.deepEqual(mapPair(three), ["T", "P"], "a factor with levels is not an axis");
+    assert.deepEqual(mapPair(three, ["F", "T"]), ["F", "T"]);
+    assert.deepEqual(mapPair(three, ["Catalyst", "T"]), ["T", "P"]);
+    assert.deepEqual(mapPair(three, ["T", "T"]), ["T", "P"]);
+    assert.deepEqual(mapPair(three, ["T", "gone"]), ["T", "P"]);
+    assert.equal(mapPair(PREDICTED), null, "one numeric factor has no map");
+  });
+
+  test("a response's map is its prediction over two factors, the others where they are set", () => {
+    const factors = [PREDICTED[0], PREDICTED[1], { name: "P", kind: "numeric", low: 3, high: 1 }];
+    const fit = { ...FIT, terms: [[], ["T"], ["T", "T"], ["P"]], coefficients: [10, 2, 3, -1], inverse: [0, 1, 2, 3].map((i) => [0, 1, 2, 3].map((j) => (i === j ? 0.2 : 0))), max_leverage: 0.5 };
+    const settings = { T: 160, Catalyst: "B", P: 2 };
+    const surface = surfaceOf(fit, factors, settings, ["T", "P"]);
+    assert.deepEqual([surface.x.length, surface.y.length, surface.z.length, surface.z[0].length], [MAP_POINTS, MAP_POINTS, MAP_POINTS, MAP_POINTS]);
+    assert.deepEqual([surface.x[0], surface.x.at(-1), surface.y[0], surface.y.at(-1)], [150, 200, 1, 3], "each from its low end to its high end");
+    for (const [j, i] of [[0, 0], [5, 17], [20, 20]]) { // prettier-ignore
+      const at = predictAt(fit, columnsAt(factors, { ...settings, T: surface.x[i], P: surface.y[j] }));
+      assert.equal(surface.z[j][i], at.predicted);
+      assert.equal(surface.beyond[j][i], Number(at.extrapolating));
+    }
+    assert.equal(surface.beyond[10][10], 0, "the center is within the runs");
+    assert.equal(surface.beyond[0][0], 1, "a corner is beyond them here");
   });
 
   test("a fit on the log scale predicts the median, its intervals put back end by end", () => {

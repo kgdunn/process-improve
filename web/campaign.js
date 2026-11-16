@@ -15,8 +15,9 @@
  * Format 5 holds the settings the reader kept from the what-if panel, which an earlier page would drop on its next save.
  * Format 6 holds a curve each run gives (``spec.curve`` and ``curves``), which an earlier page would drop too.
  * Format 7 holds the runs set aside from a fit, and format 8 the targets and the windows typed in Learn: dropped too.
+ * Format 9 holds the study a study builds on (``builds_on``), which links the rounds of a campaign: dropped too.
  */
-export const CAMPAIGN_VERSION = 8;
+export const CAMPAIGN_VERSION = 9;
 
 /** The format of a study of one factor; a study of more factors keeps format 1. */
 export const ONE_FACTOR_FORMAT = 2;
@@ -39,6 +40,9 @@ export const SET_ASIDE_FORMAT = 7;
 /** The format of a study that keeps a response's target or its window, typed in Learn (``targets``, ``windows``). */
 export const TARGETS_FORMAT = 8;
 
+/** The format of a study that builds on an earlier one (``builds_on``); a study that stands alone keeps an earlier format. */
+export const ROUNDS_FORMAT = 9;
+
 /** The most factors a study of format 3 or earlier holds: a page of those formats refuses more. */
 export const FEW_FACTORS = 12;
 
@@ -47,10 +51,12 @@ export const CURVE_POINTS_HELD = 1000;
 
 /**
  * The lowest format that holds a study of this specification, which the study is saved in. ``study`` holds what it
- * keeps besides its runs and results, under the study's own keys: ``what_if``, ``set_aside``, ``targets``, ``windows``.
+ * keeps besides its runs and results, under the study's own keys: ``what_if``, ``set_aside``, ``targets``, ``windows``
+ * and ``builds_on``.
  */
 export function studyFormat(spec, study = {}) {
-  const { what_if: kept = [], set_aside: setAside = {}, targets = {}, windows = {} } = study;
+  const { what_if: kept = [], set_aside: setAside = {}, targets = {}, windows = {}, builds_on: builtOn = [] } = study;
+  if (builtOn.length) return ROUNDS_FORMAT;
   if (Object.keys(targets).length || Object.keys(windows).length) return TARGETS_FORMAT;
   if (Object.values(setAside).some((runs) => runs.length)) return SET_ASIDE_FORMAT;
   if (spec.curve) return CURVE_FORMAT;
@@ -220,6 +226,141 @@ function keptSettings(value) {
   });
   if (new Set(kept.map((s) => s.name)).size !== kept.length) refuse("two of its kept settings share a name");
   return kept;
+}
+
+/** The most studies a study builds on. The page writes one; the list leaves room for a study that joins two. */
+export const BUILT_ON_HELD = 4;
+
+/**
+ * The studies a study builds on, checked for their shape: each the ``id`` that names the earlier study for good, the
+ * ``sha256`` of its runs and results when this one was built on it (study-file.js runsDigest; null when the browser
+ * could not work one out), and its ``title`` then, which names the round where the earlier study itself is not at
+ * hand. Whether that study is in this browser, and whether it has changed since, is judged where the page lists the
+ * rounds (roundsOf).
+ */
+export function checkBuiltOn(value) {
+  if (value === undefined || value === null) return [];
+  return list(value, "the studies it builds on", BUILT_ON_HELD).map((one, i) => {
+    if (!isObject(one)) refuse(`study ${i + 1} it builds on is not named`);
+    const id = text(one.id, `the name of study ${i + 1} it builds on`, 100);
+    if (!id.trim() || CONTROL.test(id)) refuse(`the name of study ${i + 1} it builds on is not one line of text`);
+    const digest = one.sha256 === undefined || one.sha256 === null ? null : text(one.sha256, `the digest of study ${i + 1} it builds on`, 64);
+    if (digest !== null && !/^[0-9a-f]{64}$/.test(digest)) refuse(`the digest of study ${i + 1} it builds on is not a SHA-256`);
+    const title = one.title === undefined || one.title === null ? "" : text(one.title, `the title of study ${i + 1} it builds on`, 200);
+    return { id, sha256: digest, ...(title ? { title } : {}) };
+  });
+}
+
+/**
+ * The rounds of the campaign a study belongs to, the first round first: the study it builds on and those before
+ * that, itself, and every study built on any of them, each with the ``round`` it is. ``records`` are the studies
+ * this browser keeps, each with its ``id``; ``id`` names the study on the page. A round is ``{ id, round, title,
+ * record }``. One this browser does not keep ends the walk back: it is named from the link to it, ``missing``,
+ * with no record. ``digests`` gives the digest of each record's runs and results by its id (study-file.js
+ * runsDigest): a round built on runs that have changed since is ``stale``. A study that stands alone is one round.
+ */
+export function roundsOf(records, id, digests = new Map()) {
+  const byId = new Map(records.map((record) => [record.id, record]));
+  const parent = (record) => record.builds_on?.[0] ?? null;
+  let first = byId.get(id);
+  if (!first) return [];
+  const walked = new Set([first.id]); // a file written by hand may name two studies as each other's parent
+  while (parent(first) && byId.has(parent(first).id) && !walked.has(parent(first).id)) {
+    first = byId.get(parent(first).id);
+    walked.add(first.id);
+  }
+  const lost = parent(first) && !byId.has(parent(first).id) ? parent(first) : null;
+  const rounds = lost ? [{ id: lost.id, round: 1, title: lost.title ?? "", record: null, missing: true }] : [];
+  const listed = new Set();
+  const list = (record, round) => {
+    if (listed.has(record.id)) return;
+    listed.add(record.id);
+    const on = parent(record);
+    const known = on && on.sha256 && digests.get(on.id);
+    rounds.push({ id: record.id, round, title: record.title ?? "", record, ...(known && known !== on.sha256 ? { stale: true } : {}) });
+    const later = records.filter((one) => parent(one)?.id === record.id).sort((a, b) => (a.created ?? 0) - (b.created ?? 0));
+    for (const one of later) list(one, round + 1);
+  };
+  list(first, lost ? 2 : 1);
+  return rounds;
+}
+
+/**
+ * The best result so far among some results, for a response's goal: the greatest to maximise, the least to minimise,
+ * the nearest to a target. ``info`` is the response as the brief describes it (its ``goal`` and ``target``). Returns
+ * ``{ value, run }``, the run by its place on the run sheet; null with no result yet, or a goal that names no best
+ * (to learn, or a target not typed).
+ */
+export function bestResult(responses, info = {}) {
+  const short = shortOf(info);
+  const got = (responses ?? []).map((value, run) => ({ value, run })).filter((one) => isFiniteNumber(one.value));
+  if (!short || !got.length) return null;
+  return got.reduce((best, one) => (short(one.value) < short(best.value) ? one : best));
+}
+
+/** How far a result falls short of a response's goal, as a function of the result: the less, the better. Null for a goal that names no best. */
+function shortOf(info = {}) {
+  const target = info.target === "" || info.target === null || info.target === undefined ? NaN : Number(info.target);
+  if (info.goal === "target") return Number.isFinite(target) ? (v) => Math.abs(v - target) : null;
+  return { maximize: (v) => -v, minimize: (v) => v }[info.goal] ?? null;
+}
+
+/**
+ * Every run of a campaign's rounds that has a result for its round's first response, round by round and each round
+ * in the order its runs were made: ``{ round, run, value, at }``, the run by its place on its round's run sheet.
+ * ``at`` is where the run was made in the two factors of ``pair``, by their names, or null for a round whose run
+ * sheet lacks one of them (or with no pair asked for). A round this browser does not keep has no runs here.
+ */
+export function campaignRuns(rounds, pair = null) {
+  return rounds.flatMap((one) => {
+    if (!one.record) return [];
+    const { columns, rows } = one.record.design;
+    const places = pair ? pair.map((name) => columns.indexOf(name)) : [];
+    const there = (row) => (pair && places.every((place) => place >= 0 && isFiniteNumber(row[place])) ? places.map((place) => row[place]) : null);
+    return one.record.responses
+      .map((value, run) => ({ round: one.round, run, value, at: there(rows[run]) }))
+      .filter((made) => isFiniteNumber(made.value));
+  });
+}
+
+/**
+ * The best result so far after each of some runs, in their order, for a response's goal (see bestResult); null
+ * throughout for a goal that names no best.
+ */
+export function bestSoFar(runs, info = {}) {
+  const short = shortOf(info);
+  let best = null;
+  return runs.map(({ value }) => {
+    if (!short) return null;
+    best = best === null || short(value) < short(best) ? value : best;
+    return best;
+  });
+}
+
+/**
+ * What a move costs, in runs, beside the runs the study has already: "8 more runs: 23 in this study". There is no
+ * budget to hold it against. What a campaign may spend is often decided a round at a time, and a good first round
+ * frees more, so the page states the price and leaves the judging to the reader. With no ``made``, the runs are a
+ * new study's own and nothing is added up: "15 runs".
+ */
+export function priceWords(runs, made = null) {
+  const price = `${runs} ${made === null ? "" : "more "}run${runs === 1 ? "" : "s"}`;
+  return made === null ? price : `${price}: ${made + runs} in this study`;
+}
+
+/**
+ * The runs a campaign holds so far, in words, from its rounds (see roundsOf): every run of every round this browser
+ * keeps, whether or not it has its result. A round that is not kept here is not counted, and the words say so.
+ */
+export function campaignSoFar(rounds) {
+  const kept = rounds.filter((one) => one.record);
+  const runs = kept.reduce((sum, one) => sum + one.record.design.rows.length, 0);
+  const numbers = new Set(rounds.map((one) => one.round)).size;
+  const missing = kept.length < rounds.length;
+  return (
+    `${missing ? "At least " : ""}${runs} runs so far in this campaign, over ${numbers} rounds.` +
+    (missing ? " A round that is not in this browser is not counted." : "")
+  );
 }
 
 /** The most responses a study measures; mirrors bootstrap.MAX_RESPONSES, as logic.js does. */
@@ -422,8 +563,9 @@ export function checkCampaign(data) {
   const kept = data.what_if === undefined || data.what_if === null ? [] : keptSettings(data.what_if);
   const aside = setAside(data.set_aside, names, n);
   const [targets, windows] = [typedTargets(data.targets, names), typedWindows(data.windows, names)];
+  const built = checkBuiltOn(data.builds_on);
   const out = {
-    v: studyFormat(s, { what_if: kept, set_aside: aside, targets, windows }),
+    v: studyFormat(s, { what_if: kept, set_aside: aside, targets, windows, builds_on: built }),
     title: data.title === undefined ? "" : text(data.title, "its title", 200),
     design: {
       spec: s,
@@ -448,6 +590,7 @@ export function checkCampaign(data) {
   if (Object.keys(aside).length) out.set_aside = aside;
   if (Object.keys(targets).length) out.targets = targets;
   if (Object.keys(windows).length) out.windows = windows;
+  if (built.length) out.builds_on = built;
   if (s.curve) out.curves = curvesOf(data.curves, n, s.curve.argument.values.length);
   return out;
 }
@@ -665,6 +808,7 @@ export function shareable(campaign, withResults) {
   if (campaign.what_if) out.what_if = campaign.what_if; // settings: what they predict is worked out from the results
   if (campaign.targets) out.targets = campaign.targets; // what Learn was asked: its answers are found again
   if (campaign.windows) out.windows = campaign.windows;
+  if (campaign.builds_on) out.builds_on = campaign.builds_on; // names the round before: a link carries this study alone
   if (withResults) {
     Object.assign(out, { responses: campaign.responses, sources: campaign.sources, simulation: campaign.simulation });
     if (campaign.more_responses) Object.assign(out, { more_responses: campaign.more_responses, more_sources: campaign.more_sources });

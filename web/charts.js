@@ -406,6 +406,21 @@ function figureWindow() {
   return windowModule;
 }
 
+/**
+ * Where a pointer is on a chart drawn over two flat axes, in the chart's own numbers: [x, y], each held to its
+ * axis's range, or null when the chart is not drawn. Plotly keeps where it put each axis on the div it drew in.
+ */
+export function plotPoint(div, clientX, clientY) {
+  const { xaxis, yaxis } = div._fullLayout ?? {};
+  if (!xaxis?._length || !yaxis?._length) return null;
+  const box = div.getBoundingClientRect();
+  const along = (axis, share) => axis.range[0] + Math.min(1, Math.max(0, share)) * (axis.range[1] - axis.range[0]);
+  return [
+    along(xaxis, (clientX - box.left - xaxis._offset) / xaxis._length),
+    along(yaxis, 1 - (clientY - box.top - yaxis._offset) / yaxis._length),
+  ];
+}
+
 /** What a chart was drawn from, as draw() was given it; undefined for a div with no chart. */
 export const figureOf = (div) => drawn.get(div);
 
@@ -1736,6 +1751,151 @@ export const CURVE_LINES = {
   simultaneous: "95% band over the whole curve",
   target: "Target",
 };
+
+/** The names of what the what-if map marks, as its legend lists them. */
+export const MAP_MARKS = { set: "Where the dials are", best: "The best settings", beyond: "Beyond the runs" };
+
+/**
+ * The what-if map: a response's fitted surface over two factors, the others where the dials have them
+ * (best.js surfaceOf gives ``surface``). It fades where the settings lie beyond the runs, marks where the dials
+ * are (``at``, the two factors' settings) and the best settings (``best``, or null when they are not known). The
+ * page takes a drag on it, so Plotly's own drag is off. ``words`` is the response's ``label`` and ``units``, and
+ * ``axes`` the two factors, each its ``name`` and ``units``.
+ */
+export function mapFigure(surface, { label, units = "", axes, at, best = null }, colours = palette()) {
+  const veil = withAlpha(isDark(colours) ? "#141517" : "#ffffff", 0.62);
+  const faded = surface.beyond.some((row) => row.some(Boolean));
+  // A mark at an end of a range is drawn whole, over the axis: the best settings are often in a corner.
+  const mark = (name, [x, y], marker) => ({ type: "scatter", mode: "markers", name, x: [x], y: [y], marker, cliponaxis: false, hovertemplate: `${name}<extra></extra>` });
+  const data = [
+    {
+      type: "contour",
+      x: surface.x,
+      y: surface.y,
+      z: surface.z,
+      name: label,
+      colorscale: SURFACE,
+      showscale: false,
+      showlegend: false,
+      contours: { coloring: "heatmap", showlabels: true, labelformat: ".4~g" },
+      line: { width: 0.75, color: withAlpha(colours.fg, 0.55) },
+      hovertemplate: `${label}: %{z:.4g}${units ? ` ${units}` : ""}<extra></extra>`,
+    },
+    ...(faded
+      ? [
+          { type: "heatmap", x: surface.x, y: surface.y, z: surface.beyond, zmin: 0, zmax: 1, colorscale: [[0, "rgba(0,0,0,0)"], [1, veil]], showscale: false, hoverinfo: "skip", meta: "beyond" }, // prettier-ignore
+          { type: "scatter", mode: "markers", name: MAP_MARKS.beyond, x: [null], y: [null], marker: { symbol: "square", size: 12, color: veil, line: { width: 1, color: colours.line } }, hoverinfo: "skip" }, // prettier-ignore
+        ]
+      : []),
+    ...(best ? [mark(MAP_MARKS.best, best, BEST_MARKER)] : []),
+    mark(MAP_MARKS.set, at, { symbol: "circle", size: 14, color: colours.panel, line: { width: 2.5, color: colours.fg } }),
+  ];
+  const axis = (one, values) => ({ title: { text: withUnits(one.name, one.units) }, range: [values[0], values.at(-1)], fixedrange: true });
+  return {
+    data,
+    layout: { xaxis: axis(axes[0], surface.x), yaxis: axis(axes[1], surface.y), dragmode: false, legend: LEGEND_ABOVE, showlegend: true },
+  };
+}
+
+/** The colour of a campaign's round on its charts: Okabe and Ito's, in turn. */
+const roundColour = (round) => COMPONENT_COLOURS[(round - 1) % COMPONENT_COLOURS.length];
+
+/** What a campaign's charts call the line of the best result so far, and a round's own range. */
+export const CAMPAIGN_MARKS = { best: "Best so far", target: "Target", range: "its ranges" };
+
+/**
+ * Every run of a campaign in the order they were made (campaign.js campaignRuns): a mark each, coloured by its
+ * round, with the best result so far as a stepped line (campaign.js bestSoFar gives ``best``; nulls draw none) and
+ * the target as a level line when the goal is one. ``words`` is the response's ``label`` and ``units``, with its
+ * ``goal`` and ``target``.
+ */
+export function campaignRunsFigure(runs, best, { label, units = "", goal = "", target = null }, colours = palette()) {
+  const place = runs.map((_, i) => i + 1);
+  const rounds = [...new Set(runs.map((run) => run.round))];
+  const data = rounds.map((round) => {
+    const mine = runs.map((run, i) => (run.round === round ? i : -1)).filter((i) => i >= 0);
+    return {
+      type: "scatter",
+      mode: "markers",
+      name: `Round ${round}`,
+      x: mine.map((i) => place[i]),
+      y: mine.map((i) => runs[i].value),
+      customdata: mine.map((i) => runs[i].run + 1),
+      marker: { size: 9, color: roundColour(round), line: { width: 1, color: colours.panel } },
+      hovertemplate: `Round ${round}, run %{customdata}<br>${label}: %{y:.4g}${units ? ` ${units}` : ""}<extra></extra>`,
+    };
+  });
+  if (best.some((value) => value !== null)) {
+    data.push({ type: "scatter", mode: "lines", name: CAMPAIGN_MARKS.best, x: place, y: best, line: { shape: "hv", width: 2, color: colours.fg }, hoverinfo: "skip" });
+  }
+  const aimed = goal === "target" && Number.isFinite(Number(target)) && target !== "" && target !== null;
+  if (aimed && runs.length) {
+    const level = Number(target);
+    data.push({ type: "scatter", mode: "lines", name: CAMPAIGN_MARKS.target, x: [0.5, runs.length + 0.5], y: [level, level], line: { width: 1.5, dash: "dash", color: colours.muted }, hoverinfo: "skip" }); // prettier-ignore
+  }
+  return {
+    data,
+    layout: {
+      xaxis: { title: { text: "Runs, in the order they were made" }, range: [0.5, runs.length + 0.5], dtick: Math.max(1, Math.ceil(runs.length / 12)), tick0: 1 },
+      yaxis: { title: { text: withUnits(label, units) } },
+      legend: LEGEND_ABOVE,
+      showlegend: true,
+    },
+  };
+}
+
+/**
+ * The map of a campaign over two factors: every run of every round where it was made, coloured by its round, and
+ * each round's model as contours inside that round's own ranges and nowhere else. ``rounds`` holds, for each round
+ * drawn, its ``round``, the runs' places ``x`` and ``y``, and its ``surface`` over its own ranges (best.js
+ * surfaceOf: ``x``, ``y`` and ``z``), or null for a round with no model to draw. A box marks each round's ranges.
+ * ``words`` is the response's ``label`` and ``units``, and ``axes`` the two factors, each its ``name`` and ``units``.
+ */
+export function campaignMapFigure(rounds, { label, units = "", axes }, colours = palette()) {
+  const drawn = rounds.filter((one) => one.surface);
+  const every = drawn.flatMap((one) => one.surface.z.flat());
+  const [least, most] = [Math.min(...every), Math.max(...every)];
+  const surfaces = drawn.map((one, i) => ({
+    type: "contour",
+    x: one.surface.x,
+    y: one.surface.y,
+    z: one.surface.z,
+    name: `Round ${one.round}: ${label}`,
+    meta: { round: one.round },
+    colorscale: SURFACE,
+    zmin: least, // one scale for every round, so a colour is one value of the response wherever it is
+    zmax: most,
+    showscale: i === 0,
+    colorbar: { title: { text: withUnits(label, units), side: "right" }, thickness: 12, len: 0.8 },
+    showlegend: false,
+    contours: { coloring: "heatmap", showlabels: true, labelformat: ".4~g" },
+    line: { width: 0.75, color: withAlpha(colours.fg, 0.55) },
+    hovertemplate: `Round ${one.round}, ${label}: %{z:.4g}${units ? ` ${units}` : ""}<extra></extra>`,
+  }));
+  const runs = rounds.map((one) => ({
+    type: "scatter",
+    mode: "markers",
+    name: `Round ${one.round}`,
+    x: one.x,
+    y: one.y,
+    cliponaxis: false,
+    marker: { size: 9, color: roundColour(one.round), line: { width: 1.5, color: colours.panel } },
+    hovertemplate: `Round ${one.round}<br>${axes[0].name}: %{x:.4g}<br>${axes[1].name}: %{y:.4g}<extra></extra>`,
+  }));
+  // Each round's ranges as a box in its colour: where its model is drawn, and where it says nothing.
+  const shapes = drawn.map((one) => ({
+    type: "rect",
+    x0: one.surface.x[0],
+    x1: one.surface.x.at(-1),
+    y0: one.surface.y[0],
+    y1: one.surface.y.at(-1),
+    line: { width: 2, color: roundColour(one.round) },
+    fillcolor: "rgba(0,0,0,0)",
+    layer: "above",
+  }));
+  const axis = (one) => ({ title: { text: withUnits(one.name, one.units) } });
+  return { data: [...surfaces, ...runs], layout: { xaxis: axis(axes[0]), yaxis: axis(axes[1]), shapes, legend: LEGEND_ABOVE, showlegend: true } };
+}
 
 /**
  * A curve predicted at the what-if panel's settings (best.js curveAt), over the ``points`` along it: the curve, the

@@ -718,10 +718,7 @@ export function columnsAt(factors, settings) {
  * response fitted on a transform's scale (its ``transform``) has its prediction and intervals put back in its units.
  */
 export function predictAt(fit, columns) {
-  const row = fit.terms.map((parts) => parts.reduce((product, name) => product * columns[name], 1));
-  const predicted = row.reduce((sum, x, i) => sum + x * fit.coefficients[i], 0);
-  const spread = row.map((_, i) => fit.inverse[i].reduce((sum, v, j) => sum + v * row[j], 0));
-  const leverage = Math.max(0, row.reduce((sum, x, i) => sum + x * spread[i], 0)); // never below 0 but by round-off
+  const { predicted, leverage } = modelAt(fit, columns);
   const extrapolating = leverage > fit.max_leverage * (1 + 1e-9) + 1e-12;
   const out = { predicted, confidence: null, prediction: null, leverage, max_leverage: fit.max_leverage, extrapolating };
   if (fit.mse === null || fit.t === null) return putBackAt(out, fit.transform);
@@ -729,6 +726,55 @@ export function predictAt(fit, columns) {
   const single = fit.t * Math.sqrt(fit.mse * (1 + leverage));
   const intervals = { confidence: [predicted - mean, predicted + mean], prediction: [predicted - single, predicted + single] };
   return putBackAt({ ...out, ...intervals }, fit.transform);
+}
+
+/** A fit's prediction at the columns of some settings, on the scale it is fitted on, and the leverage there. */
+function modelAt(fit, columns) {
+  const row = fit.terms.map((parts) => parts.reduce((product, name) => product * columns[name], 1));
+  const predicted = row.reduce((sum, x, i) => sum + x * fit.coefficients[i], 0);
+  const spread = row.map((_, i) => fit.inverse[i].reduce((sum, v, j) => sum + v * row[j], 0));
+  const leverage = Math.max(0, row.reduce((sum, x, i) => sum + x * spread[i], 0)); // never below 0 but by round-off
+  return { predicted, leverage };
+}
+
+/**
+ * A prediction as the runs a reader might get at the columns of some settings (see columnsAt), least first: one for
+ * each of the fit's ``run_quantiles``, the t values of equally likely runs (bootstrap.PREDICTED_RUNS of them), about
+ * the prediction with the spread of one new run there. The least and the greatest are the two ends of predictAt's
+ * prediction interval, so the two cannot disagree. In the response's units; null without residual degrees of
+ * freedom, or when a transform cannot put one of them back.
+ */
+export function runsAt(fit, columns) {
+  if (fit.mse === null || !fit.run_quantiles) return null;
+  const { predicted, leverage } = modelAt(fit, columns);
+  const single = Math.sqrt(fit.mse * (1 + leverage));
+  const runs = putBack(fit.run_quantiles.map((q) => predicted + q * single), fit.transform);
+  return runs.every(Number.isFinite) ? runs : null; // each transform rises with the scale it is fitted on, so the order holds
+}
+
+/** Whether each of some runs is inside a window, ``[least, most]`` with null for an end left open; with no window, every one. */
+export const insideWindow = (runs, [least, most] = [null, null]) => runs.map((run) => (least === null || run >= least) && (most === null || run <= most));
+
+/**
+ * Where to draw runs as dots that pile up where the runs are close: each run's column of ``columns`` across
+ * ``[low, high]``, and its place in that column's pile, 0 at the foot.
+ */
+export function dotPiles(runs, [low, high], columns) {
+  const piled = new Map();
+  return runs.map((run) => {
+    const column = Math.min(columns - 1, Math.max(0, Math.floor(((run - low) / (high - low || 1)) * columns)));
+    piled.set(column, (piled.get(column) ?? -1) + 1);
+    return { column, level: piled.get(column) };
+  });
+}
+
+/**
+ * The runs in words: how far they reach, and how many are inside the reader's window when one is typed. ``words`` is
+ * the response's ``label`` and ``units``; ``inside`` is insideWindow's answer.
+ */
+export function runsWords(runs, inside, { label, units }, windowed = false) {
+  const reach = `${label} as ${runs.length} runs you might get: ${rangeWords([runs[0], runs.at(-1)], units)}.`;
+  return windowed ? `${reach} ${inside.filter(Boolean).length} of them are inside your window.` : reach;
 }
 
 /** A prediction and its intervals on a transform's scale, put back in the response's units; the leverage as it is. */
@@ -841,6 +887,103 @@ export function keptAs(typed, kept, held) {
   for (let n = kept.length + 1; !name || taken.has(name); n++) name = `Settings ${n}`;
   if (kept.length >= held.count) return { name, problem: `A study keeps ${held.count} settings at most: delete one to keep these.` };
   return { name, problem: null };
+}
+
+/** How many points a numeric factor's profile is drawn through, its two ends among them. */
+export const PROFILE_POINTS = 25;
+
+/**
+ * One factor's profile for a response: what the response's model predicts as that factor alone moves, the others
+ * where ``settings`` has them. ``fit`` is the response's, as bootstrap.predictors sends it, and ``factors`` its list.
+ * A numeric factor has a point at each of PROFILE_POINTS values from its low end to its high end, a categorical one
+ * at each of its levels. Each point is its ``value`` with what predictAt gives there: ``predicted``, the
+ * ``confidence`` interval for the mean (null when the fit has no run left to measure the noise), and whether the
+ * settings lie beyond the runs (``extrapolating``).
+ */
+export function profileOf(fit, factors, settings, name) {
+  const f = factors.find((one) => one.name === name);
+  const [low, high] = [Math.min(f.low, f.high), Math.max(f.low, f.high)];
+  const across = Array.from({ length: PROFILE_POINTS }, (_, i) => low + ((high - low) * i) / (PROFILE_POINTS - 1));
+  return (f.kind === "numeric" ? across : f.levels).map((value) => {
+    const { predicted, confidence, extrapolating } = predictAt(fit, columnsAt(factors, { ...settings, [name]: value }));
+    return { value, predicted, confidence, extrapolating };
+  });
+}
+
+/**
+ * The lowest and the highest that any of the ``profiles`` reaches, band and all: the one scale a row of profiles is
+ * drawn to, so a steeper line is a larger effect. A level response is given room about its value. ``within`` is a
+ * range to hold as well, which keeps the scale still while the reader drags.
+ */
+export function profileRange(profiles, within = null) {
+  const reached = profiles.flat().flatMap((point) => [point.predicted, ...(point.confidence ?? [])]);
+  const all = [...reached, ...(within ?? [])].filter(Number.isFinite);
+  if (!all.length) return null;
+  const [low, high] = [Math.min(...all), Math.max(...all)];
+  const room = high > low ? 0 : Math.max(Math.abs(low) * 0.05, 0.5);
+  return [low - room, high + room];
+}
+
+/**
+ * A profile's line as the pieces it is drawn in: each a run of neighbouring points that are all within the runs, or
+ * all beyond them (``beyond``), which the page draws dashed. A piece beyond the runs starts and ends at the points
+ * within them that it joins, so the line has no gap.
+ */
+export function profilePieces(points) {
+  const pieces = [];
+  points.forEach((point, i) => {
+    const last = pieces.at(-1);
+    if (last && last.beyond === point.extrapolating) last.points.push(point);
+    else pieces.push({ beyond: point.extrapolating, points: last && point.extrapolating ? [points[i - 1], point] : [point] });
+    if (last && last.beyond && !point.extrapolating) last.points.push(point);
+  });
+  return pieces;
+}
+
+/**
+ * A profile in words, for a reader who does not see it: the response at the factor's two ends (or at each level of
+ * a categorical factor), where it is highest when that is inside the range, and whether part of it lies beyond the
+ * runs. ``words`` is the response's ``label`` and ``units``; ``units`` the factor's.
+ */
+export function profileWords(f, points, { label, units }, factorUnits = "") {
+  const at = (point) => `${withUnit(point.predicted, units)} at ${f.kind === "numeric" ? withUnit(point.value, factorUnits) : point.value}`;
+  const beyond = points.some((point) => point.extrapolating) ? " Part of it lies beyond the runs." : "";
+  if (f.kind !== "numeric") return `${label} at each level of ${f.name}: ${listed(points.map(at))}.${beyond}`;
+  const [first, last] = [points[0], points.at(-1)];
+  const top = points.reduce((best, point) => (point.predicted > best.predicted ? point : best));
+  const bottom = points.reduce((best, point) => (point.predicted < best.predicted ? point : best));
+  const inside = [first, last].includes(top) ? ([first, last].includes(bottom) ? "" : `, lowest at ${at(bottom)}`) : `, highest at ${at(top)}`;
+  return `${label} against ${f.name}, the other factors where they are set: ${at(first)}, ${at(last)}${inside}.${beyond}`;
+}
+
+/** How many points along each side a response's map is drawn through, its two ends among them. */
+export const MAP_POINTS = 21;
+
+/**
+ * The two factors a response's map is drawn over: the two ``chosen`` when both are numeric factors of the study,
+ * else its first two numeric factors; null for a study with fewer than two, which has no map.
+ */
+export function mapPair(factors, chosen = null) {
+  const numeric = factors.filter((f) => f.kind === "numeric").map((f) => f.name);
+  if (chosen?.length === 2 && chosen[0] !== chosen[1] && chosen.every((name) => numeric.includes(name))) return chosen;
+  return numeric.length < 2 ? null : numeric.slice(0, 2);
+}
+
+/**
+ * A response's map: what its model predicts over two factors (``pair``), the others where ``settings`` has them.
+ * ``x`` and ``y`` are MAP_POINTS values of the first and the second factor, from its low end to its high end;
+ * ``z[j][i]`` is the prediction at ``x[i]`` and ``y[j]``, and ``beyond[j][i]`` is 1 where those settings lie beyond
+ * the runs, as predictAt judges it, and 0 where they do not.
+ */
+export function surfaceOf(fit, factors, settings, pair) {
+  const side = (name) => {
+    const f = factors.find((one) => one.name === name);
+    const [low, high] = [Math.min(f.low, f.high), Math.max(f.low, f.high)];
+    return Array.from({ length: MAP_POINTS }, (_, i) => low + ((high - low) * i) / (MAP_POINTS - 1));
+  };
+  const [x, y] = pair.map(side);
+  const at = y.map((second) => x.map((first) => predictAt(fit, columnsAt(factors, { ...settings, [pair[0]]: first, [pair[1]]: second }))));
+  return { x, y, z: at.map((row) => row.map((one) => one.predicted)), beyond: at.map((row) => row.map((one) => Number(one.extrapolating))) };
 }
 
 /** The step of a numeric factor's slider: about a hundredth of its range, as 1, 2 or 5 times a power of ten. */

@@ -46,6 +46,8 @@ import {
   NUMERIC,
   axialDistance,
   candidateTerms,
+  mainEffectsBrought,
+  broughtWords,
   combinations,
   compareCells,
   comparedRow,
@@ -165,6 +167,8 @@ import {
   dayWords,
   shortCommit,
   versionText,
+  codedLevel,
+  spacePoints,
 } from "../../../web/logic.js";
 
 describe("the version of the app", () => {
@@ -721,6 +725,30 @@ describe("the terms a reader ticks", () => {
       ["T·P·F"],
     );
     assert.deepEqual(terms.find((t) => t.group === "Squares"), { term: ["T", "T"], label: "T²", group: "Squares" });
+  });
+
+  test("terms the design cannot tell apart are one term, written with what it is aliased with", () => {
+    const four = ["A", "B", "C", "D"].map((name) => ({ name, low: -1, high: 1 }));
+    const aliases = [["A·B", "C·D"], ["A·C", "B·D"], ["A·D", "B·C"]]; // a half fraction of four factors
+    const pairs = (terms) => terms.filter((t) => t.group === "Two-factor interactions");
+    assert.deepEqual(pairs(candidateTerms(four, [], aliases)).map((t) => t.label), ["A·B = C·D", "A·C = B·D", "A·D = B·C"]);
+    assert.deepEqual(pairs(candidateTerms(four, [], aliases)).map((t) => t.term), [["A", "B"], ["A", "C"], ["A", "D"]], "the term fitted is the first"); // prettier-ignore
+    // A model that holds the other of two aliased terms keeps it in reach, apart from the first.
+    assert.deepEqual(pairs(candidateTerms(four, [["C", "D"]], aliases)).map((t) => t.label), ["A·B", "A·C = B·D", "A·D = B·C", "C·D"]);
+    // A main effect aliased with an interaction, as in a design of resolution III.
+    const labels = candidateTerms(three, [], [["T", "P·F"]]).map((t) => t.label);
+    assert.ok(labels.includes("T = P·F") && !labels.includes("P·F"));
+    assert.deepEqual(candidateTerms(four), candidateTerms(four, [], []), "a design with no aliases lists every term");
+  });
+
+  test("a term put into a model brings the main effects it is made of, when they are out", () => {
+    assert.deepEqual(mainEffectsBrought([["T"]], ["T", "P"]), [["P"]]);
+    assert.deepEqual(mainEffectsBrought([], ["T", "P", "F"]), [["T"], ["P"], ["F"]]);
+    assert.deepEqual(mainEffectsBrought([["P"], ["T", "P"]], ["T", "T"]), [["T"]], "a square brings its one factor, once");
+    assert.deepEqual(mainEffectsBrought([["T"], ["P"]], ["T", "P"]), [], "with both in, nothing");
+    assert.deepEqual(mainEffectsBrought([], ["T"]), [], "a main effect brings none");
+    assert.equal(broughtWords(["T", "P"], [["T"], ["P"]]), "T·P brought T and P with it.");
+    assert.equal(broughtWords(["F", "F"], [["F"]]), "F² brought F with it.");
   });
 
   test("a term written as the page shows it", () => {
@@ -1899,5 +1927,27 @@ describe("the question in one line", () => {
     const line = questionLine("Yield", many);
     assert.ok(line.includes("x6 0 to 1 and 3 more"), line);
     assert.ok(!line.includes("x7"), line);
+  });
+});
+
+describe("runs as points of the space their factors span", () => {
+  const T = { name: "T", low: 150, high: 200 };
+  const P = { name: "P", low: 1, high: 3 };
+
+  test("a factor's value is coded from the low end of its range to the high", () => {
+    assert.equal(codedLevel(150, T), -1);
+    assert.equal(codedLevel(175, T), 0);
+    assert.equal(codedLevel(200, T), 1);
+    assert.equal(codedLevel(225, T), 2, "a setting past the range is past the corner");
+    assert.equal(codedLevel("2", P), 0, "a number typed as text is still a number");
+  });
+
+  test("each setting the runs took is one point, however often they took it", () => {
+    const runs = [{ T: 150, P: 1 }, { T: 200, P: 3 }, { T: 150, P: 1 }, { T: 175, P: 2 }];
+    assert.deepEqual(spacePoints(runs, [T, P]), [[-1, -1], [1, 1], [0, 0]]);
+  });
+
+  test("a run with no number for a factor is left out", () => {
+    assert.deepEqual(spacePoints([{ T: 150 }, { T: 200, P: NaN }, { T: 200, P: 3 }], [T, P]), [[1, 1]]);
   });
 });

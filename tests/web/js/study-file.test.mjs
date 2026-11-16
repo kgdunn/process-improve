@@ -12,15 +12,20 @@ import {
   CURVE_FORMAT,
   LEVELS_FORMAT,
   MANY_FACTORS_FORMAT,
+  ROUNDS_FORMAT,
   SET_ASIDE_FORMAT,
   TARGETS_FORMAT,
   WHAT_IF_FORMAT,
   checkCampaign,
+  bestResult,
+  bestSoFar,
+  campaignRuns,
   packCampaign,
+  roundsOf,
   shareable,
 } from "../../../web/campaign.js";
 import { canonicalJson, sha256 } from "../../../web/report.js";
-import { FILE_FORMAT, FILE_VERSION, fileStem, readStudyFile, studyFile, studyOf } from "../../../web/study-file.js";
+import { FILE_FORMAT, FILE_VERSION, fileStem, readStudyFile, runsDigest, studyFile, studyOf } from "../../../web/study-file.js";
 
 /** A study as this browser keeps one: a 2^2 factorial in a numeric factor and a supplier, partly run. */
 function record(id = "study-1", title = "Full factorial (2-level) in T and Supplier") {
@@ -252,6 +257,86 @@ describe("the study file", () => {
     assert.throws(() => checkCampaign({ ...study, v: SET_ASIDE_FORMAT, set_aside: { cost: [0] } }), /which the study does not measure/);
     assert.throws(() => checkCampaign({ ...study, v: SET_ASIDE_FORMAT, set_aside: [0] }), /not listed by response/);
     assert.equal(checkCampaign({ ...study, set_aside: { y: [] } }).set_aside, undefined, "none set aside is not kept");
+  });
+
+  test("a study that builds on another goes out and back with the link to it, in the format that holds it", async () => {
+    const first = record("round-1", "The screen");
+    const digest = await runsDigest(studyOf(first));
+    assert.match(digest, /^[0-9a-f]{64}$/);
+    const second = { ...record("round-2", "The response surface"), v: ROUNDS_FORMAT, builds_on: [{ id: "round-1", sha256: digest, title: "The screen" }] };
+    const { studies, refused } = await readStudyFile(await asText([first, second]));
+    assert.deepEqual(refused, []);
+    assert.deepEqual(studies[1].study.builds_on, [{ id: "round-1", sha256: digest, title: "The screen" }]);
+    assert.equal(studies[1].study.v, ROUNDS_FORMAT);
+    assert.equal(studies[0].study.builds_on, undefined);
+    assert.equal(studies[0].study.v, 1, "a study that stands alone keeps the format it had");
+    assert.deepEqual(shareable(studies[1].study, false).builds_on, studies[1].study.builds_on, "a link names the round before, with or without results");
+    // The digest is of the runs and their results: a result changed changes it, and what Learn was asked does not.
+    assert.equal(await runsDigest({ ...studyOf(first), what_if: [{ name: "Hot", settings: { T: 200 } }], model: "main_effects" }), digest);
+    assert.notEqual(await runsDigest({ ...studyOf(first), responses: [12.5, 9.75, 11, 14] }), digest);
+  });
+
+  test("the study a study builds on must be named, with a digest that is one", () => {
+    const { id, created, updated, ...study } = record();
+    const on = (entry) => () => checkCampaign({ ...study, v: ROUNDS_FORMAT, builds_on: [entry] });
+    assert.throws(on("round-1"), /study 1 it builds on is not named/);
+    assert.throws(on({ id: "" }), /the name of study 1 it builds on is not one line of text/);
+    assert.throws(on({ id: "round-1", sha256: "abc" }), /the digest of study 1 it builds on is not a SHA-256/);
+    assert.throws(() => checkCampaign({ ...study, v: ROUNDS_FORMAT, builds_on: "round-1" }), /the studies it builds on/);
+    assert.deepEqual(checkCampaign({ ...study, v: ROUNDS_FORMAT, builds_on: [{ id: "round-1" }] }).builds_on, [{ id: "round-1", sha256: null }]);
+    assert.equal(checkCampaign({ ...study, builds_on: [] }).builds_on, undefined, "building on none is not kept");
+  });
+
+  test("an earlier Factorial, of format 8, refuses a study that builds on another as saved by a later one", async () => {
+    await refusedByAnEarlierPage(ROUNDS_FORMAT - 1, { ...record("later", "Later"), v: ROUNDS_FORMAT, builds_on: [{ id: "round-1", sha256: null }] });
+  });
+
+  test("the rounds of a campaign: the studies before, the study itself, and those built on any of them", () => {
+    const study = (id, created, on = null, sha = null) => ({ id, title: `Study ${id}`, created, ...(on ? { builds_on: [{ id: on, sha256: sha, title: `Study ${on}` }] } : {}) });
+    const [a, b, c, d] = [study("a", 1), study("b", 2, "a", "1".repeat(64)), study("c", 3, "b"), study("d", 4, "a")];
+    const said = (rounds) => rounds.map((r) => `${r.round} ${r.id}${r.stale ? " stale" : ""}${r.missing ? " missing" : ""}`);
+    assert.deepEqual(said(roundsOf([d, c, b, a], "c")), ["1 a", "2 b", "3 c", "2 d"], "from the first round, whichever study is on the page");
+    assert.deepEqual(said(roundsOf([a, b, c, d], "a")), ["1 a", "2 b", "3 c", "2 d"]);
+    assert.equal(roundsOf([a, b], "b")[1].record, b);
+    assert.deepEqual(said(roundsOf([a], "a")), ["1 a"], "a study that stands alone is one round");
+    assert.deepEqual(roundsOf([a], "nowhere"), []);
+    // The first round's runs changed after the second was built on them: the second is stale. A digest unknown says nothing.
+    assert.deepEqual(said(roundsOf([a, b, c], "c", new Map([["a", "2".repeat(64)], ["b", "3".repeat(64)]]))), ["1 a", "2 b stale", "3 c"]);
+    assert.deepEqual(said(roundsOf([a, b], "b", new Map([["a", "1".repeat(64)]]))), ["1 a", "2 b"], "unchanged");
+    // A study that came by a link, without the round before: that round is named from the link.
+    const lost = roundsOf([b, c], "c");
+    assert.deepEqual(said(lost), ["1 a missing", "2 b", "3 c"]);
+    assert.deepEqual([lost[0].title, lost[0].record], ["Study a", null]);
+    // Two studies written as each other's parent, by hand: each is listed once.
+    assert.equal(roundsOf([study("x", 1, "y"), study("y", 2, "x")], "x").length, 2);
+  });
+
+  test("the runs of a campaign, round by round, and the best result so far for the goal", () => {
+    const sheet = (id, rows, responses) => ({ id, design: { columns: ["Std order", "Run order", "T", "Supplier", "y"], rows }, responses });
+    const rounds = [
+      { round: 1, record: sheet("a", [[1, 1, 150, "A", null], [2, 2, 200, "B", null], [3, 3, 175, "A", null]], [5, null, 9]) },
+      { round: 2, record: null, missing: true }, // named by a link, with no study at hand
+      { round: 2, record: sheet("b", [[1, 1, 225, "A", null], [2, 2, 250, "B", null]], [7, 8]) },
+    ]; // prettier-ignore
+    const runs = campaignRuns(rounds);
+    assert.deepEqual(runs.map((run) => [run.round, run.run, run.value]), [[1, 0, 5], [1, 2, 9], [2, 0, 7], [2, 1, 8]], "a run with no result yet is not one"); // prettier-ignore
+    assert.ok(runs.every((run) => run.at === null), "with no two factors asked for, no place");
+    assert.deepEqual(campaignRuns(rounds, ["T", "Std order"]).map((run) => run.at), [[150, 1], [175, 3], [225, 1], [250, 2]]); // prettier-ignore
+    assert.deepEqual(campaignRuns(rounds, ["T", "Supplier"])[0].at, null, "a factor with levels has no place on an axis");
+    assert.deepEqual(campaignRuns(rounds, ["T", "Flow"])[0].at, null, "nor has a factor the round did not have");
+
+    assert.deepEqual(bestSoFar(runs, { goal: "maximize" }), [5, 9, 9, 9]);
+    assert.deepEqual(bestSoFar(runs, { goal: "minimize" }), [5, 5, 5, 5]);
+    assert.deepEqual(bestSoFar(runs, { goal: "target", target: "7.4" }), [5, 9, 7, 7], "the nearest to the target");
+    assert.deepEqual(bestSoFar(runs, { goal: "target", target: "" }), [null, null, null, null], "a target not typed names no best");
+    assert.deepEqual(bestSoFar(runs, { goal: "learn" }), [null, null, null, null]);
+    assert.deepEqual(bestSoFar([], { goal: "maximize" }), []);
+
+    assert.deepEqual(bestResult([5, null, 9], { goal: "maximize" }), { value: 9, run: 2 });
+    assert.deepEqual(bestResult([5, null, 9], { goal: "minimize" }), { value: 5, run: 0 });
+    assert.deepEqual(bestResult([5, null, 9], { goal: "target", target: 8 }), { value: 9, run: 2 });
+    assert.equal(bestResult([null, null], { goal: "maximize" }), null, "no result yet");
+    assert.equal(bestResult([5], {}), null);
   });
 
   test("an earlier Factorial, of format 7, refuses a study with a target or a window as saved by a later one", async () => {

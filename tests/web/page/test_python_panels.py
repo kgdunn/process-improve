@@ -1116,6 +1116,143 @@ def test_the_what_if_code_predicts_at_each_kept_setting_as_the_list_shows_it(api
             assert [p["pi_low"], p["pi_high"]] == pytest.approx(at["prediction"], abs=1e-9)
 
 
+@pytest.mark.slow
+@pytest.mark.parametrize("transform", [None, "log"], ids=["as measured", "on the log scale"])
+def test_the_what_if_code_predicts_each_profile_as_the_panel_draws_it(api, node, transform):
+    """The profiles of the first response: each numeric factor moved alone, the others where the panel has them."""
+    held, simulation = three_responses(api)
+    if transform:
+        held = {**held, "spec": {**held["spec"], "analysis_transforms": {"Yield": transform}}}
+    results = by_name(simulation)
+    reply = api.ok("api_predictors", {**held, **sent_of(results)})
+    settings = {"T": 181.5, "P": 1.4, "F": 12.0}
+    module = source("best.js")
+    [columns] = javascript(node, module, [("columnsAt", [reply["factors"], settings])])
+    fits = [r for r in reply["responses"] if "terms" in r]
+    formulas = {fit["name"]: fit["formula"] for fit in fits}
+    names = [f["name"] for f in reply["factors"]]
+    drawn = javascript(node, module, [("profileOf", [fits[0], reply["factors"], settings, name]) for name in names])
+    profiled = {"name": fits[0]["name"], "points": len(drawn[0])}
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, results]),
+        ("whatIfCode", [held["spec"], formulas, columns, settings, [], profiled]),
+    )
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        exec(code, {})  # noqa: S102 - the page's own code, the subject of this test
+    lines = [line.split(": ", 1) for line in out.getvalue().splitlines() if line.startswith("Profile against ")]
+    printed = {said.removeprefix("Profile against "): ast.literal_eval(values) for said, values in lines}
+    assert list(printed) == names
+    for name, profile in zip(names, drawn, strict=True):
+        assert printed[name] == pytest.approx([point["predicted"] for point in profile], abs=1e-9), name
+
+
+def test_the_what_if_code_draws_no_profile_it_was_not_asked_for_nor_one_of_a_factor_with_levels(node):
+    catalyst = {"name": "Catalyst", "type": "categorical", "levels": ["A", "B", "C"], "units": ""}
+    spec = {"design_type": "full_factorial", "factors": [catalyst, FACTORS[0]], "responses": [{"name": "y"}]}
+    at = {"T": 0.5, "Catalyst_L1": 0, "Catalyst_L2": 1}
+    settings = {"Catalyst": "B", "T": 187.5}
+
+    def code(*more: object) -> str:
+        return javascript(node, source("python.js"), [("whatIfCode", [spec, {"y": "T"}, at, settings, *more])])[0]
+
+    assert "Profile against" not in code()
+    assert "import numpy" not in code()
+    profiled = code([], {"name": "y", "points": 25})
+    assert "for factor in ['T']:" in profiled.replace('"', "'"), "the numeric factor alone"
+    assert profiled.startswith("import numpy as np\nimport pandas as pd")
+    assert "Profile against" not in code([], {"name": "not fitted", "points": 25})
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("transform", [None, "log"], ids=["as measured", "on the log scale"])
+def test_the_map_s_code_draws_the_surface_the_page_draws(api, node, monkeypatch, transform):
+    """The map of the first response over T and F, with P where the dials have it: the same heights, point by point."""
+    go = pytest.importorskip("plotly.graph_objects", reason="the page installs plotly for its first chart")
+    monkeypatch.setattr(go.Figure, "show", lambda *_, **__: None)  # a reader's own window, which a test has none of
+    held, simulation = three_responses(api)
+    if transform:
+        held = {**held, "spec": {**held["spec"], "analysis_transforms": {"Yield": transform}}}
+    results = by_name(simulation)
+    reply = api.ok("api_predictors", {**held, **sent_of(results)})
+    settings = {"T": 181.5, "P": 1.4, "F": 12.0}
+    module = source("best.js")
+    fit = next(r for r in reply["responses"] if "terms" in r)
+    [columns, drawn] = javascript(
+        node,
+        module,
+        [("columnsAt", [reply["factors"], settings]), ("surfaceOf", [fit, reply["factors"], settings, ["T", "F"]])],
+    )
+    points = len(drawn["x"])
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, results]),
+        ("mapCode", [held["spec"], fit["name"], fit["formula"], columns, settings, ["T", "F"], points]),
+    )
+    made = run(code)
+    assert np.asarray(made["z"]) == pytest.approx(np.asarray(drawn["z"]), abs=1e-9)
+    (contour,) = made["fig"].data
+    assert list(contour.x) == pytest.approx(drawn["x"])
+    assert list(contour.y) == pytest.approx(drawn["y"])
+    assert (made["fig"].layout.xaxis.title.text, made["fig"].layout.yaxis.title.text) == ("T (degC)", "F (L/min)")
+
+
+@pytest.mark.slow
+def test_the_campaign_s_code_draws_the_runs_and_each_round_s_model_as_the_page_draws_them(api, node, monkeypatch):
+    """Two rounds, the second with its ranges moved and its response on the log scale, over T and P."""
+    go = pytest.importorskip("plotly.graph_objects", reason="the page installs plotly for its first chart")
+    monkeypatch.setattr(go.Figure, "show", lambda *_, **__: None)  # a reader's own window, which a test has none of
+    moved = [{**FACTORS[0], "low": 175, "high": 225}, {**FACTORS[1], "low": 0.5, "high": 2.5}, FACTORS[2]]
+    pair, drawn, results = ["T", "P"], [], []
+    for number, factors in enumerate([FACTORS, moved], start=1):
+        held = held_of(api.ok("api_make_design", {"design_type": "box_behnken", "factors": factors}))
+        if number == 2:
+            held = {**held, "spec": {**held["spec"], "analysis_transforms": {"y": "log"}}}
+        values = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": number})["responses"]
+        reply = api.ok("api_predictors", {**held, "responses": values})
+        (fit,) = (r for r in reply["responses"] if "terms" in r)
+        middle = {f["name"]: (f["low"] + f["high"]) / 2 for f in reply["factors"]}
+        at, surface = javascript(
+            node,
+            source("best.js"),
+            [("columnsAt", [reply["factors"], middle]), ("surfaceOf", [fit, reply["factors"], middle, pair])],
+        )
+        sheet = [dict(zip(held["columns"], row, strict=True)) for row in held["rows"]]
+        ranges = [[f["low"], f["high"]] for f in factors[:2]]
+        x, y = [row["T"] for row in sheet], [row["P"] for row in sheet]
+        drawn.append({"round": number, "x": x, "y": y, "fit": fit, "at": at, "ranges": ranges, "surface": surface})
+        results += [{"round": number, "run": run_, "value": value} for run_, value in enumerate(values)]
+
+    axes = [{"name": "T", "units": "degC"}, {"name": "P", "units": "bar"}]
+    words = {"label": "Yield", "units": "%", "pair": pair, "axes": axes, "points": len(drawn[0]["surface"]["x"])}
+    (code,) = javascript(node, source("python.js"), [("campaignMapCode", [drawn, words])])
+    fig = run(code)["fig"]
+    contours = [trace for trace in fig.data if trace.type == "contour"]
+    assert len(contours) == 2
+    for contour, one in zip(contours, drawn, strict=True):
+        assert np.asarray(contour.z) == pytest.approx(np.asarray(one["surface"]["z"]), rel=1e-9), one["round"]
+        assert list(contour.x) == pytest.approx(one["surface"]["x"])  # over its own ranges, and no further
+        assert list(contour.y) == pytest.approx(one["surface"]["y"])
+    marks = [trace for trace in fig.data if trace.type == "scatter"]
+    assert [(trace.name, list(trace.x)) for trace in marks] == [(f"Round {one['round']}", one["x"]) for one in drawn]
+    assert (fig.layout.xaxis.title.text, fig.layout.yaxis.title.text) == ("T (degC)", "P (bar)")
+
+    # Every run in the order made, and the best so far for each goal as campaign.js works it out.
+    for goal in ({"goal": "maximize"}, {"goal": "minimize"}, {"goal": "target", "target": "64.2"}, {"goal": "learn"}):
+        (best,) = javascript(node, source("campaign.js"), [("bestSoFar", [results, goal])])
+        (code,) = javascript(node, source("python.js"), [("campaignRunsCode", [results, {"label": "Yield", **goal}])])
+        made = run(code)
+        assert made["runs"]["Yield"].tolist() == [one["value"] for one in results]
+        assert made["runs"]["Round"].tolist() == [one["round"] for one in results]
+        if goal["goal"] == "learn":
+            assert "Best so far" not in made["runs"], "a goal that names no best has no line of it"
+        else:
+            assert made["runs"]["Best so far"].tolist() == pytest.approx(best), goal
+
+
 # --------------------------------------------------------------------------- the code of each figure
 def figure_drawn(node, monkeypatch, steps: tuple, options: dict, model: str, complete: bool, spec: dict):
     """Return the figure that a figure's code draws, run after the code of the steps it builds on."""

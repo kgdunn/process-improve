@@ -73,6 +73,37 @@ def test_a_factorial_that_fits_the_interactions_is_offered_axial_runs(api):
     assert "face-centred central composite design" in axial["why"]
 
 
+def test_a_move_s_runs_are_sent_before_they_are_made_each_with_what_it_is_for(api):
+    """The page shows a move's runs and its price before a reader pays it: the runs are ``add_runs``'s own."""
+    cube = make(api, design_type="full_factorial", factors=FACTORS, n_center_points=3, aim="quadratic")
+    axial = offers(api, cube)["axial"]
+    assert len(axial["added"]) == len(axial["reasons"]) == axial["runs"] == 8
+    ends = {f["name"]: {"low": f["low"], "high": f["high"]} for f in FACTORS}
+    center = {f["name"]: (f["low"] + f["high"]) / 2 for f in FACTORS}
+    moved = []
+    for run, reason in zip(axial["added"], axial["reasons"], strict=True):
+        if run == center:
+            assert reason == "At the center: it ties these runs to the runs made before."
+            continue
+        [name] = [n for n in run if run[n] != center[n]]
+        end = "low" if run[name] == ends[name]["low"] else "high"
+        assert run[name] == ends[name][end], "an axial run is on a face of the ranges"
+        assert reason == f"{name} at its {end} end, the others at their center: it shows how {name} curves."
+        moved.append((name, end))
+    assert sorted(moved) == sorted((f["name"], end) for f in FACTORS for end in ("low", "high"))
+    grown = added(api, cube, "axial")
+    names = [f["name"] for f in FACTORS]
+    made = sorted(tuple(row[n] for n in names) for row in run_sheet(grown).iloc[11:][names].to_dict("records"))
+    assert made == sorted(tuple(run[n] for n in names) for run in axial["added"]), "the runs shown are the runs added"
+
+
+def test_a_fold_over_s_runs_and_the_runs_made_again_each_say_what_they_are_for(api):
+    fraction = make(api, design_type="fractional_factorial", factors=SEVEN, n_center_points=0, resolution=3)
+    fold = offers(api, fraction)["foldover"]
+    assert set(fold["reasons"]) == {"A run made before, with every setting switched to its other end."}
+    assert len(fold["added"]) == fold["runs"]
+
+
 def test_center_runs_are_offered_to_a_two_level_design_without_any(api):
     cube = make(api, design_type="full_factorial", factors=FACTORS, n_center_points=0)
     center = offers(api, cube)["center"]
@@ -86,6 +117,8 @@ def test_center_runs_are_offered_to_a_two_level_design_without_any(api):
         "model": "interactions",
         "blocked": False,
         "runs": 3,
+        "added": [{f["name"]: (f["low"] + f["high"]) / 2 for f in FACTORS}] * 3,
+        "reasons": ["At the center of the ranges: it shows curvature, and how much runs differ."] * 3,
     }
 
 

@@ -136,6 +136,7 @@ def test_the_header_s_button_sends_the_report_and_what_goes_with_it(page, relay,
         "Fitted response surface",
         "True response surface",
         "Residuals against fitted values",
+        "Yield over Temperature and Pressure",
         "How tightly to hold each factor",
     ]
     assert context["plotly_js"]

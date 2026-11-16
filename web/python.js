@@ -1705,14 +1705,133 @@ export function balanceCode(balance, spec) {
 }
 
 /**
+ * A campaign's runs in the order they were made, for the chart's window: each run's round and its result, the best
+ * result so far for the goal, and the figure. ``runs`` is campaign.js campaignRuns' list, and ``words`` the
+ * response's ``label`` and ``units`` with its ``goal`` and ``target``. The code stands alone: the runs are of
+ * several studies, so they are written out.
+ */
+export function campaignRunsCode(runs, { label, units = "", goal = "", target = null }) {
+  const aimed = goal === "target" && target !== "" && target !== null && Number.isFinite(Number(target));
+  const best =
+    goal === "maximize"
+      ? [`runs["Best so far"] = runs[${repr(label)}].cummax()`]
+      : goal === "minimize"
+        ? [`runs["Best so far"] = runs[${repr(label)}].cummin()`]
+        : aimed
+          ? [
+              `miss = (runs[${repr(label)}] - ${Number(target)}).abs()  # how far each run is from the target`,
+              `runs["Best so far"] = runs[${repr(label)}].iloc[[miss.iloc[: i + 1].argmin() for i in range(len(runs))]].to_numpy()`,
+            ]
+          : [];
+  return [
+    "import pandas as pd",
+    "import plotly.graph_objects as go",
+    "",
+    "# Every run of the campaign that has a result, in the order they were made: its round, its run of that round,",
+    "# and its result.",
+    `runs = pd.DataFrame(${repr({ Round: runs.map((run) => run.round), Run: runs.map((run) => run.run + 1), [label]: runs.map((run) => run.value) })})`,
+    ...best,
+    "fig = go.Figure()",
+    'for name, made in runs.groupby("Round"):',
+    `    fig.add_scatter(x=made.index + 1, y=made[${repr(label)}], mode="markers", name=f"Round {name}")`,
+    ...(best.length ? ['fig.add_scatter(x=runs.index + 1, y=runs["Best so far"], mode="lines", line_shape="hv", name="Best so far")'] : []),
+    ...(aimed ? [`fig.add_hline(y=${Number(target)}, line_dash="dash")  # the target`] : []),
+    `fig.update_layout(xaxis_title="Runs, in the order they were made", yaxis_title=${repr(units ? `${label} (${units})` : label)})`,
+    "fig.show()",
+  ].join("\n");
+}
+
+/** A transform's prediction put back in the response's units, as numpy writes it over an array ``z`` (best.js putBack). */
+const PUT_BACK = { log: "np.exp(z)", sqrt: "np.maximum(z, 0) ** 2", inverse: "np.where(z < 0, -1 / np.where(z < 0, z, -1.0), np.nan)" };
+
+/**
+ * A campaign's map, for its window: every run of every round over two factors, and each round's model drawn over
+ * that round's own ranges. ``rounds`` holds each round drawn: its ``round`` and its runs' places ``x`` and ``y``,
+ * and for one with a model its ``fit`` (bootstrap.predictors' terms, coefficients and transform), ``at`` (the
+ * columns of the model where the map holds them, best.js columnsAt at the middle of the round's ranges) and
+ * ``ranges`` (the two factors' low and high ends). ``pair`` names the two factors, ``axes`` gives each its name
+ * and units, and ``points`` how many values each side of a model's grid has.
+ *
+ * The model is written out as Learn fitted it, term by term: the rounds are several studies, each fitted in its own
+ * study with the code that study shows.
+ */
+export function campaignMapCode(rounds, { label, units = "", pair, axes, points }) {
+  const title = (one) => (one.units ? `${one.name} (${one.units})` : one.name);
+  const side = ([low, high]) => `${low} + (side + 1) / 2 * (${high} - ${low})`;
+  const drawn = rounds.flatMap((one) => {
+    const marks = `fig.add_scatter(x=${repr(one.x)}, y=${repr(one.y)}, mode="markers", name="Round ${one.round}")`;
+    if (!one.fit) return ["", `# Round ${one.round}: its runs.`, marks];
+    return [
+      "",
+      `# Round ${one.round}: its model as Learn fitted it. Each term is the product of the columns it names, in coded units`,
+      "# (-1 at a factor's low end, +1 at its high end), times its coefficient. The columns the map does not move are held",
+      "# at the middle of their ranges.",
+      `terms = ${repr(one.fit.terms)}`,
+      `coefficients = ${repr(one.fit.coefficients)}`,
+      `grid = {name: np.full((${points}, ${points}), value) for name, value in ${repr(one.at)}.items()}`,
+      `grid[${repr(pair[0])}], grid[${repr(pair[1])}] = np.meshgrid(side, side)`,
+      "z = sum(c * np.prod([grid[name] for name in term], axis=0) for term, c in zip(terms, coefficients, strict=True))",
+      ...(one.fit.transform ? [`z = ${PUT_BACK[one.fit.transform]}  # the model is fitted on a transformed scale: back in the response's units`] : []),
+      `fig.add_contour(x=${side(one.ranges[0])}, y=${side(one.ranges[1])}, z=z, contours={"showlabels": True}, coloraxis="coloraxis", name="Round ${one.round}")`,
+      marks,
+    ];
+  });
+  return [
+    "import numpy as np",
+    "import plotly.graph_objects as go",
+    "",
+    `# ${label} over ${pair[0]} and ${pair[1]}, round by round: each round's model over its own ranges, and its runs.`,
+    "fig = go.Figure()",
+    `side = np.linspace(-1, 1, ${points})  # a factor from its low end to its high end, in coded units`,
+    ...drawn,
+    "",
+    `fig.update_layout(xaxis_title=${repr(title(axes[0]))}, yaxis_title=${repr(title(axes[1]))}, coloraxis_colorbar_title=${repr(units ? `${label} (${units})` : label)})`,
+    "fig.show()",
+  ].join("\n");
+}
+
+/**
+ * The what-if map, for its window: after the what-if code of its response (``name``, fitted as ``formula``), the
+ * response predicted over two factors (``pair``), each from its low end to its high end in ``points`` steps, with
+ * the other factors where ``at`` has them, drawn with its lines labelled.
+ */
+export function mapCode(spec, name, formula, at, settings, pair, points) {
+  const scale = scaleLines(spec, [name]);
+  const [first, second] = pair.map((one) => spec.factors.find((f) => f.name === one));
+  const side = (f) => `${f.low} + (side + 1) / 2 * (${f.high} - ${f.low})`;
+  const title = (f) => (f.units ? `${f.name} (${f.units})` : f.name);
+  return [
+    "import numpy as np",
+    "import plotly.graph_objects as go",
+    whatIfCode(spec, { [name]: formula }, at, settings),
+    "",
+    `# The map: ${name} over ${pair[0]} and ${pair[1]}, each from its low end to its high end (-1 to 1 in coded`,
+    "# units), with the other factors where they are set above.",
+    `name, model = ${repr(name)}, ${repr(formula)}`,
+    "done = runs[name].notna()",
+    `side = np.linspace(-1, 1, ${points})`,
+    `grid = pd.concat([at] * ${points * points}, ignore_index=True)`,
+    `grid[${repr(pair[0])}] = np.tile(side, ${points})`,
+    `grid[${repr(pair[1])}] = np.repeat(side, ${points})`,
+    `surface = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="prediction", new_points=grid)`,
+    `z = np.array([float(${scale.back('p["predicted"]')}) for p in surface["predictions"]]).reshape(${points}, ${points})`,
+    `fig = go.Figure(go.Contour(x=${side(first)}, y=${side(second)}, z=z, contours={"showlabels": True}))`,
+    `fig.update_layout(xaxis_title=${repr(title(first))}, yaxis_title=${repr(title(second))})`,
+    "fig.show()",
+  ].join("\n");
+}
+
+/**
  * What if: each response's prediction at the reader's settings, from its own model fitted to the runs that have its
  * result, with its 95% confidence interval for the mean and prediction interval for one new run. ``formulas`` holds
  * each response's model as bootstrap.predictors fitted it, by its column; ``at`` the settings as the columns of ``X``
  * (best.js columnsAt), and ``settings`` as the reader set them, for the comment. ``kept`` holds the settings kept with
  * the study that the models predict at, each its ``name`` and its columns ``at``: each response is predicted at them
- * too. It builds on the design and its results.
+ * too. ``profiled`` is the column of the response whose profiles the panel draws, with how many ``points`` each is
+ * drawn through (best.js profileOf): the code then predicts it as each numeric factor alone moves across its range.
+ * It builds on the design and its results.
  */
-export function whatIfCode(spec, formulas, at, settings, kept = []) {
+export function whatIfCode(spec, formulas, at, settings, kept = [], profiled = null) {
   const words = spec.factors.map((f) =>
     labelled(f) ? `${f.name} at ${settings[f.name]}` : `${f.name} = ${Number(settings[f.name].toPrecision(4))}${f.units ? ` ${f.units}` : ""}`,
   );
@@ -1732,7 +1851,22 @@ export function whatIfCode(spec, formulas, at, settings, kept = []) {
       ? `        print(f"{name}, {scenario}:", {key: float(${scale.back("v")}) for key, v in predicted.items()})  # in its units`
       : '        print(f"{name}, {scenario}:", predicted)',
   ];
+  const moved = spec.factors.filter((f) => !labelled(f)).map((f) => f.name);
+  const profileLines = [
+    "",
+    `# The profiles the panel draws: ${profiled?.name} as each factor alone moves from its low end to its high end (-1 to 1`,
+    "# in coded units), with the other factors where they are set above.",
+    `name, model = ${repr(profiled?.name)}, ${repr(formulas[profiled?.name])}`,
+    "done = runs[name].notna()",
+    `for factor in ${repr(moved)}:`,
+    `    along = pd.concat([at] * ${profiled?.points}, ignore_index=True)`,
+    `    along[factor] = np.linspace(-1, 1, ${profiled?.points})`,
+    `    profile = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="prediction", new_points=along)`,
+    `    print(f"Profile against {factor}:", [float(${scale.back('p["predicted"]')}) for p in profile["predictions"]])`,
+  ];
+  const profiles = profiled && formulas[profiled.name] && moved.length ? profileLines : [];
   return [
+    ...(profiles.length && !scale.lines.length ? ["import numpy as np"] : []),
     "import pandas as pd",
     "from process_improve.experiments import analyze_experiment",
     "",
@@ -1742,6 +1876,8 @@ export function whatIfCode(spec, formulas, at, settings, kept = []) {
     `at = pd.DataFrame([${repr(only(at))}])`,
     "# Each response's prediction there, from its own model fitted to the runs that have its result, with its 95%",
     "# confidence interval for the mean (ci_low to ci_high) and prediction interval for one new run (pi_low to pi_high).",
+    "# The 20 runs the panel draws are the 2.5%, 7.5%, ... 97.5% points of one new run there: pi_low is the least",
+    "# of them and pi_high the greatest.",
     `for name, model in ${repr(formulas)}.items():`,
     "    done = runs[name].notna()",
     `    prediction = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="prediction", new_points=at)`,
@@ -1749,5 +1885,6 @@ export function whatIfCode(spec, formulas, at, settings, kept = []) {
       ? `    print(name, {key: float(${scale.back("v")}) for key, v in prediction["predictions"][0].items()})  # in its units`
       : '    print(name, prediction["predictions"][0])',
     ...(kept.length ? keptLines : []),
+    ...profiles,
   ].join("\n");
 }

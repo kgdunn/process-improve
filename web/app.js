@@ -33,6 +33,10 @@ import {
   overlayFigure,
   paretoFigure,
   effectsFigure,
+  mapFigure,
+  campaignMapFigure,
+  campaignRunsFigure,
+  plotPoint,
   pictureLines,
   pictureReach,
   pictureWords,
@@ -109,6 +113,19 @@ import {
   settingsFit,
   settingsWords,
   sliderStep,
+  PROFILE_POINTS,
+  MAP_POINTS,
+  mapPair,
+  surfaceOf,
+  profileOf,
+  profilePieces,
+  profileRange,
+  profileWords,
+  rangeWords as intervalWords, // this file's own rangeWords writes a factor's range
+  runsAt,
+  insideWindow,
+  dotPiles,
+  runsWords,
   solveSentences,
   surestSentence,
   targetCaption,
@@ -182,6 +199,8 @@ import {
   axialDistance,
   candidateRows,
   candidateTerms,
+  mainEffectsBrought,
+  broughtWords,
   cellBand,
   cellDesign,
   cellResolution,
@@ -273,6 +292,7 @@ import {
   screeningSentence,
   screensOnly,
   showsVif,
+  spacePoints,
   splitResults,
   spreadSentences,
   standouts,
@@ -297,6 +317,13 @@ import {
   bookName,
   campaignDone,
   campaignTitle,
+  bestResult,
+  bestSoFar,
+  campaignRuns,
+  campaignSoFar,
+  checkBuiltOn,
+  priceWords,
+  roundsOf,
   checkBookExample,
   checkCampaign,
   CURVE_POINTS_HELD,
@@ -313,7 +340,7 @@ import {
   timeAgo,
   unpackCampaign,
 } from "./campaign.js";
-import { fileStem, readStudyFile, studyFile } from "./study-file.js";
+import { fileStem, readStudyFile, runsDigest, studyFile } from "./study-file.js";
 import {
   adoptLimits,
   currentLimits,
@@ -329,7 +356,7 @@ import {
 import { redrawRuns } from "./picture.js";
 import { drawFieldChart } from "./field-chart.js";
 import { RUN_ORDER_SEED, briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows } from "./report.js";
-import { analyseCode, balanceCode, bestCode, compareCode, comparisonFigureCode, correlationCode, cumulative, curveCode, designCode, figureCode, forResponse, notebook, overlayCode, ownFigureCode, resultsCode, sensitivityCode, targetCode, targetOverlayCode, tradeOffCode, whatIfCode, windowCode, windowOverlayCode } from "./python.js";
+import { mapCode, campaignMapCode, campaignRunsCode, analyseCode, balanceCode, bestCode, compareCode, comparisonFigureCode, correlationCode, cumulative, curveCode, designCode, figureCode, forResponse, notebook, overlayCode, ownFigureCode, resultsCode, sensitivityCode, targetCode, targetOverlayCode, tradeOffCode, whatIfCode, windowCode, windowOverlayCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { CONTEXT, DESIGN_CONTEXT, GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
@@ -407,6 +434,22 @@ function listing(select) {
 }
 const designs = listing($("#design-type"));
 const models = listing($("#model"));
+/**
+ * The terms of Learn's model and what stands beside them, held here: they are shown in the fold "For the
+ * statistician", which is made again with each analysis, so they are off the page between one fold and the next and
+ * cannot be looked up then.
+ */
+const TERMS = {
+  box: $("#terms"),
+  list: $("#term-list"),
+  adder: $("#term-adder"),
+  first: $("#term-first"),
+  second: $("#term-second"),
+  add: $("#add-term"),
+  designed: $("#terms-designed"),
+  clear: $("#terms-clear"),
+  said: $("#terms-said"),
+};
 const scenarios = listing($("#scenario"));
 // ---------------------------------------------------------------- the line to Python
 /** The last Python errors, newest last, each with the entry point it came from: a report of a problem carries them. */
@@ -563,6 +606,7 @@ const state = {
   scenarios: [], // the settings the reader kept from the what-if panel, each {name, settings}: the study's what_if
   next: null, // the next step, {design, key, offers, notes, recommendation, waiting}: what api_next_runs returned for it
   widened: false, // the study was started with its ranges widened, nothing having stood out in the study before
+  buildsOn: [], // the study this one was started from, as the study keeps it (its builds_on): the round before
   goals: {}, // what the reader set of each response's goal in the balance, by its column: low, high, importance, shape
   comparison: null, // the designs that can learn the brief: what api_candidates returned, and the brief's key
   picked: null, // a design taken from the comparison, {key, design}, made again only if the plan changes
@@ -659,7 +703,7 @@ function wordsOf(name) {
 const mixturePlanned = () => isMixture($("#design-type").value);
 
 // ---------------------------------------------------------------- the phases
-const PANES = { plan: "#step-plan", run: "#step-run", learn: "#step-analyse" };
+const PANES = { plan: "#step-plan", run: "#step-run", learn: "#step-analyse", next: "#step-next" };
 
 /**
  * Show a phase: its tab is marked, its pane shown, and on a narrow screen the brief goes with
@@ -684,16 +728,20 @@ function showPhase(phase) {
     cancelCandidates();
     $("#welcome").hidden = true; // a first look is over once the reader has left the question
   }
+  if (phase === "next") renderRounds(); // from the studies this browser keeps now
   // The top of the workspace in view, under the study bar, when the phase starts above the window's top.
   const top = $("#workspace").getBoundingClientRect().top - $("#studybar").offsetHeight - 8;
   if (top < 0) window.scrollBy({ top, behavior: "instant" });
   if (phase === "plan") scheduleCandidates();
 }
 
-/** The tabs of a tablist answer the arrow keys, Home and End, as a reader of a screen reader expects. */
+/**
+ * The tabs of a tablist answer the arrow keys, Home and End, as a reader of a screen reader expects: the tabs on
+ * show, since a list may hold one the page does not offer now.
+ */
 function arrowKeys(list, select) {
   list.addEventListener("keydown", (e) => {
-    const tabs = [...list.querySelectorAll('[role="tab"]')];
+    const tabs = [...list.querySelectorAll('[role="tab"]:not([hidden])')];
     const at = tabs.indexOf(document.activeElement);
     if (at < 0) return;
     const to = { ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: tabs.length - 1 }[e.key];
@@ -2972,11 +3020,13 @@ function showChoicesFor(design) {
   $("#model-many").textContent = screeningSentence(k, "learn");
   $("#model-many").hidden = !screensOnly(k);
   const taken = (option) => option.value === "" || mixture === ("mixture" in option.dataset);
+  // The reader's own terms are a model the run sheet takes, and never one the list offers: it is listed while chosen.
+  const offered = (option) => taken(option) && option.value !== CHOSEN_TERMS;
   for (const [list, id, fallback] of [[scenarios, "#scenario", mixture ? "blend" : "reactor"], [models, "#model", ""]]) {
     const chosen = list.option($(id).value);
-    list.show(taken, chosen && taken(chosen) && !chosen.disabled ? chosen.value : fallback);
+    list.show(offered, chosen && taken(chosen) && !chosen.disabled ? chosen.value : fallback);
   }
-  $("#terms").hidden = $("#model").value !== CHOSEN_TERMS;
+  showTerms();
   $("#truth-units").textContent = `In ${mixture ? "proportions" : "coded units"}. The analysis estimates these coefficients from the noisy results.`;
   showScenarioHint();
 }
@@ -3091,6 +3141,44 @@ async function simulateResults() {
   await analyseRuns();
 }
 
+// ---------------------------------------------------------------- where to run: one card, a goal to choose
+/**
+ * The goals of the card that answers where to run, each a panel under the dials: the best settings for the
+ * response's goal, the settings that give a target, and those that keep every response inside a window. Each panel
+ * is shown or hidden by its own part of the page (clearBest, renderTarget, renderWindow); a goal is offered while
+ * its panel has something to show.
+ */
+const WHERE_GOALS = ["best", "target", "window"];
+
+/**
+ * The goal the reader chose, which is shown while it is offered. Until they choose, the card opens on what the
+ * study asks: a target typed for a response, else a window, else the first goal offered.
+ */
+let goalChosen = null;
+
+/** Show the panel of the goal chosen, or of the one the study asks; and the card itself while it holds anything. */
+function renderWhere() {
+  const offered = WHERE_GOALS.filter((goal) => !document.getElementById(goal).hidden);
+  const asked = state.design ? keptAsked() : {};
+  const first = [asked.targets && "target", asked.windows && "window", ...offered].find((goal) => offered.includes(goal));
+  const shown = offered.includes(goalChosen) ? goalChosen : (first ?? null);
+  for (const goal of WHERE_GOALS) {
+    const tab = document.getElementById(`goal-${goal}`);
+    tab.hidden = !offered.includes(goal);
+    tab.setAttribute("aria-selected", String(goal === shown));
+    tab.tabIndex = goal === shown ? 0 : -1;
+    document.getElementById(`goal-panel-${goal}`).hidden = goal !== shown;
+  }
+  $("#goals").hidden = offered.length < 2; // one goal is no choice: its panel stands under the dials
+  $("#where").hidden = $("#what-if").hidden && !offered.length;
+}
+
+/** Choose what the settings are for. */
+function selectGoal(goal) {
+  goalChosen = goal;
+  renderWhere();
+}
+
 /** Choose where the results come from: entered by the reader, or simulated for practice. */
 function selectTab(name) {
   for (const tab of ["simulate", "real"]) {
@@ -3114,6 +3202,7 @@ async function downloadWorkbook() {
     model: asked(modelOf(first)),
     ...(Object.keys(models).length ? { models } : {}),
     ...(state.scenarios.length ? { what_if: state.scenarios } : {}),
+    ...(state.buildsOn.length ? { builds_on: state.buildsOn } : {}),
     ...sentCurves(),
   });
   if (!reply.ok) {
@@ -3209,7 +3298,7 @@ async function downloadNotebook() {
 const REPORT_STEPS = ["design", "run", "analyse", "best", "balance"];
 
 /** What a report's copy of the page leaves out: what is there to use the page, and what the page hides. */
-const NOT_REPORTED = "[hidden], button:not(.term), input, select, textarea, details.python, .actions, figure.chart, .simplify, .findings__more";
+const NOT_REPORTED = "[hidden], button:not(.term), input, select, textarea, details.python, .actions, .kept__do, .rounds__open, figure.chart, .simplify, .findings__more, svg.space";
 
 /**
  * The attributes a report's copy keeps: those that say how a cell spans, where a link goes, how a part looks, and
@@ -3318,6 +3407,7 @@ async function closingSections() {
     if (id === "target" && !$("#target-solve").hidden) html.push(`<h3>${$("#target-solve h4").textContent}</h3>`, reportCopy($("#solve-out")));
     sections.push({ heading: $(`#h-${id}`).textContent, html: html.join("\n") });
   }
+  if (!$("#rounds").hidden) sections.push({ heading: $("#h-rounds").textContent, html: reportCopy($("#rounds-out")) });
   if (!$("#next").hidden) sections.push({ heading: $("#h-next").textContent, html: reportCopy($("#next-out")) });
   const code = cumulative(...REPORT_STEPS.map((step) => stepCode[step]).filter(Boolean));
   sections.push({
@@ -3417,11 +3507,11 @@ async function viewReport() {
 
 // ---------------------------------------------------------------- feedback
 /** The phases by the names their tabs give them, as a report of a problem names the one on show. */
-const PHASE_NAMES = { plan: "Design", run: "Run", learn: "Learn" };
+const PHASE_NAMES = { plan: "Design", run: "Run", learn: "Learn", next: "Next" };
 
 /** Learn's model as its form names it: the choice, or for terms ticked, how many. */
 function modelWords() {
-  if ($("#model").value === CHOSEN_TERMS) return `Terms you choose: ${tickedTerms().length} terms`;
+  if ($("#model").value === CHOSEN_TERMS) return `Your terms: ${tickedTerms().length} terms`;
   return $("#model").selectedOptions[0]?.textContent ?? "";
 }
 
@@ -3499,6 +3589,7 @@ async function readUpload(file) {
   state.target = newTarget();
   state.window = newWindow();
   state.scenarios = r.what_if ?? [];
+  state.buildsOn = r.builds_on ?? []; // the round before, when the workbook is of a later round: Python checked it
   clearBalance();
   clearWhatIf();
   clearTarget();
@@ -3536,16 +3627,23 @@ function scheduleAnalysis() {
 /** What Learn says while there is nothing to analyse. */
 const NOTHING_TO_LEARN = "No results yet: enter them in Run, or practise with simulated ones.";
 
+/** What Learn says of results that wait for Python to start: a study opened with its results is such a one. */
+const RESULTS_WAITING = "Your results are in. Their analysis follows once Python has started.";
+
+/** What Learn says with no analysis on show: that no result is in yet, or, before Python has started, that those in wait for it. */
+const learnEmpty = () => (!pythonReady && anyResult(state.results) ? RESULTS_WAITING : NOTHING_TO_LEARN);
+
 /** Take the analysis away: its runs or their results are gone. A reply still on its way is dropped. */
 function clearAnalysis() {
   ticket += 1;
   state.analysis = null;
   $("#analysis").hidden = true;
+  homeTerms();
   $("#printed").hidden = true;
   $("#py-analyse").hidden = true;
   $("#charts").hidden = true;
   $("#charts").replaceChildren();
-  $("#analyse-empty").textContent = NOTHING_TO_LEARN;
+  $("#analyse-empty").textContent = learnEmpty();
   $("#analyse-empty").hidden = false;
   $("#to-learn").hidden = true;
   $("#learn-report").hidden = true;
@@ -3664,6 +3762,7 @@ function renderAnalysis(reply) {
   if (!reply.ok) {
     setStatus("The results could not be analysed.", "error");
     showBoxCox(null);
+    homeTerms(); // out of the fold that goes, so the reader can still change the model that could not be fitted
     out.replaceChildren(...asideParts(), el("p", "error", reply.error), ...warningList(reply.warnings), reportResult());
     state.simpler = null;
     $("#charts").hidden = true;
@@ -3758,8 +3857,12 @@ function renderAnalysis(reply) {
   fold.id = "statistician";
   fold.open = statisticianOpen();
   fold.ontoggle = () => keepStatistician(fold.open);
-  fold.append(el("summary", "", "For the statistician: the model, its coefficients and each run"), ...parts);
+  // The terms move from the fold before into this one; a term the reader has just pressed keeps the keyboard.
+  const pressed = TERMS.box.contains(document.activeElement) ? document.activeElement : null;
+  showTermsOfModel();
+  fold.append(el("summary", "", "For the statistician: the model, its coefficients and each run"), TERMS.box, ...parts);
   out.replaceChildren(...shown, fold);
+  if (pressed?.isConnected) pressed.focus();
   renderAnswer();
 }
 
@@ -3825,7 +3928,7 @@ async function askSimpler(words, apply) {
 function fitSimpler() {
   if (!state.simpler?.length) return;
   setModel({ terms: state.simpler, picked: true });
-  $("#term-list").dispatchEvent(new Event("change"));
+  TERMS.list.dispatchEvent(new Event("change"));
 }
 
 /** A result typed or pasted again is a new result: its run is no longer set aside from that response's fit. */
@@ -3885,6 +3988,58 @@ function sparkOf(lines, reach, words) {
   };
   draw([[-1, 0], [1, 0]], "spark__base");
   lines.forEach((points, i) => draw(points, i ? "spark__line spark__line--other" : "spark__line"));
+  return svg;
+}
+
+/** An element of a drawing, with its attributes. */
+function svgEl(tag, attributes = {}) {
+  const made = document.createElementNS(SVG, tag);
+  for (const [name, value] of Object.entries(attributes)) made.setAttribute(name, value);
+  return made;
+}
+
+/**
+ * A picture of the space two or three numeric factors span, as a square, or a cube seen from above its front corner:
+ * the settings the runs took as rings (``made``) and those of runs not yet made as filled points (``planned``), each
+ * a point of logic.js's spacePoints. Each factor runs along an edge, from the low end of its range to the high.
+ * ``words`` say the picture to a reader who does not see it.
+ */
+function spaceOf(made, planned, factors, words) {
+  const cube = factors.length === 3;
+  const at = cube ? ([t, p, f]) => [85 + 38 * t - 22 * p, 80 + 8 * t + 16 * p - 36 * f] : ([t, p]) => [85 + 52 * t, 80 - 52 * p];
+  const ends = [-1, 1];
+  const corners = cube ? ends.flatMap((t) => ends.flatMap((p) => ends.map((f) => [t, p, f]))) : ends.flatMap((t) => ends.map((p) => [t, p]));
+  const svg = svgEl("svg", { class: "space", viewBox: "0 0 170 170", role: "img", "aria-label": words });
+  corners.forEach((from, i) => {
+    for (const to of corners.slice(i + 1)) {
+      if (from.filter((level, k) => level !== to[k]).length !== 1) continue; // an edge joins corners one factor apart
+      const [[x1, y1], [x2, y2]] = [at(from), at(to)];
+      const behind = cube && [from, to].some((corner) => corner.every((level) => level === -1)); // the corner the cube hides
+      svg.append(svgEl("line", { class: behind ? "space__edge space__edge--back" : "space__edge", x1, y1, x2, y2 }));
+    }
+  });
+  const draw = (cls, r) => (levels) => {
+    const [cx, cy] = at(levels);
+    svg.append(svgEl("circle", { class: cls, cx: cx.toFixed(1), cy: cy.toFixed(1), r }));
+  };
+  made.forEach(draw("space__run", 3));
+  planned.forEach(draw("space__new", 4.5));
+  const short = (f) => (f.name.length > 16 ? `${f.name.slice(0, 15)}\u2026` : f.name);
+  const labels = cube
+    ? [
+        ["translate(38 146) rotate(12)", "start", `${short(factors[0])} \u2192`],
+        ["translate(112 148) rotate(-36)", "start", `\u2190 ${short(factors[1])}`],
+        ["translate(15 112) rotate(-90)", "start", `${short(factors[2])} \u2192`],
+      ]
+    : [
+        ["translate(85 152)", "middle", `${short(factors[0])} \u2192`],
+        ["translate(20 80) rotate(-90)", "middle", `${short(factors[1])} \u2192`],
+      ];
+  for (const [transform, anchor, text] of labels) {
+    const label = svgEl("text", { class: "space__label", transform, "text-anchor": anchor, "aria-hidden": "true" });
+    label.textContent = text;
+    svg.append(label);
+  }
   return svg;
 }
 
@@ -4446,13 +4601,13 @@ let modelBefore = ""; // the model chosen before the reader asked to tick terms:
 function modelChoice() {
   if ($("#model").value !== CHOSEN_TERMS) return $("#model").value;
   const terms = tickedTerms();
-  return $("#term-list").dataset.picked === termsKey(terms) ? { terms, picked: true } : { terms };
+  return TERMS.list.dataset.picked === termsKey(terms) ? { terms, picked: true } : { terms };
 }
 
 /** A model as Python takes it: its name, or its terms. That the terms were picked from the results is the page's to say. */
 const asked = (model) => (model && typeof model === "object" ? { terms: model.terms } : model);
 
-const tickedTerms = () => [...document.querySelectorAll("#term-list input:checked")].map((b) => JSON.parse(b.value));
+const tickedTerms = () => [...TERMS.list.querySelectorAll("input:checked")].map((b) => JSON.parse(b.value));
 
 /** List every term the design's factors allow, grouped, with `ticked` ticked. */
 function renderTermList(ticked) {
@@ -4460,9 +4615,9 @@ function renderTermList(ticked) {
   const groups = new Map();
   const factors = state.design.spec.factors;
   // Past MAX_INTERACTION_FACTORS factors the list holds the interactions the reader names, with the boxes to name one.
-  $("#term-adder").hidden = !screensOnly(factors.length);
+  TERMS.adder.hidden = !screensOnly(factors.length);
   if (screensOnly(factors.length)) fillTermAdder(factors.map((f) => f.name));
-  for (const { term, label, group } of candidateTerms(factors, ticked)) {
+  for (const { term, label, group } of candidateTerms(factors, ticked, state.design.facts?.aliases)) {
     const tick = el("input", "", "");
     tick.type = "checkbox";
     tick.value = JSON.stringify(term);
@@ -4472,7 +4627,7 @@ function renderTermList(ticked) {
     if (!groups.has(group)) groups.set(group, []);
     groups.get(group).push(item);
   }
-  $("#term-list").replaceChildren(
+  TERMS.list.replaceChildren(
     ...[...groups].flatMap(([group, items]) => {
       const row = el("div", "group", "");
       row.append(...items);
@@ -4493,16 +4648,16 @@ function fillTermAdder(names) {
 }
 
 /** A factor has no interaction with itself: the button adds one only when the two boxes name different factors. */
-const showTermAdder = () => ($("#add-term").disabled = $("#term-first").value === $("#term-second").value);
+const showTermAdder = () => (TERMS.add.disabled = TERMS.first.value === TERMS.second.value);
 
 /** Add the interaction the two boxes name to the terms ticked, and fit the model with it. */
 function addNamedTerm() {
   const names = state.design.spec.factors.map((f) => f.name);
-  const term = interactionOf($("#term-first").value, $("#term-second").value, names);
+  const term = interactionOf(TERMS.first.value, TERMS.second.value, names);
   if (!term) return;
   const ticked = tickedTerms().filter((t) => JSON.stringify(t) !== JSON.stringify(term));
   renderTermList([...ticked, term]);
-  $("#term-list").dispatchEvent(new Event("change"));
+  TERMS.list.dispatchEvent(new Event("change"));
 }
 
 /** Start the list of terms from the model chosen before, or the one the design was made for. */
@@ -4512,16 +4667,71 @@ function startTermList() {
 
 /** Put a model into the analysis: a named one, "" for the design's own, or {terms} to tick. */
 function setModel(model) {
-  delete $("#term-list").dataset.picked;
+  delete TERMS.list.dataset.picked;
   if (model && typeof model === "object") {
     models.choose(CHOSEN_TERMS);
     renderTermList(model.terms);
-    if (model.picked) $("#term-list").dataset.picked = termsKey(model.terms);
+    if (model.picked) TERMS.list.dataset.picked = termsKey(model.terms);
   } else {
     models.choose(model);
     if (model === CHOSEN_TERMS) startTermList();
   }
-  $("#terms").hidden = $("#model").value !== CHOSEN_TERMS;
+  showTerms();
+}
+
+/**
+ * Stand the terms above the analysis, where they are before the first one, on show while the model is the reader's
+ * own. With no fold to hold them (nothing analysed yet, or a model that could not be fitted) they are still in
+ * reach there, so a model too large for the runs can be made smaller.
+ */
+function homeTerms() {
+  $("#analysis").before(TERMS.box);
+  TERMS.box.hidden = $("#model").value !== CHOSEN_TERMS || !state.design;
+}
+
+/** The model changed with no analysis on show: the terms above it follow. In an analysis's fold, its next one shows them. */
+function showTerms() {
+  if (!TERMS.box.closest("details.statistician")) homeTerms();
+}
+
+/**
+ * Show the model an analysis fitted as its terms, those in it ticked, for its fold: a named model's own, or the
+ * reader's as they stand. A mixture's model is chosen by its name, and has no terms to press.
+ */
+function showTermsOfModel() {
+  TERMS.box.hidden = blendStudy();
+  if (TERMS.box.hidden) return;
+  if ($("#model").value !== CHOSEN_TERMS) renderTermList(namedModelTerms($("#model").value || state.design.spec.model, state.design.spec.factors));
+  TERMS.designed.disabled = $("#model").value === "";
+}
+
+/**
+ * A term was pressed. A named model's terms become the reader's own. A term put in brings the main effects it is
+ * made of when they are out; one taken out takes nothing with it, so that a factor nested in another can be written.
+ */
+function termPressed(e) {
+  if ($("#model").value !== CHOSEN_TERMS) models.choose(CHOSEN_TERMS);
+  TERMS.designed.disabled = false; // the model is the reader's own from here
+  if (e.target === TERMS.list) return; // the terms were set as a whole (fitSimpler), not pressed
+  TERMS.said.textContent = "";
+  if (!e.target.checked) return;
+  const term = JSON.parse(e.target.value);
+  const brought = mainEffectsBrought(tickedTerms(), term);
+  const boxes = [...TERMS.list.querySelectorAll("input")];
+  for (const main of brought) boxes.find((box) => box.value === JSON.stringify(main)).checked = true;
+  if (brought.length) TERMS.said.textContent = broughtWords(term, brought);
+}
+
+/** Search for the terms the results support (bootstrap.simpler_model) and fit them at once, saying what was kept. */
+async function keepClearTerms() {
+  const mine = ticket;
+  TERMS.said.textContent = "Searching...";
+  const reply = await call("api_simpler_model", analysisRequest());
+  if (mine !== ticket) return; // another analysis has the page now
+  TERMS.said.textContent = reply.ok ? simplerWords(reply.result, fmt) : reply.error;
+  if (!reply.ok || !reply.result.changed || !reply.result.terms.length) return;
+  state.simpler = reply.result.terms;
+  fitSimpler();
 }
 
 // ---------------------------------------------------------------- charts
@@ -4631,6 +4841,7 @@ async function drawCharts(request, mine, given = null) {
     return;
   }
   state.plotlyJs = version;
+  if (state.whatIf) drawMap(state.whatIf); // the map waited for Plotly, which the first chart brings
   try {
     await coefficients.show(coefficientView(), version);
     await drawBestChart();
@@ -4835,6 +5046,9 @@ function clearBest() {
   renderAnswer();
   $("#best").hidden = true;
   $("#next").hidden = true; // the next step follows the analysis; findNext shows it again with the next one
+  $("#to-next").hidden = true;
+  $("#next-empty").hidden = false;
+  renderRounds(); // the rounds are the study's, analysed or not: with no study on the page they go too
   hidePython("best");
 }
 
@@ -5747,23 +5961,34 @@ function showWhatIf(result) {
 function renderWhatIfControls() {
   const box = $("#what-if-settings");
   const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
-  const key = JSON.stringify(state.whatIf.factors.map((f) => [f.name, f.low, f.high, f.levels, units[f.name]]));
+  const fitted = profiledResponses(state.whatIf).map((r) => r.name);
+  const key = JSON.stringify([fitted, state.whatIf.factors.map((f) => [f.name, f.low, f.high, f.levels, units[f.name]])]);
   if (box.dataset.key === key) return;
   box.dataset.key = key;
-  box.replaceChildren(...state.whatIf.factors.map((f) => whatIfControl(f, units[f.name])));
+  box.replaceChildren(...state.whatIf.factors.map((f) => whatIfControl(f, units[f.name], fitted)));
 }
 
-/** One factor's control in the what-if panel, its row named by the factor. */
-function whatIfControl(f, units) {
+/**
+ * One factor's dial in the what-if panel, named by the factor: a profile for each of the ``fitted`` responses
+ * (drawProfiles), one under another, each of which takes a drag, over the slider and the number box that set the
+ * factor from the keyboard.
+ */
+function whatIfControl(f, units, fitted) {
   const row = el("div", "what-if-factor", "");
   row.dataset.factor = f.name;
   const name = el("span", "what-if-name", withUnits(f.name, units));
+  const profiles = fitted.map((response) => {
+    const profile = svgPart("svg", { class: "profile", role: "img" });
+    profile.dataset.response = response;
+    takeDrag(profile, (e) => dragProfile(e, f));
+    return profile;
+  });
   if (f.kind === "categorical") {
     const select = el("select", "", "");
     select.name = "level";
     select.setAttribute("aria-label", f.name);
     for (const level of f.levels) select.append(new Option(level, level));
-    row.append(name, select);
+    row.append(name, ...profiles, select);
     return row;
   }
   const [low, high] = [Math.min(f.low, f.high), Math.max(f.low, f.high)];
@@ -5774,8 +5999,203 @@ function whatIfControl(f, units) {
   const box = el("input", "", "");
   Object.assign(box, { type: "number", name: "number", min: String(low), max: String(high), step: "any" });
   box.setAttribute("aria-label", withUnits(f.name, units));
-  row.append(name, slider, box, el("span", "what-if-range", span));
+  row.append(name, ...profiles, slider, box, el("span", "what-if-range", span));
   return row;
+}
+
+/**
+ * Let a drawing of the what-if panel take a press and a drag: ``moved`` is given each pointer event that sets
+ * something. A mouse or a pen sets where it presses. A finger that lands on the drawing may be about to scroll the
+ * page past it, so a touch sets nothing until it moves sideways, or lifts where it landed: the browser takes an up
+ * or down swipe for the page (the drawing's touch-action), and tells the drawing nothing more of it.
+ */
+function takeDrag(drawing, moved) {
+  const held = (e) => drawing.hasPointerCapture(e.pointerId) && Boolean(state.whatIf);
+  const set = (e) => {
+    state.whatIf.dragging = true;
+    moved(e);
+  };
+  drawing.addEventListener("pointerdown", (e) => {
+    drawing.setPointerCapture(e.pointerId);
+    if (e.pointerType !== "touch" && state.whatIf) set(e);
+  });
+  drawing.addEventListener("pointermove", (e) => held(e) && set(e));
+  drawing.addEventListener("pointerup", (e) => e.pointerType === "touch" && held(e) && set(e));
+  drawing.addEventListener("lostpointercapture", () => {
+    if (!state.whatIf?.dragging) return;
+    state.whatIf.dragging = false;
+    renderWhatIf(); // the profiles' scale held still for the drag: it now fits them as they are
+  });
+}
+
+/**
+ * A profile's drawing, in the page's pixels: as wide as its dial (``width`` until the dial is on show), ``height``
+ * tall, with ``pad`` of room about the plot, which puts its two ends over the ends of the slider's travel.
+ */
+const PROFILE = { width: 240, height: 132, pad: 10 };
+
+/** A part of an SVG drawing, with its attributes. */
+function svgPart(tag, attributes = {}, text = "") {
+  const part = document.createElementNS(SVG, tag);
+  for (const [name, value] of Object.entries(attributes)) part.setAttribute(name, value);
+  part.textContent = text;
+  return part;
+}
+
+/** The responses the panel draws a row of profiles for: each whose model is fitted, in the page's order. */
+const profiledResponses = (w) => w.responses.filter((r) => r.terms);
+
+/** The response whose map the panel draws, and whose profiles its Python gives: the one Learn shows when its model is fitted, else the first that is. */
+const profiledResponse = (w) => profiledResponses(w).find((r) => r.name === state.shown) ?? profiledResponses(w)[0] ?? null;
+
+/**
+ * Draw a row of profiles for each fitted response (best.js profileOf): its prediction as each factor alone moves,
+ * with the 95% confidence band, dashed where the settings lie beyond the runs, and a mark where the factor is set.
+ * The profiles of a response are drawn to one scale, its own. With no response fitted (a study of curves alone)
+ * there is none to draw.
+ */
+function drawProfiles(w) {
+  const fits = profiledResponses(w);
+  const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
+  const box = $("#what-if-settings");
+  box.classList.toggle("what-if-settings--rows", fits.length > 1);
+  $("#what-if-about").textContent = fits.length
+    ? `Each picture is ${fits.length > 1 ? "a response" : fits[0].label} against one factor, the others as set; dashed beyond the runs. Drag it, or type a value.`
+    : "Move a setting, and each response's prediction follows.";
+  w.ranges ??= {};
+  for (const fit of fits) {
+    const profiles = w.factors.map((f) => profileOf(fit, w.factors, w.settings, f.name));
+    const range = profileRange(profiles, w.dragging ? w.ranges[fit.name] : null);
+    w.ranges[fit.name] = range;
+    const words = { label: fit.label, units: fit.units ?? "", named: fits.length > 1 };
+    w.factors.forEach((f, i) => {
+      const profile = [...box.children[i].querySelectorAll("svg.profile")].find((one) => one.dataset.response === fit.name);
+      const size = { width: profile.clientWidth || PROFILE.width, height: profile.clientHeight || PROFILE.height };
+      profile.setAttribute("viewBox", `0 0 ${size.width} ${size.height}`);
+      profile.setAttribute("aria-label", profileWords(f, profiles[i], words, units[f.name]));
+      profile.replaceChildren(...profileParts(f, profiles[i], range, w.settings[f.name], words, size));
+    });
+  }
+}
+
+/**
+ * The parts of one profile's drawing: the scale's two ends, the response's name where the panel draws several, the
+ * band, the line in its pieces, and the mark.
+ */
+function profileParts(f, points, range, value, { label, units, named }, { width, height }) {
+  const { pad } = PROFILE;
+  const numeric = f.kind === "numeric";
+  const [low, high] = numeric ? [points[0].value, points.at(-1).value] : [0, points.length - 1];
+  const across = (v) => pad + (high > low ? ((width - 2 * pad) * (v - low)) / (high - low) : (width - 2 * pad) / 2);
+  const up = (v) => height - pad - ((height - 2 * pad) * (v - range[0])) / (range[1] - range[0]);
+  const x = (point) => across(numeric ? point.value : points.indexOf(point));
+  const at = (point, v = point.predicted) => `${x(point).toFixed(1)},${up(v).toFixed(1)}`;
+  const parts = [
+    svgPart("text", { class: "profile__end", x: 4, y: 12 }, withUnit(range[1], units)),
+    svgPart("text", { class: "profile__end", x: 4, y: height - 4 }, withUnit(range[0], units)),
+    ...(named ? [svgPart("text", { class: "profile__name", x: width - 4, y: 12, "text-anchor": "end" }, label)] : []),
+  ];
+  const banded = points.every((point) => point.confidence);
+  if (!numeric) {
+    for (const point of points) {
+      if (banded) parts.push(svgPart("line", { class: "profile__bar", x1: x(point), x2: x(point), y1: up(point.confidence[0]), y2: up(point.confidence[1]) })); // prettier-ignore
+      const chosen = point.value === value;
+      parts.push(svgPart("circle", { class: `profile__level${chosen ? " profile__level--set" : ""}`, cx: x(point), cy: up(point.predicted), r: chosen ? 6 : 4 })); // prettier-ignore
+    }
+    return parts;
+  }
+  if (banded) {
+    const edge = (end) => points.map((point) => at(point, point.confidence[end]));
+    parts.push(svgPart("polygon", { class: "profile__band", points: [...edge(0), ...edge(1).reverse()].join(" ") }));
+  }
+  for (const piece of profilePieces(points)) {
+    const cls = piece.beyond ? "profile__line profile__line--beyond" : "profile__line";
+    parts.push(svgPart("polyline", { class: cls, points: piece.points.map((point) => at(point)).join(" ") }));
+  }
+  // The mark: where the factor is set, and what the model predicts there, read off the profile's own points.
+  const after = Math.max(1, points.findIndex((point) => point.value >= value));
+  const [before, next] = [points[after - 1], points[after]];
+  const share = next.value > before.value ? (value - before.value) / (next.value - before.value) : 0;
+  const predicted = before.predicted + share * (next.predicted - before.predicted);
+  parts.push(
+    svgPart("line", { class: "profile__at", x1: across(value), x2: across(value), y1: pad, y2: height - pad }),
+    svgPart("circle", { class: "profile__set", cx: across(value), cy: up(predicted), r: 6 }),
+  );
+  return parts;
+}
+
+/**
+ * Draw the response's map beside the dials (charts.js mapFigure): its fitted surface over two numeric factors, the
+ * others where the dials have them, faded where the settings lie beyond the runs, with a mark where the dials are.
+ * The two factors are those of the response's surface among the charts, when the reader chose them, else the
+ * study's first two numeric ones; a study with fewer has no map. The best settings are starred when the map passes
+ * through them: when every other factor is where they have it.
+ */
+function drawMap(w) {
+  const fit = profiledResponse(w);
+  const pair = fit && state.plotlyJs ? mapPair(w.factors, state.contourPairs[fit.name]) : null;
+  $("#what-if-map").hidden = !pair;
+  if (!pair) return;
+  const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
+  // The surface changes with the fit and with the other factors' settings: a drag on the map itself moves neither.
+  const others = w.factors.filter((f) => !pair.includes(f.name));
+  const key = JSON.stringify([fit.name, fit.coefficients, pair, others.map((f) => w.settings[f.name])]);
+  if (w.map?.key !== key) w.map = { key, pair, surface: surfaceOf(fit, w.factors, w.settings, pair) };
+  const found = fit.name === state.shown ? Object.fromEntries((state.best?.settings ?? []).map((one) => [one.name, one.value])) : {};
+  const through = pair.every((name) => Number.isFinite(found[name])) && others.every((f) => found[f.name] === w.settings[f.name]);
+  const words = {
+    label: fit.label,
+    units: fit.units ?? "",
+    axes: pair.map((name) => ({ name, units: units[name] })),
+    at: pair.map((name) => w.settings[name]),
+    best: through ? pair.map((name) => found[name]) : null,
+  };
+  $("#what-if-map-title").textContent = `${fit.label} over ${pair[0]} and ${pair[1]}`;
+  const at = columnsAt(w.factors, w.settings);
+  const python = figureAfter("run", () => mapCode(state.design.spec, fit.name, fit.formula, at, w.settings, pair, MAP_POINTS));
+  const { surface } = w.map;
+  draw($("#what-if-map-plot"), () => mapFigure(surface, words), state.plotlyJs, 300, { python });
+}
+
+/** The reader pressed or dragged on the map: its two factors are set where the pointer is, each to its slider's step. */
+function dragMap(e) {
+  const w = state.whatIf;
+  const point = w.map && plotPoint(e.currentTarget, e.clientX, e.clientY);
+  if (!point) return;
+  const stepped = w.map.pair.map((name, i) => {
+    const f = w.factors.find((one) => one.name === name);
+    const [low, high] = [Math.min(f.low, f.high), Math.max(f.low, f.high)];
+    const step = sliderStep(f);
+    return [name, Math.min(high, Math.max(low, Number((low + Math.round((point[i] - low) / step) * step).toPrecision(12))))];
+  });
+  setWhatIf(Object.fromEntries(stepped));
+}
+
+/** The reader pressed or dragged on a profile: its factor is set where the pointer is, to the slider's step. */
+function dragProfile(e, f) {
+  const drawing = e.currentTarget; // the plot is inside the drawing's border, PROFILE.pad from each side
+  const left = drawing.getBoundingClientRect().left + drawing.clientLeft + PROFILE.pad;
+  const share = Math.min(1, Math.max(0, (e.clientX - left) / (drawing.clientWidth - 2 * PROFILE.pad)));
+  if (f.kind === "categorical") {
+    setWhatIf({ [f.name]: f.levels[Math.round(share * (f.levels.length - 1))] });
+    return;
+  }
+  const [low, high] = [Math.min(f.low, f.high), Math.max(f.low, f.high)];
+  const step = sliderStep(f);
+  const stepped = low + Math.round((share * (high - low)) / step) * step;
+  setWhatIf({ [f.name]: Math.min(high, Math.max(low, Number(stepped.toPrecision(12)))) });
+}
+
+/**
+ * Set factors of the panel (``changes``, each factor's new setting by its name): every response follows at once,
+ * and the limits the settings break a moment later.
+ */
+function setWhatIf(changes) {
+  if (Object.entries(changes).every(([name, value]) => state.whatIf.settings[name] === value)) return;
+  state.whatIf.settings = { ...state.whatIf.settings, ...changes };
+  renderWhatIf();
+  clearTimeout(whatIfLimitsTimer);
+  whatIfLimitsTimer = setTimeout(checkWhatIfLimits, 150);
 }
 
 /** Show the settings the panel holds in its controls; a number box the reader is typing in keeps what is typed. */
@@ -5812,6 +6232,8 @@ function renderWhatIf() {
   const start = whatIfStart(w.factors, state.balance, state.best);
   $("#what-if").hidden = false;
   showWhatIfSettings();
+  drawProfiles(w);
+  drawMap(w);
   $("#what-if-back").textContent = WHAT_IF_BACK[start.from];
   $("#what-if-back").hidden = w.factors.every((f) => start.settings[f.name] === w.settings[f.name]);
   // a study whose only results so far are its curves has no response to list: the curve below is the prediction
@@ -5820,13 +6242,64 @@ function renderWhatIf() {
     ...(fitted ? [table(WHAT_IF_COLUMNS, whatIfRows(responses), WHAT_IF_TERMS)] : []),
     ...noteList(whatIfSentences(fitted ? responses : [], w.broken), "warnings"),
   );
+  drawRuns();
   const formulas = Object.fromEntries(w.responses.filter((r) => r.terms).map((r) => [r.name, r.formula]));
   const kept = state.scenarios.filter((s) => !keptProblem(w, s)).map((s) => ({ name: s.name, at: columnsAt(w.factors, s.settings) }));
-  if (fitted) showPython("what-if", whatIfCode(state.design.spec, formulas, at, w.settings, kept));
+  const profiled = profiledResponse(w);
+  if (fitted) showPython("what-if", whatIfCode(state.design.spec, formulas, at, w.settings, kept, profiled && { name: profiled.name, points: PROFILE_POINTS }));
   else hidePython("what-if");
   renderCurve(at);
   scheduleSolve(); // one factor is solved for from the others, which are where this panel has them
   scheduleWindow(); // and the windows are judged through these settings
+}
+
+// ---------------------------------------------------------------- what if: a prediction as runs
+/** A drawing of runs, in the page's pixels: ``width`` across with ``pad`` at each side, a dot ``dot`` across, and ``foot`` under the dots for the two ends' numbers. */
+const RUNS = { width: 240, pad: 10, dot: 10, foot: 16 };
+
+/**
+ * Draw each fitted response's prediction as the runs a reader might get at the panel's settings (best.js runsAt), each
+ * as likely as the next: dots that pile up where a run is likelier, the outer two at the ends of the 95% prediction
+ * interval in the table above, and those inside the response's window filled. A response whose model has no interval
+ * has no runs to draw.
+ */
+function drawRuns() {
+  const w = state.whatIf;
+  if (!w) return;
+  const at = columnsAt(w.factors, w.settings);
+  const drawn = profiledResponses(w).flatMap((fit) => {
+    const runs = runsAt(fit, at);
+    return runs ? [runsFigure(fit, runs, state.window.windows[fit.name])] : [];
+  });
+  $("#what-if-runs").hidden = !drawn.length;
+  $("#what-if-runs").replaceChildren(...drawn);
+}
+
+/** One response's runs: the dots over a line, the window they are judged by shaded behind them, and what they say in words. */
+function runsFigure(fit, runs, ends = [null, null]) {
+  const windowed = ends.some((end) => end !== null);
+  const inside = insideWindow(runs, ends);
+  const { width, pad, dot, foot } = RUNS;
+  const [least, most] = [runs[0], runs.at(-1)];
+  const room = (most - least) * 0.1 || 1; // a little past the two ends, so the outer dots are whole
+  const [low, high] = [least - room, most + room];
+  const piles = dotPiles(runs, [low, high], Math.floor((width - 2 * pad) / dot));
+  const tall = (Math.max(...piles.map((pile) => pile.level)) + 1) * dot;
+  const across = (value) => pad + ((value - low) / (high - low)) * (width - 2 * pad);
+  const drawing = svgPart("svg", { class: "runs", viewBox: `0 0 ${width} ${tall + foot}`, width, height: tall + foot, "aria-hidden": "true" });
+  const [from, to] = [Math.max(low, ends[0] ?? low), Math.min(high, ends[1] ?? high)];
+  if (windowed && to > from) drawing.append(svgPart("rect", { class: "runs__window", x: across(from), y: 0, width: across(to) - across(from), height: tall }));
+  drawing.append(svgPart("line", { class: "runs__foot", x1: pad, x2: width - pad, y1: tall, y2: tall }));
+  piles.forEach(({ column, level }, i) => {
+    const run = svgPart("circle", { class: `runs__run${inside[i] ? " runs__run--inside" : ""}`, cx: pad + (column + 0.5) * dot, cy: tall - (level + 0.5) * dot, r: dot / 2 - 1.5 });
+    drawing.append(run);
+  });
+  for (const end of [least, most]) drawing.append(svgPart("text", { class: "runs__end", x: across(end), y: tall + foot - 3, "text-anchor": "middle" }, num(end)));
+  const figure = el("figure", "runs-figure", "");
+  figure.dataset.response = fit.name;
+  // The words say what the drawing shows, so a reader who does not see it loses nothing: the drawing is not read out.
+  figure.append(drawing, el("figcaption", "hint", runsWords(runs, inside, { label: fit.label, units: fit.units ?? "" }, windowed)));
+  return figure;
 }
 
 // ---------------------------------------------------------------- the curve at the what-if settings
@@ -5916,10 +6389,7 @@ function whatIfChanged(e) {
     if (value === null) return; // a number half typed: the panel waits for the rest
     value = Math.min(Math.max(value, Math.min(f.low, f.high)), Math.max(f.low, f.high)); // the models hold inside the range
   }
-  state.whatIf.settings = { ...state.whatIf.settings, [f.name]: value };
-  renderWhatIf();
-  clearTimeout(whatIfLimitsTimer);
-  whatIfLimitsTimer = setTimeout(checkWhatIfLimits, 150);
+  setWhatIf({ [f.name]: value });
 }
 
 /** Ask Python which limits on the settings the panel's settings break, and say so; a study without limits breaks none. */
@@ -5974,36 +6444,68 @@ function keepWhatIf(e) {
   toast(`Kept these settings as ${name}.`);
 }
 
-/** List the settings kept with the study below the panel, each with every response there, or why there is none. */
+/**
+ * List the settings kept with the study below the panel, side by side in one table: a row each, with each factor's
+ * setting, each response as predicted there over its 95% prediction interval, or why there is none, and its buttons.
+ */
 function renderKept() {
   const w = state.whatIf;
   $("#what-if-kept").hidden = !w || !state.scenarios.length;
   if ($("#what-if-kept").hidden) return;
   const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
-  $("#what-if-kept-list").replaceChildren(...state.scenarios.map((s) => keptItem(w, s, units)));
+  const fits = profiledResponses(w);
+  const t = el("table", "data what-if-kept", "");
+  t.setAttribute("aria-labelledby", "h-what-if-kept");
+  const head = t.createTHead().insertRow();
+  const headings = ["Kept as", ...w.factors.map((f) => withUnits(f.name, units[f.name])), ...fits.map((r) => withUnits(r.label, r.units)), "What to do"];
+  for (const [i, text] of headings.entries()) {
+    const th = el("th", i === headings.length - 1 ? "kept__do" : "", text);
+    th.scope = "col";
+    head.append(th);
+  }
+  const body = t.createTBody();
+  for (const s of state.scenarios) body.append(keptRow(w, s, units, fits));
+  const wrap = el("div", "scroll", "");
+  wrap.append(t);
+  const said = state.scenarios.flatMap((s) => (keptProblem(w, s, units) ? [] : whatIfSentences(predictedAt(w, columnsAt(w.factors, s.settings))).map((text) => `${s.name}: ${text}`)));
+  $("#what-if-kept-list").replaceChildren(wrap, ...noteList(said, "warnings"));
 }
 
-/** One kept setting in the list: its name and settings, each response there as the panel's table shows it, and its buttons. */
-function keptItem(w, s, units) {
-  const item = el("li", "", "");
-  const head = el("p", "", "");
-  head.append(el("strong", "", s.name), `: ${settingsWords(w.factors, s.settings, units)}`);
-  item.append(head);
-  const actions = el("p", "actions", "");
+/** One kept setting's row: its name, each factor's setting, each response there (or, across them, why there is none), and its buttons. */
+function keptRow(w, s, units, fits) {
+  const tr = el("tr", "", "");
+  tr.dataset.kept = s.name;
+  const name = el("th", "", s.name);
+  name.scope = "row";
+  tr.append(name);
+  for (const f of w.factors) {
+    const value = s.settings[f.name];
+    tr.append(el("td", "", value === undefined ? "" : f.kind === "numeric" ? num(value) : String(value)));
+  }
+  const actions = el("td", "kept__do", "");
   const problem = keptProblem(w, s, units);
   if (problem) {
-    item.append(said("hint", problem));
+    const why = el("td", "hint", problem);
+    why.colSpan = Math.max(1, fits.length);
+    tr.append(why);
   } else {
-    const responses = predictedAt(w, columnsAt(w.factors, s.settings));
-    item.append(table(WHAT_IF_COLUMNS, whatIfRows(responses), WHAT_IF_TERMS), ...noteList(whatIfSentences(responses), "warnings"));
+    const at = columnsAt(w.factors, s.settings);
+    for (const fit of fits) {
+      const { predicted, prediction } = predictAt(fit, at);
+      const cell = el("td", "", withUnit(predicted, fit.units));
+      if (prediction) cell.append(el("small", "", intervalWords(prediction, fit.units)));
+      tr.append(cell);
+    }
+    if (!fits.length) tr.append(el("td", "", ""));
+    actions.append(keptButton("show", s.name, "Show on the dials", "link", `Show the settings kept as ${s.name} on the dials`));
     const runs = `Add ${CONFIRMATION_RUNS} confirmation runs`;
     if (!confirmedAt(state.design, keptAt(s))) {
       actions.append(keptButton("confirm", s.name, runs, "button", `${runs} at the settings kept as ${s.name}`)); // none there yet
     }
   }
   actions.append(keptButton("delete", s.name, "Delete", "link", `Delete the settings kept as ${s.name}`));
-  item.append(actions);
-  return item;
+  tr.append(actions);
+  return tr;
 }
 
 /** A button of the kept settings ``name``; its accessible name, ``label``, starts with its ``text`` and names them. */
@@ -6015,13 +6517,18 @@ function keptButton(action, name, text, cls, label) {
   return button;
 }
 
-/** A button of a kept setting was pressed: make confirmation runs at the settings, or delete them. */
+/** A button of a kept setting was pressed: set the dials there, make confirmation runs at the settings, or delete them. */
 function keptPressed(e) {
   const button = e.target.closest("button[data-kept]");
   const s = button && state.whatIf ? state.scenarios.find((one) => one.name === button.dataset.kept) : null;
   if (!s) return;
   if (button.dataset.action === "confirm") {
     addConfirmationRuns(keptAt(s), `the settings kept as ${s.name}`);
+    return;
+  }
+  if (button.dataset.action === "show") {
+    setWhatIf(keptAt(s)); // every number of these settings is then in the panel's own table, its intervals and its leverage
+    toast(`The dials are at the settings kept as ${s.name}.`);
     return;
   }
   state.scenarios = state.scenarios.filter((one) => one !== s);
@@ -6399,6 +6906,7 @@ function showWindow() {
   const windows = Object.fromEntries(Object.entries(state.window.windows).filter(([name]) => names.includes(name)));
   const pair = state.window.pair?.every((name) => ranged.includes(name)) ? state.window.pair : null;
   state.window = { ...state.window, windows, pair };
+  drawRuns(); // a window that came with the study, or left with its response
   $("#window").hidden = false;
   const t = $("#window-limits");
   const key = JSON.stringify(responses);
@@ -6441,6 +6949,7 @@ function windowTyped(e) {
   state.window = { ...state.window, windows: { ...state.window.windows, [tr.dataset.response]: ends } };
   scheduleSave(); // the windows go with the study
   scheduleWindow();
+  drawRuns(); // the runs inside the window are the filled ones
 }
 
 /** Judge the windows again a moment from now: an end was typed, or the what-if panel's settings moved. */
@@ -6458,6 +6967,7 @@ function windowCleared() {
   showWindows();
   scheduleSave();
   findWindow();
+  drawRuns();
 }
 
 /** Judge the windows typed (bootstrap.specification), and show what they give; with none typed, nothing. */
@@ -6593,12 +7103,159 @@ function renderNext() {
   const move = !called && Boolean(best) && movesOn(best);
   const shown = called || next.waiting || move || next.offers.length || next.notes.length;
   $("#next").hidden = !design || !state.analysis || !shown;
+  $("#to-next").hidden = $("#next").hidden;
+  $("#next-empty").hidden = !$("#next").hidden;
+  renderRounds();
   if ($("#next").hidden) return;
   $("#next-out").replaceChildren(
     ...(called ? calledFor(called) : next.waiting ? [said("hint", next.waiting)] : []),
     ...(move ? movedStudy(best) : []),
     ...(next.offers.length || next.notes.length ? addedRuns(next, Boolean(called)) : []),
   );
+}
+
+let roundsTicket = 0;
+
+/**
+ * Show the campaign the study on the page is a round of (campaign.js roundsOf), from the studies this browser keeps:
+ * each round's study, its runs and its best result so far, and a button that opens it. A round built on runs that
+ * have changed since says so. A study that stands alone, as most do, is one round, and nothing is listed.
+ */
+async function renderRounds() {
+  const mine = ++roundsTicket;
+  const id = state.campaign?.id;
+  let rounds = [];
+  if (id && state.design) {
+    // The study on the page as it is now, which its saved copy lags by a moment.
+    const here = { ...currentCampaign(), id, created: state.campaign.created };
+    const records = [...(await savedSoon()).filter((record) => record.id !== id), here];
+    const builtOn = new Set(records.map((record) => record.builds_on?.[0]?.id));
+    const digests = new Map();
+    for (const record of records) if (builtOn.has(record.id)) digests.set(record.id, await runsDigest(record));
+    rounds = roundsOf(records, id, digests);
+  }
+  if (mine !== roundsTicket) return; // another study, or a later look, has the page
+  const badge = $("#badge-next");
+  const round = rounds.find((one) => one.id === id)?.round;
+  $("#rounds").hidden = rounds.length < 2;
+  badge.hidden = $("#rounds").hidden;
+  badge.textContent = badge.hidden ? "" : `round ${round}`;
+  if ($("#rounds").hidden) return;
+  $("#next-empty").hidden = true;
+  const rows = rounds.map((one) => {
+    const study = el("span", "", one.missing ? `${one.title || "An earlier study"} (not in this browser)` : one.title);
+    const open = el("button", "link", "Open");
+    open.type = "button";
+    open.setAttribute("aria-label", `Open round ${one.round}: ${one.title}`);
+    open.onclick = () => openSaved(one.record);
+    return [`Round ${one.round}`, study, one.record ? progress(one.record.responses) : "", one.record ? roundBest(one.record) : "", one.id === id ? "This study" : one.record ? open : ""];
+  });
+  const stale = rounds.filter((one) => one.stale).map((one) => {
+    const before = rounds.find((other) => other.id === one.record.builds_on[0].id);
+    return `Round ${one.round} was built on round ${before.round} as it was then: a run or a result of round ${before.round} has changed since.`;
+  });
+  const listed = builtTable(["Round", "Study", "Runs", "Best so far", "Open it"], rows);
+  for (const row of listed.querySelectorAll("tr")) row.lastElementChild.classList.add("rounds__open"); // the page's own: no part of a report
+  $("#rounds-out").replaceChildren(said("price", campaignSoFar(rounds)), listed, ...noteList(stale, "warnings"));
+  listRoundsUpTo(rounds);
+  drawCampaign(rounds, mine);
+}
+
+/** The rounds the campaign's charts can stop at: each round's number once, the last chosen unless the reader chose another that is still there. */
+function listRoundsUpTo(rounds) {
+  const numbers = [...new Set(rounds.map((one) => one.round))].sort((a, b) => a - b);
+  const select = $("#rounds-upto");
+  const chosen = numbers.includes(Number(select.value)) && select.dataset.rounds === String(numbers) ? select.value : String(numbers.at(-1));
+  select.dataset.rounds = String(numbers);
+  select.replaceChildren(...numbers.map((number) => Object.assign(el("option", "", `round ${number}`), { value: String(number) })));
+  select.value = chosen;
+  $("#rounds-as-of").hidden = numbers.length < 2;
+}
+
+/** Each round's fitted model for the campaign's map, by the round's id and what it was fitted to: asked of Python once. */
+const roundFits = new Map();
+
+/**
+ * What Python fits the first response of a study this browser keeps from (bootstrap.predictors), as fitsAsked sends
+ * the study on the page: its design, that response's results but those set aside, and its model.
+ */
+function fitAskedOf(record) {
+  const { spec, columns, rows } = record.design;
+  const aside = record.set_aside?.[spec.response] ?? [];
+  const responses = record.responses.map((value, run) => (aside.includes(run) ? null : value));
+  return { spec, columns, rows, responses, models: { [spec.response]: asked(record.model) } };
+}
+
+/**
+ * A round's model for the campaign's map: its first response as Python fits it and how its factors are coded, or null
+ * for a round with no model to draw (no results yet, a mixture, or a model that cannot be fitted). The round on the
+ * page has its fit already, from the what-if panel.
+ */
+async function roundFit(one, here) {
+  if (one.id === here && state.whatIf) {
+    const fit = state.whatIf.responses.find((response) => response.name === state.design.spec.response && response.terms);
+    return fit ? { fit, factors: state.whatIf.factors } : null;
+  }
+  const sent = fitAskedOf(one.record);
+  const key = JSON.stringify([one.id, sent.rows, sent.responses, sent.models]);
+  if (!roundFits.has(key)) {
+    const reply = await call("api_predictors", sent);
+    const fit = reply.ok ? reply.result.responses.find((response) => response.name === sent.spec.response && response.terms) : null;
+    roundFits.set(key, fit ? { fit, factors: reply.result.factors } : null);
+  }
+  return roundFits.get(key);
+}
+
+/**
+ * Draw the campaign's two charts for the rounds up to the one chosen: every run in the order they were made, with
+ * the best result so far for the goal of the study on the page, and, once that study's models are fitted, every run
+ * over two factors with each round's model inside that round's own ranges. ``mine`` is the look at the rounds this
+ * drawing belongs to (renderRounds): a later look takes the page.
+ */
+async function drawCampaign(rounds, mine) {
+  const upTo = Number($("#rounds-upto").value);
+  const shown = rounds.filter((one) => one.record && one.round <= upTo);
+  const spec = state.design.spec;
+  const info = spec.response_info ?? {};
+  const words = { label: info.label || spec.response, units: info.units ?? "", goal: info.goal ?? "", target: info.target ?? null };
+  const w = state.whatIf;
+  const pair = w ? mapPair(w.factors, state.contourPairs[state.shown]) : null;
+  const runs = campaignRuns(shown, pair);
+  $("#campaign-charts").hidden = !runs.length || !state.plotlyJs;
+  if ($("#campaign-charts").hidden) return;
+  const best = bestSoFar(runs, info);
+  draw($("#campaign-runs-plot"), () => campaignRunsFigure(runs, best, words), state.plotlyJs, 300, { python: () => campaignRunsCode(runs, words) });
+  $("#campaign-map").hidden = !pair;
+  if (!pair) return;
+  const id = state.campaign.id;
+  const drawn = [];
+  for (const one of shown) {
+    const made = runs.filter((run) => run.round === one.round && run.at);
+    const found = await roundFit(one, id);
+    if (mine !== roundsTicket) return; // another study, or a later look, has the page
+    // A round's model is drawn where both factors are ones it moved over a range: over that range, and no further.
+    const moved = found && pair.every((name) => found.factors.some((f) => f.name === name && f.kind === "numeric"));
+    const middle = moved ? Object.fromEntries(found.factors.map((f) => [f.name, f.kind === "numeric" ? (f.low + f.high) / 2 : f.levels[0]])) : null;
+    drawn.push({
+      round: one.round,
+      x: made.map((run) => run.at[0]),
+      y: made.map((run) => run.at[1]),
+      surface: moved ? surfaceOf(found.fit, found.factors, middle, pair) : null,
+      ...(moved ? { fit: found.fit, at: columnsAt(found.factors, middle), ranges: pair.map((name) => found.factors.find((f) => f.name === name)).map((f) => [Math.min(f.low, f.high), Math.max(f.low, f.high)]) } : { fit: null }),
+    });
+  }
+  const units = Object.fromEntries(spec.factors.map((f) => [f.name, f.units ?? ""]));
+  const axes = pair.map((name) => ({ name, units: units[name] }));
+  $("#campaign-map-title").textContent = `${words.label} over ${pair[0]} and ${pair[1]}, round by round`;
+  const python = () => campaignMapCode(drawn, { ...words, pair, axes, points: MAP_POINTS });
+  draw($("#campaign-map-plot"), () => campaignMapFigure(drawn, { ...words, axes }), state.plotlyJs, 340, { python });
+}
+
+/** A round's best result so far for the goal of its first response, as the rounds' table writes it; "" for none. */
+function roundBest(record) {
+  const info = record.design.spec.response_info ?? {};
+  const best = bestResult(record.responses, info);
+  return best ? `${withUnit(best.value, info.units ?? "")}, in run ${best.run + 1}` : "";
 }
 
 /** A setting as the next step's table writes it: a number with its units, or a categorical factor's level. */
@@ -6614,6 +7271,7 @@ function calledFor(step) {
   const part = el("div", "next__part next__called", "");
   part.dataset.action = step.action;
   part.append(el("h4", "", "What the results call for"), said("", step.headline));
+  if (step.does) part.append(step.does === "study" ? newStudyPrice() : priced(step.n_runs));
   if (step.settings) part.append(table(["Factor", "Setting"], factors.map((f) => [f.name, stepSetting(f, step.settings[f.name])])));
   if (step.ranges) {
     part.append(table(["Factor", "Range now", "Next study"], factors.map((f, i) => [f.name, rangeWords(f), rangeWords(step.ranges[i])])));
@@ -6639,6 +7297,13 @@ function calledFor(step) {
   return [part];
 }
 
+/** A move's price under the move: the runs it adds, beside the runs the study has already (campaign.js priceWords). */
+const priced = (runs) => said("price", `${priceWords(runs, state.design.rows.length)}.`);
+
+/** A new study's price: the runs of this study's design, its confirmation runs apart, counted on their own. */
+const newStudyPrice = () =>
+  said("price", `A new study: ${priceWords(state.design.rows.length - confirmationRows(state.design).length)} with this study's design.`);
+
 /** A factor's range as the next step's table writes it: "150 to 200 degC", or a categorical factor's levels. */
 const rangeWords = (f) =>
   isCategorical(f) ? listNames(levelsOf(f)).replace(/ and (?=[^,]*$)/, " or ") : `${num(f.low)} to ${withUnit(f.high, f.units ?? "")}`;
@@ -6655,6 +7320,7 @@ function movedStudy(best) {
   step.append(
     el("h4", "", "A new study further along"),
     said("", `The ranges moved along the ${climb(best)}:`),
+    newStudyPrice(),
     table(["Factor", "Range now", "Next study"], factors.map((f, i) => [f.name, rangeWords(f), rangeWords(moved[i])])),
     el("p", "actions", ""),
   );
@@ -6679,11 +7345,32 @@ function addedRuns(next, others = false) {
     const add = el("button", "button", offer.label);
     add.type = "button";
     add.onclick = () => addRuns(offer.kind);
-    box.append(said("", `${offer.why}${blocked}`), add);
+    box.append(said("", `${offer.why}${blocked}`), priced(offer.runs), ...offerRuns(offer), add);
     step.append(box);
   }
   step.append(...noteList(next.notes));
   return [step];
+}
+
+/**
+ * A move's runs before they are made, folded under its price: each run's settings and what the run is for, and, for
+ * a study of two or three numeric factors, where the runs sit among the runs made (spaceOf). Nothing is added by
+ * looking.
+ */
+function offerRuns(offer) {
+  if (!offer.added?.length) return [];
+  const design = state.design;
+  const factors = design.spec.factors;
+  const fold = el("details", "next__runs", "");
+  fold.append(el("summary", "", `See these ${offer.added.length} runs before they are made`));
+  if ([2, 3].includes(factors.length) && !factors.some(isCategorical)) {
+    const sheet = design.rows.map((row) => Object.fromEntries(design.columns.map((name, j) => [name, Number(row[j])])));
+    const words = `Where these runs sit among the runs made, over ${listNames(factors.map((f) => f.name))}: a filled point is a run to add.`;
+    fold.append(spaceOf(spacePoints(sheet, factors), spacePoints(offer.added, factors), factors, words));
+  }
+  const rows = offer.added.map((run, i) => [...factors.map((f) => stepSetting(f, run[f.name])), offer.reasons?.[i] ?? ""]);
+  fold.append(table([...factors.map((f) => f.name), "What it is for"], rows));
+  return [fold];
 }
 
 /**
@@ -6760,10 +7447,15 @@ async function simulateFrom(before) {
  * runs not yet made. This study stays in Your studies. Runs as given are made for one study only, so the new one has
  * its design picked for it.
  */
-function startMovedStudy(factors, widened = false) {
+async function startMovedStudy(factors, widened = false) {
   const spec = state.design.spec;
   const given = spec.design_type === GIVEN;
+  // The new study is the next round of this one's campaign, when this one is a study the browser keeps: it names
+  // this study, with the digest of its runs and results as they are now. The worked example is no such study.
+  const before = state.campaign?.id ? currentCampaign() : null;
+  const on = before ? [{ id: state.campaign.id, sha256: await runsDigest(before), title: before.title }] : [];
   newStudy();
+  state.buildsOn = on;
   state.widened = widened; // nothing stood out in the study before: the next step stops rather than widen again
   setForm({ ...spec, factors, ...(given ? { design_type: "box_behnken", options: { n_center_points: 3 } } : {}) });
   if (given) designChosen = false;
@@ -6910,6 +7602,7 @@ function newStudy() {
     campaign: null,
     example: false,
     widened: false,
+    buildsOn: [],
   });
   draftSeed = null; // a new study, which takes a seed of its own
   clearTimeout(analysisTimer);
@@ -6973,6 +7666,7 @@ function writeDraft() {
     limits: currentLimits(),
     // A mixture's factor table reads as components, blank bounds and all, so the draft keeps the design with it.
     design: mixturePlanned() ? $("#design-type").value : null,
+    ...(state.buildsOn.length ? { builds_on: state.buildsOn } : {}),
   };
   try {
     localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
@@ -7028,7 +7722,13 @@ function readDraft() {
     /* limits this page did not write: the brief comes back without them */
   }
   const design = isMixture(draft.design) ? draft.design : null;
-  return { response, responses, factors, aim: AIMS.includes(draft.aim) ? draft.aim : null, limits, design };
+  let builtOn = [];
+  try {
+    builtOn = checkBuiltOn(draft.builds_on);
+  } catch {
+    /* a round before that this page did not write: the study stands alone */
+  }
+  return { response, responses, factors, aim: AIMS.includes(draft.aim) ? draft.aim : null, limits, design, builds_on: builtOn };
 }
 
 /** Put a draft brief back on the page, in Design. */
@@ -7051,6 +7751,7 @@ function restoreDraft(draft) {
   setLimits(draft.limits);
   aimChosen = Boolean(draft.aim);
   setAim(draft.aim ?? defaultAim(factorCount()));
+  state.buildsOn = draft.builds_on ?? [];
   refreshDesign();
   renderStudyBar();
 }
@@ -7081,7 +7782,7 @@ function currentCampaign() {
   const { spec, columns, rows, model, facts, outside_range: outside } = state.design;
   const [first, ...more] = resultNames();
   return {
-    v: studyFormat(spec, { what_if: state.scenarios, set_aside: keptAside(), ...keptAsked() }),
+    v: studyFormat(spec, { what_if: state.scenarios, set_aside: keptAside(), ...keptAsked(), builds_on: state.buildsOn }),
     title: state.campaign?.title ?? titleOf(spec),
     design: { spec, columns, rows, model, n_runs: rows.length, facts: facts ?? null, outside_range: outside ?? [] },
     ...sentResults(),
@@ -7094,6 +7795,7 @@ function currentCampaign() {
     ...(state.scenarios.length ? { what_if: state.scenarios } : {}),
     ...(Object.keys(keptAside()).length ? { set_aside: keptAside() } : {}),
     ...keptAsked(),
+    ...(state.buildsOn.length ? { builds_on: state.buildsOn } : {}),
     ...sentCurves(),
   };
 }
@@ -7209,11 +7911,24 @@ const SHARES_FILES = (() => {
   }
 })();
 
-/** The study file of `records`, the studies as this browser keeps them, as a file named `name`. */
-async function studyFileOf(records, name) {
+/** The study file of `records`, the studies as this browser keeps them, as a file named `name`; `opens` as studyFile takes it. */
+async function studyFileOf(records, name, opens = null) {
   const app = { url: `${location.origin}${location.pathname}`, process_improve: state.version };
-  const json = await studyFile(records, { app });
+  const json = await studyFile(records, { app, opens });
   return new File([`${JSON.stringify(json, null, 2)}\n`], name, { type: "application/json" });
+}
+
+/**
+ * A study's own file: the study, and with it the rounds before it that this browser keeps, the first round first,
+ * so the file carries the campaign the study is a round of. The file says which study it is of.
+ */
+async function ownStudyFile(record, title) {
+  const kept = new Map((await savedCampaigns()).map((one) => [one.id, one]));
+  const rounds = [record];
+  for (let on = record.builds_on?.[0]; on && kept.has(on.id) && !rounds.includes(kept.get(on.id)); on = rounds[0].builds_on?.[0]) {
+    rounds.unshift(kept.get(on.id));
+  }
+  return studyFileOf(rounds, `${fileStem(title)}.factorial.json`, rounds.length > 1 ? record.id : null);
 }
 
 /**
@@ -7226,7 +7941,7 @@ function shareButton(record, title) {
   button.type = "button";
   button.setAttribute("aria-label", `${button.textContent} ${title}`);
   let file = null;
-  const make = () => (file ??= studyFileOf([record], `${fileStem(title)}.factorial.json`));
+  const make = () => (file ??= ownStudyFile(record, title));
   button.onpointerdown = make;
   button.onfocus = make;
   button.onclick = async () => {
@@ -7296,9 +8011,16 @@ async function openStudyFile(file) {
     changed.length ? ` Changed by hand since it was saved: ${listNames(changed)}.` : "",
     refused.length ? ` Not opened: ${refused.join("; ")}.` : "",
   ].join("");
-  if (opened.length === 1 && read.studies.length === 1) {
-    const [record] = opened;
-    const where = already ? "It was already saved in this browser." : "It is saved in this browser now, under Your studies.";
+  // A file of one study opens it; so does a file of one study and the rounds before it, which says which it is of.
+  const of = read.studies.length === 1 ? 0 : read.studies.findIndex((one) => read.opens !== null && one.id === read.opens);
+  if (of >= 0 && opened.length === read.studies.length) {
+    const record = opened[of];
+    const before = opened.length - 1;
+    const where = before
+      ? `It and the ${before === 1 ? "round" : `${before} rounds`} before it are saved in this browser, under Your studies.`
+      : already
+        ? "It was already saved in this browser."
+        : "It is saved in this browser now, under Your studies.";
     await openCampaign(checkCampaign(record), { id: record.id, created: record.created }, `Opened ${record.title || "a study"} from ${file.name}. ${where}${notes}`);
     return;
   }
@@ -7365,6 +8087,7 @@ async function openCampaign(c, record, message) {
   state.target = { ...newTarget(), targets: structuredClone(c.targets ?? {}) };
   state.window = { ...newWindow(), windows: structuredClone(c.windows ?? {}) };
   state.scenarios = structuredClone(c.what_if ?? []);
+  state.buildsOn = structuredClone(c.builds_on ?? []);
   clearBalance();
   clearWhatIf();
   clearTarget();
@@ -7930,6 +8653,11 @@ try {
 for (const name of Object.keys(PANES)) $(`#go-${name}`).onclick = () => showPhase(name);
 arrowKeys($(".phases"), (tab) => showPhase(tab.id.replace("go-", "")));
 arrowKeys($("#step-run .tabs"), (tab) => selectTab(tab.id.replace("tab-", "")));
+arrowKeys($("#goals"), (tab) => selectGoal(tab.id.replace("goal-", "")));
+for (const goal of WHERE_GOALS) document.getElementById(`goal-${goal}`).onclick = () => selectGoal(goal);
+// Each goal's panel, and the dials, come and go with the study and its results: the card follows them.
+const goalsFollow = new MutationObserver(renderWhere);
+for (const id of [...WHERE_GOALS, "what-if"]) goalsFollow.observe(document.getElementById(id), { attributes: true, attributeFilter: ["hidden"] });
 
 $("#new-study").onclick = () => {
   newStudy();
@@ -8075,6 +8803,8 @@ $(".study").addEventListener("focusout", (e) => {
 });
 $("#open-library").onclick = openLibrary;
 $("#answer-more").onclick = () => showPart("best");
+$("#learn-to-next").onclick = () => showPhase("next");
+$("#rounds-upto").onchange = () => renderRounds();
 $("#menu-share").onclick = () => showPart("download");
 $("#menu-report").onclick = viewReport;
 // The welcome of a first visit leads to the blank question under it, and offers the other ways in by the menu's own
@@ -8113,6 +8843,11 @@ $("#what-if-settings").addEventListener("change", (e) => {
   const row = e.target.closest("[data-factor]");
   if (e.target.name === "number" && row && state.whatIf) e.target.value = num(state.whatIf.settings[row.dataset.factor]);
 });
+// A profile is drawn to its dial's width, which the page knows once the panel is on show, and again when it changes.
+new ResizeObserver(() => {
+  if (state.whatIf && !$("#what-if").hidden) drawProfiles(state.whatIf);
+}).observe($("#what-if-settings"));
+takeDrag($("#what-if-map-plot"), dragMap);
 $("#what-if-back").onclick = whatIfBack;
 $("#what-if-keep").addEventListener("submit", keepWhatIf);
 $("#what-if-kept-list").addEventListener("click", keptPressed);
@@ -8154,7 +8889,8 @@ $("#share").onclick = shareLink;
 $("#model").onchange = () => {
   if ($("#model").value === CHOSEN_TERMS && state.design) startTermList();
   else modelBefore = $("#model").value;
-  $("#terms").hidden = $("#model").value !== CHOSEN_TERMS || !state.design;
+  TERMS.said.textContent = "";
+  showTerms();
   if (state.shown) state.models[state.shown] = modelChoice(); // the model of the response Learn shows
   analyseRuns();
   scheduleSave();
@@ -8169,16 +8905,22 @@ $("#box-cox-apply").onclick = () => {
   $("#transform").value = $("#box-cox-apply").dataset.transform;
   $("#transform").onchange();
 };
-$("#term-list").onchange = () => {
+TERMS.designed.onclick = () => {
+  models.choose("");
+  $("#model").onchange();
+};
+TERMS.clear.onclick = keepClearTerms;
+TERMS.list.onchange = (e) => {
+  termPressed(e);
   if (state.shown) state.models[state.shown] = modelChoice();
   scheduleAnalysis(); // a moment after the last tick, as for typed results
   scheduleSave();
 };
 installImport({ call, open: openImported });
 $("#stop").onclick = () => python.stop();
-$("#term-first").onchange = showTermAdder;
-$("#term-second").onchange = showTermAdder;
-$("#add-term").onclick = addNamedTerm;
+TERMS.first.onchange = showTermAdder;
+TERMS.second.onchange = showTermAdder;
+TERMS.add.onclick = addNamedTerm;
 for (const button of document.querySelectorAll("details.python .copy")) {
   button.onclick = async () => {
     const code = button.parentElement.querySelector("code");
@@ -8273,6 +9015,9 @@ function showPart(id) {
   };
   const look = () => {
     if (left || Date.now() - started > SHOW_WAIT) return;
+    // A part inside a goal of the card that answers where to run: that goal is chosen, once it is offered.
+    const goal = part.closest("[data-goal]")?.dataset.goal;
+    if (goal && goalChosen !== goal) selectGoal(goal);
     if (part.matches("dialog")) {
       // Your studies: shown over the page, which gives it the keyboard, and outlined as any part is.
       if (!part.open) part.showModal();

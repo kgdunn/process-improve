@@ -351,7 +351,7 @@ button.term:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 .trade-view label { display: inline-flex; align-items: center; gap: 6px; font-size: 0.9rem; }
 .trade-view select { width: auto; max-width: 14em; }
 .trade-limits input { width: 6.5em; }
-.trade-limits td, .trade-limits th { white-space: nowrap; padding-right: 14px; }
+table.trade-limits td, table.trade-limits th { white-space: nowrap; padding-right: 14px; } /* over table.data th's none */
 .trade-limits th:nth-child(2), .trade-limits td:nth-child(2) { text-align: left; } /* the box, under its heading */
 #trade-chosen .actions { margin-top: 6px; }
 /* The settings that give a target: each response's box and slider, a bar for where a setting lies in its range. */
@@ -368,8 +368,12 @@ button.term:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 .terms { border: 1px solid var(--line); border-radius: var(--corner); padding: 8px 12px; margin: 0 0 12px; max-width: 100%; }
 .terms legend { font-size: 0.9rem; padding: 0 4px; }
 .terms h4 { margin: 8px 0 4px; font-size: 0.85rem; font-weight: 600; color: var(--muted); }
-.terms .group { display: flex; flex-wrap: wrap; gap: 4px 14px; }
-.terms label { display: inline-flex; align-items: center; gap: 4px; font-size: 0.9rem; }
+.terms .group { display: flex; flex-wrap: wrap; gap: 6px; }
+/* A term to press: in the model when ticked. The whole of it takes the press, and the box says which it is. */
+.terms label { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 8px; border: 1px solid var(--line); border-radius: var(--corner); font-size: 0.9rem; cursor: pointer; }
+.terms label:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.terms label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.terms .terms__whole { margin: 0 0 4px; align-items: baseline; }
 .terms input { width: auto; padding: 0; }
 .terms .term-adder { margin: 10px 0 0; font-size: 0.9rem; }
 .terms .term-adder select { width: auto; max-width: 10em; }
@@ -421,7 +425,7 @@ button:disabled { opacity: 0.5; cursor: progress; }
 .level-chips:focus-within { border-color: var(--accent); }
 .level-chips[aria-invalid] { border-color: var(--error); }
 .level-chip { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; padding: 2px 2px 2px 10px;
-  border: 1px solid var(--accent); border-radius: 999px; font-size: 0.9rem; cursor: grab; user-select: none; }
+  border: 1px solid var(--accent); border-radius: var(--corner); font-size: 0.9rem; cursor: grab; user-select: none; }
 .level-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .level-chip--dragged { opacity: 0.4; }
 .level-chip__text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -652,6 +656,7 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 #go-plan { --stage: var(--stage-plan); }
 #go-run { --stage: var(--stage-run); }
 #go-learn { --stage: var(--stage-learn); }
+#go-next { --stage: var(--stage-next); }
 .phases [role="tab"][aria-selected="true"] { color: var(--fg); font-weight: 600; }
 .phases [role="tab"]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .phases .step { width: 10px; height: 10px; margin: 3px; font-size: 0; background: var(--stage); }
@@ -712,9 +717,11 @@ section { scroll-margin-top: 120px; }
 .workspace[data-phase="plan"] { --stage: var(--stage-plan); }
 .workspace[data-phase="run"] { --stage: var(--stage-run); }
 .workspace[data-phase="learn"] { --stage: var(--stage-learn); }
+.workspace[data-phase="next"] { --stage: var(--stage-next); }
 .workspace .primary { background: var(--stage); border-color: var(--stage); }
 #generate { --stage: var(--stage-run); }
 #to-learn { --stage: var(--stage-learn); }
+#learn-to-next { --stage: var(--stage-next); }
 .card > .hint:first-of-type { margin-top: 0; }
 .pane { margin: 0 0 16px; }
 /* The answer Learn opens with: where to run and what to expect there, before the evidence. */
@@ -812,7 +819,7 @@ label.inline { display: flex; flex-direction: column; gap: 4px; font-size: 0.9re
 .limit-effect, .limit-problem { margin: 0; }
 .limit-names { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
 .chip {
-  min-height: 34px; padding: 4px 12px; border-radius: 17px; font-family: ui-monospace, "SFMono-Regular", Menlo,
+  min-height: 34px; padding: 4px 12px; border-radius: var(--corner); font-family: ui-monospace, "SFMono-Regular", Menlo,
     monospace; font-size: 0.9rem;
 }
 @media (pointer: coarse) { .chip, .limit__remove { min-width: 44px; min-height: 44px; } }
@@ -1050,7 +1057,7 @@ dialog.feedback { width: min(640px, 100vw - 32px); }
 /* The response Learn analyses, with several: a tab each, wrapping on a phone rather than pushing the page sideways. */
 .picker { display: flex; flex-wrap: wrap; gap: 4px 6px; margin: 8px 0 12px; }
 .picker [role="tab"] {
-  max-width: 100%; padding: 6px 12px; border-radius: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 100%; padding: 6px 12px; border-radius: var(--corner); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   color: var(--muted); background: var(--bg);
 }
 .picker [role="tab"]:hover { color: var(--fg); }
@@ -1155,6 +1162,9 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 .printed .printed-model { margin: 8px 0 0; }
 .best { margin: 24px 0 0; padding: 14px 16px 16px; border-top: 1px solid var(--line); }
 .best h3 { margin: 0 0 6px; font-size: 1.05rem; }
+/* Where to run: one card. The dials and each goal's panel were cards of their own, and are parts of this one. */
+.where .best { margin: 12px 0 0; padding: 0; border-top: 0; }
+.where .goals { margin: 20px 0 4px; }
 .best h4 { margin: 0 0 6px; font-size: 0.95rem; }
 .best .lead { margin: 4px 0 8px; font-size: 1rem; font-weight: 600; }
 .best table.data td:nth-child(2) { font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -1164,10 +1174,10 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 .best table.data.known-table td { white-space: normal; }
 .best .chart { margin: 12px 0 0; }
 .confirm { margin: 16px 0 0; }
-/* What a confirmation run found, an offer of more runs and a setting kept are each marked by a point: a ring, or a
-   point filled when a verdict is in, round inside the interval and square outside it. */
-.verdict, .next .offer, .what-if-kept > li { position: relative; margin: 8px 0; padding: 0 0 0 1.5em; }
-.verdict::before, .next .offer::before, .what-if-kept > li::before {
+/* What a confirmation run found and an offer of more runs are each marked by a point: a ring, or a point filled
+   when a verdict is in, round inside the interval and square outside it. */
+.verdict, .next .offer { position: relative; margin: 8px 0; padding: 0 0 0 1.5em; }
+.verdict::before, .next .offer::before {
   content: ""; position: absolute; left: 0.2em; top: 0.45em; width: 0.6em; height: 0.6em; box-sizing: border-box;
   border: 2px solid var(--muted); border-radius: 50%;
 }
@@ -1178,31 +1188,85 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 /* The next step: a new study with moved ranges, and the ways to add runs to this one, each a short case and a button. */
 /* Not .step, which is the numbered badge of Design, Run and Learn. */
 .next__part { margin: 14px 0 0; }
+/* A move's runs before they are made: a picture of where they sit among the runs made, and a row a run. */
+.next__runs { margin: 4px 0 8px; }
+.space { display: block; width: 170px; max-width: 100%; height: auto; margin: 8px 0; overflow: visible; }
+.space__edge { stroke: var(--muted); stroke-width: 1.2; }
+.space__edge--back { stroke-dasharray: 2 3; }
+.space__run { fill: var(--panel); stroke: var(--muted); stroke-width: 1.3; }
+.space__new { fill: var(--stage, var(--accent)); stroke: var(--panel); stroke-width: 1.5; }
+.space__label { fill: var(--muted); font-size: 9px; }
+/* A move's price in runs, and the campaign's runs so far: the number a reader weighs a move by. */
+.price { margin: 2px 0 6px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .next .offer p { margin: 2px 0 6px; font-size: 0.95rem; }
 
-/* What if: a row per factor, its name, a slider and a number box over its range (a list of its levels for a categorical
-   one), then each response predicted there. */
-/* One grid for every factor, each row's parts in its cells, so the sliders and the boxes line up. */
+/* What if: a dial per factor, side by side. Each is the factor's name, its profile (the response against it, which
+   takes a drag), a slider and a number box over its range (a list of its levels for a categorical one). Under
+   them, each response predicted there. */
 .what-if-settings {
-  display: grid; grid-template-columns: minmax(4em, auto) minmax(6rem, 1fr) 7em minmax(0, auto); align-items: center;
-  gap: 6px 10px; margin: 8px 0 4px; font-size: 0.95rem;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); align-items: start;
+  gap: 14px 18px; margin: 8px 0 4px; font-size: 0.95rem;
 }
-.what-if-factor { display: contents; }
-.what-if-name { grid-column: 1; font-weight: 600; overflow-wrap: anywhere; }
-.what-if-factor input[type="range"] { width: 100%; margin: 0; accent-color: var(--accent); }
+/* The dials beside the map they move, where there is room for both: in view together on a laptop. */
+.what-if-dials { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px 22px; align-items: start; }
+.what-if-map { margin: 8px 0 0; }
+.what-if-map h4 { margin: 0 0 4px; font-size: 0.95rem; }
+/* A sideways drag is the map's; an up or down swipe still scrolls the page on a phone. */
+.what-if-map .plot { min-height: 300px; cursor: crosshair; touch-action: pan-y; }
+@media (min-width: 1100px) {
+  .what-if-dials:has(.what-if-map:not([hidden])) { grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr); }
+}
+.what-if-factor { display: grid; grid-template-columns: 7em minmax(0, 1fr); align-items: center; gap: 4px 8px; min-width: 0; }
+.what-if-name { grid-column: 1 / -1; font-weight: 600; overflow-wrap: anywhere; }
+.what-if-factor input[type="range"] { grid-column: 1 / -1; width: 100%; margin: 0; accent-color: var(--accent); }
 .what-if-factor input[type="number"] { width: 100%; }
-.what-if-factor select { grid-column: 2 / span 3; justify-self: start; }
+.what-if-factor select { grid-column: 1 / -1; justify-self: start; max-width: 100%; }
 .what-if-range { color: var(--muted); font-size: 0.9rem; }
+/* A profile: drawn to its dial's width (app.js PROFILE has its height). A sideways drag sets the factor; an up or
+   down swipe still scrolls the page on a phone. */
+.profile {
+  grid-column: 1 / -1; display: block; width: 100%; height: 132px; cursor: ew-resize;
+  touch-action: pan-y; border: 1px solid var(--line); border-radius: var(--corner); background: var(--panel);
+}
+/* With a row of profiles for each response, each is shorter, and says which response it is of. */
+.what-if-settings--rows .profile { height: 96px; }
+.profile__name { fill: var(--fg); font-size: 11px; font-weight: 600; }
+.profile__band { fill: var(--accent); fill-opacity: 0.16; stroke: none; }
+.profile__line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.profile__line--beyond { stroke-dasharray: 5 4; }
+.profile__at { stroke: var(--fg); stroke-width: 1; stroke-dasharray: 2 3; vector-effect: non-scaling-stroke; }
+.profile__set { fill: var(--panel); stroke: var(--fg); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.profile__bar { stroke: var(--accent); stroke-width: 2; stroke-opacity: 0.45; vector-effect: non-scaling-stroke; }
+.profile__level { fill: var(--accent); }
+.profile__level--set { fill: var(--panel); stroke: var(--fg); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.profile__end { fill: var(--muted); font-size: 11px; }
 .what-if table.data td:nth-child(n + 3) { text-align: left; }
 /* The settings kept with the study: their name and settings, each response there, and what to do with them. */
 .what-if-keep input[type="text"] { flex: 1 1 12rem; min-width: 0; }
-.what-if-kept { margin: 0; padding: 0; list-style: none; }
-.what-if-kept > li > p { margin: 2px 0 6px; overflow-wrap: anywhere; }
-@media (max-width: 600px) {
-  .what-if-settings { grid-template-columns: minmax(0, 1fr) 6em; }
-  .what-if-name, .what-if-factor select { grid-column: 1 / -1; }
-  .what-if-range { display: none; }
-}
+.what-if table.what-if-kept th, .what-if table.what-if-kept td { padding: 6px 14px 6px 0; text-align: left; vertical-align: top; }
+.what-if-kept th[scope="row"] { overflow-wrap: anywhere; min-width: 6rem; }
+.what-if-kept small { display: block; color: var(--muted); white-space: nowrap; }
+.what-if-kept .kept__do { white-space: nowrap; }
+.what-if-kept .kept__do button { margin: 0 12px 0 0; }
+.what-if-kept .kept__do button.link { padding: 0; }
+/* The rounds of a campaign, on the Next stage: a row each, its study, its runs, its best result and the way to it. */
+.rounds table.data th, .rounds table.data td { padding: 6px 14px 6px 0; text-align: left; vertical-align: top; }
+.rounds table.data td:first-child, .rounds table.data td:last-child { white-space: nowrap; }
+.rounds table.data button.link { padding: 0; }
+/* The campaign's two charts, side by side where there is room for both. */
+.campaign-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 16px; margin: 12px 0 0; }
+.campaign-charts .chart { margin: 0; min-width: 0; }
+/* A prediction as runs: for each response, dots that pile up where a run is likelier (app.js RUNS has the sizes). A
+   run inside the response's window is filled, one outside is a ring, and the window is shaded behind them. */
+.what-if-runs { display: flex; flex-wrap: wrap; gap: 6px 28px; margin: 10px 0 4px; }
+.runs-figure { margin: 0; max-width: 100%; }
+.runs-figure figcaption { max-width: 240px; margin: 2px 0 0; }
+.runs { display: block; max-width: 100%; height: auto; overflow: visible; }
+.runs__window { fill: var(--accent); fill-opacity: 0.14; }
+.runs__foot { stroke: var(--line); stroke-width: 1; }
+.runs__run { fill: var(--panel); stroke: var(--accent); stroke-width: 1.5; }
+.runs__run--inside { fill: var(--accent); }
+.runs__end { fill: var(--muted); font-size: 11px; }
 
 /* The balance of the responses: each response's goal in a compact table of boxes and choices, then the balance as the
    best settings show theirs, and the overlay of the acceptable ranges. */

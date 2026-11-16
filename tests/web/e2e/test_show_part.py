@@ -38,7 +38,7 @@ def opened(context, site: str, query: str):
     [
         ("best", "learn"),
         ("what-if", "learn"),
-        ("next", "learn"),
+        ("next", "next"),
         ("charts", "learn"),
         ("step-run", "run"),
         ("step-plan", "plan"),

@@ -16,8 +16,11 @@ from tests.web.e2e._page import (
     enter_results,
     factor_table,
     first_paint_done,
+    generate,
+    practise,
     reveal,
     run_sheet,
+    saved_studies,
     settled,
     status,
     study_menu,
@@ -186,3 +189,27 @@ def test_without_a_built_example_the_worked_example_runs_live(context, site, con
     assert page.text_content("#analysis .equation") == first_paint["analysis"]["equation"]
     assert phase(page) == "learn"
     assert page.text_content("#library-count") == "0", "the worked example run here is not saved"
+
+
+def test_a_study_opened_with_its_results_says_they_wait_for_python_not_that_there_are_none(blank_page, context, site):
+    """Run says "15 of 15" at once; Learn said "No results yet" beside it until Python had started."""
+    page = blank_page
+    generate(page)
+    practise(page)
+    saved_studies(page, lambda saved: len(saved) == 1 and all(v is not None for v in saved[0]["responses"]))
+    context.add_init_script("window.__pi.hold('api_catalogue');")
+    again = context.new_page()
+    again.goto(site)
+    again.wait_for_selector("#badge-run:not([hidden])")
+    assert again.get_attribute("#workspace", "data-phase") == "learn"
+    assert (
+        again.text_content("#analyse-empty") == "Your results are in. Their analysis follows once Python has started."
+    )
+    again.evaluate("window.__pi.release('api_catalogue')")
+    again.wait_for_selector("#analysis .equation", state="attached")
+    assert again.is_hidden("#analyse-empty")
+
+    # With Python started and no result in, Learn says so as before.
+    study_menu(again, "#new-study")
+    again.click("#go-learn")
+    assert again.text_content("#analyse-empty") == "No results yet: enter them in Run, or practise with simulated ones."
