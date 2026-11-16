@@ -167,7 +167,7 @@ describe("the features document itself, as the page shows it", () => {
 
   test("the steps are those of a study, and each part under them folds with a line that says what it holds", () => {
     const steps = [...html.matchAll(/<h2 class="feat-step" id="[^"]+">([^<]+)<\/h2>/g)].map(([, name]) => name);
-    assert.deepEqual(steps, ["In one minute", "Design", "Run", "Learn", "Around the study", "The fine print"]);
+    assert.deepEqual(steps, ["In one minute", "Design", "Run", "Learn", "Next", "Around the study", "The fine print"]);
     const parts = [...html.matchAll(/<details class="feat-part"><summary><h3 id="([^"]+)">[^<]+<\/h3>(<span class="feat-says">[^<]+<\/span>)?<\/summary>/g)];
     assert.equal(parts.length, (shown.match(/^### /gm) ?? []).length);
     assert.ok(parts.length >= 12);

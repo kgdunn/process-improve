@@ -885,6 +885,16 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _workbook(_stored(what_if=[{"name": "Hot", "settings": {"T": 200}}, {"name": "Hot", "settings": {"T": 150}}])),
         "The page sent kept settings this page did not write.",
     ),
+    "a study built on that is not named": (
+        "api_workbook",
+        lambda ex: {**ex["held"], "builds_on": [{"id": "round-1", "sha256": "not a digest"}]},
+        "The page sent a study this one builds on that this page did not write.",
+    ),
+    "a workbook of a round built on a study with no name": (  # edited by hand: the round before is checked as data
+        "api_read_workbook",
+        _workbook(_stored(builds_on=[{"id": ""}])),
+        "The page sent a study this one builds on that this page did not write.",
+    ),
     "a transform the page does not offer": (
         "api_analyze_runs",
         lambda ex: {
