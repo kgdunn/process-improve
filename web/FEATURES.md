@@ -354,6 +354,14 @@ Also:
     With several responses the pictures are of the one Learn shows, and the table under them
     has every response with its intervals and its leverage. The Python gives the same
     profiles.
+- **A map beside the dials.** The response over two factors, with the others where the dials
+  have them. Press or drag on it to set both factors at once. It marks where the dials are,
+  stars the best settings, and fades where the settings lie beyond the runs.
+  - *Details:* On a laptop the dials and the map are in view together. The two factors are
+    those you gave the response surface among the charts, else the first two numeric ones.
+    The star is drawn when the map passes through the best settings. On a phone a tap sets
+    both factors, and an up or down swipe still scrolls the page. Its window shows the Python
+    that draws the same surface.
 - **A target curve.** For a curve response, the settings whose predicted curve comes closest.
 - **Settings that give a target.** Type what a response should be, or what several should
   be, or pick a run to match. The app runs the models backwards and gives the settings, with
