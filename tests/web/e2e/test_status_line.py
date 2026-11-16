@@ -1,10 +1,8 @@
-"""The status line comes and goes in the study's bar, and the page under the bar holds still.
+"""The status line comes and goes under the study's bar, and neither the bar nor the page moves.
 
-The line says what Python is doing. It takes a row of the bar, which is in the page's flow: without a correction
-the page under the bar moves down by that row as the line comes, and up as it goes, five seconds after a success.
-A reader's mouse then rests on another word than the one it was put on. The page is scrolled by the same amount
-instead, so what is under the bar stays where it is in the window, and a word's definition, open or about to
-open, is left alone.
+The line says what Python is doing. It hangs under the bar, over room the page leaves for it, and is no part of
+the bar's height. So the bar is one height with the line and without it, the page is not scrolled, and what is
+under a reader's mouse stays there: a word's definition, open or about to open, is left alone.
 
 Each test simulates a run sheet's results with Python's answer held, so the line is sure to come: an answer that
 takes less than 400 ms brings no line at all.
@@ -69,19 +67,16 @@ def test_the_page_under_the_bar_holds_still_as_the_line_comes_and_as_it_goes(she
 
     assert before["pinned"] == "sticky", "beside Run the brief is pinned under the bar"
 
+    # The line comes, and later it goes: each time the page is as it was just before. (Between the two the results
+    # are analysed, and the brief says more.)
     with_line = come(page)
-    row = with_line["bar"] - before["bar"]
-    assert row > 20, "the line takes a row of the bar"
-    assert with_line["sheet"] == pytest.approx(before["sheet"], abs=1), "the run sheet is where it was"
-    assert with_line["word"] == pytest.approx(before["word"], abs=1), "and so is the brief's word"
-    assert with_line["y"] == before["y"] + row, "because the page was scrolled by the row"
-
     shown = answered(page)
     after = gone(page)
-    assert after["bar"] == shown["bar"] - row
-    assert after["sheet"] == pytest.approx(shown["sheet"], abs=1)
-    assert after["word"] == pytest.approx(shown["word"], abs=1)
-    assert after["y"] == shown["y"] - row
+    for was, now in ((before, with_line), (shown, after)):
+        assert now["bar"] == before["bar"], "the line is no part of the bar's height"
+        assert now["y"] == was["y"], "the page is not scrolled"
+        assert now["sheet"] == was["sheet"], "the run sheet is where it was"
+        assert now["word"] == was["word"], "and so is the brief's word"
 
 
 def test_a_definition_that_is_open_stays_open_as_the_line_goes(sheet_page):
@@ -116,11 +111,31 @@ def test_a_scroll_that_moves_a_word_still_closes_its_definition(sheet_page):
     page.locator(".term-tip").wait_for(state="hidden")
 
 
-def test_at_the_top_of_the_page_the_line_goes_with_nothing_to_scroll_back_over(sheet_page):
-    """A reader who went back to the top while the line showed: the page moves there, and no error comes of it."""
+#: At the top of the page: the bar's foot, the line's box, and the top of what the page puts first under the bar.
+TOP = """() => { const box = (s) => document.querySelector(s).getBoundingClientRect();
+  return { bar: box('#studybar').bottom, line: [box('#status').top, box('#status').bottom], first: box('.ways').top,
+           sheet: box('#design-table').top }; }"""
+
+
+@pytest.mark.parametrize(
+    "context_options",
+    [{"viewport": {"width": 1440, "height": 900}}, {"viewport": {"width": 390, "height": 844}, "is_mobile": True}],
+    ids=["a laptop", "a phone"],
+)
+def test_at_the_top_of_the_page_the_line_has_room_of_its_own_and_the_page_holds_still(sheet_page):
+    """The line comes between the bar and what the page puts first: it lies on neither, and nothing moves for it."""
     page = sheet_page
-    come(page)
-    answered(page)
     page.evaluate("scrollTo(0, 0)")
-    after = gone(page)
-    assert after["y"] == 0
+    before = page.evaluate(TOP)
+    come(page)
+    with_line = page.evaluate(TOP)
+    top, foot = with_line["line"]
+    assert with_line["bar"] <= top, "the line is under the bar"
+    assert foot <= with_line["first"], "and above what the page puts first"
+    answered(page)
+    shown = page.evaluate(TOP)
+    gone(page)
+    after = page.evaluate(TOP)
+    for was, now in ((before, with_line), (shown, after)):
+        assert (now["bar"], now["first"], now["sheet"]) == (was["bar"], was["first"], was["sheet"])
+    assert page.evaluate("scrollY") == 0
