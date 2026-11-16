@@ -67,12 +67,16 @@ def test_the_fold_stays_as_the_reader_has_it_through_a_new_fit(page):
 
 
 def test_the_fold_a_reader_opened_is_open_at_the_next_visit(page):
+    # The fold says it has changed a moment after the press, and the page keeps the choice then: wait for it.
+    kept = "(open) => (localStorage.getItem('factorial-statistician') === 'open') === open"
     open_statistician(page)
+    page.wait_for_function(kept, arg=True)
     page.reload()
     first_paint_done(page)
     assert page.locator(FOLD).evaluate("(fold) => fold.open")
     assert page.is_visible("#analysis .equation")
     page.click(f"{FOLD} > summary")
+    page.wait_for_function(kept, arg=False)
     page.reload()
     first_paint_done(page)
     assert not page.locator(FOLD).evaluate("(fold) => fold.open"), "and closed again once the reader closed it"
