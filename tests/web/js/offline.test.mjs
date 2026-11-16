@@ -217,6 +217,7 @@ class Browser {
     this.caches = new CacheStorage(this.network);
     this.notes = new Map();
     this.worker = null; // the script registered, and how many requests the page had made by then
+    this.waited = []; // how long the copy waited before each time it asked again for a file, in ms
   }
 
   /** Open the page and run installOffline to its end; return the footer as the visit leaves it. */
@@ -245,7 +246,7 @@ class Browser {
     // The browser notes how each request was answered: the file the server refused is known as such.
     const record = LOADED.map((name) => ({ name, responseStatus: name.endsWith("absent.json") ? 404 : 200 }));
     globalThis.performance.getEntriesByType = (type) => (type === "resource" ? record : []);
-    await installOffline({ manifest: build, started, box: page.box });
+    await installOffline({ manifest: build, started, box: page.box, pause: async (ms) => void browser.waited.push(ms) });
     return page;
   }
 
@@ -379,6 +380,37 @@ describe("a copy the browser has lost part of", () => {
 });
 
 describe("a copy that cannot be finished", () => {
+  /** Have the network refuse an address the first `times` it is asked, as a CDN does that serves it a moment later. */
+  function unsteady(browser, address, times) {
+    const served = browser.network.fetch;
+    let left = times;
+    browser.network.fetch = async (request) => {
+      const asked = new URL(typeof request === "string" ? request : request.url, SCOPE).href;
+      if (asked !== address || left <= 0) return served(request);
+      left -= 1;
+      browser.network.asked.push(asked);
+      return new Response("", { status: 503 });
+    };
+  }
+
+  test("a file the CDN refuses at first is asked for again, after a wait, and the copy is whole", async () => {
+    const browser = new Browser();
+    unsteady(browser, `${RELEASE}numpy.whl`, 2);
+    const page = await browser.visit();
+    assert.match(page.said.textContent, /^Works fully offline, /);
+    assert.deepEqual(browser.waited, [1000, 3000], "a longer wait before each further try");
+    assert.deepEqual(page.seen.filter((said) => said.startsWith("Not fully saved")), [], "and the reader is told of no failure");
+  });
+
+  test("a file that never arrives is asked for four times in all before the copy says why", async () => {
+    const browser = new Browser();
+    browser.network.files.delete(`${RELEASE}numpy.whl`);
+    const page = await browser.visit();
+    assert.equal(page.said.textContent, `Not fully saved: Request failed: ${RELEASE}numpy.whl`);
+    assert.deepEqual(browser.waited, [1000, 3000, 9000]);
+    assert.equal(browser.network.asked.filter((address) => address === `${RELEASE}numpy.whl`).length, 4);
+  });
+
   test("says why, and is whole once tried again with the file there", async () => {
     const browser = new Browser();
     browser.network.files.delete(`${RELEASE}numpy.whl`);
