@@ -103,10 +103,11 @@
           <li><button type="button" id="menu-report">View its report</button></li>
         </ul>
       </div>
-      <div class="phases" role="tablist" aria-label="Design, run, learn">
+      <div class="phases" role="tablist" aria-label="Design, run, learn, next">
         <button type="button" role="tab" id="go-plan" aria-controls="step-plan" aria-selected="true"><span class="step">1</span> Design<span id="badge-plan" class="badge" hidden></span></button>
         <button type="button" role="tab" id="go-run" aria-controls="step-run" aria-selected="false" tabindex="-1"><span class="step">2</span> Run<span id="badge-run" class="badge" hidden></span></button>
         <button type="button" role="tab" id="go-learn" aria-controls="step-analyse" aria-selected="false" tabindex="-1"><span class="step">3</span> Learn<span id="badge-learn" class="badge" hidden></span></button>
+        <button type="button" role="tab" id="go-next" aria-controls="step-next" aria-selected="false" tabindex="-1"><span class="step">4</span> Next<span id="badge-next" class="badge" hidden></span></button>
       </div>
       <!-- What leads away from the study, on a wide screen: both are in the footer on every screen. -->
       <a class="studybar__link" href="catalog/">Design catalog</a>
@@ -881,13 +882,8 @@
             <button type="button" class="link copy">Copy the code</button>
           </details>
         </section>
-        <!-- What the analysis points to next (app.js, with best.js; bootstrap.next_runs and add_runs): a new study
-             with its ranges moved the way the best settings point, and runs to add to this study, each for what its
-             design cannot say yet. -->
-        <section id="next" class="best next" aria-labelledby="h-next" hidden>
-          <h3 id="h-next">The next step</h3>
-          <div id="next-out" aria-live="polite"></div>
-        </section>
+        <!-- What the results call for is the fourth stage, Next: Learn ends with the way to it. -->
+        <p id="to-next" class="actions" hidden><button type="button" id="learn-to-next" class="button">Next: what the results call for</button></p>
         <!-- The study as a report (app.js, with report.js): what Learn shows, with the brief, the run sheet, the code
              and a stamp of the releases, seeds and inputs that give the same numbers again. -->
         <p id="learn-report" class="actions" hidden>
@@ -895,6 +891,26 @@
           <button type="button" id="learn-report-button" class="button">Download it (.html)</button>
           <button type="button" id="learn-feedback" class="link" data-feedback="algorithm">Report this result</button>
         </p>
+      </section>
+
+      <!-- Next (app.js renderNext, renderRounds): the campaign this study is a round of, and what its results call
+           for. A study that builds on another (its builds_on) is a later round of that study's campaign. -->
+      <section id="step-next" class="pane" data-pane="next" role="tabpanel" aria-labelledby="h-next-stage" hidden>
+        <h2 id="h-next-stage">What comes next</h2>
+        <p id="next-empty" class="hint">What the results call for is here once Learn has analysed them.</p>
+        <!-- The rounds of the campaign (campaign.js roundsOf), from the studies this browser keeps: each one's runs
+             and its best result so far, and whether a round it was built on has changed since. -->
+        <section id="rounds" class="best rounds" aria-labelledby="h-rounds" hidden>
+          <h3 id="h-rounds">The campaign so far</h3>
+          <div id="rounds-out"></div>
+        </section>
+        <!-- What the analysis points to next (app.js, with best.js; bootstrap.next_runs and add_runs): a new study
+             with its ranges moved the way the best settings point, and runs to add to this study, each for what its
+             design cannot say yet. -->
+        <section id="next" class="best next" aria-labelledby="h-next" hidden>
+          <h3 id="h-next">The next step</h3>
+          <div id="next-out" aria-live="polite"></div>
+        </section>
       </section>
     </div>
   </div>

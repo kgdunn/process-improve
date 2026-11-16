@@ -17,7 +17,8 @@
 //         "sha256": "ab12…",                    of the study's canonical JSON (report.js's canonicalJson)
 //         "study": { "v": 1, "title": "…", "design": { … }, "responses": [ … ], … }
 //       }
-//     ]
+//     ],
+//     "opens": "8f1c…"                          in a file of one study and the rounds before it: the study to open
 //   }
 //
 // A study is the object a link carries and this browser keeps (campaign.js), whole: its brief, design, run sheet,
@@ -74,9 +75,10 @@ export const studyOf = (record) => Object.fromEntries(Object.entries(record).fil
 
 /**
  * The study file for `records`, the studies as this browser keeps them, as JSON to write out. `app` says what
- * wrote it (the page's address, the process-improve release); `exported` is when.
+ * wrote it (the page's address, the process-improve release); `exported` is when. `opens` is the id of the study
+ * the file is of, when it holds that study with the rounds before it: a reader opens that one.
  */
-export async function studyFile(records, { app = {}, exported = new Date() } = {}) {
+export async function studyFile(records, { app = {}, exported = new Date(), opens = null } = {}) {
   const studies = [];
   for (const record of records) {
     const study = studyOf(record);
@@ -88,7 +90,8 @@ export async function studyFile(records, { app = {}, exported = new Date() } = {
       study,
     });
   }
-  return { format: FILE_FORMAT, version: FILE_VERSION, exported: exported.toISOString(), app: { name: "Factorial", ...app }, studies };
+  const file = { format: FILE_FORMAT, version: FILE_VERSION, exported: exported.toISOString(), app: { name: "Factorial", ...app }, studies };
+  return opens ? { ...file, opens } : file;
 }
 
 /** Refuse a whole file, saying why in a sentence for the page. */
@@ -100,7 +103,7 @@ function refuse(why) {
  * Read a study file's text. Each study is checked as a link's study is (campaign.js's checkCampaign); one that
  * fails is refused, with its title and the reason ("it has no runs"), and the others are read. Each study read comes with its `id` (null when
  * the file gives none), its `created` and `updated` times in milliseconds, and `changed`, true when its sha256 does
- * not match it. Throws, with a sentence for the page, for a file that is not a study file or is of a later version.
+ * not match it. `opens` is the id of the study the file is of, when it says (a study with the rounds before it), or null. Throws, with a sentence for the page, for a file that is not a study file or is of a later version.
  */
 export async function readStudyFile(text, now = Date.now()) {
   let data;
@@ -136,7 +139,8 @@ export async function readStudyFile(text, now = Date.now()) {
     const created = msTime(entry.created, now);
     studies.push({ id, created, updated: msTime(entry.updated, created), study, changed: digest !== null && digest !== entry.sha256 });
   }
-  return { studies, refused };
+  const opens = typeof data.opens === "string" && data.opens && data.opens.length <= 100 ? data.opens : null;
+  return { studies, refused, opens };
 }
 
 /**

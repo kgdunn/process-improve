@@ -238,7 +238,7 @@ export const BUILT_ON_HELD = 4;
  * hand. Whether that study is in this browser, and whether it has changed since, is judged where the page lists the
  * rounds (roundsOf).
  */
-function builtOn(value) {
+export function checkBuiltOn(value) {
   if (value === undefined || value === null) return [];
   return list(value, "the studies it builds on", BUILT_ON_HELD).map((one, i) => {
     if (!isObject(one)) refuse(`study ${i + 1} it builds on is not named`);
@@ -283,6 +283,20 @@ export function roundsOf(records, id, digests = new Map()) {
   };
   list(first, lost ? 2 : 1);
   return rounds;
+}
+
+/**
+ * The best result so far among some results, for a response's goal: the greatest to maximise, the least to minimise,
+ * the nearest to a target. ``info`` is the response as the brief describes it (its ``goal`` and ``target``). Returns
+ * ``{ value, run }``, the run by its place on the run sheet; null with no result yet, or a goal that names no best
+ * (to learn, or a target not typed).
+ */
+export function bestResult(responses, info = {}) {
+  const target = info.target === "" || info.target === null || info.target === undefined ? NaN : Number(info.target);
+  const short = { maximize: (v) => -v, minimize: (v) => v, target: (v) => Math.abs(v - target) }[info.goal];
+  const got = (responses ?? []).map((value, run) => ({ value, run })).filter((one) => isFiniteNumber(one.value));
+  if (!short || !got.length || (info.goal === "target" && !Number.isFinite(target))) return null;
+  return got.reduce((best, one) => (short(one.value) < short(best.value) ? one : best));
 }
 
 /** The most responses a study measures; mirrors bootstrap.MAX_RESPONSES, as logic.js does. */
@@ -485,7 +499,7 @@ export function checkCampaign(data) {
   const kept = data.what_if === undefined || data.what_if === null ? [] : keptSettings(data.what_if);
   const aside = setAside(data.set_aside, names, n);
   const [targets, windows] = [typedTargets(data.targets, names), typedWindows(data.windows, names)];
-  const built = builtOn(data.builds_on);
+  const built = checkBuiltOn(data.builds_on);
   const out = {
     v: studyFormat(s, { what_if: kept, set_aside: aside, targets, windows, builds_on: built }),
     title: data.title === undefined ? "" : text(data.title, "its title", 200),
