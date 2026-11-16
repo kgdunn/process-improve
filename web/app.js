@@ -3288,7 +3288,7 @@ async function downloadNotebook() {
 const REPORT_STEPS = ["design", "run", "analyse", "best", "balance"];
 
 /** What a report's copy of the page leaves out: what is there to use the page, and what the page hides. */
-const NOT_REPORTED = "[hidden], button:not(.term), input, select, textarea, details.python, .actions, .kept__do, figure.chart, .simplify, .findings__more";
+const NOT_REPORTED = "[hidden], button:not(.term), input, select, textarea, details.python, .actions, .kept__do, .rounds__open, figure.chart, .simplify, .findings__more";
 
 /**
  * The attributes a report's copy keeps: those that say how a cell spans, where a link goes, how a part looks, and
@@ -7086,7 +7086,9 @@ async function renderRounds() {
     const before = rounds.find((other) => other.id === one.record.builds_on[0].id);
     return `Round ${one.round} was built on round ${before.round} as it was then: a run or a result of round ${before.round} has changed since.`;
   });
-  $("#rounds-out").replaceChildren(builtTable(["Round", "Study", "Runs", "Best so far", "Open it"], rows), ...noteList(stale, "warnings"));
+  const listed = builtTable(["Round", "Study", "Runs", "Best so far", "Open it"], rows);
+  for (const row of listed.querySelectorAll("tr")) row.lastElementChild.classList.add("rounds__open"); // the page's own: no part of a report
+  $("#rounds-out").replaceChildren(listed, ...noteList(stale, "warnings"));
 }
 
 /** A round's best result so far for the goal of its first response, as the rounds' table writes it; "" for none. */

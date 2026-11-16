@@ -1,8 +1,9 @@
 # Factorial: what the app does
 
 Factorial is the browser app of `process-improve`, at <https://factori.al/>. It plans a
-designed experiment, takes its results and analyses them, in three steps: Design, Run and
-Learn. Python runs inside the browser tab, so a study never reaches a server.
+designed experiment, takes its results, analyses them and says what to run next, in four
+steps: Design, Run, Learn and Next. Python runs inside the browser tab, so a study never
+reaches a server.
 
 This document lists what the app does today. Use it to describe the app elsewhere. Three
 rules keep it true:
@@ -441,11 +442,6 @@ Also:
 - **Check the answer.** One button adds three confirmation runs at the settings found, and the
   app judges them when their results are in.
   [Show me](https://factori.al/?example=worked&show=confirm)
-- **What to do next.** What the results call for, with one button: more runs for this design,
-  confirmation runs, or a new study with its ranges moved towards better results.
-  [Show me](https://factori.al/?example=worked&show=next)
-  - *Details:* Runs added to the design are a fold-over, axial runs, center runs, runs chosen
-    for the model, or every run again. The new study's ranges move along the steepest ascent.
 
 #### Data you have already
 
@@ -587,7 +583,8 @@ Also:
   - *Details:* The study is packed after the `#`, which a browser sends to no server.
 - **Move your studies.** One study or all of them as a file, to take to another browser or
   another computer.
-  - *Details:* The study file (.json) is plain JSON and carries a SHA-256 of each study.
+  - *Details:* The study file (.json) is plain JSON and carries a SHA-256 of each study. A
+    study that builds on another names it there, so a file of both holds the campaign.
 - **Old studies keep opening.** A link or a file saved by an earlier version opens in a
   later one.
   - *Details:* An earlier version refuses a newer study in a sentence, and opens no part of
@@ -596,6 +593,22 @@ Also:
 - **Examples by name.** The book's 19 examples and 3 published examples each open from a
   link.
   - *Details:* With `?book=<name>` and with `?example=<name>`.
+
+## Next
+
+### Plan the next round
+
+- **What to do next.** What the results call for, with one button: more runs for this design,
+  confirmation runs, or a new study with its ranges moved towards better results.
+  [Show me](https://factori.al/?example=worked&show=next)
+  - *Details:* Runs added to the design are a fold-over, axial runs, center runs, runs chosen
+    for the model, or every run again. The new study's ranges move along the steepest ascent.
+- **A campaign of rounds.** A study started from another is the next round of its campaign.
+  Next lists the rounds: each one's runs, its best result so far, and a button that opens it.
+  - *Details:* The link between two rounds goes with the study through its file, its link and
+    its workbook. A study's own file holds the rounds before it; a link holds the one study
+    and names the round before. The app says when a run or a result of an earlier round
+    changed after a later round was built on it. A study that stands alone lists no rounds.
 
 ## Around the study
 
