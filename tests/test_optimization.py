@@ -1814,6 +1814,113 @@ class TestFeasibleRegion:
         both = feasible_region([model, other], {"y": (36, 43), "z": (38, None)}, points)["probability"]
         np.testing.assert_allclose(both, alone * also, atol=1e-12)
 
+    @staticmethod
+    def _sure(name: str, slope: float, df: float = 1e7) -> dict:
+        """Return a line in A with a scatter of 1 about it, known so well that a new run is all but normal."""
+        coefficients = [{"term": "Intercept", "coefficient": 0.0}, {"term": "A", "coefficient": slope}]
+        scatter = {"mse_residual": 1.0, "df_residual": df, "unscaled_covariance": np.zeros((2, 2))}
+        return {"response_name": name, "coefficients": coefficients, "factor_names": ["A"], **scatter}
+
+    @pytest.mark.parametrize("correlation", [0.6, -0.8, 0.0])
+    def test_two_correlated_responses_meet_their_windows_as_a_bivariate_normal_does(self, correlation: float) -> None:
+        from scipy import stats
+
+        models = [self._sure("y", 1.0), self._sure("z", -0.5)]
+        windows = {"y": (-1.0, 1.5), "z": (None, 0.4)}
+        r = [[1.0, correlation], [correlation, 1.0]]
+        region = feasible_region(models, windows, self.ALONG_A, residual_correlation=r)
+        both = stats.multivariate_normal(cov=r)
+        for (a,), found in zip(self.ALONG_A.to_numpy(), region["probability"], strict=True):
+            # The errors of y and z about their predictions, a and -a / 2: in (-1 - a, 1.5 - a), and below 0.4 + a / 2.
+            expected = both.cdf([1.5 - a, 0.4 + a / 2]) - both.cdf([-1.0 - a, 0.4 + a / 2])
+            assert found == pytest.approx(expected, abs=2e-4)
+
+    def test_three_correlated_responses_meet_their_windows_as_a_trivariate_normal_does(self) -> None:
+        from scipy import stats
+
+        models = [self._sure("y", 1.0), self._sure("z", -0.5), self._sure("w", 0.3)]
+        windows = {"y": (-1.0, 1.5), "z": (None, 0.4), "w": (-0.8, None)}
+        r = np.array([[1.0, 0.5, -0.3], [0.5, 1.0, 0.2], [-0.3, 0.2, 1.0]])
+        region = feasible_region(models, windows, self.ALONG_A, residual_correlation=r)
+        for (a,), found in zip(self.ALONG_A.to_numpy(), region["probability"], strict=True):
+            low, high = [-1.0 - a, -np.inf, -0.8 - 0.3 * a], [1.5 - a, 0.4 + a / 2, np.inf]
+            expected = stats.multivariate_normal(cov=r).cdf(high, lower_limit=low)
+            assert found == pytest.approx(expected, abs=3e-3)
+
+    def test_uncorrelated_responses_multiply_and_each_keeps_its_own_distribution(self) -> None:
+        """With few degrees of freedom a response is Student's t, not normal: joined to another, it stays so."""
+        model, _, _ = self._fitted()
+        other = {**self._sure("z", 2.0), "df_residual": 3.0}
+        points, windows = self._grid(5), {"y": (36, 43), "z": (-1.0, None)}
+        product = feasible_region([model, other], windows, points)["probability"]
+        joined = feasible_region([model, other], windows, points, residual_correlation=np.eye(2))["probability"]
+        np.testing.assert_allclose(joined, product, atol=1e-12)
+        alone = feasible_region([model], {"y": (36, 43)}, points, residual_correlation=[[1.0]])["probability"]
+        np.testing.assert_allclose(alone, feasible_region([model], {"y": (36, 43)}, points)["probability"], atol=1e-12)
+
+    def test_errors_that_move_together_make_two_windows_likelier_to_be_met_together(self) -> None:
+        model, _, _ = self._fitted()
+        twin = {**model, "response_name": "z"}
+        points, windows = self._grid(5), {"y": (36, 43), "z": (36, 43)}
+
+        def chance(r: float) -> pd.Series:
+            return feasible_region([model, twin], windows, points, residual_correlation=[[1, r], [r, 1]])["probability"]
+
+        alone = feasible_region([model], {"y": (36, 43)}, points)["probability"]
+        assert (chance(0.7) >= chance(0.0) - 1e-12).all()
+        assert (chance(0.7) > chance(0.0) + 1e-3).any()
+        np.testing.assert_allclose(chance(1.0), alone, atol=2e-3)  # the same response twice: one window to meet
+
+    def test_errors_that_move_apart_make_two_one_sided_windows_less_likely_to_be_met_together(self) -> None:
+        models = [self._sure("y", 1.0), self._sure("z", 1.0)]
+        windows = {"y": (0.0, None), "z": (0.0, None)}
+
+        def chance(r: float) -> pd.Series:
+            return feasible_region(models, windows, self.ALONG_A, residual_correlation=[[1, r], [r, 1]])["probability"]
+
+        assert (chance(-0.7) < chance(0.0)).all()
+        assert (chance(0.0) < chance(0.7)).all()
+
+    def test_an_analysis_is_taken_as_it_is(self) -> None:
+        """analyze_experiment's result holds what the scatter of a new run is worked from, coded as its coefficients."""
+        from process_improve.experiments.analysis import analyze_experiment
+
+        model, fit, design = self._fitted()
+        formula = "y ~ A + B + A:B + I(A ** 2)"
+        analysis = analyze_experiment(design, response_column="y", model=formula, analysis_type="coefficients")
+        np.testing.assert_allclose(analysis["unscaled_covariance"], fit.normalized_cov_params.to_numpy(), atol=1e-12)
+        assert isinstance(analysis["unscaled_covariance"][0], list), "rows of numbers: a tool can send them"
+        points = self._grid(5)
+        np.testing.assert_allclose(
+            feasible_region([analysis], {"y": (36, 43)}, points)["probability"],
+            feasible_region([model], {"y": (36, 43)}, points)["probability"],
+            atol=1e-10,
+        )
+
+    @pytest.mark.parametrize(
+        "correlation",
+        [[[1.0, 0.5]], [[1.0, 0.5], [0.4, 1.0]], [[2.0, 0.5], [0.5, 2.0]], [[1.0, 1.2], [1.2, 1.0]]],
+        ids=["not square", "not symmetric", "not 1 on its diagonal", "a negative eigenvalue"],
+    )
+    def test_a_correlation_that_is_not_one_of_the_responses_is_refused(self, correlation: list) -> None:
+        model, _, _ = self._fitted()
+        with pytest.raises(ValueError, match="residual_correlation must be the 2 by 2 correlation matrix"):
+            feasible_region(
+                [model, {**model, "response_name": "z"}],
+                {"y": (36, 43), "z": (36, 43)},
+                self._grid(3),
+                residual_correlation=correlation,
+            )
+
+    def test_no_chance_is_given_with_a_correlation_when_a_model_has_no_scatter(self) -> None:
+        model, _, _ = self._fitted()
+        bare = {key: value for key, value in model.items() if key != "mse_residual"} | {"response_name": "z"}
+        region = feasible_region(
+            [model, bare], {"y": (36, 43), "z": (36, 43)}, self._grid(3), residual_correlation=np.eye(2)
+        )
+        assert region["probability"].isna().all()
+        assert region["feasible"].any()
+
     def test_more_runs_widen_the_settings_that_meet_the_window_with_a_high_probability(self) -> None:
         """Four times the runs: the fit is surer, so more of the settings meet the window nine times in ten."""
         window, points = {"y": (37, 44)}, self._grid()

@@ -110,6 +110,7 @@ import {
   windowCaption,
   windowChance,
   windowLead,
+  windowLevels,
   whatIfRows,
   whatIfSentences,
   whatIfStart,
@@ -3282,7 +3283,7 @@ async function learnSections() {
 
 /**
  * The sections a report ends with, after the analysis: the balance of the responses, the settings kept with the study,
- * the next step and the code.
+ * what the targets and the windows typed gave, the next step and the code.
  */
 async function closingSections() {
   const sections = [];
@@ -3292,6 +3293,13 @@ async function closingSections() {
   }
   if (!$("#what-if").hidden && !$("#what-if-kept").hidden) {
     sections.push({ heading: $("#h-what-if-kept").textContent, html: reportCopy($("#what-if-kept-list")) });
+  }
+  // What Learn was asked, with what it answered: the sentences name the targets and the windows themselves.
+  for (const [id, asked] of [["target", state.target], ["window", state.window]]) {
+    if ($(`#${id}`).hidden || !asked.found) continue;
+    const html = [reportCopy($(`#${id}-out`)), chartsHtml(await chartsWithin($(`#${id}`)))];
+    if (id === "target" && !$("#target-solve").hidden) html.push(`<h3>${$("#target-solve h4").textContent}</h3>`, reportCopy($("#solve-out")));
+    sections.push({ heading: $(`#h-${id}`).textContent, html: html.join("\n") });
   }
   if (!$("#next").hidden) sections.push({ heading: $("#h-next").textContent, html: reportCopy($("#next-out")) });
   const code = cumulative(...REPORT_STEPS.map((step) => stepCode[step]).filter(Boolean));
@@ -5930,6 +5938,7 @@ function targetTyped(e) {
   state.target = { ...state.target, targets: Number.isFinite(value) ? { ...others, [tr.dataset.response]: value } : others };
   $("#target-match").value = "";
   showTargets();
+  scheduleSave(); // the targets go with the study
   clearTimeout(targetTimer);
   targetTimer = setTimeout(findSettings, 400);
 }
@@ -5942,6 +5951,7 @@ function targetMatched() {
   const at = targetResponses().flatMap((r) => (Number.isFinite(results[r.name][Number(place)]) ? [[r.name, results[r.name][Number(place)]]] : []));
   state.target = { ...state.target, targets: Object.fromEntries(at) };
   showTargets();
+  scheduleSave();
   findSettings();
 }
 
@@ -5950,6 +5960,7 @@ function targetCleared() {
   state.target = { ...state.target, targets: {} };
   $("#target-match").value = "";
   showTargets();
+  scheduleSave();
   findSettings();
 }
 
@@ -6050,14 +6061,23 @@ function targetPairChanged() {
 /** The settings found, by each factor's name, as the what-if panel holds settings. */
 const foundSettings = () => Object.fromEntries(state.target.found.settings.map((s) => [s.name, s.value]));
 
-/** Move the what-if panel to the settings found, and go to it. */
-function targetToWhatIf() {
+/** Move the what-if panel to these settings, when they are settings of its factors, and go to it. */
+function toWhatIf(settings) {
   const w = state.whatIf;
-  if (!state.target.found || !w || !settingsFit(w.factors, foundSettings())) return;
-  w.settings = foundSettings();
+  if (!settings || !w || !settingsFit(w.factors, settings)) return;
+  w.settings = { ...settings };
   renderWhatIf();
   checkWhatIfLimits();
   $("#what-if").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/** Move the what-if panel to the settings found. */
+const targetToWhatIf = () => toWhatIf(state.target.found && foundSettings());
+
+/** Set the factor solved for where the reader pressed, under What if: the other factors are there already. */
+function solvedToWhatIf(e) {
+  const value = e.target.closest("button[data-value]")?.dataset.value;
+  if (value !== undefined && state.whatIf) toWhatIf({ ...state.whatIf.settings, [$("#solve-factor").value]: Number(value) });
 }
 
 /** Solve for one factor a moment after the what-if panel's settings last moved. */
@@ -6096,7 +6116,15 @@ async function solveFactor() {
   const others = Object.fromEntries(Object.entries(w.settings).filter(([name]) => name !== factor));
   const { label, units: responseUnits } = wordsOf(response);
   const words = { held: settingsWords(w.factors, others, units), units: units[factor], label, responseUnits };
-  $("#solve-out").replaceChildren(...solveSentences(reply.result, words).map((text) => said("", text)));
+  const sentences = solveSentences(reply.result, words).map((text) => said("", text));
+  // Each setting that gives the target can be set under What if, to see every response there.
+  reply.result.solutions.forEach((solution, place) => {
+    const use = el("button", "link", `Set ${factor} to ${withUnit(solution.value, units[factor])} under What if`);
+    use.type = "button";
+    use.dataset.value = solution.value;
+    sentences[place].append(" ", use);
+  });
+  $("#solve-out").replaceChildren(...sentences);
 }
 
 // ---------------------------------------------------------------- the settings that meet a specification
@@ -6180,6 +6208,7 @@ function windowTyped(e) {
     return Number.isFinite(value) ? value : null;
   });
   state.window = { ...state.window, windows: { ...state.window.windows, [tr.dataset.response]: ends } };
+  scheduleSave(); // the windows go with the study
   scheduleWindow();
 }
 
@@ -6196,6 +6225,7 @@ function scheduleWindow() {
 function windowCleared() {
   state.window = { ...state.window, windows: {} };
   showWindows();
+  scheduleSave();
   findWindow();
 }
 
@@ -6228,9 +6258,12 @@ function renderWindow() {
     return;
   }
   const more = [windowChance(found), surestSentence(found, tradeFactors(), factorUnits())].filter(Boolean);
+  // A level is chosen, not moved to: beside the level What if has, what the windows give at each of the others.
+  const levels = windowLevels(found);
   $("#window-out").replaceChildren(
     said("lead", windowLead(found, { limits: Boolean(state.design.spec.constraints?.length) })),
     ...more.map((text) => said("", text)),
+    ...(levels ? [el("h4", "", "At each level"), table(levels.columns, levels.rows)] : []),
   );
   if (found.surest) $("#window-confirm").hidden = confirmedAt(state.design, found.surest.confirm_at);
   showPython("window", windowCode(found, state.design.spec));
@@ -6255,7 +6288,7 @@ async function drawWindowChart() {
   const figure = () => overlayFigure(overlay, found.responses, axes, undefined, { shaded: IN_WINDOWS, star: WHAT_IF_SETTINGS, named: windowName });
   card.hidden = false;
   card.querySelector("figcaption").textContent = windowCaption(overlay, state.design.spec.factors);
-  const python = figureAfter("window", () => windowOverlayCode(overlay, state.design.spec));
+  const python = figureAfter("window", () => windowOverlayCode(overlay, state.design.spec, Boolean(found.search.correlation)));
   try {
     await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height, { python });
   } catch {
@@ -6274,15 +6307,7 @@ function windowPairChanged() {
 }
 
 /** Move the what-if panel to the settings at which a new run is surest to meet the windows, and go to it. */
-function windowToWhatIf() {
-  const w = state.whatIf;
-  const surest = state.window.found?.surest;
-  if (!surest || !w || !settingsFit(w.factors, surest.settings)) return;
-  w.settings = { ...surest.settings };
-  renderWhatIf();
-  checkWhatIfLimits();
-  $("#what-if").scrollIntoView({ behavior: "smooth", block: "start" });
-}
+const windowToWhatIf = () => toWhatIf(state.window.found?.surest?.settings);
 
 // ---------------------------------------------------------------- the next step
 // What the analysis points to next: a new study whose ranges move the way the best settings point (best.js), and the
@@ -6812,7 +6837,7 @@ function currentCampaign() {
   const { spec, columns, rows, model, facts, outside_range: outside } = state.design;
   const [first, ...more] = resultNames();
   return {
-    v: studyFormat(spec, state.scenarios, keptAside()),
+    v: studyFormat(spec, { what_if: state.scenarios, set_aside: keptAside(), ...keptAsked() }),
     title: state.campaign?.title ?? titleOf(spec),
     design: { spec, columns, rows, model, n_runs: rows.length, facts: facts ?? null, outside_range: outside ?? [] },
     ...sentResults(),
@@ -6824,8 +6849,17 @@ function currentCampaign() {
     ...(state.campaign?.source ? { source: state.campaign.source } : {}),
     ...(state.scenarios.length ? { what_if: state.scenarios } : {}),
     ...(Object.keys(keptAside()).length ? { set_aside: keptAside() } : {}),
+    ...keptAsked(),
     ...sentCurves(),
   };
+}
+
+/** The targets and the windows typed in Learn, as a study keeps them: those of the responses it measures, if any. */
+function keptAsked() {
+  const names = resultNames();
+  const mine = (byName) => Object.fromEntries(Object.entries(byName).filter(([name]) => names.includes(name)));
+  const [targets, windows] = [mine(state.target.targets), mine(sentWindows())];
+  return { ...(Object.keys(targets).length ? { targets } : {}), ...(Object.keys(windows).length ? { windows } : {}) };
 }
 
 /** The runs set aside as a study keeps them: for each response with some, those that have a result. */
@@ -7073,8 +7107,8 @@ async function openCampaign(c, record, message) {
   state.models = { [names[0]]: c.model, ...(c.more_models ?? {}) };
   state.goals = structuredClone(c.goals ?? {});
   state.trade = newTrade();
-  state.target = newTarget();
-  state.window = newWindow();
+  state.target = { ...newTarget(), targets: structuredClone(c.targets ?? {}) };
+  state.window = { ...newWindow(), windows: structuredClone(c.windows ?? {}) };
   state.scenarios = structuredClone(c.what_if ?? []);
   clearBalance();
   clearWhatIf();
@@ -7845,6 +7879,7 @@ for (const id of ["#target-across", "#target-up"]) $(id).addEventListener("chang
 $("#target-confirm").addEventListener("click", () => addConfirmationRuns(state.target.found?.confirm_at, "the settings found"));
 $("#target-what-if").addEventListener("click", targetToWhatIf);
 for (const id of ["#solve-factor", "#solve-response"]) $(id).addEventListener("change", solveFactor);
+$("#solve-out").addEventListener("click", solvedToWhatIf);
 $("#window-limits").addEventListener("input", windowTyped);
 $("#window-clear").addEventListener("click", windowCleared);
 for (const id of ["#window-across", "#window-up"]) $(id).addEventListener("change", windowPairChanged);
@@ -7980,6 +8015,8 @@ function showPart(id) {
   const acts = ["pointerdown", "keydown", "wheel", "touchstart"];
   for (const act of acts) window.addEventListener(act, leave, { once: true, capture: true, passive: true });
   const started = Date.now();
+  // A part above the page's reading level is shown all the same, for this visit: the link asked for it.
+  for (let at = part; at; at = at.parentElement) if (at.dataset.level) at.classList.add("asked");
   // Shown once nothing between it and its step is hidden: the step itself is shown here.
   const there = () => {
     for (let at = part; at && !at.dataset.pane; at = at.parentElement) if (at.hidden) return false;

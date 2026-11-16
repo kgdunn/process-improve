@@ -7469,6 +7469,7 @@ class _FittedModel:
         self.t = float(stats.t.ppf(1 - (1 - LEVEL) / 2, self.df)) if self.df > 0 else None
         leverages = np.einsum("ij,jk,ik->i", x, self.inverse, x)
         self.max_leverage = float(leverages.max())
+        self.residuals: pd.Series | None = None  # by the run each belongs to, once _fitted has them
 
     def row(self, point: dict[str, float]) -> np.ndarray:
         """Return a point's row of the model matrix, its settings coded, in the average block."""
@@ -7539,7 +7540,11 @@ def _fitted(runs: pd.DataFrame, spec: dict, model: str | list[str]) -> _FittedMo
         fit = _fit_estimable(
             coded, y[done].reset_index(drop=True).rename(spec["response"]), fitted, columns, _categorical_names(spec)
         )
-    return _FittedModel(fit, coded, columns, spec if columns != names else None)
+    found = _FittedModel(fit, coded, columns, spec if columns != names else None)
+    found.residuals = pd.Series(
+        y[done].to_numpy() - _model_matrix(coded, found.terms, columns) @ found.beta, index=runs.index[done]
+    )
+    return found
 
 
 def _model_matrix(coded: pd.DataFrame, terms: list[str], names: list[str]) -> np.ndarray:
@@ -8569,7 +8574,7 @@ def _point_sent(raw: object, spec: dict) -> dict[str, float]:
 #: range of its results; and how many settings of one factor a response is followed over to find where it meets a
 #: target.
 TARGET_DRAWN = 20_000
-TARGET_LEVELS = 12
+TARGET_LEVELS = 400
 TARGET_SEED = 1
 TARGET_NEAR = 0.02
 SOLVE_POINTS = 401
@@ -8579,9 +8584,15 @@ SOLVE_POINTS = 401
 SOLVE_ON = 1e-9
 
 #: How many settings are judged against a specification, for the share of the ranges that meets it, and the seed
-#: they are drawn with.
+#: they are drawn with; and the most combinations of the categorical factors' levels it is judged at, a row each.
 SPECIFICATION_DRAWN = 20_000
 SPECIFICATION_SEED = 1
+SPECIFICATION_LEVELS = 12
+
+#: The fewest runs the fits must leave, past the terms of the largest model, for the responses' errors to be taken
+#: as correlated as the fits' residuals are. With fewer the correlation is too poorly known to use: with one run
+#: to spare, two fits' residuals are always perfectly correlated.
+CORRELATED_FROM = 5
 
 #: The chances that one new run meets a specification, each drawn as a line and counted: 0.9 is the design space.
 CHANCES = (0.5, 0.9)
@@ -8789,8 +8800,10 @@ def _target_fits(
 def _level_combinations(spec: dict) -> list[dict[str, float]]:
     """Return each combination of the categorical factors' levels, coded: the first :data:`TARGET_LEVELS` of them.
 
-    shortcut: a study with more combinations than that has only the first tried; try them all once such a study
-    asks for the settings of a target.
+    Each combination has its share of the settings tried, which leaves 50 or more of them to each.
+
+    shortcut: a study with more combinations than that (five factors of four levels, say) has only the first
+    tried; search the levels in two passes once such a study asks for the settings of a target.
     """
     coded = [
         [(f["name"], -1.0 + 2.0 * i / (len(_levels_of(f)) - 1)) for i in range(len(_levels_of(f)))]
@@ -8962,12 +8975,16 @@ def specification(request: dict) -> dict:
     design's without one) to the runs that have its result. ``at`` holds every factor's setting, as the
     what-if panel has them: a categorical factor is at its level there throughout, and the chart holds the
     numeric factors it is not drawn over there. ``search["at"]`` holds them as the columns the models are fitted on.
+    ``levels`` says what the windows give at each combination of the categorical factors' levels beside it
+    (see :func:`_windows_by_level`), since a level is chosen, not moved to.
 
     :data:`SPECIFICATION_DRAWN` settings of the numeric factors are drawn evenly from their ranges, without
     those the limits on the settings rule out, and judged with the library's ``feasible_region``: ``share`` is
     the part of them at which every prediction is inside its window, and ``likely`` the part at which one new
     run meets every window with each of :data:`CHANCES` or more. ``surest`` is the setting tried at which that
-    chance is highest. Both are None when a model has no runs left to estimate the noise from. ``overlay`` is
+    chance is highest. Both are None when a model has no runs left to estimate the noise from. With several
+    windows the responses' errors are taken as correlated as their fits' residuals are, when the runs allow
+    (see :func:`_residual_correlation`; ``search["correlation"]`` holds it, or None). ``overlay`` is
     the picture over two factors (``pair``, when the reader chose them; see :func:`_window_overlay`), and
     ``search`` what the code the page shows needs.
     """
@@ -8992,7 +9009,10 @@ def specification(request: dict) -> dict:
     if not len(drawn):
         raise ValueError("The limits on the settings leave no setting to try.")
     models = _region_models(fits)
-    judge = lambda settings: feasible_region(models, windows, _region_frame(fits, point, names, settings))  # noqa: E731
+    correlation = _residual_correlation(fits)
+    judge = lambda settings, at=point: feasible_region(  # noqa: E731
+        models, windows, _region_frame(fits, at, names, settings), residual_correlation=correlation
+    )
     tried = judge(drawn)
     chance = tried["probability"].to_numpy()
     known = not bool(np.isnan(chance).any())
@@ -9027,6 +9047,7 @@ def specification(request: dict) -> dict:
         "held": [
             {"name": f["name"], "value": _in_units(f, point[f["name"]])} for f in whole["factors"] if _categorical(f)
         ],
+        "levels": _windows_by_level(whole, point, lambda at: judge(drawn, at)),
         "overlay": _window_overlay(
             whole,
             fits,
@@ -9039,6 +9060,7 @@ def specification(request: dict) -> dict:
             "formulas": {n: fit.formula for n, fit in fits.items()},
             "windows": {n: list(ends) for n, ends in windows.items()},
             "at": _region_frame(fits, point, names, np.array([[point[n] for n in names]])).iloc[0].to_dict(),
+            "correlation": None if correlation is None else correlation.tolist(),
             "drawn": SPECIFICATION_DRAWN,
             "seed": SPECIFICATION_SEED,
         },
@@ -9047,6 +9069,52 @@ def specification(request: dict) -> dict:
         surfaces = reply["overlay"]["responses"]
         reply["overlay"] = {**reply["overlay"], "responses": [_surface_put_back(s, transforms) for s in surfaces]}
     return reply
+
+
+def _residual_correlation(fits: dict[str, _FittedModel]) -> np.ndarray | None:
+    """Return the correlation of the responses' residuals, in the order of ``fits``, or None for independent errors.
+
+    Responses measured on the same run often miss their predictions together, and two windows are then likelier
+    to be met together than their chances multiplied say. The correlation is that of the fits' residuals over
+    the runs every fit used. None with one response, with fewer than :data:`CORRELATED_FROM` such runs past the
+    terms of the largest model, or when a response's residuals do not vary: the errors are then independent.
+    """
+    if len(fits) < 2:
+        return None
+    residuals = pd.concat({name: fit.residuals for name, fit in fits.items()}, axis=1).dropna()
+    if len(residuals) - max(len(fit.terms) for fit in fits.values()) < CORRELATED_FROM:
+        return None
+    correlation = residuals.corr().to_numpy()
+    return None if np.isnan(correlation).any() else correlation
+
+
+def _windows_by_level(
+    spec: dict, point: dict[str, float], judged: Callable[[dict[str, float]], pd.DataFrame]
+) -> list[dict[str, Any]]:
+    """Return what the windows give at each combination of the categorical factors' levels; none without such a factor.
+
+    For each combination: its ``levels``, by their factors; ``share``, the part of the settings tried at which
+    every prediction is inside its window there; ``surest``, the highest chance that one new run meets every
+    window there, None when no chance can be given; and ``here``, whether it is the combination ``point`` holds,
+    whose share is the reply's own. ``judged`` judges the settings tried with every factor as at a point.
+
+    shortcut: the first :data:`SPECIFICATION_LEVELS` combinations are judged, each a row of a table; give the
+    table a way to show more once a study with more of them is judged against a specification.
+    """
+    categorical = [f for f in spec["factors"] if _categorical(f)]
+    out = []
+    for levels in _level_combinations(spec)[:SPECIFICATION_LEVELS] if categorical else []:
+        tried = judged({**point, **levels})
+        chance = tried["probability"].to_numpy()
+        out.append(
+            {
+                "levels": [{"name": f["name"], "value": _in_units(f, levels[f["name"]])} for f in categorical],
+                "share": float(tried["feasible"].mean()),
+                "surest": None if np.isnan(chance).any() else float(chance.max()),
+                "here": all(math.isclose(levels[f["name"]], point[f["name"]], abs_tol=1e-9) for f in categorical),
+            }
+        )
+    return out
 
 
 def _windows_sent(raw: object, spec: dict, transforms: dict[str, str]) -> dict[str, tuple[float | None, float | None]]:

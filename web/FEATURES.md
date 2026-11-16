@@ -26,8 +26,9 @@ is written for them:
 - **Headings are the page's parts.** A `##` heading is a step of a study. A `###` heading is
   a part that folds, and the line in italics under it is what the fold says while closed.
 - **A point can end with "Show me".** It is a link to `https://factori.al/?example=<name>&show=<part>`
-  (or `?book=<name>`): the app opens that example at the part of its page with that id. On the
-  page the link stays within the copy of the app it is served from.
+  (or `?book=<name>`): the app opens that example at the part of its page with that id, and
+  shows the part whatever the reading level. On the page the link stays within the copy of the
+  app it is served from.
 - **A chart has its picture.** It is on a line of its own under the chart's point,
   `![](chart-pictures/<key>.webp)`, where the key is the chart's in `CHARTS` (`web/logic.js`). The
   page puts it above the point. [`CONTRIBUTING.md`](../CONTRIBUTING.md#the-browser-app-is-tested)
@@ -325,16 +326,18 @@ Also:
   be, or pick a run to match. The app runs the models backwards and gives the settings, with
   each response's target beside what the models predict there.
   [Show me](https://factori.al/?example=worked&show=target)
-  - *Details:* 20,000 settings tried on the models, inside the limits and at each level of a
-    categorical factor. Settings give a target when the response is predicted within 2% of
+  - *Details:* 20,000 settings tried on the models, inside the limits and at every
+    combination of the categorical factors' levels, up to 400 of them. Settings give a target when the response is predicted within 2% of
     the range of its results from it. Of those, the answer is the one nearest the center of
     the ranges, moved by least squares to meet the targets exactly where the models can. The
     app says when no setting gives the targets, and when the settings lie beyond the runs. A
     chart draws each response's line of settings over two factors of your choice, with the
     runs. The settings go to the what-if panel, or are tested with confirmation runs. One
     factor can be solved for from the others, with the settings around it at which the 95%
-    confidence interval of the prediction still holds the target. The section and its chart
-    show their Python.
+    confidence interval of the prediction still holds the target; a button sets the factor
+    there under What if. The section and its chart show their Python. The targets typed are
+    kept with the study, in this browser, in its link and in its file; the settings are found
+    again when it opens. The report holds the settings, the chart and the factor solved for.
 - **Settings that meet a specification.** Type the window a response must fall in, or the
   windows of several, either end or both. The app says what share of the settings the models
   put inside every window, and how surely one new run there meets them.
@@ -342,13 +345,19 @@ Also:
   - *Details:* 20,000 settings judged inside the limits, with the library's
     `feasible_region`. The chance that one new run meets a window is the share of its
     predictive distribution inside it, Student's t about the prediction by the standard
-    error of a new observation, multiplied over the responses. The app gives the share of
+    error of a new observation. With several windows the chances are joined with the
+    correlation of the fits' residuals, since responses measured on one run often miss
+    together, when the runs leave five or more past the largest model's terms; with fewer
+    they are multiplied, as for independent errors. The app gives the share of
     the settings at which that chance is 50% or more and 90% or more, and the settings at
     which it is highest, which go to the what-if panel or get confirmation runs. A chart
     shades the settings that meet the windows over two factors of your choice, the others
-    where What if has them, with a line for each chance and the runs. No chance is given
+    where What if has them, with a line for each chance and the runs. A study with a
+    categorical factor is judged at the level What if has, and a table beside it gives the
+    share and the highest chance at each of the other levels. No chance is given
     when the fit leaves no run to estimate the noise. The section and its chart show their
-    Python.
+    Python. The windows typed are kept with the study, as the targets are, and the report
+    holds what they gave and the chart.
 - **Check the answer.** One button adds three confirmation runs at the settings found, and the
   app judges them when their results are in.
   [Show me](https://factori.al/?example=worked&show=confirm)

@@ -100,6 +100,22 @@ def test_a_categorical_factor_is_at_the_level_that_gives_the_target(api):
     assert [h for h in low["overlay"]["held"] if h["name"] == "S"] == [{"name": "S", "value": "A"}]
 
 
+def test_every_combination_of_levels_is_tried_past_the_first_dozen(api):
+    """Two factors of four levels have 16 combinations: the last of them is the only one that reaches the target."""
+    catalyst = {"name": "Catalyst", "type": "categorical", "levels": list("ABCD"), "units": ""}
+    lot = {"name": "Lot", "type": "categorical", "levels": list("WXYZ"), "units": ""}
+    spec = {"design_type": "full_factorial", "factors": [FACTORS[0], catalyst, lot], "responses": TWO[:1]}
+    held = held_of(api.ok("api_make_design", spec))
+    runs = run_sheet(held)
+    yields = 60 + 4 * (runs["T"] - 175) / 25 + 10 * (runs["Catalyst"] == "D") + 10 * (runs["Lot"] == "Z")
+    request = {**held, "responses": yields.tolist(), "models": {"Yield": "main_effects"}}
+    found = api.ok("api_target_settings", {**request, "targets": {"Yield": 83.0}})  # 76 to 84 with D and Z, else 74
+    assert found["reached"]
+    by = {s["name"]: s["value"] for s in found["settings"]}
+    assert (by["Catalyst"], by["Lot"]) == ("D", "Z")
+    assert found["tried"] == 16 * (20_000 // 16), "the settings tried are shared out over the combinations"
+
+
 def test_the_chart_holds_each_response_s_line_of_settings_and_the_runs(api):
     held = design_of(api, TWO)
     found = found_for(api, held, {"Yield": 61.0, "Cost": 21.0}, pair=["P", "T"])

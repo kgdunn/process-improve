@@ -303,6 +303,15 @@ def _dsd_rows(n_center_points: int | None, sigma: float = 0.5, seed: int = 5) ->
     return design.assign(y=truth.simulate(design, random_state=seed)).to_dict("records")
 
 
+#: The corners of a 2^2 design, each run twice, with a little noise on each run.
+_FOUR_CORNERS_TWICE = [
+    (a, b, noise)
+    for (a, b), noise in zip(
+        [(-1, -1), (1, -1), (-1, 1), (1, 1)] * 2, [0.3, -0.2, 0.1, -0.4, -0.1, 0.2, 0.4, -0.3], strict=True
+    )
+]
+
+
 class TestAnalyzeOmars:
     """The staged DSD / OMARS analysis, reachable as a tool."""
 
@@ -351,6 +360,15 @@ class TestAnalyzeOmars:
 
 
 class TestAnalyzeExperiment:
+    def test_the_tool_leaves_out_the_matrix_only_the_python_caller_uses(self) -> None:
+        """The coefficients come with the inverse of X'X for feasible_region, which no tool calls."""
+        rows = [{"A": a, "B": b, "y": 30.0 + 4 * a - 6 * b + noise} for a, b, noise in _FOUR_CORNERS_TWICE]
+        request = {"design_matrix": rows, "response_column": "y", "model": "y ~ A*B", "analysis_type": "coefficients"}
+        result = execute_tool_call("analyze_experiment", request)
+        assert [row["term"] for row in result["coefficients"]] == ["Intercept", "A", "B", "A:B"]
+        assert "estimate_correlations" in result
+        assert "unscaled_covariance" not in result
+
     def test_anova_on_factorial(self) -> None:
         """ANOVA on a replicated 2^2 design should succeed."""
         result = execute_tool_call(

@@ -450,10 +450,18 @@ new run there meets them all:
 The ``probability`` column needs what the scatter of a new run is worked from,
 which a model holds as ``"mse_residual"``, ``"df_residual"`` and
 ``"unscaled_covariance"`` (the inverse of ``X'X``, which a statsmodels fit
-holds as ``normalized_cov_params``). With them,
-``grid[region["probability"] >= 0.9]`` is where a new run meets the
-specification nine times in ten. Without them the region is still found, and
-the probability is NaN.
+holds as ``normalized_cov_params``). A result of
+``analyze_experiment(..., analysis_type="coefficients")`` holds all three, so
+it is passed as it is. With them, ``grid[region["probability"] >= 0.9]`` is
+where a new run meets the specification nine times in ten. Without them the
+region is still found, and the probability is NaN.
+
+Responses measured on the same run often have errors that move together, and
+two windows are then likelier to be met together, or missed together, than
+their separate chances multiplied say. ``residual_correlation`` takes the
+correlation of the responses' errors, which the correlation of the models'
+residuals estimates when the fits leave several degrees of freedom, and the
+probability allows for it.
 
 See Also
 --------

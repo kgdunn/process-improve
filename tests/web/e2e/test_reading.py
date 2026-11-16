@@ -48,9 +48,10 @@ BUDGET = {
     "practising": 134,
     # With the best settings for its goal, which add some 55 words, and the what-if panel, some 23: its hint, and its
     # warning that the best settings lie beyond the runs. With "What the results say", some 70: the sentences a
-    # reader would else have to work out of the tables below them. With the settings that give a target and those that
-    # meet a specification, some 17 and 15: one hint each, and the label of the run to match.
-    "the worked example's analysis": 420,
+    # reader would else have to work out of the tables below them. The settings that give a target and those that
+    # meet a specification add 4 words, the label of the run to match: their headings and their boxes' labels say
+    # what to type, so neither has a hint.
+    "the worked example's analysis": 399,
     "the comparison in detail": 175,
 }
 

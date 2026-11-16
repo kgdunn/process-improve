@@ -5,7 +5,7 @@
 #     sudo sh factorial-setup/setup.sh factorial-setup/factorial_deploy.pub
 #
 # Running it again is safe: it creates what is missing and replaces the files it installs.
-# It changes nothing in /etc/caddy/Caddyfile; README.md says what to change there.
+# It changes nothing in /etc/caddy/Caddyfile: it ends by saying what is left to do there, if anything.
 set -eu
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -13,6 +13,28 @@ key=${1:?usage: sudo sh setup.sh <the deploy key, .pub>}
 grep -q '^ssh-ed25519 ' "$key" || { echo "$key is not an ed25519 public key" >&2; exit 1; }
 python3 -c 'import tarfile; tarfile.data_filter' 2>/dev/null \
     || { echo "python3 has no tarfile data filter: the deploy command needs Python 3.12 or later" >&2; exit 1; }
+
+# What is left to do for Caddy, said at the end. $1: the Caddyfile. $2: "same" when the site's block
+# installed here is the one Caddy already had. A reload asks Caddy through its admin endpoint, so a
+# Caddyfile that turns the endpoint off (admin off) takes a restart instead.
+caddy_next() {
+    how=reload
+    if grep -Eqs '^[[:space:]]*admin[[:space:]]+off' "$1"; then how=restart; fi
+    if ! grep -qs '^[[:space:]]*import /etc/caddy/factorial.caddy' "$1"; then
+        echo "Next, in $1, replace the whole factori.al { ... } block with:"
+        echo "    import /etc/caddy/factorial.caddy"
+        echo "then:"
+    elif [ "$2" = same ]; then
+        echo "Caddy already serves the site with this block: nothing to do there."
+        return
+    else
+        echo "The site's block for Caddy changed. For Caddy to read it:"
+    fi
+    echo "    sudo caddy validate --config $1 && sudo systemctl $how caddy"
+    if [ "$how" = restart ]; then
+        echo "(a restart, since this Caddyfile turns the admin endpoint off: the server's other sites drop for a second)"
+    fi
+}
 
 # The account the deploy key logs in as. It has no password; sshd.conf gives it one command.
 id factorial >/dev/null 2>&1 || useradd --system --create-home --shell /bin/sh factorial
@@ -43,6 +65,7 @@ systemctl try-reload-or-restart ssh
 # Caddy: the site's block, and its access log. Caddy writes the log as the caddy account, so it
 # is made here, owned by caddy: `sudo caddy validate` would otherwise make it root's, and Caddy
 # could then not open it.
+if cmp -s "$here/factorial.caddy" /etc/caddy/factorial.caddy; then block=same; else block=changed; fi
 install -o root -g root -m 644 "$here/factorial.caddy" /etc/caddy/factorial.caddy
 [ -d /var/log/caddy ] || install -d -o caddy -g caddy -m 750 /var/log/caddy  # other sites may log there too
 touch /var/log/caddy/factorial-access.log
@@ -70,11 +93,8 @@ fi
 echo
 echo "$feedback"
 echo
-echo "Done. Next, in /etc/caddy/Caddyfile, replace the whole factori.al { ... } block with:"
-echo "    import /etc/caddy/factorial.caddy"
-echo "then:"
-echo "    sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy"
-echo "(restart instead of reload if the Caddyfile turns the admin endpoint off: admin off)"
+echo "Done."
+caddy_next /etc/caddy/Caddyfile "$block"
 echo
 echo "The value of the GitHub repository variable FACTORIAL_KNOWN_HOSTS:"
 printf 'factori.al %s\n' "$(cut -d' ' -f1,2 /etc/ssh/ssh_host_ed25519_key.pub)"

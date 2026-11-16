@@ -946,23 +946,44 @@ export function windowLead(found, { limits = false } = {}) {
 }
 
 /**
- * How surely one new run meets the windows: the share of the settings at which it does with each chance drawn, or why
+ * What the windows give at each combination of the categorical factors' levels, as a table's columns and rows: the
+ * share of the settings predicted inside every window there, the highest chance that one new run meets them ("none
+ * given" without runs to estimate the noise), and which combination What if has, since the sentences and the chart
+ * are of that one. ``found`` is bootstrap.specification's reply. Null for a study with no categorical factor.
+ */
+export function windowLevels(found) {
+  const levels = found.levels ?? [];
+  if (!levels.length) return null;
+  const rows = levels.map((row) => [
+    ...row.levels.map((level) => String(level.value)),
+    shareWords(row.share),
+    row.surest === null ? "none given" : shareWords(row.surest),
+    row.here ? "yes" : "",
+  ]);
+  return { columns: [...levels[0].levels.map((level) => level.name), "Settings that meet it", "Highest chance", "Under What if"], rows };
+}
+
+/**
+ * How surely one new run meets the windows: the share of the settings at which it does with each chance drawn, and
+ * that the responses' errors were taken as correlated when they were (``found.search.correlation``), or why
  * no chance can be given. Nothing when no setting is predicted inside the windows.
  */
 export function windowChance(found) {
   if (found.share === 0) return "";
   const all = found.responses.length === 1 ? "its window" : "every window";
+  // Said when it is so: with too few runs to estimate it, the responses' errors are taken as independent.
+  const together = found.search?.correlation ? " The responses' errors are taken as correlated as the residuals of their fits are." : "";
   if (!found.likely) return `No runs are left to estimate the noise, so the chance that a new run meets ${all} cannot be given.`;
   const [low, high] = Object.keys(found.likely).map(Number).sort((a, b) => a - b);
   const at = (chance) => found.likely[String(chance)];
   const words = (chance) => `${Math.round(100 * chance)}%`;
   if (at(high) === 0) {
     const half = at(low) === 0 ? `, nor of ${words(low)}` : `; it does with ${words(low)} or more at ${shareWords(at(low))} of them`;
-    return `At no setting does one new run meet ${all} with a chance of ${words(high)} or more${half}. The noise is wide beside the window, or the runs are few.`;
+    return `At no setting does one new run meet ${all} with a chance of ${words(high)} or more${half}. The noise is wide beside the window, or the runs are few.${together}`;
   }
   return (
     `One new run meets ${all} with a chance of ${words(high)} or more at ${shareWords(at(high))} of the settings, and of ` +
-    `${words(low)} or more at ${shareWords(at(low))}. A prediction inside a window is not a run inside it: the noise and the fit's own doubt count too.`
+    `${words(low)} or more at ${shareWords(at(low))}. A prediction inside a window is not a run inside it: the noise and the fit's own doubt count too.${together}`
   );
 }
 

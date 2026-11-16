@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 
 import numpy as np
 import pandas as pd
@@ -248,6 +249,42 @@ def test_a_specification_judged_under_pyodide_is_native_python_s(pyodide, api, h
     )  # a setting on a chance's edge may fall either way
     assert under["surest"]["probability"] == pytest.approx(native["surest"]["probability"], abs=1e-9)
     np.testing.assert_allclose(under["overlay"]["probability"], native["overlay"]["probability"], atol=2e-6)
+
+
+#: The longest a search for a target or a specification may take under Pyodide, in seconds. Each takes 0.2 to 0.6 s
+#: under Node.js here, twice its time in native Python: a phone is a few times slower, and the page asks a moment
+#: after the last key, without waiting on the answer. The ceiling catches a search grown many times slower.
+SEARCH_CEILING = 10.0
+
+
+def test_two_windows_joined_by_their_residuals_under_pyodide_are_native_python_s(pyodide, api):
+    """The chance of two windows, their errors correlated, is worked under WebAssembly as natively, and in good time.
+
+    The correlated chance is the heaviest of the searches: scipy's Sobol points and its normal quantile, a pass over
+    the settings for each point.
+    """
+    responses = [{"name": "Yield", "goal": "maximize"}, {"name": "Cost", "goal": "minimize"}]
+    spec = {"design_type": "ccd", "factors": FACTORS[:2], "responses": responses, "n_center_points": 6}
+    made = held_of(api.ok("api_make_design", {**spec, "alpha": "face_centered"}))
+    x = coded(run_sheet(made), FACTORS[:2])
+    shared = np.random.default_rng(11).normal(0.0, 0.4, len(x))
+    yields = 60 + 4 * x["T"] + 2 * x["P"] - 3 * x["T"] ** 2 - 2 * x["P"] ** 2 + shared
+    costs = 20 + 3 * x["T"] + x["P"] + 0.5 * x["T"] ** 2 + shared
+    request = {**made, "responses": yields.tolist(), "more_responses": {"Cost": costs.tolist()}}
+    windows = {"windows": {"Yield": [59.0, None], "Cost": [None, 21.0]}, "at": {"T": 175, "P": 2}}
+    start = time.perf_counter()
+    under = pyodide.ok("api_specification", {**request, **windows})
+    judged = time.perf_counter() - start
+    native = api.ok("api_specification", {**request, **windows})
+    np.testing.assert_allclose(under["search"]["correlation"], native["search"]["correlation"], atol=1e-9)
+    assert abs(native["search"]["correlation"][0][1]) > 0.5, "the two responses share their noise"
+    assert under["share"] == native["share"]
+    assert under["surest"]["probability"] == pytest.approx(native["surest"]["probability"], abs=1e-9)
+    np.testing.assert_allclose(under["overlay"]["probability"], native["overlay"]["probability"], atol=2e-6)
+    start = time.perf_counter()
+    pyodide.ok("api_target_settings", {**request, "targets": {"Yield": 59.0, "Cost": 20.0}})
+    aimed = time.perf_counter() - start
+    assert max(judged, aimed) < SEARCH_CEILING, f"judged in {judged:.1f} s and aimed in {aimed:.1f} s under Pyodide"
 
 
 def test_the_runs_the_results_call_for_under_pyodide_are_native_python_s(pyodide, api):

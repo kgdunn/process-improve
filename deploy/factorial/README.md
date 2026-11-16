@@ -52,7 +52,7 @@ installs the same pins through the index, and offers no copy of the charts and w
 [`factorial.caddy`](factorial.caddy) sends everything under `wheels/<digest>/` with a year's
 `Cache-Control`, since that folder's address changes with its contents. A server set up before
 that rule covered the page's own Python as well as the wheel serves it correctly all the same,
-revalidated at each visit: run `setup.sh` again, and reload Caddy, to install the rule.
+revalidated at each visit: run `setup.sh` again, and then the command it ends with, to install the rule.
 
 ## What the server keeps
 
@@ -155,7 +155,9 @@ sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
 
 If the Caddyfile's global options turn the admin endpoint off (`admin off`), a reload cannot
 reach Caddy: use `sudo systemctl restart caddy`, which drops the server's other sites for a
-second too. A deploy never needs either. factori.al answers 404 until the first deploy.
+second too. `setup.sh` reads the Caddyfile and ends with the command of the two that works
+there; run again later, it names a command only when the site's block changed. A deploy never
+needs either. factori.al answers 404 until the first deploy.
 
 **5. GitHub**, in the settings of kgdunn/process-improve:
 
