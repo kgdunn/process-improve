@@ -221,6 +221,14 @@ Also:
 
 #### What the results say
 
+- **The answer first.** Learn opens with where to run and what to expect there: "Run at
+  Temperature = 200 degC, Pressure = 1 bar and Flow = 18.04 L/min. The model predicts the
+  highest Yield there: 68.25% (95% confidence interval for the mean: 66.17 to 70.33%)." The
+  evidence follows it.
+  [Show me](https://factori.al/?example=worked&show=answer)
+  - *Details:* The numbers are those of the best settings further down, and a caution given
+    there is given here too. With no goal to reach, the answer is the factor that matters
+    most. The report opens with the same answer.
 - **The findings in sentences.** Which factor matters most and by how much in its own units,
   which effects are real, which depend on another factor, where the response curves, how well
   the model fits, and which runs to look at again.
