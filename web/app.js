@@ -76,6 +76,7 @@ import {
   goalWords,
   intervalRows,
   leadSentence,
+  answerWords,
   limitingSentence,
   climb,
   movesOn,
@@ -3246,7 +3247,8 @@ function aimWords(aim) {
 
 /** What Learn shows of the response it shows, as a report section: its analysis, charts and best settings. */
 async function learnSection() {
-  const parts = [reportCopy($("#analysis")), chartsHtml(await chartsWithin($("#charts")))];
+  // The answer first, as Learn has it; the way to its evidence is a button, which a report leaves out.
+  const parts = [$("#answer").hidden ? "" : reportCopy($("#answer")), reportCopy($("#analysis")), chartsHtml(await chartsWithin($("#charts")))];
   if (!$("#best").hidden) {
     parts.push(`<h3>${$("#h-best").textContent}</h3>`, reportCopy($("#best-out")), chartsHtml(await chartsWithin($("#best"))));
     if (!$("#confirm").hidden) parts.push(reportCopy($("#confirm-out")));
@@ -3728,6 +3730,7 @@ function renderAnalysis(reply) {
   }
   parts.push(...spreadParts(r.spread), ...diagnosticParts(r.diagnostics, r.transform));
   out.replaceChildren(...parts);
+  renderAnswer();
 }
 
 /** Offer the search for a simpler model, or take it away; what an earlier search found goes with the analysis it was of. */
@@ -4677,6 +4680,7 @@ function designComplete(name = state.shown) {
 /** Take the best settings away: the analysis they were found on is gone. */
 function clearBest() {
   state.best = null;
+  renderAnswer();
   $("#best").hidden = true;
   $("#next").hidden = true; // the next step follows the analysis; findNext shows it again with the next one
   hidePython("best");
@@ -4698,6 +4702,31 @@ async function findBest(request, mine) {
 const blendStudy = () => isMixture(state.design?.spec?.design_type);
 
 /**
+ * Learn's first words, over the evidence. With best settings: where to run and what the model expects there, in
+ * the numbers of the panel of the best settings, with that panel's cautions. With none to state (a goal of
+ * learning, a target not yet typed): what matters most among the factors, the first thing the results say.
+ */
+function renderAnswer() {
+  const box = $("#answer");
+  const best = state.best;
+  const shown = Boolean(state.analysis && state.design);
+  const words = shown ? wordsOf(state.shown) : null;
+  const blend = blendStudy();
+  const said = shown ? answerWords(best, words, { blend }) : null;
+  const first = !shown ? "" : best?.flat ? flatSentence(words, { blend }) : (findingWords(state.analysis.findings, words)[0] ?? "");
+  box.hidden = !said && !first;
+  if (box.hidden) return;
+  $("#answer-run").textContent = said ? said.run : first;
+  $("#answer-expect").textContent = said?.expect ?? "";
+  $("#answer-expect").hidden = !said;
+  const unclear = blend ? BLEND_UNCLEAR : UNCLEAR;
+  const cautions = said ? [(blend ? blendExtrapolation : extrapolationSentence)(best), best.unclear ? unclear : ""].filter(Boolean) : [];
+  $("#answer-caution").textContent = cautions.join(" ");
+  $("#answer-caution").hidden = !cautions.length;
+  $("#answer-more").hidden = !said;
+}
+
+/**
  * Show the best settings: what the model predicts there, the settings and where each lies, the two intervals,
  * where the settings sit against the ranges and the limits, whether the runs support the prediction there, how
  * tightly to hold each factor, and the confirmation runs. A goal of learning, or a target not yet typed, gets one line.
@@ -4713,6 +4742,7 @@ function renderBest(reply) {
   const words = wordsOf(state.shown);
   const factors = state.design.spec.factors;
   const blend = blendStudy();
+  renderAnswer();
   $("#best").hidden = false;
   $("#best-chart").hidden = true;
   $("#confirm").hidden = true;
@@ -7848,6 +7878,7 @@ $(".study").addEventListener("focusout", (e) => {
   if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget)) studyMenu(false);
 });
 $("#open-library").onclick = openLibrary;
+$("#answer-more").onclick = () => showPart("best");
 $("#menu-share").onclick = () => showPart("download");
 $("#menu-report").onclick = viewReport;
 // The welcome of a first visit offers the other ways in, by the menu's own buttons.

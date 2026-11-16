@@ -42,6 +42,7 @@ import {
   flatSentence,
   intervalRows,
   leadSentence,
+  answerWords,
   movesOn,
   nextRanges,
   noGoalSentence,
@@ -140,6 +141,52 @@ describe("numbers and settings in a sentence", () => {
     assert.equal(whereWords({ ...WORKED.settings[0], beyond: false }, WORKED, WORDS), "high end of its range");
     assert.equal(whereWords({ ...WORKED.settings[2], in_model: false }), "not in the model");
     assert.equal(whereWords({ name: "S", kind: "categorical", value: "B", in_model: true }), "the better level");
+  });
+});
+
+describe("the answer Learn opens with", () => {
+  test("where to run, and what the model expects there, in the panel's own numbers", () => {
+    assert.deepEqual(answerWords(WORKED, WORDS), {
+      run: "Run at T = 200 degC, P = 1 bar and F = 18.04 L/min.",
+      expect: "The model predicts the highest Yield there: 68.25% (95% confidence interval for the mean: 66.17 to 70.33%).",
+    });
+    const [interval] = intervalRows(WORKED, WORDS);
+    assert.ok(answerWords(WORKED, WORDS).expect.includes(`${interval.label}: ${interval.value}`), "the panel's row, to the digit");
+    assert.match(answerWords({ ...WORKED, goal: "minimize" }, WORDS).expect, /^The model predicts the lowest Yield there: 68\.25%/);
+  });
+
+  test("a target reached, or approached as closely as the ranges allow", () => {
+    const target = { ...WORKED, goal: "target", target: 60, predicted: 60.00000003, reached: true, confidence: [58.1, 61.9] };
+    assert.equal(
+      answerWords(target, WORDS).expect,
+      "The model predicts Yield on its target there: 60% (95% confidence interval for the mean: 58.1 to 61.9%).",
+    );
+    const far = { ...WORKED, goal: "target", target: 90, reached: false };
+    assert.equal(
+      answerWords(far, WORDS).expect,
+      "No setting in your ranges reaches the target of 90%: these come closest, at 68.25% " +
+        "(95% confidence interval for the mean: 66.17 to 70.33%).",
+    );
+  });
+
+  test("a categorical factor is at its level, and a fit with no runs to spare gives no interval", () => {
+    const supplier = { name: "Supplier", kind: "categorical", value: "B", in_model: true };
+    const said = answerWords({ ...WORKED, settings: [WORKED.settings[0], supplier], confidence: null }, WORDS);
+    assert.deepEqual(said, { run: "Run at T = 200 degC and Supplier at B.", expect: "The model predicts the highest Yield there: 68.25%." });
+  });
+
+  test("a mixture's answer is its blend", () => {
+    const share = (name, value) => ({ name, kind: "numeric", value, in_model: true });
+    const blend = { ...WORKED, settings: [share("A", 0.5), share("B", 0.25), share("C", 0.25)], goal: "target", target: 90, reached: false };
+    const said = answerWords(blend, { label: "Hardness", units: "" }, { blend: true });
+    assert.equal(said.run, "Blend A = 0.5, B = 0.25 and C = 0.25.");
+    assert.match(said.expect, /^No blend within your bounds reaches the target of 90: this one comes closest, at 68\.25 /);
+  });
+
+  test("nothing to state without settings: a goal of learning, a target not typed, a flat model", () => {
+    assert.equal(answerWords({ goal: "learn", settings: null }, WORDS), null);
+    assert.equal(answerWords({ goal: "maximize", flat: true, settings: null }, WORDS), null);
+    assert.equal(answerWords(null, WORDS), null);
   });
 });
 

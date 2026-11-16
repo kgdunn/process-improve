@@ -584,6 +584,15 @@
         <!-- With several responses, a tab each: the analysis below is of the one chosen, with its own model. -->
         <div id="response-picker" class="picker" role="tablist" aria-label="The response analysed" hidden></div>
         <div id="response-panel">
+        <!-- The answer (app.js renderAnswer): the settings to run and what the model expects there, from the best
+             settings found further down; with no goal to reach, what matters most. The evidence follows it. -->
+        <div id="answer" class="answer" hidden>
+          <p id="answer-run" class="answer__run"></p>
+          <p id="answer-expect"></p>
+          <p id="answer-caution" class="answer__caution" hidden></p>
+          <p class="actions"><button type="button" id="answer-more" class="link">How sure this is, and how tightly to
+            hold each setting</button></p>
+        </div>
         <div class="row">
           <label>Model
             <select id="model">

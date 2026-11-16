@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from tests.web.e2e._page import generate, open_library, practise, saved_studies, settled
+from tests.web.e2e._page import first_paint_done, generate, open_library, practise, saved_studies, settled
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -155,7 +155,7 @@ def test_share_hands_the_study_s_file_to_the_share_sheet(open_context, site):
     )
     page = context.new_page()
     page.goto(f"{site}?example=worked")
-    page.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
+    first_paint_done(page)  # the example shows Learn as it is drawn: a press before then is undone by it
     generate(page, design_type="full_factorial", n_center_points=0)
     practise(page)
     page.wait_for_function("document.querySelector('#library-count').textContent === '1'")
