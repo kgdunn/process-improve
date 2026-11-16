@@ -333,8 +333,9 @@ def test_a_move_shows_its_runs_before_they_are_made_each_with_what_it_is_for(bla
           const box = (one) => one.getBoundingClientRect();
           const corners = [...svg.querySelectorAll('.space__run')].map(box);
           const added = box(svg.querySelector('.space__new'));
-          const mean = (side, size) => corners.reduce((sum, one) => sum + one[side] + one[size] / 2, 0) / corners.length;
-          const off = (side, size) => Math.abs(added[side] + added[size] / 2 - mean(side, size));
+          const middle = (one, side, size) => one[side] + one[size] / 2;
+          const mean = (side, size) => corners.reduce((sum, one) => sum + middle(one, side, size), 0) / corners.length;
+          const off = (side, size) => Math.abs(middle(added, side, size) - mean(side, size));
           return [off('left', 'width'), off('top', 'height')];
         }"""
     )
