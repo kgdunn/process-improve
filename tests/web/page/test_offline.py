@@ -77,10 +77,17 @@ def test_the_footer_has_the_copy_s_words_and_its_two_buttons_hidden_until_there_
         "said aloud, and focusable; the words are in the box's first span, where offline.js writes them"
     )
     assert {"offline-keep", "offline-remove"} <= set(page().ids)
-    # The button that removes says what it removes, and a line under it what follows: shown only where the button is.
-    assert '<button type="button" id="offline-remove" hidden>Remove Factorial from this device</button>' in html
-    note = "Removing frees the space. Factorial then needs internet to open. Your saved studies stay."
-    assert f'<p class="foot__note">{note}</p>' in html
+    # The button says what the reader gains, and a line under it, which a screen reader says with the button, what
+    # follows: the reader's studies stay, and the tools can be saved again. The line is shown only where the button is.
+    assert (
+        '<button type="button" id="offline-remove" aria-describedby="offline-note" hidden>Free up space</button>'
+        in html
+    )
+    note = (
+        "Your saved studies stay: this removes only Factorial's tools. Factorial then needs internet to open, "
+        "and you can save its tools again later."
+    )
+    assert f'<p id="offline-note" class="foot__note">{note}</p>' in html
     rule = (
         '#offline:not([data-state="opens"], [data-state="whole"], [data-state="failed"]) .foot__note { display: none; }'
     )

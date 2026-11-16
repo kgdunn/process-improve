@@ -86,7 +86,7 @@ def test_the_page_opens_and_works_without_a_network_once_its_copy_is_kept(chromi
     try:
         page.goto(app_url)
         started(page)
-        said(page, "Works fully offline.", timeout=300_000)  # the whole copy, made unasked: nothing to press
+        said(page, "Works fully offline, ", timeout=300_000)  # the whole copy, made unasked: nothing to press
         assert page.evaluate(REGISTERED)
         assert page.is_hidden("#offline-keep"), "nothing more to keep"
         assert page.is_visible("#offline-remove")
@@ -94,7 +94,7 @@ def test_the_page_opens_and_works_without_a_network_once_its_copy_is_kept(chromi
         context.set_offline(True)
         page.reload()
         started(page)  # Python, its packages and the wheel come from the copy
-        said(page, "Works fully offline.")  # read from the copy, with no network to ask
+        said(page, "Works fully offline, ")  # read from the copy, with no network to ask
         a_study_with_its_charts_and_its_workbook(page)  # plotly and openpyxl come from the copy: no index is asked
         reveal(page, "#charts")
         page.locator("#charts figure.chart .expand").first.click()  # the window a figure opens in, from the copy too
@@ -115,7 +115,7 @@ def test_the_page_opens_and_works_without_a_network_once_its_copy_is_kept(chromi
 
         context.set_offline(False)
         page.click("#offline-remove")
-        said(page, "Needs internet. Factorial is not saved on this device.")
+        said(page, "Needs internet. Factorial's tools are not saved on this device.")
         assert until(page, REGISTERED, wanted=False) is False
         assert page.evaluate(COPIES) == []
         # The worker serves this page until it is closed, and looks in the copy for each file asked of it. In
@@ -136,14 +136,14 @@ def test_the_copy_is_whole_whatever_the_visit_had_installed_before_it_was_asked_
     try:
         page.goto(app_url)
         started(page)
-        said(page, "Works fully offline.", timeout=300_000)
+        said(page, "Works fully offline, ", timeout=300_000)
         page.click("#offline-remove")
-        said(page, "Needs internet. Factorial is not saved on this device.")
+        said(page, "Needs internet. Factorial's tools are not saved on this device.")
         a_study_with_its_charts_and_its_workbook(page)  # installed with no copy to keep them in
         assert page.evaluate(COPIES) == [], "nothing is kept that the reader removed"
 
         page.click("#offline-keep")  # "Save Factorial for offline use": one press, and the whole of it
-        said(page, "Works fully offline.", timeout=300_000)
+        said(page, "Works fully offline, ", timeout=300_000)
 
         context.set_offline(True)
         page.reload()
@@ -170,7 +170,7 @@ def test_a_build_made_without_the_worker_retires_it_in_a_browser_that_has_it(chr
 
     def a_copy_is_kept(page: Any) -> None:  # noqa: ANN401 - a Playwright Page
         started(page)
-        said(page, "Works fully offline.", timeout=300_000)
+        said(page, "Works fully offline, ", timeout=300_000)
         assert page.evaluate(REGISTERED)
         assert sorted(page.evaluate(COPIES)) == ["factorial-app-1", "factorial-kept-1", "factorial-made-1"]
 

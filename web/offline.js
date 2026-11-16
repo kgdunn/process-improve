@@ -116,7 +116,8 @@ const TRY_AGAIN = "Try again";
 /**
  * What the footer says of the copy in each state, and the buttons it offers. Each state opens with the answer to
  * the one question a reader has, whether Factorial works without internet here, and each button says what pressing
- * it does. `keep` holds the words of the button that saves more, or none, and `remove` says whether the copy can
+ * it does. What is saved is called Factorial's tools, so that no reader takes it for their own studies; the whole
+ * copy says where working offline helps. `keep` holds the words of the button that saves more, or none, and `remove` says whether the copy can
  * be removed. `exact` says whether the build names the files of the charts and Excel files: only then can they be
  * saved for certain, and the button offered. `size` is what the copy takes of the device's storage, in MB, where the
  * browser says: the copy is made unasked, so a reader is told what it costs beside the button that removes it.
@@ -124,13 +125,14 @@ const TRY_AGAIN = "Try again";
  * build that names none, a browser that asks to save data, or a download of them that did not finish.
  */
 export function copyWords(state, { reason = "", exact = true, size = null } = {}) {
-  const saved = size ? `Factorial is saved on this device (about ${size} MB).` : "Factorial is saved on this device.";
+  const saved = size ? `Factorial's tools are saved on this device (about ${size} MB).` : "Factorial's tools are saved on this device.";
+  const where = "for example when travelling, or in a factory or laboratory without internet";
   return {
-    none: { said: "Needs internet. Factorial is not saved on this device.", keep: KEEP_PAGE, remove: false },
+    none: { said: "Needs internet. Factorial's tools are not saved on this device.", keep: KEEP_PAGE, remove: false },
     copying: { said: "Saving Factorial for offline use...", keep: null, remove: false },
     opens: { said: `Works offline, except charts and Excel files. ${saved}`, keep: exact ? KEEP_WHOLE : null, remove: true },
     keeping: { said: "Adding charts and Excel files, about 12 MB...", keep: null, remove: false },
-    whole: { said: `Works fully offline. ${saved}`, keep: null, remove: true },
+    whole: { said: `Works fully offline, ${where}. ${saved}`, keep: null, remove: true },
     failed: { said: `Not fully saved: ${reason}`, keep: TRY_AGAIN, remove: true },
   }[state];
 }

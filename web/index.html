@@ -979,10 +979,11 @@
         <p><span role="status"></span></p>
         <p class="foot__actions">
           <button type="button" id="offline-keep" hidden></button>
-          <button type="button" id="offline-remove" hidden>Remove Factorial from this device</button>
+          <button type="button" id="offline-remove" aria-describedby="offline-note" hidden>Free up space</button>
         </p>
-        <!-- What removing does, shown while the button that removes is (style.css, by the box's state). -->
-        <p class="foot__note">Removing frees the space. Factorial then needs internet to open. Your saved studies stay.</p>
+        <!-- What freeing the space does, shown while its button is (style.css, by the box's state): the reader's
+             studies stay, and the tools can be saved again. -->
+        <p id="offline-note" class="foot__note">Your saved studies stay: this removes only Factorial's tools. Factorial then needs internet to open, and you can save its tools again later.</p>
       </div>
     </div>
     <!-- The version on the page: the commit it was built from and the day of that commit (app.js, from the manifest). -->
