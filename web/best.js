@@ -910,6 +910,36 @@ export function profileWords(f, points, { label, units }, factorUnits = "") {
   return `${label} against ${f.name}, the other factors where they are set: ${at(first)}, ${at(last)}${inside}.${beyond}`;
 }
 
+/** How many points along each side a response's map is drawn through, its two ends among them. */
+export const MAP_POINTS = 21;
+
+/**
+ * The two factors a response's map is drawn over: the two ``chosen`` when both are numeric factors of the study,
+ * else its first two numeric factors; null for a study with fewer than two, which has no map.
+ */
+export function mapPair(factors, chosen = null) {
+  const numeric = factors.filter((f) => f.kind === "numeric").map((f) => f.name);
+  if (chosen?.length === 2 && chosen[0] !== chosen[1] && chosen.every((name) => numeric.includes(name))) return chosen;
+  return numeric.length < 2 ? null : numeric.slice(0, 2);
+}
+
+/**
+ * A response's map: what its model predicts over two factors (``pair``), the others where ``settings`` has them.
+ * ``x`` and ``y`` are MAP_POINTS values of the first and the second factor, from its low end to its high end;
+ * ``z[j][i]`` is the prediction at ``x[i]`` and ``y[j]``, and ``beyond[j][i]`` is 1 where those settings lie beyond
+ * the runs, as predictAt judges it, and 0 where they do not.
+ */
+export function surfaceOf(fit, factors, settings, pair) {
+  const side = (name) => {
+    const f = factors.find((one) => one.name === name);
+    const [low, high] = [Math.min(f.low, f.high), Math.max(f.low, f.high)];
+    return Array.from({ length: MAP_POINTS }, (_, i) => low + ((high - low) * i) / (MAP_POINTS - 1));
+  };
+  const [x, y] = pair.map(side);
+  const at = y.map((second) => x.map((first) => predictAt(fit, columnsAt(factors, { ...settings, [pair[0]]: first, [pair[1]]: second }))));
+  return { x, y, z: at.map((row) => row.map((one) => one.predicted)), beyond: at.map((row) => row.map((one) => Number(one.extrapolating))) };
+}
+
 /** The step of a numeric factor's slider: about a hundredth of its range, as 1, 2 or 5 times a power of ten. */
 export function sliderStep(f) {
   const raw = Math.abs(f.high - f.low) / 100;

@@ -40,6 +40,9 @@ import {
   coxFigure,
   CURVE_LINES,
   curveFigure,
+  mapFigure,
+  MAP_MARKS,
+  plotPoint,
   fdsFigure,
   markBest,
   niceStep,
@@ -873,6 +876,54 @@ test("a report's charts take the light theme's colours, as style.css gives them"
   const start = css.indexOf(":root {");
   const light = css.slice(start, css.indexOf("}", start));
   for (const [name, colour] of Object.entries(LIGHT)) assert.match(light, new RegExp(`--${name}: ${colour};`), name);
+});
+
+describe("the what-if map: a response over two factors, where the dials are", () => {
+  const surface = { x: [150, 175, 200], y: [1, 2, 3], z: [[60, 62, 64], [61, 63, 65], [59, 60, 61]], beyond: [[1, 0, 0], [0, 0, 0], [0, 0, 1]] }; // prettier-ignore
+  const axes = [{ name: "T", units: "degC" }, { name: "P", units: "bar" }]; // prettier-ignore
+  const colours = { ...COLOURS, panel: "#fff" };
+  const words = { label: "Yield", units: "%", axes, at: [180, 1.5], best: [200, 1] };
+
+  test("the surface with its lines labelled, over the two factors' ranges, and no drag of Plotly's own", () => {
+    const { data, layout } = mapFigure(surface, words, colours);
+    const [contour] = data;
+    assert.deepEqual([contour.type, contour.x, contour.y, contour.z], ["contour", surface.x, surface.y, surface.z]);
+    assert.equal(contour.contours.showlabels, true);
+    assert.equal(contour.hovertemplate, "Yield: %{z:.4g} %<extra></extra>");
+    assert.deepEqual([layout.xaxis.title.text, layout.xaxis.range, layout.xaxis.fixedrange], ["T (degC)", [150, 200], true]);
+    assert.deepEqual([layout.yaxis.title.text, layout.yaxis.range, layout.yaxis.fixedrange], ["P (bar)", [1, 3], true]);
+    assert.equal(layout.dragmode, false, "the page takes the drag");
+  });
+
+  test("it fades where the settings lie beyond the runs, and says so in its legend", () => {
+    const { data } = mapFigure(surface, words, colours);
+    const veil = data.find((trace) => trace.meta === "beyond");
+    assert.deepEqual([veil.type, veil.z, veil.hoverinfo], ["heatmap", surface.beyond, "skip"]);
+    assert.equal(veil.colorscale[0][1], "rgba(0,0,0,0)", "clear within the runs");
+    assert.ok(data.some((trace) => trace.name === MAP_MARKS.beyond));
+    const within = mapFigure({ ...surface, beyond: surface.beyond.map((row) => row.map(() => 0)) }, words, colours).data;
+    assert.ok(!within.some((trace) => trace.meta === "beyond" || trace.name === MAP_MARKS.beyond), "nothing to fade, and no key for it");
+  });
+
+  test("a mark where the dials are, drawn last, and a star at the best settings when they are known", () => {
+    const { data } = mapFigure(surface, words, colours);
+    const set = data.at(-1);
+    assert.deepEqual([set.name, set.x, set.y], [MAP_MARKS.set, [180], [1.5]]);
+    const best = data.find((trace) => trace.name === MAP_MARKS.best);
+    assert.deepEqual([best.x, best.y, best.marker.symbol], [[200], [1], "star"]);
+    assert.ok(!mapFigure(surface, { ...words, best: null }, colours).data.some((trace) => trace.name === MAP_MARKS.best));
+  });
+
+  test("a pointer on the chart is read in the chart's own numbers, held to the axes", () => {
+    const drawnAt = (left, top) => ({
+      getBoundingClientRect: () => ({ left, top }),
+      _fullLayout: { xaxis: { range: [150, 200], _offset: 50, _length: 200 }, yaxis: { range: [1, 3], _offset: 10, _length: 100 } },
+    });
+    assert.deepEqual(plotPoint(drawnAt(0, 0), 150, 60), [175, 2], "the middle of each axis");
+    assert.deepEqual(plotPoint(drawnAt(20, 30), 70, 40), [150, 3], "the top left corner: the low end of x, the high end of y");
+    assert.deepEqual(plotPoint(drawnAt(0, 0), 900, 900), [200, 1], "past the plot, held at the ends");
+    assert.equal(plotPoint({ getBoundingClientRect: () => ({ left: 0, top: 0 }) }, 10, 10), null, "a chart not drawn yet");
+  });
 });
 
 describe("the curve predicted at the what-if settings", () => {

@@ -1705,6 +1705,37 @@ export function balanceCode(balance, spec) {
 }
 
 /**
+ * The what-if map, for its window: after the what-if code of its response (``name``, fitted as ``formula``), the
+ * response predicted over two factors (``pair``), each from its low end to its high end in ``points`` steps, with
+ * the other factors where ``at`` has them, drawn with its lines labelled.
+ */
+export function mapCode(spec, name, formula, at, settings, pair, points) {
+  const scale = scaleLines(spec, [name]);
+  const [first, second] = pair.map((one) => spec.factors.find((f) => f.name === one));
+  const side = (f) => `${f.low} + (side + 1) / 2 * (${f.high} - ${f.low})`;
+  const title = (f) => (f.units ? `${f.name} (${f.units})` : f.name);
+  return [
+    "import numpy as np",
+    "import plotly.graph_objects as go",
+    whatIfCode(spec, { [name]: formula }, at, settings),
+    "",
+    `# The map: ${name} over ${pair[0]} and ${pair[1]}, each from its low end to its high end (-1 to 1 in coded`,
+    "# units), with the other factors where they are set above.",
+    `name, model = ${repr(name)}, ${repr(formula)}`,
+    "done = runs[name].notna()",
+    `side = np.linspace(-1, 1, ${points})`,
+    `grid = pd.concat([at] * ${points * points}, ignore_index=True)`,
+    `grid[${repr(pair[0])}] = np.tile(side, ${points})`,
+    `grid[${repr(pair[1])}] = np.repeat(side, ${points})`,
+    `surface = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="prediction", new_points=grid)`,
+    `z = np.array([float(${scale.back('p["predicted"]')}) for p in surface["predictions"]]).reshape(${points}, ${points})`,
+    `fig = go.Figure(go.Contour(x=${side(first)}, y=${side(second)}, z=z, contours={"showlabels": True}))`,
+    `fig.update_layout(xaxis_title=${repr(title(first))}, yaxis_title=${repr(title(second))})`,
+    "fig.show()",
+  ].join("\n");
+}
+
+/**
  * What if: each response's prediction at the reader's settings, from its own model fitted to the runs that have its
  * result, with its 95% confidence interval for the mean and prediction interval for one new run. ``formulas`` holds
  * each response's model as bootstrap.predictors fitted it, by its column; ``at`` the settings as the columns of ``X``

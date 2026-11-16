@@ -733,7 +733,16 @@
         <section id="what-if" class="best what-if" aria-labelledby="h-what-if" hidden>
           <h3 id="h-what-if">What if</h3>
           <p class="hint" id="what-if-about">Move a setting, and each response's prediction follows.</p>
-          <div id="what-if-settings" class="what-if-settings"></div>
+          <div class="what-if-dials">
+            <div id="what-if-settings" class="what-if-settings"></div>
+            <!-- The map (app.js drawMap, charts.js mapFigure): the response over two factors, the others where the
+                 dials have them. It marks where the dials are and the best settings, and takes a press or a drag. -->
+            <figure id="what-if-map" class="chart what-if-map" hidden>
+              <h4 id="what-if-map-title"></h4>
+              <div class="plot" id="what-if-map-plot"></div>
+              <figcaption class="hint">Press or drag on the map to set both factors.</figcaption>
+            </figure>
+          </div>
           <p class="actions"><button type="button" id="what-if-back" class="link" hidden>Back to the best settings</button></p>
           <div id="what-if-out"></div>
           <!-- The curve each run gives, predicted at these settings in the page's own JavaScript (best.js curveAt). -->

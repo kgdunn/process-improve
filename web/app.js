@@ -33,6 +33,8 @@ import {
   overlayFigure,
   paretoFigure,
   effectsFigure,
+  mapFigure,
+  plotPoint,
   pictureLines,
   pictureReach,
   pictureWords,
@@ -110,6 +112,9 @@ import {
   settingsWords,
   sliderStep,
   PROFILE_POINTS,
+  MAP_POINTS,
+  mapPair,
+  surfaceOf,
   profileOf,
   profilePieces,
   profileRange,
@@ -334,7 +339,7 @@ import {
 import { redrawRuns } from "./picture.js";
 import { drawFieldChart } from "./field-chart.js";
 import { RUN_ORDER_SEED, briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows } from "./report.js";
-import { analyseCode, balanceCode, bestCode, compareCode, comparisonFigureCode, correlationCode, cumulative, curveCode, designCode, figureCode, forResponse, notebook, overlayCode, ownFigureCode, resultsCode, sensitivityCode, targetCode, targetOverlayCode, tradeOffCode, whatIfCode, windowCode, windowOverlayCode } from "./python.js";
+import { mapCode, analyseCode, balanceCode, bestCode, compareCode, comparisonFigureCode, correlationCode, cumulative, curveCode, designCode, figureCode, forResponse, notebook, overlayCode, ownFigureCode, resultsCode, sensitivityCode, targetCode, targetOverlayCode, tradeOffCode, whatIfCode, windowCode, windowOverlayCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { CONTEXT, DESIGN_CONTEXT, GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
@@ -4633,6 +4638,7 @@ async function drawCharts(request, mine, given = null) {
     return;
   }
   state.plotlyJs = version;
+  if (state.whatIf) drawMap(state.whatIf); // the map waited for Plotly, which the first chart brings
   try {
     await coefficients.show(coefficientView(), version);
     await drawBestChart();
@@ -5894,25 +5900,75 @@ function profileParts(f, points, range, value, { units }, width) {
   return parts;
 }
 
+/**
+ * Draw the response's map beside the dials (charts.js mapFigure): its fitted surface over two numeric factors, the
+ * others where the dials have them, faded where the settings lie beyond the runs, with a mark where the dials are.
+ * The two factors are those of the response's surface among the charts, when the reader chose them, else the
+ * study's first two numeric ones; a study with fewer has no map. The best settings are starred when the map passes
+ * through them: when every other factor is where they have it.
+ */
+function drawMap(w) {
+  const fit = profiledResponse(w);
+  const pair = fit && state.plotlyJs ? mapPair(w.factors, state.contourPairs[fit.name]) : null;
+  $("#what-if-map").hidden = !pair;
+  if (!pair) return;
+  const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
+  // The surface changes with the fit and with the other factors' settings: a drag on the map itself moves neither.
+  const others = w.factors.filter((f) => !pair.includes(f.name));
+  const key = JSON.stringify([fit.name, fit.coefficients, pair, others.map((f) => w.settings[f.name])]);
+  if (w.map?.key !== key) w.map = { key, pair, surface: surfaceOf(fit, w.factors, w.settings, pair) };
+  const found = fit.name === state.shown ? Object.fromEntries((state.best?.settings ?? []).map((one) => [one.name, one.value])) : {};
+  const through = pair.every((name) => Number.isFinite(found[name])) && others.every((f) => found[f.name] === w.settings[f.name]);
+  const words = {
+    label: fit.label,
+    units: fit.units ?? "",
+    axes: pair.map((name) => ({ name, units: units[name] })),
+    at: pair.map((name) => w.settings[name]),
+    best: through ? pair.map((name) => found[name]) : null,
+  };
+  $("#what-if-map-title").textContent = `${fit.label} over ${pair[0]} and ${pair[1]}`;
+  const at = columnsAt(w.factors, w.settings);
+  const python = figureAfter("run", () => mapCode(state.design.spec, fit.name, fit.formula, at, w.settings, pair, MAP_POINTS));
+  const { surface } = w.map;
+  draw($("#what-if-map-plot"), () => mapFigure(surface, words), state.plotlyJs, 300, { python });
+}
+
+/** The reader pressed or dragged on the map: its two factors are set where the pointer is, each to its slider's step. */
+function dragMap(e) {
+  const w = state.whatIf;
+  const point = w.map && plotPoint(e.currentTarget, e.clientX, e.clientY);
+  if (!point) return;
+  const stepped = w.map.pair.map((name, i) => {
+    const f = w.factors.find((one) => one.name === name);
+    const [low, high] = [Math.min(f.low, f.high), Math.max(f.low, f.high)];
+    const step = sliderStep(f);
+    return [name, Math.min(high, Math.max(low, Number((low + Math.round((point[i] - low) / step) * step).toPrecision(12))))];
+  });
+  setWhatIf(Object.fromEntries(stepped));
+}
+
 /** The reader pressed or dragged on a profile: its factor is set where the pointer is, to the slider's step. */
 function dragProfile(e, f) {
   const drawing = e.currentTarget; // the plot is inside the drawing's border, PROFILE.pad from each side
   const left = drawing.getBoundingClientRect().left + drawing.clientLeft + PROFILE.pad;
   const share = Math.min(1, Math.max(0, (e.clientX - left) / (drawing.clientWidth - 2 * PROFILE.pad)));
   if (f.kind === "categorical") {
-    setWhatIf(f.name, f.levels[Math.round(share * (f.levels.length - 1))]);
+    setWhatIf({ [f.name]: f.levels[Math.round(share * (f.levels.length - 1))] });
     return;
   }
   const [low, high] = [Math.min(f.low, f.high), Math.max(f.low, f.high)];
   const step = sliderStep(f);
   const stepped = low + Math.round((share * (high - low)) / step) * step;
-  setWhatIf(f.name, Math.min(high, Math.max(low, Number(stepped.toPrecision(12)))));
+  setWhatIf({ [f.name]: Math.min(high, Math.max(low, Number(stepped.toPrecision(12)))) });
 }
 
-/** Set one factor of the panel: every response follows at once, and the limits the settings break a moment later. */
-function setWhatIf(name, value) {
-  if (state.whatIf.settings[name] === value) return;
-  state.whatIf.settings = { ...state.whatIf.settings, [name]: value };
+/**
+ * Set factors of the panel (``changes``, each factor's new setting by its name): every response follows at once,
+ * and the limits the settings break a moment later.
+ */
+function setWhatIf(changes) {
+  if (Object.entries(changes).every(([name, value]) => state.whatIf.settings[name] === value)) return;
+  state.whatIf.settings = { ...state.whatIf.settings, ...changes };
   renderWhatIf();
   clearTimeout(whatIfLimitsTimer);
   whatIfLimitsTimer = setTimeout(checkWhatIfLimits, 150);
@@ -5953,6 +6009,7 @@ function renderWhatIf() {
   $("#what-if").hidden = false;
   showWhatIfSettings();
   drawProfiles(w);
+  drawMap(w);
   $("#what-if-back").textContent = WHAT_IF_BACK[start.from];
   $("#what-if-back").hidden = w.factors.every((f) => start.settings[f.name] === w.settings[f.name]);
   // a study whose only results so far are its curves has no response to list: the curve below is the prediction
@@ -6058,7 +6115,7 @@ function whatIfChanged(e) {
     if (value === null) return; // a number half typed: the panel waits for the rest
     value = Math.min(Math.max(value, Math.min(f.low, f.high)), Math.max(f.low, f.high)); // the models hold inside the range
   }
-  setWhatIf(f.name, value);
+  setWhatIf({ [f.name]: value });
 }
 
 /** Ask Python which limits on the settings the panel's settings break, and say so; a study without limits breaks none. */
@@ -8251,6 +8308,7 @@ $("#what-if-settings").addEventListener("change", (e) => {
 new ResizeObserver(() => {
   if (state.whatIf && !$("#what-if").hidden) drawProfiles(state.whatIf);
 }).observe($("#what-if-settings"));
+takeDrag($("#what-if-map-plot"), dragMap);
 $("#what-if-back").onclick = whatIfBack;
 $("#what-if-keep").addEventListener("submit", keepWhatIf);
 $("#what-if-kept-list").addEventListener("click", keptPressed);
