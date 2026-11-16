@@ -1466,6 +1466,30 @@ def test_the_pareto_plot_s_code_draws_each_coefficient_s_size_with_its_interval(
     assert list(bars.marker.color) == ["#E69F00" if c["coefficient"] > 0 else "#0072B2" for c in shown]
 
 
+def test_the_effects_view_s_code_draws_each_effect_over_its_range_and_the_change_worth_finding(api, node, monkeypatch):
+    demo = api.ok("api_catalogue")["demo"]
+    held = held_of(api.ok("api_make_design", demo["design"]))
+    responses = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 1})["responses"]
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    figure = own_figure(node, monkeypatch, steps_of(held, responses, analysis), "effects", held["spec"], {"change": 2})
+    bars = figure.data[0]
+    span = lambda c: 1 if c["term"].startswith("I(") else 2  # noqa: E731 - a square from the center to an end
+    shown = sorted(
+        (c for c in analysis["coefficients"] if c["term"] != "Intercept"),
+        key=lambda c: -abs(span(c) * c["coefficient"]),
+    )
+    assert any(span(c) == 1 for c in shown), "the worked example's model has squares"
+    assert list(bars.y) == [c["term"] for c in shown], "the largest effect first"
+    np.testing.assert_allclose(bars.x, [span(c) * c["coefficient"] for c in shown], atol=1e-9)
+    np.testing.assert_allclose(
+        bars.error_x.array, [span(c) * (c["ci_high"] - c["coefficient"]) for c in shown], atol=1e-9
+    )
+    assert list(bars.marker.color) == ["#E69F00" if c["coefficient"] > 0 else "#0072B2" for c in shown]
+    (band,) = figure.layout.shapes
+    assert (band.x0, band.x1) == (-2, 2), "the change worth finding, either side of no change"
+    assert figure.layout.xaxis.title.text == "Change in Yield (%) over the range"
+
+
 @pytest.mark.slow
 def test_the_pareto_plot_s_code_judges_a_fit_of_every_run_by_lenth_s_margins(api, node, monkeypatch):
     spec = {"design_type": "plackett_burman", "factors": factors_named(*"ABCDEFG"), "n_center_points": 0}

@@ -654,6 +654,88 @@ export function coefficientFigure(coefficients, simulated, colours = palette(), 
 export const SIGN_COLOURS = { positive: "#E69F00", negative: "#0072B2" };
 
 /**
+ * How far a term moves the response over the factors' ranges, as a multiple of its coefficient in coded units: a
+ * factor from its low end to its high end is two coded units, and so is an interaction across its factors' ends; a
+ * square moves the response by its coefficient from the center to an end. Mirrors bootstrap._swing.
+ */
+export const termSpan = (term) => (/^I\(.+ \*\* 2\)$/.test(term) ? 1 : 2);
+
+/**
+ * The effects in the response's own units: how far each term moves the response over the factors' ranges, the
+ * largest at the top, orange for a rise and blue for a fall, each with its 95% interval when the fit has one.
+ * With the smallest change worth finding (``change``, in the response's units) a band marks the changes smaller
+ * than it: an effect inside the band may be real, and still smaller than the reader cares about. ``label`` and
+ * ``units`` name the response on the axis. The true sizes are marked when the results were simulated.
+ */
+export function effectsFigure(coefficients, { simulated = false, change = null, label = "the response", units = "" } = {}, colours = palette()) {
+  const terms = coefficients
+    .filter((c) => c.term !== "Intercept")
+    .map((c) => ({ ...c, span: termSpan(c.term) }))
+    .sort((a, b) => Math.abs(b.span * b.coefficient) - Math.abs(a.span * a.coefficient));
+  const labels = terms.map((c) => c.label);
+  const intervals = terms.some((c) => c.ci_high !== null && c.ci_high !== undefined);
+  const bars = (positive) => {
+    const picked = terms.filter((c) => c.coefficient > 0 === positive);
+    return {
+      type: "bar",
+      orientation: "h",
+      name: positive ? "Raises it" : "Lowers it",
+      x: picked.map((c) => c.span * c.coefficient),
+      y: picked.map((c) => c.label),
+      marker: { color: positive ? SIGN_COLOURS.positive : SIGN_COLOURS.negative },
+      error_x: intervals
+        ? { type: "data", array: picked.map((c) => c.span * (c.ci_high - c.coefficient)), color: colours.fg, thickness: 1.5, width: 5 }
+        : { visible: false },
+      hovertemplate: "%{y}: %{x:.4g}<extra></extra>",
+    };
+  };
+  const data = [bars(true), bars(false)].filter((trace) => trace.x.length > 0);
+  if (intervals) data.push(legendKey("95% interval", colours.fg));
+  if (simulated) {
+    data.push({
+      type: "scatter",
+      mode: "markers",
+      name: "True effect",
+      x: terms.map((c) => c.span * (c.true_value ?? 0)),
+      y: labels,
+      marker: TRUE_MARKER,
+      hovertemplate: "%{y}, true effect: %{x:.4g}<extra></extra>",
+    });
+  }
+  const band = Number.isFinite(change) && change > 0;
+  if (band) data.push(legendKey("Smaller than the change worth finding", colours.muted, "dot"));
+  return {
+    data,
+    layout: {
+      barmode: "overlay",
+      xaxis: { title: { text: `Change in ${label}${units ? ` (${units})` : ""} over the range` }, zeroline: true },
+      yaxis: termAxis(labels),
+      legend: LEGEND_ABOVE,
+      showlegend: true,
+      shapes: band
+        ? [
+            {
+              type: "rect",
+              name: "change-worth-finding",
+              xref: "x",
+              yref: "paper",
+              x0: -change,
+              x1: change,
+              y0: 0,
+              y1: 1,
+              layer: "below",
+              fillcolor: colours.muted,
+              opacity: 0.18,
+              line: { color: colours.muted, dash: "dot", width: 1 },
+            },
+          ]
+        : [],
+    },
+    height: termRowsHeight(terms.length),
+  };
+}
+
+/**
  * The coefficients as the book's Pareto plot draws them: each one's size as a bar, the largest at
  * the top, orange for a positive coefficient and blue for a negative one. With residual degrees of
  * freedom each bar carries its 95% interval; with none, Lenth's margins of error (``lenth``, which

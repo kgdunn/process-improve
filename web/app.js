@@ -32,6 +32,7 @@ import {
   WHAT_IF_SETTINGS,
   overlayFigure,
   paretoFigure,
+  effectsFigure,
   pressRun,
   prettyTerm,
   redrawAll,
@@ -4434,15 +4435,17 @@ const COEFFICIENT_VIEW = "factorial-coefficients";
 /** How the reader last chose to see the coefficients: their estimates, or the book's Pareto plot. */
 function coefficientView() {
   try {
-    return localStorage.getItem(COEFFICIENT_VIEW) === "pareto" ? "pareto" : "estimates";
+    const kept = localStorage.getItem(COEFFICIENT_VIEW);
+    return ["pareto", "effects"].includes(kept) ? kept : "estimates";
   } catch {
     return "estimates";
   }
 }
 
 /**
- * The coefficients' card, with a switch between two views of the same analysis: each estimate
- * with its interval (and the true value, when simulated), or the book's Pareto plot of their sizes.
+ * The coefficients' card, with a switch between three views of the same analysis: each estimate
+ * with its interval (and the true value, when simulated), the book's Pareto plot of their sizes, or
+ * the effects in the response's own units, against the smallest change the reader said is worth finding.
  * ``show(view, version)`` marks the view chosen, and draws it once Plotly.js is given.
  */
 function coefficientCard(analysis, simulated) {
@@ -4453,15 +4456,15 @@ function coefficientCard(analysis, simulated) {
   views.setAttribute("aria-label", "Show the coefficients as");
   // A mixture's coefficients are the responses of its components and blends, which no Pareto plot of effects ranks.
   const mixture = isMixture(analysis.spec?.design_type);
-  const offered = mixture
-    ? [["estimates", "Estimates"]]
-    : [
-        ["estimates", "Estimates"],
-        ["pareto", "Pareto plot"],
-      ];
+  // On a transform's scale a coefficient is no change in the response's own units, so its effects are not drawn so.
+  const inUnits = !mixture && !analysis.transform;
+  const offered = [["estimates", "Estimates"], ...(mixture ? [] : [["pareto", "Pareto plot"]]), ...(inUnits ? [["effects", "Effects"]] : [])];
+  const words = responseWords(shownSpec());
+  const worth = Number(shownSpec().response_info?.smallest_change);
   const buttons = offered.map(([view, text]) => {
     const button = el("button", "", "");
     button.append(view === "pareto" ? term(text, { key: "pareto" }) : text);
+    if (view === "effects") button.title = `How far each term moves ${words.label} over the ranges, in its own units`;
     button.type = "button";
     button.dataset.view = view;
     return button;
@@ -4475,13 +4478,15 @@ function coefficientCard(analysis, simulated) {
     );
   }
   const figure = (view) => () =>
-    view === "pareto" && !mixture
+    view === "pareto"
       ? paretoFigure(analysis.coefficients, simulated, analysis.lenth)
-      : coefficientFigure(analysis.coefficients, simulated, undefined, { mixture });
+      : view === "effects"
+        ? effectsFigure(analysis.coefficients, { simulated, change: worth > 0 ? worth : null, ...words })
+        : coefficientFigure(analysis.coefficients, simulated, undefined, { mixture });
   const show = async (asked, version) => {
-    const view = mixture ? "estimates" : asked;
+    const view = offered.some(([one]) => one === asked) ? asked : "estimates"; // a view kept from a study that had it
     for (const button of buttons) button.setAttribute("aria-pressed", String(button.dataset.view === view));
-    const python = figurePython(view === "pareto" ? "pareto" : "coefficients");
+    const python = figurePython(view === "estimates" ? "coefficients" : view);
     if (version) await draw(plot, figure(view), version, figure(view)().height, { python });
   };
   for (const button of buttons) {
@@ -4589,6 +4594,10 @@ function figureAlone(key, plots = null) {
   const spec = shownSpec();
   const complete = designComplete() && !asideRuns().length;
   if (options) return figureCode(CHARTS[key].title, options, formula ?? model, complete, spec);
+  if (key === "effects") {
+    const worth = Number(spec.response_info?.smallest_change);
+    return ownFigureCode(key, CHARTS.coefficients.title, spec, { change: worth > 0 ? worth : null });
+  }
   if (key === "pareto") {
     // Lenth's margins stand in for the intervals a fit that uses every run does not have.
     const margins = Boolean(lenth) && !coefficients.some((c) => c.ci_high !== null && c.ci_high !== undefined);

@@ -496,6 +496,38 @@ const OWN_FIGURES = {
     'figure.update_yaxes(autorange="reversed")  # the first term at the top, as the page lists them',
     ...shown(`Coefficient: ${axisWords(spec)}${transformOf(spec) ? ", on the scale the model is fitted on" : ""}`, "Term"),
   ],
+  // The coefficients' third view: the effects in the response's units, as charts.js effectsFigure draws them, with
+  // the band of the smallest change worth finding (``about.change``) when the reader gave one.
+  effects: (title, spec, { change = null } = {}) => [
+    "import re",
+    "",
+    "import plotly.graph_objects as go",
+    "",
+    `# The figure "${title}", as the effects in the response's units: how far each term moves the response over`,
+    "# the factors' ranges. A factor from its low end to its high end is two coded units, so its effect is twice",
+    "# its coefficient; a square moves the response by its coefficient from the center to an end.",
+    'span = lambda c: 1 if re.fullmatch(r"I\\(.+ \\*\\* 2\\)", c["term"]) else 2',
+    'terms = [c for c in analysis["coefficients"] if c["term"] != "Intercept"]',
+    'terms = sorted(terms, key=lambda c: -abs(span(c) * c["coefficient"]))',
+    'reach = lambda c: 0 if c.get("ci_high") is None else span(c) * (c["ci_high"] - c["coefficient"])  # none: no interval',
+    "figure = go.Figure(",
+    "    go.Bar(",
+    '        x=[span(c) * c["coefficient"] for c in terms],',
+    '        y=[c["term"] for c in terms],',
+    '        orientation="h",',
+    '        marker_color=["#E69F00" if c["coefficient"] > 0 else "#0072B2" for c in terms],',
+    '        error_x={"type": "data", "array": [reach(c) for c in terms]},',
+    "    )",
+    ")",
+    ...(change
+      ? [
+          "# A change smaller than the one you said is worth finding lies inside the band.",
+          `figure.add_vrect(x0=${-change}, x1=${change}, fillcolor="gray", opacity=0.18, line_dash="dot", line_width=1)`,
+        ]
+      : []),
+    'figure.update_yaxes(autorange="reversed")  # the largest at the top',
+    ...shown(`Change in ${axisWords(spec)} over the range`, "Term"),
+  ],
   // The coefficients' other view. With ``about.lenth`` the fit uses every run, which leaves no interval: Lenth's
   // margins judge the sizes then, from the model (``about.model``) fitted to the runs that have their result
   // (``about.complete``: all of them).
