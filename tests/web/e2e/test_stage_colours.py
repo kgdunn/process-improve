@@ -24,10 +24,11 @@ def stage_colour(page: Any, stage: str) -> str:  # noqa: ANN401 - a Playwright P
 
 
 def rules(page: Any, panels: str) -> set[str]:  # noqa: ANN401
-    """Return the colours of the rule over each of the panels on show."""
+    """Return the colours of the rule over each of the panels on show that has one: a part inside a panel has none."""
     return set(
         page.locator(panels).evaluate_all(
-            "(all) => all.filter((one) => one.checkVisibility()).map((one) => getComputedStyle(one).borderTopColor)"
+            "(all) => all.filter((one) => one.checkVisibility()).map((one) => getComputedStyle(one))"
+            ".filter((style) => style.borderTopWidth !== '0px').map((style) => style.borderTopColor)"
         )
     )
 
