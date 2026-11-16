@@ -526,9 +526,11 @@ Also:
 
 *On a phone or at a desk, in light or dark, with nothing held back.*
 
-- **Three steps, one page.** A bar names the study and Design, Run and Learn, each marked with
-  how far it has got. It says what the app is doing, and the page under it stays where it is
-  when that line comes and goes.
+- **Three steps, one page.** One bar at the top holds the name, the study and Design, Run and
+  Learn, each marked with how far it has got. It stays in view as the page scrolls.
+  - *Details:* The bar is one row on a desk, about 50 px tall, and two on a phone. A line
+    under it says what the app is doing. That line is no part of the bar, so neither the bar
+    nor the page moves when it comes and goes. An error stays, in room of its own.
 - **Three ways in.** Start a new study, explore a worked example, or browse the design
   catalog. A fourth button analyses data you have.
 - **Nothing is held back.** Every design, chart and option is on the page for every reader.
@@ -557,7 +559,7 @@ Also:
 - **Your work is kept.** Every study is saved in the browser as you work, with a draft of a
   question not yet finished. Your studies lists them, to open, share or delete.
   [Show me](https://factori.al/?example=worked&show=library)
-- **Feedback.** Send it from the header, the footer or beside a result. A list shows what is
+- **Feedback.** Send it from the bar, the footer or beside a result. A list shows what is
   sent.
   - *Details:* A link can open the form with a request written, as "Request it" does beside
     each design the app does not make yet. Nothing is sent until you press Send.

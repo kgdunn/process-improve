@@ -467,8 +467,15 @@ def test_the_button_says_as_much_as_the_header_has_room_for(context, site, where
         assert words["named"] == (words["read"] or SHORT), f"one name, the words on show, at {width} px: {words}"
         assert page.evaluate(FITS) == {"cut": False, "on": False, "inside": True}, f"at {width} px, saying {words}"
         said += [] if said and said[-1] == words["read"] else [words["read"]]
-    # A wider window never says less. The narrowest has room for the icon alone, beside what else the header holds.
-    assert said == ["", SHORT, MEDIUM, LONG]
+    # A wider window never says less. The narrowest has room for the icon alone, beside what else the row holds, and
+    # the widest for the longest words. The map's row holds little else, so each wording has widths of its own. The
+    # app's bar also holds the study's name and the steps, and its page is one of two widths: there the font decides
+    # whether the middle wording has a width of its own between the short one and the long one.
+    ladder = ["", SHORT, MEDIUM, LONG]
+    assert said == [words for words in ladder if words in said], "each change says more"
+    assert {"", SHORT, LONG} <= set(said)
+    if where:
+        assert said == ladder
 
 
 # --------------------------------------------------------------------------- on a phone

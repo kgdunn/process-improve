@@ -67,8 +67,10 @@
 <body>
 <a class="skip-link" href="#workspace">Skip to the study</a>
 <main>
-  <header class="masthead">
-    <div class="brand">
+  <!-- The bar: the mark and the name, the study's name and its three phases, feedback and the colour mode, kept in
+       reach while the page scrolls, with the status line under them. -->
+  <nav id="studybar" class="studybar" aria-label="Factorial, and the study">
+    <div class="studybar__row">
       <!-- The mark: a 2^3 factorial and its centre run, seen down the cube's diagonal, in the page's colours.
            tools/branding/app_mark.py draws it from generate_design and writes favicon.svg; test_brand.py
            keeps the two in step. The mark and the name are a link to the page itself, so a press opens it
@@ -79,11 +81,14 @@
           <g class="mark__runs"><circle cx="14.68" cy="42" r="6"/><circle cx="32" cy="52" r="6"/><circle cx="49.32" cy="42" r="6"/><circle cx="49.32" cy="22" r="6"/><circle cx="32" cy="12" r="6"/><circle cx="14.68" cy="22" r="6"/></g>
           <circle class="mark__centre" cx="32" cy="32" r="6"/>
         </svg>
-        <div>
-          <h1>Factorial</h1>
-          <p class="tagline">Sense it. Test it. Im<b>prove</b> it.</p>
-        </div>
+        <h1>Factorial</h1>
       </a>
+      <p class="studybar__title"><span id="study-title">A new study</span> <span id="study-about"></span></p>
+      <div class="phases" role="tablist" aria-label="Design, run, learn">
+        <button type="button" role="tab" id="go-plan" aria-controls="step-plan" aria-selected="true"><span class="step">1</span> Design<span id="badge-plan" class="badge" hidden></span></button>
+        <button type="button" role="tab" id="go-run" aria-controls="step-run" aria-selected="false" tabindex="-1"><span class="step">2</span> Run<span id="badge-run" class="badge" hidden></span></button>
+        <button type="button" role="tab" id="go-learn" aria-controls="step-analyse" aria-selected="false" tabindex="-1"><span class="step">3</span> Learn<span id="badge-learn" class="badge" hidden></span></button>
+      </div>
       <!-- Feedback (feedback.js): a report to the maintainer, which leaves the page only when the reader presses Send. -->
       <div class="feedback-slot">
         <button type="button" id="feedback" class="feedback-button" data-feedback="general">
@@ -96,7 +101,23 @@
         <svg data-for="dark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.5 14.2A8.5 8.5 0 1 1 9.8 3.5a6.8 6.8 0 0 0 10.7 10.7z" fill="currentColor"/></svg>
       </button>
     </div>
-    <p class="lede">Design, Run and Learn from your experiments. Nothing to install. Data never leaves your device.</p>
+    <!-- What Python is doing, and the way to stop it: under the bar, over the room the page leaves there, so the bar
+         is one height and the page does not move as the line comes and goes. -->
+    <div class="studybar__under">
+      <div id="status" class="status" role="status" aria-live="polite" data-state="busy">
+        <span class="status__icon" aria-hidden="true"><svg viewBox="0 0 64 64"><circle cx="14.68" cy="42" r="7"/><circle cx="32" cy="52" r="7"/><circle cx="49.32" cy="42" r="7"/><circle cx="49.32" cy="22" r="7"/><circle cx="32" cy="12" r="7"/><circle cx="14.68" cy="22" r="7"/><circle cx="32" cy="32" r="7"/></svg></span>
+        <span class="status__text">Starting Python...</span>
+      </div>
+      <!-- Offered once a call to Python has taken a while (app.js stopPython): it ends the search and starts Python
+           again. It is outside the status line, which fades when it has nothing new to say and is read out when it has. -->
+      <button type="button" id="stop" class="button stop" hidden>Stop the calculation</button>
+    </div>
+  </nav>
+
+  <!-- The ways in, and what Factorial is in a line. -->
+  <div class="ways">
+    <p class="lede"><span class="tagline">Sense it. Test it. Im<b>prove</b> it.</span> Design, Run and Learn from your
+      experiments. Nothing to install. Data never leaves your device.</p>
     <!-- Three ways in, each in a colour of its own: the mark's navy and red, and the page's green. -->
     <div class="hero">
       <button type="button" id="new-study" class="button hero__action hero__action--new">
@@ -122,26 +143,7 @@
           adds them all here.</span>
       </label>
     </details>
-  </header>
-
-  <!-- The study's name and its three phases, kept in reach while the page scrolls, with the status line. -->
-  <nav id="studybar" class="studybar" aria-label="The study">
-    <div class="studybar__row">
-      <p class="studybar__title"><span id="study-title">A new study</span> <span id="study-about"></span></p>
-      <div class="phases" role="tablist" aria-label="Design, run, learn">
-        <button type="button" role="tab" id="go-plan" aria-controls="step-plan" aria-selected="true"><span class="step">1</span> Design<span id="badge-plan" class="badge" hidden></span></button>
-        <button type="button" role="tab" id="go-run" aria-controls="step-run" aria-selected="false" tabindex="-1"><span class="step">2</span> Run<span id="badge-run" class="badge" hidden></span></button>
-        <button type="button" role="tab" id="go-learn" aria-controls="step-analyse" aria-selected="false" tabindex="-1"><span class="step">3</span> Learn<span id="badge-learn" class="badge" hidden></span></button>
-      </div>
-    </div>
-    <div id="status" class="status" role="status" aria-live="polite" data-state="busy">
-      <span class="status__icon" aria-hidden="true"><svg viewBox="0 0 64 64"><circle cx="14.68" cy="42" r="7"/><circle cx="32" cy="52" r="7"/><circle cx="49.32" cy="42" r="7"/><circle cx="49.32" cy="22" r="7"/><circle cx="32" cy="12" r="7"/><circle cx="14.68" cy="22" r="7"/><circle cx="32" cy="32" r="7"/></svg></span>
-      <span class="status__text">Starting Python...</span>
-    </div>
-    <!-- Offered once a call to Python has taken a while (app.js stopPython): it ends the search and starts Python
-         again. It is outside the status line, which fades when it has nothing new to say and is read out when it has. -->
-    <button type="button" id="stop" class="button stop" hidden>Stop the calculation</button>
-  </nav>
+  </div>
 
   <div id="demo-banner" class="banner" hidden>
     <p>The worked example, computed with <span id="demo-version">process-improve</span>

@@ -125,6 +125,40 @@ def test_the_study_bar_stays_in_view_and_names_the_study(page):
     assert page.text_content("#badge-run") == "15 of 15"
 
 
+#: What the bar holds, each as its box when it is drawn: the mark, the name, the study's name, the stages, feedback
+#: and the colour mode.
+BAR = """() => Object.fromEntries(Object.entries({ mark: '.brand__home .mark', name: '.brand__home h1',
+    study: '#study-title', stages: '.phases', feedback: '#feedback', mode: '#mode' }).map(([part, at]) => {
+  const box = document.querySelector(at).getBoundingClientRect();
+  return [part, { top: box.top, bottom: box.bottom, left: box.left, right: box.right, drawn: box.width > 2 }]; }))"""
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 1440, "height": 900}}])
+def test_on_a_laptop_the_bar_is_one_row_no_taller_than_56_px(fresh_page):
+    """The mark, the name, the study, the stages, feedback and the colour mode are one row; the work starts under it."""
+    bar = box(fresh_page, "#studybar")
+    assert bar["y"] == 0, "the bar opens the page"
+    assert bar["height"] <= 56
+    parts = fresh_page.evaluate(BAR)
+    assert all(part["drawn"] for part in parts.values()), parts
+    order = sorted(parts, key=lambda part: parts[part]["left"])
+    assert order == ["mark", "name", "study", "stages", "feedback", "mode"]
+    assert all(part["top"] >= 0 and part["bottom"] <= bar["height"] for part in parts.values()), "each within the bar"
+    assert fresh_page.is_visible(".ways .tagline"), "the tagline and the line on what Factorial is are under the bar"
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
+def test_on_a_phone_the_bar_is_two_rows_the_study_s_name_over_the_stages(fresh_page):
+    """The name "Factorial" is read out and not drawn there, so the study's name has the first row."""
+    parts = fresh_page.evaluate(BAR)
+    assert not parts["name"]["drawn"]
+    assert fresh_page.get_attribute(".brand__home", "aria-label") == "Factorial: the home page", "the mark says so"
+    assert parts["study"]["bottom"] <= parts["stages"]["top"], "the study's name is over the stages"
+    assert parts["mode"]["bottom"] <= parts["stages"]["top"]
+    assert box(fresh_page, "#studybar")["height"] <= 100
+    assert fresh_page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+
+
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
 def test_on_a_phone_the_limits_their_picture_and_the_corners_fit(fresh_page):
     """The table of corners scrolls in its own box; the panels of the picture and the slice view take the width."""

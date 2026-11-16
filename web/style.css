@@ -1,6 +1,8 @@
 /* The palette is the package's: the README banner's navy runs and red centre runs on warm paper.
    Every text colour meets WCAG AA (4.5:1) on both the page and a panel, in both themes. */
 :root {
+  /* The room the page leaves under the bar, for the status line to come and go in. */
+  --line-room: 40px;
   --bg: #faf8f3;
   --fg: #1d1d1f;
   --muted: #5f6368;
@@ -144,17 +146,19 @@ h1 {
     "DejaVu Serif", serif;
   letter-spacing: -0.01em;
 }
-/* The name beside the mark, as the package's social card sets its own: a bold serif, a quiet tagline. */
-.brand { display: flex; align-items: center; gap: 14px; margin: 0 0 12px; }
-/* The mark and the name, a link home that keeps the header's colours and spacing. */
-.brand__home { display: flex; align-items: center; gap: inherit; color: inherit; text-decoration: none; border-radius: 8px; }
+/* The mark and the name at the start of the bar, as the package's social card sets its own name: a bold serif. They
+   are a link home that keeps the bar's colours. */
+.brand__home { flex: none; display: flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; border-radius: 8px; }
 .brand__home:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
-/* Feedback, at the header's right before the colour-mode switch. Its slot takes the width the header has left over,
-   and that width picks the button's words: the longest of the three that fit, and the icon alone when none does. */
+.studybar h1 { font-size: 1.3rem; }
+/* Feedback, before the colour-mode switch. Its slot takes the width its row has left over, and that width picks the
+   button's words: the longest of the three that fit, and the icon alone when none does. */
 .feedback-slot {
   flex: 1 1 0; min-width: 38px; align-self: flex-start; display: flex; justify-content: flex-end;
   container-type: inline-size;
 }
+/* In the bar the slot is as wide as its longest words when there is room, and gives way before the study's name. */
+.studybar .feedback-slot { flex: 0 1000 18.5rem; align-self: auto; }
 .feedback-button {
   min-width: 0; display: inline-flex; align-items: center; gap: 6px;
   padding: 8px; border: none; border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0; background: none;
@@ -178,16 +182,7 @@ span.feedback-button__short { display: block; position: absolute; width: 1px; he
   span.feedback-button__medium { display: none; }
   span.feedback-button__long { display: block; }
 }
-/* On a phone the name is a little smaller, so the mark, the name and the two buttons fit across a 360 px screen. */
-@media (max-width: 480px) {
-  .brand { gap: 10px; }
-  .brand h1 { font-size: 2rem; }
-  /* The tagline stays on its one line, a little smaller: it runs on under the two buttons, which sit above it, and
-     is cut short only where it would reach past the screen, as in a font far wider than the page's. */
-  .brand__home, .brand__home > div { min-width: 0; }
-  .tagline { font-size: clamp(0.78rem, 3.9vw, 0.95rem); width: max-content; max-width: calc(100vw - 100px); overflow: hidden; }
-}
-/* The colour-mode switch, an icon at the header's right as the book has it: the mode now, and a press for the next. */
+/* The colour-mode switch, an icon at the row's end as the book has it: the mode now, and a press for the next. */
 .mode-switch {
   align-self: flex-start; flex: none; padding: 8px; border: none; background: none;
   color: var(--muted); line-height: 0; border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0;
@@ -197,13 +192,14 @@ span.feedback-button__short { display: block; position: absolute; width: 1px; he
 :root[data-mode="auto"] .mode-switch [data-for="auto"], :root:not([data-mode]) .mode-switch [data-for="auto"],
 :root[data-mode="light"] .mode-switch [data-for="light"],
 :root[data-mode="dark"] .mode-switch [data-for="dark"] { display: block; }
-.mark { flex: none; width: 58px; height: 58px; }
+.mark { flex: none; width: 30px; height: 30px; }
 .mark__edges { fill: none; stroke: var(--mark-edge); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 .mark__runs circle, .mark__centre { stroke: var(--bg); stroke-width: 1.6; }
 .mark__runs circle { fill: var(--mark-run); }
 .mark__centre { fill: var(--mark-centre); }
+/* The tagline, before the line that says what Factorial is. */
 .tagline {
-  margin: 6px 0 0; color: var(--muted); font-style: italic; white-space: nowrap;
+  margin: 0 6px 0 0; color: var(--muted); font-style: italic; white-space: nowrap;
   font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "DejaVu Serif", serif;
 }
 /* "prove" in Improve: upright in the italic line, bold, in the red of the mark's centre run. */
@@ -212,6 +208,8 @@ h2 { display: flex; align-items: center; gap: 10px; font-size: 1.3rem; margin: 0
 h3 { font-size: 1.05rem; margin: 20px 0 8px; }
 a { color: var(--accent); }
 .lede { color: var(--muted); margin: 0 0 12px; }
+/* The ways in, under the bar. */
+.ways { margin: 0; }
 .step {
   display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
   background: var(--accent); color: var(--accent-fg); font-size: 0.95rem;
@@ -569,17 +567,18 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
   background: var(--panel); border: 1px dashed var(--accent);
 }
 
-/* The study bar: the study's name and its three phases, kept in reach while the page scrolls, with the
-   status line under them. The bar and its rule span the window; a border image drawn outside the box
-   does not widen the page. */
+/* The bar: the mark and the name, the study's name and its three phases, feedback and the colour mode, kept in
+   reach while the page scrolls, with the status line under them. It opens the page, so it takes back the room main
+   leaves above. The bar and its rule span the window; a border image drawn outside the box does not widen the page. */
 .studybar {
-  position: sticky; top: 0; z-index: 3; margin: 16px -16px 0; padding: 8px 16px 6px; background: var(--bg);
+  position: sticky; top: 0; z-index: 3; margin: -24px -16px var(--line-room); padding: 4px 16px 3px; background: var(--bg);
   border-bottom: 1px solid var(--line);
   border-image: linear-gradient(to top, var(--line) 1px, var(--bg) 1px) fill 0 / 0 / 0 100vmax;
 }
-.studybar__row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; }
+.studybar__row { display: flex; align-items: center; gap: 6px 14px; }
+.studybar .mode-switch { align-self: auto; }
 .studybar__title {
-  margin: 0; min-width: 0; flex: 1 1 260px; font-weight: 600; overflow: hidden; text-overflow: ellipsis;
+  margin: 0; min-width: 0; flex: 1 1 auto; font-weight: 600; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap;
 }
 /* A long name, such as a study's that lists its factors, ends in an ellipsis inside the bar, not beyond it. */
@@ -601,12 +600,30 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 }
 .badge[data-state="stale"] { border-color: var(--warn); color: var(--warn); }
 .badge[data-state="done"] { border-color: var(--ok); color: var(--ok); }
-.studybar .status { margin: 6px 0 2px; padding: 6px 12px; }
+/* The status line and the button that stops a long calculation hang under the bar, over the room the page leaves
+   there (--line-room). They are no part of the bar's height: neither the bar nor the page moves as they come and go. */
+.studybar__under {
+  position: absolute; top: 100%; left: 16px; right: 16px; display: flex; align-items: flex-start; gap: 8px;
+  padding-top: 6px;
+}
+.studybar .status { flex: 1 1 0; min-width: 0; margin: 0; padding: 2px 12px; font-size: 0.86rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); }
+/* An error stays until something else is said, and may take several rows. It has room of its own in the bar, which
+   gives back most of the room under it, so the error lies on nothing. */
+.studybar:has(.status[data-state="error"]:not([hidden])) { margin-bottom: 12px; }
+.studybar:has(.status[data-state="error"]:not([hidden])) .studybar__under { position: static; padding: 4px 0 2px; }
 section { scroll-margin-top: 120px; }
+/* Narrower than a tablet the bar is two rows: the mark, the study's name and the two buttons, over the phases. The
+   name "Factorial" is then read out and not drawn, so the study's name has the row. */
+@media (max-width: 720px) {
+  .studybar__row { flex-wrap: wrap; }
+  .studybar h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .studybar__title { flex: 1 1 0; }
+  .studybar .feedback-slot { flex: 0 0 38px; }
+  .phases { order: 1; width: 100%; }
+}
 @media (max-width: 600px) {
-  .studybar__title { flex-basis: 100%; font-size: 0.95rem; }
+  .studybar__title { font-size: 0.95rem; }
   #study-about { display: none; }
-  .phases { width: 100%; }
   /* Three tabs share the width, each its badge under its name, so the bar never pushes the page sideways. */
   .phases [role="tab"] {
     flex: 1 1 0; min-width: 0; flex-wrap: wrap; justify-content: center; gap: 2px 4px; padding: 4px 2px;
@@ -628,7 +645,8 @@ section { scroll-margin-top: 120px; }
 @media (min-width: 1100px) {
   .workspace { display: grid; grid-template-columns: minmax(340px, 420px) minmax(0, 1fr); gap: 20px; align-items: start; }
   .brief {
-    position: sticky; top: calc(var(--bar-room, 72px) + 12px); max-height: calc(100vh - var(--bar-room, 72px) - 24px);
+    position: sticky; top: calc(var(--bar-room, 48px) + var(--line-room));
+    max-height: calc(100vh - var(--bar-room, 48px) - var(--line-room) - 12px);
     overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
   }
   .brief .card:last-child { margin-bottom: 0; }
@@ -1990,7 +2008,7 @@ dialog.import { width: min(860px, 100vw - 32px); }
 }
 
 /* Stop, in the status line: offered once Python has taken a while over a call. */
-.stop { margin: 8px 0 0; }
+.stop { flex: none; margin: 0; padding: 2px 12px; font-size: 0.86rem; }
 
 /* The runs set aside from the fit on show, said above the analysis. */
 .aside-runs { margin: 0 0 12px; padding: 8px 12px; border-left: 4px solid var(--warn); background: var(--panel); border-radius: 0 6px 6px 0; }

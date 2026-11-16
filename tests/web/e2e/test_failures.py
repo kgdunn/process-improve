@@ -44,6 +44,9 @@ def test_a_refused_python_download_is_reported_and_nothing_waits_for_it(context,
         page.wait_for_timeout(50)
     refused[0].abort("blockedbyclient")
     assert "pyodide.mjs" in failed_to_start(page)
+    # An error stays, so it has room of its own in the bar, and lies on nothing the page puts under it.
+    line, bar, first = (page.locator(part).bounding_box() for part in ("#status", "#studybar", ".ways"))
+    assert line["y"] + line["height"] <= bar["y"] + bar["height"] <= first["y"]
     assert page.text_content("#run-example") == "Run it again in your browser"
     assert page.is_disabled("#run-example")
     for control in ("#generate", "#simulate", "#upload"):
