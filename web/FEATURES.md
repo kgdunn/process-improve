@@ -235,10 +235,17 @@ Also:
   - *Details:* A check to look at is open already. What the runs cannot tell is said so: a
     model that uses every run, or a study with no repeated runs. Each check leads to its
     evidence on the page, and the report holds them all open.
-- **The findings in sentences.** Which factor matters most and by how much in its own units,
-  which effects are real, which depend on another factor, where the response curves, how well
-  the model fits, and which runs to look at again.
+- **The findings in sentences, each beside its picture.** Which factor matters most and by
+  how much in its own units, which effects are real, which terms show no sign of an effect,
+  which effects depend on another factor, where the response curves, how well the model
+  fits, and which runs to look at again. A small picture stands before the words it shows: a
+  slope for a factor's own effect, a curve where the response curves, two lines for a pair
+  of factors that act together.
   [Show me](https://factori.al/?example=worked&show=analysis)
+  - *Details:* The pictures share one scale, so a steeper line is a larger effect. Each is
+    drawn from the fitted coefficients over the ranges you set, and is said in words to a
+    reader who does not see it. "Show the numbers" puts each finding's coefficient, its 95%
+    interval and its p-value under it. The report holds the pictures too.
 - **Choose how much the model holds.** As designed, the factors on their own, the factors
   and how pairs of them act together, curves as well, or the terms you choose.
   - *Details:* As designed, main effects, main effects and two-factor interactions, the full
@@ -286,7 +293,8 @@ Also:
 - **Set a doubtful run aside.** The model is fitted without it. The run keeps its result,
   and Learn, the report and the code all say it was left out.
 - **Simplify the model.** The app proposes the terms worth keeping. Nothing is fitted until
-  you accept, and the app then says the terms were picked from the same results.
+  you accept, and the app then says the terms were picked from the same results. The offer
+  stands with the terms that show no sign of an effect, in what the results say.
   - *Details:* Stepwise selection by AICc that keeps an interaction only with both its main
     effects.
 - **How steady repeated runs are.** Where a setting was run more than once: its average and
