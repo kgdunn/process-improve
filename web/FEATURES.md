@@ -577,9 +577,17 @@ Also:
     begun there is kept as a draft. A reader with a study kept in the browser is picked up
     where they left off, with no welcome.
 - **A colour for each step.** Design is blue, Run is ochre, Learn is green and Next is red:
-  in the bar, in the welcome, and in the app's mark and its browser icon.
-  - *Details:* A step's number says which it is, so nothing rests on colour alone. On a
-    phone the number of a step you are not in is a dot of its colour.
+  in the bar, in the welcome, and in the app's mark and its browser icon. Every screen says
+  which step it is: the rule over its panels and the button to press there are in the step's
+  colour.
+  - *Details:* A button that leads to the next step wears that step's colour: "Make the run
+    sheet" is ochre, "See what the results say" is green. A step's number says which it is,
+    so nothing rests on colour alone. On a phone the number of a step you are not in is a dot
+    of its colour.
+- **Checks you can read at a glance.** Under Learn's answer a check that passed is tinted
+  green, and one to look at is tinted ochre.
+  - *Details:* Each check keeps its mark, a tick or an exclamation mark, so the tint is not
+    the only sign.
 - **One menu holds every way in.** The study's name in the bar opens it: a new study, your
   studies, the worked example, data you have, and the design catalog. It also shares the
   study and shows its report.

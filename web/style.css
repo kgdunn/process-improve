@@ -689,12 +689,22 @@ section { scroll-margin-top: 120px; }
   background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin: 0 0 16px;
 }
 .card h2, .pane h2 { margin-bottom: 4px; }
+/* The stage on show gives its colour to the rule over each of its cards and panes, to the answer's edge, to the tab
+   chosen inside it and to the button a reader presses there, so every screen says which stage it is. A button that
+   leads to the next stage wears that stage's colour. */
+.workspace[data-phase="plan"] { --stage: var(--stage-plan); }
+.workspace[data-phase="run"] { --stage: var(--stage-run); }
+.workspace[data-phase="learn"] { --stage: var(--stage-learn); }
+.workspace .card, .workspace .pane { border-top: 3px solid var(--stage); }
+.workspace .primary { background: var(--stage); border-color: var(--stage); }
+#generate { --stage: var(--stage-run); }
+#to-learn { --stage: var(--stage-learn); }
 .card > .hint:first-of-type { margin-top: 0; }
 .pane { margin: 0 0 16px; }
 /* The answer Learn opens with: where to run and what to expect there, before the evidence. */
 .answer {
   margin: 4px 0 16px; padding: 14px 16px; background: var(--panel);
-  border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 10px;
+  border: 1px solid var(--line); border-left: 4px solid var(--stage, var(--accent)); border-radius: 10px;
 }
 .answer p { margin: 0 0 4px; }
 .answer__run { font-size: 1.15rem; font-weight: 600; }
@@ -702,7 +712,11 @@ section { scroll-margin-top: 120px; }
 /* The checks under the answer: a row of headings, each with its mark, that open to a sentence and its statistic. */
 .checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 8px; align-items: start; margin: 0 0 16px; }
 .learn-check { padding: 6px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; font-size: 0.95rem; }
-.learn-check[data-state="look"] { border-color: var(--warn); }
+/* A check is tinted by what it found. Its mark, a tick, an exclamation mark or a question mark, still says it. */
+.learn-check[data-state="ok"] {
+  background: color-mix(in srgb, var(--ok) 12%, var(--panel)); border-color: color-mix(in srgb, var(--ok) 40%, var(--line));
+}
+.learn-check[data-state="look"] { background: color-mix(in srgb, var(--warn) 12%, var(--panel)); border-color: var(--warn); }
 .learn-check > summary { cursor: pointer; font-weight: 600; }
 .learn-check > summary::after { margin-left: 8px; font-weight: 700; }
 .learn-check[data-state="ok"] > summary::after { content: "✓"; color: var(--ok); }
@@ -1003,7 +1017,7 @@ dialog.feedback { width: min(640px, 100vw - 32px); }
   border: none; border-bottom: 3px solid transparent; border-radius: 0; background: none;
   padding: 8px 14px; color: var(--muted);
 }
-.tabs [role="tab"][aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); font-weight: 600; }
+.tabs [role="tab"][aria-selected="true"] { color: var(--fg); border-bottom-color: var(--stage, var(--accent)); font-weight: 600; }
 /* The response Learn analyses, with several: a tab each, wrapping on a phone rather than pushing the page sideways. */
 .picker { display: flex; flex-wrap: wrap; gap: 4px 6px; margin: 8px 0 12px; }
 .picker [role="tab"] {
@@ -1110,7 +1124,7 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 .printed .lead { margin: 4px 0 8px; font-size: 1rem; font-weight: 600; }
 .printed table.data td:nth-child(3), .printed table.data td:nth-child(4) { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .printed .printed-model { margin: 8px 0 0; }
-.best { margin: 24px 0 0; padding: 14px 16px 16px; border-top: 2px solid var(--accent); }
+.best { margin: 24px 0 0; padding: 14px 16px 16px; border-top: 2px solid var(--stage, var(--accent)); }
 .best h3 { margin: 0 0 6px; font-size: 1.05rem; }
 .best h4 { margin: 0 0 6px; font-size: 0.95rem; }
 .best .lead { margin: 4px 0 8px; font-size: 1rem; font-weight: 600; }
