@@ -3,6 +3,10 @@
 :root {
   /* The room the page leaves under the bar, for the status line to come and go in. */
   --line-room: 40px;
+  /* Nothing is rounded but a point: a box or a control has this corner. */
+  --corner: 2px;
+  /* What the reader typed or measured is in ink; what Factorial worked out is in print. */
+  --ink: #1c3fa6;
   --bg: #faf8f3;
   --fg: #1d1d1f;
   --muted: #5f6368;
@@ -64,6 +68,7 @@
     --line: #34373b;
     --panel: #1c1e21;
     --accent: #7fb0ea;
+    --ink: #9db7ff;
     --accent-fg: #0d1b2a;
     --error: #f2877f;
     --warn: #e2a95a;
@@ -105,6 +110,7 @@
   --line: #34373b;
   --panel: #1c1e21;
   --accent: #7fb0ea;
+  --ink: #9db7ff;
   --accent-fg: #0d1b2a;
   --error: #f2877f;
   --warn: #e2a95a;
@@ -155,7 +161,7 @@ h1 {
 }
 /* The mark and the name at the start of the bar, as the package's social card sets its own name: a bold serif. They
    are a link home that keeps the bar's colours. */
-.brand__home { flex: none; display: flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; border-radius: 8px; }
+.brand__home { flex: none; display: flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; border-radius: var(--corner); }
 .brand__home:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
 .studybar h1 { font-size: 1.3rem; }
 /* Feedback, before the colour-mode switch. Its slot takes the width its row has left over, and that width picks the
@@ -168,7 +174,7 @@ h1 {
 .studybar .feedback-slot { flex: 0 1000 18.5rem; align-self: auto; }
 .feedback-button {
   min-width: 0; display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px; border: none; border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0; background: none;
+  padding: 8px; border: none; border-bottom: 2px solid transparent; border-radius: var(--corner) var(--corner) 0 0; background: none;
   color: var(--muted); font-size: 0.92rem; line-height: 1;
 }
 .feedback-button:hover, .feedback-button:focus-visible { color: var(--fg); border-bottom-color: var(--warn); }
@@ -192,7 +198,7 @@ span.feedback-button__short { display: block; position: absolute; width: 1px; he
 /* The colour-mode switch, an icon at the row's end as the book has it: the mode now, and a press for the next. */
 .mode-switch {
   align-self: flex-start; flex: none; padding: 8px; border: none; background: none;
-  color: var(--muted); line-height: 0; border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0;
+  color: var(--muted); line-height: 0; border-bottom: 2px solid transparent; border-radius: var(--corner) var(--corner) 0 0;
 }
 .mode-switch:hover, .mode-switch:focus-visible { color: var(--fg); border-bottom-color: var(--warn); }
 .mode-switch svg { display: none; width: 24px; height: 24px; }
@@ -224,14 +230,14 @@ a { color: var(--accent); }
   background: var(--accent); color: var(--accent-fg); font-size: 0.95rem;
 }
 section {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner);
   padding: 20px; margin: 20px 0;
 }
 /* The status box: a changing message, kept visually apart from the page text.
    data-state picks the icon and the accent: busy (spinner), ok (tick), error. */
 .status {
   display: flex; align-items: center; gap: 10px; margin: 16px 0 0; padding: 10px 14px;
-  border: 1px solid var(--line); border-left: 4px solid var(--muted); border-radius: 8px;
+  border: 1px solid var(--line); border-radius: var(--corner);
   background: var(--panel); color: var(--fg); font-size: 0.92rem;
 }
 .status { transition: opacity 0.6s ease; }
@@ -240,7 +246,7 @@ section {
 /* A short message at the foot of the screen, over the page: a link or code copied. */
 .toast {
   pointer-events: none; position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); z-index: 10;
-  width: max-content; max-width: calc(100vw - 32px); padding: 10px 16px; border-radius: 8px;
+  width: max-content; max-width: calc(100vw - 32px); padding: 10px 16px; border-radius: var(--corner);
   background: var(--fg); color: var(--bg); font-size: 0.92rem; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
   opacity: 0; transform: translate(-50%, 8px); transition: opacity 0.25s ease, transform 0.25s ease;
 }
@@ -248,7 +254,6 @@ section {
 .toast[data-state="error"] { background: var(--error); color: var(--bg); }
 @media (prefers-reduced-motion: reduce) { .status, .toast { transition: none; } }
 .status__icon { flex: none; width: 18px; height: 18px; display: grid; place-items: center; font-weight: 700; }
-.status[data-state="busy"] { border-left-color: var(--accent); }
 /* While Python works, the mark's runs light up in a random run order, then clear in the same order. */
 .status__icon svg { display: none; width: 18px; height: 18px; }
 .status[data-state="busy"] .status__icon svg { display: block; }
@@ -269,9 +274,8 @@ section {
   8%, 60% { opacity: 1; }
   75%, 100% { opacity: 0.15; }
 }
-.status[data-state="ok"] { border-left-color: var(--ok); }
 .status[data-state="ok"] .status__icon::before { content: "✓"; color: var(--ok); }
-.status[data-state="error"] { border-left-color: var(--error); color: var(--error); }
+.status[data-state="error"] { color: var(--error); }
 .status[data-state="error"] .status__icon::before { content: "!"; color: var(--error); }
 @media (prefers-reduced-motion: reduce) {
   .status__icon circle { animation: none; opacity: 1; }
@@ -285,9 +289,14 @@ section {
 .fit li { margin: 2px 0; font-variant-numeric: tabular-nums; }
 .facts { color: var(--muted); }
 .facts li, .warnings li { margin: 2px 0; overflow-wrap: anywhere; }
-.warnings { border-left: 3px solid var(--warn); padding: 2px 0 2px 1.6em; color: var(--fg); }
+.warnings { list-style: none; padding: 0; color: var(--fg); }
+/* A note that asks for a look carries the ochre diamond of a check that found something: a mark, not an edge. */
+.warnings li, .stale, .aside-runs, .feedback__fallback { position: relative; padding-left: 1.5em; }
+.warnings li::before, .stale::before, .aside-runs::before, .feedback__fallback::before {
+  content: ""; position: absolute; left: 0.3em; top: 0.5em; width: 0.5em; height: 0.5em; background: var(--warn); transform: rotate(45deg);
+}
 /* The plan no longer describes the run sheet on the page. */
-.stale { border-left: 3px solid var(--warn); padding: 2px 0 2px 10px; margin: 10px 0; font-size: 0.92rem; }
+.stale { margin: 10px 0; font-size: 0.92rem; }
 .stale p { margin: 4px 0; }
 .equation { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; overflow-wrap: anywhere; }
 .row { display: flex; flex-wrap: wrap; gap: 16px; margin: 12px 0; }
@@ -321,7 +330,7 @@ button.term:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 }
 .term-tip {
   position: fixed; inset: auto; margin: 0; width: max-content; max-width: min(19rem, calc(100vw - 16px));
-  padding: 8px 12px; border: none; border-radius: 8px; background: var(--fg); color: var(--bg);
+  padding: 8px 12px; border: none; border-radius: var(--corner); background: var(--fg); color: var(--bg);
   box-shadow: 0 6px 20px rgb(0 0 0 / 0.25); font: 400 0.88rem/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
   text-align: left; text-transform: none; letter-spacing: normal; white-space: normal;
 }
@@ -356,7 +365,7 @@ button.term:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 .range-mark { width: 6em; height: 0.7em; }
 .target-solve { margin-top: 16px; }
 /* The terms a reader ticks for the model: one group per kind of term, wrapping on a phone. */
-.terms { border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin: 0 0 12px; max-width: 100%; }
+.terms { border: 1px solid var(--line); border-radius: var(--corner); padding: 8px 12px; margin: 0 0 12px; max-width: 100%; }
 .terms legend { font-size: 0.9rem; padding: 0 4px; }
 .terms h4 { margin: 8px 0 4px; font-size: 0.85rem; font-weight: 600; color: var(--muted); }
 .terms .group { display: flex; flex-wrap: wrap; gap: 4px 14px; }
@@ -366,11 +375,13 @@ button.term:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 .terms .term-adder select { width: auto; max-width: 10em; }
 input, select {
   font: inherit; color: inherit; background: var(--bg);
-  border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; max-width: 100%;
+  border: 1px solid var(--line); border-radius: var(--corner); padding: 6px 8px; max-width: 100%;
 }
+/* What the reader typed is in ink. */
+input, textarea { color: var(--ink); }
 input[type="number"] { width: 7em; }
 button, .button {
-  font: inherit; cursor: pointer; border-radius: 6px; padding: 8px 14px;
+  font: inherit; cursor: pointer; border-radius: var(--corner); padding: 8px 14px;
   border: 1px solid var(--line); background: var(--bg); color: inherit; text-decoration: none; display: inline-block;
 }
 .primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
@@ -406,7 +417,7 @@ button:disabled { opacity: 0.5; cursor: progress; }
 /* A categorical factor's levels: a chip each, in their order, then a box to type the next one in. A chip is dragged,
    or moved with Alt and an arrow key, to put the levels in another order; its cross removes it. */
 .level-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 36px; padding: 3px 4px;
-  border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
+  border: 1px solid var(--line); border-radius: var(--corner); background: var(--bg); }
 .level-chips:focus-within { border-color: var(--accent); }
 .level-chips[aria-invalid] { border-color: var(--error); }
 .level-chip { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; padding: 2px 2px 2px 10px;
@@ -429,8 +440,7 @@ button:disabled { opacity: 0.5; cursor: progress; }
   .factors, .factors tbody { display: block; }
   .factors thead { display: none; }
   .factors tr {
-    display: grid; gap: 2px 8px; margin: 0 0 10px; padding: 8px 10px 10px;
-    border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+    display: grid; gap: 2px 8px; margin: 0; padding: 10px 0 12px; border-top: 1px solid var(--line);
     grid-template-columns: repeat(6, minmax(0, 1fr));
     grid-template-areas: "title title title title title remove" "name name name type type type" "low low high high units units";
   }
@@ -508,7 +518,7 @@ th[aria-sort="descending"] button.sort::after { content: " ▼"; color: var(--ac
   button.sort::after { display: block; }
 }
 .drop {
-  display: block; border: 2px dashed var(--line); border-radius: 10px; padding: 28px 16px;
+  display: block; border: 2px dashed var(--line); border-radius: var(--corner); padding: 28px 16px;
   text-align: center; color: var(--muted); cursor: pointer;
 }
 .drop.over { border-color: var(--accent); color: var(--fg); }
@@ -555,15 +565,16 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 }
 .welcome__lede { margin: 0; font-size: 1.12rem; color: var(--muted); max-width: 34em; }
 .welcome .actions { margin: 6px 0 0; gap: 10px 14px; align-items: center; }
-.welcome .actions .primary, .welcome .actions .button { border-radius: 999px; padding: 10px 20px; font-size: 1rem; }
-.welcome__steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; counter-reset: stage; min-width: 0; }
+.welcome .actions .primary, .welcome .actions .button { padding: 10px 20px; font-size: 1rem; }
+.welcome__steps { list-style: none; margin: 0; padding: 0; display: grid; min-width: 0; }
+.welcome__steps { gap: 0; }
 .welcome__steps li {
-  display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: 14px; align-items: start; counter-increment: stage;
+  position: relative; display: grid; grid-template-columns: 18px minmax(0, 1fr); column-gap: 16px; align-items: start; padding: 0 0 16px;
 }
 .welcome__steps li::before {
-  content: counter(stage); grid-row: span 2; width: 40px; height: 40px; border-radius: 50%; display: grid;
-  place-items: center; font-weight: 700; background: var(--stage); color: var(--accent-fg);
+  content: ""; grid-row: span 2; width: 18px; height: 18px; margin-top: 3px; border-radius: 50%; background: var(--stage); z-index: 1;
 }
+.welcome__steps li:not(:last-child)::after { content: ""; position: absolute; left: 8px; top: 12px; bottom: -12px; width: 2px; background: var(--line); }
 .welcome__steps b { font-size: 1.02rem; }
 .welcome__steps span { grid-column: 2; color: var(--muted); }
 .stage-plan { --stage: var(--stage-plan); }
@@ -579,7 +590,7 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 .welcome__promise li:nth-child(2)::before { background: var(--stage-plan); }
 .welcome__promise li:nth-child(3)::before { background: var(--stage-run); }
 .banner {
-  margin: 16px 0 0; padding: 10px 14px; border-radius: 8px; font-size: 0.92rem;
+  margin: 16px 0 0; padding: 10px 14px; border-radius: var(--corner); font-size: 0.92rem;
   background: var(--panel); border: 1px dashed var(--accent);
 }
 /* The worked example's banner is one row where there is room: its words, then the button that runs it again. */
@@ -601,7 +612,7 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 .study { position: relative; flex: 1 1 auto; min-width: 0; display: flex; }
 .study__button {
   display: flex; align-items: center; gap: 6px; min-width: 0; padding: 4px 8px; margin-left: -8px;
-  border: 1px solid transparent; border-radius: 8px; background: none; color: inherit; font: inherit; cursor: pointer;
+  border: 1px solid transparent; border-radius: var(--corner); background: none; color: inherit; font: inherit; cursor: pointer;
 }
 .study__button:hover, .study__button[aria-expanded="true"] { border-color: var(--line); background: var(--panel); }
 .study__button:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
@@ -610,11 +621,11 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 .study__menu {
   position: absolute; top: calc(100% + 6px); left: -8px; z-index: 5; width: max-content; min-width: 15rem;
   max-width: calc(100vw - 32px); margin: 0; padding: 6px; list-style: none;
-  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
 }
 .study__menu button, .study__menu a {
   display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; padding: 8px 10px;
-  border: none; border-radius: 6px; background: none; color: var(--fg); font: inherit; text-align: left;
+  border: none; border-radius: var(--corner); background: none; color: var(--fg); font: inherit; text-align: left;
   text-decoration: none; cursor: pointer;
 }
 .study__menu button:hover:not(:disabled), .study__menu a:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
@@ -628,22 +639,28 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 /* A long name, such as a study's that lists its factors, ends in an ellipsis inside the bar, not beyond it. */
 #study-title { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
 #study-about { color: var(--muted); font-weight: 400; font-size: 0.9rem; }
-.phases { display: flex; gap: 4px; }
+.phases { display: flex; gap: 0; }
 .phases [role="tab"] {
-  display: inline-flex; align-items: center; gap: 6px; border: none; border-bottom: 3px solid transparent;
-  border-radius: 6px 6px 0 0; background: none; padding: 6px 10px; color: var(--muted); font-size: 0.95rem;
+  display: inline-flex; align-items: center; gap: 6px; border: none; border-radius: var(--corner); background: none;
+  padding: 8px 6px; color: var(--muted); font-size: 0.95rem;
 }
+/* The line the points sit on, drawn up to each stage after the first. */
+.phases [role="tab"] + [role="tab"]::before { content: ""; flex: none; width: 18px; height: 2px; margin-right: 4px; background: var(--line); }
 .phases [role="tab"]:hover { color: var(--fg); }
-/* Each stage has its colour (--stage-*): its number wears it whether the stage is on show or not, and the stage on
-   show is underlined in it. The name is bold only for the stage on show, so colour is never the one sign of it. */
+/* Each stage has its colour (--stage-*): its point wears it whether the stage is on show or not. The stage on show
+   has the larger point and its name in bold, so colour is never the one sign of it. */
 #go-plan { --stage: var(--stage-plan); }
 #go-run { --stage: var(--stage-run); }
 #go-learn { --stage: var(--stage-learn); }
-.phases [role="tab"][aria-selected="true"] { color: var(--fg); border-bottom-color: var(--stage); font-weight: 600; }
+.phases [role="tab"][aria-selected="true"] { color: var(--fg); font-weight: 600; }
 .phases [role="tab"]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.phases .step { width: 22px; height: 22px; font-size: 0.8rem; background: var(--stage); }
+.phases .step { width: 10px; height: 10px; margin: 3px; font-size: 0; background: var(--stage); }
+.phases [aria-selected="true"] .step {
+  width: 16px; height: 16px; margin: 0; box-shadow: 0 0 0 4px color-mix(in srgb, var(--stage) 24%, transparent);
+}
+.phases .badge { border: none; background: none; padding: 0; }
 .badge {
-  margin-left: 2px; padding: 0 7px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; line-height: 1.5;
+  margin-left: 2px; padding: 0 7px; border-radius: var(--corner); font-size: 0.75rem; font-weight: 600; line-height: 1.5;
   background: var(--panel); border: 1px solid var(--line); color: var(--muted); white-space: nowrap;
 }
 .badge[data-state="stale"] { border-color: var(--warn); color: var(--warn); }
@@ -677,51 +694,47 @@ section { scroll-margin-top: 120px; }
     flex: 1 1 0; min-width: 0; flex-wrap: wrap; justify-content: center; gap: 2px 4px; padding: 4px 2px;
     font-size: 0.9rem;
   }
-  /* No room for a stage's number: a dot of its colour stands for it. */
-  .phases .step { width: 8px; height: 8px; font-size: 0; }
-  .phases .badge { margin: 0; font-size: 0.7rem; padding: 0 5px; }
+  /* No room for the line between the points: a badge wraps under its stage's name here. */
+  .phases [role="tab"] + [role="tab"]::before { display: none; }
+  .phases .badge { margin: 0; font-size: 0.7rem; }
 }
 
 /* The workspace: on a wide screen, Design has the brief (the response, the factors, the aim) in a column of its
    own beside the designs; on a narrow one, the brief opens Design. Run and Learn take the width. */
 .workspace { margin: 16px 0 0; }
 .card {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin: 0 0 16px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner); padding: 16px; margin: 0 0 16px;
 }
 .card h2, .pane h2 { margin-bottom: 4px; }
-/* The stage on show gives its colour to the rule over each of its cards and panes, to the answer's edge, to the tab
-   chosen inside it and to the button a reader presses there, so every screen says which stage it is. A button that
-   leads to the next stage wears that stage's colour. */
+/* The stage on show gives its colour to the points chosen in it, to the tab chosen inside it and to the button a
+   reader presses there, so every screen says which stage it is. A button that leads to the next stage wears that
+   stage's colour. */
 .workspace[data-phase="plan"] { --stage: var(--stage-plan); }
 .workspace[data-phase="run"] { --stage: var(--stage-run); }
 .workspace[data-phase="learn"] { --stage: var(--stage-learn); }
-.workspace .card, .workspace .pane { border-top: 3px solid var(--stage); }
 .workspace .primary { background: var(--stage); border-color: var(--stage); }
 #generate { --stage: var(--stage-run); }
 #to-learn { --stage: var(--stage-learn); }
 .card > .hint:first-of-type { margin-top: 0; }
 .pane { margin: 0 0 16px; }
 /* The answer Learn opens with: where to run and what to expect there, before the evidence. */
-.answer {
-  margin: 4px 0 16px; padding: 14px 16px; background: var(--panel);
-  border: 1px solid var(--line); border-left: 4px solid var(--stage, var(--accent)); border-radius: 10px;
-}
+.answer { margin: 4px 0 16px; padding: 0 0 14px; border-bottom: 1px solid var(--line); }
 .answer p { margin: 0 0 4px; }
-.answer__run { font-size: 1.15rem; font-weight: 600; }
+.answer__run { font-size: 1.3rem; line-height: 1.3; font-weight: 600; text-wrap: balance; }
 .answer .actions { margin: 6px 0 0; }
 /* The checks under the answer: a row of headings, each with its mark, that open to a sentence and its statistic. */
-.checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 8px; align-items: start; margin: 0 0 16px; }
-.learn-check { padding: 6px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; font-size: 0.95rem; }
-/* A check is tinted by what it found. Its mark, a tick, an exclamation mark or a question mark, still says it. */
-.learn-check[data-state="ok"] {
-  background: color-mix(in srgb, var(--ok) 12%, var(--panel)); border-color: color-mix(in srgb, var(--ok) 40%, var(--line));
-}
-.learn-check[data-state="look"] { background: color-mix(in srgb, var(--warn) 12%, var(--panel)); border-color: var(--warn); }
-.learn-check > summary { cursor: pointer; font-weight: 600; }
-.learn-check > summary::after { margin-left: 8px; font-weight: 700; }
-.learn-check[data-state="ok"] > summary::after { content: "✓"; color: var(--ok); }
-.learn-check[data-state="look"] > summary::after { content: "!"; color: var(--warn); }
-.learn-check[data-state="unknown"] > summary::after { content: "?"; color: var(--muted); }
+.checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 8px 28px; align-items: start; margin: 0 0 16px; }
+.learn-check { margin: 0; font-size: 0.95rem; }
+.learn-check > summary { display: flex; align-items: baseline; gap: 10px; cursor: pointer; font-weight: 600; color: var(--fg); list-style: none; }
+.learn-check > summary::-webkit-details-marker { display: none; }
+/* The point says what the check found by its shape, so its colour is not the only sign. */
+.learn-check > summary::before { content: ""; flex: none; width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; }
+.learn-check[data-state="ok"] > summary::before { background: var(--ok); }
+.learn-check[data-state="look"] > summary::before { background: var(--warn); border-radius: 1px; transform: rotate(45deg); }
+.learn-check[data-state="unknown"] > summary::before { border: 2px solid var(--muted); }
+.learn-check > summary::after { content: "\25B8"; color: var(--muted); }
+.learn-check[open] > summary::after { content: "\25BE"; }
+.learn-check > :not(summary) { margin-left: 20px; }
 .learn-check p { margin: 6px 0 2px; }
 .learn-check .link { padding: 2px 0; }
 
@@ -732,7 +745,7 @@ section { scroll-margin-top: 120px; }
 .workspace:not([data-phase="plan"]) > .question { margin: 0 0 16px; }
 .workspace:not([data-phase="plan"]) > .question > summary {
   display: flex; align-items: baseline; gap: 6px 12px; padding: 8px 14px; cursor: pointer;
-  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner);
 }
 .workspace:not([data-phase="plan"]) > .question[open] > summary { margin: 0 0 12px; }
 .question > summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
@@ -759,7 +772,19 @@ section { scroll-margin-top: 120px; }
 .goal { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 4px 0 8px; padding: 0; border: none; }
 .goal legend { padding: 0; margin-bottom: 4px; font-size: 0.9rem; }
 .goal label, .aim { display: inline-flex; align-items: center; gap: 6px; font-size: 0.95rem; cursor: pointer; }
-.goal input, .aim input, .pick input { width: auto; margin: 0; accent-color: var(--accent); }
+/* A choice is a point: a ring until it is chosen, then filled in the stage's colour, as a run is on a design. */
+input[type="radio"] {
+  appearance: none; flex: none; width: 18px; height: 18px; margin: 0; padding: 0; border: 2px solid var(--muted);
+  border-radius: 50%; background: var(--panel); cursor: pointer;
+}
+input[type="radio"]:checked {
+  background: var(--stage, var(--accent)); border-color: var(--stage, var(--accent));
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--stage, var(--accent)) 24%, transparent);
+}
+input[type="radio"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; }
+@media (forced-colors: active) {
+  input[type="radio"]:checked { forced-color-adjust: none; background: Highlight; border-color: Highlight; box-shadow: none; }
+}
 label.inline { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; margin: 0 0 8px; }
 .with-unit { display: inline-flex; align-items: center; gap: 6px; }
 .with-unit .unit { color: var(--muted); font-size: 0.9rem; }
@@ -771,7 +796,7 @@ label.inline { display: flex; flex-direction: column; gap: 4px; font-size: 0.9re
 .limits summary .badge { margin-left: 4px; }
 .limit {
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px 8px; margin: 8px 0;
-  padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+  padding: 8px 0; border-top: 1px solid var(--line);
 }
 .limit__number { grid-row: 1; font-weight: 700; color: var(--muted); min-width: 1.2em; text-align: right; }
 .limit__text {
@@ -807,7 +832,7 @@ table.corner-table tr.marked td { background: color-mix(in srgb, var(--warn) 14%
 table.corner-table tr.ruled td { color: var(--muted); }
 table.corner-table tr.ruled .corner__mark { cursor: default; }
 .proposals { display: grid; gap: 8px; margin: 8px 0 0; }
-.proposal { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.proposal { padding: 8px 0; border-top: 1px solid var(--line); }
 .proposal p { margin: 4px 0; }
 .proposal .actions { margin: 6px 0 2px; }
 .proposal__text { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 0.95rem; overflow-wrap: anywhere; }
@@ -830,7 +855,7 @@ table.corner-table .col-unit { padding: 0; }
 .region-panels.one { grid-template-columns: minmax(0, 340px); }
 .region__cell { margin: 0; min-width: 0; }
 .region__pick {
-  display: block; width: 100%; padding: 0; border: 1px solid transparent; border-radius: 6px; background: none;
+  display: block; width: 100%; padding: 0; border: 1px solid transparent; border-radius: var(--corner); background: none;
   cursor: zoom-in;
 }
 .region__pick:hover { border-color: var(--line); }
@@ -867,13 +892,16 @@ table.corner-table .col-unit { padding: 0; }
 .held__units { color: var(--muted); }
 
 /* What the study is to learn: one choice, each with what it means. */
-.aims { display: grid; gap: 8px; margin: 6px 0 4px; }
-.aim { align-items: flex-start; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
-.aim input { margin-top: 4px; }
+/* The four aims are levels on one axis, from the fewest terms to the most: a line through their points. */
+.aims { display: grid; gap: 0; margin: 6px 0 4px; }
+.aim { position: relative; align-items: flex-start; gap: 12px; padding: 8px 0; }
+.aim::before { content: ""; position: absolute; left: 8px; top: 0; bottom: 0; width: 2px; background: var(--line); }
+.aim:first-child::before { top: 18px; }
+.aim:last-child::before { bottom: auto; height: 18px; }
+.aim input { position: relative; margin-top: 2px; }
+.aim:has(input:checked) strong { color: var(--stage, var(--accent)); }
 .aim > span { display: grid; gap: 2px; }
 .aim .hint { font-size: 0.85rem; }
-.aim:has(input:checked) { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
-.aim:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* The designs that can learn the aim: a row each, picked with one tap; the one in the plan is marked. */
 .candidates { margin: 8px 0 0; }
@@ -885,7 +913,8 @@ table.pick th[colspan] { text-align: center; }
 table.pick tr + tr th:first-child { text-align: right; }
 table.pick tbody tr { cursor: pointer; }
 table.pick tbody tr:hover td { background: var(--bg); }
-table.pick tbody tr[aria-selected="true"] td { background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
+table.pick tbody tr[aria-selected="true"] td { background: var(--bg); }
+table.pick tbody tr[aria-selected="true"] td:first-child { font-weight: 600; }
 table.pick td:first-child label {
   display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; white-space: nowrap;
 }
@@ -914,7 +943,7 @@ table.trade-off-table { border-collapse: separate; border-spacing: 3px; font-siz
 .trade-off-table th { padding: 2px 6px; font-weight: 600; color: var(--muted); text-align: center; }
 .trade-off-table tbody th { text-align: right; }
 .trade-off-table thead th.here { color: var(--fg); box-shadow: inset 0 -3px 0 var(--accent); }
-.trade-off-table td { min-width: 2.6rem; height: 2rem; padding: 0 4px; border-radius: 4px; text-align: center; color: var(--muted); }
+.trade-off-table td { min-width: 2.6rem; height: 2rem; padding: 0 4px; border-radius: var(--corner); text-align: center; color: var(--muted); }
 .trade-off-table td.here { color: var(--fg); font-weight: 600; }
 .trade-off-table td[data-band="high"] { background: var(--band-high-away); }
 .trade-off-table td[data-band="iv"] { background: var(--band-iv-away); }
@@ -924,7 +953,7 @@ table.trade-off-table { border-collapse: separate; border-spacing: 3px; font-siz
 .trade-off-table td.here[data-band="iii"] { background: var(--band-iii); }
 .trade-off-table td:has(button) { padding: 0; }
 .trade-off-table button {
-  all: unset; box-sizing: border-box; display: block; width: 100%; min-height: 2rem; padding: 4px; border-radius: 4px;
+  all: unset; box-sizing: border-box; display: block; width: 100%; min-height: 2rem; padding: 4px; border-radius: var(--corner);
   cursor: pointer; text-align: center; box-shadow: inset 0 0 0 1px var(--muted);
 }
 .trade-off-table button:hover { box-shadow: inset 0 0 0 2px var(--accent); }
@@ -943,7 +972,7 @@ table.trade-off-table { border-collapse: separate; border-spacing: 3px; font-siz
 dialog.sheet {
   width: min(1200px, 100vw - 32px); max-height: calc(100vh - 48px); max-height: calc(100dvh - 48px); padding: 18px 20px;
   overflow: auto;
-  background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 12px;
+  background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: var(--corner);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
 }
 dialog.sheet::backdrop { background: rgba(0, 0, 0, 0.45); }
@@ -971,7 +1000,7 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, 0.45); }
 .figure__steps .link { font-size: 1.5rem; line-height: 1; padding: 0 8px; }
 dialog.figure .sheet__head h2 { flex: 1 1 8em; min-width: 0; }
 .figure__frame {
-  position: relative; box-sizing: content-box; margin: 0 auto; border: 1px dashed var(--line); border-radius: 6px;
+  position: relative; box-sizing: content-box; margin: 0 auto; border: 1px dashed var(--line); border-radius: var(--corner);
 }
 .figure__frame .plot { width: 100%; height: 100%; min-height: 0; }
 .figure__grip {
@@ -994,20 +1023,20 @@ dialog.feedback { width: min(640px, 100vw - 32px); }
 .feedback__field { display: flex; flex-direction: column; gap: 4px; margin: 12px 0 0; font-size: 0.9rem; }
 .feedback__field input { width: 100%; }
 .feedback textarea {
-  width: 100%; min-height: 8em; resize: vertical; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px;
+  width: 100%; min-height: 8em; resize: vertical; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--corner);
   background: var(--bg); color: inherit; font: inherit;
 }
 .feedback .hint { margin: 4px 0 0; }
 /* The screenshot as it will go, whole and small: a long page is a narrow strip. */
 .feedback__shot {
   display: block; width: auto; height: auto; max-width: 100%; max-height: 160px; margin: 8px 0 0;
-  border: 1px solid var(--line); border-radius: 6px;
+  border: 1px solid var(--line); border-radius: var(--corner);
 }
 .feedback__extras .check { margin: 12px 0 0; }
 .feedback__sent ul, .feedback__ways { margin: 6px 0; padding-left: 1.2em; font-size: 0.88rem; overflow-wrap: anywhere; }
 .feedback__ways li { margin: 6px 0; }
 /* The other ways to send a report, when it does not go from here: set apart as the page sets apart a stale plan. */
-.feedback__fallback { margin: 10px 0 0; padding: 2px 0 2px 10px; border-left: 3px solid var(--warn); }
+.feedback__fallback { margin: 10px 0 0; }
 .feedback__fallback p { margin: 4px 0; }
 .feedback__ways .link { padding: 0; font: inherit; text-decoration: underline; }
 
@@ -1041,7 +1070,7 @@ table.runs input.sim { font-style: italic; color: var(--muted); }
 
 /* The charts: one wide card for the coefficients, then two to a row where there is room. */
 .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin: 16px 0 0; }
-.chart { margin: 0; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px 12px; }
+.chart { margin: 0; min-width: 0; border: 1px solid var(--line); border-radius: var(--corner); padding: 10px 12px 12px; }
 .chart.wide { grid-column: 1 / -1; }
 .chart h3 { margin: 0 0 6px; font-size: 0.98rem; }
 /* A card's title, with the views it can show at the right: the coefficients' estimates, or the book's Pareto plot. */
@@ -1049,7 +1078,7 @@ table.runs input.sim { font-style: italic; color: var(--muted); }
 /* The title takes the left, and what follows it the right: the views, and the button that opens the figure's own window. */
 .chart__head h3, .chart__head h4 { margin: 0; flex: 1 1 8em; min-width: 0; }
 .chart__head .expand { margin-left: auto; font-size: 0.85rem; }
-.views { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.views { display: inline-flex; border: 1px solid var(--line); border-radius: var(--corner); overflow: hidden; }
 .views button { border: none; border-radius: 0; padding: 4px 10px; font-size: 0.85rem; background: var(--bg); color: var(--muted); }
 .views button + button { border-left: 1px solid var(--line); }
 .views button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
@@ -1100,18 +1129,18 @@ table.compare tr.group span { position: sticky; left: 10px; display: inline-bloc
 /* The curve predicted at the what-if settings, and the box a target curve is pasted into. */
 #what-if-curve-plot { min-height: 340px; }
 #curve-target textarea {
-  width: 100%; resize: vertical; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px;
+  width: 100%; resize: vertical; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--corner);
   background: var(--bg); color: inherit; font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
 }
 /* The box each run's curve is pasted into (Run), the points in a typewriter face so the columns line up. */
 details.curves .block { display: flex; flex-direction: column; gap: 4px; margin: 10px 0 0; }
 details.curves textarea {
-  width: 100%; resize: vertical; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px;
+  width: 100%; resize: vertical; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--corner);
   background: var(--bg); color: inherit; font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
 }
 details.python { margin: 16px 0 0; border-top: 1px solid var(--line); padding-top: 8px; }
 details.python pre {
-  overflow-x: auto; margin: 8px 0; padding: 10px 12px; border-radius: 6px; font-size: 0.85rem;
+  overflow-x: auto; margin: 8px 0; padding: 10px 12px; border-radius: var(--corner); font-size: 0.85rem;
   background: var(--bg); border: 1px solid var(--line);
 }
 details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; }
@@ -1119,12 +1148,12 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 /* The best settings for the response's goal: the prediction first, then the settings, how well the model knows the
    response there, how tightly to hold each factor, and the confirmation runs that test it. */
 /* A card, as every section is, so its text keeps clear of the card's edge. */
-.printed { margin: 24px 0 0; padding: 14px 16px 16px; border-top: 2px solid var(--ok); }
+.printed { margin: 24px 0 0; padding: 14px 16px 16px; border-top: 1px solid var(--line); }
 .printed h3 { margin: 0 0 6px; font-size: 1.05rem; }
 .printed .lead { margin: 4px 0 8px; font-size: 1rem; font-weight: 600; }
 .printed table.data td:nth-child(3), .printed table.data td:nth-child(4) { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .printed .printed-model { margin: 8px 0 0; }
-.best { margin: 24px 0 0; padding: 14px 16px 16px; border-top: 2px solid var(--stage, var(--accent)); }
+.best { margin: 24px 0 0; padding: 14px 16px 16px; border-top: 1px solid var(--line); }
 .best h3 { margin: 0 0 6px; font-size: 1.05rem; }
 .best h4 { margin: 0 0 6px; font-size: 0.95rem; }
 .best .lead { margin: 4px 0 8px; font-size: 1rem; font-weight: 600; }
@@ -1135,14 +1164,20 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 .best table.data.known-table td { white-space: normal; }
 .best .chart { margin: 12px 0 0; }
 .confirm { margin: 16px 0 0; }
-.verdict { margin: 8px 0; padding: 4px 0 4px 10px; border-left: 3px solid var(--line); font-size: 0.95rem; }
+/* What a confirmation run found, an offer of more runs and a setting kept are each marked by a point: a ring, or a
+   point filled when a verdict is in, round inside the interval and square outside it. */
+.verdict, .next .offer, .what-if-kept > li { position: relative; margin: 8px 0; padding: 0 0 0 1.5em; }
+.verdict::before, .next .offer::before, .what-if-kept > li::before {
+  content: ""; position: absolute; left: 0.2em; top: 0.45em; width: 0.6em; height: 0.6em; box-sizing: border-box;
+  border: 2px solid var(--muted); border-radius: 50%;
+}
+.verdict { font-size: 0.95rem; }
 .verdict p { margin: 2px 0; }
-.verdict[data-state="inside"] { border-left-color: var(--ok); }
-.verdict[data-state="outside"] { border-left-color: var(--error); }
+.verdict[data-state="inside"]::before { background: var(--ok); border-color: var(--ok); }
+.verdict[data-state="outside"]::before { background: var(--error); border-color: var(--error); border-radius: 0; }
 /* The next step: a new study with moved ranges, and the ways to add runs to this one, each a short case and a button. */
 /* Not .step, which is the numbered badge of Design, Run and Learn. */
 .next__part { margin: 14px 0 0; }
-.next .offer { margin: 8px 0; padding: 4px 0 4px 10px; border-left: 3px solid var(--line); }
 .next .offer p { margin: 2px 0 6px; font-size: 0.95rem; }
 
 /* What if: a row per factor, its name, a slider and a number box over its range (a list of its levels for a categorical
@@ -1162,7 +1197,6 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 /* The settings kept with the study: their name and settings, each response there, and what to do with them. */
 .what-if-keep input[type="text"] { flex: 1 1 12rem; min-width: 0; }
 .what-if-kept { margin: 0; padding: 0; list-style: none; }
-.what-if-kept > li { margin: 8px 0; padding: 4px 0 4px 10px; border-left: 3px solid var(--line); }
 .what-if-kept > li > p { margin: 2px 0 6px; overflow-wrap: anywhere; }
 @media (max-width: 600px) {
   .what-if-settings { grid-template-columns: minmax(0, 1fr) 6em; }
@@ -1189,7 +1223,7 @@ table.balance-table tfoot th { text-align: left; }
   table.balance-goals thead { display: none; }
   table.balance-goals tr {
     display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 10px; margin: 0 0 10px;
-    padding: 8px 10px 10px; border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 10px 10px; border: 1px solid var(--line); border-radius: var(--corner);
   }
   table.balance-goals th, table.balance-goals td { display: block; padding: 0; border: none; white-space: normal; min-width: 0; }
   table.balance-goals th[scope="row"] { font-weight: 700; }
@@ -1242,17 +1276,17 @@ main.about { max-width: 780px; }
 .about h1 { margin: 8px 0 12px; font-size: 2rem; }
 .about h2 { margin: 0 0 8px; }
 .about li { margin: 6px 0; }
-.about pre { overflow-x: auto; padding: 10px 12px; border-radius: 6px; font-size: 0.86rem; background: var(--panel);
+.about pre { overflow-x: auto; padding: 10px 12px; border-radius: var(--corner); font-size: 0.86rem; background: var(--panel);
   border: 1px solid var(--line); }
 .about code { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 0.9em; }
 .about__back { margin: 0; }
 .about__back a { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; font-weight: 600; }
 /* What only some readers ask, under an answer in plain words (about.html): a fold that says what it holds. */
-details.fold { margin: 10px 0 0; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
-details.fold > summary { padding: 10px 14px; border-radius: 10px; font-size: 0.95rem; font-weight: 600; color: var(--accent);
+details.fold { margin: 10px 0 0; border: 1px solid var(--line); border-radius: var(--corner); background: var(--panel); }
+details.fold > summary { padding: 10px 14px; border-radius: var(--corner); font-size: 0.95rem; font-weight: 600; color: var(--accent);
   cursor: pointer; }
 details.fold > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-details.fold[open] > summary { border-bottom: 1px solid var(--line); border-radius: 10px 10px 0 0; }
+details.fold[open] > summary { border-bottom: 1px solid var(--line); border-radius: var(--corner) var(--corner) 0 0; }
 details.fold > :not(summary) { margin-left: 14px; margin-right: 14px; }
 details.fold > ul { padding-left: 20px; }
 details.fold > :last-child { margin-bottom: 12px; }
@@ -1262,7 +1296,7 @@ details.fold > :last-child { margin-bottom: 12px; }
 .feat-tools { display: grid; gap: 8px; margin: 16px 0 4px; }
 .feat-tools .hint { margin: 0; }
 .feat-tools[hidden] { display: none; }
-.feat-find input { width: 100%; padding: 10px 12px; font: inherit; border: 1px solid var(--line); border-radius: 8px;
+.feat-find input { width: 100%; padding: 10px 12px; font: inherit; border: 1px solid var(--line); border-radius: var(--corner);
   background: var(--panel); color: var(--fg); }
 /* The switch that opens every point's details: a row a finger can press. */
 .feat-details { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; width: fit-content; cursor: pointer; }
@@ -1271,11 +1305,11 @@ details.fold > :last-child { margin-bottom: 12px; }
   text-transform: uppercase; color: var(--accent); }
 .feat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 8px 0; padding: 0;
   list-style: none; }
-.about .feat-cards li { margin: 0; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel);
+.about .feat-cards li { margin: 0; padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--corner); background: var(--panel);
   font-size: 0.85rem; line-height: 1.4; color: var(--muted); }
 .feat-cards strong { display: block; margin-bottom: 2px; font-size: 1rem; color: var(--fg); }
-.feat-part { margin: 6px 0; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
-.feat-part > summary { position: relative; padding: 11px 40px 11px 14px; border-radius: 10px; list-style: none; cursor: pointer; }
+.feat-part { margin: 6px 0; border: 1px solid var(--line); border-radius: var(--corner); background: var(--panel); }
+.feat-part > summary { position: relative; padding: 11px 40px 11px 14px; border-radius: var(--corner); list-style: none; cursor: pointer; }
 .feat-part > summary::-webkit-details-marker { display: none; }
 .feat-part > summary::after { content: ""; position: absolute; right: 16px; top: 50%; width: 8px; height: 8px;
   border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: translateY(-70%) rotate(45deg); }
@@ -1292,7 +1326,7 @@ details.fold > :last-child { margin-bottom: 12px; }
 .feat-body ul.feat-pictures { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 10px;
   margin: 8px 0; padding: 0; list-style: none; font-size: 0.9rem; line-height: 1.4; }
 .feat-body ul.feat-pictures[hidden] { display: none; }
-.feat-pictures > li { margin: 0; padding: 8px 10px 9px; border: 1px solid var(--line); border-radius: 10px; }
+.feat-pictures > li { margin: 0; padding: 8px 10px 9px; border: 1px solid var(--line); border-radius: var(--corner); }
 .feat-pictures img { display: block; width: 100%; height: auto; margin-bottom: 6px; }
 :root[data-theme="dark"] .feat-pictures img { filter: invert(1) hue-rotate(180deg); }
 @media (prefers-color-scheme: dark) {
@@ -1320,14 +1354,14 @@ table.stack th, table.stack td { text-align: left; vertical-align: top; padding:
 table.stack th { width: 34%; font-weight: 600; }
 .flow { margin: 12px 0 16px; display: grid; gap: 6px; }
 .flow__sources { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.flow__box { display: grid; gap: 2px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+.flow__box { display: grid; gap: 2px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--corner);
   background: var(--panel); font-size: 0.88rem; }
 .flow__box span { color: var(--muted); }
 .flow__arrow { margin: 0; text-align: center; color: var(--muted); font-size: 0.82rem; }
 .flow__arrow::before { content: "\2193\00a0"; }
 .flow__arrow--side::before { content: "\2190\00a0"; }
 .flow__arrow--side::after { content: "\00a0\2192"; }
-.flow__tab { display: grid; gap: 8px; padding: 10px; border: 2px solid var(--accent); border-radius: 10px; }
+.flow__tab { display: grid; gap: 8px; padding: 10px; border: 2px solid var(--accent); border-radius: var(--corner); }
 .flow__label { margin: 0; font-weight: 700; color: var(--accent); font-size: 0.9rem; }
 .flow__inside { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; }
 .flow__box--store { border-style: dashed; }
@@ -1347,13 +1381,13 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
 .catalog__query input { width: 100%; font-size: 1.05rem; padding: 9px 12px; }
 .catalog__count { margin: 0; flex-basis: 100%; color: var(--muted); font-size: 0.92rem; }
 .catalog__examples { margin: 0 0 12px; }
-.segmented { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.segmented { display: inline-flex; border: 1px solid var(--line); border-radius: var(--corner); overflow: hidden; }
 .segmented button { border: none; border-radius: 0; padding: 7px 14px; background: var(--bg); }
 .segmented button + button { border-left: 1px solid var(--line); }
 .segmented [aria-checked="true"] { background: var(--accent); color: var(--accent-fg); }
 .catalog__body { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 20px; align-items: start; }
 @media (max-width: 900px) { .catalog__body { grid-template-columns: minmax(0, 1fr); } }
-.facets { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+.facets { background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner); padding: 10px 14px; }
 .facets > summary { cursor: pointer; font-weight: 600; }
 @media (min-width: 901px) {
   .facets { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; }
@@ -1380,7 +1414,7 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
 .facets__added { display: block; font-size: 0.9rem; }
 .facets #reset { width: 100%; margin-top: 12px; }
 .catalog__map {
-  margin: 0 0 12px; padding: 8px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  margin: 0 0 12px; padding: 8px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner);
 }
 .catalog__map figcaption { margin: 4px 4px 0; }
 /* The map of the designs by their factors and runs (drawSizeMap, catalog-views.js), with its key above it. */
@@ -1434,7 +1468,7 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
 .results { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .result {
   display: grid; grid-template-columns: 132px minmax(0, 1fr) auto; gap: 14px; align-items: center;
-  padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner);
 }
 @media (max-width: 640px) {
   .result { grid-template-columns: 96px minmax(0, 1fr); gap: 10px; }
@@ -1453,7 +1487,7 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
 dialog.detail { width: min(980px, 100vw - 32px); }
 /* A design's detail opens on the same three cells for every design: the design, where it comes from, and its use. */
 .detail__head { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 14px 0 10px; }
-.detail__cell { min-width: 0; margin: 0; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; }
+.detail__cell { min-width: 0; margin: 0; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--corner); }
 .detail__cell h3 {
   margin: 0 0 6px; color: var(--muted); font-size: 0.78rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
 }
@@ -1472,7 +1506,7 @@ table.runs-table td.setting { background: color-mix(in srgb, var(--tint, transpa
 table.runs-table td.lev { white-space: nowrap; }
 .lev__track {
   display: inline-block; width: 56px; height: 8px; margin-right: 6px; vertical-align: middle; overflow: hidden;
-  border-radius: 4px; background: color-mix(in srgb, var(--muted) 25%, transparent);
+  border-radius: var(--corner); background: color-mix(in srgb, var(--muted) 25%, transparent);
 }
 .lev__bar { display: block; height: 100%; background: var(--accent); }
 .lev--one .lev__bar { background: #D55E00; }
@@ -1480,7 +1514,7 @@ table.runs-table td.lev { white-space: nowrap; }
 table.factors-table th, table.factors-table td { text-align: left; }
 table.factors-table td:nth-child(2) { white-space: nowrap; }
 .detail__code {
-  overflow-x: auto; padding: 10px 12px; border-radius: 6px; font-size: 0.86rem; background: var(--bg);
+  overflow-x: auto; padding: 10px 12px; border-radius: var(--corner); font-size: 0.86rem; background: var(--bg);
   border: 1px solid var(--line);
 }
 .detail__rights { font-size: 0.8rem; }
@@ -1493,7 +1527,7 @@ table.factors-table td:nth-child(2) { white-space: nowrap; }
 .catalog__views { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: -6px 0 12px; font-size: 0.92rem; }
 .catalog__views .link { padding: 0; text-align: left; }
 .catalog__timeline {
-  margin: 0 0 12px; padding: 8px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  margin: 0 0 12px; padding: 8px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner);
 }
 .catalog__timeline figcaption { margin: 4px 4px 0; }
 .timeline { display: block; width: 100%; height: auto; touch-action: pan-y; user-select: none; }
@@ -1510,7 +1544,7 @@ table.factors-table td:nth-child(2) { white-space: nowrap; }
 .tray {
   position: fixed; z-index: 20; left: 50%; bottom: 12px; transform: translateX(-50%); width: min(820px, 100vw - 32px);
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 14px; background: var(--panel);
-  border: 1px solid var(--accent); border-radius: 10px; box-shadow: 0 6px 24px rgb(0 0 0 / 0.18);
+  border: 1px solid var(--accent); border-radius: var(--corner); box-shadow: 0 6px 24px rgb(0 0 0 / 0.18);
 }
 .tray[hidden] { display: none; }
 .tray__text { margin: 0; flex-basis: 100%; color: var(--muted); font-size: 0.9rem; }
@@ -1572,7 +1606,7 @@ main.reproduced h1 { margin: 8px 0; font-size: 2rem; }
 .stat__link:hover .stat__label, .stat__link:focus-visible .stat__label { color: var(--accent); text-decoration: underline; }
 .stat {
   display: grid; align-content: start; gap: 2px; padding: 14px 16px; background: var(--panel);
-  border: 1px solid var(--line); border-radius: 10px;
+  border: 1px solid var(--line); border-radius: var(--corner);
 }
 .stat__value {
   font: 700 2rem/1.1 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "DejaVu Serif", serif;
@@ -1649,13 +1683,13 @@ main.reproduced h1 { margin: 8px 0; font-size: 2rem; }
 .causes__table .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .causes__table .share { display: block; color: var(--muted); font-size: 0.82rem; }
 .causes__barcell { width: 26%; min-width: 70px; padding-top: 12px; }
-.causes__bar { display: block; height: 8px; border-radius: 4px; background: var(--line); }
-.causes__bar span { display: block; height: 100%; border-radius: 4px; background: var(--muted); }
+.causes__bar { display: block; height: 8px; border-radius: var(--corner); background: var(--line); }
+.causes__bar span { display: block; height: 100%; border-radius: var(--corner); background: var(--muted); }
 .causes__bar [data-cause="source_error"], .causes__bar [data-cause="incorrect_option"] { background: var(--tier-reproduced); }
 .causes__bar [data-cause="library_gap"] { background: var(--accent); }
 @media (max-width: 640px) { .causes__barcell { display: none; } }
 .missing { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.missing__item { margin: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.missing__item { margin: 0; border: 1px solid var(--line); border-radius: var(--corner); background: var(--bg); }
 .missing__item > summary { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; padding: 8px 12px; color: var(--fg); }
 .missing__reason { flex: 1 1 24em; min-width: 0; overflow-wrap: anywhere; }
 .missing__cases { margin: 0; padding: 4px 12px 10px 30px; font-size: 0.9rem; }
@@ -1677,7 +1711,7 @@ main.reproduced h1 { margin: 8px 0; font-size: 2rem; }
 .reproduced__filters select { max-width: 16em; }
 .reproduced__try { margin: 0 0 4px; }
 .reproduced__try .link { padding: 2px 4px; }
-.tierlist { margin: 10px 0; border: 1px solid var(--line); border-left: 4px solid var(--tier); border-radius: 8px; background: var(--bg); }
+.tierlist { margin: 10px 0; border: 1px solid var(--line); border-left: 4px solid var(--tier); border-radius: var(--corner); background: var(--bg); }
 .tierlist > summary {
   display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 10px 12px; color: var(--fg);
   scroll-margin-top: 12px;
@@ -1687,7 +1721,7 @@ main.reproduced h1 { margin: 8px 0; font-size: 2rem; }
 .tierlist__body { padding: 0 12px 12px; }
 .group h3 { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; font-size: 1rem; }
 .cases { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.case { margin: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.case { margin: 0; border: 1px solid var(--line); border-radius: var(--corner); background: var(--panel); }
 .case > summary { display: grid; gap: 2px; padding: 8px 12px; color: var(--fg); scroll-margin: 80px; }
 .case[open] > summary { border-bottom: 1px solid var(--line); }
 .case__title { font-weight: 600; }
@@ -1697,7 +1731,7 @@ main.reproduced h1 { margin: 8px 0; font-size: 2rem; }
 .case__actions { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 0; font-size: 0.9rem; }
 .case__actions .link { padding: 0; }
 .numbers { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.number { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
+.number { padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--corner); background: var(--bg); }
 .number__head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 10px; }
 .number__what { font-weight: 600; font-size: 0.92rem; overflow-wrap: anywhere; }
 .number__tags { display: inline-flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
@@ -1730,7 +1764,7 @@ main.field-page section { background: none; border: 0; border-radius: 0; padding
 .field-chart { margin: 16px 0 8px; }
 .field-chart__svg {
   display: block; width: 100%; max-width: 560px; height: auto; background: var(--panel);
-  border: 1px solid var(--line); border-radius: 10px;
+  border: 1px solid var(--line); border-radius: var(--corner);
 }
 .field-chart__line { stroke: var(--line); stroke-width: 1; }
 .field-chart__tick, .field-chart__axis { fill: var(--muted); font-size: 11px; }
@@ -1766,7 +1800,7 @@ main.field-page section { background: none; border: 0; border-radius: 0; padding
 .field-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .field-list a {
   display: flex; flex-direction: column; gap: 2px; min-height: 44px; padding: 10px 14px; text-decoration: none;
-  color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner);
 }
 .field-list a:hover { border-color: var(--accent); }
 .field-list__title { font-weight: 600; }
@@ -1783,7 +1817,7 @@ main.field-page section { background: none; border: 0; border-radius: 0; padding
 }
 
 /* Experiments like yours (index.html): the reader's field beside the plan, on the field chart. */
-.like-yours { margin: 20px 0 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.like-yours { margin: 20px 0 0; padding: 16px; border: 1px solid var(--line); border-radius: var(--corner); background: var(--panel); }
 .like-yours h3 { margin: 0 0 10px; }
 .like-yours__field { display: flex; flex-direction: column; gap: 4px; max-width: 420px; }
 .like-yours__field select { min-height: 44px; }
@@ -1797,7 +1831,7 @@ main.field-page section { background: none; border: 0; border-radius: 0; padding
 .tierbar__key { display: inline-block; flex: none; width: 12px; height: 12px; border-radius: 3px; background: var(--tier); }
 .book-page__jump {
   display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); margin: 16px 0 8px;
-  border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+  border: 1px solid var(--line); border-radius: var(--corner); overflow: hidden;
 }
 .book-page__jump a {
   display: flex; align-items: center; justify-content: center; min-height: 44px; font-weight: 600;
@@ -1812,13 +1846,13 @@ main.field-page section { background: none; border: 0; border-radius: 0; padding
 .book-example { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .book-status { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 0.86rem; font-weight: 600; }
 .book-status::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--tier); }
-.book-group { margin: 0 0 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.book-group { margin: 0 0 8px; border: 1px solid var(--line); border-radius: var(--corner); background: var(--panel); }
 .book-group summary { min-height: 44px; display: flex; align-items: center; padding: 0 14px; cursor: pointer; font-weight: 600; }
 .book-group .field-list { padding: 0 8px 8px; }
 .misprints { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .misprint, .card-list li {
   display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; background: var(--panel);
-  border: 1px solid var(--line); border-radius: 10px;
+  border: 1px solid var(--line); border-radius: var(--corner);
 }
 .misprint p { margin: 0; }
 .misprint__head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-weight: 600; }
@@ -1829,7 +1863,7 @@ main.field-page section { background: none; border: 0; border-radius: 0; padding
 /* The top of the reproduction page: one example in words, why answers differ, the books; the tables behind "Show the numbers". */
 .trust-example {
   display: flex; flex-direction: column; gap: 6px; max-width: 820px; margin: 16px 0 0; padding: 14px 16px;
-  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner);
 }
 .trust-example p { margin: 0; }
 .trust-example__what { font-weight: 700; font-size: 1.1rem; }
@@ -1842,7 +1876,7 @@ main.reproduced .trust-section { background: none; border: 0; border-radius: 0; 
 .trust-numbers { margin: 28px 0 0; }
 .trust-numbers > summary {
   display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; cursor: pointer; font-weight: 600;
-  color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner);
 }
 .trust-numbers[open] > summary { margin-bottom: 8px; }
 @media (min-width: 900px) {
@@ -1859,7 +1893,7 @@ main.reproduced .trust-section { background: none; border: 0; border-radius: 0; 
 .catalog__doors { display: grid; gap: 8px; max-width: 820px; margin: 16px 0 0; }
 .door {
   display: flex; flex-direction: column; gap: 2px; min-height: 44px; padding: 14px 16px; text-decoration: none;
-  color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner);
 }
 .door:hover { border-color: var(--accent); }
 .door__title { font-weight: 700; font-size: 1.1rem; color: var(--accent); }
@@ -1932,26 +1966,26 @@ main.map .lede { margin: 0; }
 .map-search label { display: block; color: var(--muted); font-size: 0.9rem; margin-bottom: 4px; }
 .map-search input { width: 100%; box-sizing: border-box; font-size: 1rem; }
 .map-results { position: absolute; z-index: 5; left: 0; right: 0; top: calc(100% + 4px); background: var(--panel);
-  border: 1px solid var(--line); border-radius: 8px; max-height: 300px; overflow-y: auto; box-shadow: 0 6px 20px rgb(0 0 0 / 0.14); }
+  border: 1px solid var(--line); border-radius: var(--corner); max-height: 300px; overflow-y: auto; box-shadow: 0 6px 20px rgb(0 0 0 / 0.14); }
 .map-results button { display: flex; justify-content: space-between; gap: 12px; width: 100%; text-align: left; border: 0;
   border-radius: 0; background: none; color: var(--fg); font: inherit; padding: 9px 12px; min-height: 0; cursor: pointer; }
 .map-results button:hover, .map-results button:focus-visible { background: var(--bg); outline: none; }
 .map-results small { color: var(--muted); white-space: nowrap; }
 /* The margin is where the map stops under the window's top, for a reader who arrives at a term by its address. */
-.map-box { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; scroll-margin-top: 8px;
+.map-box { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner); scroll-margin-top: 8px;
   height: clamp(340px, 62vh, 640px); max-width: 100%; overflow: hidden; }
 #cy { position: absolute; inset: 0; -webkit-touch-callout: none; user-select: none; }   /* a held term, not a text callout */
 /* Said over the map for a moment when one finger drags across it on a touch screen: that finger scrolls the page. */
 .map-hint {
   position: absolute; inset: auto 0 45% 0; margin: 0 auto; width: max-content; max-width: 90%; padding: 8px 14px;
-  border-radius: 8px; background: rgba(0, 0, 0, 0.72); color: #fff; font-size: 0.95rem; pointer-events: none;
+  border-radius: var(--corner); background: rgba(0, 0, 0, 0.72); color: #fff; font-size: 0.95rem; pointer-events: none;
   opacity: 0; transition: opacity 0.2s;
 }
 .map-hint.on { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .map-hint { transition: none; } }
 .map-bar { display: flex; gap: 8px; align-items: stretch; margin-top: -6px; }
 .map-strip { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; background: var(--panel);
-  border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px 6px 10px; font-size: 0.88rem; }
+  border: 1px solid var(--line); border-radius: var(--corner); padding: 6px 8px 6px 10px; font-size: 0.88rem; }
 /* The strip's own span, not the spans KaTeX draws a formula with inside it. */
 .map-strip > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
 .map-strip b { color: var(--fg); }
@@ -1962,7 +1996,7 @@ main.map .lede { margin: 0; }
 .map-controls button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; }
 .map-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: -6px; font-size: 0.85rem; color: var(--muted); }
 .map-legend button { display: inline-flex; align-items: center; gap: 6px; background: none; border: 1px solid transparent;
-  color: var(--fg); font: inherit; padding: 5px 8px; min-height: 0; border-radius: 6px; cursor: pointer; }
+  color: var(--fg); font: inherit; padding: 5px 8px; min-height: 0; border-radius: var(--corner); cursor: pointer; }
 .map-legend button:hover { border-color: var(--line); }
 .map-legend button[aria-pressed="false"] { color: var(--muted); opacity: 0.55; text-decoration: line-through; }
 .map-legend svg { width: 22px; height: 22px; flex: none; }
@@ -2082,10 +2116,10 @@ main.map section.map-how { margin: 6px 0 0; display: grid; gap: 10px; }
 }
 
 /* The part of the page a link asked to be shown (?show=): outlined for a moment, so the reader sees where they are. */
-.shown-part { outline: 3px solid var(--accent); outline-offset: 4px; border-radius: 8px; }
+.shown-part { outline: 3px solid var(--accent); outline-offset: 4px; border-radius: var(--corner); }
 
 /* A way past the header for a reader on a keyboard: on the page only while it has the focus. */
-.skip-link { position: absolute; left: 8px; top: -60px; z-index: 20; padding: 10px 14px; border-radius: 6px; background: var(--accent); color: var(--accent-fg); }
+.skip-link { position: absolute; left: 8px; top: -60px; z-index: 20; padding: 10px 14px; border-radius: var(--corner); background: var(--accent); color: var(--accent-fg); }
 .skip-link:focus { top: 8px; }
 
 /* The dialog that makes a study of the reader's own table (import.js). */
@@ -2114,4 +2148,4 @@ dialog.import { width: min(860px, 100vw - 32px); }
 .stop { flex: none; margin: 0; padding: 2px 12px; font-size: 0.86rem; }
 
 /* The runs set aside from the fit on show, said above the analysis. */
-.aside-runs { margin: 0 0 12px; padding: 8px 12px; border-left: 4px solid var(--warn); background: var(--panel); border-radius: 0 6px 6px 0; }
+.aside-runs { margin: 0 0 12px; }
