@@ -208,8 +208,8 @@ h2 { display: flex; align-items: center; gap: 10px; font-size: 1.3rem; margin: 0
 h3 { font-size: 1.05rem; margin: 20px 0 8px; }
 a { color: var(--accent); }
 .lede { color: var(--muted); margin: 0 0 12px; }
-/* The ways in, under the bar and the room its status line comes and goes in. */
-.ways { margin: var(--line-room) 0 0; }
+/* The ways in, under the bar. */
+.ways { margin: 0; }
 .step {
   display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
   background: var(--accent); color: var(--accent-fg); font-size: 0.95rem;
@@ -569,7 +569,7 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
    reach while the page scrolls, with the status line under them. It opens the page, so it takes back the room main
    leaves above. The bar and its rule span the window; a border image drawn outside the box does not widen the page. */
 .studybar {
-  position: sticky; top: 0; z-index: 3; margin: -24px -16px 0; padding: 4px 16px 3px; background: var(--bg);
+  position: sticky; top: 0; z-index: 3; margin: -24px -16px var(--line-room); padding: 4px 16px 3px; background: var(--bg);
   border-bottom: 1px solid var(--line);
   border-image: linear-gradient(to top, var(--line) 1px, var(--bg) 1px) fill 0 / 0 / 0 100vmax;
 }
@@ -605,6 +605,10 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
   padding-top: 6px;
 }
 .studybar .status { flex: 1 1 0; min-width: 0; margin: 0; padding: 2px 12px; font-size: 0.86rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); }
+/* An error stays until something else is said, and may take several rows. It has room of its own in the bar, which
+   gives back most of the room under it, so the error lies on nothing. */
+.studybar:has(.status[data-state="error"]:not([hidden])) { margin-bottom: 12px; }
+.studybar:has(.status[data-state="error"]:not([hidden])) .studybar__under { position: static; padding: 4px 0 2px; }
 section { scroll-margin-top: 120px; }
 /* Narrower than a tablet the bar is two rows: the mark, the study's name and the two buttons, over the phases. The
    name "Factorial" is then read out and not drawn, so the study's name has the row. */

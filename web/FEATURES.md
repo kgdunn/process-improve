@@ -521,7 +521,7 @@ Also:
   Learn, each marked with how far it has got. It stays in view as the page scrolls.
   - *Details:* The bar is one row on a desk, about 50 px tall, and two on a phone. A line
     under it says what the app is doing. That line is no part of the bar, so neither the bar
-    nor the page moves when it comes and goes.
+    nor the page moves when it comes and goes. An error stays, in room of its own.
 - **Three ways in.** Start a new study, explore a worked example, or browse the design
   catalog. A fourth button analyses data you have.
 - **Nothing is held back.** Every design, chart and option is on the page for every reader.

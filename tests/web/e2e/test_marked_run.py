@@ -210,6 +210,8 @@ def test_a_new_design_lets_go_of_the_run_marked_in_the_one_before(page):
     page.wait_for_function("document.querySelectorAll('#design-table tr.run-marked').length === 1")
     generate(page, design_type="full_factorial")
     settled(page)
+    page.mouse.move(2, 2)  # off the new run sheet, which is drawn where the press that made it was
+    page.wait_for_timeout(300)
     assert page.locator("tr.run-marked").count() == 0
     assert set(marks(page).values()) == {None}
 
