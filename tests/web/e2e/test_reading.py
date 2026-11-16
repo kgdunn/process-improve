@@ -40,7 +40,9 @@ PROSE = r"""
 #: little more; on a phone the comparison says that its table scrolls sideways. The footer's one sentence,
 #: on what Factorial is and that nothing runs on a server, is on every screen; its links are lists, not text.
 BUDGET = {
-    "a first visit": 76,  # with the footer's sentence
+    # The welcome has the first screen: what Factorial does in a sentence, a study's four steps in a line each and
+    # three promises, some 90 words. It goes once the reader starts, so no other screen here has them.
+    "a first visit": 150,  # with the footer's sentence
     "the designs for a brief": 139,  # with the sentence on why Design picked the design it holds
     "a brief with a limit": 224,
     "a limit proposed from a corner": 254,
