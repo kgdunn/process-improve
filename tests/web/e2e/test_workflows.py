@@ -260,8 +260,11 @@ def test_a_first_visit_has_every_design_and_every_part_of_the_page(blank_page):
     reveal(page, "#analysis")
     for part in ["#simplify", "#diagnostics"]:
         assert page.locator(part).is_visible(), f"{part} is on the page for every reader"
-    for part in ["#target", "#window"]:  # shown once the charts and the what-if panel are in
-        page.wait_for_selector(f"{part}:not([hidden])")
+    # Offered once the charts and the what-if panel are in: each a goal of "Where to run", one on show at a time.
+    for part in ["#target", "#window"]:
+        page.wait_for_selector(f"{part}:not([hidden])", state="attached")
+        reveal(page, part)
+        assert page.locator(part).is_visible(), f"{part} is on the page for every reader"
     shown = more_charts(page)
     assert {"cube", "prediction_variance"} <= set(shown), "the charts a level kept back are under More charts"
     assert page.text_content("#more-charts > summary") == f"More charts ({len(shown)})"

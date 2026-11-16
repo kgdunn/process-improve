@@ -42,8 +42,16 @@ def reveal(page: Any, selector: str) -> None:  # noqa: ANN401 - a Playwright Pag
     if pane and page.get_attribute("#workspace", "data-phase") != pane:
         page.click(f"#go-{pane}")
     goal = page.evaluate("(s) => document.querySelector(s)?.closest('[data-goal]')?.dataset.goal ?? null", selector)
-    if goal and page.is_hidden(f"#goal-panel-{goal}") and page.is_visible(f"#goal-{goal}"):
-        page.click(f"#goal-{goal}")
+    if not goal:
+        return
+    # The goal is offered once the study has what it needs, which an analysis on its way may still be bringing: its
+    # tab is waited for a while. A goal the study never offers is left as it is, for the test to say so.
+    panel, tab = f"#goal-panel-{goal}", f"#goal-{goal}"
+    deadline = time.monotonic() + 10
+    while page.is_hidden(panel) and not page.is_visible(tab) and time.monotonic() < deadline:
+        page.wait_for_timeout(50)
+    if page.is_hidden(panel) and page.is_visible(tab):
+        page.click(tab)
 
 
 def open_question(page: Any) -> None:  # noqa: ANN401 - a Playwright Page
