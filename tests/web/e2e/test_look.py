@@ -13,7 +13,7 @@ from typing import Any
 
 import pytest
 
-from tests.web.e2e._page import enter_results, generate, practise, reveal
+from tests.web.e2e._page import enter_results, generate, open_statistician, practise, reveal
 
 STYLE = "(one) => getComputedStyle(one).{}"
 THEMES = pytest.mark.parametrize("context_options", [{"color_scheme": "light"}, {"color_scheme": "dark"}])
@@ -50,6 +50,19 @@ def test_a_choice_is_a_point_filled_in_its_stage_s_colour_with_no_box_and_no_edg
     # The design chosen in the list is a point of the same kind.
     picked = page.locator("table.pick input:checked")
     assert picked.evaluate(STYLE.format("backgroundColor")) == design
+
+
+def test_a_term_of_the_model_is_a_point_filled_when_it_is_in(page):
+    open_statistician(page)
+    page.wait_for_selector("#statistician #terms:not([hidden])")
+    learn = stage_colour(page, "learn")
+    inside = page.get_by_label("Temperature·Flow", exact=True)
+    out = page.get_by_label("Temperature·Pressure·Flow", exact=True)
+    assert inside.evaluate(STYLE.format("borderRadius")) == "50%"
+    assert inside.evaluate(STYLE.format("backgroundColor")) == learn, "in the model: filled in Learn's colour"
+    assert out.evaluate(STYLE.format("backgroundColor")) != learn, "out of it: a ring"
+    label = page.locator("#term-list label").first
+    assert label.evaluate(STYLE.format("borderTopWidth")) == "0px", "no box round a term"
 
 
 def test_the_aims_are_levels_on_one_axis(page):

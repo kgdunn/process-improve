@@ -365,13 +365,13 @@ table.trade-limits td, table.trade-limits th { white-space: nowrap; padding-righ
 .range-mark { width: 6em; height: 0.7em; }
 .target-solve { margin-top: 16px; }
 /* The terms a reader ticks for the model: one group per kind of term, wrapping on a phone. */
-.terms { border: 1px solid var(--line); border-radius: var(--corner); padding: 8px 12px; margin: 0 0 12px; max-width: 100%; }
-.terms legend { font-size: 0.9rem; padding: 0 4px; }
+.terms { border: none; padding: 0; margin: 0 0 12px; max-width: 100%; }
+.terms legend { font-size: 0.9rem; padding: 0; }
 .terms h4 { margin: 8px 0 4px; font-size: 0.85rem; font-weight: 600; color: var(--muted); }
 .terms .group { display: flex; flex-wrap: wrap; gap: 6px; }
 /* A term to press: in the model when ticked. The whole of it takes the press, and the box says which it is. */
-.terms label { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 8px; border: 1px solid var(--line); border-radius: var(--corner); font-size: 0.9rem; cursor: pointer; }
-.terms label:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.terms label { display: inline-flex; align-items: center; gap: 8px; padding: 3px 14px 3px 0; font-size: 0.9rem; cursor: pointer; }
+.terms label:has(input:checked) { font-weight: 600; }
 .terms label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 .terms .terms__whole { margin: 0 0 4px; align-items: baseline; }
 .terms input { width: auto; padding: 0; }
@@ -724,6 +724,8 @@ section { scroll-margin-top: 120px; }
 #learn-to-next { --stage: var(--stage-next); }
 .card > .hint:first-of-type { margin-top: 0; }
 .pane { margin: 0 0 16px; }
+/* A part inside a stage's panel has no box of its own: a hairline over it, and room. */
+.pane section { border: none; border-top: 1px solid var(--line); border-radius: 0; background: none; padding: 14px 0 16px; }
 /* The answer Learn opens with: where to run and what to expect there, before the evidence. */
 .answer { margin: 4px 0 16px; padding: 0 0 14px; border-bottom: 1px solid var(--line); }
 .answer p { margin: 0 0 4px; }
@@ -780,17 +782,20 @@ section { scroll-margin-top: 120px; }
 .goal legend { padding: 0; margin-bottom: 4px; font-size: 0.9rem; }
 .goal label, .aim { display: inline-flex; align-items: center; gap: 6px; font-size: 0.95rem; cursor: pointer; }
 /* A choice is a point: a ring until it is chosen, then filled in the stage's colour, as a run is on a design. */
-input[type="radio"] {
+input[type="radio"], .terms input[type="checkbox"] {
   appearance: none; flex: none; width: 18px; height: 18px; margin: 0; padding: 0; border: 2px solid var(--muted);
   border-radius: 50%; background: var(--panel); cursor: pointer;
 }
-input[type="radio"]:checked {
+.terms input[type="checkbox"] { width: 14px; height: 14px; }
+input[type="radio"]:checked, .terms input[type="checkbox"]:checked {
   background: var(--stage, var(--accent)); border-color: var(--stage, var(--accent));
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--stage, var(--accent)) 24%, transparent);
 }
-input[type="radio"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; }
+input[type="radio"]:focus-visible, .terms input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; }
 @media (forced-colors: active) {
-  input[type="radio"]:checked { forced-color-adjust: none; background: Highlight; border-color: Highlight; box-shadow: none; }
+  input[type="radio"]:checked, .terms input[type="checkbox"]:checked {
+    forced-color-adjust: none; background: Highlight; border-color: Highlight; box-shadow: none;
+  }
 }
 label.inline { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; margin: 0 0 8px; }
 .with-unit { display: inline-flex; align-items: center; gap: 6px; }
