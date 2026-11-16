@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tests.web.e2e._page import reveal, run_sheet, sort_by, type_results
+from tests.web.e2e._page import open_question, reveal, run_sheet, sort_by, type_results
 
 
 def sorted_on(page) -> dict[str, str]:
@@ -52,6 +52,7 @@ def test_each_heading_carries_its_units_and_the_response_is_named_as_the_reader_
         "ths => ths.map((th) => th.querySelector('.col-unit')?.textContent ?? '')"
     )
     assert units == ["", "", "degC", "bar", "L/min", "%"]
+    open_question(page)
     page.fill("#response", "Yield of the reactor")
     assert page.locator("#design-table thead th button.sort").last.text_content() == "Yield of the reactor"
     assert page.get_attribute('#design-table input[data-index="0"]', "aria-label") == "Yield of the reactor, run 1"

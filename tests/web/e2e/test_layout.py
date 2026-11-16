@@ -1,12 +1,15 @@
 """The page on a phone and on a desktop: it reads in both themes, scrolls only downwards, and lays the study out.
 
-On a desktop the brief (the response, the factors, the aim) has a column of its own beside the
-phase on show; on a phone the brief opens Design, and Run and Learn take the width. The detailed
+On a desktop Design has the brief (the response, the factors, the aim) in a column of its own
+beside the designs; on a phone the brief opens Design. Over Run and Learn the question is one
+line that opens to the same form, so both take the width. The detailed
 comparison is wider than a phone: it scrolls sideways inside its own box, and says so, rather
 than pushing the page sideways.
 """
 
 from __future__ import annotations
+
+from itertools import pairwise
 
 import pytest
 
@@ -94,14 +97,83 @@ def test_on_a_phone_the_ways_in_stack_at_full_width(fresh_page):
     assert {round(b["width"]) for b in boxes} == {round(box(fresh_page, ".hero")["width"])}
 
 
+FITS_ACROSS = "document.documentElement.scrollWidth <= document.documentElement.clientWidth"
+LINE = "#question > summary"
+CARDS = ["#response-card", "#factors-card", "#aim-card"]
+
+
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 1280, "height": 900}, "color_scheme": "light"}])
-def test_a_desktop_shows_the_brief_beside_every_phase(page):
+def test_a_desktop_shows_the_brief_beside_design_and_the_question_as_one_line_over_run_and_learn(page):
     assert min(background(page)) > 192, "a light background"
-    for phase in PHASES:
+    page.click("#go-plan")
+    brief, pane = box(page, "#brief"), box(page, "[data-pane='plan'].pane")
+    assert brief["x"] + brief["width"] <= pane["x"], "on Design the question is the form, beside the designs"
+    assert page.is_hidden(LINE)
+    for phase in ("run", "learn"):
         page.click(f"#go-{phase}")
-        brief, pane = box(page, "#brief"), box(page, f"[data-pane='{phase}'].pane")
-        assert brief["x"] + brief["width"] <= pane["x"], phase
-        assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth"), phase
+        assert page.is_hidden("#brief"), phase
+        line, pane, workspace = box(page, LINE), box(page, f"[data-pane='{phase}'].pane"), box(page, "#workspace")
+        assert line["height"] <= 48, f"one line over {phase}"
+        assert line["y"] + line["height"] <= pane["y"], phase
+        assert pane["width"] == workspace["width"], f"{phase} has the page's width"
+        assert page.evaluate(FITS_ACROSS), phase
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 1280, "height": 900}}])
+def test_the_question_s_line_says_the_study_and_opens_to_the_form(page):
+    page.click("#go-learn")
+    assert page.text_content("#question-says") == (
+        "Yield (%), maximise · Temperature 150 to 200 degC, Pressure 1 to 3 bar and Flow 10 to 20 L/min"
+        " · to learn where each factor's effect curves"
+    )
+    assert page.is_visible(f"{LINE} [data-when='closed']")
+    assert page.is_hidden(f"{LINE} [data-when='open']")
+
+    page.focus(LINE)
+    page.keyboard.press("Enter")  # the line is a summary: the keyboard opens it as a press does
+    cards = [box(page, card) for card in CARDS]
+    assert [card["y"] for card in cards] == [cards[0]["y"]] * 3, "the three cards share a row"
+    assert all(a["x"] + a["width"] <= b["x"] for a, b in pairwise(cards)), "side by side"
+    assert max(card["y"] + card["height"] for card in cards) <= box(page, "#step-analyse")["y"], "over Learn"
+    assert page.is_visible(f"{LINE} [data-when='open']"), "the line now offers to close it"
+    assert page.evaluate(FITS_ACROSS)
+
+    # The form is the one Design has: a change made here is the study's, and the line and the bar follow it.
+    page.select_option("#response-goal", "minimize")
+    assert page.text_content("#study-title") == "Yield (%), minimise"
+    assert page.text_content("#question-says").startswith("Yield (%), minimise · Temperature 150 to 200 degC")
+
+    page.click(LINE)
+    assert page.is_hidden("#brief"), "closed again"
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 1280, "height": 900}}])
+def test_the_question_is_closed_on_the_way_in_from_design_and_kept_between_run_and_learn(page):
+    page.click("#go-run")
+    assert page.is_hidden("#brief")
+    page.click(LINE)
+    page.click("#go-learn")
+    assert page.is_visible("#brief"), "left open as the reader has it, from Run to Learn"
+    page.click("#go-plan")
+    assert page.is_visible("#brief")
+    assert page.is_hidden(LINE)
+    page.click("#go-run")
+    assert page.is_hidden("#brief"), "one line again on the way in from Design"
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
+def test_on_a_phone_the_question_is_one_line_cut_short_and_opens_to_cards_one_under_another(page):
+    page.click("#go-run")
+    assert box(page, LINE)["height"] <= 48
+    assert page.evaluate("((e) => e.scrollWidth > e.clientWidth)(document.querySelector('#question-says'))"), (
+        "cut short"
+    )
+    assert overflowing(page) == [], "and not pushed past the screen"
+    assert page.evaluate(FITS_ACROSS)
+    page.click(f"{LINE} .question__change")
+    cards = [box(page, card) for card in CARDS]
+    assert all(a["y"] + a["height"] <= b["y"] for a, b in pairwise(cards)), "one under another"
+    assert page.evaluate(FITS_ACROSS)
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 1280, "height": 900}, "color_scheme": "light"}])

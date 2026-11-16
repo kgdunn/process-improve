@@ -22,6 +22,7 @@ from tests.web.e2e._page import (
     generate,
     last_reply,
     name_response,
+    open_question,
     practise,
     reveal,
     set_aim,
@@ -164,6 +165,7 @@ def test_picking_a_design_puts_it_in_the_plan_and_the_reader_s_choice_is_kept(bl
 def test_the_designs_are_made_only_while_plan_is_on_show(blank_page):
     page = blank_page
     page.click("#go-run")
+    open_question(page)
     page.locator("#factors tbody tr").first.locator("[name=name]").fill("Temp")
     page.wait_for_timeout(700)
     assert len(calls(page, "api_candidates")) == 1, "nothing is made for a list nobody is looking at"

@@ -153,8 +153,12 @@
   <p id="campaign-banner" class="banner" role="status" hidden></p>
 
   <div id="workspace" class="workspace" data-phase="plan">
-    <!-- The brief: what the study measures, what might change it, and what it is to learn. Beside every phase on a
-         wide screen; on a narrow one, at the top of Design. -->
+    <!-- The question: what the study measures, what might change it, and what it is to learn. On Design it is the
+         form itself, beside the designs on a wide screen. Over Run and Learn it is one line that opens to the same
+         form (app.js showPhase, renderQuestion), so the runs and the results have the page's width. -->
+    <details id="question" class="question" open>
+      <summary><b>The question</b> <span id="question-says" class="question__says"></span>
+        <span class="question__change"><span data-when="closed">Change</span><span data-when="open">Close</span></span></summary>
     <div id="brief" class="brief" data-pane="plan">
       <section id="response-card" class="card" aria-labelledby="h-response">
         <h2 id="h-response">What will you measure?</h2>
@@ -287,6 +291,7 @@
         <p id="aim-terms" class="hint"></p>
       </section>
     </div>
+    </details>
 
     <div class="panes">
       <section id="step-plan" class="pane" data-pane="plan" role="tabpanel" aria-labelledby="h-plan">

@@ -15,6 +15,7 @@ from tests.web.e2e._page import (
     choose,
     generate,
     name_response,
+    open_question,
     practise,
     reveal,
     run_sheet,
@@ -155,6 +156,7 @@ def test_the_true_process_names_the_factors_it_leaves_out(page):
 
 def test_a_new_design_is_simulated_from_the_same_process(page):
     """Results simulated for the old runs are simulated again for the new ones, over the factors as they are now."""
+    open_question(page)
     first = page.locator("#factors tbody tr").first
     first.locator("[name=name]").fill("Temp")
     first.locator("[name=name]").press("Tab")

@@ -101,6 +101,8 @@ import {
   renaming,
   responseName,
   responseTitle,
+  factorWords,
+  questionLine,
   shownTheme,
   showsVif,
   sortNumber,
@@ -1838,5 +1840,42 @@ describe("the order of a fit's coefficients in their table", () => {
 
   test("leaves rows with one p-value and no standard error to speak of in the order given", () => {
     assert.deepEqual(labels([row("A", 1, 0, 0.5), row("B", 2, 0, 0.5)]), ["A", "B"]);
+  });
+});
+
+describe("the question in one line", () => {
+  const T = { name: "T", low: 150, high: 200, units: "degC" };
+  const P = { name: "P", low: 1, high: 3, units: "" };
+
+  test("a factor is its name and its range, with its units; a categorical one lists its levels", () => {
+    assert.equal(factorWords(T), "T 150 to 200 degC");
+    assert.equal(factorWords(P), "P 1 to 3");
+    assert.equal(factorWords(categoricalFactor("Supplier", ["A", "B", "C"])), "Supplier: A, B or C");
+    assert.equal(factorWords(categoricalFactor("Catalyst", ["old", "new"])), "Catalyst: old or new");
+  });
+
+  test("a factor with a setting still to come is its name alone", () => {
+    assert.equal(factorWords({ name: "T", low: 150, high: null, units: "degC" }), "T");
+    assert.equal(factorWords(categoricalFactor("Supplier", ["A"])), "Supplier");
+  });
+
+  test("the line says what is measured, what is changed and what is to be learned", () => {
+    assert.equal(
+      questionLine("Yield (%), maximise", [T, P], "Which factors matter"),
+      "Yield (%), maximise · T 150 to 200 degC and P 1 to 3 · to learn which factors matter",
+    );
+  });
+
+  test("a part not given yet is left out, and a blank question says so", () => {
+    assert.equal(questionLine("", [T]), "T 150 to 200 degC");
+    assert.equal(questionLine("Yield", []), "Yield");
+    assert.equal(questionLine("", []), "Nothing is asked yet");
+  });
+
+  test("six factors are named and the rest counted", () => {
+    const many = Array.from({ length: 9 }, (_, i) => ({ name: `x${i + 1}`, low: 0, high: 1, units: "" }));
+    const line = questionLine("Yield", many);
+    assert.ok(line.includes("x6 0 to 1 and 3 more"), line);
+    assert.ok(!line.includes("x7"), line);
   });
 });

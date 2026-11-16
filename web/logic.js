@@ -692,6 +692,36 @@ export function responseTitle(info, name = DEFAULT_RESPONSE) {
 
 const isFiniteNumber = (v) => typeof v === "number" && Number.isFinite(v);
 
+/** How many factors the question's one line names before it counts the rest. */
+const FACTORS_NAMED = 6;
+
+/**
+ * A factor as the question's one line names it: "T 150 to 200 degC", "Supplier: A, B or C", or the name alone
+ * while a setting is still to come.
+ */
+export function factorWords(factor) {
+  if (factor.type === "categorical") {
+    const levels = (factor.levels ?? []).map(String);
+    if (levels.length < 2) return factor.name;
+    return `${factor.name}: ${levels.slice(0, -1).join(", ")} or ${levels.at(-1)}`;
+  }
+  if (factor.low === null || factor.low === undefined || factor.high === null || factor.high === undefined) return factor.name;
+  return `${factor.name} ${factor.low} to ${factor.high}${factor.units ? ` ${factor.units}` : ""}`;
+}
+
+/**
+ * The question in one line, as Run and Learn show it in place of the brief: what is measured (``title``, as the
+ * study's bar names it), what is changed, and what is to be learned (``aim``, the chosen aim's heading). A part
+ * not given yet is left out; with nothing given the line says so.
+ */
+export function questionLine(title, factors, aim = "") {
+  const named = factors.slice(0, FACTORS_NAMED).map(factorWords);
+  const more = factors.length - named.length;
+  const changed = more > 0 ? `${named.join(", ")} and ${more} more` : listNames(named);
+  const parts = [title, changed, aim && `to learn ${aim.charAt(0).toLowerCase()}${aim.slice(1)}`].filter(Boolean);
+  return parts.length ? parts.join(" · ") : "Nothing is asked yet";
+}
+
 /**
  * The power the designs are compared at, in the reader's words: the smallest change worth finding,
  * from a factor's low setting to its high one, and the coefficient in noise standard deviations it
