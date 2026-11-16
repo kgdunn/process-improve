@@ -529,13 +529,16 @@ export function blendOverlayCaption(overlay, responses = []) {
   const missed = (labels, said) => (labels.length ? ` No line for ${listed(labels)}: ${labels.length === 1 ? "it is" : "they are"} ${said}.` : "");
   const narrow = everywhere.length ? " Narrow a range in the table to draw its boundary." : "";
   return (
-    "Each corner is a pure component and each point a blend the bounds allow. Shaded where every response is " +
+    `${TRIANGLE} Shaded where every response is ` +
     "acceptable; each line is a response's acceptable boundary; the star marks the balanced blend." +
     missed(everywhere, "acceptable at every blend drawn") +
     narrow +
     missed(nowhere, "not acceptable at any blend drawn")
   );
 }
+
+/** What a mixture's triangle is, as the caption of each chart drawn over it starts. */
+const TRIANGLE = "Each corner is a pure component and each point a blend the bounds allow.";
 
 /** Why a mixture of four components or more has no overlay of the acceptable ranges. */
 export const NO_BLEND_OVERLAY =
@@ -842,7 +845,12 @@ export function frontier(across, up, kept) {
 const theTargets = (found) => (found.responses.length === 1 ? "the target" : "every target");
 
 /** Whether the models can give the targets inside the ranges, as the sentence over the settings found says it. */
-export function targetLead(found, { limits = false } = {}) {
+export function targetLead(found, { limits = false, blend = false } = {}) {
+  if (blend) {
+    return found.reached
+      ? `This blend gives ${theTargets(found)}, by the models.`
+      : `No blend within your bounds gives ${theTargets(found)}, by the models. This one comes closest.`;
+  }
   if (found.reached) return `These settings give ${theTargets(found)}, by the models.`;
   const inside = limits ? "inside your ranges and limits" : "inside your ranges";
   return `No settings ${inside} give ${theTargets(found)}, by the models. These come closest.`;
@@ -853,15 +861,17 @@ export function targetLead(found, { limits = false } = {}) {
  * ``found`` is bootstrap.target_settings' reply: its ``share`` of the ``tried`` settings, each response within
  * ``near`` of the range of its results from its target.
  */
-export function targetShare(found) {
+export function targetShare(found, { blend = false } = {}) {
   if (!found.reached || !found.share) return "";
   const percent = Number((100 * found.share).toPrecision(2));
   const many = percent < 0.1 ? "Fewer than 1 in 1,000" : `About ${percent}%`;
   const one = found.responses.length === 1;
+  const which = blend
+    ? "more than one blend does. This is the one nearest the middle of the blends your bounds allow."
+    : "more than one setting does. These are the ones nearest the center of your ranges, where your runs are gathered.";
   return (
-    `${many} of the ${found.tried.toLocaleString("en")} settings tried give ${theTargets(found)} to within ` +
-    `${Number((100 * found.near).toPrecision(2))}% of the range of ${one ? "the response's" : "each response's"} results: ` +
-    "more than one setting does. These are the ones nearest the center of your ranges, where your runs are gathered."
+    `${many} of the ${found.tried.toLocaleString("en")} ${blend ? "blends" : "settings"} tried give ${theTargets(found)} to within ` +
+    `${Number((100 * found.near).toPrecision(2))}% of the range of ${one ? "the response's" : "each response's"} results: ${which}`
   );
 }
 
@@ -903,21 +913,24 @@ export function solveSentences(solved, { held = "", units = "", label = solved.r
  * its target. ``overlay`` and ``responses`` are bootstrap.target_settings'; ``factors`` the spec's, for their units.
  */
 export function targetCaption(overlay, factors = [], responses = []) {
+  const blend = overlay.kind === "ternary"; // a mixture's chart is over the triangle of its three components
   const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
   const at = (h) => (typeof h.value === "string" ? `${h.name} at ${h.value}` : `${h.name} at ${withUnit(h.value, units[h.name])}`);
   const held = overlay.held ?? [];
   const others = held.length ? `, with ${listed(held.map(at))}, as at the settings found` : "";
+  const where = blend ? TRIANGLE : `Drawn over ${overlay.x} and ${overlay.y}${others}.`;
+  const one = blend ? "blend" : "setting";
   const lines =
     overlay.responses.length === 1
-      ? "The line is where the response is predicted at its target: every setting on it gives the target."
-      : "Each line is where a response is predicted at its target: every setting on it gives that target, and where the lines cross, the settings give every target.";
+      ? `The line is where the response is predicted at its target: every ${one} on it gives the target.`
+      : `Each line is where a response is predicted at its target: every ${one} on it gives that target, and where the lines cross, the ${blend ? "blend gives" : "settings give"} every target.`;
   const label = Object.fromEntries(responses.map((r) => [r.name, r.label]));
   const undrawn = overlay.responses
     .filter(({ z, levels }) => !(levels[0] > Math.min(...z.flat()) && levels[0] < Math.max(...z.flat())))
     .map((surface) => label[surface.name] ?? surface.name);
-  const missed = undrawn.length ? ` No line for ${listed(undrawn)}: no setting drawn brings ${undrawn.length === 1 ? "it to its target" : "them to their targets"}.` : "";
+  const missed = undrawn.length ? ` No line for ${listed(undrawn)}: no ${one} drawn brings ${undrawn.length === 1 ? "it to its target" : "them to their targets"}.` : "";
   const grey = overlay.runnable ? " Grey: settings outside your limits." : "";
-  return `Drawn over ${overlay.x} and ${overlay.y}${others}. ${lines} The star marks the settings found, and the dots your runs.${grey}${missed}`;
+  return `${where} ${lines} The star marks the ${blend ? "blend" : "settings"} found, and the dots your runs.${grey}${missed}`;
 }
 
 // ---------------------------------------------------------------- the settings that meet a specification
@@ -938,11 +951,12 @@ const heldClause = (found) => (found.held.length ? `, with ${listed(found.held.m
  * Over what share of the settings the models predict every response inside its window, as the sentence that leads the
  * section. ``found`` is bootstrap.specification's reply; ``limits`` says the study has limits on its settings.
  */
-export function windowLead(found, { limits = false } = {}) {
-  const inside = limits ? "inside your ranges and limits" : "inside your ranges";
+export function windowLead(found, { limits = false, blend = false } = {}) {
+  const inside = blend ? "within your bounds" : limits ? "inside your ranges and limits" : "inside your ranges";
   const each = found.responses.length === 1 ? "the response" : "every response";
-  if (found.share === 0) return `By the models, no setting ${inside} gives ${each} inside ${theWindows(found)}${heldClause(found)}.`;
-  return `By the models, ${shareWords(found.share)} of the settings ${inside} give ${each} inside ${theWindows(found)}${heldClause(found)}.`;
+  const [one, many] = blend ? ["blend", "blends"] : ["setting", "settings"];
+  if (found.share === 0) return `By the models, no ${one} ${inside} gives ${each} inside ${theWindows(found)}${heldClause(found)}.`;
+  return `By the models, ${shareWords(found.share)} of the ${many} ${inside} give ${each} inside ${theWindows(found)}${heldClause(found)}.`;
 }
 
 /**
@@ -968,9 +982,10 @@ export function windowLevels(found) {
  * that the responses' errors were taken as correlated when they were (``found.search.correlation``), or why
  * no chance can be given. Nothing when no setting is predicted inside the windows.
  */
-export function windowChance(found) {
+export function windowChance(found, { blend = false } = {}) {
   if (found.share === 0) return "";
   const all = found.responses.length === 1 ? "its window" : "every window";
+  const [one, many] = blend ? ["blend", "blends"] : ["setting", "settings"];
   // Said when it is so: with too few runs to estimate it, the responses' errors are taken as independent.
   const together = found.search?.correlation ? " The responses' errors are taken as correlated as the residuals of their fits are." : "";
   if (!found.likely) return `No runs are left to estimate the noise, so the chance that a new run meets ${all} cannot be given.`;
@@ -979,10 +994,10 @@ export function windowChance(found) {
   const words = (chance) => `${Math.round(100 * chance)}%`;
   if (at(high) === 0) {
     const half = at(low) === 0 ? `, nor of ${words(low)}` : `; it does with ${words(low)} or more at ${shareWords(at(low))} of them`;
-    return `At no setting does one new run meet ${all} with a chance of ${words(high)} or more${half}. The noise is wide beside the window, or the runs are few.${together}`;
+    return `At no ${one} does one new run meet ${all} with a chance of ${words(high)} or more${half}. The noise is wide beside the window, or the runs are few.${together}`;
   }
   return (
-    `One new run meets ${all} with a chance of ${words(high)} or more at ${shareWords(at(high))} of the settings, and of ` +
+    `One new run meets ${all} with a chance of ${words(high)} or more at ${shareWords(at(high))} of the ${many}, and of ` +
     `${words(low)} or more at ${shareWords(at(low))}. A prediction inside a window is not a run inside it: the noise and the fit's own doubt count too.${together}`
   );
 }
@@ -991,12 +1006,13 @@ export function windowChance(found) {
  * Where one new run is surest to meet the windows, and how sure. ``factors`` are the study's with their kinds, and
  * ``units`` each one's units, as settingsWords takes them. Nothing when no chance can be given.
  */
-export function surestSentence(found, factors, units = {}) {
+export function surestSentence(found, factors, units = {}, { blend = false } = {}) {
   if (!found.surest) return "";
   const all = found.responses.length === 1 ? "its window" : "every window";
   const chance = found.surest.probability;
   const sure = chance >= 0.995 && chance < 1 ? "more than 99%" : shareWords(chance); // never "100%" of a chance that is not
-  return `A new run is surest to meet ${all} at ${settingsWords(factors, found.surest.settings, units)}: a chance of ${sure}.`;
+  const at = `${blend ? "the blend " : ""}${settingsWords(factors, found.surest.settings, units)}`;
+  return `A new run is surest to meet ${all} at ${at}: a chance of ${sure}.`;
 }
 
 /**
@@ -1004,16 +1020,21 @@ export function surestSentence(found, factors, units = {}) {
  * shading, the lines, the lines of equal chance, the star, the dots and the grey mean.
  */
 export function windowCaption(overlay, factors = []) {
+  const blend = overlay.kind === "ternary"; // a mixture's chart is over the triangle of its three components
   const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
   const at = (h) => (typeof h.value === "string" ? `${h.name} at ${h.value}` : `${h.name} at ${withUnit(h.value, units[h.name])}`);
   const held = overlay.held ?? [];
   const others = held.length ? `, with ${listed(held.map(at))}, as What if has ${held.length === 1 ? "it" : "them"}` : "";
-  const chance = overlay.probability
-    ? ` Inside the line of ${Math.round(100 * Math.max(...overlay.chances))}%, a new run meets every window at least that often: the fit's doubt and the noise are counted.`
+  // The triangle has each chance as a line of its own; the chart over two factors, the chances and their surface.
+  const drawn = (line) => line.a.some((v) => v !== null); // a chance no blend reaches has no line
+  const chances = blend ? (overlay.chances ?? []).filter(drawn).map((line) => line.chance) : overlay.probability ? overlay.chances : [];
+  const chance = chances.length
+    ? ` Inside the line of ${Math.round(100 * Math.max(...chances))}%, a new run meets every window at least that often: the fit's doubt and the noise are counted.`
     : "";
   const grey = overlay.runnable ? " Grey: settings outside your limits." : "";
+  const star = blend ? (overlay.at ? " The star marks the blend at which a new run is surest to meet them, and the dots your runs." : " The dots are your runs.") : " The star marks the settings What if holds, and the dots your runs.";
   return (
-    `Drawn over ${overlay.x} and ${overlay.y}${others}. Shaded where every response is predicted inside its window; each ` +
-    `coloured line is the end of a response's window.${chance} The star marks the settings What if holds, and the dots your runs.${grey}`
+    `${blend ? TRIANGLE : `Drawn over ${overlay.x} and ${overlay.y}${others}.`} Shaded where every response is predicted inside its window; each ` +
+    `coloured line is the end of a response's window.${chance}${star}${grey}`
   );
 }

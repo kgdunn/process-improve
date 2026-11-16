@@ -594,6 +594,77 @@ READS: dict[str, list[str]] = {
         "search.goals[].response: str",
         "search.formulas{}: str",
     ],
+    "mixture blend for a target": [
+        "responses[].name: str",
+        "responses[].label: str",
+        "responses[].units: str",
+        "responses[].target: number",
+        "responses[].predicted: number",
+        "responses[].prediction[]: number",
+        "reached: bool",
+        "settings[].name: str",
+        "settings[].value: number",
+        "settings[].low: number",
+        "settings[].high: number",
+        "settings[].end: str?",
+        "settings[].beyond: bool",
+        "confirm_at{}: number",
+        "leverage: number",
+        "max_leverage: number",
+        "leverage_of: str",
+        "extrapolating: bool",
+        "share: number",
+        "tried: int",
+        "near: number",
+        "overlay.acceptable: list?",
+        "overlay.kind: str",
+        "overlay.components[]: str",
+        "overlay.a[]: number",
+        "overlay.b[]: number",
+        "overlay.c[]: number",
+        "overlay.at[]: number",
+        "overlay.runs[].[]: number",
+        "overlay.responses[].name: str",
+        "overlay.responses[].z[]: number",
+        "overlay.responses[].levels[]: number",
+        "overlay.responses[].lines[].a[]: number?",
+        "overlay.responses[].lines[].b[]: number?",
+        "overlay.responses[].lines[].c[]: number?",
+    ],
+    "mixture specification": [
+        "responses[].name: str",
+        "responses[].label: str",
+        "responses[].units: str",
+        "responses[].low: number?",
+        "responses[].high: number?",
+        "share: number",
+        "likely{}: number",
+        "surest.probability: number",
+        "surest.settings{}: number",
+        "surest.confirm_at{}: number",
+        "tried: int",
+        "held: list",
+        "levels: list",
+        "overlay.acceptable[]: int",
+        "overlay.chances[].chance: number",
+        "overlay.chances[].a[]: number?",
+        "overlay.chances[].b[]: number?",
+        "overlay.chances[].c[]: number?",
+        "overlay.kind: str",
+        "overlay.components[]: str",
+        "overlay.a[]: number",
+        "overlay.b[]: number",
+        "overlay.c[]: number",
+        "overlay.at[]: number",
+        "overlay.runs[].[]: number",
+        "overlay.responses[].name: str",
+        "overlay.responses[].z[]: number",
+        "overlay.responses[].levels[]: number",
+        "overlay.responses[].lines[].a[]: number?",
+        "overlay.responses[].lines[].b[]: number?",
+        "overlay.responses[].lines[].c[]: number?",
+        "search.correlation: list?",
+    ],
     "mixture traces through the best blend": [
         "held_best: bool",
         "cox.through: str",
@@ -967,6 +1038,8 @@ ENTRY_POINTS = {
     "mixture best blend": "api_best_settings",
     "mixture traces through the best blend": "api_plots",
     "mixture balance": "api_balance",
+    "mixture blend for a target": "api_target_settings",
+    "mixture specification": "api_specification",
     "workbook": "api_workbook",
     "relabel": "api_relabel",
     "upload": "api_read_workbook",
@@ -1187,6 +1260,16 @@ def two_blends(api) -> dict:
     return {**held, "responses": simulation["responses"], "more_responses": more}
 
 
+def asked_blends(api, question: str) -> dict:
+    """Return that mixture asked for a target, or for a window on each response, in the middle of its results."""
+    blends = two_blends(api)
+    hardness, cost = (sorted(results) for results in (blends["responses"], blends["more_responses"]["Cost"]))
+    middle = {"Hardness": hardness[len(hardness) // 2], "Cost": cost[len(cost) // 2]}
+    if question == "targets":
+        return {**blends, "targets": {"Hardness": middle["Hardness"]}}
+    return {**blends, "windows": {"Hardness": [middle["Hardness"], None], "Cost": [None, middle["Cost"]]}}
+
+
 def levels(api) -> dict:
     """Return a full factorial in a catalyst of three levels and a supplier of two, with results."""
     catalyst = {"name": "Catalyst", "type": "categorical", "levels": ["A", "B", "C"], "units": ""}
@@ -1331,6 +1414,8 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "mixture best blend": lambda: aimed_blend(blend(3)),
         "mixture traces through the best blend": lambda: through_best_blend(api, aimed_blend(blend(4))),
         "mixture balance": lambda: two_blends(api),
+        "mixture blend for a target": lambda: asked_blends(api, "targets"),
+        "mixture specification": lambda: asked_blends(api, "windows"),
         "workbook": lambda: analysed,
         "relabel": relabel,
         "upload": upload,

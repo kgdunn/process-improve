@@ -8,6 +8,10 @@ import {
   BALANCED,
   BALANCED_BLEND,
   BEST_BLEND,
+  FOUND_BLEND,
+  IN_WINDOWS,
+  RUNS_MADE,
+  SUREST_BLEND,
   BEST_MARKER,
   LIGHT,
   GREYED,
@@ -17,7 +21,10 @@ import {
   boundaryDrawn,
   blendOverlayFigure,
   boundaryName,
+  chanceName,
   contourLabels,
+  targetName,
+  windowName,
   overlayFigure,
   withAlpha,
   PALE,
@@ -544,6 +551,34 @@ describe("a mixture's overlay of the acceptable ranges", () => {
     assert.deepEqual([star.a, star.b, star.c], [[0.6], [0.35], [0.05]]);
     assert.equal(star.marker, BEST_MARKER);
     assert.deepEqual([layout.ternary.aaxis.title.text, layout.ternary.baxis.title.text, layout.ternary.caxis.title.text], ["A", "B", "C"]);
+    assert.ok(layout.legend.y > 1.05, "the legend is clear of the name of the component at the top corner");
+  });
+
+  test("a target's triangle has each response's line at its target, the runs and the blend found, and no shading", () => {
+    const hardness = { ...OVERLAY.responses[0], levels: [28] };
+    const target = { ...OVERLAY, responses: [hardness], acceptable: null, runs: [[1, 0, 0], [0.5, 0.5, 0]] };
+    const asked = [{ name: "Hardness", label: "Hardness", units: "HV", target: 28 }];
+    const { data } = blendOverlayFigure(target, asked, PAGE, { star: FOUND_BLEND, named: targetName });
+    assert.deepEqual(data.map((trace) => trace.name), ["Hardness at 28 HV", RUNS_MADE, FOUND_BLEND], "nothing is shaded");
+    const [, runs] = data;
+    assert.deepEqual([runs.a, runs.b, runs.c], [[1, 0.5], [0, 0.5], [0, 0]], "each blend the runs were made at");
+    assert.ok(data.every((trace) => trace.type === "scatterternary"));
+  });
+
+  test("a specification's triangle shades the blends that meet it, draws each chance reached, and stars the surest", () => {
+    const line = (chance, a) => ({ chance, a, b: a.map((v) => (v === null ? null : 1 - v)), c: a.map((v) => (v === null ? null : 0)) });
+    const chances = [line(0.5, [0.7, 0.4, null]), line(0.9, [])];
+    const windowed = [{ name: "Hardness", label: "Hardness", units: "HV", low: 26, high: null }];
+    const judged = { ...OVERLAY, responses: [OVERLAY.responses[0]], chances, runs: [[1, 0, 0]] };
+    const options = { shaded: IN_WINDOWS, star: SUREST_BLEND, named: windowName };
+    const { data } = blendOverlayFigure(judged, windowed, PAGE, options);
+    assert.deepEqual(data.map((trace) => trace.name), [IN_WINDOWS, "Hardness: 26 HV and above", chanceName(0.5), RUNS_MADE, SUREST_BLEND]);
+    const even = data[2];
+    assert.deepEqual([even.mode, even.a, even.line.dash], ["lines", [0.7, 0.4, null], "solid"], "the surest line drawn is solid");
+    const both = blendOverlayFigure({ ...judged, chances: [chances[0], line(0.9, [0.6, 0.5, null])] }, windowed, PAGE, options).data;
+    assert.deepEqual(both.slice(2, 4).map((trace) => [trace.name, trace.line.dash]), [[chanceName(0.5), "dot"], [chanceName(0.9), "solid"]]);
+    const unknown = blendOverlayFigure({ ...judged, chances: null, at: null }, windowed, PAGE, options).data;
+    assert.deepEqual(unknown.map((trace) => trace.name), [IN_WINDOWS, "Hardness: 26 HV and above", RUNS_MADE], "no chance: no line, and no star");
   });
 });
 

@@ -274,3 +274,62 @@ def test_confirmation_runs_at_the_best_blend_are_weighed_out_simulated_and_judge
     assert verdict.get_attribute("data-state") in {"inside", "outside"}
     assert "this blend" in verdict.text_content()
     assert page.is_hidden("#add-confirmation"), "runs at this blend are on the sheet"
+
+
+# --------------------------------------------------------------------------- a target and a specification
+#: The names of a chart's traces that its legend lists, and the kinds of trace it is drawn with.
+LISTED = "(plot) => plot.data.filter((trace) => trace.showlegend !== false).map((trace) => trace.name)"
+KINDS = "(plot) => [...new Set(plot.data.map((trace) => trace.type))]"
+
+
+def test_a_mixture_has_the_blend_for_a_target_and_the_blends_that_meet_a_specification(fresh_page):
+    """Both questions are answered in blends: no factor has a range to move alone, and no what-if panel holds one."""
+    page = fresh_page
+    made_mixture(page)
+    page.wait_for_selector("#target-goals tbody tr", state="attached")  # the sections come once Learn has its fits
+    reveal(page, "#target")
+    settled(page)
+    response = page.get_attribute("#target-goals tbody tr", "data-response")
+    slider = page.locator('#target-goals [name="slider"]')
+    middle = (float(slider.get_attribute("min")) + float(slider.get_attribute("max"))) / 2
+    page.fill('#target-goals [name="target"]', f"{middle:.4g}")
+    page.wait_for_selector("#target-out .lead")
+    found = last_reply(page, "api_target_settings")["result"]
+    assert page.text_content("#target-out .lead") == "This blend gives the target, by the models."
+    assert headers(page, "#target-out table")[:3] == ["Component", "Proportion", "Where it lies"]
+    assert sum(s["value"] for s in found["settings"]) == pytest.approx(1.0, abs=1e-9)
+    assert "blends tried give the target" in page.text_content("#target-out")
+    page.wait_for_selector("#target-chart .js-plotly-plot")
+    plot = page.locator("#target-chart .plot")
+    assert plot.evaluate(KINDS) == ["scatterternary"], "drawn over the triangle of the three components"
+    assert plot.evaluate(LISTED)[-2:] == ["Runs you made", "Blend found"]
+    assert page.text_content("#target-chart figcaption").startswith("Each corner is a pure component")
+    assert page.locator("#target-chart .trade-view").is_hidden(), "the triangle has no two factors to pick"
+    assert page.text_content("#target-confirm") == "Add 3 confirmation runs at this blend"
+    for part in ("#target-what-if", "#target-solve", "#py-target"):
+        assert page.locator(part).is_hidden(), part
+
+    reveal(page, "#window")
+    page.fill(f'#window-limits tr[data-response="{response}"] [name="low"]', f"{middle:.4g}")
+    page.wait_for_selector("#window-out .lead")
+    judged = last_reply(page, "api_specification")["result"]
+    lead = page.text_content("#window-out .lead")
+    assert lead.startswith("By the models, ")
+    assert lead.endswith(" of the blends within your bounds give the response inside its window.")
+    assert 0 < judged["share"] < 1
+    page.wait_for_selector("#window-chart .js-plotly-plot")
+    plot = page.locator("#window-chart .plot")
+    assert plot.evaluate(KINDS) == ["scatterternary"]
+    listed = plot.evaluate(LISTED)
+    assert listed[0] == "Every response inside its window"
+    assert listed[-2:] == ["Runs you made", "Surest blend"]
+    assert page.text_content("#window-confirm") == "Add 3 confirmation runs at the surest blend"
+    assert page.locator("#window-what-if").is_hidden()
+    assert page.locator("#py-window").is_hidden()
+    before = len(run_sheet(page))
+    page.click("#window-confirm")
+    page.wait_for_function(f"document.querySelectorAll('#design-table tbody tr').length === {before + 3}")
+    settled(page)
+    added = dict(zip(headers(page), run_sheet(page)[-1], strict=False))
+    assert sum(float(added[f["name"]]) for f in BLEND) == pytest.approx(1.0, abs=1e-9), "weighed out to sum to 1"
+    assert [added[f["name"]] for f in BLEND] == [num(v) for v in judged["surest"]["confirm_at"].values()]

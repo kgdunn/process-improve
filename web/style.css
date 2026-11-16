@@ -338,6 +338,7 @@ button.term:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 .target-goals input[type="number"] { width: 6.5em; }
 .target-goals input[type="range"] { width: 10em; max-width: 40vw; }
 .target-goals td, .target-goals th { white-space: nowrap; padding-right: 14px; }
+.target-goals th:nth-child(2), .target-goals td:nth-child(2) { text-align: left; } /* the box, under its heading */
 #target .actions label { display: inline-flex; align-items: center; gap: 6px; font-size: 0.9rem; }
 #target-match { width: auto; max-width: 18em; }
 .range-cell { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }

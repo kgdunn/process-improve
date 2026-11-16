@@ -26,7 +26,9 @@ import {
   markedRun,
   onRunMarked,
   FOUND,
+  FOUND_BLEND,
   IN_WINDOWS,
+  SUREST_BLEND,
   WHAT_IF_SETTINGS,
   overlayFigure,
   paretoFigure,
@@ -5864,7 +5866,7 @@ function targetResponses() {
 /** The study's factors with a range, by their names. */
 const rangedFactors = () => tradeFactors().filter((f) => f.kind !== "categorical");
 
-/** Take the section away: there is no result, no factor with a range, or the study is a mixture's. */
+/** Take the section away: there is no result, or no factor with a range. */
 function clearTarget() {
   targetTicket += 1;
   solveTicket += 1;
@@ -5881,7 +5883,7 @@ function clearTarget() {
  * the settings for the targets typed so far, found again on the results as they are now.
  */
 function showTarget() {
-  const responses = state.design && !blendStudy() ? targetResponses() : [];
+  const responses = state.design ? targetResponses() : [];
   if (!responses.length || !rangedFactors().length) {
     clearTarget();
     return;
@@ -6003,24 +6005,32 @@ function renderTargetFound() {
   }
   const units = factorUnits();
   const factors = Object.fromEntries(tradeFactors().map((f) => [f.name, f]));
-  const settings = found.settings.map((s) => [
-    s.name,
-    s.kind === "categorical" ? s.value : withUnit(s.value, units[s.name]),
-    rangeMark(s, factors[s.name], units[s.name]),
-  ]);
+  const blend = blendStudy(); // a mixture's answer is a blend: each component's proportion, between its bounds
+  const here = blend ? "this blend" : "these settings";
+  const settings = blend
+    ? table(["Component", "Proportion", "Where it lies"], found.settings.map((s) => [s.name, num(s.value), blendWhere(s, null, { label: "" })]))
+    : builtTable(
+        ["Factor", "Setting", "In its range"],
+        found.settings.map((s) => [s.name, s.kind === "categorical" ? s.value : withUnit(s.value, units[s.name]), rangeMark(s, factors[s.name], units[s.name])]),
+      );
   $("#target-out").replaceChildren(
-    said("lead", targetLead(found, { limits: Boolean(state.design.spec.constraints?.length) })),
-    builtTable(["Factor", "Setting", "In its range"], settings),
-    table(["Response", "Target", "Predicted at these settings", "95% prediction interval"], targetRows(found), { "95% prediction interval": "prediction-interval" }),
-    ...[targetShare(found)].filter(Boolean).map((text) => said("hint", text)),
+    said("lead", targetLead(found, { limits: Boolean(state.design.spec.constraints?.length), blend })),
+    settings,
+    table(["Response", "Target", `Predicted at ${here}`, "95% prediction interval"], targetRows(found), { "95% prediction interval": "prediction-interval" }),
+    ...[targetShare(found, { blend })].filter(Boolean).map((text) => said("hint", text)),
     said("hint", balanceLeverage(found)),
-    ...noteList(balanceWhere(found)),
-    ...noteList([extrapolationSentence(found)].filter(Boolean), "warnings"),
+    ...noteList(blend ? (found.overlay ? [] : [NO_BLEND_OVERLAY]) : balanceWhere(found)),
+    ...noteList([blend ? blendExtrapolation(found) : extrapolationSentence(found)].filter(Boolean), "warnings"),
   );
   $("#target-confirm").hidden = confirmedAt(state.design, found.confirm_at); // runs there already: their results are what is wanted
-  showPython("target", targetCode(found, state.design.spec));
+  $("#target-confirm").textContent = `Add 3 confirmation runs at ${here}`;
+  $("#target-what-if").hidden = !state.whatIf; // a mixture has no what-if panel to see them under
+  showPanelCode("target", targetCode(found, state.design.spec));
   drawTargetChart();
 }
+
+/** Show a section's Python, or take its panel away when the section has none: a mixture's target and specification. */
+const showPanelCode = (key, code) => (code ? showPython(key, code) : hidePython(key));
 
 /** Draw each response's line of settings that give its target over two factors; nothing with one numeric factor. */
 async function drawTargetChart() {
@@ -6032,12 +6042,20 @@ async function drawTargetChart() {
   }
   const { overlay } = found;
   const units = factorUnits();
+  // A mixture's chart is over its triangle of three components; a study's of factors, over two the reader picks.
+  const triangle = overlay.kind === "ternary";
+  card.querySelector(".trade-view").hidden = triangle;
   const ranged = rangedFactors().map((f) => f.name);
   const options = (chosen) => ranged.map((name) => `<option value="${escape(name)}"${name === chosen ? " selected" : ""}>${escape(withUnits(name, units[name]))}</option>`).join("");
-  $("#target-across").innerHTML = options(overlay.x);
-  $("#target-up").innerHTML = options(overlay.y);
-  const axes = Object.fromEntries([overlay.x, overlay.y].map((name) => [name, withUnits(name, units[name])]));
-  const figure = () => overlayFigure(overlay, found.responses, axes, undefined, { star: FOUND, named: targetName });
+  if (!triangle) {
+    $("#target-across").innerHTML = options(overlay.x);
+    $("#target-up").innerHTML = options(overlay.y);
+  }
+  const axes = triangle ? {} : Object.fromEntries([overlay.x, overlay.y].map((name) => [name, withUnits(name, units[name])]));
+  const figure = () =>
+    triangle
+      ? blendOverlayFigure(overlay, found.responses, undefined, { star: FOUND_BLEND, named: targetName })
+      : overlayFigure(overlay, found.responses, axes, undefined, { star: FOUND, named: targetName });
   card.hidden = false;
   card.querySelector("figcaption").textContent = targetCaption(overlay, state.design.spec.factors, found.responses);
   const python = figureAfter("target", () => targetOverlayCode(overlay, state.design.spec));
@@ -6139,7 +6157,7 @@ function newWindow() {
   return { windows: {}, found: null, pair: null };
 }
 
-/** Take the section away: there is no result, no factor with a range, or the study is a mixture's. */
+/** Take the section away: there is no result, no factor with a range, or no what-if panel to judge through. */
 function clearWindow() {
   windowTicket += 1;
   clearTimeout(windowTimer);
@@ -6157,8 +6175,9 @@ const sentWindows = () => Object.fromEntries(Object.entries(state.window.windows
  * far give on the results as they are now.
  */
 function showWindow() {
-  // The windows are judged through the what-if panel's settings, so the section comes with that panel.
-  const responses = state.design && state.whatIf && !blendStudy() ? targetResponses() : [];
+  // The windows are judged through the what-if panel's settings, so the section comes with that panel. A mixture
+  // has no such panel, and nothing to hold: its windows are judged over every blend.
+  const responses = state.design && (state.whatIf || blendStudy()) ? targetResponses() : [];
   if (!responses.length || !rangedFactors().length) {
     clearWindow();
     return;
@@ -6239,7 +6258,7 @@ async function findWindow() {
   $("#window").classList.toggle("in-use", Object.keys(windows).length > 0); // windows typed stay at every reading level
   // The chart holds its other factors, and every categorical factor, where the what-if panel has them.
   const asked = { ...fitsAsked(), windows, at: state.whatIf?.settings, ...(pair ? { pair } : {}) };
-  const reply = Object.keys(windows).length && state.whatIf ? await call("api_specification", asked) : null;
+  const reply = Object.keys(windows).length && (state.whatIf || blendStudy()) ? await call("api_specification", asked) : null;
   if (mine !== windowTicket) return;
   $("#window-problems").textContent = reply && !reply.ok ? reply.error : "";
   $("#window-problems").hidden = !reply || reply.ok;
@@ -6257,16 +6276,20 @@ function renderWindow() {
     hidePython("window");
     return;
   }
-  const more = [windowChance(found), surestSentence(found, tradeFactors(), factorUnits())].filter(Boolean);
+  const blend = blendStudy(); // a mixture's windows are met by blends
+  const more = [windowChance(found, { blend }), surestSentence(found, tradeFactors(), factorUnits(), { blend })].filter(Boolean);
   // A level is chosen, not moved to: beside the level What if has, what the windows give at each of the others.
   const levels = windowLevels(found);
   $("#window-out").replaceChildren(
-    said("lead", windowLead(found, { limits: Boolean(state.design.spec.constraints?.length) })),
+    said("lead", windowLead(found, { limits: Boolean(state.design.spec.constraints?.length), blend })),
     ...more.map((text) => said("", text)),
     ...(levels ? [el("h4", "", "At each level"), table(levels.columns, levels.rows)] : []),
+    ...noteList(blend && !found.overlay ? [NO_BLEND_OVERLAY] : []),
   );
   if (found.surest) $("#window-confirm").hidden = confirmedAt(state.design, found.surest.confirm_at);
-  showPython("window", windowCode(found, state.design.spec));
+  $("#window-confirm").textContent = `Add 3 confirmation runs at the surest ${blend ? "blend" : "settings"}`;
+  $("#window-what-if").hidden = !state.whatIf; // a mixture has no what-if panel to see them under
+  showPanelCode("window", windowCode(found, state.design.spec));
   drawWindowChart();
 }
 
@@ -6282,10 +6305,18 @@ async function drawWindowChart() {
   const units = factorUnits();
   const ranged = rangedFactors().map((f) => f.name);
   const options = (chosen) => ranged.map((name) => `<option value="${escape(name)}"${name === chosen ? " selected" : ""}>${escape(withUnits(name, units[name]))}</option>`).join("");
-  $("#window-across").innerHTML = options(overlay.x);
-  $("#window-up").innerHTML = options(overlay.y);
-  const axes = Object.fromEntries([overlay.x, overlay.y].map((name) => [name, withUnits(name, units[name])]));
-  const figure = () => overlayFigure(overlay, found.responses, axes, undefined, { shaded: IN_WINDOWS, star: WHAT_IF_SETTINGS, named: windowName });
+  // A mixture's chart is over its triangle of three components, with a star at its surest blend.
+  const triangle = overlay.kind === "ternary";
+  card.querySelector(".trade-view").hidden = triangle;
+  if (!triangle) {
+    $("#window-across").innerHTML = options(overlay.x);
+    $("#window-up").innerHTML = options(overlay.y);
+  }
+  const axes = triangle ? {} : Object.fromEntries([overlay.x, overlay.y].map((name) => [name, withUnits(name, units[name])]));
+  const figure = () =>
+    triangle
+      ? blendOverlayFigure(overlay, found.responses, undefined, { shaded: IN_WINDOWS, star: SUREST_BLEND, named: windowName })
+      : overlayFigure(overlay, found.responses, axes, undefined, { shaded: IN_WINDOWS, star: WHAT_IF_SETTINGS, named: windowName });
   card.hidden = false;
   card.querySelector("figcaption").textContent = windowCaption(overlay, state.design.spec.factors);
   const python = figureAfter("window", () => windowOverlayCode(overlay, state.design.spec, Boolean(found.search.correlation)));
@@ -7876,14 +7907,14 @@ $("#target-goals").addEventListener("input", targetTyped);
 $("#target-match").addEventListener("change", targetMatched);
 $("#target-clear").addEventListener("click", targetCleared);
 for (const id of ["#target-across", "#target-up"]) $(id).addEventListener("change", targetPairChanged);
-$("#target-confirm").addEventListener("click", () => addConfirmationRuns(state.target.found?.confirm_at, "the settings found"));
+$("#target-confirm").addEventListener("click", () => addConfirmationRuns(state.target.found?.confirm_at, blendStudy() ? "the blend found" : "the settings found"));
 $("#target-what-if").addEventListener("click", targetToWhatIf);
 for (const id of ["#solve-factor", "#solve-response"]) $(id).addEventListener("change", solveFactor);
 $("#solve-out").addEventListener("click", solvedToWhatIf);
 $("#window-limits").addEventListener("input", windowTyped);
 $("#window-clear").addEventListener("click", windowCleared);
 for (const id of ["#window-across", "#window-up"]) $(id).addEventListener("change", windowPairChanged);
-$("#window-confirm").addEventListener("click", () => addConfirmationRuns(state.window.found?.surest?.confirm_at, "the surest settings"));
+$("#window-confirm").addEventListener("click", () => addConfirmationRuns(state.window.found?.surest?.confirm_at, blendStudy() ? "the surest blend" : "the surest settings"));
 $("#window-what-if").addEventListener("click", windowToWhatIf);
 $("#remove-confirmation").onclick = removeConfirmationRuns;
 $("#download").onclick = downloadWorkbook;

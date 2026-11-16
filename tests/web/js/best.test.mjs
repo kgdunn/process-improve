@@ -913,6 +913,26 @@ describe("the settings that give a target", async () => {
     assert.match(targetLead(two, { limits: true }), /^No settings inside your ranges and limits give every target/);
   });
 
+  test("a mixture's answer is said as a blend", () => {
+    assert.equal(targetLead(found, { blend: true }), "This blend gives the target, by the models.");
+    assert.equal(targetLead({ ...found, reached: false }, { blend: true }), "No blend within your bounds gives the target, by the models. This one comes closest.");
+    assert.equal(
+      targetShare(found, { blend: true }),
+      "About 7% of the 20,000 blends tried give the target to within 2% of the range of the response's results: " +
+        "more than one blend does. This is the one nearest the middle of the blends your bounds allow.",
+    );
+    const triangle = { kind: "ternary", components: ["A", "B", "C"], responses: [{ name: "Yield", z: [60, 64], levels: [62] }] };
+    assert.equal(
+      targetCaption(triangle, [], [yieldAt]),
+      "Each corner is a pure component and each point a blend the bounds allow. The line is where the response is predicted at its " +
+        "target: every blend on it gives the target. The star marks the blend found, and the dots your runs.",
+    );
+    const missed = { ...triangle, responses: [...triangle.responses, { name: "Cost", z: [10, 12], levels: [20] }] };
+    const said = targetCaption(missed, [], [yieldAt, { name: "Cost", label: "Cost" }]);
+    assert.match(said, /where the lines cross, the blend gives every target\./);
+    assert.match(said, / No line for Cost: no blend drawn brings it to its target\.$/);
+  });
+
   test("the share of the settings tried that give the targets is said when some do", () => {
     assert.equal(
       targetShare(found),
@@ -987,6 +1007,25 @@ describe("the settings that meet a specification", async () => {
     assert.match(windowChance({ ...one, likely: { 0.5: 0, 0.9: 0 } }), /with a chance of 90% or more, nor of 50%\. The noise is wide/);
     assert.equal(windowChance({ ...one, likely: null }), "No runs are left to estimate the noise, so the chance that a new run meets its window cannot be given.");
     assert.equal(windowChance({ ...one, share: 0 }), "");
+  });
+
+  test("a mixture's windows are met by blends, and its chart is its triangle", () => {
+    assert.equal(windowLead(one, { blend: true }), "By the models, 17% of the blends within your bounds give the response inside its window.");
+    assert.equal(windowLead({ ...one, share: 0 }, { blend: true }), "By the models, no blend within your bounds gives the response inside its window.");
+    assert.match(windowChance(one, { blend: true }), /^One new run meets its window with a chance of 90% or more at 8\.7% of the blends, and of 50% or more at 17%\./);
+    assert.match(windowChance({ ...one, likely: { 0.5: 0.03, 0.9: 0 } }, { blend: true }), /^At no blend does one new run meet its window with a chance of 90% or more/);
+    const components = [{ name: "A", kind: "numeric" }, { name: "B", kind: "numeric" }];
+    const surest = { settings: { A: 0.62, B: 0.38 }, probability: 0.69 };
+    assert.equal(surestSentence({ ...one, surest }, components, {}, { blend: true }), "A new run is surest to meet its window at the blend A = 0.62, B = 0.38: a chance of 69%.");
+    const line = (chance, a) => ({ chance, a, b: a, c: a });
+    const triangle = { kind: "ternary", at: [0.6, 0.3, 0.1], chances: [line(0.5, [0.5, 0.4, null]), line(0.9, [])] };
+    const said = windowCaption(triangle);
+    assert.match(said, /^Each corner is a pure component and each point a blend the bounds allow\. Shaded where every response is predicted inside its window; /);
+    assert.match(said, /Inside the line of 50%, a new run meets every window at least that often/, "the surest line drawn, not one no blend reaches");
+    assert.match(said, /The star marks the blend at which a new run is surest to meet them, and the dots your runs\.$/);
+    const unknown = windowCaption({ ...triangle, at: null, chances: null });
+    assert.doesNotMatch(unknown, /Inside the line|The star/);
+    assert.match(unknown, / The dots are your runs\.$/);
   });
 
   test("the chance says when the responses' errors were taken as correlated, and only then", () => {
