@@ -32,6 +32,8 @@ import {
   termsKey,
   PICKED_WORDS,
   findingWords,
+  findingNumbers,
+  alsoWords,
   csvOf,
   runSheetCsv,
   asideOf,
@@ -549,7 +551,7 @@ describe("words and numbers", () => {
     assert.equal(say({ kind: "worth", than: "less", worth: 0.25 }, { label: "y", units: "g/L" }), "That is less than the 0.25 g/L you said is worth finding.");
     assert.equal(say({ kind: "worth", than: "same", worth: 2 }), "That is the same as the 2 you said is worth finding.");
     assert.equal(say({ kind: "none" }), "No factor's effect on y stands out from the noise.");
-    assert.equal(say({ kind: "quiet", factors: ["D", "E"] }), "Not told apart from the noise: D, E.");
+    assert.equal(say({ kind: "no_sign", terms: ["D", "T:E", "I(E ** 2)"], names: ["D", "T·E", "E²"] }), "No sign of an effect in these runs: D, T·E, E².");
     assert.equal(say({ kind: "tangled", factors: ["T", "P"] }), "T and P moved together with other factors in these runs, so the runs cannot judge any of them alone.");
     assert.equal(say({ kind: "tangled", factors: ["T"] }), "T moved together with other factors in these runs, so the runs cannot judge it alone.");
     assert.equal(say({ kind: "fit", explained: 0.9961, unseen: null }), "The model explains more than 99% of the variation in y.");
@@ -561,6 +563,26 @@ describe("words and numbers", () => {
     assert.equal(say({ kind: "unusual", runs: [3, 5] }), "The results of runs 3, 5 are far from what the model expects: check before trusting the fit.");
     assert.deepEqual(findingWords([{ kind: "of-a-later-page" }, { kind: "none" }], { label: "y", units: "" }), ["No factor's effect on y stands out from the noise."]);
     assert.deepEqual(findingWords(undefined, { label: "y", units: "" }), []);
+  });
+
+  test("the numbers behind a finding are those of its terms in the table of coefficients", () => {
+    const coefficients = [
+      { term: "T", label: "T", coefficient: 3.95, std_error: 0.5, ci_low: 2.61, ci_high: 5.29, p_value: 0.0021 },
+      { term: "T:P", label: "T·P", coefficient: -1.5, std_error: 0.5, ci_low: -2.8, ci_high: -0.2, p_value: 0.00001 },
+      { term: "F", label: "F", coefficient: 1, std_error: null, ci_low: null, ci_high: null, p_value: null },
+    ];
+    const numbers = (terms) => findingNumbers({ terms }, coefficients, (v) => v.toFixed(2), pval);
+    assert.equal(numbers(["T"]), "T: coefficient 3.95 (95% interval 2.61 to 5.29), p = 0.0021");
+    assert.equal(numbers(["T:P", "F"]), "T·P: coefficient -1.50 (95% interval -2.80 to -0.20), p < 0.0001; F: coefficient 1.00", "a fit of every run tests nothing");
+    assert.equal(numbers([]), "", "a finding about the whole fit has none");
+    assert.equal(numbers(["of-another-fit"]), "");
+    assert.equal(findingNumbers({ kind: "of-an-earlier-page" }, coefficients, String, pval), "");
+  });
+
+  test("one of the other real factors is said as the finding that lists them says it", () => {
+    assert.equal(alsoWords({ name: "P", up: false }), "P (lowers it)");
+    const said = findingWords([{ kind: "also", factors: [{ name: "P", up: false }, { name: "F", up: true }] }], { label: "y", units: "" })[0];
+    assert.equal(said, `Also real: ${alsoWords({ name: "P", up: false })}, ${alsoWords({ name: "F", up: true })}.`);
   });
 
   test("the search for a simpler model is said in a sentence", () => {

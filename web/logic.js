@@ -1222,6 +1222,9 @@ export const shareWords = (share) => (share >= 0.995 && share < 1 ? "more than 9
 /** A quantity with its units after it, or alone. */
 const amountIn = (text, units) => (units ? `${text} ${units}` : text);
 
+/** One of the other real factors, as the finding that lists them says it: its name and which way it moves the response. */
+export const alsoWords = (one) => `${one.name} (${one.up ? "raises" : "lowers"} it)`;
+
 /** Each kind of finding (bootstrap._findings), as a function of it and of the response's ``label`` and ``units``. */
 const FINDINGS = {
   leads(f, { label, units }) {
@@ -1241,9 +1244,9 @@ const FINDINGS = {
     const than = { more: "more than", less: "less than", same: "the same as" }[f.than];
     return `That is ${than} the ${amountIn(figures(f.worth), units)} you said is worth finding.`;
   },
-  also: (f) => `Also real: ${f.factors.map((one) => `${one.name} (${one.up ? "raises" : "lowers"} it)`).join(", ")}.`,
+  also: (f) => `Also real: ${f.factors.map(alsoWords).join(", ")}.`,
   none: (_, { label }) => `No factor's effect on ${label} stands out from the noise.`,
-  quiet: (f) => `Not told apart from the noise: ${f.factors.join(", ")}.`,
+  no_sign: (f) => `No sign of an effect in these runs: ${f.names.join(", ")}.`,
   tangled: (f) =>
     `${listNames(f.factors)} moved together with other factors in these runs, so the runs cannot judge ` +
     `${f.factors.length === 1 ? "it" : "any of them"} alone.`,
@@ -1269,6 +1272,23 @@ const FINDINGS = {
  */
 export const findingWords = (findings, response) =>
   (findings ?? []).filter((finding) => finding.kind in FINDINGS).map((finding) => FINDINGS[finding.kind](finding, response));
+
+/**
+ * The numbers behind a finding, as the table of coefficients has them: for each term it is about, its coefficient
+ * with the 95% interval and the p-value when the fit could test it. ``fmt`` and ``pval`` write them as the table does.
+ */
+export function findingNumbers(finding, coefficients, fmt, pval) {
+  return (finding.terms ?? [])
+    .map((term) => coefficients.find((c) => c.term === term))
+    .filter(Boolean)
+    .map((c) => {
+      const tested = c.std_error !== null && c.std_error !== undefined;
+      const interval = tested ? ` (95% interval ${fmt(c.ci_low)} to ${fmt(c.ci_high)})` : "";
+      const p = pval(c.p_value) ? `, p ${pval(c.p_value).startsWith("<") ? "" : "= "}${pval(c.p_value)}` : "";
+      return `${c.label}: coefficient ${fmt(c.coefficient)}${interval}${p}`;
+    })
+    .join("; ");
+}
 
 /** A model's chosen terms as one text, whatever order they or their factors were ticked in. */
 export const termsKey = (terms) => JSON.stringify(terms.map((term) => [...term].sort()).sort());
