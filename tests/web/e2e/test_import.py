@@ -5,7 +5,7 @@ The study is one of runs as given, so Run lists the table's runs with their resu
 
 from __future__ import annotations
 
-from tests.web.e2e._page import calls, settled
+from tests.web.e2e._page import calls, settled, study_menu
 
 DESIGNED = "Temp (degC),Pressure (bar),Catalyst,Yield (%)\n" + "".join(
     f"{t},{p},{c},{60 + 0.1 * (t - 175) - 3 * (p - 2) + (2 if c == 'B' else 0) + 0.3 * (i % 5)}\n"
@@ -15,7 +15,7 @@ DESIGNED = "Temp (degC),Pressure (bar),Catalyst,Yield (%)\n" + "".join(
 
 def paste(page, text: str) -> None:
     """Open the dialog, paste a table and have it read."""
-    page.click("#import-data")
+    study_menu(page, "#import-data")
     page.fill("#import-text", text)
     page.click("#import-read")
     page.wait_for_function(
@@ -84,7 +84,7 @@ def test_a_table_python_cannot_read_is_refused_in_a_sentence(fresh_page):
 
 def test_a_csv_file_is_read_as_a_pasted_table_is(fresh_page):
     page = fresh_page
-    page.click("#import-data")
+    study_menu(page, "#import-data")
     page.set_input_files(
         "#import-file", {"name": "march trials.csv", "mimeType": "text/csv", "buffer": DESIGNED.encode()}
     )

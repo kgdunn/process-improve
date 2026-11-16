@@ -20,6 +20,7 @@ from tests.web.e2e._page import (
     run_sheet,
     settled,
     status,
+    study_menu,
     type_results,
 )
 
@@ -149,7 +150,7 @@ def test_the_results_are_marked_as_simulated(page, first_paint):
 
 def test_explore_a_worked_example_shows_it_at_once(fresh_page, first_paint):
     page = fresh_page
-    page.click("#show-example")
+    study_menu(page, "#show-example")
     page.wait_for_function(f"document.querySelectorAll('#charts .js-plotly-plot').length === {EXAMPLE_CHARTS}")
     settled(page)
     assert page.is_visible("#demo-banner")
@@ -166,7 +167,7 @@ def test_without_a_built_example_the_worked_example_runs_live(context, site, con
     page = context.new_page()
     page.goto(site)
     page.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
-    page.click("#show-example")
+    study_menu(page, "#show-example")
     page.wait_for_function(f"document.querySelectorAll('#charts .js-plotly-plot').length === {EXAMPLE_CHARTS}")
     settled(page)
     fns = [c["fn"] for c in calls(page)]

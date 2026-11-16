@@ -83,12 +83,34 @@
         </svg>
         <h1>Factorial</h1>
       </a>
-      <p class="studybar__title"><span id="study-title">A new study</span> <span id="study-about"></span></p>
+      <!-- The study's name opens the ways in and what is done with the study (app.js studyMenu): a list of buttons
+           and links shown under a button, which the keyboard reaches with Tab and leaves with Escape. -->
+      <div class="study">
+        <button type="button" id="study-button" class="study__button" aria-expanded="false" aria-controls="study-menu"
+          title="Your studies, and what to do with this one">
+          <span class="studybar__title"><span id="study-title">A new study</span> <span id="study-about"></span></span>
+          <svg class="study__caret" viewBox="0 0 10 10" aria-hidden="true" focusable="false"><path d="M1.5 3.5 5 7l3.5-3.5"/></svg>
+        </button>
+        <ul id="study-menu" class="study__menu" aria-label="Studies, and this study" hidden>
+          <li><button type="button" id="new-study">New study</button></li>
+          <li><button type="button" id="open-library">Your studies <span id="library-count" class="badge">0</span></button></li>
+          <li><button type="button" id="show-example">Open the worked example</button></li>
+          <!-- A table of the reader's own, made into a study (import.js): a design run elsewhere, or a process's records. -->
+          <li><button type="button" id="import-data">Analyse data you have</button></li>
+          <li><a href="catalog/" id="catalog-link">Browse the design catalog</a></li>
+          <li class="study__rule" role="separator"></li>
+          <li><button type="button" id="menu-share">Share or download this study</button></li>
+          <li><button type="button" id="menu-report">View its report</button></li>
+        </ul>
+      </div>
       <div class="phases" role="tablist" aria-label="Design, run, learn">
         <button type="button" role="tab" id="go-plan" aria-controls="step-plan" aria-selected="true"><span class="step">1</span> Design<span id="badge-plan" class="badge" hidden></span></button>
         <button type="button" role="tab" id="go-run" aria-controls="step-run" aria-selected="false" tabindex="-1"><span class="step">2</span> Run<span id="badge-run" class="badge" hidden></span></button>
         <button type="button" role="tab" id="go-learn" aria-controls="step-analyse" aria-selected="false" tabindex="-1"><span class="step">3</span> Learn<span id="badge-learn" class="badge" hidden></span></button>
       </div>
+      <!-- What leads away from the study, on a wide screen: both are in the footer on every screen. -->
+      <a class="studybar__link" href="catalog/">Design catalog</a>
+      <a class="studybar__link" href="about.html">How it works</a>
       <!-- Feedback (feedback.js): a report to the maintainer, which leaves the page only when the reader presses Send. -->
       <div class="feedback-slot">
         <button type="button" id="feedback" class="feedback-button" data-feedback="general">
@@ -114,35 +136,14 @@
     </div>
   </nav>
 
-  <!-- The ways in, and what Factorial is in a line. -->
-  <div class="ways">
+  <!-- A first visit, and any visit with nothing kept in the browser (app.js start): what Factorial is, in the words
+       the header had, and two ways in besides the blank question under it. They are buttons, so the welcome asks a
+       reader to read no more than the header did (tests/web/e2e/test_reading.py). -->
+  <div id="welcome" class="banner welcome" hidden>
     <p class="lede"><span class="tagline">Sense it. Test it. Im<b>prove</b> it.</span> Design, Run and Learn from your
       experiments. Nothing to install. Data never leaves your device.</p>
-    <!-- Three ways in, each in a colour of its own: the mark's navy and red, and the page's green. -->
-    <div class="hero">
-      <button type="button" id="new-study" class="button hero__action hero__action--new">
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg>Start a new study</button>
-      <button type="button" id="show-example" class="button hero__action hero__action--example">
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5l11 7-11 7z"/></svg>Explore a worked example</button>
-      <a href="catalog/" class="button hero__action hero__action--catalog" id="catalog-link">
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><rect x="14" y="14" width="6" height="6"/></svg>Browse the design catalog</a>
-      <!-- A table of the reader's own, made into a study (import.js): a design run elsewhere, or a process's records. -->
-      <button type="button" id="import-data" class="button hero__action hero__action--import">
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 4v10M7.5 10l4.5 4.5 4.5-4.5M5 19h14"/></svg>Analyse data you have</button>
-    </div>
-    <!-- Your studies (store.js), and the study file (study-file.js) that carries them out of this browser and back. -->
-    <details id="library" class="library">
-      <summary>Your studies (<span id="library-count">0</span>), kept in this browser</summary>
-      <p class="library__intro"><span class="hint">Saved as you work, in this browser only. Download them all to keep
-        a copy, or to move them to another device.</span>
-        <button type="button" id="download-all" class="button" disabled>Download all (.json)</button></p>
-      <ul id="library-list"></ul>
-      <label id="study-drop" class="drop library__drop">
-        <input id="study-upload" type="file" accept=".json,application/json">
-        <span>Drop a study file (.json) here, or click to choose it. A file of one study opens it; a file of several
-          adds them all here.</span>
-      </label>
-    </details>
+    <p class="actions"><button type="button" id="welcome-example" class="link">See a worked example</button>
+      <button type="button" id="welcome-import" class="link">Analyse data you have</button></p>
   </div>
 
   <div id="demo-banner" class="banner" hidden>
@@ -877,6 +878,24 @@
       <button type="button" id="import-open" class="button">Open as a study</button>
     </div>
   </dialog>
+  <!-- Your studies (store.js), and the study file (study-file.js) that carries them out of this browser and back. -->
+  <dialog id="library" class="sheet library" aria-labelledby="h-library">
+    <div class="sheet__head">
+      <h2 id="h-library">Your studies</h2>
+      <button type="button" id="library-close" class="link" aria-label="Close your studies">✕</button>
+    </div>
+    <p class="library__intro"><span class="hint">Saved as you work, in this browser only. Download them all to keep
+      a copy, or to move them to another device.</span>
+      <button type="button" id="download-all" class="button" disabled>Download all (.json)</button></p>
+    <p id="library-none" class="hint">No study is saved here yet. A study is saved once it has a run sheet.</p>
+    <ul id="library-list"></ul>
+    <label id="study-drop" class="drop library__drop">
+      <input id="study-upload" type="file" accept=".json,application/json">
+      <span>Drop a study file (.json) here, or click to choose it. A file of one study opens it; a file of several
+        adds them all here.</span>
+    </label>
+  </dialog>
+
   <dialog id="compare-dialog" class="sheet" aria-labelledby="h-compare">
     <div class="sheet__head">
       <h2 id="h-compare">The designs compared in detail</h2>

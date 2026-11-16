@@ -64,39 +64,6 @@ def test_on_a_phone_the_brief_opens_plan_and_the_other_phases_take_the_width(pag
     assert box(page, "#step-run")["width"] > 340
 
 
-def hero_boxes(page) -> list[dict]:
-    """Return the boxes of the three ways in: a new study, the worked example and the catalog."""
-    return [button.bounding_box() for button in page.locator(".hero__action").all()]
-
-
-#: An iPad at full size, on its side and upright, an iPad mini upright, and a window down to just wider than a phone.
-TABLETS = [{"viewport": {"width": width, "height": 1000}} for width in (1024, 820, 768, 744, 600, 521)]
-
-
-@pytest.mark.parametrize("context_options", TABLETS, ids=lambda options: f"{options['viewport']['width']}px")
-def test_wider_than_a_phone_the_ways_in_share_one_row(fresh_page):
-    """A narrower row sets the buttons smaller; in a wide font a label takes two lines, and the button stays."""
-    fresh_page.add_style_tag(content=WIDE_FONT)
-    boxes = hero_boxes(fresh_page)
-    assert len({round(b["y"]) for b in boxes}) == 1, "one row"
-    assert len({round(b["height"]) for b in boxes}) == 1, "one height, a label on two lines or not"
-    assert overflowing(fresh_page) == []
-
-
-@pytest.mark.parametrize("context_options", [{"viewport": {"width": 1280, "height": 900}}])
-def test_on_a_desktop_the_ways_in_keep_their_full_size(fresh_page):
-    sizes = fresh_page.eval_on_selector_all(".hero__action", "all => all.map((b) => getComputedStyle(b).fontSize)")
-    assert sizes == ["16.8px"] * 4, "1.05rem"
-
-
-@pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
-def test_on_a_phone_the_ways_in_stack_at_full_width(fresh_page):
-    boxes = hero_boxes(fresh_page)
-    assert boxes == sorted(boxes, key=lambda b: b["y"]), "a new study first"
-    assert len({round(b["y"]) for b in boxes}) == 4, "one under the other"
-    assert {round(b["width"]) for b in boxes} == {round(box(fresh_page, ".hero")["width"])}
-
-
 FITS_ACROSS = "document.documentElement.scrollWidth <= document.documentElement.clientWidth"
 LINE = "#question > summary"
 CARDS = ["#response-card", "#factors-card", "#aim-card"]
@@ -216,7 +183,11 @@ def test_on_a_laptop_the_bar_is_one_row_no_taller_than_56_px(fresh_page):
     order = sorted(parts, key=lambda part: parts[part]["left"])
     assert order == ["mark", "name", "study", "stages", "feedback", "mode"]
     assert all(part["top"] >= 0 and part["bottom"] <= bar["height"] for part in parts.values()), "each within the bar"
-    assert fresh_page.is_visible(".ways .tagline"), "the tagline and the line on what Factorial is are under the bar"
+    # What leads away from the study is beside the stages on a screen this wide.
+    links = fresh_page.locator(".studybar__link")
+    assert links.all_text_contents() == ["Design catalog", "How it works"]
+    assert [link.get_attribute("href") for link in links.all()] == ["catalog/", "about.html"]
+    assert all(link.is_visible() for link in links.all())
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
@@ -228,6 +199,7 @@ def test_on_a_phone_the_bar_is_two_rows_the_study_s_name_over_the_stages(fresh_p
     assert parts["study"]["bottom"] <= parts["stages"]["top"], "the study's name is over the stages"
     assert parts["mode"]["bottom"] <= parts["stages"]["top"]
     assert box(fresh_page, "#studybar")["height"] <= 100
+    assert fresh_page.locator(".studybar__link:visible").count() == 0, "the links away are in the menu and the footer"
     assert fresh_page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
 
 

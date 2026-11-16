@@ -6606,6 +6606,7 @@ async function showBuiltExample() {
   renderNext(); // what its results call for; its Box-Behnken design takes no runs added
   $("#demo-version").textContent = `process-improve ${example.version}`;
   $("#demo-when").textContent = "when this page was built";
+  $("#welcome").hidden = true;
   $("#demo-banner").hidden = false;
   if (example.comparison) {
     state.comparison = { key: candidateKey(), ...example.comparison };
@@ -6712,6 +6713,7 @@ function newStudy() {
   selectTab("real");
   if (location.search) history.replaceState(null, "", location.pathname);
   clearDraft(); // a draft left from before is not this study's
+  if ($("#status").dataset.state === "ok") clearStatus(); // what was said of the study before, such as its analysis
   renderStudyBar();
   refreshLibrary();
   showPhase("plan");
@@ -6918,9 +6920,20 @@ async function saveNow() {
 /** List the studies saved in this browser, each to open or delete; the one on the page is marked. */
 async function refreshLibrary() {
   const saved = await savedCampaigns();
-  $("#library-count").textContent = String(saved.length);
-  $("#download-all").disabled = saved.length === 0;
+  countLibrary(saved.length);
   $("#library-list").replaceChildren(...saved.map(libraryItem));
+}
+
+/** Say how many studies this browser keeps: on the study's menu, and in Your studies, which says so when it keeps none. */
+function countLibrary(count) {
+  $("#library-count").textContent = String(count);
+  $("#download-all").disabled = count === 0;
+  $("#library-none").hidden = count > 0;
+}
+
+/** Show Your studies, over the page. */
+function openLibrary() {
+  if (!$("#library").open) $("#library").showModal();
 }
 
 function libraryItem(record) {
@@ -6954,9 +6967,7 @@ function libraryItem(record) {
       await refreshLibrary();
     };
     item.replaceChildren(el("span", "hint", `Deleted ${title}.`), undo);
-    const left = (await savedCampaigns()).length;
-    $("#library-count").textContent = String(left);
-    $("#download-all").disabled = left === 0;
+    countLibrary((await savedCampaigns()).length);
   };
   actions.append(forget);
   return item;
@@ -7066,7 +7077,7 @@ async function openStudyFile(file) {
     return;
   }
   await refreshLibrary();
-  $("#library").open = true;
+  openLibrary();
   const added = opened.length - already;
   const counted = `${added} ${added === 1 ? "study" : "studies"} added from ${file.name}${already ? `, ${already} already here` : ""}.`;
   showBanner(`${counted}${notes}`, opened.length === 0);
@@ -7106,6 +7117,8 @@ function showBanner(message, error = false) {
  * results. The analysis follows once Python has started.
  */
 async function openCampaign(c, record, message) {
+  if ($("#library").open) $("#library").close();
+  $("#welcome").hidden = true;
   flushSave();
   studyTicket += 1;
   $("#demo-banner").hidden = true;
@@ -7227,9 +7240,17 @@ async function start() {
       /* a study this page cannot read: start a new one */
     }
   }
+  // A first visit, and any visit with nothing kept here: a blank question, under a word of welcome that says what
+  // Factorial is and offers the other ways in. A link that could not be opened has said so, in place of the welcome.
   showPhase("plan");
-  const touch = window.matchMedia("(pointer: coarse)").matches;
-  if (!touch && !$("#campaign-banner").textContent) $("#response").focus({ preventScroll: true });
+  if ($("#campaign-banner").textContent) return;
+  $("#welcome").hidden = false;
+  toFirstQuestion();
+}
+
+/** Put the keyboard at a blank question's first box, what the study measures. Not on a touch screen, where it would open the keys. */
+function toFirstQuestion() {
+  if (!window.matchMedia("(pointer: coarse)").matches) $("#response").focus({ preventScroll: true });
 }
 
 /**
@@ -7684,7 +7705,11 @@ for (const name of Object.keys(PANES)) $(`#go-${name}`).onclick = () => showPhas
 arrowKeys($(".phases"), (tab) => showPhase(tab.id.replace("go-", "")));
 arrowKeys($("#step-run .tabs"), (tab) => selectTab(tab.id.replace("tab-", "")));
 
-$("#new-study").onclick = newStudy;
+$("#new-study").onclick = () => {
+  newStudy();
+  $("#welcome").hidden = true; // asked for by name: no longer a first look
+  toFirstQuestion(); // the entry pressed has gone with its menu
+};
 $("#show-example").onclick = () => {
   history.replaceState(null, "", `${location.pathname}?${EXAMPLE_PARAM}=${WORKED}`);
   showBuiltExample();
@@ -7784,6 +7809,50 @@ $("#search").onclick = () => findCandidates({ search: true });
 $("#compare").onclick = showComparison;
 $("#compare-close").onclick = () => $("#compare-dialog").close();
 closeOnBackdrop($("#compare-dialog"));
+$("#library-close").onclick = () => $("#library").close();
+closeOnBackdrop($("#library"));
+
+/**
+ * The study's name in the bar opens a list: the ways in (a new study, the studies kept here, the worked example, a
+ * table of the reader's own, the catalog), then what is done with the study on the page. It is a list of buttons
+ * under a button, which Tab walks. A choice, Escape, a press elsewhere and Tab out of the list each close it.
+ */
+function studyMenu(open) {
+  $("#study-menu").hidden = !open;
+  $("#study-button").setAttribute("aria-expanded", String(open));
+  // A question with no run sheet yet has nothing to share and no report.
+  if (open) for (const id of ["#menu-share", "#menu-report"]) $(id).disabled = !state.design;
+}
+$("#study-button").onclick = () => studyMenu($("#study-menu").hidden);
+// A choice closes the list and gives the keyboard back to the study's name, before the choice is acted on: what
+// it opens, such as Your studies, then hands the keyboard back there when it closes, not to an entry now hidden.
+$("#study-menu").addEventListener(
+  "click",
+  (e) => {
+    if (!e.target.closest("button, a")) return;
+    studyMenu(false);
+    $("#study-button").focus();
+  },
+  true,
+);
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".study")) studyMenu(false);
+});
+$(".study").addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || $("#study-menu").hidden) return;
+  studyMenu(false);
+  $("#study-button").focus();
+});
+// Safari gives a pressed button no focus, so a press on the list is not taken for focus that left it.
+$(".study").addEventListener("focusout", (e) => {
+  if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget)) studyMenu(false);
+});
+$("#open-library").onclick = openLibrary;
+$("#menu-share").onclick = () => showPart("download");
+$("#menu-report").onclick = viewReport;
+// The welcome of a first visit offers the other ways in, by the menu's own buttons.
+$("#welcome-example").onclick = () => $("#show-example").click();
+$("#welcome-import").onclick = () => $("#import-data").click();
 $("#run-example").onclick = runExample;
 // A press always changes the results: the first simulates them, and one more draws new noise for the same
 // process. With the seed as it was, a second press gave the same results, and looked as if it did nothing.
@@ -7974,6 +8043,13 @@ function showPart(id) {
   };
   const look = () => {
     if (left || Date.now() - started > SHOW_WAIT) return;
+    if (part.matches("dialog")) {
+      // Your studies: shown over the page, which gives it the keyboard, and outlined as any part is.
+      if (!part.open) part.showModal();
+      part.classList.add("shown-part");
+      setTimeout(() => part.classList.remove("shown-part"), 4000);
+      return;
+    }
     if (!there()) {
       setTimeout(look, 200);
       return;

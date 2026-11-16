@@ -20,6 +20,7 @@ from tests.web.e2e._page import (
     first_paint_done,
     generate,
     name_response,
+    open_library,
     practise,
     reveal,
     run_sheet,
@@ -27,6 +28,7 @@ from tests.web.e2e._page import (
     set_factors,
     settled,
     status,
+    study_menu,
 )
 
 BANNER = "#campaign-banner"
@@ -154,7 +156,7 @@ def test_a_result_typed_just_before_the_next_design_is_saved_with_its_design(con
     page.wait_for_function("window.__pi.count('api_make_design') === 2 && window.__pi.idle()")
     page.clock.resume()
     saved(page, 2)
-    page.click("#library summary")
+    open_library(page)
     page.click("#library-list >> text=Full factorial (2-level) in Temperature, Pressure and Flow")
     settled(page)
     assert results(page)[0] == "12.5"
@@ -181,14 +183,16 @@ def test_your_studies_opens_an_earlier_study_and_deletes_one(page):
     page.fill("#design-table input[data-index='0']", "12.5")  # a result typed in: this study is kept
     generate(page, design_type="ccd", n_center_points=2)
     saved(page, 2)
-    page.click("#library summary")
+    open_library(page)
     page.click("#library-list >> text=Full factorial (2-level) in Temperature, Pressure and Flow")
     settled(page)
     assert page.input_value("#design-type") == "full_factorial"
     assert page.text_content(BANNER) == f"Opened {YIELD}Full factorial (2-level) in Temperature, Pressure and Flow."
     assert len(run_sheet(page)) == 8
     assert all(results(page)), "with its results"
+    assert page.is_hidden("#library"), "the study is on the page, so the list has gone"
 
+    open_library(page)
     page.click(
         f"#library-list >> role=button[name='Delete {YIELD}Central composite (CCD) in Temperature, Pressure and Flow']"
     )
@@ -212,7 +216,7 @@ def test_your_studies_puts_delete_at_the_right_end_of_each_row(page):
     page.fill("#design-table input[data-index='0']", "12.5")  # a result typed in: this study is kept
     generate(page, design_type="ccd", n_center_points=2)
     saved(page, 2)
-    page.click("#library summary")
+    open_library(page)
 
     def right_ends(name: str) -> tuple[float, float]:
         button = page.locator("#library-list").get_by_role("button", name=name)
@@ -241,7 +245,7 @@ def test_your_studies_lines_up_every_share_and_every_delete(page):
         page.fill("#design-table input[data-index='0']", "12.5")  # a result typed in: this study is kept
     generate(page, design_type="box_behnken")
     saved(page, 3)
-    page.click("#library summary")
+    open_library(page)
     lefts = page.eval_on_selector_all(
         ".library__share", "all => all.map((b) => Math.round(b.getBoundingClientRect().left))"
     )
@@ -468,13 +472,13 @@ def test_making_the_run_sheet_turns_the_draft_into_a_saved_study(context, blank_
 def test_a_new_study_keeps_the_last_one_and_starts_at_its_response(page):
     generate(page, design_type="full_factorial", n_center_points=0)
     saved(page, 1)
-    page.click("#new-study")
+    study_menu(page, "#new-study")
     assert page.get_attribute("#workspace", "data-phase") == "plan"
     assert page.input_value("#response") == ""
     assert factor_table(page) == [{"name": "", "low": "", "high": "", "units": ""}] * 2
     assert page.is_hidden("#run-out")
     assert page.text_content("#study-title") == "A new study"
-    page.click("#library summary")
+    open_library(page)
     assert page.locator("#library-list li").count() == 1, "the study before is kept"
 
 
@@ -486,7 +490,7 @@ def test_a_run_sheet_made_for_the_brief_before_stays_out_of_a_new_study(blank_pa
     reveal(page, "#generate")
     page.click("#generate")
     assert status(page) == ("Generating design...", "busy")
-    page.click("#new-study")
+    study_menu(page, "#new-study")
     page.evaluate("window.__pi.release('api_make_design')")
     settled(page)
     assert page.get_attribute("#workspace", "data-phase") == "plan"

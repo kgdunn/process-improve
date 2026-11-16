@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from tests.web.e2e._page import generate, practise, saved_studies, settled
+from tests.web.e2e._page import generate, open_library, practise, saved_studies, settled
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -57,9 +57,11 @@ def opened_page(open_context, site: str):
 
 def test_your_studies_and_its_dropzone_show_before_any_study_is_saved(fresh_page):
     page = fresh_page
-    assert page.is_visible("#library summary")
+    page.click("#study-button")
+    assert page.is_visible("#open-library"), "in the study's menu"
     assert page.text_content("#library-count") == "0"
-    page.click("#library summary")
+    page.click("#open-library")
+    assert page.is_visible("#library-none")
     assert page.is_visible("#study-drop")
     assert page.is_disabled("#download-all"), "nothing to download yet"
 
@@ -80,7 +82,7 @@ def test_every_study_is_kept_with_no_limit_on_how_many(fresh_page, site):
 
 def test_download_all_writes_every_study_to_one_file(page, tmp_path):
     titles = two_studies(page)
-    page.click("#library summary")
+    open_library(page)
     name, file = downloaded(page, "#download-all", tmp_path)
     assert name.startswith("factorial-studies-")
     assert name.endswith(".json")
@@ -96,7 +98,7 @@ def test_a_file_of_several_studies_opens_in_another_browser_and_a_second_time_ad
     page, open_context, site, tmp_path
 ):
     titles = two_studies(page)
-    page.click("#library summary")
+    open_library(page)
     name, _ = downloaded(page, "#download-all", tmp_path)
     other = opened_page(open_context, site)
     other.set_input_files("#study-upload", str(tmp_path / name))
@@ -112,7 +114,7 @@ def test_a_file_of_several_studies_opens_in_another_browser_and_a_second_time_ad
 
 def test_a_study_s_own_file_opens_it_on_the_page_in_another_browser(page, open_context, site, tmp_path):
     titles = two_studies(page)
-    page.click("#library summary")
+    open_library(page)
     full_factorial = page.locator("#library-list li", has_text=titles[0])
     button = full_factorial.get_by_role("button", name=f"Download {titles[0]}")
     with page.expect_download() as download:
@@ -121,7 +123,7 @@ def test_a_study_s_own_file_opens_it_on_the_page_in_another_browser(page, open_c
     assert name == "yield-maximise-full-factorial-2-level-in-temperature.factorial.json"
     download.value.save_as(tmp_path / name)
     other = opened_page(open_context, site)
-    other.click("#library summary")
+    open_library(other)
     # Dropped on the dropzone, as a file dragged from the desktop is.
     other.evaluate(
         """(text) => {
@@ -157,7 +159,7 @@ def test_share_hands_the_study_s_file_to_the_share_sheet(open_context, site):
     generate(page, design_type="full_factorial", n_center_points=0)
     practise(page)
     page.wait_for_function("document.querySelector('#library-count').textContent === '1'")
-    page.click("#library summary")
+    open_library(page)
     title = f"{YIELD}Full factorial (2-level) in Temperature, Pressure and Flow"
     page.get_by_role("button", name=f"Share {title}").click()
     page.wait_for_function("window.__shared")
@@ -177,7 +179,7 @@ def test_share_hands_the_study_s_file_to_the_share_sheet(open_context, site):
 )
 def test_a_file_that_is_not_a_study_file_is_refused_in_a_sentence(fresh_page, text, said):
     page = fresh_page
-    page.click("#library summary")
+    open_library(page)
     page.set_input_files("#study-upload", {"name": "notes.json", "mimeType": "application/json", "buffer": text})
     page.wait_for_selector(f"{BANNER}.error", state="visible")
     assert page.text_content(BANNER) == said

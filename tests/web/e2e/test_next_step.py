@@ -20,6 +20,7 @@ from tests.web.e2e._page import (
     generate,
     headers,
     name_response,
+    open_library,
     practise,
     reveal,
     run_sheet,
@@ -27,6 +28,7 @@ from tests.web.e2e._page import (
     set_factors,
     settled,
     status,
+    study_menu,
     type_results,
 )
 
@@ -201,7 +203,7 @@ def test_runs_added_to_a_study_left_meanwhile_stay_out_of_the_study_opened(blank
     page = blank_page
     generate(page, design_type="ccd", n_center_points=2)
     opened = len(run_sheet(page))
-    page.click("#new-study")
+    study_menu(page, "#new-study")
     set_factors(page, FACTORS)
     generate(page, design_type="full_factorial", n_center_points=0)
     type_results(page, {i: 50 + i for i in range(8)})
@@ -209,7 +211,7 @@ def test_runs_added_to_a_study_left_meanwhile_stay_out_of_the_study_opened(blank
     reveal(page, "#next")
     page.click('#next-out .offer[data-kind="center"] button.button')
     assert status(page) == ("Adding the runs...", "busy")
-    page.click("#library summary")
+    open_library(page)
     page.click("#library-list >> text=Central composite (CCD) in T, P and F")
     page.evaluate("window.__pi.release('api_add_runs')")
     settled(page)
@@ -229,7 +231,7 @@ def test_runs_simulated_for_a_study_left_meanwhile_stay_out_of_the_new_one(blank
     reveal(page, "#next")
     page.click('#next-out .offer[data-kind="foldover"] button.button')
     page.wait_for_function(f"window.__pi.count('api_simulate') > {simulated}")  # the runs are added, and simulated
-    page.click("#new-study")
+    study_menu(page, "#new-study")
     page.evaluate("window.__pi.release('api_simulate')")
     settled(page)
     assert page.get_attribute("#workspace", "data-phase") == "plan"

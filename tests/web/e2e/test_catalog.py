@@ -50,8 +50,8 @@ def test_the_reader_s_field_opens_its_page_and_a_goal_writes_a_search(context, s
     page.wait_for_url("**/catalog/fields/chemical-processes/")
 
 
-def test_the_app_s_header_opens_the_catalog(fresh_page):
-    fresh_page.click("#catalog-link")
+def test_the_app_s_bar_opens_the_catalog(fresh_page):
+    fresh_page.click(".studybar__link[href='catalog/']")
     fresh_page.wait_for_url("**/catalog/")
     fresh_page.wait_for_selector(".result")
     assert fresh_page.text_content("#count") == "5 of 5 designs: 2 published, 3 generated"

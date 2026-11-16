@@ -28,6 +28,7 @@ from tests.web.e2e._page import (
     set_aim,
     set_factors,
     settled,
+    study_menu,
 )
 
 
@@ -199,7 +200,7 @@ def test_a_new_study_takes_no_design_from_the_brief_before(fresh_page):
     page.evaluate("window.__pi.hold('api_candidates')")
     set_factors(page, FACTORS)
     page.wait_for_function("window.__pi.count('api_candidates') === 1")
-    page.click("#new-study")
+    study_menu(page, "#new-study")
     page.evaluate("window.__pi.release('api_candidates')")
     page.wait_for_function("window.__pi.idle()")
     assert page.input_value("#design-type") == "box_behnken", "a new study's design, as it starts"

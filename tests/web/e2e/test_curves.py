@@ -13,7 +13,7 @@ from typing import Any
 
 import pytest
 
-from tests.web.e2e._page import generate, headers, reveal, run_sheet, saved_studies, settled
+from tests.web.e2e._page import generate, headers, reveal, run_sheet, saved_studies, settled, study_menu
 from tests.web.e2e.test_what_if import set_number
 
 TIMES = [0, 2, 4, 6, 8, 10]
@@ -103,8 +103,7 @@ def test_the_worked_example_shown_after_a_study_of_curves_draws_none_of_its_curv
     else:
         paste_curves(page)
         show_curve(page)
-    reveal(page, "#show-example")
-    page.click("#show-example")
+    study_menu(page, "#show-example")
     page.wait_for_selector("#demo-banner", state="visible")
     page.evaluate("window.__pi.release('api_functional')")
     settled(page)
