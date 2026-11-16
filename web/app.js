@@ -77,6 +77,7 @@ import {
   intervalRows,
   leadSentence,
   answerWords,
+  learnChecks,
   limitingSentence,
   climb,
   movesOn,
@@ -131,6 +132,7 @@ import {
   PICKED_WORDS,
   simplerWords,
   findingWords,
+  shareWords as wholeShare,
   runSheetCsv,
   asideOf,
   asideWords,
@@ -3248,7 +3250,12 @@ function aimWords(aim) {
 /** What Learn shows of the response it shows, as a report section: its analysis, charts and best settings. */
 async function learnSection() {
   // The answer first, as Learn has it; the way to its evidence is a button, which a report leaves out.
-  const parts = [$("#answer").hidden ? "" : reportCopy($("#answer")), reportCopy($("#analysis")), chartsHtml(await chartsWithin($("#charts")))];
+  const parts = [
+    $("#answer").hidden ? "" : reportCopy($("#answer")),
+    $("#checks").hidden ? "" : reportCopy($("#checks")), // each check open, with its sentence and statistic
+    reportCopy($("#analysis")),
+    chartsHtml(await chartsWithin($("#charts"))),
+  ];
   if (!$("#best").hidden) {
     parts.push(`<h3>${$("#h-best").textContent}</h3>`, reportCopy($("#best-out")), chartsHtml(await chartsWithin($("#best"))));
     if (!$("#confirm").hidden) parts.push(reportCopy($("#confirm-out")));
@@ -4715,15 +4722,59 @@ function renderAnswer() {
   const said = shown ? answerWords(best, words, { blend }) : null;
   const first = !shown ? "" : best?.flat ? flatSentence(words, { blend }) : (findingWords(state.analysis.findings, words)[0] ?? "");
   box.hidden = !said && !first;
+  // The checks say what Learn's findings say, in the same words: best.js stands alone, and is told them.
+  const tell = {
+    said: (kind) => findingWords((state.analysis.findings ?? []).filter((finding) => finding.kind === kind), words)[0] ?? "",
+    number: fmt,
+    p: pval,
+    share: wholeShare,
+  };
+  renderChecks(shown ? learnChecks(state.analysis, best, tell, { blend }) : []);
   if (box.hidden) return;
   $("#answer-run").textContent = said ? said.run : first;
   $("#answer-expect").textContent = said?.expect ?? "";
   $("#answer-expect").hidden = !said;
-  const unclear = blend ? BLEND_UNCLEAR : UNCLEAR;
-  const cautions = said ? [(blend ? blendExtrapolation : extrapolationSentence)(best), best.unclear ? unclear : ""].filter(Boolean) : [];
-  $("#answer-caution").textContent = cautions.join(" ");
-  $("#answer-caution").hidden = !cautions.length;
   $("#answer-more").hidden = !said;
+}
+
+/** What a check's state is called, for a reader who cannot see its mark. */
+const CHECK_STATE = { ok: "Passed", look: "To look at", unknown: "Cannot tell" };
+/** The evidence a check leads to, which the page shows already: the part, and the words of the button that shows it. */
+const CHECK_EVIDENCE = {
+  fit: ["analysis", "See the model and its tables"],
+  runs: ["diagnostics", "See each run as the model sees it"],
+  reach: ["best", "See the best settings"],
+};
+
+/**
+ * The checks under the answer, each a heading that opens to its sentence, its statistic and the way to its evidence.
+ * A check to look at is open, so its caution is read without a press; one the reader opened stays open through a
+ * new fit.
+ */
+function renderChecks(checks) {
+  const row = $("#checks");
+  const opened = new Set([...row.querySelectorAll("details[open]")].map((box) => box.dataset.check));
+  row.hidden = !checks.length;
+  row.replaceChildren(
+    ...checks.map((check) => {
+      const box = el("details", "learn-check", "");
+      box.dataset.check = check.key;
+      box.dataset.state = check.state;
+      box.open = check.state === "look" || opened.has(check.key);
+      const heading = el("summary", "", "");
+      heading.append(el("span", "sr", `${CHECK_STATE[check.state]}: `), check.title);
+      box.append(heading, el("p", "", check.says));
+      if (check.numbers) box.append(el("p", "hint", check.numbers));
+      const [part, words] = CHECK_EVIDENCE[check.key] ?? [];
+      if (part) {
+        const more = el("button", "link", words);
+        more.type = "button";
+        more.onclick = () => showPart(part);
+        box.append(more);
+      }
+      return box;
+    }),
+  );
 }
 
 /**

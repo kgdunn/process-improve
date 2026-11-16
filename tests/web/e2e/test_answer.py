@@ -53,11 +53,7 @@ def test_the_answer_is_at_the_top_of_learn(page, within):
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
 
 
-def test_the_answer_carries_the_panel_s_caution_and_leads_to_the_panel(page):
-    assert page.text_content("#answer-caution") == (
-        "These settings lie beyond the runs, so the prediction leans on the model there: confirm it with a run."
-    )
-    assert page.text_content("#answer-caution") in page.text_content("#best-out"), "the panel's own words"
+def test_the_answer_leads_to_the_panel_of_the_best_settings(page):
     page.click("#answer-more")
     assert page.evaluate("document.activeElement.id") == "best"
     top = page.locator("#best").bounding_box()["y"]
@@ -72,7 +68,6 @@ def test_with_no_goal_to_reach_the_answer_is_what_matters_most(page):
     said = page.text_content("#answer-run")
     assert " matters most: " in said
     assert said == page.locator("#findings li").first.text_content(), "the first thing the results say"
-    assert page.is_hidden("#answer-caution")
     assert page.is_hidden("#answer-more"), "there are no best settings to lead to"
 
 

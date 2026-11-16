@@ -118,6 +118,78 @@ export function answerWords(best, { label, units }, { blend = false } = {}) {
 const lev = (h) => String(Number(Number(h).toPrecision(2)));
 
 /**
+ * The checks under Learn's answer: whether to rely on it, from what the analysis (``analysis``, as
+ * bootstrap.analyze_runs gives it) and the best settings (``best``, or null) already say. Nothing is judged here:
+ * Python marks the runs to look at again, a lack of fit, a model with no clear term and settings beyond the runs.
+ *
+ * Each check is {key, state, title, says, numbers}. ``state`` is "ok", "look" (read this before relying on the
+ * answer) or "unknown" (these runs cannot tell); ``title`` is the verdict in a few words, ``says`` a sentence, and
+ * ``numbers`` the statistic behind it, or "". The fit, the runs one by one, and the repeated runs are always
+ * there; the reach of the runs only with settings to check.
+ *
+ * This module stands alone, so the page's other words come in as ``tell``: ``said(kind)``, the sentence Learn's
+ * findings give for a kind of finding, or ""; ``number(x)`` and ``p(x)``, a statistic and a p-value as the tables
+ * write them; and ``share(x)``, a share as a whole percentage (logic.js findingWords, fmt, pval and shareWords).
+ */
+export function learnChecks(analysis, best, tell, { blend = false } = {}) {
+  const found = (kind) => (analysis.findings ?? []).filter((finding) => finding.kind === kind);
+  const { said, number: fmt, p: pval, share: wholeShare } = tell;
+  const known = (x) => x !== null && x !== undefined;
+  const s = analysis.summary;
+  const fits = [
+    ["R²", s.r_squared],
+    ["Adjusted R²", s.r_squared_adj],
+    ["Predicted R²", s.r_squared_pred],
+  ];
+  const statistics = fits.filter(([, x]) => known(x)).map(([name, x]) => `${name} = ${fmt(x)}`).join(", ");
+  const checks = [];
+
+  if (found("saturated").length) {
+    checks.push({ key: "fit", state: "unknown", title: "No runs left to judge the fit", says: said("saturated"), numbers: "Residual degrees of freedom = 0" });
+  } else if (found("none").length || best?.unclear) {
+    const says = best?.unclear ? (blend ? BLEND_UNCLEAR : UNCLEAR) : said("none");
+    checks.push({ key: "fit", state: "look", title: "No clear effect", says, numbers: statistics });
+  } else {
+    const [fit] = found("fit");
+    const title = fit ? `The model explains ${wholeShare(fit.explained)}` : "The model's fit";
+    checks.push({ key: "fit", state: "ok", title, says: said("fit"), numbers: statistics });
+  }
+
+  const [unusual] = found("unusual");
+  if (!analysis.diagnostics?.length) {
+    const says = "The model uses every run, so no run can be compared with what the model expects of it.";
+    checks.push({ key: "runs", state: "unknown", title: "No run can be judged alone", says, numbers: "" });
+  } else if (unusual) {
+    const title = unusual.runs.length === 1 ? `Run ${unusual.runs[0]} stands apart` : `${unusual.runs.length} runs stand apart`;
+    checks.push({ key: "runs", state: "look", title, says: said("unusual"), numbers: "" });
+  } else {
+    const says = "No run's result is far from what the model expects of it.";
+    checks.push({ key: "runs", state: "ok", title: "No run stands apart", says, numbers: `${analysis.diagnostics.length} runs compared` });
+  }
+
+  const lof = analysis.lack_of_fit;
+  if (!lof || !known(lof.p_value)) {
+    const says = "No run was repeated, so these runs cannot tell a missing term from noise.";
+    checks.push({ key: "repeats", state: "unknown", title: "No repeated runs", says, numbers: "" });
+  } else {
+    const freedom = `${lof.df_pure_error} degree${lof.df_pure_error === 1 ? "" : "s"} of freedom`;
+    const numbers = `Lack of fit: F = ${fmt(lof.f_statistic)}, p = ${pval(lof.p_value)}; pure error from the repeated runs, ${freedom}`;
+    const says = lof.significant ? said("lack_of_fit") : "The repeated runs agree with the model about as closely as with each other.";
+    const [state, title] = lof.significant ? ["look", "A term may be missing"] : ["ok", "The repeats agree with the model"];
+    checks.push({ key: "repeats", state, title, says, numbers });
+  }
+
+  if (best?.settings) {
+    const numbers = `Leverage ${lev(best.leverage)}; the runs' is ${lev(best.max_leverage)} at most`;
+    const beyond = (blend ? blendExtrapolation : extrapolationSentence)(best);
+    const within = `${blend ? "This blend lies" : "These settings lie"} where the runs can speak for the prediction.`;
+    const [state, title] = beyond ? ["look", "Beyond the runs"] : ["ok", "Within the runs' reach"];
+    checks.push({ key: "reach", state, title, says: beyond || within, numbers });
+  }
+  return checks;
+}
+
+/**
  * How well the model knows the response at the best settings, a row each for a small table: its two intervals, and
  * its leverage beside the runs'. Each row is its ``label``, the ``term`` in the label the glossary entry ``key``
  * defines, and its ``value``.

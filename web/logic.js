@@ -1217,7 +1217,7 @@ export function runSheetCsv(design, results) {
 const figures = (value, digits = 3) => String(Number(Number(value).toPrecision(digits)));
 
 /** A share as a whole percentage; one that would round up to 100% and is not all of it as "more than 99%". */
-const shareWords = (share) => (share >= 0.995 && share < 1 ? "more than 99%" : `${Math.round(share * 100)}%`);
+export const shareWords = (share) => (share >= 0.995 && share < 1 ? "more than 99%" : `${Math.round(share * 100)}%`);
 
 /** A quantity with its units after it, or alone. */
 const amountIn = (text, units) => (units ? `${text} ${units}` : text);

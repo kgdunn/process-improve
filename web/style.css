@@ -643,8 +643,18 @@ section { scroll-margin-top: 120px; }
 }
 .answer p { margin: 0 0 4px; }
 .answer__run { font-size: 1.15rem; font-weight: 600; }
-.answer__caution { color: var(--warn); }
 .answer .actions { margin: 6px 0 0; }
+/* The checks under the answer: a row of headings, each with its mark, that open to a sentence and its statistic. */
+.checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 8px; align-items: start; margin: 0 0 16px; }
+.learn-check { padding: 6px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; font-size: 0.95rem; }
+.learn-check[data-state="look"] { border-color: var(--warn); }
+.learn-check > summary { cursor: pointer; font-weight: 600; }
+.learn-check > summary::after { margin-left: 8px; font-weight: 700; }
+.learn-check[data-state="ok"] > summary::after { content: "✓"; color: var(--ok); }
+.learn-check[data-state="look"] > summary::after { content: "!"; color: var(--warn); }
+.learn-check[data-state="unknown"] > summary::after { content: "?"; color: var(--muted); }
+.learn-check p { margin: 6px 0 2px; }
+.learn-check .link { padding: 2px 0; }
 
 /* The question. On Design it is the form itself, and its one line is not drawn. Over Run and Learn it is that line,
    which opens to the form, so the runs and the results have the page's width. */

@@ -43,6 +43,7 @@ import {
   intervalRows,
   leadSentence,
   answerWords,
+  learnChecks as checksOf,
   movesOn,
   nextRanges,
   noGoalSentence,
@@ -70,6 +71,7 @@ import {
   whatIfSentences,
   whatIfStart,
 } from "../../../web/best.js";
+import { findingWords, fmt, pval, shareWords as wholeShare } from "../../../web/logic.js";
 import { CONFIRMATION as PYTHON_CONFIRMATION, fittedRuns } from "../../../web/python.js";
 
 const WORDS = { label: "Yield", units: "%" };
@@ -187,6 +189,78 @@ describe("the answer Learn opens with", () => {
     assert.equal(answerWords({ goal: "learn", settings: null }, WORDS), null);
     assert.equal(answerWords({ goal: "maximize", flat: true, settings: null }, WORDS), null);
     assert.equal(answerWords(null, WORDS), null);
+  });
+});
+
+describe("the checks under the answer", () => {
+  const ANALYSIS = {
+    summary: { r_squared: 0.9927, r_squared_adj: 0.9862, r_squared_pred: 0.9705, df_residual: 8 },
+    findings: [{ kind: "fit", explained: 0.9927, unseen: 0.9705 }],
+    diagnostics: Array.from({ length: 15 }, (_, i) => ({ run: i + 1, unusual: false })),
+    lack_of_fit: { f_statistic: 0.8124, p_value: 0.6012, df_pure_error: 2, significant: false },
+  };
+  const by = (checks) => Object.fromEntries(checks.map((check) => [check.key, check]));
+  /** The page's words for an analysis, as app.js hands them over: best.js stands alone and imports none of them. */
+  const told = (analysis) => ({
+    said: (kind) => findingWords((analysis.findings ?? []).filter((finding) => finding.kind === kind), WORDS)[0] ?? "",
+    number: fmt,
+    p: pval,
+    share: wholeShare,
+  });
+  const learnChecks = (analysis, best, _words, options) => checksOf(analysis, best, told(analysis), options);
+
+  test("four checks, each a verdict, a sentence and its statistic", () => {
+    const checks = learnChecks(ANALYSIS, { ...WORKED, extrapolating: false }, WORDS);
+    assert.deepEqual(checks.map((check) => [check.key, check.state]), [["fit", "ok"], ["runs", "ok"], ["repeats", "ok"], ["reach", "ok"]]);
+    const { fit, runs, repeats, reach } = by(checks);
+    assert.equal(fit.title, "The model explains 99%");
+    assert.equal(fit.says, "The model explains 99% of the variation in Yield, and about 97% in runs it has not seen.");
+    assert.equal(fit.numbers, "R² = 0.9927, Adjusted R² = 0.9862, Predicted R² = 0.9705");
+    assert.deepEqual([runs.title, runs.numbers], ["No run stands apart", "15 runs compared"]);
+    assert.equal(repeats.title, "The repeats agree with the model");
+    assert.equal(repeats.numbers, "Lack of fit: F = 0.8124, p = 0.6012; pure error from the repeated runs, 2 degrees of freedom");
+    assert.deepEqual([reach.title, reach.numbers], ["Within the runs' reach", "Leverage 0.93; the runs' is 0.75 at most"]);
+  });
+
+  test("each caution Python raises is a check to look at, in the words the page already uses", () => {
+    const analysis = {
+      ...ANALYSIS,
+      findings: [...ANALYSIS.findings, { kind: "lack_of_fit" }, { kind: "unusual", runs: [7] }],
+      lack_of_fit: { ...ANALYSIS.lack_of_fit, p_value: 0.012, significant: true },
+    };
+    const { fit, runs, repeats, reach } = by(learnChecks(analysis, WORKED, WORDS));
+    assert.equal(fit.state, "ok");
+    assert.deepEqual([runs.state, runs.title], ["look", "Run 7 stands apart"]);
+    assert.equal(runs.says, "Run 7's result is far from what the model expects: check before trusting the fit.");
+    assert.deepEqual([repeats.state, repeats.title], ["look", "A term may be missing"]);
+    assert.deepEqual([reach.state, reach.title, reach.says], ["look", "Beyond the runs", extrapolationSentence(WORKED)]);
+    const several = { ...analysis, findings: [{ kind: "unusual", runs: [2, 7] }] };
+    assert.equal(by(learnChecks(several, WORKED, WORDS)).runs.title, "2 runs stand apart");
+  });
+
+  test("no clear effect is said of the fit, from the findings or from the best settings", () => {
+    const none = { ...ANALYSIS, findings: [{ kind: "none" }] };
+    const { fit } = by(learnChecks(none, null, WORDS));
+    assert.deepEqual([fit.state, fit.title, fit.says], ["look", "No clear effect", "No factor's effect on Yield stands out from the noise."]);
+    assert.equal(by(learnChecks(ANALYSIS, { ...WORKED, unclear: true }, WORDS)).fit.says, UNCLEAR);
+    assert.equal(by(learnChecks(ANALYSIS, { ...WORKED, unclear: true }, WORDS, { blend: true })).fit.says, BLEND_UNCLEAR);
+  });
+
+  test("what the runs cannot tell is said so: a model that uses every run, and no repeats", () => {
+    const saturated = {
+      summary: { r_squared: 1, r_squared_adj: null, r_squared_pred: null, df_residual: 0 },
+      findings: [{ kind: "saturated", lenth: true }],
+      diagnostics: null,
+      lack_of_fit: null,
+    };
+    const checks = learnChecks(saturated, null, WORDS);
+    assert.deepEqual(checks.map((check) => [check.key, check.state]), [["fit", "unknown"], ["runs", "unknown"], ["repeats", "unknown"]]);
+    assert.match(by(checks).fit.says, /^The model uses every run, so none is left to measure the noise with/);
+    assert.equal(by(checks).repeats.title, "No repeated runs");
+  });
+
+  test("with no settings to check there is no check of their reach", () => {
+    assert.deepEqual(learnChecks(ANALYSIS, { goal: "learn", settings: null }, WORDS).map((check) => check.key), ["fit", "runs", "repeats"]);
   });
 });
 
