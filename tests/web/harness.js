@@ -9,14 +9,11 @@
 // Otherwise the page's own worker runs, Pyodide and all, and is only watched.
 
 (() => {
-  // The tests see the whole page: the reading level (web/levels.js) is set to its highest once a tab, so a test of
-  // the levels can clear or change it and load the page again. The concept map keeps its level under the same key,
-  // and its tests are of a first visit, so a tab that opens on the map is left alone. The features page's details
-  // are opened the same way (features.html keeps that choice under a key of its own).
+  // The tests see the whole of the features page: every point's details are opened once a tab (features.html keeps
+  // that choice under a key of its own), so a test of the switch can clear it and load the page again.
   try {
-    if (!location.pathname.includes("/map/") && !sessionStorage.getItem("pi-level-seeded")) {
-      sessionStorage.setItem("pi-level-seeded", "1");
-      localStorage.setItem("factorial-map-level", "3");
+    if (!sessionStorage.getItem("pi-details-seeded")) {
+      sessionStorage.setItem("pi-details-seeded", "1");
       localStorage.setItem("factorial-features-details", "open");
     }
   } catch {

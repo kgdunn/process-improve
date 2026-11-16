@@ -25,6 +25,8 @@ from tests.web.e2e._page import (
     generate,
     headers,
     last_reply,
+    listed_designs,
+    more_charts,
     name_response,
     practise,
     reveal,
@@ -34,10 +36,9 @@ from tests.web.e2e._page import (
     settled,
     status,
 )
-from tests.web.e2e.test_analysis import coefficient_rows, set_aside, terms_fitted
+from tests.web.e2e.test_analysis import set_aside, terms_fitted
 from tests.web.e2e.test_balance import balanced
 from tests.web.e2e.test_import import paste
-from tests.web.e2e.test_levels import listed_designs, more_charts, set_level
 from tests.web.e2e.test_mixture import BLEND
 from tests.web.e2e.test_next_step import add, offered
 from tests.web.e2e.test_persistence import BANNER, come_back, results
@@ -238,31 +239,32 @@ def test_a_run_sheet_goes_to_the_lab_as_a_workbook_and_comes_back_with_its_resul
     np.testing.assert_allclose(back["y"], pd.read_excel(filled, sheet_name="Runs")["y"])
 
 
-# --------------------------------------------------------------------------- the reading level, along a study
-def test_the_reading_level_changes_what_is_offered_and_never_what_was_learned(blank_page):
-    """A study made at Beginner reads the same at Adventurous, which only adds to what the page offers."""
+# --------------------------------------------------------------------------- nothing is held back
+def test_a_first_visit_has_every_design_and_every_part_of_the_page(blank_page):
+    """No setting of the page takes a design, a chart or a panel away: a first visit has them all."""
     page = blank_page
-    set_level(page, 1)
-    assert "d_optimal" not in listed_designs(page)
+    assert page.locator("#level").count() == 0, "there is no reading level to choose"
+    assert page.evaluate("document.documentElement.dataset.level") is None
+    designs = listed_designs(page)
+    assert len(designs) == 16, "every design the page makes"
+    assert {"full_factorial", "dsd", "omars", "d_optimal", "sobol", "extreme_vertices"} <= set(designs)
+    assert "given" not in designs, "runs as given are listed once a study has had some"
+    assert page.locator("#design-type optgroup option").count() == 3, "the mixtures, under their heading"
+    for part in ["#more-responses", "#limits", '[data-option="n_blocks"]']:
+        assert page.locator(part).is_visible(), f"{part} is on the page before any study"
+
+    name_response(page, "Yield", "%")  # a target and a specification are asked of a response with a name
     generate(page, design_type="full_factorial", n_center_points=3)
+    assert page.locator("#curves").is_visible(), "a curve as a response"
     practise(page)
     reveal(page, "#analysis")
-    said, table = findings(page), coefficient_rows(page)
-    assert said, "a beginner is told what the results say"
-    assert page.locator("#simplify").is_hidden(), "simplifying the model waits for a higher level"
-    asked = page.evaluate("window.__pi.count('api_analyze_runs')")
-
-    set_level(page, 3)
-    assert "d_optimal" in listed_designs(page)
-    assert page.locator("#simplify").is_visible()
-    assert "cube" in more_charts(page), "a two-level design in three factors has its cube"
-    assert findings(page) == said
-    assert coefficient_rows(page) == table
-    assert page.evaluate("window.__pi.count('api_analyze_runs')") == asked, "a level is no reason to fit again"
-
-    set_level(page, 1)
-    assert page.input_value("#design-type") == "full_factorial", "the study's design stays at every level"
-    assert findings(page) == said
+    for part in ["#simplify", "#diagnostics"]:
+        assert page.locator(part).is_visible(), f"{part} is on the page for every reader"
+    for part in ["#target", "#window"]:  # shown once the charts and the what-if panel are in
+        page.wait_for_selector(f"{part}:not([hidden])")
+    shown = more_charts(page)
+    assert {"cube", "prediction_variance"} <= set(shown), "the charts a level kept back are under More charts"
+    assert page.text_content("#more-charts > summary") == f"More charts ({len(shown)})"
 
 
 # --------------------------------------------------------------------------- stopping, and carrying on

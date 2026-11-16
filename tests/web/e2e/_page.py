@@ -319,3 +319,22 @@ def overflowing(page: Any) -> list[str]:  # noqa: ANN401
              .filter((e) => !e.parentElement.closest('.scroll, pre, .js-plotly-plot, dialog'))
              .map((e) => e.tagName.toLowerCase() + (e.id ? `#${e.id}` : ''))"""
     )
+
+
+def listed_designs(page: Any) -> list[str]:  # noqa: ANN401
+    """Return the designs the design list offers."""
+    return page.locator("#design-type option").evaluate_all(
+        "(options) => options.filter((o) => !o.hidden).map((o) => o.value)"
+    )
+
+
+def more_charts(page: Any) -> list[str]:  # noqa: ANN401
+    """Open "More charts" if it is shut, and return the charts under it."""
+    if not page.locator("#more-charts").evaluate("(box) => box.open"):
+        page.click("#more-charts > summary")
+    page.wait_for_function(
+        "document.querySelectorAll('#more-charts figure').length === "
+        "document.querySelectorAll('#more-charts .js-plotly-plot').length "
+        "&& document.querySelectorAll('#more-charts figure').length > 0"
+    )
+    return page.locator("#more-charts figure").evaluate_all("(cards) => cards.map((c) => c.dataset.chart)")

@@ -1277,9 +1277,7 @@ export const pairWords = (chosen) => (chosen ? "the two factors you chose" : "th
  * Every chart of Learn, in the order the page draws them: its heading (``title``); what it shows and how to read
  * it (``caption``, a sentence or a function of the surface's two factors and what the page knows of them); the
  * glossary's entry for its heading (``glossary``); and its ``height`` when not the usual. A chart under "More
- * charts" (``more``) also has the reading level that first shows it (``level``), which is that of its ``term`` in
- * the concept map (map/graph.json): tests/web/page/test_levels.py keeps the two in step, and
- * tests/web/page/test_parity.py keeps the charts under "More charts" the ones bootstrap.MORE_CHARTS draws.
+ * charts" is marked ``more``: tests/web/page/test_parity.py keeps those the ones bootstrap.MORE_CHARTS draws.
  */
 export const CHARTS = {
   coefficients: { title: "Coefficients" },
@@ -1347,8 +1345,6 @@ export const CHARTS = {
   perturbation: {
     title: "Each factor's effect on the prediction",
     more: true,
-    level: 2,
-    term: "response_surface",
     caption: (_, { banded = false } = {}) =>
       "Each line moves one factor from its low to its high setting with the others at their center. A steep line is a " +
       "factor that matters; a bent one has an optimum inside its range." +
@@ -1357,8 +1353,6 @@ export const CHARTS = {
   main_effects: {
     title: "Average result at each setting",
     more: true,
-    level: 1,
-    term: "main_effect",
     caption:
       "The average of the runs made at each setting of a factor, whatever the others were at. The model is not used: " +
       "these are your results.",
@@ -1366,8 +1360,6 @@ export const CHARTS = {
   interaction: {
     title: "Interaction of the two factors",
     more: true,
-    level: 1,
-    term: "interaction_plot",
     caption: (pair) =>
       `One line for each setting of ${pair[0]}, over the settings of ${pair[1]}: averages of your results. Lines that ` +
       `are not parallel indicate that the effect of ${pair[1]} depends on ${pair[0]}.`,
@@ -1375,24 +1367,18 @@ export const CHARTS = {
   surface_3d: {
     title: "Fitted response surface, in three dimensions",
     more: true,
-    level: 2,
-    term: "response_surface",
     height: 420,
     caption: (pair) => `The surface above, over ${pair.join(" and ")}, as a shape to turn: drag it.`,
   },
   cube: {
     title: "Predictions at the corners",
     more: true,
-    level: 1,
-    term: "cube_plot",
     height: 420,
     caption: "The model's prediction at each combination of the low and high settings of three factors: drag to turn it.",
   },
   normal_probability: {
     title: "Residuals against the normal distribution",
     more: true,
-    level: 1,
-    term: "residual_analysis",
     caption:
       "Residuals that follow the line behave as random noise does. One far from the line is a run to look at again: " +
       "press it, and it is marked on every chart and in the run sheet.",
@@ -1400,15 +1386,11 @@ export const CHARTS = {
   residuals_order: {
     title: "Residuals in the order the runs were made",
     more: true,
-    level: 1,
-    term: "residual_analysis",
     caption: "A drift or a step says something changed while the runs were made, which the model does not know of.",
   },
   prediction_variance: {
     title: "Where the predictions are least certain",
     more: true,
-    level: 3,
-    term: "prediction_variance",
     caption:
       "The variance of a prediction, relative to the noise of one run, over the same two factors. It depends on where " +
       "the runs are, not on their results: predictions are firmest where it is lowest.",
@@ -1425,9 +1407,6 @@ export const CAPTIONS = Object.fromEntries(
 
 /** The charts under "More charts", in their order. */
 export const MORE_CHARTS = Object.keys(CHARTS).filter((key) => CHARTS[key].more);
-
-/** The reading level that first shows a chart: 1 for one every level has. */
-export const chartLevel = (key) => CHARTS[key]?.level ?? 1;
 
 /** A chart's height on the page, in pixels. */
 export const chartHeight = (key) => CHARTS[key]?.height ?? 340;

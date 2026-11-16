@@ -122,7 +122,6 @@ import {
   CHARTS,
   MORE_CHARTS,
   chartHeight,
-  chartLevel,
   correlationWords,
   THE_BLOCKS,
   termsKey,
@@ -320,10 +319,9 @@ import { drawFieldChart } from "./field-chart.js";
 import { RUN_ORDER_SEED, briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows } from "./report.js";
 import { analyseCode, balanceCode, bestCode, compareCode, comparisonFigureCode, correlationCode, cumulative, curveCode, designCode, figureCode, forResponse, notebook, overlayCode, ownFigureCode, resultsCode, sensitivityCode, targetCode, targetOverlayCode, tradeOffCode, whatIfCode, windowCode, windowOverlayCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
-import { CONTEXT, GLOSSARY, MARKED } from "./glossary.js";
+import { CONTEXT, DESIGN_CONTEXT, GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
 import { closeOnBackdrop } from "./dialogs.js";
-import { FEATURES, LEVELS, LEVEL_KEY, designListed, levelOf, moreWords, readLevel } from "./levels.js";
 import { installImport, openedWords } from "./import.js";
 import { pythonLine } from "./worker-rpc.js";
 import { installOffline } from "./offline.js";
@@ -393,8 +391,6 @@ function listing(select) {
     },
     /** Choose an option, listing it if the rule leaves it out. */
     choose: list,
-    /** The options the list leaves out as it stands. */
-    leftOut: () => every.filter(({ option }) => !option.isConnected).map(({ option }) => option),
   };
 }
 const designs = listing($("#design-type"));
@@ -556,8 +552,6 @@ const state = {
   moreCharts: false, // whether "More charts" is open
   setAside: {}, // for a response's column, the places on the run sheet of the runs its fit goes without
   simpler: null, // the terms the search for a simpler model proposed for the analysis on show, or null
-  plots: null, // what api_plots last returned, and the request it answered: drawn again at another reading level
-  chartRequest: null,
   best: null, // the best settings for the response's goal, on the fitted model: what api_best_settings returned
   balance: null, // the settings that balance the responses with a goal: what api_balance returned
   // The trade-offs between them: what api_trade_offs returned (tried), the two responses on the chart's axes and the
@@ -867,7 +861,6 @@ let responsesUnready = false;
  * each number it knows, the line that says the first one sizes the design, the room left for more, and problems.
  */
 function showResponse() {
-  showInUse();
   const rows = responseRows();
   for (const tr of rows) {
     const aimed = box(tr, "goal").value === "target";
@@ -1512,7 +1505,7 @@ let budgetEdited = false;
 let resolutionEdited = false;
 let designChosen = false; // the reader chose the design, or a study opened with one; else Design picks it
 
-const alsoListed = new Set(); // the designs listed whatever the level: runs as given, once a study has had some
+const alsoListed = new Set(); // listed besides the designs the page makes: runs as given, once a study has had some
 
 /** What a design type is, as the design list says under it. */
 const designHint = (designType) => designs.option(designType)?.dataset.hint ?? "";
@@ -1542,7 +1535,7 @@ function setForm(spec) {
 function setDesignForm(spec) {
   // Runs as given are in the list once a study of given runs is open, so the reader can make them again.
   if (spec.design_type === GIVEN) alsoListed.add(GIVEN);
-  showLevelDesigns(spec.design_type);
+  listDesigns(spec.design_type);
   const options = spec.options || spec;
   if (options.n_center_points !== undefined) $("#n_center_points").value = options.n_center_points;
   if (typeof options.alpha === "number") {
@@ -1581,7 +1574,6 @@ function setDesignForm(spec) {
  * point, and an optimal design's runs follow its model unless the reader set them.
  */
 function refreshDesign() {
-  showInUse();
   const k = factorCount();
   const full = factorRows().length >= MAX_FACTORS; // the add buttons stop at the most factors a study has, and say so
   for (const id of ["#add-factor", "#add-categorical"]) $(id).disabled = full;
@@ -1827,7 +1819,7 @@ function pickCell(runs) {
   if (!design) return;
   designChosen = true;
   if (design.design_type === "full_factorial") {
-    showLevelDesigns(design.design_type);
+    listDesigns(design.design_type);
     refreshDesign();
     $("#design-type").focus(); // the grid goes with the fraction: the focus stays on the choice it made
     return;
@@ -2338,7 +2330,6 @@ function candidateList(c, current) {
     for (const r of fitting) {
       const tr = el("tr", "", "");
       tr.dataset.design = r.design_type;
-      tr.dataset.level = levelOf(`design:${r.design_type}`);
       const name = el("td", "", "");
       const label = el("label", "", "");
       const radio = el("input", "", "");
@@ -2346,7 +2337,7 @@ function candidateList(c, current) {
       radio.name = "candidate";
       radio.value = r.design_type;
       radio.disabled = !current;
-      const concept = FEATURES[`design:${r.design_type}`]?.term; // the design's term in the concept map
+      const concept = DESIGN_CONTEXT[r.design_type]; // the design's term in the concept map
       label.append(radio, term(r.label, { definition: designHint(r.design_type), concept }));
       name.append(label);
       tr.append(name, el("td", "", String(r.runs)), el("td", r.spare < SPARE_FOR_NOISE ? "low" : "", String(r.spare)));
@@ -2438,7 +2429,7 @@ function levelPlan(c, current) {
 /** Make the design of one factor with this many runs at each level, as the reader picked from the plan. */
 function pickLevelRuns(n) {
   designChosen = true;
-  showLevelDesigns("full_factorial");
+  listDesigns("full_factorial");
   $("#n_center_points").value = 0;
   $("#n_replicates").value = n;
   refreshDesign();
@@ -2481,9 +2472,8 @@ function markPicked() {
     const on = tr.dataset.design === chosen;
     tr.setAttribute("aria-selected", String(on));
     tr.querySelector("input").checked = on;
-    tr.classList.toggle("in-use", on); // the study's own design is listed at every level
   }
-  showLevelDesigns();
+  listDesigns();
 }
 
 /**
@@ -2872,7 +2862,6 @@ function renderCurves() {
   $("#curve-clear").hidden = !curve;
   $("#curve-status").textContent = curve ? curvesSaid(curve, state.curves) : "";
   if (curve) box.open = true;
-  showInUse();
 }
 
 /** The reader's words for the curve and for the points along it, as a study keeps them: each left out when blank. */
@@ -3829,8 +3818,6 @@ function diagnosticParts(diagnostics, transform) {
   const unusual = diagnostics.filter((d) => d.unusual);
   const box = el("details", "diagnostics", "");
   box.id = "diagnostics";
-  box.dataset.level = levelOf("table:diagnostics");
-  box.classList.toggle("in-use", unusual.length > 0); // a run to look at again is said at every level
   box.open = unusual.length > 0;
   box.append(
     el("summary", "", unusual.length ? `Each run, as the model sees it (${unusual.length} to look at again)` : "Each run, as the model sees it"),
@@ -4527,12 +4514,8 @@ async function drawCharts(request, mine, given = null) {
       await draw(card.plot, figures[key], version, chartHeight(key), { python: python(key) });
       if (overtaken()) return;
     }
-    state.plots = plots; // drawn again, from these, when the reading level changes
-    state.chartRequest = request;
-    const drawable = MORE_CHARTS.filter((key) => figures[key]);
-    const more = drawable.filter((key) => chartLevel(key) <= pageLevel());
-    const beyond = moreWords(drawable.filter((key) => !more.includes(key)).map(chartLevel), "chart");
-    if (drawable.length) charts.append(moreCharts(more, figures, captioned, version, beyond, python));
+    const more = MORE_CHARTS.filter((key) => figures[key]);
+    if (more.length) charts.append(moreCharts(more, figures, captioned, version, python));
   } catch (err) {
     charts.append(el("p", "hint", `The charts could not be drawn (${err.message}); the tables above hold the numbers.`));
   }
@@ -4589,11 +4572,10 @@ function figuresCharted() {
  * The further charts, under a heading the reader opens. Each is drawn when the heading is first opened, since a
  * chart drawn while hidden has no width to fit; the heading stays open or shut as the charts are drawn again.
  */
-function moreCharts(keys, figures, captioned, version, beyond, python) {
+function moreCharts(keys, figures, captioned, version, python) {
   const box = el("details", "more-charts", "");
   box.id = "more-charts";
   box.append(el("summary", "", `More charts (${keys.length})`));
-  if (beyond) box.append(levelNote(beyond));
   const grid = el("div", "charts", "");
   box.append(grid);
   box.open = state.moreCharts;
@@ -5926,7 +5908,6 @@ function showTargets() {
   }
   const typed = Object.keys(state.target.targets).length > 0;
   $("#target-clear").hidden = !typed;
-  $("#target").classList.toggle("in-use", typed); // targets typed stay on the page at every reading level
 }
 
 /** The reader typed a target or moved its slider: the settings follow a moment after the last move. */
@@ -6236,7 +6217,6 @@ async function findWindow() {
   const { pair } = state.window;
   const mine = ++windowTicket;
   $("#window-clear").hidden = !Object.keys(windows).length;
-  $("#window").classList.toggle("in-use", Object.keys(windows).length > 0); // windows typed stay at every reading level
   // The chart holds its other factors, and every categorical factor, where the what-if panel has them.
   const asked = { ...fitsAsked(), windows, at: state.whatIf?.settings, ...(pair ? { pair } : {}) };
   const reply = Object.keys(windows).length && state.whatIf ? await call("api_specification", asked) : null;
@@ -6799,7 +6779,7 @@ function restoreDraft(draft) {
   $("#response-known").open = Boolean(f.typical || f.noise || f.smallest_change);
   showResponse();
   if (draft.design) {
-    showLevelDesigns(draft.design);
+    listDesigns(draft.design);
     designChosen = true;
   }
   $("#factors tbody").replaceChildren();
@@ -7602,68 +7582,16 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !document.querySelector("dialog[open]")) pressRun(null);
 });
 
-// ---------------------------------------------------------------- reading level
-/** The reading level the page shows: 1 Beginner, 2 Intermediate, 3 Adventurous (levels.js). */
-const pageLevel = () => readLevel(document.documentElement.dataset.level ?? null);
-
-/** A sentence on what the level leaves out of a list, with a button that shows the page at every level. */
-function levelNote(words) {
-  const note = el("p", "hint level-more", `${words}. `);
-  const all = el("button", "", "Show them");
-  all.type = "button";
-  all.onclick = () => setLevel(LEVELS.length);
-  note.append(all);
-  return note;
-}
-
+// ---------------------------------------------------------------- the list of designs
 /**
- * List the designs of the page's level in the design list, with ``chosen`` as the plan's design, and say how many
- * more a higher level has. The plan's design is listed whatever the level; "Runs as given" is listed once a study
- * has had such runs.
+ * List every design the page makes in the design list, with ``chosen`` as the plan's design. "Runs as given" is
+ * listed once a study has had such runs, and while it is the plan's design.
  */
-function showLevelDesigns(chosen = $("#design-type").value) {
-  designs.show((option) => designListed(option.value, pageLevel(), { also: [...alsoListed] }), chosen);
-  const left = designs.leftOut().filter((option) => option.value !== GIVEN);
-  const note = $("#level-designs");
-  note.hidden = !left.length;
-  if (left.length) {
-    const levels = left.map((option) => levelOf(`design:${option.value}`));
-    note.replaceChildren(...levelNote(moreWords(levels, "design")).childNodes);
-  }
+function listDesigns(chosen = $("#design-type").value) {
+  designs.show((option) => option.value !== GIVEN || alsoListed.has(GIVEN), chosen);
 }
 
-/**
- * Keep on the page, whatever its level, each part the study on it uses: its blocks, its limits on the settings, its
- * later responses, its curves. A level leaves a part off the page until a study has use for it, and never after:
- * the page's own rule (style.css) shows a part marked in-use at every level.
- */
-function showInUse() {
-  const used = {
-    '[data-feature="option:blocks"]': Number($("#n_blocks").value) > 1,
-    "#limits": hasLimits(),
-    "#more-responses": responseRows().length > 1,
-    "#curves": Boolean(state.design?.spec?.curve),
-  };
-  for (const [part, on] of Object.entries(used)) $(part).classList.toggle("in-use", on);
-}
-
-/** Show the page at a level, and keep the choice where the concept map keeps its own. */
-function setLevel(level, keep = true) {
-  document.documentElement.dataset.level = level;
-  for (const radio of document.querySelectorAll('#level input[name="level"]')) radio.checked = Number(radio.value) === level;
-  if (keep) {
-    try {
-      localStorage.setItem(LEVEL_KEY, String(level));
-    } catch {
-      /* storage refused: the level holds for this visit */
-    }
-  }
-  showLevelDesigns();
-  if (state.plots && !$("#charts").hidden) drawCharts(state.chartRequest, ticket, state.plots); // its charts follow
-}
-
-$("#level").onchange = (event) => setLevel(Number(event.target.value));
-$("#design-type").addEventListener("change", () => showLevelDesigns());
+$("#design-type").addEventListener("change", () => listDesigns());
 
 // ---------------------------------------------------------------- colour mode
 const MODE_KEY = "factorial-mode";
@@ -7702,7 +7630,6 @@ systemDark.addEventListener("change", () => {
   if (document.documentElement.dataset.mode === "auto") redrawAll(); // the charts follow the system
 });
 applyMode(MODES.includes(document.documentElement.dataset.mode) ? document.documentElement.dataset.mode : "auto");
-setLevel(pageLevel(), false);
 
 // ---------------------------------------------------------------- wiring
 installTerms(GLOSSARY, CONTEXT);
@@ -7814,7 +7741,6 @@ $("#trade-off-table").addEventListener("click", (e) => {
 });
 $("#n_levels").onchange = markStale;
 for (const id of ["#n_center_points", "#n_replicates", "#n_blocks"]) $(id).addEventListener("input", markStale);
-$("#n_blocks").addEventListener("input", showInUse);
 for (const id of ["#design-type", "#n_center_points", "#n_replicates"]) $(id).addEventListener("input", markLevelRuns);
 $("#generate").onclick = async () => {
   // While practising, the new runs are simulated from the same process, noise and seed, so the true process
@@ -8015,8 +7941,6 @@ function showPart(id) {
   const acts = ["pointerdown", "keydown", "wheel", "touchstart"];
   for (const act of acts) window.addEventListener(act, leave, { once: true, capture: true, passive: true });
   const started = Date.now();
-  // A part above the page's reading level is shown all the same, for this visit: the link asked for it.
-  for (let at = part; at; at = at.parentElement) if (at.dataset.level) at.classList.add("asked");
   // Shown once nothing between it and its step is hidden: the step itself is shown here.
   const there = () => {
     for (let at = part; at && !at.dataset.pane; at = at.parentElement) if (at.hidden) return false;
