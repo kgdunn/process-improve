@@ -16,6 +16,8 @@ from tests.web.e2e._page import (
     enter_results,
     first_paint_done,
     generate,
+    name_response,
+    practise,
     reveal,
     set_factors,
     status,
@@ -147,6 +149,53 @@ def test_the_coefficients_switch_to_the_book_s_pareto_plot_and_back(context, pag
     assert view(again) == "Pareto plot", "the view chosen is kept in this browser"
     again.click("#charts .views button[data-view='estimates']")
     again.wait_for_function("document.querySelector('#charts .chart.wide .js-plotly-plot').data[0].type === 'scatter'")
+
+
+#: Whether the coefficients' chart shows the effects in the response's units: its axis says so.
+EFFECTS = (
+    "document.querySelector('#charts .chart.wide .js-plotly-plot')?.layout?.xaxis?.title?.text?.startsWith('Change in')"
+)
+
+
+def test_the_coefficients_are_drawn_as_effects_in_the_response_s_own_units(context, page, site, first_paint):
+    page.click("#charts .views button[data-view='effects']")
+    page.wait_for_function(EFFECTS)
+    assert view(page) == "Effects"
+    figure = coefficient_plot(page)
+    assert figure.evaluate("d => d.layout.xaxis.title.text") == "Change in Yield (%) over the range"
+    names = [t["name"] for t in plots(page)[0]]
+    assert names == ["Raises it", "Lowers it", "95% interval", "True effect", "Smaller than the change worth finding"]
+    # Each bar is the term's move of Yield over the ranges: twice a coefficient, and a square's coefficient itself.
+    drawn = figure.evaluate(
+        "d => Object.fromEntries(d.data.filter((t) => t.type === 'bar').flatMap((t) => t.y.map((y, i) => [y, t.x[i]])))"
+    )
+    for c in first_paint["analysis"]["coefficients"]:
+        if c["term"] != "Intercept":
+            span = 1 if c["term"].startswith("I(") else 2
+            assert drawn[c["label"]] == pytest.approx(span * c["coefficient"]), c["label"]
+    worth = first_paint["inputs"]["design"]["response_info"]["smallest_change"]
+    band = figure.evaluate("d => d.layout.shapes.map((s) => [s.type, s.x0, s.x1])")
+    assert band == [["rect", -worth, worth]], "the change the example says is worth finding, either side of none"
+
+    again = context.new_page()
+    again.goto(f"{site}?example=worked")
+    first_paint_done(again)
+    assert view(again) == "Effects", "the view chosen is kept in this browser"
+
+
+def test_the_effects_are_read_against_the_change_worth_finding(blank_page):
+    """A reader who said what change is worth finding sees which effects are smaller than it."""
+    page = blank_page
+    name_response(page, "Yield", "%", noise=1, change=5)
+    generate(page)
+    practise(page)
+    reveal(page, "#charts")
+    page.wait_for_selector("#charts .views button[data-view='effects']")
+    page.click("#charts .views button[data-view='effects']")
+    page.wait_for_function(EFFECTS)
+    band = coefficient_plot(page).evaluate("d => d.layout.shapes.map((s) => [s.type, s.x0, s.x1])")
+    assert band == [["rect", -5, 5]], "the 5 % worth finding, either side of no change"
+    assert "Smaller than the change worth finding" in [t["name"] for t in plots(page)[0]]
 
 
 def test_with_no_degrees_of_freedom_the_pareto_plot_draws_lenth_s_margins(blank_page):

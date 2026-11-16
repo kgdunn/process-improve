@@ -52,6 +52,8 @@ import {
   runRings,
   RUN_RING,
   paretoFigure,
+  effectsFigure,
+  termSpan,
   prettyTerm,
   sensitivityFigure,
   sensitivityHeight,
@@ -123,6 +125,51 @@ describe("the coefficient chart", () => {
     const layout = pageLayout(coefficientFigure(coefficients, true, COLOURS).layout, 300, COLOURS);
     assert.equal(layout.legend.yanchor, "bottom");
     assert.ok(layout.legend.y > 1);
+  });
+});
+
+describe("the effects in the response's own units", () => {
+  const coefficients = [
+    { term: "Intercept", label: "Intercept", coefficient: 62, ci_low: 61, ci_high: 63, true_value: 62 },
+    { term: "T", label: "T", coefficient: 1.5, ci_low: 1.0, ci_high: 2.0, true_value: 2 },
+    { term: "P", label: "P", coefficient: -0.5, ci_low: -1.0, ci_high: 0, true_value: -0.25 },
+    { term: "T:P", label: "T·P", coefficient: 0.25, ci_low: -0.25, ci_high: 0.75, true_value: 0 },
+    { term: "I(T ** 2)", label: "T²", coefficient: -4, ci_low: -4.5, ci_high: -3.5, true_value: -3 },
+  ];
+  const words = { label: "Yield", units: "%" };
+
+  test("a factor's effect is twice its coefficient, a square's is its coefficient", () => {
+    assert.deepEqual(["T", "T:P", "I(T ** 2)", "I(Flow rate ** 2)"].map(termSpan), [2, 2, 1, 1]);
+  });
+
+  test("each term's move of the response over the ranges, the largest at the top, by its sign", () => {
+    const { data, layout } = effectsFigure(coefficients, words, COLOURS);
+    assert.deepEqual(layout.yaxis.categoryarray, ["T²", "T", "P", "T·P"], "by size: 4, 3, 1 and 0.5");
+    const [rises, falls, key] = data;
+    assert.deepEqual([rises.name, rises.y, rises.x], ["Raises it", ["T", "T·P"], [3, 0.5]]);
+    assert.deepEqual([falls.name, falls.y, falls.x], ["Lowers it", ["T²", "P"], [-4, -1]]);
+    assert.deepEqual(rises.error_x.array, [1, 1], "the interval's reach, over the same span");
+    assert.deepEqual(falls.error_x.array, [0.5, 1]);
+    assert.equal(key.name, "95% interval");
+    assert.equal(layout.xaxis.title.text, "Change in Yield (%) over the range");
+    assert.deepEqual(layout.shapes, [], "no band without a change worth finding");
+  });
+
+  test("the change worth finding is a band about zero, which the effects are read against", () => {
+    const { data, layout } = effectsFigure(coefficients, { ...words, change: 2 }, COLOURS);
+    const [band] = layout.shapes;
+    assert.deepEqual([band.type, band.x0, band.x1, band.yref, band.layer], ["rect", -2, 2, "paper", "below"]);
+    assert.equal(data.at(-1).name, "Smaller than the change worth finding");
+    assert.deepEqual(effectsFigure(coefficients, { ...words, change: 0 }, COLOURS).layout.shapes, [], "none for a change of 0");
+  });
+
+  test("simulated results mark each true effect, and a fit of every run draws no interval", () => {
+    const truth = effectsFigure(coefficients, { ...words, simulated: true }, COLOURS).data.at(-1);
+    assert.deepEqual([truth.name, truth.x], ["True effect", [-3, 4, -0.5, 0]]);
+    const saturated = coefficients.map((c) => ({ ...c, ci_low: null, ci_high: null }));
+    const { data } = effectsFigure(saturated, words, COLOURS);
+    assert.ok(data.every((trace) => trace.name !== "95% interval"));
+    assert.equal(data[0].error_x.visible, false);
   });
 });
 
