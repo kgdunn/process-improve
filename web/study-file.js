@@ -32,6 +32,8 @@
 //   - `id` stays with a study through copies and files, so a later study can point to an earlier one by its id and
 //     its sha256: a design that follows another and its model, with factors added or dropped.
 //   - `sha256` lets a reader tell a study changed by hand from one as Factorial saved it. The study still opens.
+//   - A study that builds on another names it in `study.builds_on`, by its `id`, with the digest of its runs and
+//     results then (runsDigest) and its title. A file that holds both holds the campaign's rounds.
 
 import { CAMPAIGN_VERSION, checkCampaign } from "./campaign.js";
 import { canonicalJson, sha256 } from "./report.js";
@@ -54,6 +56,17 @@ const isoTime = (ms) => (Number.isFinite(ms) ? new Date(ms).toISOString() : null
 function msTime(text, fallback) {
   const ms = typeof text === "string" ? Date.parse(text) : NaN;
   return Number.isFinite(ms) ? ms : fallback;
+}
+
+/**
+ * The digest of a study's runs and their results: what a later study is built on. A study that builds on another
+ * keeps this of the earlier one (``builds_on``), so the page can say when a run or a result of an earlier round
+ * changed afterwards. What else a study keeps (its models, the settings kept, what Learn was asked) changes as the
+ * reader looks at it, and is no part of this. Null where the browser has no way to work a digest out.
+ */
+export function runsDigest(study) {
+  const { columns, rows } = study.design;
+  return sha256(canonicalJson({ columns, rows, responses: study.responses, more_responses: study.more_responses ?? null }));
 }
 
 /** A study as the file holds it: the study this browser keeps, without its bookkeeping. */
