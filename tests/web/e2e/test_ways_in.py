@@ -36,10 +36,47 @@ def test_a_first_visit_is_welcomed_over_a_blank_question(fresh_page):
     assert page.text_content("#study-title") == "A new study"
     assert page.is_visible("#welcome")
     assert "Sense it. Test it. Improve it." in page.text_content("#welcome .tagline")
-    assert "Nothing to install. Data never leaves your device." in page.text_content("#welcome")
-    assert page.locator("#welcome button").all_text_contents() == ["See a worked example", "Analyse data you have"]
+    assert page.text_content("#h-welcome") == "Find out what really makes the difference."
+    assert page.locator("#welcome button").all_text_contents() == [
+        "Start my first experiment",
+        "See a finished one",
+        "Analyse data you have",
+    ]
+    assert page.locator("#welcome .welcome__promise li").all_text_contents() == [
+        "Free, with nothing to install",
+        "Your numbers stay on this device",
+        "Works without internet",
+    ]
     welcome, question = page.locator("#welcome").bounding_box(), page.locator("#response-card").bounding_box()
     assert welcome["y"] + welcome["height"] <= question["y"], "over the question it says to start with"
+    assert page.evaluate("document.activeElement.id") != "response", "the welcome has the first screen, not a box"
+
+
+def test_the_welcome_shows_a_study_s_four_steps_each_in_its_stage_s_colour(fresh_page):
+    page = fresh_page
+    steps = page.locator("#welcome .welcome__steps li")
+    assert [text.split(" ", 1)[0] for text in steps.all_text_contents()] == ["Design", "Run", "Learn", "Next"]
+    colours = steps.evaluate_all("(all) => all.map((one) => getComputedStyle(one, '::before').backgroundColor)")
+    assert len(set(colours)) == 4, "a colour a step"
+    # The bar's stages wear the same colours, on show or not, and the mark is drawn in them.
+    bar = page.locator("#studybar [role=tab] .step").evaluate_all(
+        "(all) => all.map((one) => getComputedStyle(one).backgroundColor)"
+    )
+    assert bar == colours[: len(bar)], "Design, Run and Learn as the welcome names them"
+    mark = page.locator("#studybar .mark__runs circle").evaluate_all(
+        "(all) => all.map((one) => getComputedStyle(one).fill)"
+    )
+    assert mark == colours[:3] * 2, "opposite corners alike"
+    assert page.locator("#studybar .mark__centre").evaluate("(one) => getComputedStyle(one).fill") == colours[3]
+
+
+def test_start_my_first_experiment_puts_the_reader_at_the_question(fresh_page):
+    page = fresh_page
+    page.click("#welcome-start")
+    assert page.is_hidden("#welcome")
+    assert page.evaluate("document.activeElement.id") == "response", "what the study measures comes first"
+    top = page.locator("#response-card").bounding_box()["y"]
+    assert 0 <= top < 400, "and the question is on the screen"
 
 
 def test_the_welcome_offers_the_worked_example(fresh_page):
