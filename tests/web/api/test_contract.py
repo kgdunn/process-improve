@@ -818,6 +818,8 @@ READS: dict[str, list[str]] = {
         "offers[].label: str",
         "offers[].why: str",
         "offers[].blocked: bool",
+        "offers[].added: list",
+        "offers[].reasons: list",
         "notes: list",
     ],
     "next runs outside the limits": [

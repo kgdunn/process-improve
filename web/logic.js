@@ -2258,3 +2258,20 @@ export function planVerdict(points, plan) {
   if (above >= MOST * total) return "You have fewer factors than most experiments here.";
   return "Experiments here often have as many factors as yours.";
 }
+
+/** A value of a numeric factor on the scale every design is drawn on: -1 at the low end of its range, +1 at the high. */
+export const codedLevel = (value, f) => (2 * Number(value) - Number(f.low) - Number(f.high)) / (Number(f.high) - Number(f.low));
+
+/**
+ * Some runs as points of the space that numeric ``factors`` span, for a picture of it: each run's level of every
+ * factor, coded (see codedLevel), one point for each setting the runs took however often they took it. A run is
+ * its settings by the factors' names; one without a number for a factor is left out.
+ */
+export function spacePoints(runs, factors) {
+  const points = new Map();
+  for (const run of runs) {
+    const point = factors.map((f) => (isFiniteNumber(run[f.name]) ? codedLevel(run[f.name], f) : NaN));
+    if (point.every(Number.isFinite)) points.set(point.map((level) => level.toFixed(3)).join(" "), point);
+  }
+  return [...points.values()];
+}

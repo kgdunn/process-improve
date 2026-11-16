@@ -10289,6 +10289,35 @@ EXTENSIONS: dict[str, dict[str, Any]] = {
     "replicate": {"augmentation": "replicate", "blocked": True, "name": "The runs made again"},
 }
 
+#: What each run a move adds is for, by the move's kind; an axial move's runs are of two sorts (see :func:`_run_reasons`).
+RUN_REASONS = {
+    "foldover": "A run made before, with every setting switched to its other end.",
+    "center": "At the center of the ranges: it shows curvature, and how much runs differ.",
+    "optimal": "Chosen for the model: with the runs before, it lets every term be estimated.",
+    "replicate": "A run made before, made again: the two show how much runs differ.",
+}
+
+
+def _run_reasons(kind: str, new: np.ndarray, factors: list[dict]) -> list[str]:
+    """Say what each run a move adds is for: a sentence a run, in the runs' order, for the page to list them by.
+
+    ``new`` holds the runs, coded, a row each. An axial run is named by the factor it moves to an end of its
+    range; a run at the center, among axial runs, ties them to the runs made before.
+    """
+    if kind != "axial":
+        return [RUN_REASONS[kind]] * len(new)
+    reasons = []
+    for row in new:
+        moved = [j for j, value in enumerate(row) if abs(value) > ALIAS_TOLERANCE]
+        if not moved:
+            reasons.append("At the center: it ties these runs to the runs made before.")
+            continue
+        name = factors[moved[0]]["name"]
+        end = "high" if row[moved[0]] > 0 else "low"
+        reasons.append(f"{name} at its {end} end, the others at their center: it shows how {name} curves.")
+    return reasons
+
+
 #: How many center runs Learn adds to a design that has none: the library's own number.
 EXTRA_CENTER_RUNS = 3
 
@@ -10319,6 +10348,8 @@ def next_runs(request: dict) -> dict:
     a reason the reader can act on. Each offer is one of :data:`EXTENSIONS`, in that order, and
     only where it applies: ``kind``, its ``label`` for the button, the ``runs`` it adds, ``why`` in a
     sentence or two, ``model``, the largest model the design then estimates in full, and ``blocked``.
+    ``added`` holds the runs themselves before they are made, each factor's setting by its name, and
+    ``reasons`` what each is for, so the page can show a move's runs and its price before a reader pays it.
     An extension whose runs would break a limit on the settings is not offered, and ``notes`` says so.
     A mixture is offered nothing: its runs are blends, which these extensions do not make.
     """
@@ -10336,7 +10367,9 @@ def next_runs(request: dict) -> dict:
             notes.append(f"{name} would fall outside your limits on the settings, so Learn does not offer them.")
             continue
         shown = {key: made[key] for key in ("kind", "label", "why", "model", "blocked")}
-        offers.append(shown | {"runs": len(made["new"])})
+        runs = [{f["name"]: _setting(f, row[j]) for j, f in enumerate(spec["factors"])} for row in made["new"]]
+        reasons = _run_reasons(kind, made["new"], spec["factors"])
+        offers.append(shown | {"runs": len(runs), "added": runs, "reasons": reasons})
     return {"offers": offers, "notes": notes, "recommendation": recommendation, "waiting": waiting}
 
 
