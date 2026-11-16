@@ -598,6 +598,8 @@ Also:
 
 ### Plan the next round
 
+*What the results call for, and the rounds of a campaign.*
+
 - **What to do next.** What the results call for, with one button: more runs for this design,
   confirmation runs, or a new study with its ranges moved towards better results.
   [Show me](https://factori.al/?example=worked&show=next)
