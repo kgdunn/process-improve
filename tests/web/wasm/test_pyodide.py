@@ -287,6 +287,34 @@ def test_two_windows_joined_by_their_residuals_under_pyodide_are_native_python_s
     assert max(judged, aimed) < SEARCH_CEILING, f"judged in {judged:.1f} s and aimed in {aimed:.1f} s under Pyodide"
 
 
+def test_a_mixture_s_target_and_specification_under_pyodide_are_native_python_s(pyodide, api):
+    """The blends drawn, the step that meets the target and the chance run under WebAssembly as they do natively."""
+    bounds = {"A": (0.2, 0.7), "B": (0.1, 0.6), "C": (0.0, 0.5)}
+    components = [{"name": name, "low": low, "high": high} for name, (low, high) in bounds.items()]
+    request = {"design_type": "extreme_vertices", "factors": components, "mixture_model": "scheffe_quadratic"}
+    made = held_of(api.ok("api_make_design", request))
+    blends = run_sheet(made)[list("ABC")].astype(float)
+    noise = np.random.default_rng(5).normal(0.0, 0.3, len(blends))
+    y = 30 * blends["A"] + 25 * blends["B"] + 20 * blends["C"] + 15 * blends["A"] * blends["B"] + noise
+    study = {**made, "responses": y.tolist()}
+    start = time.perf_counter()
+    under = pyodide.ok("api_target_settings", {**study, "targets": {"y": 28.0}})
+    aimed = time.perf_counter() - start
+    native = api.ok("api_target_settings", {**study, "targets": {"y": 28.0}})
+    assert (under["reached"], native["reached"]) == (True, True)
+    assert under["share"] == native["share"], "the same blends are drawn, and the same of them give the target"
+    assert [s["value"] for s in under["settings"]] == pytest.approx([s["value"] for s in native["settings"]], abs=1e-6)
+    assert under["confirm_at"] == native["confirm_at"]
+    start = time.perf_counter()
+    under = pyodide.ok("api_specification", {**study, "windows": {"y": [27.0, 29.5]}})
+    judged = time.perf_counter() - start
+    native = api.ok("api_specification", {**study, "windows": {"y": [27.0, 29.5]}})
+    assert under["share"] == native["share"]
+    assert under["surest"]["probability"] == pytest.approx(native["surest"]["probability"], abs=1e-9)
+    assert under["overlay"]["acceptable"] == native["overlay"]["acceptable"]
+    assert max(aimed, judged) < SEARCH_CEILING, f"aimed in {aimed:.1f} s and judged in {judged:.1f} s under Pyodide"
+
+
 def test_the_runs_the_results_call_for_under_pyodide_are_native_python_s(pyodide, api):
     cube = api.ok("api_make_design", {"design_type": "full_factorial", "factors": FACTORS, "n_center_points": 3})
     settings = coded(run_sheet(cube), FACTORS).to_numpy(dtype=float)
