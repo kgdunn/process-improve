@@ -54,6 +54,10 @@ import {
   paretoFigure,
   effectsFigure,
   termSpan,
+  pictureLines,
+  pictureReach,
+  pictureWords,
+  trendWords,
   prettyTerm,
   sensitivityFigure,
   sensitivityHeight,
@@ -170,6 +174,63 @@ describe("the effects in the response's own units", () => {
     const { data } = effectsFigure(saturated, words, COLOURS);
     assert.ok(data.every((trace) => trace.name !== "95% interval"));
     assert.equal(data[0].error_x.visible, false);
+  });
+});
+
+describe("a finding's word-sized pictures, drawn from its terms' coefficients", () => {
+  const coefficients = [
+    { term: "Intercept", coefficient: 60 },
+    { term: "T", coefficient: 4 },
+    { term: "P", coefficient: -2 },
+    { term: "F", coefficient: 1 },
+    { term: "T:P", coefficient: 3 },
+    { term: "I(F ** 2)", coefficient: -3 },
+  ];
+  const ends = (line) => [line[0], line.at(-1)];
+
+  test("a slope for each factor's own effect, from its low end to its high end", () => {
+    const pictures = pictureLines({ picture: "slope", terms: ["T", "P"] }, coefficients);
+    assert.deepEqual(pictures, [[[[-1, -4], [1, 4]]], [[[-1, 2], [1, -2]]]]); // prettier-ignore
+    assert.deepEqual(pictures.map(([line]) => trendWords(line)), ["rises", "falls"]);
+    assert.equal(pictureWords({ picture: "slope", terms: ["T"] }, pictures[0]), "A line that rises.");
+  });
+
+  test("a curve for a square, with the factor's own effect: here the response peaks inside the range", () => {
+    const [[curve]] = pictureLines({ picture: "curve", terms: ["I(F ** 2)"] }, coefficients);
+    assert.deepEqual(ends(curve), [[-1, -4], [1, -2]], "1 x F - 3 x F squared, from the center"); // prettier-ignore
+    assert.equal(curve.length, 9);
+    assert.deepEqual(curve[4], [0, 0], "through the center");
+    assert.equal(pictureWords({ picture: "curve", terms: ["I(F ** 2)"] }, [curve]), "A curve that peaks inside the range.");
+    const [[valley]] = pictureLines({ picture: "curve", terms: ["I(F ** 2)"] }, [{ term: "I(F ** 2)", coefficient: 2 }]);
+    assert.equal(trendWords(valley), "dips inside the range", "a square alone, with no effect of the factor's own");
+    const [[bent]] = pictureLines({ picture: "curve", terms: ["I(F ** 2)"] }, [{ term: "F", coefficient: 5 }, { term: "I(F ** 2)", coefficient: -1 }]); // prettier-ignore
+    assert.equal(trendWords(bent), "rises", "a bend whose turn lies outside the range");
+  });
+
+  test("two lines for a pair: the first factor's effect at the second's low end, then at its high end", () => {
+    const finding = { picture: "pair", terms: ["T:P"] };
+    const [lines] = pictureLines(finding, coefficients);
+    assert.deepEqual(lines, [[[-1, -1], [1, 1]], [[-1, -7], [1, 7]]], "T's slope is 4 - 3 where P = -1, and 4 + 3 where P = 1"); // prettier-ignore
+    assert.equal(pictureWords(finding, lines), "Two lines: the response rises at both ends of P, faster at its high end.");
+    const [slowing] = pictureLines(finding, [{ term: "T", coefficient: -4 }, { term: "T:P", coefficient: 3 }]);
+    assert.equal(pictureWords(finding, slowing), "Two lines: the response falls at both ends of P, faster at its low end.");
+    const [crossed] = pictureLines(finding, [{ term: "T:P", coefficient: 3 }]);
+    assert.equal(pictureWords(finding, crossed), "Two lines: at the low end of P the response falls, at its high end it rises.");
+  });
+
+  test("a level line for terms that show no sign of an effect, and no picture for a finding about the whole fit", () => {
+    const [[flat]] = pictureLines({ picture: "flat", terms: ["T:F", "P:F"] }, coefficients);
+    assert.deepEqual(flat, [[-1, 0], [1, 0]]); // prettier-ignore
+    assert.equal(pictureWords({ picture: "flat", terms: ["T:F"] }, [flat]), "A line that is level.");
+    assert.deepEqual(pictureLines({ picture: null, terms: [] }, coefficients), []);
+    assert.deepEqual(pictureLines({ kind: "of-an-earlier-page" }, coefficients), []);
+  });
+
+  test("every picture of a list is drawn to the furthest any of them reaches from the center", () => {
+    const pictures = [{ picture: "slope", terms: ["T", "F"] }, { picture: "pair", terms: ["T:P"] }, { picture: null, terms: [] }].map((finding) => pictureLines(finding, coefficients)); // prettier-ignore
+    assert.equal(pictureReach(pictures), 7);
+    assert.equal(pictureReach([]), 0);
+    assert.equal(pictureReach([pictureLines({ picture: "flat", terms: ["T"] }, coefficients)]), 0);
   });
 });
 

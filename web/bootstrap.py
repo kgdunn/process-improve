@@ -3062,7 +3062,9 @@ def _leading_finding(first: str, by_term: dict, judged: dict, simple: dict, spec
     """
     if not judged.get(first):
         return [{"kind": "leads_unsteadily", "factor": first}]
-    found: list[dict[str, Any]] = [{"kind": "leads", **_effect(by_term[first], simple[first], spec)}]
+    found: list[dict[str, Any]] = [
+        {"kind": "leads", **_effect(by_term[first], simple[first], spec), "terms": [first], "picture": "slope"}
+    ]
     worth = (spec.get("response_info") or {}).get("smallest_change")
     if worth and _transform_of(spec) is None:
         change = abs(2 * by_term[first]["coefficient"])
@@ -3084,10 +3086,36 @@ def _shape_findings(judged: dict, simple: dict) -> list[dict[str, Any]]:
         if not is_real or not set(named) <= set(simple):
             continue
         if _SQUARE.fullmatch(term):
-            found.append({"kind": "curves", "factor": named[0]})
+            found.append({"kind": "curves", "factor": named[0], "terms": [term], "picture": "curve"})
         elif len(named) == len("ab"):
-            found.append({"kind": "depends", "factor": named[0], "on": named[1]})
+            found.append({"kind": "depends", "factor": named[0], "on": named[1], "terms": [term], "picture": "pair"})
     return found
+
+
+def _stands_on(upper: str, lower: str) -> bool:
+    """Say whether the term ``upper`` holds ``lower``: a square or an interaction holds each of its factors' effects."""
+    return upper != lower and not _SQUARE.fullmatch(lower) and set(_factors_of(lower)) <= set(_factors_of(upper))
+
+
+def _no_sign_finding(judged: dict, by_term: dict, simple: dict) -> list[dict[str, Any]]:
+    """Find the fitted terms that show no sign of an effect, named as the table of coefficients names them.
+
+    A term a real one holds is not listed: a factor that acts through its square or an interaction does act. Nor
+    is one that moved with other terms in these runs, which the runs cannot judge alone.
+    """
+    real = [term for term, is_real in judged.items() if is_real and term != "Intercept"]
+    unclear = [
+        term
+        for term, is_real in judged.items()
+        if is_real is False
+        and term != "Intercept"
+        and set(_factors_of(term)) <= set(simple)
+        and (by_term[term].get("vif") or 0) <= TANGLED_VIF
+        and not any(_stands_on(upper, term) for upper in real)
+    ]
+    if not unclear:
+        return []
+    return [{"kind": "no_sign", "terms": unclear, "names": [by_term[t]["label"] for t in unclear], "picture": "flat"}]
 
 
 def _findings(
@@ -3102,11 +3130,16 @@ def _findings(
 
     Each finding is ``{"kind": ..., ...}``, in the order the page says them: which factor matters most and by
     how much (``leads``, or ``leads_unsteadily``; then ``worth``, against the change the reader said is worth
-    finding), which others are real (``also``) or that none is (``none``), which cannot be told from the noise
-    (``quiet``) or from each other (``tangled``), which effects depend on another factor (``depends``), where the
-    response curves (``curves``), how well the model fits (``fit``, or ``saturated``), whether a term may be
-    missing (``lack_of_fit``), and which runs to look at again (``unusual``). The same results give the same
-    findings.
+    finding), which others are real (``also``) or that none is (``none``), which terms show no sign of an effect
+    (``no_sign``) or cannot be told from each other (``tangled``), which effects depend on another factor
+    (``depends``), where the response curves (``curves``), how well the model fits (``fit``, or ``saturated``),
+    whether a term may be missing (``lack_of_fit``), and which runs to look at again (``unusual``). The same
+    results give the same findings.
+
+    Each finding also names the fitted ``terms`` it is about, none for one about the whole fit, and the
+    ``picture`` the page draws beside its sentence from those terms' coefficients: a ``slope`` for a factor's own
+    effect, a ``curve`` for a square, a ``pair`` of lines for two factors that act together, a ``flat`` line for
+    no sign of an effect, and none otherwise. A picture shows a finding; it does not make one.
 
     A factor matters through any term that holds it, so one whose square or interaction is real is never
     lost in the noise, and the factor that matters most is the one whose largest real term moves the response
@@ -3134,16 +3167,17 @@ def _findings(
         found += _leading_finding(first, by_term, judged, simple, spec)
         steady = [{"name": n, "up": by_term[n]["coefficient"] > 0} for n in others if judged.get(n)]
         if steady:
-            found.append({"kind": "also", "factors": steady})
+            found.append(
+                {"kind": "also", "factors": steady, "terms": [one["name"] for one in steady], "picture": "slope"}
+            )
+        found += _no_sign_finding(judged, by_term, simple)
     elif mains:
         found.append({"kind": "none"})
     tangled = [n for n in mains if n not in reach and (by_term[n].get("vif") or 0) > TANGLED_VIF]
-    quiet = [n for n in mains if n not in reach and n not in tangled]
-    if ranked and quiet:
-        found.append({"kind": "quiet", "factors": quiet})
     if tangled:
         found.append({"kind": "tangled", "factors": tangled})
-    return [*found, *_shape_findings(judged, simple), *_fit_findings(summary, lenth, lack_of_fit, diagnostics)]
+    found += [*_shape_findings(judged, simple), *_fit_findings(summary, lenth, lack_of_fit, diagnostics)]
+    return [{"terms": [], "picture": None, **finding} for finding in found]
 
 
 def _compared_as_measured(spec: dict, transform: str | None) -> list[str]:

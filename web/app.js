@@ -33,6 +33,9 @@ import {
   overlayFigure,
   paretoFigure,
   effectsFigure,
+  pictureLines,
+  pictureReach,
+  pictureWords,
   pressRun,
   prettyTerm,
   redrawAll,
@@ -132,6 +135,8 @@ import {
   termsKey,
   PICKED_WORDS,
   simplerWords,
+  alsoWords,
+  findingNumbers,
   findingWords,
   shareWords as wholeShare,
   runSheetCsv,
@@ -3201,10 +3206,13 @@ async function downloadNotebook() {
 const REPORT_STEPS = ["design", "run", "analyse", "best", "balance"];
 
 /** What a report's copy of the page leaves out: what is there to use the page, and what the page hides. */
-const NOT_REPORTED = "[hidden], button:not(.term), input, select, textarea, details.python, .actions, figure.chart";
+const NOT_REPORTED = "[hidden], button:not(.term), input, select, textarea, details.python, .actions, figure.chart, .simplify, .findings__more";
 
-/** The attributes a report's copy keeps: those that say how a cell spans, where a link goes, and how a part looks. */
-const REPORTED_ATTRIBUTES = new Set(["class", "href", "colspan", "rowspan", "open"]);
+/**
+ * The attributes a report's copy keeps: those that say how a cell spans, where a link goes, how a part looks, and
+ * what a finding's picture draws.
+ */
+const REPORTED_ATTRIBUTES = new Set(["class", "href", "colspan", "rowspan", "open", "viewBox", "points"]);
 
 /**
  * A part of the page as a report holds it, as HTML: a copy without what NOT_REPORTED names, a table's heading that
@@ -3654,7 +3662,7 @@ function renderAnalysis(reply) {
     setStatus("The results could not be analysed.", "error");
     showBoxCox(null);
     out.replaceChildren(...asideParts(), el("p", "error", reply.error), ...warningList(reply.warnings), reportResult());
-    showSimpler(false);
+    state.simpler = null;
     $("#charts").hidden = true;
     $("#py-analyse").hidden = true;
     clearBest();
@@ -3670,7 +3678,7 @@ function renderAnalysis(reply) {
   showPython("analyse", analyseCode(r.formula ?? r.model, designComplete() && !asideRuns().length, shownSpec(), vif ? fittedFormula(r.coefficients) : null, comparedOf(r)));
   const mixture = isMixture(r.spec?.design_type);
   $("#transform-choice").hidden = mixture; // a mixture's responses are analysed as measured
-  showSimpler(!mixture); // a mixture's model is chosen by name
+  state.simpler = null; // what an earlier search found goes with the analysis it was of
   $("#transform").value = r.transform ?? "";
   showBoxCox(boxCoxSentence(r.box_cox, responseWords(shownSpec()).label));
   const ratio = r.coefficients.some((c) => c.ratio !== undefined); // on the log scale, a main effect is a ratio
@@ -3678,7 +3686,8 @@ function renderAnalysis(reply) {
   // What the results say, in sentences, with what a reader must know of the fit: its notes and its warnings.
   const shown = [
     ...asideParts(),
-    ...findingParts(r.findings, Boolean(modelChoice().picked)),
+    // A mixture's model is chosen by name: the search for a simpler one is not offered for it.
+    ...findingParts(r.findings, r.coefficients, { picked: Boolean(modelChoice().picked), simpler: !mixture }),
     ...comparisonParts(r),
     ...noteList(r.notes),
     ...warningList(reply.warnings),
@@ -3771,12 +3780,23 @@ function keepStatistician(open) {
   }
 }
 
-/** Offer the search for a simpler model, or take it away; what an earlier search found goes with the analysis it was of. */
-function showSimpler(offered) {
-  $("#simplify").hidden = !offered;
-  $("#simplify-words").textContent = "";
-  $("#simplify-apply").hidden = true;
-  state.simpler = null;
+/**
+ * The search for a simpler model (bootstrap.simpler_model), offered among the findings: the terms the results
+ * support are proposed when the reader asks, and fitted when they accept. It is made again with each analysis, so
+ * what an earlier search found goes with the analysis it was of.
+ */
+function simplerControl() {
+  const box = el("span", "simplify", "");
+  box.id = "simplify";
+  const ask = el("button", "link", "Simplify the model");
+  const words = el("span", "", "");
+  const apply = el("button", "link", "Fit these terms");
+  Object.assign(ask, { type: "button", id: "simplify-ask", onclick: askSimpler });
+  Object.assign(apply, { type: "button", id: "simplify-apply", hidden: true, onclick: fitSimpler });
+  words.id = "simplify-words";
+  words.setAttribute("role", "status");
+  box.append(ask, " ", words, " ", apply);
+  return box;
 }
 
 /** Search for the terms of the fitted model the results support, and say them; the reader fits them, or not. */
@@ -3838,18 +3858,98 @@ function asideParts() {
   return [note];
 }
 
+const SVG = "http://www.w3.org/2000/svg";
+
 /**
- * What the analysis found, each finding of Python's in a sentence: the same results give the same words. A model
- * whose terms were ``picked`` from these results says so last, since it bears on all that is said before it.
+ * A word-sized picture of a finding: its ``lines`` over a level line through the center, drawn to ``reach``, the
+ * one scale every picture of the list shares, so a steeper line is a larger effect. ``words`` say it to a reader
+ * who does not see it.
  */
-function findingParts(findings, picked) {
-  const sentences = findingWords(findings, responseWords(shownSpec()));
-  if (!sentences.length && !picked) return [];
+function sparkOf(lines, reach, words) {
+  const svg = document.createElementNS(SVG, "svg");
+  for (const [name, value] of Object.entries({ class: "spark", viewBox: "0 0 40 20", role: "img", "aria-label": words })) {
+    svg.setAttribute(name, value);
+  }
+  const at = ([x, y]) => `${(20 + 17 * x).toFixed(1)},${(10 - (reach ? (8.5 * y) / reach : 0)).toFixed(1)}`;
+  const draw = (points, cls) => {
+    const line = document.createElementNS(SVG, "polyline");
+    line.setAttribute("class", cls);
+    line.setAttribute("points", points.map(at).join(" "));
+    svg.append(line);
+  };
+  draw([[-1, 0], [1, 0]], "spark__base");
+  lines.forEach((points, i) => draw(points, i ? "spark__line spark__line--other" : "spark__line"));
+  return svg;
+}
+
+/** Whether the numbers behind the findings are shown beside them: the reader's choice, for as long as the page is open. */
+let findingNumbersShown = false;
+
+/** Show the numbers behind each finding of the ``list`` beside it, or take them away, as the reader last chose. */
+function showFindingNumbers(list, button) {
+  for (const item of list.querySelectorAll("li[data-numbers]")) {
+    item.querySelector(".finding__numbers")?.remove();
+    if (findingNumbersShown) item.append(el("span", "finding__numbers", item.dataset.numbers));
+  }
+  button.textContent = findingNumbersShown ? "Hide the numbers" : "Show the numbers";
+  button.setAttribute("aria-pressed", String(findingNumbersShown));
+}
+
+/**
+ * A finding as an item of the list: its sentence, with each of its pictures before the words it shows. The pictures
+ * of the other real factors stand each before its factor; any other picture opens the sentence.
+ */
+function findingItem(finding, sentence, pictures, reach, coefficients) {
+  const item = el("li", "", "");
+  const before = finding.kind === "also" ? finding.factors.map(alsoWords) : pictures.map(() => "");
+  let rest = sentence;
+  pictures.forEach((lines, i) => {
+    const at = Math.max(0, rest.indexOf(before[i]));
+    item.append(rest.slice(0, at), sparkOf(lines, reach, pictureWords(finding, lines)));
+    rest = rest.slice(at);
+  });
+  item.append(rest);
+  const numbers = findingNumbers(finding, coefficients, fmt, pval);
+  if (numbers) item.dataset.numbers = numbers;
+  return item;
+}
+
+/**
+ * What the analysis found, each finding of Python's in a sentence beside its picture: the same results give the
+ * same words, and a picture is drawn from the ``coefficients`` of the terms its finding names. A model whose terms
+ * were ``picked`` from these results says so last, since it bears on all that is said before it. Under the list, a
+ * switch shows the numbers behind each finding; and the search for a ``simpler`` model, when it is offered, stands
+ * with the terms that show no sign of an effect, or under the list when every term shows one.
+ */
+function findingParts(findings, coefficients, { picked, simpler }) {
+  const words = responseWords(shownSpec());
+  const known = (findings ?? []).filter((finding) => findingWords([finding], words).length);
+  if (!known.length && !picked && !simpler) return [];
+  const pictures = known.map((finding) => pictureLines(finding, coefficients));
+  const reach = pictureReach(pictures);
   const list = el("ul", "findings", "");
   list.id = "findings";
-  list.append(...sentences.map((sentence) => el("li", "", sentence)));
+  const items = known.map((finding, i) => findingItem(finding, findingWords([finding], words)[0], pictures[i], reach, coefficients));
+  list.append(...items);
   if (picked) list.append(el("li", "picked", PICKED_WORDS));
-  return [el("h3", "", "What the results say"), list];
+  const more = el("p", "hint findings__more", "");
+  if (items.some((item) => item.dataset.numbers)) {
+    const numbers = el("button", "link", "");
+    numbers.type = "button";
+    numbers.id = "findings-numbers";
+    numbers.onclick = () => {
+      findingNumbersShown = !findingNumbersShown;
+      showFindingNumbers(list, numbers);
+    };
+    showFindingNumbers(list, numbers);
+    more.append(numbers);
+  }
+  if (simpler) {
+    const unclear = items[known.findIndex((finding) => finding.kind === "no_sign")];
+    if (unclear) unclear.append(" ", simplerControl());
+    else more.append(more.childNodes.length ? " " : "", simplerControl());
+  }
+  return [el("h3", "", "What the results say"), list, ...(more.childNodes.length ? [more] : [])];
 }
 
 /**
@@ -8065,8 +8165,6 @@ $("#term-list").onchange = () => {
 };
 installImport({ call, open: openImported });
 $("#stop").onclick = () => python.stop();
-$("#simplify-ask").onclick = askSimpler;
-$("#simplify-apply").onclick = fitSimpler;
 $("#term-first").onchange = showTermAdder;
 $("#term-second").onchange = showTermAdder;
 $("#add-term").onclick = addNamedTerm;

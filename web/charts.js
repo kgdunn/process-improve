@@ -653,6 +653,71 @@ export function coefficientFigure(coefficients, simulated, colours = palette(), 
 /** The book's colours for a coefficient's sign: the colourblind-safe Okabe-Ito orange and blue. */
 export const SIGN_COLOURS = { positive: "#E69F00", negative: "#0072B2" };
 
+/** Where a curve is drawn across a factor's range, in coded units: from its low end to its high end. */
+const ACROSS = [-1, -0.75, -0.5, -0.25, 0, 0.25, 0.5, 0.75, 1];
+
+/**
+ * A finding's word-sized pictures, drawn from the coefficients of the terms it is about (bootstrap._findings names
+ * them, and the ``picture`` each takes): a list of pictures, each a list of lines, each a list of [x, y] with x
+ * across a factor's range in coded units and y how far the fitted response is from its value at the center.
+ *
+ * - ``slope``: a picture for each term, the factor's own effect from its low end to its high end.
+ * - ``curve``: the response across the factor whose square the term is, its own effect with the square's.
+ * - ``pair``: the first factor's effect at the second's low end, then at its high end, both through the center:
+ *   the second factor's own effect would only lift one line over the other, and it has a picture of its own.
+ * - ``flat``: one level line, for terms that show no sign of an effect.
+ */
+export function pictureLines(finding, coefficients) {
+  const b = (term) => coefficients.find((c) => c.term === term)?.coefficient ?? 0;
+  const line = (slope) => [
+    [-1, 0 - slope],
+    [1, slope],
+  ];
+  const [term] = finding.terms ?? [];
+  if (finding.picture === "slope") return finding.terms.map((one) => [line(b(one))]);
+  if (finding.picture === "flat") return [[line(0)]];
+  if (finding.picture === "curve") {
+    const factor = /^I\((.+) \*\* 2\)$/.exec(term)?.[1];
+    return [[ACROSS.map((x) => [x, b(factor) * x + b(term) * x * x])]];
+  }
+  if (finding.picture === "pair") {
+    const [first] = term.split(":");
+    return [[line(b(first) - b(term)), line(b(first) + b(term))]];
+  }
+  return [];
+}
+
+/** How a line of a picture runs, in a word or two: it rises, falls, peaks or dips inside the range, or is level. */
+export function trendWords(points) {
+  const heights = points.map(([, y]) => y);
+  const [first, last] = [heights[0], heights.at(-1)];
+  const [low, high] = [Math.min(...heights), Math.max(...heights)];
+  const slack = 1e-9 * Math.max(1, Math.abs(low), Math.abs(high));
+  if (high - low <= slack) return "is level";
+  if (high > Math.max(first, last) + slack) return "peaks inside the range";
+  if (low < Math.min(first, last) - slack) return "dips inside the range";
+  return last > first ? "rises" : "falls";
+}
+
+/** What a picture of a finding shows, in words, for a reader who does not see it: ``lines`` is one of pictureLines. */
+export function pictureWords(finding, lines) {
+  if (finding.picture === "pair") {
+    const second = finding.terms[0].split(":")[1];
+    const [low, high] = lines.map(trendWords);
+    if (low !== high) return `Two lines: at the low end of ${second} the response ${low}, at its high end it ${high}.`;
+    const steeper = Math.abs(lines[1][1][1]) > Math.abs(lines[0][1][1]) ? "high" : "low";
+    return `Two lines: the response ${low} at both ends of ${second}, faster at its ${steeper} end.`;
+  }
+  const shape = finding.picture === "curve" ? "curve" : "line";
+  return `A ${shape} that ${trendWords(lines[0])}.`;
+}
+
+/**
+ * The largest distance from the center that any line reaches in the pictures of a list of findings (``pictures``
+ * holds what pictureLines gives for each): the one scale every picture of the list is drawn to.
+ */
+export const pictureReach = (pictures) => Math.max(0, ...pictures.flat(3).map(([, y]) => Math.abs(y)));
+
 /**
  * How far a term moves the response over the factors' ranges, as a multiple of its coefficient in coded units: a
  * factor from its low end to its high end is two coded units, and so is an interaction across its factors' ends; a

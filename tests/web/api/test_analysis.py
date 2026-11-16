@@ -48,8 +48,8 @@ def kinds(findings: list[dict]) -> list[str]:
 def test_the_findings_are_what_the_worked_example_found(api, held, simulated):
     """Python finds; the page writes the sentences (logic.findingWords, in tests/web/js/logic.test.mjs)."""
     findings = api.ok("api_analyze_runs", {**held, "responses": simulated["responses"]})["findings"]
-    assert kinds(findings) == ["leads", "worth", "also", "depends", "curves", "fit"]
-    leads, worth, also, depends, curves, fit = findings
+    assert kinds(findings) == ["leads", "worth", "also", "no_sign", "depends", "curves", "fit"]
+    leads, worth, also, _, depends, curves, fit = findings
     assert {key: leads[key] for key in ("factor", "categorical", "low", "high", "factor_units", "up")} == {
         "factor": "T",
         "categorical": False,
@@ -63,6 +63,45 @@ def test_the_findings_are_what_the_worked_example_found(api, held, simulated):
     assert also["factors"] == [{"name": "P", "up": False}, {"name": "F", "up": True}]
     assert (depends["factor"], depends["on"], curves["factor"]) == ("T", "P", "F")
     assert (round(fit["explained"], 2), round(fit["unseen"], 2)) == (0.99, 0.82)
+
+
+def test_each_finding_names_its_terms_and_the_picture_it_takes(api, held, simulated):
+    """A slope for a factor's own effect, a curve for a square, two lines for a pair, a flat line for no sign."""
+    analysis = api.ok("api_analyze_runs", {**held, "responses": simulated["responses"]})
+    shown = {f["kind"]: (f["terms"], f["picture"]) for f in analysis["findings"]}
+    unclear = ["T:F", "P:F", "I(T ** 2)", "I(P ** 2)"]
+    assert shown == {
+        "leads": (["T"], "slope"),
+        "worth": ([], None),
+        "also": (["P", "F"], "slope"),
+        "no_sign": (shown["no_sign"][0], "flat"),
+        "depends": (["T:P"], "pair"),
+        "curves": (["I(F ** 2)"], "curve"),
+        "fit": ([], None),
+    }
+    assert sorted(shown["no_sign"][0]) == sorted(unclear)
+    (no_sign,) = [f for f in analysis["findings"] if f["kind"] == "no_sign"]
+    assert sorted(no_sign["names"]) == sorted(["T·F", "P·F", "T²", "P²"]), "named as the table of coefficients does"
+    # Each is a term of the fit whose effect is not told apart from the noise, and every other term is real.
+    by_term = {c["term"]: c for c in analysis["coefficients"]}
+    assert all(by_term[term]["p_value"] >= 0.05 for term in unclear)
+    assert all(c["p_value"] < 0.05 for term, c in by_term.items() if term not in unclear)
+
+
+def test_a_term_a_real_one_holds_is_not_said_to_show_no_sign(api, held):
+    """F acts through its square alone: its own effect is nothing, and the page does not say F shows no sign."""
+    at = {name: held["columns"].index(name) for name in ("T", "P", "F")}
+    rng = np.random.default_rng(11)
+    responses = []
+    for row in held["rows"]:
+        t, f = (row[at["T"]] - 175) / 25, (row[at["F"]] - 15) / 5
+        responses.append(float(60 + 5 * t - 8 * f * f + rng.normal(0, 0.05)))
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    (no_sign,) = [f for f in analysis["findings"] if f["kind"] == "no_sign"]
+    by_term = {c["term"]: c for c in analysis["coefficients"]}
+    assert by_term["F"]["p_value"] >= 0.05, "the runs show no slope over F"
+    assert "F" not in no_sign["terms"], "yet F acts, through its square"
+    assert "P" in no_sign["terms"], "where P does nothing at all"
 
 
 def test_the_same_results_give_the_same_findings(api, held, simulated):
@@ -79,7 +118,7 @@ def test_a_saturated_design_s_findings_rest_on_lenth_s_method(api):
     assert beyond, "the scenario has effects that stand out"
     largest = max(beyond, key=lambda t: abs(next(e["effect"] for e in analysis["lenth"]["effects"] if e["term"] == t)))
     assert (analysis["findings"][0]["kind"], analysis["findings"][0]["factor"]) == ("leads", largest)
-    assert analysis["findings"][-1] == {"kind": "saturated", "lenth": True}
+    assert analysis["findings"][-1] == {"kind": "saturated", "lenth": True, "terms": [], "picture": None}
     assert analysis["diagnostics"] is None, "no run is left over to judge the others with"
 
 
@@ -102,7 +141,7 @@ def test_a_result_far_from_the_others_is_a_run_to_look_at_again(api, held, simul
     analysis = api.ok("api_analyze_runs", {**request, "responses": responses})
     run = held["rows"][4][held["columns"].index("Run order")]
     assert [d["run"] for d in analysis["diagnostics"] if d["unusual"]] == [run]
-    assert analysis["findings"][-1] == {"kind": "unusual", "runs": [run]}
+    assert analysis["findings"][-1] == {"kind": "unusual", "runs": [run], "terms": [], "picture": None}
 
 
 def test_each_run_has_its_leverage_and_they_sum_to_the_number_of_coefficients(api, held, simulated):
@@ -120,10 +159,10 @@ def test_a_factor_that_acts_through_its_square_or_an_interaction_is_not_lost_in_
         t, p, f = (row[at["T"]] - 175) / 25, row[at["P"]] - 2, (row[at["F"]] - 15) / 5
         responses.append(float(60 + 0.4 * f + 9 * t * p - 12 * p * p + rng.normal(0, 0.05)))
     findings = api.ok("api_analyze_runs", {**held, "responses": responses})["findings"]
-    assert findings[0] == {"kind": "leads_unsteadily", "factor": "P"}
-    assert not [f for f in findings if f["kind"] == "quiet" and "P" in f["factors"]]
-    assert {"kind": "depends", "factor": "T", "on": "P"} in findings
-    assert {"kind": "curves", "factor": "P"} in findings
+    assert findings[0] == {"kind": "leads_unsteadily", "factor": "P", "terms": [], "picture": None}
+    assert not [f for f in findings if f["kind"] == "no_sign" and "P" in f["terms"]]
+    assert {"kind": "depends", "factor": "T", "on": "P", "terms": ["T:P"], "picture": "pair"} in findings
+    assert {"kind": "curves", "factor": "P", "terms": ["I(P ** 2)"], "picture": "curve"} in findings
     (fit,) = [f for f in findings if f["kind"] == "fit"]
     assert 0.995 <= fit["explained"] < 1, "which the page says as more than 99%, not as 100%"
 
@@ -132,7 +171,8 @@ def test_nothing_real_is_found_plainly(api, held):
     """Results that are noise alone: no factor is named as mattering."""
     noise = np.random.default_rng(3).normal(60, 1, len(held["rows"])).round(2).tolist()
     findings = api.ok("api_analyze_runs", {**held, "responses": noise, "model": "main_effects"})["findings"]
-    assert findings[0] == {"kind": "none"}
+    assert findings[0] == {"kind": "none", "terms": [], "picture": None}
+    assert "no_sign" not in kinds(findings), "with nothing real, there is no model to leave terms out of"
 
 
 # --------------------------------------------------------------------------- a simpler model, proposed

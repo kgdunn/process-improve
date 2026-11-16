@@ -198,6 +198,11 @@ th, td { border-bottom: 1px solid var(--line); padding: 4px 10px; text-align: ri
 th:first-child, td:first-child { text-align: left; }
 th { font-weight: 600; }
 td.simulated { font-style: italic; }
+.spark { display: inline-block; width: 2.8em; height: 1.4em; margin-right: 0.4em; vertical-align: -0.35em; overflow: visible; }
+.spark polyline { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.spark .spark__base { stroke: var(--line); stroke-width: 1; }
+.spark .spark__line--other { stroke-dasharray: 3 2.5; }
+.finding__numbers { display: block; color: var(--muted); font-size: 0.9em; }
 .dim { color: var(--muted); }
 td.strong { font-weight: 700; }
 td.low { color: var(--warn); }
