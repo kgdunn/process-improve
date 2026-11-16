@@ -243,6 +243,11 @@ Also:
   and how pairs of them act together, curves as well, or the terms you choose.
   - *Details:* As designed, main effects, main effects and two-factor interactions, the full
     quadratic, or terms you choose (interactions of up to three factors, and squares).
+- **The model and its tables, a press away.** The equation, the fit, the table of the
+  effects, the analysis of variance and each run are under one heading, "For the
+  statistician". Learn reads in sentences until you open it.
+  - *Details:* The heading stays as you leave it, open or closed, for the next fit and the
+    next visit. The report holds every table either way.
 - **The size of each effect, and how sure it is.** A table of the effects, the surest
   first. With simulated results each stands beside its true value.
   - *Details:* Coefficients with 95% intervals and p-values, ordered by p-value.
