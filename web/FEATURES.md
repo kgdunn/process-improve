@@ -655,9 +655,11 @@ What a careful reader, or an organisation, asks before using a tool.
     170 MB to about 240 MB as most browsers count it, and about 510 MB as one does. The charts
     and Excel files are saved with it, about 12 MB of that, so the whole app works offline
     with nothing to press. A browser set to save data is not sent them unasked: there, a
-    button adds them. One button removes Factorial from the device, and
-    a line under it says what follows: the space is freed, Factorial then needs internet to
-    open, and saved studies stay. The copy holds this list and How Factorial works too. A
+    button adds them. The footer says where working offline helps: when travelling, or in a
+    factory or laboratory without internet. One button, "Free up space", removes Factorial's
+    tools from the device, and a line under it says what follows: your saved studies stay,
+    Factorial then needs internet to open, and the tools can be saved again later. The copy
+    holds this list and How Factorial works too. A
     larger page, such as the design catalog, is kept once it has been opened with a network;
     until then it says that it needs one, with the way back to the app.
 - **Your organisation can run its own copy.** The app is a folder of plain files that any web

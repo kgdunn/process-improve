@@ -25,7 +25,7 @@
 // Nothing here touches the document or the browser until installOffline is called, so tests/web/js reads the lists
 // and the words under Node.js, and runs installOffline against a stand-in for the browser.
 
-import { lockEntries } from "./python-boot.js";
+import { ASK_AGAIN, lockEntries } from "./python-boot.js";
 
 /**
  * The copies' names, as sw.js has them (tests/web/page/test_offline.py keeps the two in step), and the mark that
@@ -116,7 +116,8 @@ const TRY_AGAIN = "Try again";
 /**
  * What the footer says of the copy in each state, and the buttons it offers. Each state opens with the answer to
  * the one question a reader has, whether Factorial works without internet here, and each button says what pressing
- * it does. `keep` holds the words of the button that saves more, or none, and `remove` says whether the copy can
+ * it does. What is saved is called Factorial's tools, so that no reader takes it for their own studies; the whole
+ * copy says where working offline helps. `keep` holds the words of the button that saves more, or none, and `remove` says whether the copy can
  * be removed. `exact` says whether the build names the files of the charts and Excel files: only then can they be
  * saved for certain, and the button offered. `size` is what the copy takes of the device's storage, in MB, where the
  * browser says: the copy is made unasked, so a reader is told what it costs beside the button that removes it.
@@ -124,13 +125,14 @@ const TRY_AGAIN = "Try again";
  * build that names none, a browser that asks to save data, or a download of them that did not finish.
  */
 export function copyWords(state, { reason = "", exact = true, size = null } = {}) {
-  const saved = size ? `Factorial is saved on this device (about ${size} MB).` : "Factorial is saved on this device.";
+  const saved = size ? `Factorial's tools are saved on this device (about ${size} MB).` : "Factorial's tools are saved on this device.";
+  const where = "for example when travelling, or in a factory or laboratory without internet";
   return {
-    none: { said: "Needs internet. Factorial is not saved on this device.", keep: KEEP_PAGE, remove: false },
+    none: { said: "Needs internet. Factorial's tools are not saved on this device.", keep: KEEP_PAGE, remove: false },
     copying: { said: "Saving Factorial for offline use...", keep: null, remove: false },
     opens: { said: `Works offline, except charts and Excel files. ${saved}`, keep: exact ? KEEP_WHOLE : null, remove: true },
     keeping: { said: "Adding charts and Excel files, about 12 MB...", keep: null, remove: false },
-    whole: { said: `Works fully offline. ${saved}`, keep: null, remove: true },
+    whole: { said: `Works fully offline, ${where}. ${saved}`, keep: null, remove: true },
     failed: { said: `Not fully saved: ${reason}`, keep: TRY_AGAIN, remove: true },
   }[state];
 }
@@ -138,15 +140,30 @@ export function copyWords(state, { reason = "", exact = true, size = null } = {}
 /**
  * Copy the addresses a cache lacks into it. A file the browser has just loaded comes from its own cache. One that
  * cannot be had fails the copy, unless the copy can do without it (`needed` false): it is then left out.
+ *
+ * A file the copy needs that does not arrive is asked for again, as the start asks for its packages again
+ * (python-boot.js ASK_AGAIN): a CDN that refuses a file serves it a moment later, and a copy of some hundred files
+ * would else fail whole for one of them. `pause(ms)` waits before each further try.
  */
-async function copyInto(name, addresses, { needed = true } = {}) {
+async function copyInto(name, addresses, { needed = true, pause = paused } = {}) {
   const cache = await caches.open(name);
   for (const address of addresses) {
     if (await cache.match(address, { ignoreVary: true })) continue;
-    const added = cache.add(address);
-    await (needed ? added : added.catch(() => {}));
+    if (!needed) {
+      await cache.add(address).catch(() => {});
+      continue;
+    }
+    for (const ms of [0, ...ASK_AGAIN]) {
+      if (ms) await pause(ms);
+      const refused = await cache.add(address).then(() => null, (error) => error); // prettier-ignore
+      if (!refused) break;
+      if (ms === ASK_AGAIN.at(-1)) throw refused;
+    }
   }
 }
+
+/** Wait some milliseconds. */
+const paused = (ms) => new Promise((go) => setTimeout(go, ms));
 
 /** Whether a cache is there and holds every one of these addresses. */
 async function holds(name, addresses) {
@@ -243,7 +260,7 @@ const read = async (address, options) => (await fetch(address, options)).json();
  * is fitted with, and rejects if it cannot start. `box` holds the words and the two buttons, and takes the keyboard
  * when a button pressed goes.
  */
-export async function installOffline({ manifest, started, box }) {
+export async function installOffline({ manifest, started, box, pause = paused }) {
   if (!globalThis.navigator?.serviceWorker || !globalThis.caches || !manifest.wheel) return;
   if (manifest.service_worker === false) {
     await removeCopy().catch(() => {}); // the build retires the worker; what the reader wished of the copy stays noted
@@ -312,12 +329,12 @@ export async function installOffline({ manifest, started, box }) {
       );
       if (!served) return;
       await caches.open(MADE); // the mark first: from here on the worker may add to the copy
-      await copyInto(KEPT, files.start);
-      await copyInto(APP, opening(scope));
+      await copyInto(KEPT, files.start, { pause });
+      await copyInto(APP, opening(scope), { pause });
       await copyInto(APP, [...alsoLoaded(scope), ...onDemand(scope), ...linked(scope)], { needed: false });
       await prune(scope, files.now);
       if (what === "whole" && files.later) {
-        const added = copyInto(KEPT, files.later);
+        const added = copyInto(KEPT, files.later, { pause });
         await (meanwhile ? added : added.catch(() => {}));
       }
       await say(files);
