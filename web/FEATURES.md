@@ -323,6 +323,13 @@ Also:
 
 #### From the results to a decision
 
+- **One card answers where to run.** The dials and the map of What if set the factors. Under
+  them you choose what the settings are for: the best for your goal, a target to hit, or a
+  window to stay in. That goal's settings are found under the dials.
+  [Show me](https://factori.al/?example=worked&show=where)
+  - *Details:* A goal is offered when the study has what it needs: a response with no goal
+    has no best settings. A link to a part of a goal chooses that goal. The report holds
+    every goal's part, whichever is on show.
 - **The best settings for your goal.** They are inside the ranges and the limits, with what to
   expect there and how far a single run may fall from it. The app warns when the answer leans
   on the model beyond the runs, and says how tightly to hold each factor.
@@ -351,9 +358,9 @@ Also:
   - *Details:* Each picture has the 95% confidence band, and its line is dashed where the
     settings lie beyond the runs. The pictures share one scale, so a steeper line is a larger
     effect, and the scale holds still while you drag. A factor with levels has a dot for each.
-    With several responses the pictures are of the one Learn shows, and the table under them
-    has every response with its intervals and its leverage. The Python gives the same
-    profiles.
+    With several responses each has its row of pictures, on its own scale, and the table
+    under them has every response with its intervals and its leverage. The Python gives the
+    profiles of the response Learn shows.
 - **A map beside the dials.** The response over two factors, with the others where the dials
   have them. Press or drag on it to set both factors at once. It marks where the dials are,
   stars the best settings, and fades where the settings lie beyond the runs.
