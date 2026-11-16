@@ -1710,9 +1710,11 @@ export function balanceCode(balance, spec) {
  * each response's model as bootstrap.predictors fitted it, by its column; ``at`` the settings as the columns of ``X``
  * (best.js columnsAt), and ``settings`` as the reader set them, for the comment. ``kept`` holds the settings kept with
  * the study that the models predict at, each its ``name`` and its columns ``at``: each response is predicted at them
- * too. It builds on the design and its results.
+ * too. ``profiled`` is the column of the response whose profiles the panel draws, with how many ``points`` each is
+ * drawn through (best.js profileOf): the code then predicts it as each numeric factor alone moves across its range.
+ * It builds on the design and its results.
  */
-export function whatIfCode(spec, formulas, at, settings, kept = []) {
+export function whatIfCode(spec, formulas, at, settings, kept = [], profiled = null) {
   const words = spec.factors.map((f) =>
     labelled(f) ? `${f.name} at ${settings[f.name]}` : `${f.name} = ${Number(settings[f.name].toPrecision(4))}${f.units ? ` ${f.units}` : ""}`,
   );
@@ -1732,7 +1734,22 @@ export function whatIfCode(spec, formulas, at, settings, kept = []) {
       ? `        print(f"{name}, {scenario}:", {key: float(${scale.back("v")}) for key, v in predicted.items()})  # in its units`
       : '        print(f"{name}, {scenario}:", predicted)',
   ];
+  const moved = spec.factors.filter((f) => !labelled(f)).map((f) => f.name);
+  const profileLines = [
+    "",
+    `# The profiles the panel draws: ${profiled?.name} as each factor alone moves from its low end to its high end (-1 to 1`,
+    "# in coded units), with the other factors where they are set above.",
+    `name, model = ${repr(profiled?.name)}, ${repr(formulas[profiled?.name])}`,
+    "done = runs[name].notna()",
+    `for factor in ${repr(moved)}:`,
+    `    along = pd.concat([at] * ${profiled?.points}, ignore_index=True)`,
+    `    along[factor] = np.linspace(-1, 1, ${profiled?.points})`,
+    `    profile = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="prediction", new_points=along)`,
+    `    print(f"Profile against {factor}:", [float(${scale.back('p["predicted"]')}) for p in profile["predictions"]])`,
+  ];
+  const profiles = profiled && formulas[profiled.name] && moved.length ? profileLines : [];
   return [
+    ...(profiles.length && !scale.lines.length ? ["import numpy as np"] : []),
     "import pandas as pd",
     "from process_improve.experiments import analyze_experiment",
     "",
@@ -1749,5 +1766,6 @@ export function whatIfCode(spec, formulas, at, settings, kept = []) {
       ? `    print(name, {key: float(${scale.back("v")}) for key, v in prediction["predictions"][0].items()})  # in its units`
       : '    print(name, prediction["predictions"][0])',
     ...(kept.length ? keptLines : []),
+    ...profiles,
   ].join("\n");
 }

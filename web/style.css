@@ -1076,30 +1076,41 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 .next .offer { margin: 8px 0; padding: 4px 0 4px 10px; border-left: 3px solid var(--line); }
 .next .offer p { margin: 2px 0 6px; font-size: 0.95rem; }
 
-/* What if: a row per factor, its name, a slider and a number box over its range (a list of its levels for a categorical
-   one), then each response predicted there. */
-/* One grid for every factor, each row's parts in its cells, so the sliders and the boxes line up. */
+/* What if: a dial per factor, side by side. Each is the factor's name, its profile (the response against it, which
+   takes a drag), a slider and a number box over its range (a list of its levels for a categorical one). Under
+   them, each response predicted there. */
 .what-if-settings {
-  display: grid; grid-template-columns: minmax(4em, auto) minmax(6rem, 1fr) 7em minmax(0, auto); align-items: center;
-  gap: 6px 10px; margin: 8px 0 4px; font-size: 0.95rem;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); align-items: start;
+  gap: 14px 18px; margin: 8px 0 4px; font-size: 0.95rem;
 }
-.what-if-factor { display: contents; }
-.what-if-name { grid-column: 1; font-weight: 600; overflow-wrap: anywhere; }
-.what-if-factor input[type="range"] { width: 100%; margin: 0; accent-color: var(--accent); }
+.what-if-factor { display: grid; grid-template-columns: 7em minmax(0, 1fr); align-items: center; gap: 4px 8px; min-width: 0; }
+.what-if-name { grid-column: 1 / -1; font-weight: 600; overflow-wrap: anywhere; }
+.what-if-factor input[type="range"] { grid-column: 1 / -1; width: 100%; margin: 0; accent-color: var(--accent); }
 .what-if-factor input[type="number"] { width: 100%; }
-.what-if-factor select { grid-column: 2 / span 3; justify-self: start; }
+.what-if-factor select { grid-column: 1 / -1; justify-self: start; max-width: 100%; }
 .what-if-range { color: var(--muted); font-size: 0.9rem; }
+/* A profile: drawn to its dial's width (app.js PROFILE has its height). A sideways drag sets the factor; an up or
+   down swipe still scrolls the page on a phone. */
+.profile {
+  grid-column: 1 / -1; display: block; width: 100%; height: 132px; cursor: ew-resize;
+  touch-action: pan-y; border: 1px solid var(--line); border-radius: 6px; background: var(--panel);
+}
+.profile[hidden] { display: none; }
+.profile__band { fill: var(--accent); fill-opacity: 0.16; stroke: none; }
+.profile__line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.profile__line--beyond { stroke-dasharray: 5 4; }
+.profile__at { stroke: var(--fg); stroke-width: 1; stroke-dasharray: 2 3; vector-effect: non-scaling-stroke; }
+.profile__set { fill: var(--panel); stroke: var(--fg); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.profile__bar { stroke: var(--accent); stroke-width: 2; stroke-opacity: 0.45; vector-effect: non-scaling-stroke; }
+.profile__level { fill: var(--accent); }
+.profile__level--set { fill: var(--panel); stroke: var(--fg); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.profile__end { fill: var(--muted); font-size: 11px; }
 .what-if table.data td:nth-child(n + 3) { text-align: left; }
 /* The settings kept with the study: their name and settings, each response there, and what to do with them. */
 .what-if-keep input[type="text"] { flex: 1 1 12rem; min-width: 0; }
 .what-if-kept { margin: 0; padding: 0; list-style: none; }
 .what-if-kept > li { margin: 8px 0; padding: 4px 0 4px 10px; border-left: 3px solid var(--line); }
 .what-if-kept > li > p { margin: 2px 0 6px; overflow-wrap: anywhere; }
-@media (max-width: 600px) {
-  .what-if-settings { grid-template-columns: minmax(0, 1fr) 6em; }
-  .what-if-name, .what-if-factor select { grid-column: 1 / -1; }
-  .what-if-range { display: none; }
-}
 
 /* The balance of the responses: each response's goal in a compact table of boxes and choices, then the balance as the
    best settings show theirs, and the overlay of the acceptable ranges. */

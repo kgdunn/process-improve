@@ -1116,6 +1116,56 @@ def test_the_what_if_code_predicts_at_each_kept_setting_as_the_list_shows_it(api
             assert [p["pi_low"], p["pi_high"]] == pytest.approx(at["prediction"], abs=1e-9)
 
 
+@pytest.mark.slow
+@pytest.mark.parametrize("transform", [None, "log"], ids=["as measured", "on the log scale"])
+def test_the_what_if_code_predicts_each_profile_as_the_panel_draws_it(api, node, transform):
+    """The profiles of the first response: each numeric factor moved alone, the others where the panel has them."""
+    held, simulation = three_responses(api)
+    if transform:
+        held = {**held, "spec": {**held["spec"], "analysis_transforms": {"Yield": transform}}}
+    results = by_name(simulation)
+    reply = api.ok("api_predictors", {**held, **sent_of(results)})
+    settings = {"T": 181.5, "P": 1.4, "F": 12.0}
+    module = source("best.js")
+    [columns] = javascript(node, module, [("columnsAt", [reply["factors"], settings])])
+    fits = [r for r in reply["responses"] if "terms" in r]
+    formulas = {fit["name"]: fit["formula"] for fit in fits}
+    names = [f["name"] for f in reply["factors"]]
+    drawn = javascript(node, module, [("profileOf", [fits[0], reply["factors"], settings, name]) for name in names])
+    profiled = {"name": fits[0]["name"], "points": len(drawn[0])}
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, results]),
+        ("whatIfCode", [held["spec"], formulas, columns, settings, [], profiled]),
+    )
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        exec(code, {})  # noqa: S102 - the page's own code, the subject of this test
+    lines = [line.split(": ", 1) for line in out.getvalue().splitlines() if line.startswith("Profile against ")]
+    printed = {said.removeprefix("Profile against "): ast.literal_eval(values) for said, values in lines}
+    assert list(printed) == names
+    for name, profile in zip(names, drawn, strict=True):
+        assert printed[name] == pytest.approx([point["predicted"] for point in profile], abs=1e-9), name
+
+
+def test_the_what_if_code_draws_no_profile_it_was_not_asked_for_nor_one_of_a_factor_with_levels(node):
+    catalyst = {"name": "Catalyst", "type": "categorical", "levels": ["A", "B", "C"], "units": ""}
+    spec = {"design_type": "full_factorial", "factors": [catalyst, FACTORS[0]], "responses": [{"name": "y"}]}
+    at = {"T": 0.5, "Catalyst_L1": 0, "Catalyst_L2": 1}
+    settings = {"Catalyst": "B", "T": 187.5}
+
+    def code(*more: object) -> str:
+        return javascript(node, source("python.js"), [("whatIfCode", [spec, {"y": "T"}, at, settings, *more])])[0]
+
+    assert "Profile against" not in code()
+    assert "import numpy" not in code()
+    profiled = code([], {"name": "y", "points": 25})
+    assert "for factor in ['T']:" in profiled.replace('"', "'"), "the numeric factor alone"
+    assert profiled.startswith("import numpy as np\nimport pandas as pd")
+    assert "Profile against" not in code([], {"name": "not fitted", "points": 25})
+
+
 # --------------------------------------------------------------------------- the code of each figure
 def figure_drawn(node, monkeypatch, steps: tuple, options: dict, model: str, complete: bool, spec: dict):
     """Return the figure that a figure's code draws, run after the code of the steps it builds on."""
