@@ -247,14 +247,24 @@ Also:
     reader who does not see it. "Show the numbers" puts each finding's coefficient, its 95%
     interval and its p-value under it. The report holds the pictures too.
 - **Choose how much the model holds.** As designed, the factors on their own, the factors
-  and how pairs of them act together, curves as well, or the terms you choose.
-  - *Details:* As designed, main effects, main effects and two-factor interactions, the full
-    quadratic, or terms you choose (interactions of up to three factors, and squares).
+  and how pairs of them act together, or curves as well.
+  - *Details:* As designed, main effects, main effects and two-factor interactions, or the
+    full quadratic. The list says "Your terms" while the model is one you built term by
+    term.
 - **The model and its tables, a press away.** The equation, the fit, the table of the
   effects, the analysis of variance and each run are under one heading, "For the
   statistician". Learn reads in sentences until you open it.
   - *Details:* The heading stays as you leave it, open or closed, for the next fit and the
     next visit. The report holds every table either way.
+- **The model as terms to press.** Under "For the statistician", every term the model may
+  hold is there, with the model's own ticked. One press takes a term out or puts it in, and
+  the answer, its checks and the findings follow.
+  - *Details:* Main effects, interactions of up to three factors, and squares. A term put in
+    brings the main effects it is made of; a term taken out takes nothing with it, so a
+    factor nested in another can be written. Terms the design cannot tell apart are one
+    term, written "A·B = C·D". "As designed" goes back to the design's own model, and "Keep
+    the clear terms" fits the terms the results support at once. A model that cannot be
+    fitted keeps its terms on show, so a term can be put back.
 - **The size of each effect, and how sure it is.** A table of the effects, the surest
   first. With simulated results each stands beside its true value.
   - *Details:* Coefficients with 95% intervals and p-values, ordered by p-value.
@@ -294,7 +304,8 @@ Also:
   and Learn, the report and the code all say it was left out.
 - **Simplify the model.** The app proposes the terms worth keeping. Nothing is fitted until
   you accept, and the app then says the terms were picked from the same results. The offer
-  stands with the terms that show no sign of an effect, in what the results say.
+  stands with the terms that show no sign of an effect, in what the results say. "Keep the
+  clear terms", beside the model's terms, does the same in one press.
   - *Details:* Stepwise selection by AICc that keeps an interaction only with both its main
     effects.
 - **How steady repeated runs are.** Where a setting was run more than once: its average and
