@@ -3791,7 +3791,7 @@ function simplerControl() {
   const ask = el("button", "link", "Simplify the model");
   const words = el("span", "", "");
   const apply = el("button", "link", "Fit these terms");
-  Object.assign(ask, { type: "button", id: "simplify-ask", onclick: askSimpler });
+  Object.assign(ask, { type: "button", id: "simplify-ask", onclick: () => askSimpler(words, apply) });
   Object.assign(apply, { type: "button", id: "simplify-apply", hidden: true, onclick: fitSimpler });
   words.id = "simplify-words";
   words.setAttribute("role", "status");
@@ -3799,20 +3799,23 @@ function simplerControl() {
   return box;
 }
 
-/** Search for the terms of the fitted model the results support, and say them; the reader fits them, or not. */
-async function askSimpler() {
+/**
+ * Search for the terms of the fitted model the results support, and say them in the control's ``words``; its
+ * ``apply`` button then fits them, when the reader wants that.
+ */
+async function askSimpler(words, apply) {
   const mine = ticket;
-  $("#simplify-apply").hidden = true;
-  $("#simplify-words").textContent = "Searching...";
+  apply.hidden = true;
+  words.textContent = "Searching...";
   const reply = await call("api_simpler_model", analysisRequest());
-  if (mine !== ticket) return; // the analysis it was asked of is gone
+  if (mine !== ticket) return; // the analysis it was asked of is gone, and its control with it
   if (!reply.ok) {
-    $("#simplify-words").textContent = reply.error;
+    words.textContent = reply.error;
     return;
   }
   state.simpler = reply.result.terms;
-  $("#simplify-words").textContent = simplerWords(reply.result, fmt);
-  $("#simplify-apply").hidden = !reply.result.changed || !reply.result.terms.length;
+  words.textContent = simplerWords(reply.result, fmt);
+  apply.hidden = !reply.result.changed || !reply.result.terms.length;
 }
 
 /** Fit the terms the search proposed: they are ticked in the list of terms, as if the reader had ticked them. */
