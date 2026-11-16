@@ -1136,6 +1136,9 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 .rounds table.data th, .rounds table.data td { padding: 6px 14px 6px 0; text-align: left; vertical-align: top; }
 .rounds table.data td:first-child, .rounds table.data td:last-child { white-space: nowrap; }
 .rounds table.data button.link { padding: 0; }
+/* The campaign's two charts, side by side where there is room for both. */
+.campaign-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 16px; margin: 12px 0 0; }
+.campaign-charts .chart { margin: 0; min-width: 0; }
 /* A prediction as runs: for each response, dots that pile up where a run is likelier (app.js RUNS has the sizes). A
    run inside the response's window is filled, one outside is a ring, and the window is shaded behind them. */
 .what-if-runs { display: flex; flex-wrap: wrap; gap: 6px 28px; margin: 10px 0 4px; }

@@ -34,6 +34,8 @@ import {
   paretoFigure,
   effectsFigure,
   mapFigure,
+  campaignMapFigure,
+  campaignRunsFigure,
   plotPoint,
   pictureLines,
   pictureReach,
@@ -315,6 +317,8 @@ import {
   campaignDone,
   campaignTitle,
   bestResult,
+  bestSoFar,
+  campaignRuns,
   checkBuiltOn,
   roundsOf,
   checkBookExample,
@@ -349,7 +353,7 @@ import {
 import { redrawRuns } from "./picture.js";
 import { drawFieldChart } from "./field-chart.js";
 import { RUN_ORDER_SEED, briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows } from "./report.js";
-import { mapCode, analyseCode, balanceCode, bestCode, compareCode, comparisonFigureCode, correlationCode, cumulative, curveCode, designCode, figureCode, forResponse, notebook, overlayCode, ownFigureCode, resultsCode, sensitivityCode, targetCode, targetOverlayCode, tradeOffCode, whatIfCode, windowCode, windowOverlayCode } from "./python.js";
+import { mapCode, campaignMapCode, campaignRunsCode, analyseCode, balanceCode, bestCode, compareCode, comparisonFigureCode, correlationCode, cumulative, curveCode, designCode, figureCode, forResponse, notebook, overlayCode, ownFigureCode, resultsCode, sensitivityCode, targetCode, targetOverlayCode, tradeOffCode, whatIfCode, windowCode, windowOverlayCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { CONTEXT, DESIGN_CONTEXT, GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
@@ -7089,6 +7093,98 @@ async function renderRounds() {
   const listed = builtTable(["Round", "Study", "Runs", "Best so far", "Open it"], rows);
   for (const row of listed.querySelectorAll("tr")) row.lastElementChild.classList.add("rounds__open"); // the page's own: no part of a report
   $("#rounds-out").replaceChildren(listed, ...noteList(stale, "warnings"));
+  listRoundsUpTo(rounds);
+  drawCampaign(rounds, mine);
+}
+
+/** The rounds the campaign's charts can stop at: each round's number once, the last chosen unless the reader chose another that is still there. */
+function listRoundsUpTo(rounds) {
+  const numbers = [...new Set(rounds.map((one) => one.round))].sort((a, b) => a - b);
+  const select = $("#rounds-upto");
+  const chosen = numbers.includes(Number(select.value)) && select.dataset.rounds === String(numbers) ? select.value : String(numbers.at(-1));
+  select.dataset.rounds = String(numbers);
+  select.replaceChildren(...numbers.map((number) => Object.assign(el("option", "", `round ${number}`), { value: String(number) })));
+  select.value = chosen;
+  $("#rounds-as-of").hidden = numbers.length < 2;
+}
+
+/** Each round's fitted model for the campaign's map, by the round's id and what it was fitted to: asked of Python once. */
+const roundFits = new Map();
+
+/**
+ * What Python fits the first response of a study this browser keeps from (bootstrap.predictors), as fitsAsked sends
+ * the study on the page: its design, that response's results but those set aside, and its model.
+ */
+function fitAskedOf(record) {
+  const { spec, columns, rows } = record.design;
+  const aside = record.set_aside?.[spec.response] ?? [];
+  const responses = record.responses.map((value, run) => (aside.includes(run) ? null : value));
+  return { spec, columns, rows, responses, models: { [spec.response]: asked(record.model) } };
+}
+
+/**
+ * A round's model for the campaign's map: its first response as Python fits it and how its factors are coded, or null
+ * for a round with no model to draw (no results yet, a mixture, or a model that cannot be fitted). The round on the
+ * page has its fit already, from the what-if panel.
+ */
+async function roundFit(one, here) {
+  if (one.id === here && state.whatIf) {
+    const fit = state.whatIf.responses.find((response) => response.name === state.design.spec.response && response.terms);
+    return fit ? { fit, factors: state.whatIf.factors } : null;
+  }
+  const sent = fitAskedOf(one.record);
+  const key = JSON.stringify([one.id, sent.rows, sent.responses, sent.models]);
+  if (!roundFits.has(key)) {
+    const reply = await call("api_predictors", sent);
+    const fit = reply.ok ? reply.result.responses.find((response) => response.name === sent.spec.response && response.terms) : null;
+    roundFits.set(key, fit ? { fit, factors: reply.result.factors } : null);
+  }
+  return roundFits.get(key);
+}
+
+/**
+ * Draw the campaign's two charts for the rounds up to the one chosen: every run in the order they were made, with
+ * the best result so far for the goal of the study on the page, and, once that study's models are fitted, every run
+ * over two factors with each round's model inside that round's own ranges. ``mine`` is the look at the rounds this
+ * drawing belongs to (renderRounds): a later look takes the page.
+ */
+async function drawCampaign(rounds, mine) {
+  const upTo = Number($("#rounds-upto").value);
+  const shown = rounds.filter((one) => one.record && one.round <= upTo);
+  const spec = state.design.spec;
+  const info = spec.response_info ?? {};
+  const words = { label: info.label || spec.response, units: info.units ?? "", goal: info.goal ?? "", target: info.target ?? null };
+  const w = state.whatIf;
+  const pair = w ? mapPair(w.factors, state.contourPairs[state.shown]) : null;
+  const runs = campaignRuns(shown, pair);
+  $("#campaign-charts").hidden = !runs.length || !state.plotlyJs;
+  if ($("#campaign-charts").hidden) return;
+  const best = bestSoFar(runs, info);
+  draw($("#campaign-runs-plot"), () => campaignRunsFigure(runs, best, words), state.plotlyJs, 300, { python: () => campaignRunsCode(runs, words) });
+  $("#campaign-map").hidden = !pair;
+  if (!pair) return;
+  const id = state.campaign.id;
+  const drawn = [];
+  for (const one of shown) {
+    const made = runs.filter((run) => run.round === one.round && run.at);
+    const found = await roundFit(one, id);
+    if (mine !== roundsTicket) return; // another study, or a later look, has the page
+    // A round's model is drawn where both factors are ones it moved over a range: over that range, and no further.
+    const moved = found && pair.every((name) => found.factors.some((f) => f.name === name && f.kind === "numeric"));
+    const middle = moved ? Object.fromEntries(found.factors.map((f) => [f.name, f.kind === "numeric" ? (f.low + f.high) / 2 : f.levels[0]])) : null;
+    drawn.push({
+      round: one.round,
+      x: made.map((run) => run.at[0]),
+      y: made.map((run) => run.at[1]),
+      surface: moved ? surfaceOf(found.fit, found.factors, middle, pair) : null,
+      ...(moved ? { fit: found.fit, at: columnsAt(found.factors, middle), ranges: pair.map((name) => found.factors.find((f) => f.name === name)).map((f) => [Math.min(f.low, f.high), Math.max(f.low, f.high)]) } : { fit: null }),
+    });
+  }
+  const units = Object.fromEntries(spec.factors.map((f) => [f.name, f.units ?? ""]));
+  const axes = pair.map((name) => ({ name, units: units[name] }));
+  $("#campaign-map-title").textContent = `${words.label} over ${pair[0]} and ${pair[1]}, round by round`;
+  const python = () => campaignMapCode(drawn, { ...words, pair, axes, points: MAP_POINTS });
+  draw($("#campaign-map-plot"), () => campaignMapFigure(drawn, { ...words, axes }), state.plotlyJs, 340, { python });
 }
 
 /** A round's best result so far for the goal of its first response, as the rounds' table writes it; "" for none. */
@@ -8614,6 +8710,7 @@ $(".study").addEventListener("focusout", (e) => {
 $("#open-library").onclick = openLibrary;
 $("#answer-more").onclick = () => showPart("best");
 $("#learn-to-next").onclick = () => showPhase("next");
+$("#rounds-upto").onchange = () => renderRounds();
 $("#menu-share").onclick = () => showPart("download");
 $("#menu-report").onclick = viewReport;
 // The welcome of a first visit offers the other ways in, by the menu's own buttons.

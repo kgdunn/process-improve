@@ -1705,6 +1705,92 @@ export function balanceCode(balance, spec) {
 }
 
 /**
+ * A campaign's runs in the order they were made, for the chart's window: each run's round and its result, the best
+ * result so far for the goal, and the figure. ``runs`` is campaign.js campaignRuns' list, and ``words`` the
+ * response's ``label`` and ``units`` with its ``goal`` and ``target``. The code stands alone: the runs are of
+ * several studies, so they are written out.
+ */
+export function campaignRunsCode(runs, { label, units = "", goal = "", target = null }) {
+  const aimed = goal === "target" && target !== "" && target !== null && Number.isFinite(Number(target));
+  const best =
+    goal === "maximize"
+      ? [`runs["Best so far"] = runs[${repr(label)}].cummax()`]
+      : goal === "minimize"
+        ? [`runs["Best so far"] = runs[${repr(label)}].cummin()`]
+        : aimed
+          ? [
+              `miss = (runs[${repr(label)}] - ${Number(target)}).abs()  # how far each run is from the target`,
+              `runs["Best so far"] = runs[${repr(label)}].iloc[[miss.iloc[: i + 1].argmin() for i in range(len(runs))]].to_numpy()`,
+            ]
+          : [];
+  return [
+    "import pandas as pd",
+    "import plotly.graph_objects as go",
+    "",
+    "# Every run of the campaign that has a result, in the order they were made: its round, its run of that round,",
+    "# and its result.",
+    `runs = pd.DataFrame(${repr({ Round: runs.map((run) => run.round), Run: runs.map((run) => run.run + 1), [label]: runs.map((run) => run.value) })})`,
+    ...best,
+    "fig = go.Figure()",
+    'for name, made in runs.groupby("Round"):',
+    `    fig.add_scatter(x=made.index + 1, y=made[${repr(label)}], mode="markers", name=f"Round {name}")`,
+    ...(best.length ? ['fig.add_scatter(x=runs.index + 1, y=runs["Best so far"], mode="lines", line_shape="hv", name="Best so far")'] : []),
+    ...(aimed ? [`fig.add_hline(y=${Number(target)}, line_dash="dash")  # the target`] : []),
+    `fig.update_layout(xaxis_title="Runs, in the order they were made", yaxis_title=${repr(units ? `${label} (${units})` : label)})`,
+    "fig.show()",
+  ].join("\n");
+}
+
+/** A transform's prediction put back in the response's units, as numpy writes it over an array ``z`` (best.js putBack). */
+const PUT_BACK = { log: "np.exp(z)", sqrt: "np.maximum(z, 0) ** 2", inverse: "np.where(z < 0, -1 / np.where(z < 0, z, -1.0), np.nan)" };
+
+/**
+ * A campaign's map, for its window: every run of every round over two factors, and each round's model drawn over
+ * that round's own ranges. ``rounds`` holds each round drawn: its ``round`` and its runs' places ``x`` and ``y``,
+ * and for one with a model its ``fit`` (bootstrap.predictors' terms, coefficients and transform), ``at`` (the
+ * columns of the model where the map holds them, best.js columnsAt at the middle of the round's ranges) and
+ * ``ranges`` (the two factors' low and high ends). ``pair`` names the two factors, ``axes`` gives each its name
+ * and units, and ``points`` how many values each side of a model's grid has.
+ *
+ * The model is written out as Learn fitted it, term by term: the rounds are several studies, each fitted in its own
+ * study with the code that study shows.
+ */
+export function campaignMapCode(rounds, { label, units = "", pair, axes, points }) {
+  const title = (one) => (one.units ? `${one.name} (${one.units})` : one.name);
+  const side = ([low, high]) => `${low} + (side + 1) / 2 * (${high} - ${low})`;
+  const drawn = rounds.flatMap((one) => {
+    const marks = `fig.add_scatter(x=${repr(one.x)}, y=${repr(one.y)}, mode="markers", name="Round ${one.round}")`;
+    if (!one.fit) return ["", `# Round ${one.round}: its runs.`, marks];
+    return [
+      "",
+      `# Round ${one.round}: its model as Learn fitted it. Each term is the product of the columns it names, in coded units`,
+      "# (-1 at a factor's low end, +1 at its high end), times its coefficient. The columns the map does not move are held",
+      "# at the middle of their ranges.",
+      `terms = ${repr(one.fit.terms)}`,
+      `coefficients = ${repr(one.fit.coefficients)}`,
+      `grid = {name: np.full((${points}, ${points}), value) for name, value in ${repr(one.at)}.items()}`,
+      `grid[${repr(pair[0])}], grid[${repr(pair[1])}] = np.meshgrid(side, side)`,
+      "z = sum(c * np.prod([grid[name] for name in term], axis=0) for term, c in zip(terms, coefficients, strict=True))",
+      ...(one.fit.transform ? [`z = ${PUT_BACK[one.fit.transform]}  # the model is fitted on a transformed scale: back in the response's units`] : []),
+      `fig.add_contour(x=${side(one.ranges[0])}, y=${side(one.ranges[1])}, z=z, contours={"showlabels": True}, coloraxis="coloraxis", name="Round ${one.round}")`,
+      marks,
+    ];
+  });
+  return [
+    "import numpy as np",
+    "import plotly.graph_objects as go",
+    "",
+    `# ${label} over ${pair[0]} and ${pair[1]}, round by round: each round's model over its own ranges, and its runs.`,
+    "fig = go.Figure()",
+    `side = np.linspace(-1, 1, ${points})  # a factor from its low end to its high end, in coded units`,
+    ...drawn,
+    "",
+    `fig.update_layout(xaxis_title=${repr(title(axes[0]))}, yaxis_title=${repr(title(axes[1]))}, coloraxis_colorbar_title=${repr(units ? `${label} (${units})` : label)})`,
+    "fig.show()",
+  ].join("\n");
+}
+
+/**
  * The what-if map, for its window: after the what-if code of its response (``name``, fitted as ``formula``), the
  * response predicted over two factors (``pair``), each from its low end to its high end in ``points`` steps, with
  * the other factors where ``at`` has them, drawn with its lines labelled.
