@@ -605,6 +605,12 @@ Also:
   [Show me](https://factori.al/?example=worked&show=next)
   - *Details:* Runs added to the design are a fold-over, axial runs, center runs, runs chosen
     for the model, or every run again. The new study's ranges move along the steepest ascent.
+- **Every move has its price.** Each way to go on says how many runs it adds and what the
+  study then holds: "8 more runs: 19 in this study". A campaign says how many runs it holds
+  so far.
+  - *Details:* There is no budget to set against a price: what a campaign may spend is often
+    decided a round at a time. A new study's runs are counted on their own. A round that is
+    not in this browser is not counted, and the app says so.
 - **A campaign of rounds.** A study started from another is the next round of its campaign.
   Next lists the rounds: each one's runs, its best result so far, and a button that opens it.
   - *Details:* The link between two rounds goes with the study through its file, its link and

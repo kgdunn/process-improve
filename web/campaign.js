@@ -337,6 +337,32 @@ export function bestSoFar(runs, info = {}) {
   });
 }
 
+/**
+ * What a move costs, in runs, beside the runs the study has already: "8 more runs: 23 in this study". There is no
+ * budget to hold it against. What a campaign may spend is often decided a round at a time, and a good first round
+ * frees more, so the page states the price and leaves the judging to the reader. With no ``made``, the runs are a
+ * new study's own and nothing is added up: "15 runs".
+ */
+export function priceWords(runs, made = null) {
+  const price = `${runs} ${made === null ? "" : "more "}run${runs === 1 ? "" : "s"}`;
+  return made === null ? price : `${price}: ${made + runs} in this study`;
+}
+
+/**
+ * The runs a campaign holds so far, in words, from its rounds (see roundsOf): every run of every round this browser
+ * keeps, whether or not it has its result. A round that is not kept here is not counted, and the words say so.
+ */
+export function campaignSoFar(rounds) {
+  const kept = rounds.filter((one) => one.record);
+  const runs = kept.reduce((sum, one) => sum + one.record.design.rows.length, 0);
+  const numbers = new Set(rounds.map((one) => one.round)).size;
+  const missing = kept.length < rounds.length;
+  return (
+    `${missing ? "At least " : ""}${runs} runs so far in this campaign, over ${numbers} rounds.` +
+    (missing ? " A round that is not in this browser is not counted." : "")
+  );
+}
+
 /** The most responses a study measures; mirrors bootstrap.MAX_RESPONSES, as logic.js does. */
 export const RESPONSES_HELD = 5;
 

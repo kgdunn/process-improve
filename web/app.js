@@ -319,7 +319,9 @@ import {
   bestResult,
   bestSoFar,
   campaignRuns,
+  campaignSoFar,
   checkBuiltOn,
+  priceWords,
   roundsOf,
   checkBookExample,
   checkCampaign,
@@ -7101,7 +7103,7 @@ async function renderRounds() {
   });
   const listed = builtTable(["Round", "Study", "Runs", "Best so far", "Open it"], rows);
   for (const row of listed.querySelectorAll("tr")) row.lastElementChild.classList.add("rounds__open"); // the page's own: no part of a report
-  $("#rounds-out").replaceChildren(listed, ...noteList(stale, "warnings"));
+  $("#rounds-out").replaceChildren(said("price", campaignSoFar(rounds)), listed, ...noteList(stale, "warnings"));
   listRoundsUpTo(rounds);
   drawCampaign(rounds, mine);
 }
@@ -7216,6 +7218,7 @@ function calledFor(step) {
   const part = el("div", "next__part next__called", "");
   part.dataset.action = step.action;
   part.append(el("h4", "", "What the results call for"), said("", step.headline));
+  if (step.does) part.append(step.does === "study" ? newStudyPrice() : priced(step.n_runs));
   if (step.settings) part.append(table(["Factor", "Setting"], factors.map((f) => [f.name, stepSetting(f, step.settings[f.name])])));
   if (step.ranges) {
     part.append(table(["Factor", "Range now", "Next study"], factors.map((f, i) => [f.name, rangeWords(f), rangeWords(step.ranges[i])])));
@@ -7241,6 +7244,13 @@ function calledFor(step) {
   return [part];
 }
 
+/** A move's price under the move: the runs it adds, beside the runs the study has already (campaign.js priceWords). */
+const priced = (runs) => said("price", `${priceWords(runs, state.design.rows.length)}.`);
+
+/** A new study's price: the runs of this study's design, its confirmation runs apart, counted on their own. */
+const newStudyPrice = () =>
+  said("price", `A new study: ${priceWords(state.design.rows.length - confirmationRows(state.design).length)} with this study's design.`);
+
 /** A factor's range as the next step's table writes it: "150 to 200 degC", or a categorical factor's levels. */
 const rangeWords = (f) =>
   isCategorical(f) ? listNames(levelsOf(f)).replace(/ and (?=[^,]*$)/, " or ") : `${num(f.low)} to ${withUnit(f.high, f.units ?? "")}`;
@@ -7257,6 +7267,7 @@ function movedStudy(best) {
   step.append(
     el("h4", "", "A new study further along"),
     said("", `The ranges moved along the ${climb(best)}:`),
+    newStudyPrice(),
     table(["Factor", "Range now", "Next study"], factors.map((f, i) => [f.name, rangeWords(f), rangeWords(moved[i])])),
     el("p", "actions", ""),
   );
@@ -7281,7 +7292,7 @@ function addedRuns(next, others = false) {
     const add = el("button", "button", offer.label);
     add.type = "button";
     add.onclick = () => addRuns(offer.kind);
-    box.append(said("", `${offer.why}${blocked}`), add);
+    box.append(said("", `${offer.why}${blocked}`), priced(offer.runs), add);
     step.append(box);
   }
   step.append(...noteList(next.notes));
