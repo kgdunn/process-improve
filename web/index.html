@@ -25,14 +25,6 @@
     } catch {
       /* storage refused: the system's mode */
     }
-    /* The reading level (levels.js), put on the page before it is drawn, so no part of a higher level flashes by.
-       2 is levels.DEFAULT_LEVEL, a first visit's. */
-    try {
-      const level = Number(localStorage.getItem("factorial-map-level"));
-      document.documentElement.dataset.level = level >= 1 && level <= 3 ? level : 2;
-    } catch {
-      document.documentElement.dataset.level = 2;
-    }
   </script>
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="process-improve">
@@ -66,7 +58,6 @@
   <link rel="modulepreload" href="glossary.js">
   <link rel="modulepreload" href="terms.js">
   <link rel="modulepreload" href="dialogs.js">
-  <link rel="modulepreload" href="levels.js">
   <link rel="modulepreload" href="import.js">
   <link rel="modulepreload" href="worker-rpc.js">
   <link rel="modulepreload" href="offline.js">
@@ -106,14 +97,6 @@
       </button>
     </div>
     <p class="lede">Design, Run and Learn from your experiments. Nothing to install. Data never leaves your device.</p>
-    <!-- The reading level (levels.js): each level adds designs and charts to the ones below it, as the concept
-         map's levels add terms. The two pages keep one choice. -->
-    <fieldset id="level" class="level-switch">
-      <legend>Level</legend>
-      <label><input type="radio" name="level" value="1"><span>Beginner</span></label>
-      <label><input type="radio" name="level" value="2"><span>Intermediate</span></label>
-      <label><input type="radio" name="level" value="3"><span>Adventurous</span></label>
-    </fieldset>
     <!-- Three ways in, each in a colour of its own: the mark's navy and red, and the page's green. -->
     <div class="hero">
       <button type="button" id="new-study" class="button hero__action hero__action--new">
@@ -194,7 +177,7 @@
           </tbody>
         </table>
         <p id="response-problems" class="hint error" role="status" hidden></p>
-        <p class="add-factors" id="more-responses" data-feature="action:add-response" data-level="2">
+        <p class="add-factors" id="more-responses">
           <button type="button" id="add-response" class="link">+ Add <span class="term" data-term="response">response</span></button>
           <span id="responses-full" class="hint" hidden>A study measures at most 5 responses.</span>
         </p>
@@ -229,7 +212,7 @@
           <span id="factors-full" class="hint" hidden>A study has at most 40 factors.</span>
         </p>
         <!-- The limits on the settings (limits.js): closed until a study has some, so a first visit reads no more. -->
-        <details id="limits" class="known limits" data-feature="panel:limits" data-level="2">
+        <details id="limits" class="known limits">
           <summary>Settings you cannot run <span class="hint">(constraints)</span> <span id="limits-count" class="badge" hidden></span></summary>
           <p id="limits-mixture" class="hint" hidden>A mixture takes no limits on the settings on this page: give each
             component its lower and upper proportions instead.</p>
@@ -310,7 +293,7 @@
         <div id="candidates" class="candidates" aria-live="polite" hidden></div>
         <p class="actions">
           <button type="button" id="search" class="button" hidden>Search for the optimal designs</button>
-          <button type="button" id="compare" class="link" data-feature="action:compare" data-level="2" disabled>Compare them in detail</button>
+          <button type="button" id="compare" class="link" disabled>Compare them in detail</button>
         </p>
 
         <div id="design-card" class="design-card">
@@ -363,7 +346,6 @@
           <p id="design-hint" class="hint"></p>
           <!-- How long an optimal design's search takes, when it takes long: said before the reader starts it. -->
           <p id="search-wait" class="hint warn" aria-live="polite" hidden></p>
-          <p id="level-designs" class="hint level-more" hidden></p>
 
           <div class="row" id="options">
             <label data-option="n_center_points"><span class="term" data-term="center-points">Center points</span>
@@ -402,7 +384,7 @@
             <label data-option="n_replicates"><span class="term" data-term="replicates">Replicates</span>
               <input id="n_replicates" type="number" min="1" max="10" value="1">
             </label>
-            <label data-option="n_blocks" data-feature="option:blocks" data-level="2"><span class="term" data-term="blocks">Blocks</span>
+            <label data-option="n_blocks"><span class="term" data-term="blocks">Blocks</span>
               <input id="n_blocks" type="number" min="1" max="8" value="1">
             </label>
             <label data-option="model_type">Model to design for
@@ -490,7 +472,7 @@
           <div id="design-out" hidden>
             <div id="design-summary"></div>
             <!-- The correlation map of the study's own runs: asked of Python, and drawn, when the reader opens it. -->
-            <details id="correlation" class="known correlation" data-feature="panel:correlation" data-level="2" hidden>
+            <details id="correlation" class="known correlation" hidden>
               <summary>Which terms these runs tell apart</summary>
               <p class="hint">How far each pair of terms moves together over the runs, from 0, told apart in full, to 1,
                 not at all: the main effects, the squares and the two-factor interactions.</p>
@@ -545,7 +527,7 @@
           </div>
           <p id="run-source" class="hint"></p>
           <div class="scroll"><table id="design-table" class="data runs"></table></div>
-          <details id="curves" class="curves" data-feature="panel:curves" data-level="2">
+          <details id="curves" class="curves">
             <summary>Each run gives a curve</summary>
             <p class="hint">When each run gives a curve, such as a colour over time or a spectrum, paste the curves
               from a spreadsheet: a first row of the points along the curve, then a row for each run, in the run
@@ -622,7 +604,7 @@
         <p id="model-many" class="hint" hidden></p>
         <p id="box-cox" class="hint" hidden><span id="box-cox-words"></span> <button type="button" class="link" id="box-cox-apply"></button></p>
         <!-- The terms of the model the results support (bootstrap.simpler_model): proposed when asked, fitted when accepted. -->
-        <p id="simplify" class="hint" data-feature="action:simplify" data-level="2" hidden><button type="button" class="link" id="simplify-ask">Simplify the model</button>
+        <p id="simplify" class="hint" hidden><button type="button" class="link" id="simplify-ask">Simplify the model</button>
           <span id="simplify-words" role="status"></span> <button type="button" class="link" id="simplify-apply" hidden>Fit these terms</button></p>
         <fieldset id="terms" class="terms" hidden>
           <legend><button type="button" class="term" data-term="model-terms">Terms in the model</button></legend>
@@ -770,7 +752,7 @@
         </section>
         <!-- The settings that give a target (app.js, with best.js; bootstrap.target_settings and solve_for): the reader
              types what each response should be, and its model is run backwards to the settings it predicts that at. -->
-        <section id="target" class="best target" data-feature="panel:target" data-level="2" aria-labelledby="h-target" hidden>
+        <section id="target" class="best target" aria-labelledby="h-target" hidden>
           <h3 id="h-target">Settings that give a target</h3>
           <div class="scroll"><table id="target-goals" class="data target-goals" aria-label="What each response should be"></table></div>
           <p class="actions">
@@ -814,7 +796,7 @@
         <!-- The settings that meet a specification (app.js, with best.js; bootstrap.specification, on the library's
              feasible_region): the reader types a window for each response, and the page says which settings the models
              predict inside every window, and how surely one new run there meets them all. -->
-        <section id="window" class="best window" data-feature="panel:specification" data-level="2" aria-labelledby="h-window" hidden>
+        <section id="window" class="best window" aria-labelledby="h-window" hidden>
           <h3 id="h-window">Settings that meet a specification</h3>
           <div class="scroll"><table id="window-limits" class="data trade-limits" aria-label="The window each response must fall in"></table></div>
           <p class="actions"><button type="button" id="window-clear" class="link" hidden>Clear the windows</button></p>

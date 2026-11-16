@@ -273,6 +273,27 @@ export const MARKED = {
 };
 
 /**
+ * The term of the concept map (map/graph.json) for each design the page makes: what "See it in context" opens from
+ * a design's name in the list of designs. A design the map has no term of its own for is not here.
+ * tests/web/page/test_concept_map.py holds each term to the map.
+ */
+export const DESIGN_CONTEXT = {
+  full_factorial: "full_factorial",
+  fractional_factorial: "fractional_factorial",
+  plackett_burman: "plackett_burman",
+  box_behnken: "box_behnken",
+  ccd: "ccd",
+  dsd: "dsd",
+  omars: "omars_design",
+  d_optimal: "d_optimal",
+  i_optimal: "i_optimal",
+  a_optimal: "a_optimal",
+  simplex_lattice: "mixture_design",
+  simplex_centroid: "mixture_design",
+  extreme_vertices: "mixture_design",
+};
+
+/**
  * Where each word sits in the concept map (map/graph.json): the term its definition's "See it in context" opens
  * (terms.js), with the ideas around it and the book's line. A word the map has no term for, and no term near, is
  * not here, and its definition ends without a link. tests/web/page/test_concept_map.py holds each term to the map,

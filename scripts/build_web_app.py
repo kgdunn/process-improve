@@ -90,7 +90,6 @@ APP_FILES = (
     "terms.js",
     "dialogs.js",
     "figure.js",
-    "levels.js",
     "import.js",
     "worker-rpc.js",
     "offline.js",

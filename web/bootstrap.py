@@ -5830,7 +5830,7 @@ class _Chart(NamedTuple):
 
 
 #: The charts under "More charts", in the page's order, by the key the page knows each by: logic.js's CHARTS
-#: holds each one's heading, caption and reading level, and tests/web/page/test_parity.py keeps the two in step.
+#: holds each one's heading and caption, and tests/web/page/test_parity.py keeps the two in step.
 MORE_CHARTS: dict[str, _Chart] = {
     "perturbation": _Chart("perturbation", _dress_perturbation, legend_above=True),
     "main_effects": _Chart("main_effects", _dress_main_effects, legend_above=True),

@@ -114,17 +114,3 @@ def test_a_name_that_is_no_part_of_the_page_is_passed_over(context, site, name):
     assert page.evaluate(MARKED) == 0
     assert page.evaluate("() => location.search") == "?example=worked"
     assert page.get_attribute("#workspace", "data-phase") == "learn", "the worked example opens as it does"
-
-
-def test_a_part_above_the_reader_s_level_is_shown_when_a_link_asks_for_it(context, site):
-    """A Beginner's page leaves the settings for a target out; a link that asks for them shows them, for the visit."""
-    page = opened(context, site, "example=worked")
-    page.locator('#level input[value="1"]').check(force=True)
-    settled(page)
-    assert not page.is_visible("#target"), "a part of Intermediate, left out at Beginner"
-    page.goto(f"{site}?example=worked&show=target")
-    first_paint_done(page)
-    page.wait_for_selector("#target.shown-part")
-    assert page.evaluate("document.documentElement.dataset.level") == "1", "the level is the reader's still"
-    assert page.is_visible("#target-goals")
-    assert not page.is_visible("#window"), "a part no link asked for stays out"

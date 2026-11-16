@@ -206,6 +206,16 @@ def test_each_word_s_context_is_a_term_of_the_map_and_the_words_with_none_are_na
     assert set(glossary) - set(context) == NO_CONTEXT
 
 
+def test_each_design_s_context_is_a_term_of_the_map_and_a_design_the_page_makes(node, bootstrap):
+    """``glossary.DESIGN_CONTEXT`` gives a design's name the term "See it in context" opens: the map must have it."""
+    (context,) = javascript(node, source("glossary.js"), [("DESIGN_CONTEXT", [])])
+    assert set(context) <= {*bootstrap.DESIGNS, *bootstrap.MIXTURES}, "each design is one the page makes"
+    assert set(context.values()) <= {term["id"] for term in GRAPH["nodes"]}, "each term is the map's"
+    assert {*bootstrap.DESIGNS, *bootstrap.MIXTURES} - set(context) == {"taguchi", "maximin_lhs", "sobol"}, (
+        "the designs the map has no term of its own for"
+    )
+
+
 def test_a_word_defined_where_the_page_draws_it_names_a_term_of_the_map():
     """``term(..., { concept })`` in ``app.js`` gives such a word its term, as ``CONTEXT`` does a glossary word."""
     named = set(re.findall(r'concept: "([a-z_]+)"', source("app.js")))

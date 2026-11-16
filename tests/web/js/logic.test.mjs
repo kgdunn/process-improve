@@ -28,7 +28,6 @@ import {
   CAPTIONS,
   MORE_CHARTS,
   chartHeight,
-  chartLevel,
   simplerWords,
   termsKey,
   PICKED_WORDS,
@@ -586,8 +585,6 @@ describe("words and numbers", () => {
   test("the captions name the factors drawn", () => {
     assert.match(CAPTIONS.contour(["T", "P"]), /over T and P, the two factors with the largest main effects/);
     assert.match(CAPTIONS.contour(["F", "T"], { chosen: true }), /over F and T, the two factors you chose/);
-    assert.equal(chartLevel("contour"), 1, "the first charts are every level's");
-    assert.deepEqual([chartLevel("perturbation"), chartLevel("prediction_variance")], [2, 3]);
     assert.deepEqual([chartHeight("contour"), chartHeight("cube")], [340, 420]);
     for (const key of MORE_CHARTS) {
       assert.ok(TITLES[key], `${key} has a heading`);

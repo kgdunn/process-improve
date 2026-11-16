@@ -26,9 +26,8 @@ is written for them:
 - **Headings are the page's parts.** A `##` heading is a step of a study. A `###` heading is
   a part that folds, and the line in italics under it is what the fold says while closed.
 - **A point can end with "Show me".** It is a link to `https://factori.al/?example=<name>&show=<part>`
-  (or `?book=<name>`): the app opens that example at the part of its page with that id, and
-  shows the part whatever the reading level. On the page the link stays within the copy of the
-  app it is served from.
+  (or `?book=<name>`): the app opens that example at the part of its page with that id. On
+  the page the link stays within the copy of the app it is served from.
 - **A chart has its picture.** It is on a line of its own under the chart's point,
   `![](chart-pictures/<key>.webp)`, where the key is the chart's in `CHARTS` (`web/logic.js`). The
   page puts it above the point. [`CONTRIBUTING.md`](../CONTRIBUTING.md#the-browser-app-is-tested)
@@ -67,7 +66,7 @@ Counts marked "(Nov 2026)" come from the build of 14 November 2026 and only grow
 
 *16 designs in one list, each for a kind of question.*
 
-The design list holds 16 designs. The reading level sets how many of them show.
+The design list holds 16 designs.
 
 - **Full factorial (2-level).** For 1 to 7 factors. Every combination of low and high: the
   whole picture, for a few factors.
@@ -516,16 +515,15 @@ Also:
 
 ### Easy to use
 
-*On a phone or at a desk, at your level, in light or dark.*
+*On a phone or at a desk, in light or dark, with nothing held back.*
 
 - **Three steps, one page.** A bar names the study and Design, Run and Learn, each marked with
   how far it has got. It says what the app is doing, and the page under it stays where it is
   when that line comes and goes.
 - **Three ways in.** Start a new study, explore a worked example, or browse the design
   catalog. A fourth button analyses data you have.
-- **A reading level.** Beginner, Intermediate or Adventurous. Each level adds designs, charts
-  and options, and says how many more a higher level has. A level leaves out no result and no
-  warning.
+- **Nothing is held back.** Every design, chart and option is on the page for every reader.
+  No setting takes a part of the page away.
 - **Words explained where you meet them.** A term on the page has a dotted underline and
   opens its definition, in the book's words.
   - *Details:* The glossary holds 78 terms. A definition opens on a hover, a press or the
@@ -682,8 +680,8 @@ What a careful reader, or an organisation, asks before using a tool.
   each number its sources print, with the reason for each difference.
   - *Details:* In four tiers.
 - **[The concept map](map/).** 237 ideas of designed experiments and 490 links between them,
-  in 13 topics, each with its definition, the book's line and a link into the book. It shares
-  the app's reading level.
+  in 13 topics, each with its definition, the book's line and a link into the book. It has a
+  reading level of its own: Beginner, Intermediate or Adventurous.
   - *Details:* An address that names an idea opens at the map, on that idea. "Compare
     books" sets two other textbooks beside this one: the links go, and a ring on each topic
     and each term says which of the three books has it. The names of a selected idea's

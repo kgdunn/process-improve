@@ -38,7 +38,7 @@ SEEN = """() => { const all = (s) => [...document.querySelectorAll(s)];
 #: Where the page keeps whether every point's details are open: a key of its own, apart from the app's.
 DETAILS_KEY = "factorial-features-details"
 
-#: Where the app and the concept map keep their reading level, which this page leaves alone.
+#: Where the concept map keeps its reading level, which this page leaves alone.
 LEVEL_KEY = "factorial-map-level"
 
 PHONE = {"viewport": {"width": 390, "height": 844}, "is_mobile": True}
@@ -154,7 +154,6 @@ def test_a_switch_opens_every_point_s_details_and_the_choice_is_the_page_s_own(c
     page.evaluate(f"localStorage.removeItem('{DETAILS_KEY}')")  # as on a first visit: other tests have them open
     page.reload()
     page.wait_for_function(SHOWN)
-    level = page.evaluate(f"() => localStorage.getItem('{LEVEL_KEY}')")  # as the harness left it for the app
     page.click("#your-data-and-your-trust")
     first = page.evaluate(SEEN)
     assert first["switched"] is False, "a first visit has the details closed"
@@ -182,7 +181,7 @@ def test_a_switch_opens_every_point_s_details_and_the_choice_is_the_page_s_own(c
     closed = page.evaluate(SEEN)
     assert (closed["asks"], closed["details"]) == (first["asks"], 0), "closed again, and still a press away"
     assert page.evaluate(f"() => localStorage.getItem('{DETAILS_KEY}')") is None
-    assert page.evaluate(f"() => localStorage.getItem('{LEVEL_KEY}')") == level, "the app's level is not the page's"
+    assert page.evaluate(f"() => localStorage.getItem('{LEVEL_KEY}')") is None, "the map's level is not the page's"
     assert page.evaluate("() => document.documentElement.dataset.level") is None, "and the page is drawn at no level"
 
 

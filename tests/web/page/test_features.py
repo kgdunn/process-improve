@@ -174,11 +174,9 @@ def test_every_chart_has_its_picture_under_its_point_and_in_the_build(node, buil
     assert shown.count("![](") == len(charts), "no picture the page would show as it is typed"
 
 
-def test_every_process_to_practise_on_and_every_reading_level_is_named(bootstrap, node):
+def test_every_process_to_practise_on_is_named(bootstrap):
     for process in bootstrap.SCENARIOS.values():
         assert process["label"] in TEXT
-    (levels,) = javascript(node, source("levels.js"), [("LEVELS", [])])
-    assert f"{levels[0]}, {levels[1]} or {levels[2]}" in TEXT
 
 
 def test_the_limits_are_the_app_s(bootstrap):
@@ -425,7 +423,7 @@ def test_the_document_is_published_with_the_page_that_shows_it(build_script, nod
     assert shows <= set(APP_SOURCES)
     html = source("features.html")
     assert 'import { addressOf, page, shownPart } from "./features.js";' in html
-    assert "levels.js" not in html, "the page keeps its own choice, and reads nothing of the app's reading level"
+    assert "factorial-map-level" not in html, "the page keeps its own choice, apart from the concept map's level"
     assert 'const DETAILS_KEY = "factorial-features-details";' in html
     assert 'fetch("FEATURES.md"' in html
     (mark,) = javascript(node, source("features.js"), [("SHOWN_FROM", [])])
