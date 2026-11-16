@@ -380,6 +380,22 @@ describe("one run, marked wherever it is drawn", () => {
     assert.deepEqual(heard, [1, 2, null], "the app hears each change, to mark the run's rows");
   });
 
+  test("a chart the pointer has left does not let go of the run it rests on in another", () => {
+    heard.length = 0;
+    const [surface, residuals] = [{}, {}];
+    restOnRun(4, surface);
+    restOnRun(7, residuals); // the pointer is on the next chart before the first says it has left
+    restOnRun(null, surface);
+    assert.equal(markedRun(), 7, "the first chart's leaving comes late, and is not the pointer's");
+    restOnRun(null, residuals);
+    assert.equal(markedRun(), null);
+    restOnRun(2); // a table's row
+    restOnRun(null, residuals);
+    assert.equal(markedRun(), 2, "nor does it let go of a row's run");
+    restOnRun(null);
+    assert.deepEqual(heard, [4, 7, null, 2, null]);
+  });
+
   test("a press keeps a run marked while the pointer rests elsewhere, until it is pressed again", () => {
     heard.length = 0;
     pressRun(3);

@@ -203,6 +203,7 @@ const BAR = 64;
 // and the mark would chase itself. A shape is drawn over the traces and leaves them, and the pointer, alone.
 let marked = null; // the run marked now, by its place in the order the runs were made
 let pinned = false; // whether a press marked it: it then stays when the pointer moves off
+let rested = null; // where the pointer rests on a run: a chart, or null for a table's row and for nowhere
 
 /** The run marked now, or null. */
 export const markedRun = () => marked;
@@ -260,8 +261,14 @@ function mark(run) {
   rings = setTimeout(drawRings, RINGS_AFTER);
 }
 
-/** The pointer rests on ``run``, or on none (null): marked while it does, unless a press holds another. */
-export function restOnRun(run) {
+/**
+ * The pointer rests on ``run``, or on none (null): marked while it does, unless a press holds another. ``on`` is
+ * the chart that says so, or null for a table's row. A chart says the pointer has left it a moment after it has,
+ * by when the pointer may rest on a run elsewhere: leaving is heard only from where the pointer was resting.
+ */
+export function restOnRun(run, on = null) {
+  if (run === null && on !== rested && rested?.isConnected !== false) return; // a chart taken down says nothing more
+  rested = run === null ? null : on;
   if (!pinned) mark(run);
 }
 
@@ -277,8 +284,8 @@ function listenForRuns(div) {
   if (listening.has(div)) return;
   listening.add(div);
   const run = (event) => event.points.filter((point) => drawsRuns(point.data)).map((point) => runAt(point.customdata))[0];
-  div.on("plotly_hover", (event) => run(event) !== undefined && restOnRun(run(event)));
-  div.on("plotly_unhover", () => restOnRun(null));
+  div.on("plotly_hover", (event) => run(event) !== undefined && restOnRun(run(event), div));
+  div.on("plotly_unhover", () => restOnRun(null, div));
   div.on("plotly_click", (event) => {
     const pressed = run(event);
     // A tap raises Plotly's click twice, for the touch and for the mouse a browser plays after it: one press.
