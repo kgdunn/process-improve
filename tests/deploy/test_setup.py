@@ -29,7 +29,8 @@ def said(tmp_path: Path, caddyfile: str | None, block: str) -> str:
     if caddyfile is not None:
         path.write_text(caddyfile, encoding="utf-8")
     script = f'set -eu\n{function}caddy_next "$1" "$2"\n'
-    done = subprocess.run([SH, "-c", script, "sh", str(path), block], capture_output=True, text=True, check=True)  # noqa: S603
+    command = [SH, "-c", script, "sh", str(path), block]
+    done = subprocess.run(command, capture_output=True, encoding="utf-8", check=True)  # noqa: S603
     return done.stdout.replace(str(path), "Caddyfile")
 
 
