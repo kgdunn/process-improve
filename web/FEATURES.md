@@ -337,6 +337,11 @@ Also:
     there under What if. The section and its chart show their Python. The targets typed are
     kept with the study, in this browser, in its link and in its file; the settings are found
     again when it opens. The report holds the settings, the chart and the factor solved for.
+    For a mixture the answer is a blend: 20,000 blends drawn evenly from those the bounds
+    allow, the one nearest their middle that gives the targets, each component's proportion
+    with where it lies between its bounds, and the blend weighed out for confirmation runs.
+    Three components are drawn over their triangle. A mixture has no factor to solve for
+    alone, and its section shows no Python yet.
 - **Settings that meet a specification.** Type the window a response must fall in, or the
   windows of several, either end or both. The app says what share of the settings the models
   put inside every window, and how surely one new run there meets them.
@@ -356,7 +361,11 @@ Also:
     share and the highest chance at each of the other levels. No chance is given
     when the fit leaves no run to estimate the noise. The section and its chart show their
     Python. The windows typed are kept with the study, as the targets are, and the report
-    holds what they gave and the chart.
+    holds what they gave and the chart. For a mixture the share and the chances are of the
+    blends the bounds allow, and the surest blend is given, with confirmation runs at it.
+    Three components are drawn over their triangle: the blends that meet the windows shaded,
+    a line for each chance reached, and a star at the surest blend. Its section shows no
+    Python yet.
 - **Check the answer.** One button adds three confirmation runs at the settings found, and the
   app judges them when their results are in.
   [Show me](https://factori.al/?example=worked&show=confirm)

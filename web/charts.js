@@ -1189,6 +1189,9 @@ export const SHADED = "Every response acceptable";
 export const RUNS_MADE = "Runs you made";
 /** What the star of the chart of the settings that give the targets marks. */
 export const FOUND = "Settings found";
+/** What that star marks on a mixture's triangle, and the star of the triangle of a specification. */
+export const FOUND_BLEND = "Blend found";
+export const SUREST_BLEND = "Surest blend";
 
 /** What the star of the chart of a specification marks: the settings its other factors are held at. */
 export const WHAT_IF_SETTINGS = "What-if settings";
@@ -1377,25 +1380,32 @@ export function overlayFigure(overlay, responses, axes, colours = palette(), { s
  * every response is acceptable shaded, each response's acceptable boundary a line in its colour and dash, and a star
  * at the balanced blend. ``overlay`` is bootstrap.balance's for a mixture: its grid of blends, each response's
  * prediction there and its boundary as segments of line; ``responses`` are the reply's, for each response's words.
+ *
+ * The triangle of a target and of a specification is drawn the same way (bootstrap._target_blend and
+ * _window_triangle): ``shaded``, ``star`` and ``named`` say what the shading, the star and a response's line are.
+ * Nothing is shaded without ``overlay.acceptable``, and no star is drawn without ``overlay.at``. ``overlay.chances``
+ * adds a line for each chance that a new run meets a specification, and ``overlay.runs`` the blends the runs were made at.
  */
-export function blendOverlayFigure(overlay, responses, colours = palette()) {
+export function blendOverlayFigure(overlay, responses, colours = palette(), { shaded = SHADED, star = BALANCED_BLEND, named = boundaryName } = {}) {
   const [a, b, c] = overlay.components;
   const byName = Object.fromEntries(responses.map((r) => [r.name, r]));
   const lineColours = responseColours(colours);
   const kept = (values) => values.filter((_, k) => overlay.acceptable[k]);
   const at = `${a} %{a:.3f}<br>${b} %{b:.3f}<br>${c} %{c:.3f}`;
-  const data = [
-    {
-      type: "scatterternary",
-      mode: "markers",
-      name: SHADED,
-      a: kept(overlay.a),
-      b: kept(overlay.b),
-      c: kept(overlay.c),
-      marker: { symbol: "circle", size: 7, color: withAlpha(colours.accent, 0.35), line: { width: 0 } },
-      hoverinfo: "skip",
-    },
-  ];
+  const data = overlay.acceptable
+    ? [
+        {
+          type: "scatterternary",
+          mode: "markers",
+          name: shaded,
+          a: kept(overlay.a),
+          b: kept(overlay.b),
+          c: kept(overlay.c),
+          marker: { symbol: "circle", size: 7, color: withAlpha(colours.accent, 0.35), line: { width: 0 } },
+          hoverinfo: "skip",
+        },
+      ]
+    : [];
   overlay.responses.forEach((surface, i) => {
     const r = byName[surface.name];
     const line = { color: lineColours[i % lineColours.length], width: 2.5, dash: RESPONSE_DASHES[i % RESPONSE_DASHES.length] };
@@ -1404,7 +1414,7 @@ export function blendOverlayFigure(overlay, responses, colours = palette()) {
       data.push({
         type: "scatterternary",
         mode: "lines",
-        name: boundaryName(r),
+        name: named(r),
         legendgroup: surface.name,
         showlegend: j === 0 && boundaryDrawn(surface),
         a: segments.a,
@@ -1415,17 +1425,30 @@ export function blendOverlayFigure(overlay, responses, colours = palette()) {
       });
     });
   });
-  data.push({
-    type: "scatterternary",
-    mode: "markers",
-    name: BALANCED_BLEND,
-    a: [overlay.at[0]],
-    b: [overlay.at[1]],
-    c: [overlay.at[2]],
-    marker: BEST_MARKER,
-    cliponaxis: false,
-    hovertemplate: `${BALANCED_BLEND}<br>${at}<extra></extra>`,
+  // The lines of equal chance that a new run meets a specification: each that crosses the blends drawn, the surest solid.
+  const chances = (overlay.chances ?? []).filter((line) => line.a.some((v) => v !== null));
+  chances.forEach(({ chance, ...segments }, i) => {
+    const line = { color: colours.fg, width: 2, dash: CHANCE_DASHES[CHANCE_DASHES.length - chances.length + i] };
+    data.push({ type: "scatterternary", mode: "lines", name: chanceName(chance), ...segments, line, hoverinfo: "skip" });
   });
+  const runs = overlay.runs ?? [];
+  if (runs.length) {
+    const of = (k) => runs.map((blend) => blend[k]);
+    data.push({ type: "scatterternary", mode: "markers", name: RUNS_MADE, a: of(0), b: of(1), c: of(2), marker: { color: colours.fg, size: 7 }, cliponaxis: false, hoverinfo: "skip" });
+  }
+  if (overlay.at) {
+    data.push({
+      type: "scatterternary",
+      mode: "markers",
+      name: star,
+      a: [overlay.at[0]],
+      b: [overlay.at[1]],
+      c: [overlay.at[2]],
+      marker: BEST_MARKER,
+      cliponaxis: false,
+      hovertemplate: `${star}<br>${at}<extra></extra>`,
+    });
+  }
   const axis = (title) => ({
     title: { text: title, font: { size: 13 } },
     min: 0,
@@ -1437,11 +1460,11 @@ export function blendOverlayFigure(overlay, responses, colours = palette()) {
     data,
     layout: {
       ternary: { sum: 1, bgcolor: "rgba(0,0,0,0)", aaxis: axis(a), baxis: axis(b), caxis: axis(c) },
-      legend: LEGEND_ABOVE,
+      legend: { ...LEGEND_ABOVE, y: 1.09 }, // clear of the name of the component at the top corner
       showlegend: true,
       margin: { l: 36, r: 36, t: 48, b: 36 },
     },
-    height: 440 + 22 * Math.ceil((overlay.responses.length + 2) / 2),
+    height: 440 + 22 * Math.ceil((overlay.responses.length + 2 + chances.length + (runs.length ? 1 : 0)) / 2),
   };
 }
 
