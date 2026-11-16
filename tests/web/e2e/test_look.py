@@ -19,7 +19,7 @@ STYLE = "(one) => getComputedStyle(one).{}"
 THEMES = pytest.mark.parametrize("context_options", [{"color_scheme": "light"}, {"color_scheme": "dark"}])
 
 #: The colour a token of the stylesheet stands for, as the browser paints it.
-TOKEN = """(name) => {
+COLOUR_OF = """(name) => {
   const probe = document.body.appendChild(document.createElement('i'));
   probe.style.color = `var(${name})`;
   const colour = getComputedStyle(probe).color;
@@ -60,7 +60,8 @@ def test_the_aims_are_levels_on_one_axis(page):
           const axis = getComputedStyle(aim, '::before');
           const point = aim.querySelector('input').getBoundingClientRect();
           const box = aim.getBoundingClientRect();
-          return { width: axis.width, through: Math.abs(box.left + parseFloat(axis.left) + 1 - (point.left + point.width / 2)) };
+          const middle = point.left + point.width / 2;
+          return { width: axis.width, through: Math.abs(box.left + parseFloat(axis.left) + 1 - middle) };
         })"""
     )
     assert all(part["width"] == "2px" for part in line), "one line through the four points"
@@ -100,8 +101,8 @@ def test_a_check_is_a_point_whose_shape_says_what_it_found(page):
     by_state = {check["state"]: check for check in found}
     assert {"ok", "look"} <= set(by_state), "the worked example has a check that passed and one to look at"
     assert not any(check["boxed"] for check in found), "no box round a check"
-    assert by_state["ok"]["colour"] == page.evaluate(TOKEN, "--ok")
-    assert by_state["look"]["colour"] == page.evaluate(TOKEN, "--warn")
+    assert by_state["ok"]["colour"] == page.evaluate(COLOUR_OF, "--ok")
+    assert by_state["look"]["colour"] == page.evaluate(COLOUR_OF, "--warn")
     assert by_state["ok"]["round"]
     assert not by_state["ok"]["turned"]
     assert by_state["look"]["turned"], "a diamond: the shape says it without the colour"
@@ -128,8 +129,8 @@ def test_nothing_is_rounded_but_a_point(page):
 @THEMES
 def test_what_the_reader_typed_is_in_ink_and_a_simulated_result_is_pencil(blank_page):
     page = blank_page
-    ink = page.evaluate(TOKEN, "--ink")
-    print_colour = page.evaluate(TOKEN, "--fg")
+    ink = page.evaluate(COLOUR_OF, "--ink")
+    print_colour = page.evaluate(COLOUR_OF, "--fg")
     assert ink != print_colour
     page.fill("#response", "Yield")
     assert page.locator("#response").evaluate(STYLE.format("color")) == ink
@@ -138,7 +139,7 @@ def test_what_the_reader_typed_is_in_ink_and_a_simulated_result_is_pencil(blank_
     practise(page)
     reveal(page, "table.runs")
     simulated = page.locator("table.runs input.sim").first
-    assert simulated.evaluate(STYLE.format("color")) == page.evaluate(TOKEN, "--muted"), "pencil, until typed over"
+    assert simulated.evaluate(STYLE.format("color")) == page.evaluate(COLOUR_OF, "--muted"), "pencil, until typed over"
     assert simulated.evaluate(STYLE.format("fontStyle")) == "italic"
     enter_results(page, {0: 61.5})
     typed = page.locator("table.runs tbody tr").first.locator("input")
