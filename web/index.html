@@ -646,32 +646,170 @@
           <pre><code></code></pre>
           <button type="button" class="link copy">Copy the code</button>
         </details>
-        <!-- The best settings for the response's goal (app.js, with best.js): where to run the process, how well the
-             model knows the response there, how tightly to hold each factor, and the confirmation runs that test it. -->
-        <section id="best" class="best" aria-labelledby="h-best" hidden>
-          <h3 id="h-best">The best settings for your goal</h3>
-          <div id="best-out"></div>
-          <figure id="best-chart" class="chart" hidden>
-            <h4><button type="button" class="term" data-term="sensitivity">How tightly to hold each factor</button></h4>
-            <div class="plot"></div>
-            <figcaption id="best-chart-caption" class="hint"></figcaption>
-          </figure>
-          <div id="confirm" class="confirm" hidden>
-            <h4>Test them with <button type="button" class="term" data-term="confirmation-run">confirmation runs</button></h4>
-            <div id="confirm-out" aria-live="polite"></div>
-            <p class="actions">
-              <button type="button" id="add-confirmation" class="button">Add 3 confirmation runs at these settings</button>
-              <button type="button" id="remove-confirmation" class="link" hidden>Remove the confirmation runs</button>
-            </p>
-          </div>
-          <details class="python" id="py-best" hidden>
-            <summary>Show the Python code of these settings</summary>
-            <p class="hint">The design, its results, their analysis and the best settings together, so it runs as it is.</p>
-            <pre><code></code></pre>
-            <button type="button" class="link copy">Copy the code</button>
-          </details>
-        </section>
         </div>
+        <!-- Where to run (app.js renderWhere): one card answers it. The dials and the map of What if set the
+             factors; under them a goal is chosen, and its panel finds the settings: the best for the response's
+             goal, those that give a target, or those that keep every response inside a window. A goal is offered
+             when the study has what it needs, and the choice is not shown when only one is. -->
+        <section id="where" class="best where" aria-labelledby="h-where" hidden>
+          <h3 id="h-where">Where to run</h3>
+          <!-- What if (app.js, with best.js; bootstrap.predictors): the reader sets each factor, and every response's model
+               predicts there, with its intervals and its leverage, in the page's own JavaScript, so it follows each move. -->
+          <section id="what-if" class="best what-if" aria-labelledby="h-what-if" hidden>
+            <h3 id="h-what-if">What if</h3>
+            <p class="hint" id="what-if-about">Move a setting, and each response's prediction follows.</p>
+            <div class="what-if-dials">
+              <div id="what-if-settings" class="what-if-settings"></div>
+              <!-- The map (app.js drawMap, charts.js mapFigure): the response over two factors, the others where the
+                   dials have them. It marks where the dials are and the best settings, and takes a press or a drag. -->
+              <figure id="what-if-map" class="chart what-if-map" hidden>
+                <h4 id="what-if-map-title"></h4>
+                <div class="plot" id="what-if-map-plot"></div>
+                <figcaption class="hint">Press or drag to set both.</figcaption>
+              </figure>
+            </div>
+            <p class="actions"><button type="button" id="what-if-back" class="link" hidden>Back to the best settings</button></p>
+            <div id="what-if-out"></div>
+            <!-- The curve each run gives, predicted at these settings in the page's own JavaScript (best.js curveAt). -->
+            <div id="what-if-curve" hidden>
+              <div class="plot" id="what-if-curve-plot" role="img" aria-label="The curve predicted at these settings, with its 95% bands"></div>
+              <p id="what-if-curve-said" class="hint"></p>
+              <details id="curve-target">
+                <summary>Find the settings for a target curve</summary>
+                <p class="hint">Paste the curve you want as you pasted the runs' curves: the row of points along it, then
+                  the row of values. Leave a value blank to leave that point free.</p>
+                <textarea id="curve-target-values" rows="2" spellcheck="false" autocomplete="off" aria-label="The target curve"></textarea>
+                <p class="actions"><button type="button" id="curve-target-find" class="primary">Find these settings</button></p>
+                <p id="curve-target-said" class="hint" role="status"></p>
+              </details>
+            </div>
+            <!-- Settings kept with the study under a name (its what_if), each predicted again from the results each time
+                 the list is drawn, so a result changed since changes what it shows. -->
+            <form id="what-if-keep" class="actions what-if-keep">
+              <label for="what-if-keep-name">Name these settings</label>
+              <input type="text" id="what-if-keep-name" maxlength="80" autocomplete="off">
+              <button type="submit" class="button">Keep these settings</button>
+            </form>
+            <div id="what-if-kept" hidden>
+              <h4 id="h-what-if-kept">Settings kept with the study</h4>
+              <ol id="what-if-kept-list" class="what-if-kept" aria-labelledby="h-what-if-kept"></ol>
+            </div>
+            <details class="python" id="py-what-if" hidden>
+              <summary>Show the Python code of these predictions</summary>
+              <p class="hint">The design, its results and each response's prediction at these settings together, so it runs as it is.</p>
+              <pre><code></code></pre>
+              <button type="button" class="link copy">Copy the code</button>
+            </details>
+          </section>
+          <div id="goals" class="tabs goals" role="tablist" aria-label="What the settings are for" hidden>
+            <button type="button" role="tab" id="goal-best" aria-selected="true" aria-controls="goal-panel-best">The best for your goal</button>
+            <button type="button" role="tab" id="goal-target" aria-selected="false" aria-controls="goal-panel-target" tabindex="-1">Hit a target</button>
+            <button type="button" role="tab" id="goal-window" aria-selected="false" aria-controls="goal-panel-window" tabindex="-1">Stay in a window</button>
+          </div>
+          <div id="goal-panel-best" class="goal-panel" role="tabpanel" aria-labelledby="goal-best" data-goal="best">
+            <!-- The best settings for the response's goal (app.js, with best.js): where to run the process, how well the
+                 model knows the response there, how tightly to hold each factor, and the confirmation runs that test it. -->
+            <section id="best" class="best" aria-labelledby="h-best" hidden>
+              <h3 id="h-best">The best settings for your goal</h3>
+              <div id="best-out"></div>
+              <figure id="best-chart" class="chart" hidden>
+                <h4><button type="button" class="term" data-term="sensitivity">How tightly to hold each factor</button></h4>
+                <div class="plot"></div>
+                <figcaption id="best-chart-caption" class="hint"></figcaption>
+              </figure>
+              <div id="confirm" class="confirm" hidden>
+                <h4>Test them with <button type="button" class="term" data-term="confirmation-run">confirmation runs</button></h4>
+                <div id="confirm-out" aria-live="polite"></div>
+                <p class="actions">
+                  <button type="button" id="add-confirmation" class="button">Add 3 confirmation runs at these settings</button>
+                  <button type="button" id="remove-confirmation" class="link" hidden>Remove the confirmation runs</button>
+                </p>
+              </div>
+              <details class="python" id="py-best" hidden>
+                <summary>Show the Python code of these settings</summary>
+                <p class="hint">The design, its results, their analysis and the best settings together, so it runs as it is.</p>
+                <pre><code></code></pre>
+                <button type="button" class="link copy">Copy the code</button>
+              </details>
+            </section>
+          </div>
+          <div id="goal-panel-target" class="goal-panel" role="tabpanel" aria-labelledby="goal-target" data-goal="target" hidden>
+            <!-- The settings that give a target (app.js, with best.js; bootstrap.target_settings and solve_for): the reader
+                 types what each response should be, and its model is run backwards to the settings it predicts that at. -->
+            <section id="target" class="best target" aria-labelledby="h-target" hidden>
+              <h3 id="h-target">Settings that give a target</h3>
+              <div class="scroll"><table id="target-goals" class="data target-goals" aria-label="What each response should be"></table></div>
+              <p class="actions">
+                <label>Or match a run <select id="target-match"></select></label>
+                <button type="button" id="target-clear" class="link" hidden>Clear the targets</button>
+              </p>
+              <p id="target-problems" class="hint error" role="status" hidden></p>
+              <div id="target-out" aria-live="polite"></div>
+              <figure id="target-chart" class="chart" hidden>
+                <h4>Where the settings give the targets</h4>
+                <div class="trade-view" role="group" aria-label="The two factors the chart is drawn over">
+                  <label>Across <select id="target-across"></select></label>
+                  <label>Up <select id="target-up"></select></label>
+                </div>
+                <div class="plot"></div>
+                <figcaption class="hint"></figcaption>
+              </figure>
+              <p id="target-actions" class="actions" hidden>
+                <button type="button" id="target-confirm" class="button">Add 3 confirmation runs at these settings</button>
+                <button type="button" id="target-what-if" class="link">See them under What if</button>
+              </p>
+              <!-- One factor from the others (bootstrap.solve_for): what it must be for a response to meet its target,
+                   with every other factor where the What if panel has it. -->
+              <div id="target-solve" class="target-solve" hidden>
+                <h4>One factor from the others</h4>
+                <p class="hint">What one factor must be for a response to meet its target, with the other factors where
+                  What if has them.</p>
+                <div class="trade-view" role="group" aria-label="The factor to solve for, and the response whose target it should give">
+                  <label>Solve for <select id="solve-factor"></select></label>
+                  <label>to give the target of <select id="solve-response"></select></label>
+                </div>
+                <div id="solve-out" aria-live="polite"></div>
+              </div>
+              <details class="python" id="py-target" hidden>
+                <summary>Show the Python code of these settings</summary>
+                <p class="hint">The design, its results and the search for the settings that give the targets together, so it runs as it is.</p>
+                <pre><code></code></pre>
+                <button type="button" class="link copy">Copy the code</button>
+              </details>
+            </section>
+          </div>
+          <div id="goal-panel-window" class="goal-panel" role="tabpanel" aria-labelledby="goal-window" data-goal="window" hidden>
+            <!-- The settings that meet a specification (app.js, with best.js; bootstrap.specification, on the library's
+                 feasible_region): the reader types a window for each response, and the page says which settings the models
+                 predict inside every window, and how surely one new run there meets them all. -->
+            <section id="window" class="best window" aria-labelledby="h-window" hidden>
+              <h3 id="h-window">Settings that meet a specification</h3>
+              <div class="scroll"><table id="window-limits" class="data trade-limits" aria-label="The window each response must fall in"></table></div>
+              <p class="actions"><button type="button" id="window-clear" class="link" hidden>Clear the windows</button></p>
+              <p id="window-problems" class="hint error" role="status" hidden></p>
+              <div id="window-out" aria-live="polite"></div>
+              <figure id="window-chart" class="chart" hidden>
+                <h4>Where every response is inside its window</h4>
+                <div class="trade-view" role="group" aria-label="The two factors the chart is drawn over">
+                  <label>Across <select id="window-across"></select></label>
+                  <label>Up <select id="window-up"></select></label>
+                </div>
+                <div class="plot"></div>
+                <figcaption class="hint"></figcaption>
+              </figure>
+              <p id="window-actions" class="actions" hidden>
+                <button type="button" id="window-confirm" class="button">Add 3 confirmation runs at the surest settings</button>
+                <button type="button" id="window-what-if" class="link">See the surest settings under What if</button>
+              </p>
+              <details class="python" id="py-window" hidden>
+                <summary>Show the Python code of this specification</summary>
+                <p class="hint">The design, its results and the settings judged against the windows together, so it runs as it is.</p>
+                <pre><code></code></pre>
+                <button type="button" class="link copy">Copy the code</button>
+              </details>
+            </section>
+          </div>
+        </section>
         <!-- With two responses or more given a goal, the settings that balance them (app.js, with best.js): each
              response's acceptable range, importance and shape, the settings with the best overall desirability, each
              response there, the overlay of the acceptable ranges, and the confirmation runs that test them. -->
@@ -724,126 +862,6 @@
           <details class="python" id="py-balance" hidden>
             <summary>Show the Python code of the balance</summary>
             <p class="hint">The design, its results and the balance of the responses together, so it runs as it is.</p>
-            <pre><code></code></pre>
-            <button type="button" class="link copy">Copy the code</button>
-          </details>
-        </section>
-        <!-- What if (app.js, with best.js; bootstrap.predictors): the reader sets each factor, and every response's model
-             predicts there, with its intervals and its leverage, in the page's own JavaScript, so it follows each move. -->
-        <section id="what-if" class="best what-if" aria-labelledby="h-what-if" hidden>
-          <h3 id="h-what-if">What if</h3>
-          <p class="hint" id="what-if-about">Move a setting, and each response's prediction follows.</p>
-          <div class="what-if-dials">
-            <div id="what-if-settings" class="what-if-settings"></div>
-            <!-- The map (app.js drawMap, charts.js mapFigure): the response over two factors, the others where the
-                 dials have them. It marks where the dials are and the best settings, and takes a press or a drag. -->
-            <figure id="what-if-map" class="chart what-if-map" hidden>
-              <h4 id="what-if-map-title"></h4>
-              <div class="plot" id="what-if-map-plot"></div>
-              <figcaption class="hint">Press or drag to set both.</figcaption>
-            </figure>
-          </div>
-          <p class="actions"><button type="button" id="what-if-back" class="link" hidden>Back to the best settings</button></p>
-          <div id="what-if-out"></div>
-          <!-- The curve each run gives, predicted at these settings in the page's own JavaScript (best.js curveAt). -->
-          <div id="what-if-curve" hidden>
-            <div class="plot" id="what-if-curve-plot" role="img" aria-label="The curve predicted at these settings, with its 95% bands"></div>
-            <p id="what-if-curve-said" class="hint"></p>
-            <details id="curve-target">
-              <summary>Find the settings for a target curve</summary>
-              <p class="hint">Paste the curve you want as you pasted the runs' curves: the row of points along it, then
-                the row of values. Leave a value blank to leave that point free.</p>
-              <textarea id="curve-target-values" rows="2" spellcheck="false" autocomplete="off" aria-label="The target curve"></textarea>
-              <p class="actions"><button type="button" id="curve-target-find" class="primary">Find these settings</button></p>
-              <p id="curve-target-said" class="hint" role="status"></p>
-            </details>
-          </div>
-          <!-- Settings kept with the study under a name (its what_if), each predicted again from the results each time
-               the list is drawn, so a result changed since changes what it shows. -->
-          <form id="what-if-keep" class="actions what-if-keep">
-            <label for="what-if-keep-name">Name these settings</label>
-            <input type="text" id="what-if-keep-name" maxlength="80" autocomplete="off">
-            <button type="submit" class="button">Keep these settings</button>
-          </form>
-          <div id="what-if-kept" hidden>
-            <h4 id="h-what-if-kept">Settings kept with the study</h4>
-            <ol id="what-if-kept-list" class="what-if-kept" aria-labelledby="h-what-if-kept"></ol>
-          </div>
-          <details class="python" id="py-what-if" hidden>
-            <summary>Show the Python code of these predictions</summary>
-            <p class="hint">The design, its results and each response's prediction at these settings together, so it runs as it is.</p>
-            <pre><code></code></pre>
-            <button type="button" class="link copy">Copy the code</button>
-          </details>
-        </section>
-        <!-- The settings that give a target (app.js, with best.js; bootstrap.target_settings and solve_for): the reader
-             types what each response should be, and its model is run backwards to the settings it predicts that at. -->
-        <section id="target" class="best target" aria-labelledby="h-target" hidden>
-          <h3 id="h-target">Settings that give a target</h3>
-          <div class="scroll"><table id="target-goals" class="data target-goals" aria-label="What each response should be"></table></div>
-          <p class="actions">
-            <label>Or match a run <select id="target-match"></select></label>
-            <button type="button" id="target-clear" class="link" hidden>Clear the targets</button>
-          </p>
-          <p id="target-problems" class="hint error" role="status" hidden></p>
-          <div id="target-out" aria-live="polite"></div>
-          <figure id="target-chart" class="chart" hidden>
-            <h4>Where the settings give the targets</h4>
-            <div class="trade-view" role="group" aria-label="The two factors the chart is drawn over">
-              <label>Across <select id="target-across"></select></label>
-              <label>Up <select id="target-up"></select></label>
-            </div>
-            <div class="plot"></div>
-            <figcaption class="hint"></figcaption>
-          </figure>
-          <p id="target-actions" class="actions" hidden>
-            <button type="button" id="target-confirm" class="button">Add 3 confirmation runs at these settings</button>
-            <button type="button" id="target-what-if" class="link">See them under What if</button>
-          </p>
-          <!-- One factor from the others (bootstrap.solve_for): what it must be for a response to meet its target,
-               with every other factor where the What if panel has it. -->
-          <div id="target-solve" class="target-solve" hidden>
-            <h4>One factor from the others</h4>
-            <p class="hint">What one factor must be for a response to meet its target, with the other factors where
-              What if has them.</p>
-            <div class="trade-view" role="group" aria-label="The factor to solve for, and the response whose target it should give">
-              <label>Solve for <select id="solve-factor"></select></label>
-              <label>to give the target of <select id="solve-response"></select></label>
-            </div>
-            <div id="solve-out" aria-live="polite"></div>
-          </div>
-          <details class="python" id="py-target" hidden>
-            <summary>Show the Python code of these settings</summary>
-            <p class="hint">The design, its results and the search for the settings that give the targets together, so it runs as it is.</p>
-            <pre><code></code></pre>
-            <button type="button" class="link copy">Copy the code</button>
-          </details>
-        </section>
-        <!-- The settings that meet a specification (app.js, with best.js; bootstrap.specification, on the library's
-             feasible_region): the reader types a window for each response, and the page says which settings the models
-             predict inside every window, and how surely one new run there meets them all. -->
-        <section id="window" class="best window" aria-labelledby="h-window" hidden>
-          <h3 id="h-window">Settings that meet a specification</h3>
-          <div class="scroll"><table id="window-limits" class="data trade-limits" aria-label="The window each response must fall in"></table></div>
-          <p class="actions"><button type="button" id="window-clear" class="link" hidden>Clear the windows</button></p>
-          <p id="window-problems" class="hint error" role="status" hidden></p>
-          <div id="window-out" aria-live="polite"></div>
-          <figure id="window-chart" class="chart" hidden>
-            <h4>Where every response is inside its window</h4>
-            <div class="trade-view" role="group" aria-label="The two factors the chart is drawn over">
-              <label>Across <select id="window-across"></select></label>
-              <label>Up <select id="window-up"></select></label>
-            </div>
-            <div class="plot"></div>
-            <figcaption class="hint"></figcaption>
-          </figure>
-          <p id="window-actions" class="actions" hidden>
-            <button type="button" id="window-confirm" class="button">Add 3 confirmation runs at the surest settings</button>
-            <button type="button" id="window-what-if" class="link">See the surest settings under What if</button>
-          </p>
-          <details class="python" id="py-window" hidden>
-            <summary>Show the Python code of this specification</summary>
-            <p class="hint">The design, its results and the settings judged against the windows together, so it runs as it is.</p>
             <pre><code></code></pre>
             <button type="button" class="link copy">Copy the code</button>
           </details>

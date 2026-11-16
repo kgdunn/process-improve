@@ -697,10 +697,13 @@ function showPhase(phase) {
   if (phase === "plan") scheduleCandidates();
 }
 
-/** The tabs of a tablist answer the arrow keys, Home and End, as a reader of a screen reader expects. */
+/**
+ * The tabs of a tablist answer the arrow keys, Home and End, as a reader of a screen reader expects: the tabs on
+ * show, since a list may hold one the page does not offer now.
+ */
 function arrowKeys(list, select) {
   list.addEventListener("keydown", (e) => {
-    const tabs = [...list.querySelectorAll('[role="tab"]')];
+    const tabs = [...list.querySelectorAll('[role="tab"]:not([hidden])')];
     const at = tabs.indexOf(document.activeElement);
     if (at < 0) return;
     const to = { ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: tabs.length - 1 }[e.key];
@@ -3096,6 +3099,44 @@ async function simulateResults() {
   showResultsCode();
   scheduleSave();
   await analyseRuns();
+}
+
+// ---------------------------------------------------------------- where to run: one card, a goal to choose
+/**
+ * The goals of the card that answers where to run, each a panel under the dials: the best settings for the
+ * response's goal, the settings that give a target, and those that keep every response inside a window. Each panel
+ * is shown or hidden by its own part of the page (clearBest, renderTarget, renderWindow); a goal is offered while
+ * its panel has something to show.
+ */
+const WHERE_GOALS = ["best", "target", "window"];
+
+/**
+ * The goal the reader chose, which is shown while it is offered. Until they choose, the card opens on what the
+ * study asks: a target typed for a response, else a window, else the first goal offered.
+ */
+let goalChosen = null;
+
+/** Show the panel of the goal chosen, or of the one the study asks; and the card itself while it holds anything. */
+function renderWhere() {
+  const offered = WHERE_GOALS.filter((goal) => !document.getElementById(goal).hidden);
+  const asked = state.design ? keptAsked() : {};
+  const first = [asked.targets && "target", asked.windows && "window", ...offered].find((goal) => offered.includes(goal));
+  const shown = offered.includes(goalChosen) ? goalChosen : (first ?? null);
+  for (const goal of WHERE_GOALS) {
+    const tab = document.getElementById(`goal-${goal}`);
+    tab.hidden = !offered.includes(goal);
+    tab.setAttribute("aria-selected", String(goal === shown));
+    tab.tabIndex = goal === shown ? 0 : -1;
+    document.getElementById(`goal-panel-${goal}`).hidden = goal !== shown;
+  }
+  $("#goals").hidden = offered.length < 2; // one goal is no choice: its panel stands under the dials
+  $("#where").hidden = $("#what-if").hidden && !offered.length;
+}
+
+/** Choose what the settings are for. */
+function selectGoal(goal) {
+  goalChosen = goal;
+  renderWhere();
 }
 
 /** Choose where the results come from: entered by the reader, or simulated for practice. */
@@ -5755,28 +5796,34 @@ function showWhatIf(result) {
 function renderWhatIfControls() {
   const box = $("#what-if-settings");
   const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
-  const key = JSON.stringify(state.whatIf.factors.map((f) => [f.name, f.low, f.high, f.levels, units[f.name]]));
+  const fitted = profiledResponses(state.whatIf).map((r) => r.name);
+  const key = JSON.stringify([fitted, state.whatIf.factors.map((f) => [f.name, f.low, f.high, f.levels, units[f.name]])]);
   if (box.dataset.key === key) return;
   box.dataset.key = key;
-  box.replaceChildren(...state.whatIf.factors.map((f) => whatIfControl(f, units[f.name])));
+  box.replaceChildren(...state.whatIf.factors.map((f) => whatIfControl(f, units[f.name], fitted)));
 }
 
 /**
- * One factor's dial in the what-if panel, named by the factor: its profile (drawProfiles), which takes a drag, over
- * the slider and the number box that set it from the keyboard.
+ * One factor's dial in the what-if panel, named by the factor: a profile for each of the ``fitted`` responses
+ * (drawProfiles), one under another, each of which takes a drag, over the slider and the number box that set the
+ * factor from the keyboard.
  */
-function whatIfControl(f, units) {
+function whatIfControl(f, units, fitted) {
   const row = el("div", "what-if-factor", "");
   row.dataset.factor = f.name;
   const name = el("span", "what-if-name", withUnits(f.name, units));
-  const profile = svgPart("svg", { class: "profile", role: "img" });
-  takeDrag(profile, (e) => dragProfile(e, f));
+  const profiles = fitted.map((response) => {
+    const profile = svgPart("svg", { class: "profile", role: "img" });
+    profile.dataset.response = response;
+    takeDrag(profile, (e) => dragProfile(e, f));
+    return profile;
+  });
   if (f.kind === "categorical") {
     const select = el("select", "", "");
     select.name = "level";
     select.setAttribute("aria-label", f.name);
     for (const level of f.levels) select.append(new Option(level, level));
-    row.append(name, profile, select);
+    row.append(name, ...profiles, select);
     return row;
   }
   const [low, high] = [Math.min(f.low, f.high), Math.max(f.low, f.high)];
@@ -5787,7 +5834,7 @@ function whatIfControl(f, units) {
   const box = el("input", "", "");
   Object.assign(box, { type: "number", name: "number", min: String(low), max: String(high), step: "any" });
   box.setAttribute("aria-label", withUnits(f.name, units));
-  row.append(name, profile, slider, box, el("span", "what-if-range", span));
+  row.append(name, ...profiles, slider, box, el("span", "what-if-range", span));
   return row;
 }
 
@@ -5830,37 +5877,48 @@ function svgPart(tag, attributes = {}, text = "") {
   return part;
 }
 
-/** The response whose profiles the panel draws: the one Learn shows when its model is fitted, else the first that is. */
-const profiledResponse = (w) => w.responses.find((r) => r.name === state.shown && r.terms) ?? w.responses.find((r) => r.terms) ?? null;
+/** The responses the panel draws a row of profiles for: each whose model is fitted, in the page's order. */
+const profiledResponses = (w) => w.responses.filter((r) => r.terms);
+
+/** The response whose map the panel draws, and whose profiles its Python gives: the one Learn shows when its model is fitted, else the first that is. */
+const profiledResponse = (w) => profiledResponses(w).find((r) => r.name === state.shown) ?? profiledResponses(w)[0] ?? null;
 
 /**
- * Draw each factor's profile for one response (best.js profileOf): its prediction as that factor alone moves, with
- * the 95% confidence band, dashed where the settings lie beyond the runs, and a mark where the factor is set. Every
- * profile of the row is drawn to one scale. With no response fitted (a study of curves alone) there is none to draw.
+ * Draw a row of profiles for each fitted response (best.js profileOf): its prediction as each factor alone moves,
+ * with the 95% confidence band, dashed where the settings lie beyond the runs, and a mark where the factor is set.
+ * The profiles of a response are drawn to one scale, its own. With no response fitted (a study of curves alone)
+ * there is none to draw.
  */
 function drawProfiles(w) {
-  const fit = profiledResponse(w);
+  const fits = profiledResponses(w);
   const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
-  const profiles = fit ? w.factors.map((f) => profileOf(fit, w.factors, w.settings, f.name)) : [];
-  w.range = profileRange(profiles, w.dragging ? w.range : null);
-  const words = fit ? { label: fit.label, units: fit.units ?? "" } : null;
-  $("#what-if-about").textContent = fit
-    ? `Each picture is ${fit.label} against one factor, the others as set; dashed beyond the runs. Drag it, or type a value.`
+  const box = $("#what-if-settings");
+  box.classList.toggle("what-if-settings--rows", fits.length > 1);
+  $("#what-if-about").textContent = fits.length
+    ? `Each picture is ${fits.length > 1 ? "a response" : fits[0].label} against one factor, the others as set; dashed beyond the runs. Drag it, or type a value.`
     : "Move a setting, and each response's prediction follows.";
-  w.factors.forEach((f, i) => {
-    const profile = $("#what-if-settings").children[i].querySelector("svg.profile");
-    profile.toggleAttribute("hidden", !fit);
-    if (!fit) return;
-    const width = profile.clientWidth || PROFILE.width;
-    profile.setAttribute("viewBox", `0 0 ${width} ${PROFILE.height}`);
-    profile.setAttribute("aria-label", profileWords(f, profiles[i], words, units[f.name]));
-    profile.replaceChildren(...profileParts(f, profiles[i], w.range, w.settings[f.name], words, width));
-  });
+  w.ranges ??= {};
+  for (const fit of fits) {
+    const profiles = w.factors.map((f) => profileOf(fit, w.factors, w.settings, f.name));
+    const range = profileRange(profiles, w.dragging ? w.ranges[fit.name] : null);
+    w.ranges[fit.name] = range;
+    const words = { label: fit.label, units: fit.units ?? "", named: fits.length > 1 };
+    w.factors.forEach((f, i) => {
+      const profile = [...box.children[i].querySelectorAll("svg.profile")].find((one) => one.dataset.response === fit.name);
+      const size = { width: profile.clientWidth || PROFILE.width, height: profile.clientHeight || PROFILE.height };
+      profile.setAttribute("viewBox", `0 0 ${size.width} ${size.height}`);
+      profile.setAttribute("aria-label", profileWords(f, profiles[i], words, units[f.name]));
+      profile.replaceChildren(...profileParts(f, profiles[i], range, w.settings[f.name], words, size));
+    });
+  }
 }
 
-/** The parts of one profile's drawing: the scale's two ends, the band, the line in its pieces, and the mark. */
-function profileParts(f, points, range, value, { units }, width) {
-  const { height, pad } = PROFILE;
+/**
+ * The parts of one profile's drawing: the scale's two ends, the response's name where the panel draws several, the
+ * band, the line in its pieces, and the mark.
+ */
+function profileParts(f, points, range, value, { label, units, named }, { width, height }) {
+  const { pad } = PROFILE;
   const numeric = f.kind === "numeric";
   const [low, high] = numeric ? [points[0].value, points.at(-1).value] : [0, points.length - 1];
   const across = (v) => pad + (high > low ? ((width - 2 * pad) * (v - low)) / (high - low) : (width - 2 * pad) / 2);
@@ -5870,6 +5928,7 @@ function profileParts(f, points, range, value, { units }, width) {
   const parts = [
     svgPart("text", { class: "profile__end", x: 4, y: 12 }, withUnit(range[1], units)),
     svgPart("text", { class: "profile__end", x: 4, y: height - 4 }, withUnit(range[0], units)),
+    ...(named ? [svgPart("text", { class: "profile__name", x: width - 4, y: 12, "text-anchor": "end" }, label)] : []),
   ];
   const banded = points.every((point) => point.confidence);
   if (!numeric) {
@@ -8126,6 +8185,11 @@ try {
 for (const name of Object.keys(PANES)) $(`#go-${name}`).onclick = () => showPhase(name);
 arrowKeys($(".phases"), (tab) => showPhase(tab.id.replace("go-", "")));
 arrowKeys($("#step-run .tabs"), (tab) => selectTab(tab.id.replace("tab-", "")));
+arrowKeys($("#goals"), (tab) => selectGoal(tab.id.replace("goal-", "")));
+for (const goal of WHERE_GOALS) document.getElementById(`goal-${goal}`).onclick = () => selectGoal(goal);
+// Each goal's panel, and the dials, come and go with the study and its results: the card follows them.
+const goalsFollow = new MutationObserver(renderWhere);
+for (const id of [...WHERE_GOALS, "what-if"]) goalsFollow.observe(document.getElementById(id), { attributes: true, attributeFilter: ["hidden"] });
 
 $("#new-study").onclick = () => {
   newStudy();
@@ -8469,6 +8533,9 @@ function showPart(id) {
   };
   const look = () => {
     if (left || Date.now() - started > SHOW_WAIT) return;
+    // A part inside a goal of the card that answers where to run: that goal is chosen, once it is offered.
+    const goal = part.closest("[data-goal]")?.dataset.goal;
+    if (goal && goalChosen !== goal) selectGoal(goal);
     if (part.matches("dialog")) {
       // Your studies: shown over the page, which gives it the keyboard, and outlined as any part is.
       if (!part.open) part.showModal();

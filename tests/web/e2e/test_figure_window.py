@@ -475,19 +475,21 @@ def test_the_window_steps_through_the_figures_beside_the_one_opened(page):
 
     page.click("dialog.figure [data-do=after]")
     page.wait_for_function(SHOWN)
-    assert place(page) == ["How tightly to hold each factor", "5 of 6"], "the chart of the best settings, further down"
+    assert place(page) == ["Yield over Temperature and Pressure", "5 of 6"], "the map beside the dials, further down"
     code = page.locator("dialog.figure code")
-    assert '# The figure "How tightly to hold each factor"' in code.text_content(), "each figure with its own code"
+    assert "# The map: Yield over Temperature and Pressure" in code.text_content(), "each figure with its own code"
     page.click("dialog.figure [data-do=after]")
     page.wait_for_function(SHOWN)
-    assert place(page) == ["Yield over Temperature and Pressure", "6 of 6"], "the map beside the dials of What if"
-    assert "# The map: Yield over Temperature and Pressure" in code.text_content()
+    assert place(page) == ["How tightly to hold each factor", "6 of 6"], (
+        "the chart of the best settings, under the dials"
+    )
+    assert '# The figure "How tightly to hold each factor"' in code.text_content()
     page.click("dialog.figure [data-do=after]")
     page.wait_for_function(SHOWN)
     assert place(page) == ["Coefficients", "1 of 6"], "after the last, the first"
     assert '# The figure "Coefficients"' in code.text_content()
     page.keyboard.press("ArrowLeft")
-    page.wait_for_function("document.querySelector('#figure-title').textContent.startsWith('Yield over')")
+    page.wait_for_function("document.querySelector('#figure-title').textContent.startsWith('How tightly')")
     assert place(page)[1] == "6 of 6"
 
 

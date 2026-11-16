@@ -34,10 +34,16 @@ SAVED = "async () => (await import('./store.js')).savedCampaigns()"
 
 
 def reveal(page: Any, selector: str) -> None:  # noqa: ANN401 - a Playwright Page
-    """Show the phase that holds ``selector``, as a reader would: by pressing its tab in the study bar."""
+    """Show the phase that holds ``selector``, as a reader would: by pressing its tab in the study bar.
+
+    A part inside a goal of "Where to run" is shown by choosing that goal, once the page offers it.
+    """
     pane = page.evaluate("(s) => document.querySelector(s)?.closest('[data-pane]')?.dataset.pane ?? null", selector)
     if pane and page.get_attribute("#workspace", "data-phase") != pane:
         page.click(f"#go-{pane}")
+    goal = page.evaluate("(s) => document.querySelector(s)?.closest('[data-goal]')?.dataset.goal ?? null", selector)
+    if goal and page.is_hidden(f"#goal-panel-{goal}") and page.is_visible(f"#goal-{goal}"):
+        page.click(f"#goal-{goal}")
 
 
 def open_question(page: Any) -> None:  # noqa: ANN401 - a Playwright Page
