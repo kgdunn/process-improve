@@ -226,9 +226,15 @@ Also:
   highest Yield there: 68.25% (95% confidence interval for the mean: 66.17 to 70.33%)." The
   evidence follows it.
   [Show me](https://factori.al/?example=worked&show=answer)
-  - *Details:* The numbers are those of the best settings further down, and a caution given
-    there is given here too. With no goal to reach, the answer is the factor that matters
-    most. The report opens with the same answer.
+  - *Details:* The numbers are those of the best settings further down. With no goal to
+    reach, the answer is the factor that matters most. The report opens with the same answer.
+- **Checks of the answer.** Under it, whether to rely on it: the fit, runs that stand apart,
+  whether the repeated runs agree with the model, and whether the settings are within reach
+  of the runs. Each says its verdict and opens to a sentence and its statistic.
+  [Show me](https://factori.al/?example=worked&show=checks)
+  - *Details:* A check to look at is open already. What the runs cannot tell is said so: a
+    model that uses every run, or a study with no repeated runs. Each check leads to its
+    evidence on the page, and the report holds them all open.
 - **The findings in sentences.** Which factor matters most and by how much in its own units,
   which effects are real, which depend on another factor, where the response curves, how well
   the model fits, and which runs to look at again.
