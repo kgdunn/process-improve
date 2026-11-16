@@ -73,6 +73,10 @@ import {
   mapPair,
   surfaceOf,
   profileOf,
+  runsAt,
+  insideWindow,
+  dotPiles,
+  runsWords,
   profilePieces,
   profileRange,
   profileWords,
@@ -872,6 +876,50 @@ describe("what if", () => {
     assert.deepEqual(at.prediction, [15 - single, 15 + single]);
     assert.equal(at.extrapolating, true, "0.75 is above the runs' 0.5");
     assert.equal(predictAt(FIT, { T: 0 }).extrapolating, false, "the center's 0.25 is within");
+  });
+
+  test("a prediction as runs: one for each t value Python sent, the outer two at the ends of the prediction interval", () => {
+    // Five equally likely runs here: the t values at the middle of five equal shares, the outer two the interval's own.
+    const fit = { ...FIT, run_quantiles: [-2.447, -0.8, 0, 0.8, 2.447] };
+    const runs = runsAt(fit, { T: 1 });
+    const single = Math.sqrt(4 * 1.75);
+    assert.deepEqual(runs, [-2.447, -0.8, 0, 0.8, 2.447].map((q) => 15 + q * single));
+    assert.deepEqual([runs[0], runs.at(-1)], predictAt(fit, { T: 1 }).prediction, "the same two numbers as the interval");
+    assert.equal(runsAt({ ...fit, mse: null, t: null, run_quantiles: null }, { T: 1 }), null, "a fit of every run has no noise to draw");
+    assert.equal(runsAt(FIT, { T: 1 }), null, "nor has a fit sent without its runs' t values");
+
+    // A response fitted on a log scale has its runs put back, as its interval is; one that cannot be put back draws none.
+    const logged = runsAt({ ...fit, coefficients: [1, 0.1, 0], transform: "log" }, { T: 1 });
+    assert.deepEqual([logged[0], logged.at(-1)], predictAt({ ...fit, coefficients: [1, 0.1, 0], transform: "log" }, { T: 1 }).prediction);
+    assert.ok(logged.every((run, i) => i === 0 || run > logged[i - 1]), "least first, as on the scale it is fitted on");
+    assert.equal(runsAt({ ...fit, transform: "inverse" }, { T: 1 }), null, "-1/y above 0 is a result without bound");
+  });
+
+  test("the runs inside a window, an end of which may be open", () => {
+    const runs = [1, 2, 3, 4, 5];
+    assert.deepEqual(insideWindow(runs, [2, 4]), [false, true, true, true, false], "an end is inside");
+    assert.deepEqual(insideWindow(runs, [null, 2.5]), [true, true, false, false, false]);
+    assert.deepEqual(insideWindow(runs, [4.5, null]), [false, false, false, false, true]);
+    assert.deepEqual(insideWindow(runs), [true, true, true, true, true], "with no window, every one");
+  });
+
+  test("runs pile up in the column they fall in", () => {
+    assert.deepEqual(dotPiles([0, 1, 1.1, 1.2, 4], [0, 4], 4), [
+      { column: 0, level: 0 },
+      { column: 1, level: 0 },
+      { column: 1, level: 1 },
+      { column: 1, level: 2 },
+      { column: 3, level: 0 }, // the high end is in the last column, not past it
+    ]);
+    assert.deepEqual(dotPiles([2, 2], [2, 2], 4), [{ column: 0, level: 0 }, { column: 0, level: 1 }], "runs that are all one value"); // prettier-ignore
+  });
+
+  test("the runs in words: how far they reach, and how many a window passes", () => {
+    const runs = [58.21, 60, 62, 64, 66.14];
+    const words = { label: "Yield", units: "%" };
+    assert.equal(runsWords(runs, insideWindow(runs), words), "Yield as 5 runs you might get: 58.21 to 66.14%.");
+    assert.equal(runsWords(runs, insideWindow(runs, [60, null]), words, true), "Yield as 5 runs you might get: 58.21 to 66.14%. 4 of them are inside your window.");
+    assert.equal(runsWords([1, 3], [false, false], { label: "Cost", units: "$/kg" }, true), "Cost as 2 runs you might get: 1 to 3 $/kg. 0 of them are inside your window.");
   });
 
   test("a factor's profile is the prediction as it alone moves, the others where they are set", () => {
