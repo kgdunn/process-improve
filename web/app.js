@@ -3674,15 +3674,20 @@ function renderAnalysis(reply) {
   showBoxCox(boxCoxSentence(r.box_cox, responseWords(shownSpec()).label));
   const ratio = r.coefficients.some((c) => c.ratio !== undefined); // on the log scale, a main effect is a ratio
   const scale = r.transform ? `In coded units, fitted to ${r.equation.split(" = ")[0]}.` : "In coded units.";
-  const parts = [
+  // What the results say, in sentences, with what a reader must know of the fit: its notes and its warnings.
+  const shown = [
     ...asideParts(),
     ...findingParts(r.findings, Boolean(modelChoice().picked)),
     ...comparisonParts(r),
+    ...noteList(r.notes),
+    ...warningList(reply.warnings),
+  ];
+  // The model itself, for the reader who wants it: its equation, its fit, its tables and each run. One fold holds
+  // them, closed until it is opened.
+  const parts = [
     el("p", "equation", r.equation),
     said("hint", mixture ? "In proportions: each component's share of the blend." : scale),
     ...noteList(fitLines(r), "fit"),
-    ...noteList(r.notes),
-    ...warningList(reply.warnings),
     el("h3", "", "Coefficients"),
     said("hint", "The most significant first, the intercept last."),
     ...coefficientsTable(r.coefficients, { ratio, vif, simulated }),
@@ -3736,8 +3741,33 @@ function renderAnalysis(reply) {
     );
   }
   parts.push(...spreadParts(r.spread), ...diagnosticParts(r.diagnostics, r.transform));
-  out.replaceChildren(...parts);
+  const fold = el("details", "fold statistician", "");
+  fold.id = "statistician";
+  fold.open = statisticianOpen();
+  fold.ontoggle = () => keepStatistician(fold.open);
+  fold.append(el("summary", "", "For the statistician: the model, its coefficients and each run"), ...parts);
+  out.replaceChildren(...shown, fold);
   renderAnswer();
+}
+
+const STATISTICIAN_KEY = "factorial-statistician";
+
+/** Whether the reader last left the fold of the model and its tables open: kept in the browser, so it holds for the next fit and the next visit. */
+function statisticianOpen() {
+  try {
+    return localStorage.getItem(STATISTICIAN_KEY) === "open";
+  } catch {
+    return false;
+  }
+}
+
+function keepStatistician(open) {
+  try {
+    if (open) localStorage.setItem(STATISTICIAN_KEY, "open");
+    else localStorage.removeItem(STATISTICIAN_KEY);
+  } catch {
+    /* storage refused: the fold is closed at the next fit */
+  }
 }
 
 /** Offer the search for a simpler model, or take it away; what an earlier search found goes with the analysis it was of. */

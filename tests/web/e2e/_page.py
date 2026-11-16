@@ -64,6 +64,12 @@ def open_library(page: Any) -> None:  # noqa: ANN401 - a Playwright Page
         study_menu(page, "#open-library")
 
 
+def open_statistician(page: Any) -> None:  # noqa: ANN401 - a Playwright Page
+    """Open Learn's fold of the model, its tables and each run, "For the statistician", unless it is open."""
+    if not page.locator("#statistician").evaluate("(fold) => fold.open"):
+        page.click("#statistician > summary")
+
+
 def settled(page: Any, timeout: float = 30_000) -> None:  # noqa: ANN401 - a Playwright Page
     """Wait until no call to Python is in flight and the status line is no longer busy."""
     page.wait_for_function(
