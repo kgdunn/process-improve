@@ -1367,7 +1367,9 @@ function switchType(tr, type) {
     [low.value, high.value] = tr.dataset[NUMERIC] ? JSON.parse(tr.dataset[NUMERIC]) : START_LEVELS[NUMERIC];
   }
   showType(tr, type);
-  if (type === CATEGORICAL) box(tr, "level").focus();
+  // After the press is over: Safari gives the keyboard to the switch as the press ends, and would take it back from
+  // the box for the next level.
+  if (type === CATEGORICAL) setTimeout(() => box(tr, "level").focus());
 }
 
 /** Whether a factor still needs something before Python can take it, said or not yet said. */

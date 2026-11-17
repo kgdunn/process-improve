@@ -187,6 +187,49 @@ jobs:
         path: e2e-artifacts
         retention-days: 7
 
+  # The same browser tests in WebKit, Safari's engine, for the faults only Safari shows: a press it
+  # sends nowhere when the page changes under it took the Numeric/Categorical switch two presses on
+  # an iPad, and no Chromium test could see it. These are the files of the forms, the run sheet and
+  # the layout, each of which passes whole in WebKit. A test that opens a tab, writes to the
+  # clipboard or draws a finger's gesture is left to Chromium: Playwright's WebKit refuses the
+  # first two and emulates the third differently, so its failure there says nothing of Safari.
+  web-app-webkit:
+    runs-on: ubuntu-latest
+    name: web-app (WebKit)
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v7
+    - name: Set up the project environment
+      uses: ./.github/actions/setup-env
+      with:
+        python-version: "3.13"
+    - name: Cache the downloads of the page in the browser
+      uses: actions/cache@v6
+      with:
+        path: ~/.cache/process-improve/cdn
+        key: web-app-cdn-${{ hashFiles('web/runtime.json') }}
+    - name: Install WebKit for Playwright
+      run: uv run --with playwright==1.64.1 playwright install --with-deps webkit
+    - name: The forms, the run sheet and the layout in WebKit
+      env:
+        PI_BROWSER: webkit
+      run: >-
+        uv run --with playwright==1.64.1 pytest
+        tests/web/e2e/test_asked.py tests/web/e2e/test_designs.py tests/web/e2e/test_form.py
+        tests/web/e2e/test_ladder.py tests/web/e2e/test_layout.py tests/web/e2e/test_look.py
+        tests/web/e2e/test_mixture.py tests/web/e2e/test_off_plan.py tests/web/e2e/test_one_factor.py
+        tests/web/e2e/test_paste.py tests/web/e2e/test_results.py tests/web/e2e/test_run_sheet.py
+        tests/web/e2e/test_terms.py tests/web/e2e/test_ways.py tests/web/e2e/test_what_if.py
+        tests/web/e2e/test_workflows.py
+        --e2e --e2e-artifacts=e2e-artifacts --no-cov
+    - name: Keep a trace and screenshots of each failing browser test
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: web-app-webkit-artifacts
+        path: e2e-artifacts
+        retention-days: 7
+
   test:
     strategy:
       fail-fast: false
@@ -448,7 +491,7 @@ jobs:
   ci-passed:
     name: CI passed
     if: ${{ !cancelled() }}
-    needs: [lint, typecheck, web-app, test, coverage, test-free-threaded]
+    needs: [lint, typecheck, web-app, web-app-webkit, test, coverage, test-free-threaded]
     runs-on: ubuntu-latest
     steps:
     - name: Check that every job succeeded

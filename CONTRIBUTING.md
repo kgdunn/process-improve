@@ -196,6 +196,16 @@ The no-install app in `web/` runs the package in the reader's browser, through
 file of the app changes. `web/bootstrap.py` counts towards coverage, so the patch gate
 applies to it.
 
+CI's `web-app-webkit` job runs the browser tests of the forms, the run sheet and the layout
+again in WebKit, Safari's engine, and `CI passed` needs it: a fault only Safari shows (a press
+it sends nowhere when the page changes under it) is then caught before it ships. To run a
+test there yourself, install it once with
+`uv run --with playwright==1.64.1 playwright install --with-deps webkit` and set
+`PI_BROWSER=webkit`. A test that opens a tab, writes to the clipboard or draws a finger's
+gesture stays out of that job's list: Playwright's WebKit refuses the first two and emulates
+the third differently. A new test file of a form or of the layout joins the list in
+`.github/workflows/run-tests.yml` once it passes there.
+
 Three slower tiers run only when asked for, since they need a browser, Pyodide, or both.
 CI's `web-app` job runs all three, in three duration-balanced parts (`--shard`). On a pull
 request it runs only the tests the change can reach (`--affected-since`), and a part with
