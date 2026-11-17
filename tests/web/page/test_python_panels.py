@@ -1166,6 +1166,40 @@ def test_the_what_if_code_draws_no_profile_it_was_not_asked_for_nor_one_of_a_fac
     assert "Profile against" not in code([], {"name": "not fitted", "points": 25})
 
 
+@pytest.mark.slow
+@pytest.mark.parametrize("transform", [None, "log"], ids=["as measured", "on the log scale"])
+def test_the_map_s_code_draws_the_surface_the_page_draws(api, node, monkeypatch, transform):
+    """The map of the first response over T and F, with P where the dials have it: the same heights, point by point."""
+    go = pytest.importorskip("plotly.graph_objects", reason="the page installs plotly for its first chart")
+    monkeypatch.setattr(go.Figure, "show", lambda *_, **__: None)  # a reader's own window, which a test has none of
+    held, simulation = three_responses(api)
+    if transform:
+        held = {**held, "spec": {**held["spec"], "analysis_transforms": {"Yield": transform}}}
+    results = by_name(simulation)
+    reply = api.ok("api_predictors", {**held, **sent_of(results)})
+    settings = {"T": 181.5, "P": 1.4, "F": 12.0}
+    module = source("best.js")
+    fit = next(r for r in reply["responses"] if "terms" in r)
+    [columns, drawn] = javascript(
+        node,
+        module,
+        [("columnsAt", [reply["factors"], settings]), ("surfaceOf", [fit, reply["factors"], settings, ["T", "F"]])],
+    )
+    points = len(drawn["x"])
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, results]),
+        ("mapCode", [held["spec"], fit["name"], fit["formula"], columns, settings, ["T", "F"], points]),
+    )
+    made = run(code)
+    assert np.asarray(made["z"]) == pytest.approx(np.asarray(drawn["z"]), abs=1e-9)
+    (contour,) = made["fig"].data
+    assert list(contour.x) == pytest.approx(drawn["x"])
+    assert list(contour.y) == pytest.approx(drawn["y"])
+    assert (made["fig"].layout.xaxis.title.text, made["fig"].layout.yaxis.title.text) == ("T (degC)", "F (L/min)")
+
+
 # --------------------------------------------------------------------------- the code of each figure
 def figure_drawn(node, monkeypatch, steps: tuple, options: dict, model: str, complete: bool, spec: dict):
     """Return the figure that a figure's code draws, run after the code of the steps it builds on."""

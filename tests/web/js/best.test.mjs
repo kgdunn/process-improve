@@ -69,6 +69,9 @@ import {
   sliderStep,
   whatIfRows,
   PROFILE_POINTS,
+  MAP_POINTS,
+  mapPair,
+  surfaceOf,
   profileOf,
   profilePieces,
   profileRange,
@@ -930,6 +933,32 @@ describe("what if", () => {
       profileWords(PREDICTED[1], profileOf(slope, PREDICTED, settings, "Catalyst"), words),
       "Yield at each level of Catalyst: 8.8% at A, 8.8% at B and 8.8% at C.",
     );
+  });
+
+  test("the map is over the two factors chosen when both are numeric, else the first two numeric ones", () => {
+    const three = [PREDICTED[0], PREDICTED[1], { name: "P", kind: "numeric", low: 1, high: 3 }, { name: "F", kind: "numeric", low: 10, high: 20 }];
+    assert.deepEqual(mapPair(three), ["T", "P"], "a factor with levels is not an axis");
+    assert.deepEqual(mapPair(three, ["F", "T"]), ["F", "T"]);
+    assert.deepEqual(mapPair(three, ["Catalyst", "T"]), ["T", "P"]);
+    assert.deepEqual(mapPair(three, ["T", "T"]), ["T", "P"]);
+    assert.deepEqual(mapPair(three, ["T", "gone"]), ["T", "P"]);
+    assert.equal(mapPair(PREDICTED), null, "one numeric factor has no map");
+  });
+
+  test("a response's map is its prediction over two factors, the others where they are set", () => {
+    const factors = [PREDICTED[0], PREDICTED[1], { name: "P", kind: "numeric", low: 3, high: 1 }];
+    const fit = { ...FIT, terms: [[], ["T"], ["T", "T"], ["P"]], coefficients: [10, 2, 3, -1], inverse: [0, 1, 2, 3].map((i) => [0, 1, 2, 3].map((j) => (i === j ? 0.2 : 0))), max_leverage: 0.5 };
+    const settings = { T: 160, Catalyst: "B", P: 2 };
+    const surface = surfaceOf(fit, factors, settings, ["T", "P"]);
+    assert.deepEqual([surface.x.length, surface.y.length, surface.z.length, surface.z[0].length], [MAP_POINTS, MAP_POINTS, MAP_POINTS, MAP_POINTS]);
+    assert.deepEqual([surface.x[0], surface.x.at(-1), surface.y[0], surface.y.at(-1)], [150, 200, 1, 3], "each from its low end to its high end");
+    for (const [j, i] of [[0, 0], [5, 17], [20, 20]]) { // prettier-ignore
+      const at = predictAt(fit, columnsAt(factors, { ...settings, T: surface.x[i], P: surface.y[j] }));
+      assert.equal(surface.z[j][i], at.predicted);
+      assert.equal(surface.beyond[j][i], Number(at.extrapolating));
+    }
+    assert.equal(surface.beyond[10][10], 0, "the center is within the runs");
+    assert.equal(surface.beyond[0][0], 1, "a corner is beyond them here");
   });
 
   test("a fit on the log scale predicts the median, its intervals put back end by end", () => {

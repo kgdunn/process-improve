@@ -406,6 +406,21 @@ function figureWindow() {
   return windowModule;
 }
 
+/**
+ * Where a pointer is on a chart drawn over two flat axes, in the chart's own numbers: [x, y], each held to its
+ * axis's range, or null when the chart is not drawn. Plotly keeps where it put each axis on the div it drew in.
+ */
+export function plotPoint(div, clientX, clientY) {
+  const { xaxis, yaxis } = div._fullLayout ?? {};
+  if (!xaxis?._length || !yaxis?._length) return null;
+  const box = div.getBoundingClientRect();
+  const along = (axis, share) => axis.range[0] + Math.min(1, Math.max(0, share)) * (axis.range[1] - axis.range[0]);
+  return [
+    along(xaxis, (clientX - box.left - xaxis._offset) / xaxis._length),
+    along(yaxis, 1 - (clientY - box.top - yaxis._offset) / yaxis._length),
+  ];
+}
+
 /** What a chart was drawn from, as draw() was given it; undefined for a div with no chart. */
 export const figureOf = (div) => drawn.get(div);
 
@@ -1736,6 +1751,51 @@ export const CURVE_LINES = {
   simultaneous: "95% band over the whole curve",
   target: "Target",
 };
+
+/** The names of what the what-if map marks, as its legend lists them. */
+export const MAP_MARKS = { set: "Where the dials are", best: "The best settings", beyond: "Beyond the runs" };
+
+/**
+ * The what-if map: a response's fitted surface over two factors, the others where the dials have them
+ * (best.js surfaceOf gives ``surface``). It fades where the settings lie beyond the runs, marks where the dials
+ * are (``at``, the two factors' settings) and the best settings (``best``, or null when they are not known). The
+ * page takes a drag on it, so Plotly's own drag is off. ``words`` is the response's ``label`` and ``units``, and
+ * ``axes`` the two factors, each its ``name`` and ``units``.
+ */
+export function mapFigure(surface, { label, units = "", axes, at, best = null }, colours = palette()) {
+  const veil = withAlpha(isDark(colours) ? "#141517" : "#ffffff", 0.62);
+  const faded = surface.beyond.some((row) => row.some(Boolean));
+  // A mark at an end of a range is drawn whole, over the axis: the best settings are often in a corner.
+  const mark = (name, [x, y], marker) => ({ type: "scatter", mode: "markers", name, x: [x], y: [y], marker, cliponaxis: false, hovertemplate: `${name}<extra></extra>` });
+  const data = [
+    {
+      type: "contour",
+      x: surface.x,
+      y: surface.y,
+      z: surface.z,
+      name: label,
+      colorscale: SURFACE,
+      showscale: false,
+      showlegend: false,
+      contours: { coloring: "heatmap", showlabels: true, labelformat: ".4~g" },
+      line: { width: 0.75, color: withAlpha(colours.fg, 0.55) },
+      hovertemplate: `${label}: %{z:.4g}${units ? ` ${units}` : ""}<extra></extra>`,
+    },
+    ...(faded
+      ? [
+          { type: "heatmap", x: surface.x, y: surface.y, z: surface.beyond, zmin: 0, zmax: 1, colorscale: [[0, "rgba(0,0,0,0)"], [1, veil]], showscale: false, hoverinfo: "skip", meta: "beyond" }, // prettier-ignore
+          { type: "scatter", mode: "markers", name: MAP_MARKS.beyond, x: [null], y: [null], marker: { symbol: "square", size: 12, color: veil, line: { width: 1, color: colours.line } }, hoverinfo: "skip" }, // prettier-ignore
+        ]
+      : []),
+    ...(best ? [mark(MAP_MARKS.best, best, BEST_MARKER)] : []),
+    mark(MAP_MARKS.set, at, { symbol: "circle", size: 14, color: colours.panel, line: { width: 2.5, color: colours.fg } }),
+  ];
+  const axis = (one, values) => ({ title: { text: withUnits(one.name, one.units) }, range: [values[0], values.at(-1)], fixedrange: true });
+  return {
+    data,
+    layout: { xaxis: axis(axes[0], surface.x), yaxis: axis(axes[1], surface.y), dragmode: false, legend: LEGEND_ABOVE, showlegend: true },
+  };
+}
 
 /**
  * A curve predicted at the what-if panel's settings (best.js curveAt), over the ``points`` along it: the curve, the

@@ -1152,6 +1152,15 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
   display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); align-items: start;
   gap: 14px 18px; margin: 8px 0 4px; font-size: 0.95rem;
 }
+/* The dials beside the map they move, where there is room for both: in view together on a laptop. */
+.what-if-dials { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px 22px; align-items: start; }
+.what-if-map { margin: 8px 0 0; }
+.what-if-map h4 { margin: 0 0 4px; font-size: 0.95rem; }
+/* A sideways drag is the map's; an up or down swipe still scrolls the page on a phone. */
+.what-if-map .plot { min-height: 300px; cursor: crosshair; touch-action: pan-y; }
+@media (min-width: 1100px) {
+  .what-if-dials:has(.what-if-map:not([hidden])) { grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr); }
+}
 .what-if-factor { display: grid; grid-template-columns: 7em minmax(0, 1fr); align-items: center; gap: 4px 8px; min-width: 0; }
 .what-if-name { grid-column: 1 / -1; font-weight: 600; overflow-wrap: anywhere; }
 .what-if-factor input[type="range"] { grid-column: 1 / -1; width: 100%; margin: 0; accent-color: var(--accent); }
