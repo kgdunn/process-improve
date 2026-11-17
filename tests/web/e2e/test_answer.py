@@ -45,9 +45,13 @@ def test_learn_opens_with_where_to_run_and_what_to_expect_in_the_panel_s_own_num
     ids=["a laptop", "a phone"],
 )
 def test_the_answer_is_at_the_top_of_learn(page, within):
-    """Under 300 px from the top on a laptop; on a phone, whole within the first screen."""
+    """Under 300 px from the top on a laptop; on a phone, its words and each setting's line within the first screen.
+
+    The picture of the runs follows them on a phone, where there is no room beside the words.
+    """
     box = page.locator("#answer").bounding_box()
-    edge = box["y"] if within == 300 else box["y"] + box["height"]
+    last = page.locator("#answer-where .tracks").bounding_box()
+    edge = box["y"] if within == 300 else last["y"] + last["height"]
     assert edge < within
     assert box["y"] < page.locator("#analysis").bounding_box()["y"], "before the evidence"
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
@@ -96,3 +100,33 @@ def test_the_report_opens_learn_with_the_same_answer(page):
     assert expect in text
     assert text.index(run) < text.index("Coefficients"), "before the tables"
     assert "How sure this is" not in text, "the way to the panel is a button, which paper has no use for"
+
+
+def test_the_answer_is_drawn_where_it_sits_among_the_runs_and_in_each_factor_s_range(page):
+    """Three numeric factors: a cube with the runs as rings and the answer as the one filled point, and a line each."""
+    where = page.locator("#answer-where")
+    cube = where.locator("svg.space")
+    assert cube.locator(".space__run").count() >= 8, "the runs made"
+    assert cube.locator(".space__new").count() == 1, "the answer"
+    assert "Temperature, Pressure and Flow" in cube.get_attribute("aria-label")
+
+    # A line a factor: the point is where the setting sits between the ends of its range.
+    rows = where.locator(".tracks li")
+    assert rows.locator(".tracks__name").all_text_contents() == ["Temperature", "Pressure", "Flow"]
+    run = page.text_content("#answer-run")
+    for row in rows.all():
+        low, high = (float(end) for end in row.locator(".tracks__end").all_text_contents())
+        name = row.locator(".tracks__name").text_content()
+        value = float(run.split(f"{name} = ")[1].split(" ")[0])
+        share = (float(row.locator("circle").get_attribute("cx")) - 6) / 108
+        assert share == pytest.approx((value - low) / (high - low), abs=0.01), name
+        assert f"{name} = " in row.locator("svg").get_attribute("aria-label"), "said to a reader who cannot see it"
+
+
+def test_the_answer_has_no_picture_with_no_settings_to_state(page):
+    open_question(page)
+    page.select_option("#response-goal", "learn")
+    settled(page)
+    page.wait_for_function("document.querySelector('#answer-expect').hidden")
+    assert page.locator("#answer-where").evaluate("(one) => one.childElementCount") == 0
+    assert not page.locator("#answer-where").is_visible()

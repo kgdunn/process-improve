@@ -607,10 +607,14 @@
         <!-- The answer (app.js renderAnswer): the settings to run and what the model expects there, from the best
              settings found further down; with no goal to reach, what matters most. The evidence follows it. -->
         <div id="answer" class="answer" hidden>
+          <div class="answer__words">
           <p id="answer-run" class="answer__run"></p>
           <p id="answer-expect"></p>
           <p class="actions"><button type="button" id="answer-more" class="link">How sure this is, and how tightly to
             hold each setting</button></p>
+          </div>
+          <!-- Where those settings sit (app.js answerPictures): among the runs, and in each factor's range. -->
+          <div id="answer-where" class="answer__where"></div>
         </div>
         <!-- Whether to rely on the answer (app.js renderChecks, best.js learnChecks): the fit, the runs one by one,
              the repeated runs, and the reach of the runs. Each opens to a sentence and its statistic; one to look
