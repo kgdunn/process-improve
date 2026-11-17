@@ -201,7 +201,8 @@ def test_a_study_opened_with_its_results_says_they_wait_for_python_not_that_ther
     again = context.new_page()
     again.goto(site)
     again.wait_for_selector("#badge-run:not([hidden])")
-    assert again.get_attribute("#workspace", "data-phase") == "learn"
+    assert again.get_attribute("#workspace", "data-phase") == "run", "where the study was left"
+    again.click("#go-learn")
     assert (
         again.text_content("#analyse-empty") == "Your results are in. Their analysis follows once Python has started."
     )

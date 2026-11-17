@@ -173,6 +173,7 @@ def test_a_target_and_a_window_go_with_the_study_by_link_and_in_this_browser(ope
         again.wait_for_selector("#campaign-banner", state="visible")
         again.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
         settled(again)
+        again.click("#go-learn")  # a study this browser keeps opens on the stage it was left on, which was Run
         again.wait_for_selector("#target-out .lead")  # the card opens on the goal the study asks: its target
         reveal(again, "#window")
         again.wait_for_selector("#window-out .lead")
