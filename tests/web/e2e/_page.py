@@ -237,6 +237,9 @@ def generate(page: Any, **settings: object) -> None:  # noqa: ANN401
     choose(page, **settings)
     reveal(page, "#generate")
     page.click("#generate")
+    # Over a run sheet with entered results and a changed design the page asks first: the reader starts the new study.
+    if page.is_visible("#replace-dialog"):
+        page.click("#replace-go")
     settled(page)
 
 

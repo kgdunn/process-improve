@@ -218,9 +218,9 @@ Also:
     read. The workbook is an .xlsx file.
 - **No need to wait for every run.** The app analyses the runs that have a result.
   - *Details:* Once every run has its result, Run says so at its top, with the way to Learn.
-- **Your results are not cleared without a question.** Making the run sheet again keeps the
-  sheet and its results when the design is unchanged. When the design has changed, the app
-  asks first, and keeps your results unless you choose to clear them.
+- **Your results do not leave the page without a question.** Making the run sheet again keeps
+  the sheet and its results when the design is unchanged. When the design has changed, the
+  app asks first: a new run sheet is a new study, and this one stays in Your studies.
   - *Details:* Practice results are made again without a question, and simulating fills only
     the runs that have no result of your own.
 - **One run at a time.** A card on Run shows the run to make now: its settings in large type,

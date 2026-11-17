@@ -1,9 +1,10 @@
-"""Results the reader entered are never lost without a clear question.
+"""Results the reader entered never leave the page without a clear question.
 
-A reader typed four results, pressed "Make the run sheet" again, and the sheet came back blank in a new order. A new
-run sheet starts blank, so one that holds entered results is kept when the design is unchanged, and is replaced only
-after the reader says so when the design has changed. Practice results fill only the runs that have none of the
-reader's own. These tests walk each way a run sheet can be made again.
+A reader typed four results, pressed "Make the run sheet" again, and met a blank sheet in a new order, with no word
+that it was a new study and that the results were in Your studies. A run sheet that holds entered results is kept
+when the design is unchanged; when the design has changed the reader is asked, and told where the study is kept.
+Practice results fill only the runs that have none of the reader's own. These tests walk each way a run sheet can
+be made again.
 """
 
 from __future__ import annotations
@@ -61,8 +62,10 @@ def test_a_changed_design_asks_before_it_clears_entered_results_and_keeps_them_b
     press_make(page)
     dialog = page.locator("#replace-dialog")
     dialog.wait_for(state="visible")
-    assert page.text_content("#h-replace") == "Your results would be cleared"
-    assert "holds 4 results you entered" in page.text_content("#replace-says")
+    assert page.text_content("#h-replace") == "Start a new study?"
+    said = page.text_content("#replace-says")
+    assert "holds 4 results you entered" in said
+    assert "This study and its results stay in Your studies" in said
     assert page.evaluate("document.activeElement.id") == "replace-keep", "the safe choice has the keyboard"
     page.click("#replace-keep")
     settled(page)
@@ -84,7 +87,7 @@ def test_escape_closes_the_question_and_keeps_the_results(blank_page):
     assert results(page) == typed
 
 
-def test_the_reader_can_choose_to_clear_the_results_for_a_new_run_sheet(blank_page):
+def test_the_reader_can_start_the_new_study_and_the_study_before_keeps_its_results(blank_page):
     page = blank_page
     typed, _ = a_sheet_with_typed_results(page)
     choose(page, n_replicates=2)
@@ -95,6 +98,11 @@ def test_the_reader_can_choose_to_clear_the_results_for_a_new_run_sheet(blank_pa
     page.click("#go-run")
     assert len(results(page)) > len(typed), "the new design's runs: it has a replicate more"
     assert not any(results(page)), "blank, as the question said"
+    kept = page.evaluate(
+        """async () => (await (await import('./store.js')).savedCampaigns())
+             .map((one) => one.responses.filter((value) => value !== null))"""
+    )
+    assert [23, 45, 78, 98] in kept, "the study before is in Your studies, with its results"
 
 
 def test_one_result_is_enough_to_be_asked(blank_page):

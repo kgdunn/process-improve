@@ -6,7 +6,7 @@ still to do, and takes the analysis away again when no result is left.
 
 from __future__ import annotations
 
-from tests.web.e2e._page import calls, enter_results, generate, reveal, settled, status, type_results
+from tests.web.e2e._page import calls, choose, enter_results, generate, reveal, settled, status, type_results
 
 #: Fifteen results for the worked example's Box-Behnken design.
 RESULTS = [61.2, 58.9, 66.4, 63.0, 55.7, 60.3, 64.8, 59.1, 62.5, 57.6, 65.2, 61.9, 62.4, 61.8, 62.1]
@@ -69,11 +69,13 @@ def test_an_analysis_overtaken_by_a_new_design_is_dropped(blank_page):
     generate(page, design_type="box_behnken")
     page.evaluate("window.__pi.hold('api_analyze_runs')")
     enter_results(page, {0: 70})  # its analysis is held on the way back
+    choose(page, n_center_points=5)  # a changed design: the page asks before it starts the new study
     reveal(page, "#generate")
     page.click("#generate")
+    page.click("#replace-go")
     page.wait_for_function("window.__pi.replies.filter((r) => r.fn === 'api_make_design').length === 2")
     page.evaluate("window.__pi.release('api_analyze_runs')")
     settled(page)
     assert page.is_hidden("#analysis")
     assert page.is_hidden("#charts")
-    assert status(page) == ("15 runs generated.", "ok")
+    assert status(page) == ("17 runs generated.", "ok")

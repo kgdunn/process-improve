@@ -1037,13 +1037,13 @@
   </dialog>
   <!-- Your studies (store.js), and the study file (study-file.js) that carries them out of this browser and back. -->
   <!-- Asked before a new run sheet takes the place of one that holds results the reader entered (app.js
-       mayReplaceRunSheet): a new sheet starts blank, and nothing typed is lost without this question. -->
+       mayReplaceRunSheet): a new sheet is a new study, blank, and the reader is told where the results go. -->
   <dialog id="replace-dialog" class="sheet replace" aria-labelledby="h-replace">
-    <h2 id="h-replace">Your results would be cleared</h2>
+    <h2 id="h-replace">Start a new study?</h2>
     <p id="replace-says"></p>
     <p class="actions">
-      <button type="button" id="replace-keep" class="primary">Keep my results</button>
-      <button type="button" id="replace-go" class="button">Clear them and make a new run sheet</button>
+      <button type="button" id="replace-keep" class="primary">Keep working on this study</button>
+      <button type="button" id="replace-go" class="button">Start the new study</button>
     </p>
   </dialog>
 

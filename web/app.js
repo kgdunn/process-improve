@@ -2044,9 +2044,10 @@ function enteredResults() {
 
 /**
  * Whether a new run sheet may take the place of the one on the page. A new run sheet starts blank, in a new random
- * order, so one that holds results the reader entered is not replaced without the reader saying so:
+ * order, and is a new study once the one on the page holds a result the reader entered (the study before stays in
+ * Your studies). A reader who pressed the button again met a blank sheet with no word of where the results went, so:
  * - the design is as it was when the sheet was made: the sheet stays, and Run shows it;
- * - the design has changed: the reader is asked, and the sheet stays unless they choose to clear the results.
+ * - the design has changed: the reader is asked, and told where this study and its results are kept.
  * Results simulated for practice are made again with the sheet, so they are not asked about.
  */
 async function mayReplaceRunSheet() {
@@ -2058,9 +2059,12 @@ async function mayReplaceRunSheet() {
     return false;
   }
   const dialog = $("#replace-dialog");
+  const kept = state.campaign?.id
+    ? "This study and its results stay in Your studies, in the menu on the study's name."
+    : "This study's results are not kept: download the study first if you want them.";
   $("#replace-says").textContent =
-    `The run sheet holds ${entered === 1 ? "1 result" : `${entered} results`} you entered. ` +
-    "The design has changed, and a new run sheet starts blank, with its runs in a new order.";
+    `This run sheet holds ${entered === 1 ? "1 result" : `${entered} results`} you entered. The design has changed, ` +
+    `so a new run sheet starts a new study: blank, with its runs in a new order. ${kept}`;
   dialog.returnValue = "";
   dialog.showModal();
   const chosen = await new Promise((resolve) => dialog.addEventListener("close", () => resolve(dialog.returnValue), { once: true }));
