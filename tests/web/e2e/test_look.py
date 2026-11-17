@@ -179,3 +179,14 @@ def test_a_chosen_point_is_drawn_in_forced_colours(page):
     chosen = page.locator(".aim input:checked").evaluate(STYLE.format("backgroundColor"))
     other = page.locator(".aim input:not(:checked)").first.evaluate(STYLE.format("backgroundColor"))
     assert chosen != other, "the chosen aim is still told from the others"
+
+
+def test_a_choice_in_the_feedback_form_is_a_round_point_not_a_sliver(page):
+    """A later rule for ticked boxes gave these points no width: each was 4 px wide and 18 px tall."""
+    page.click("#feedback")
+    points = page.locator("dialog.feedback input[type=radio]")
+    assert points.count() >= 3
+    sizes = points.evaluate_all(
+        "(all) => all.map((one) => { const box = one.getBoundingClientRect(); return [box.width, box.height]; })"
+    )
+    assert sizes == [[18, 18]] * len(sizes)

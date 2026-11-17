@@ -1432,7 +1432,9 @@ dialog.library { width: min(760px, 100vw - 32px); font-size: 0.92rem; }
 
 /* A link to the design: shown, selected, beside what it carries. */
 .check { display: inline-flex; align-items: center; gap: 6px; font-size: 0.92rem; }
-.check input { width: auto; }
+/* A box that ticks keeps the width the browser gives it. A choice of one is a point, with its own width: this rule
+   came after the point's and squeezed it to a sliver. */
+.check input:not([type="radio"]) { width: auto; }
 .share input { width: 100%; font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 0.82rem; }
 .share .hint { margin: 6px 0 0; }
 
