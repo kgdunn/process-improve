@@ -80,7 +80,11 @@ def test_next_is_the_fourth_stage_and_holds_what_the_results_call_for(page):
     assert page.locator("#learn-to-next").evaluate(colour.format("backgroundColor")) == red, "it wears Next's colour"
     page.click("#learn-to-next")
     assert page.get_attribute("#workspace", "data-phase") == "next"
-    assert page.locator("#step-next").evaluate(colour.format("borderTopColor")) == red, "as the stage it leads to does"
+    probe = (
+        "(one) => { one.style.color = 'var(--stage)'; const c = getComputedStyle(one).color;"
+        " one.style.color = ''; return c; }"
+    )
+    assert page.locator("#h-next-stage").evaluate(probe) == red, "the stage it leads to has the same colour to give"
     assert page.get_attribute("#go-next", "aria-selected") == "true"
     assert page.is_visible("#step-next #next")
     assert page.text_content("#h-next-stage") == "What comes next"

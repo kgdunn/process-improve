@@ -86,14 +86,14 @@ def test_the_stages_are_points_on_one_line_and_the_stage_on_show_is_the_larger(p
         "(all) => all.map((one) => [one.closest('[role=tab]').id, one.getBoundingClientRect().width])"
     )
     widths = dict(sizes)
-    assert widths["go-learn"] > widths["go-plan"] == widths["go-run"], "Learn is on show"
+    assert widths["go-learn"] > widths["go-plan"] == widths["go-run"] == widths["go-next"], "Learn is on show"
     assert max(widths.values()) <= 16, "a point, with no number in it"
     assert page.locator("#go-learn").evaluate(STYLE.format("borderBottomWidth")) == "0px", "no edge under its name"
     assert page.locator("#go-learn").evaluate(STYLE.format("fontWeight")) in ("600", "700"), "its name is in bold"
     lines = page.locator("#studybar [role=tab]").evaluate_all(
         "(tabs) => tabs.map((tab) => getComputedStyle(tab, '::before').content !== 'none')"
     )
-    assert lines == [False, True, True], "the line runs up to each stage after the first"
+    assert lines == [False, *[True] * (len(lines) - 1)], "the line runs up to each stage after the first"
 
 
 @THEMES

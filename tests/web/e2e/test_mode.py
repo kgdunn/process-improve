@@ -11,7 +11,7 @@ import pytest
 
 from tests.web.e2e._page import first_paint_done
 
-LIGHT_BG, DARK_BG = "rgb(250, 248, 243)", "rgb(20, 21, 23)"
+LIGHT_BG, DARK_BG = "rgb(245, 246, 244)", "rgb(20, 21, 23)"
 
 
 def background(page) -> str:

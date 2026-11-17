@@ -500,7 +500,7 @@ function offerWindow(div) {
 export const LIGHT = {
   fg: "#1d1d1f",
   muted: "#5f6368",
-  line: "#dcd8ce",
+  line: "#d6d9d6",
   panel: "#ffffff",
   accent: "#2c5f7c",
   warn: "#a35f00",

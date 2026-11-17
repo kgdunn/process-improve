@@ -181,7 +181,7 @@ export function chartsHtml(charts) {
 
 /** The report's own style: a page of print, on white whatever theme the app shows, that reads on a phone too. */
 const STYLE = `
-:root { color-scheme: light; --fg: #1d1d1f; --muted: #5f6368; --line: #dcd8ce; --accent: #2c5f7c; --warn: #a35f00; }
+:root { color-scheme: light; --fg: #1d1d1f; --muted: #5f6368; --line: #d6d9d6; --accent: #2c5f7c; --warn: #a35f00; }
 * { box-sizing: border-box; }
 body { margin: 0; background: #ffffff; color: var(--fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
 main { max-width: 860px; margin: 0 auto; padding: 24px 16px 48px; }
