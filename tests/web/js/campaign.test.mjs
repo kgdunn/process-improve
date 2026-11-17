@@ -924,6 +924,27 @@ describe("a curve each run gives", () => {
   });
 });
 
+describe("a run made at settings that differ from the plan", () => {
+  const off = () => ({ ...campaign(), planned: { 1: { T: 150 } } });
+
+  test("the study keeps the planned setting, in a format of its own", async () => {
+    const { PLANNED_FORMAT } = await import("../../../web/campaign.js");
+    const read = checkCampaign({ ...off(), v: PLANNED_FORMAT });
+    assert.deepEqual(read.planned, { 1: { T: 150 } });
+    assert.equal(read.v, PLANNED_FORMAT);
+    assert.equal(CAMPAIGN_VERSION, PLANNED_FORMAT, "the page reads it");
+    assert.equal(checkCampaign(campaign()).planned, undefined, "a study on its plan holds none, in its earlier format");
+  });
+
+  test("a planned setting of a run or a factor the study lacks is refused", () => {
+    const with_ = (planned) => () => checkCampaign({ ...campaign(), v: CAMPAIGN_VERSION, planned });
+    assert.throws(with_({ 4: { T: 150 } }), /a run the run sheet does not have/);
+    assert.throws(with_({ 1: { Supplier: 150 } }), /a factor that takes no number/);
+    assert.throws(with_({ 1: { T: "150" } }), /not a number/);
+    assert.throws(with_([150]), /not listed by run/);
+  });
+});
+
 describe("a move's price, and the campaign's runs so far", () => {
   test("a move's runs are stated beside the runs the study has already", () => {
     assert.equal(priceWords(8, 15), "8 more runs: 23 in this study");

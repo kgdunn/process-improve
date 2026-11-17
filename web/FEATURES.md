@@ -204,6 +204,11 @@ Also:
   - *Details:* A pasted block is matched by run number when it has one, with decimal commas
     read. The workbook is an .xlsx file.
 - **No need to wait for every run.** The app analyses the runs that have a result.
+- **A run that left the plan.** Press a setting on the run sheet and type the setting the run
+  was really made at. The model is fitted on it, and the sheet says which runs left the plan.
+  - *Details:* For numeric factors; a mixture's proportions and a categorical factor's level
+    stay as planned. The planned setting is kept with the study, and one press puts every
+    run back on the plan. A study with such a run is saved in study format 10.
 - **Practise before you spend a run.** Simulated results from a process whose true behaviour is
   known, to see whether the analysis finds it. You set the noise, simulate again for new noise,
   and show the true process when you want it.

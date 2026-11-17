@@ -2960,8 +2960,9 @@ function editSetting(button) {
   };
   input.onblur = () => finish(true, false);
   input.onkeydown = (e) => {
-    if (e.key === "Enter") finish(true, true);
-    else if (e.key === "Escape") finish(false, true);
+    if (e.key !== "Enter" && e.key !== "Escape") return;
+    e.preventDefault(); // or Enter would go on to press the button the focus returns to
+    finish(e.key === "Enter", true);
   };
   button.replaceWith(input);
   input.focus();
@@ -7922,7 +7923,7 @@ function currentCampaign() {
   const { spec, columns, rows, model, facts, outside_range: outside } = state.design;
   const [first, ...more] = resultNames();
   return {
-    v: studyFormat(spec, { what_if: state.scenarios, set_aside: keptAside(), ...keptAsked(), builds_on: state.buildsOn }),
+    v: studyFormat(spec, { what_if: state.scenarios, set_aside: keptAside(), ...keptAsked(), builds_on: state.buildsOn, planned: state.design.planned ?? {} }),
     title: state.campaign?.title ?? titleOf(spec),
     design: { spec, columns, rows, model, n_runs: rows.length, facts: facts ?? null, outside_range: outside ?? [] },
     ...sentResults(),
@@ -7934,6 +7935,7 @@ function currentCampaign() {
     ...(state.campaign?.source ? { source: state.campaign.source } : {}),
     ...(state.scenarios.length ? { what_if: state.scenarios } : {}),
     ...(Object.keys(keptAside()).length ? { set_aside: keptAside() } : {}),
+    ...(state.design.planned ? { planned: state.design.planned } : {}),
     ...keptAsked(),
     ...(state.buildsOn.length ? { builds_on: state.buildsOn } : {}),
     ...sentCurves(),
@@ -8212,7 +8214,7 @@ async function openCampaign(c, record, message) {
   $("#demo-banner").hidden = true;
   setForm(c.design.spec);
   state.campaign = { ...record, title: c.title || titleOf(c.design.spec), ...(c.source ? { source: c.source } : {}) };
-  state.design = { ...c.design };
+  state.design = { ...c.design, ...(c.planned ? { planned: structuredClone(c.planned) } : {}) };
   state.planKey = planKey();
   const names = resultNames();
   state.results = joinResults(names, [...c.responses], structuredClone(c.more_responses ?? {}));

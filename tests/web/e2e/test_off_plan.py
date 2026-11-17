@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import pytest
 
-from tests.web.e2e._page import reveal, settled
+from tests.web.e2e._page import generate, practise, reveal, settled
 
 SETTING = '#design-table button.setting[data-index="0"][data-factor="Temperature"]'
+#: The same setting in a study of the factors T, P and F.
+OWN = '#design-table button.setting[data-index="0"][data-factor="T"]'
 
 
 def type_setting(page, value: str, key: str = "Enter") -> None:
@@ -39,30 +41,22 @@ def test_a_setting_typed_over_is_what_the_model_is_fitted_on_and_the_sheet_says_
     assert page.get_attribute(SETTING, "title") == f"Planned: {planned}"
     assert f"planned {planned}" in page.get_attribute(SETTING, "aria-label")
     assert page.evaluate("document.activeElement.matches('button.setting')"), "the focus is back on the setting"
-    run = page.locator("#design-table tbody tr").filter(has=page.locator(SETTING)).get_attribute("data-run")
+    run = page.locator(SETTING).evaluate("(setting) => setting.closest('tr').dataset.run")
     assert page.text_content("#off-plan-says").startswith(f"Run {run} was made at settings that differ from the plan.")
     page.click("#go-learn")
-    settled(page)
-    assert page.text_content("#answer-expect") != before, "the model is fitted on the setting really made"
+    # The analysis follows a moment after the last change: the model is fitted on the setting really made.
+    page.wait_for_function("(before) => document.querySelector('#answer-expect').textContent !== before", arg=before)
     assert page.locator("#status[data-state=error]").count() == 0
 
-    # The study keeps both the setting made and the planned one.
-    page.wait_for_timeout(700)  # the save is put off a moment
-    page.reload()
-    settled(page)
     page.click("#go-run")
-    reveal(page, "#design-table")
-    assert page.text_content(SETTING) == "163"
-    assert page.get_attribute(SETTING, "title") == f"Planned: {planned}"
-
     page.click("#off-plan-back")
     settled(page)
     assert page.text_content(SETTING) == planned
     assert "off" not in page.get_attribute(SETTING, "class").split()
     assert page.is_hidden("#off-plan-back")
     page.click("#go-learn")
-    settled(page)
-    assert page.text_content("#answer-expect") == before, "back on the plan, the answer is the plan's"
+    # Back on the plan, the answer is the plan's.
+    page.wait_for_function("(before) => document.querySelector('#answer-expect').textContent === before", arg=before)
 
 
 @pytest.mark.parametrize(("typed", "key"), [("163", "Escape"), ("", "Enter")], ids=["Escape", "a blank box"])
@@ -81,3 +75,23 @@ def test_the_results_boxes_are_still_the_sheet_s_only_boxes_until_a_setting_is_p
     rows = page.locator("#design-table tbody tr").count()
     assert page.locator("#design-table input").count() == rows, "one box a run: its result"
     assert page.locator("#design-table button.setting").count() == 3 * rows, "three numeric factors a run"
+
+
+def test_the_study_keeps_the_setting_made_and_the_planned_one(blank_page):
+    page = blank_page
+    generate(page)
+    practise(page)
+    reveal(page, "#design-table")
+    planned = page.text_content(OWN)
+    page.click(OWN)
+    box = page.locator("#design-table input.setting")
+    box.fill("163")
+    box.press("Enter")
+    page.wait_for_timeout(1500)  # the save is put off a moment
+    page.reload()
+    settled(page)
+    page.click("#go-run")
+    reveal(page, "#design-table")
+    assert page.text_content(OWN) == "163"
+    assert page.get_attribute(OWN, "title") == f"Planned: {planned}"
+    assert page.is_visible("#off-plan-back")
