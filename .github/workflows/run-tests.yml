@@ -218,8 +218,8 @@ jobs:
         tests/web/e2e/test_asked.py tests/web/e2e/test_designs.py tests/web/e2e/test_form.py
         tests/web/e2e/test_ladder.py tests/web/e2e/test_layout.py tests/web/e2e/test_look.py
         tests/web/e2e/test_mixture.py tests/web/e2e/test_off_plan.py tests/web/e2e/test_one_factor.py
-        tests/web/e2e/test_paste.py tests/web/e2e/test_results.py tests/web/e2e/test_run_sheet.py
-        tests/web/e2e/test_terms.py tests/web/e2e/test_ways.py tests/web/e2e/test_what_if.py
+        tests/web/e2e/test_paste.py tests/web/e2e/test_practice_round.py tests/web/e2e/test_results.py
+        tests/web/e2e/test_run_sheet.py tests/web/e2e/test_terms.py tests/web/e2e/test_ways.py tests/web/e2e/test_what_if.py
         tests/web/e2e/test_workflows.py
         --e2e --e2e-artifacts=e2e-artifacts --no-cov
     - name: Keep a trace and screenshots of each failing browser test
