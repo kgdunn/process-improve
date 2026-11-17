@@ -113,6 +113,7 @@ def test_a_study_started_from_another_is_the_next_round_of_its_campaign(two_roun
     assert all(re.fullmatch(r"[\d.]+, in run \d+", row[3]) for row in listed), "each round's best result so far"
     assert [row[4] for row in listed] == ["Open", "This study"]
     assert page.text_content("#badge-next") == "round 2"
+    assert page.text_content("#rounds-out .price") == "30 runs so far in this campaign, over 2 rounds."
     assert page.is_visible("#next"), "what this round's results call for is under the rounds"
 
     first, second = sorted(saved_studies(page, lambda saved: len(saved) == 2), key=lambda study: study["created"])

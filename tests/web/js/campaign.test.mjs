@@ -23,6 +23,7 @@ import {
   inBook,
   tabOf,
   bookName,
+  campaignSoFar,
   campaignDone,
   campaignTitle,
   checkBookExample,
@@ -33,6 +34,7 @@ import {
   mergeResults,
   packCampaign,
   partName,
+  priceWords,
   progress,
   sameCampaign,
   shareable,
@@ -919,5 +921,32 @@ describe("a curve each run gives", () => {
     refused((d) => (d.curves = [[0, 1, 2]]), /its curves are not one per run/);
     refused((d) => (d.curves[0] = [0, "high", 2]), /not one number, or a blank, per point/);
     refused((d) => (d.curves[0] = [0, 1]), /not one number, or a blank, per point/);
+  });
+});
+
+describe("a move's price, and the campaign's runs so far", () => {
+  test("a move's runs are stated beside the runs the study has already", () => {
+    assert.equal(priceWords(8, 15), "8 more runs: 23 in this study");
+    assert.equal(priceWords(1, 15), "1 more run: 16 in this study");
+  });
+
+  test("a new study's runs are its own, and nothing is added up", () => {
+    assert.equal(priceWords(15), "15 runs");
+    assert.equal(priceWords(1), "1 run");
+  });
+
+  test("the campaign counts every run of every round this browser keeps", () => {
+    const round = (number, runs) => ({ round: number, record: { design: { rows: Array(runs).fill([]) } } });
+    assert.equal(campaignSoFar([round(1, 15), round(2, 11)]), "26 runs so far in this campaign, over 2 rounds.");
+    // Two studies built on the same round are one round, and both are counted.
+    assert.equal(campaignSoFar([round(1, 15), round(2, 11), round(2, 8)]), "34 runs so far in this campaign, over 2 rounds.");
+  });
+
+  test("a round that is not in this browser is not counted, and the words say so", () => {
+    const rounds = [{ round: 1 }, { round: 2, record: { design: { rows: Array(11).fill([]) } } }];
+    assert.equal(
+      campaignSoFar(rounds),
+      "At least 11 runs so far in this campaign, over 2 rounds. A round that is not in this browser is not counted.",
+    );
   });
 });

@@ -1152,6 +1152,16 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 /* The next step: a new study with moved ranges, and the ways to add runs to this one, each a short case and a button. */
 /* Not .step, which is the numbered badge of Design, Run and Learn. */
 .next__part { margin: 14px 0 0; }
+/* A move's runs before they are made: a picture of where they sit among the runs made, and a row a run. */
+.next__runs { margin: 4px 0 8px; }
+.space { display: block; width: 170px; max-width: 100%; height: auto; margin: 8px 0; overflow: visible; }
+.space__edge { stroke: var(--muted); stroke-width: 1.2; }
+.space__edge--back { stroke-dasharray: 2 3; }
+.space__run { fill: var(--panel); stroke: var(--muted); stroke-width: 1.3; }
+.space__new { fill: var(--stage, var(--accent)); stroke: var(--panel); stroke-width: 1.5; }
+.space__label { fill: var(--muted); font-size: 9px; }
+/* A move's price in runs, and the campaign's runs so far: the number a reader weighs a move by. */
+.price { margin: 2px 0 6px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .next .offer { margin: 8px 0; padding: 4px 0 4px 10px; border-left: 3px solid var(--line); }
 .next .offer p { margin: 2px 0 6px; font-size: 0.95rem; }
 
