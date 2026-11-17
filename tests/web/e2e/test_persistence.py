@@ -93,7 +93,8 @@ def test_a_reader_who_comes_back_picks_up_where_they_left_off(context, page):
         f"Picked up where you left off: {YIELD}Full factorial (2-level) in Temperature, Pressure and Flow"
     )
     assert again.is_hidden("#demo-banner")
-    assert again.get_attribute("#workspace", "data-phase") == "learn", "a study with results opens on its analysis"
+    assert again.get_attribute("#workspace", "data-phase") == "run", "on the stage it was left on, its results in"
+    again.click("#go-learn")
     assert run_sheet(again) == sheet
     assert results(again) == typed, "the simulated results, as they were"
     assert again.text_content("#analysis table") == coefficients, "analysed again once Python started"
@@ -459,6 +460,17 @@ def test_the_logo_opens_the_home_page_afresh(page, site):
         page.click(".brand__home h1")
     page.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
     assert page.input_value("#response") == "Purity", "the brief, as it was left"
+
+
+@pytest.mark.parametrize("stage", ["plan", "run", "learn", "next"])
+def test_a_study_opens_on_the_stage_it_was_left_on_in_this_browser(context, blank_page, stage):
+    """Whatever its results call for: a reader who went back to Design to read the question is taken back there."""
+    generate(blank_page, design_type="full_factorial")
+    saved(blank_page, 1)
+    blank_page.click(f"#go-{stage}")
+    again = come_back(context)
+    assert again.text_content(BANNER).startswith("Picked up where you left off: ")
+    assert again.get_attribute("#workspace", "data-phase") == stage
 
 
 def test_making_the_run_sheet_turns_the_draft_into_a_saved_study(context, blank_page):
