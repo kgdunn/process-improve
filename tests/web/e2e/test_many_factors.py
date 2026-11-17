@@ -58,9 +58,10 @@ def test_a_screening_design_of_many_factors_is_briefed_made_and_analysed(fresh_p
     set_factors(page, factors(k))
     candidates_done(page)
     designs = [*bootstrap.DESIGNS.items(), *bootstrap.MIXTURES.items()]
-    assert disabled(page, "#design-type option") == [
+    # Whichever group of the list a design is in.
+    assert sorted(disabled(page, "#design-type option")) == sorted(
         d for d, i in designs if not i["min_factors"] <= k <= i["max_factors"]
-    ]
+    )
     # The aims past 12 factors: the main effects alone, and why.
     assert disabled(page, 'input[name="aim"]') == ["interactions", "main_quadratic", "quadratic"]
     assert page.is_checked('input[name="aim"][value="main_effects"]')
