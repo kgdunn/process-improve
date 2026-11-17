@@ -369,3 +369,39 @@ def test_a_reader_sent_the_worked_example_sees_how_to_start_a_study_of_their_own
     assert page.is_hidden("#demo-banner"), "the example has gone"
     assert page.input_value("#response") == ""
     assert page.evaluate("document.activeElement.id") == "response", "at the first thing to say"
+
+
+@pytest.mark.parametrize(
+    "context_options",
+    [{"viewport": {"width": 1280, "height": 800}}, {"viewport": {"width": 390, "height": 844}, "is_mobile": True}],
+    ids=["a laptop", "a phone"],
+)
+def test_a_new_study_is_one_press_away_on_every_stage(page):
+    """The bar has its own button for it, beside the study's name: the menu is no longer the only way."""
+    for stage in ("plan", "run", "learn", "next"):
+        page.click(f"#go-{stage}")
+        assert page.is_visible("#bar-new"), stage
+    button = page.locator("#bar-new")
+    assert button.text_content().strip().replace("\n", "").replace(" ", "") == "+Newstudy"
+    assert button.get_attribute("title") == "Start a new study"
+    box = button.bounding_box()
+    assert box["y"] + box["height"] <= page.locator("#studybar").bounding_box()["height"], "in the bar"
+    button.click()
+    assert page.get_attribute("#workspace", "data-phase") == "plan"
+    assert page.input_value("#response") == ""
+    assert page.text_content("#study-title") == "A new study"
+
+
+@pytest.mark.parametrize("context_options", [{"color_scheme": "dark"}, {"color_scheme": "light"}])
+def test_a_file_box_s_button_wears_the_page_s_colours(page):
+    """The browser's own button kept a light face on the dark page, under the page's light text: it was unreadable."""
+    page.click("#go-run")
+    reveal(page, "#upload")
+    colours = page.evaluate(
+        """() => { const button = getComputedStyle(document.querySelector('#upload'), '::file-selector-button');
+          const panel = getComputedStyle(document.querySelector('#step-run')).backgroundColor;
+          return { face: button.backgroundColor, words: button.color, panel,
+                   text: getComputedStyle(document.body).color }; }"""
+    )
+    assert colours["face"] == colours["panel"], "the button's face is the panel's"
+    assert colours["words"] == colours["text"], "and its words are the page's text, which reads on it"

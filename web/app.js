@@ -8275,11 +8275,25 @@ async function openSaved(record) {
 }
 
 /** Say what was opened, or why a link could not be: a sentence, or a list of text and links. */
-function showBanner(message, error = false) {
+function showBanner(message, error = false, passing = false) {
   const banner = $("#campaign-banner");
   banner.replaceChildren(...[message].flat());
   banner.classList.toggle("error", error);
+  banner.dataset.passing = String(passing);
   banner.hidden = false;
+}
+
+// A banner that only says where the reader is ("Picked up where you left off") has done its work once the reader
+// does anything: the next press or key outside it takes it away. One that says what was opened, or what failed, stays.
+for (const kind of ["pointerdown", "keydown"]) {
+  document.addEventListener(
+    kind,
+    (event) => {
+      const banner = $("#campaign-banner");
+      if (banner.dataset.passing === "true" && !banner.hidden && !banner.contains(event.target)) banner.hidden = true;
+    },
+    true,
+  );
 }
 
 /**
@@ -8338,7 +8352,7 @@ async function openCampaign(c, record, message, resume = false) {
   const done = anyResult(state.results);
   if (done) showResultsCode();
   else hidePython("run");
-  showBanner(message);
+  showBanner(message, false, resume);
   renderStudyBar();
   // A study this browser kept opens on the stage it was left on; one from a link or a file, on the stage its
   // results call for. Read before the page is drawn, which keeps the stage it shows.
@@ -9049,6 +9063,7 @@ for (const id of ["#n_center_points", "#resolution"]) for (const kind of ["input
 // A reader sent a link to the worked example lands in its results, far from the menu: the way to a study of their own
 // is in the example's own banner.
 $("#example-new").onclick = () => $("#new-study").click();
+$("#bar-new").onclick = () => $("#new-study").click();
 // A press always changes the results: the first simulates them, and one more draws new noise for the same
 // process. With the seed as it was, a second press gave the same results, and looked as if it did nothing.
 $("#simulate").onclick = () => {

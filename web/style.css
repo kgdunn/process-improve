@@ -543,6 +543,14 @@ th[aria-sort="descending"] button.sort::after { content: " ▼"; color: var(--ac
 }
 .drop.over { border-color: var(--accent); color: var(--fg); }
 .drop input { display: block; margin: 0 auto 8px; }
+/* A file box's own button is the browser's, which keeps a light face on a dark page with the page's light text on
+   it: it takes the page's colours, in both themes. */
+input[type="file"] { color: var(--fg); }
+input[type="file"]::file-selector-button {
+  margin-right: 10px; padding: 6px 12px; border: 1px solid var(--line); border-radius: var(--corner);
+  background: var(--panel); color: var(--fg); font: inherit; cursor: pointer;
+}
+input[type="file"]:disabled::file-selector-button { color: var(--muted); cursor: default; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 footer { color: var(--muted); font-size: 0.88rem; }
 footer .link { padding: 0; font: inherit; text-decoration: underline; }
@@ -638,6 +646,20 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 .study__button:hover, .study__button[aria-expanded="true"] { border-color: var(--line); background: var(--panel); }
 .study__button:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
 .study__caret { flex: none; width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+/* A new study, one press from any stage: beside the study's name, where the menu that also holds it is. */
+.studybar__new {
+  flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 34px; margin-left: 6px; padding: 4px 10px;
+  border: 1px solid var(--line); border-radius: var(--corner); background: var(--panel); color: var(--fg);
+  font: inherit; font-size: 0.9rem; white-space: nowrap; cursor: pointer;
+}
+.studybar__new:hover { border-color: var(--accent); }
+.studybar__new:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
+.studybar__plus { font-weight: 700; }
+/* On a tablet or a phone the bar's first row has no room for its words: the plus alone, its words read out. */
+@media (max-width: 1099px) {
+  .studybar__new { padding: 4px 9px; }
+  .studybar__new-words { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
 .studybar__title { min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .study__menu {
   position: absolute; top: calc(100% + 6px); left: -8px; z-index: 5; width: max-content; min-width: 15rem;
@@ -656,7 +678,8 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 /* What leads away from the study: beside the stages where the bar has the room, and in the footer on every screen. */
 .studybar__link { flex: none; color: var(--muted); font-size: 0.95rem; text-decoration: none; white-space: nowrap; }
 .studybar__link:hover, .studybar__link:focus-visible { color: var(--fg); text-decoration: underline; }
-@media (max-width: 1099px) { .studybar__link { display: none; } }
+/* The links away give their room to the study's name before it is cut short: they are in the menu and the footer too. */
+@media (max-width: 1339px) { .studybar__link { display: none; } }
 /* A long name, such as a study's that lists its factors, ends in an ellipsis inside the bar, not beyond it. */
 #study-title { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
 #study-about { color: var(--muted); font-weight: 400; font-size: 0.9rem; }
