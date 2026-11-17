@@ -106,6 +106,8 @@ import {
   responseName,
   responseTitle,
   factorWords,
+  ladderStepOf,
+  ladderSteps,
   offPlanWords,
   questionLine,
   questionSentence,
@@ -1929,6 +1931,40 @@ describe("the question in one line", () => {
     const line = questionLine("Yield", many);
     assert.ok(line.includes("x6 0 to 1 and 3 more"), line);
     assert.ok(!line.includes("x7"), line);
+  });
+});
+
+describe("the ladder: designs as steps that each add runs", () => {
+  const runs = (k) => ladderSteps(k).map((step) => [step.key, step.runs, step.added]);
+
+  test("three factors: half the corners, every corner, center points, axial points", () => {
+    assert.deepEqual(runs(3), [["half", 4, 4], ["corners", 8, 4], ["center", 11, 3], ["axial", 17, 6]]);
+    assert.deepEqual(runs(5), [["half", 16, 16], ["corners", 32, 16], ["center", 35, 3], ["axial", 45, 10]]);
+  });
+
+  test("two factors have no half; outside two to five factors there is no ladder", () => {
+    assert.deepEqual(runs(2), [["corners", 4, 4], ["center", 7, 3], ["axial", 11, 4]]);
+    for (const k of [0, 1, 6, 12, 2.5]) assert.deepEqual(ladderSteps(k), [], String(k));
+  });
+
+  test("each step names the design, the settings and the aim the form takes", () => {
+    const [half, corners, center, axial] = ladderSteps(4);
+    assert.deepEqual([half.design_type, half.options.resolution, half.aim], ["fractional_factorial", 4, "main_effects"]);
+    assert.deepEqual([corners.design_type, corners.options.n_center_points, corners.aim], ["full_factorial", 0, "interactions"]);
+    assert.deepEqual([center.design_type, center.options.n_center_points], ["full_factorial", 3]);
+    assert.deepEqual([axial.design_type, axial.options.alpha, axial.aim], ["ccd", "face_centered", "quadratic"]);
+  });
+
+  test("the step a plan stands on is told by its design and settings", () => {
+    const steps = ladderSteps(3);
+    const on = (design_type, n_center_points, resolution = 4) => ladderStepOf(steps, { design_type, n_center_points, resolution });
+    assert.equal(on("fractional_factorial", 0, 3), "half");
+    assert.equal(on("fractional_factorial", 0, 4), null, "another fraction is no step");
+    assert.equal(on("full_factorial", 0), "corners");
+    assert.equal(on("full_factorial", 3), "center");
+    assert.equal(on("full_factorial", 5), null);
+    assert.equal(on("ccd", 3), "axial");
+    assert.equal(on("box_behnken", 3), null);
   });
 });
 

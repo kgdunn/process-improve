@@ -321,6 +321,12 @@
       <section id="step-plan" class="pane" data-pane="plan" role="tabpanel" aria-labelledby="h-plan">
         <h2 id="h-plan">Designs that can help you learn this</h2>
         <p id="plan-empty" class="hint">Enter a factor or more to list them.</p>
+        <!-- The ladder (app.js renderLadder, logic.js ladderSteps): for two to five numeric factors, designs as steps
+             that each hold the runs of the one before. A press puts the step's design and aim in the form. -->
+        <div id="ladder" class="ladder" hidden>
+          <p class="hint">Start small and add runs later: each step holds the runs of the one before.</p>
+          <ol id="ladder-steps" class="ladder__steps" aria-label="Designs as steps, each adding runs to the one before"></ol>
+        </div>
         <div id="candidates" class="candidates" aria-live="polite" hidden></div>
         <p class="actions">
           <button type="button" id="search" class="button" hidden>Search for the optimal designs</button>

@@ -784,6 +784,27 @@ section { scroll-margin-top: 120px; }
 .learn-check p { margin: 6px 0 2px; }
 .learn-check .link { padding: 2px 0; }
 
+/* The ladder: designs as points on one line, each a step that adds runs to the one before. The step the form stands
+   on is filled in the stage's colour, as a choice is. */
+.ladder { margin: 0 0 14px; }
+.ladder .hint { margin: 0 0 8px; }
+.ladder__steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 0; }
+.ladder__steps li { position: relative; }
+.ladder__steps li::before { content: ""; position: absolute; left: 0; right: 0; top: 6px; height: 2px; background: var(--line); }
+.ladder__step {
+  position: relative; display: grid; gap: 2px; width: 100%; padding: 22px 12px 4px 0; border: none; background: none;
+  color: var(--fg); font: inherit; text-align: left; cursor: pointer;
+}
+.ladder__step::before {
+  content: ""; position: absolute; left: 0; top: 0; width: 14px; height: 14px; box-sizing: border-box;
+  border: 2px solid var(--muted); border-radius: 50%; background: var(--panel);
+}
+.ladder__step[aria-pressed="true"]::before { border-color: var(--stage); background: var(--stage); }
+.ladder__step:hover::before { border-color: var(--stage); }
+.ladder__step:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ladder__runs { font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ladder__learns { font-size: 0.88rem; color: var(--muted); }
+@media (forced-colors: active) { .ladder__step[aria-pressed="true"]::before { background: Highlight; border-color: Highlight; } }
 /* The question read back as one sentence, over Design: what Learn's answer will answer. */
 .asked { grid-column: 1 / -1; margin: 0 0 14px; font-size: 1.3rem; line-height: 1.3; font-weight: 600; text-wrap: balance; }
 .workspace:not([data-phase="plan"]) > .asked { display: none; }

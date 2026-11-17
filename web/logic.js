@@ -745,6 +745,40 @@ export function questionLine(title, factors, aim = "") {
   return parts.length ? parts.join(" · ") : "Nothing is asked yet";
 }
 
+/** The center points the ladder's last two steps hold: the page's own count for a design with center points. */
+const LADDER_CENTERS = 3;
+
+/**
+ * The ladder for a study of ``k`` numeric factors, two to five: designs as steps, each holding the runs of the one
+ * before, so a reader can start small and add runs. Each step is {key, name, learns, runs, added, design_type,
+ * options, aim}: the runs it has in all, those it adds to the step before (its own runs for the first), and the
+ * design and the aim the form takes for it. No steps outside two to five factors.
+ *
+ * A half of the corners (three factors or more), every corner, center points, then axial points on the faces: the
+ * last is a face-centered central composite design, which holds the factorial and its center points.
+ */
+export function ladderSteps(k) {
+  if (!Number.isInteger(k) || k < 2 || k > 5) return [];
+  const corners = 2 ** k;
+  const steps = [
+    ...(k >= 3
+      ? [{ key: "half", name: "Half the corners", learns: "which factors matter", runs: corners / 2, design_type: "fractional_factorial", options: { resolution: k, n_center_points: 0 }, aim: "main_effects" }]
+      : []),
+    { key: "corners", name: "Every corner", learns: "how the factors act together", runs: corners, design_type: "full_factorial", options: { n_center_points: 0 }, aim: "interactions" },
+    { key: "center", name: "Center points", learns: "whether the response curves, and how much runs differ", runs: corners + LADDER_CENTERS, design_type: "full_factorial", options: { n_center_points: LADDER_CENTERS }, aim: "interactions" },
+    { key: "axial", name: "Axial points", learns: "where the best settings are", runs: corners + 2 * k + LADDER_CENTERS, design_type: "ccd", options: { n_center_points: LADDER_CENTERS, alpha: "face_centered" }, aim: "quadratic" },
+  ];
+  return steps.map((step, i) => ({ ...step, added: step.runs - (i ? steps[i - 1].runs : 0) }));
+}
+
+/** The ladder's step a plan stands on, by its design and settings as the form holds them, or null for none. */
+export function ladderStepOf(steps, { design_type: designType, n_center_points: centers, resolution }) {
+  const on = (step) =>
+    step.design_type === designType &&
+    (designType === "fractional_factorial" ? step.options.resolution === resolution && centers === 0 : step.options.n_center_points === centers);
+  return steps.find(on)?.key ?? null;
+}
+
 /**
  * What the run sheet says of the runs made at settings that differ from the plan, by their run numbers: which they
  * are, and what the fit does with them.
