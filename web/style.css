@@ -2349,3 +2349,5 @@ dialog.import { width: min(860px, 100vw - 32px); }
 
 /* The runs set aside from the fit on show, said above the analysis. */
 .aside-runs { margin: 0 0 12px; }
+/* The runs along the path of steepest ascent, under what the results call for: a table that scrolls in its own box. */
+.next__path table { display: block; max-width: 100%; overflow-x: auto; }

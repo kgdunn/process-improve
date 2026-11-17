@@ -304,6 +304,22 @@ export function bestResult(responses, info = {}) {
   return got.reduce((best, one) => (short(one.value) < short(best.value) ? one : best));
 }
 
+/**
+ * How the runs along a path of steepest ascent stand, from their results in the path's order (null for a run not yet
+ * made) and the response's goal: the path is followed while each run does better than the one before. ``best`` is
+ * the place of the best run so far, ``worse`` that of the first run that did worse than the run before it (the
+ * path stops there), and ``next`` that of the run to make next; each null when there is none.
+ */
+export function pathVerdict(values, info = {}) {
+  const short = shortOf(info);
+  const blank = values.findIndex((value) => !isFiniteNumber(value));
+  const made = blank < 0 ? values.length : blank;
+  if (!short || !made) return { best: null, worse: null, next: values.length ? 0 : null };
+  let worse = null;
+  for (let i = 1; i < made && worse === null; i++) if (short(values[i]) > short(values[i - 1])) worse = i;
+  return { best: (worse ?? made) - 1, worse, next: worse === null && made < values.length ? made : null };
+}
+
 /** How far a result falls short of a response's goal, as a function of the result: the less, the better. Null for a goal that names no best. */
 function shortOf(info = {}) {
   const target = info.target === "" || info.target === null || info.target === undefined ? NaN : Number(info.target);

@@ -258,6 +258,47 @@ def test_the_worked_example_calls_for_a_new_study_further_along(api, held, simul
     assert ranges["F"] == (10.0, 20.0), "F has no part in the path"
 
 
+def test_the_move_lists_the_path_s_runs_in_order_with_what_the_model_predicts_there(api, held, simulated):
+    called = api.ok("api_next_runs", {**held, "responses": simulated["responses"]})["recommendation"]
+    path = called["path"]
+    assert len(path) == called["n_runs"] == 4
+    temperatures = [run["settings"]["T"] for run in path]
+    assert temperatures == sorted(temperatures), "each run further along than the one before"
+    assert temperatures[0] > 200, "past the range the study ran"
+    assert all(run["settings"]["F"] == path[0]["settings"]["F"] for run in path), "F has no part in the path"
+    assert all(round(run["settings"]["T"], 1) == run["settings"]["T"] for run in path), "as a plant sets it"
+    predicted = [run["predicted"] for run in path]
+    assert all(isinstance(value, float) for value in predicted)
+    assert predicted[1] > predicted[0], "the goal is to maximise: the model predicts more further along at first"
+
+
+def test_the_path_s_runs_on_the_run_sheet_are_no_part_of_the_fit_or_of_the_step(api, held, simulated):
+    """Marked "path", as best.js withPathRuns adds them: made or not, the analysis and the step are as before."""
+    before = api.ok("api_next_runs", {**held, "responses": simulated["responses"]})["recommendation"]
+    columns = [*held["columns"], "Confirmation run"]
+    rows = [[*row, None] for row in held["rows"]]
+    last = max(row[columns.index("Run order")] for row in rows)
+    for i, run in enumerate(before["path"], start=1):
+        marked = {"Confirmation run": "path", "Run order": last + i, **run["settings"]}
+        rows.append([marked.get(c) for c in columns])
+    sheet = {"spec": held["spec"], "columns": columns, "rows": rows}
+    for made in ([None] * 4, [70.0, 75.0, None, None], [70.0, 75.0, 60.0, 20.0]):
+        y = [*simulated["responses"], *made]
+        after = api.ok("api_next_runs", {**sheet, "responses": y})["recommendation"]
+        assert after == before, made
+    fit = api.ok("api_analyze_runs", {**held, "responses": simulated["responses"]})
+    grown = api.ok("api_analyze_runs", {**sheet, "responses": [*simulated["responses"], 70.0, 75.0, 60.0, 20.0]})
+    assert grown["summary"] == fit["summary"]
+
+
+def test_a_path_that_breaks_a_limit_on_the_settings_lists_no_runs(api, held, simulated):
+    asked = {"factors": held["spec"]["factors"], "constraints": [{"expression": "T <= 205"}]}
+    limits = api.ok("api_limits", asked)["constraints"]
+    spec = {**held["spec"], "constraints": limits}
+    called = api.ok("api_next_runs", {**held, "spec": spec, "responses": simulated["responses"]})["recommendation"]
+    assert called is None or called["path"] is None
+
+
 def test_a_run_without_its_result_waits_for_it(api, held, simulated):
     partial = list(simulated["responses"])
     partial[3] = None

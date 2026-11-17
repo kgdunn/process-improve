@@ -43,7 +43,7 @@ def num(x: float) -> str:
 def next_rows(page) -> list[list[str]]:
     """Read the table of the next study's ranges as the reader sees it."""
     return page.evaluate(
-        "() => [...document.querySelectorAll('#next-out table tbody tr')]"
+        "() => [...document.querySelectorAll('#next-out .next__called table tbody tr')]"
         ".map((tr) => [...tr.cells].map((c) => c.textContent))"
     )
 
@@ -92,7 +92,7 @@ def test_the_worked_example_s_results_call_for_a_new_study_further_along(page, f
     assert called_for(page) == "move_region"
     assert page.text_content("#h-next") == "The next step"
     assert page.text_content("#next-out .next__called h4") == "What the results call for"
-    assert headers(page, "#next-out table") == ["Factor", "Range now", "Next study"]
+    assert headers(page, "#next-out .next__called table") == ["Factor", "Range now", "Next study"]
     moved = {r["name"]: r for r in first_paint["next"]["recommendation"]["ranges"]}
     assert next_rows(page) == [
         ["Temperature", "150 to 200 degC", "175 to 225 degC"],
@@ -110,7 +110,7 @@ def test_the_next_step_lies_inside_its_card(page):
     assert parts, "the new study further along"
     for part in parts:
         assert part.bounding_box()["width"] > card["width"] / 2, "each part spans the card, not a numbered badge"
-    for inside in (page.locator("#next-out table"), page.locator("#next-study")):
+    for inside in (page.locator("#next-out .next__called table"), page.locator("#next-study")):
         box = inside.bounding_box()
         assert card["x"] <= box["x"]
         assert box["x"] + box["width"] <= card["x"] + card["width"]

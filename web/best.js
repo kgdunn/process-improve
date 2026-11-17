@@ -6,6 +6,8 @@
 /** The run sheet's column marking a confirmation run, and what it holds for one; mirrors bootstrap.CONFIRMATION and CONFIRMS. */
 export const CONFIRMATION = "Confirmation run";
 export const CONFIRMS = "yes";
+/** What that column holds for a run on the path of steepest ascent (or descent); mirrors bootstrap.ON_PATH. */
+export const ON_PATH = "path";
 
 /** How many confirmation runs the page adds at the best settings; mirrors bootstrap.CONFIRMATION_RUNS. */
 export const CONFIRMATION_RUNS = 3;
@@ -439,20 +441,32 @@ export function bestContourCaption(pair, { shaded = false, held = [], factors = 
 }
 
 // ---------------------------------------------------------------- the run sheet's confirmation runs
-/** The places on a run sheet of its confirmation runs, in order. */
-export function confirmationRows(design) {
+/** The places on a run sheet of the runs its confirmation column marks with ``mark``, in order. */
+function markedRows(design, mark) {
   const at = design.columns.indexOf(CONFIRMATION);
   if (at < 0) return [];
-  return design.rows.flatMap((row, i) => (String(row[at] ?? "").trim().toLowerCase() === CONFIRMS ? [i] : []));
+  return design.rows.flatMap((row, i) => (String(row[at] ?? "").trim().toLowerCase() === mark ? [i] : []));
 }
 
-/** The run sheet without its confirmation runs: what the model is fitted to, and what the picture of the limits draws. */
+/** The places on a run sheet of its confirmation runs, in order. */
+export const confirmationRows = (design) => markedRows(design, CONFIRMS);
+
+/** The places on a run sheet of its runs along the path of steepest ascent, in the path's order. */
+export const pathRows = (design) => markedRows(design, ON_PATH);
+
+/** The places on a run sheet of the runs that are no runs of its design: its confirmation runs and its runs on the path. */
+export const apartRows = (design) => [...confirmationRows(design), ...pathRows(design)].sort((a, b) => a - b);
+
+/**
+ * The run sheet without its confirmation runs and its runs on the path: what the model is fitted to, and what the
+ * picture of the limits draws.
+ */
 export function designRows(design) {
-  const confirming = new Set(confirmationRows(design));
+  const apart = new Set(apartRows(design));
   const at = design.columns.indexOf(CONFIRMATION);
   const columns = at < 0 ? design.columns : design.columns.filter((_, j) => j !== at);
   const keep = (row) => (at < 0 ? row : row.filter((_, j) => j !== at));
-  return { columns, rows: design.rows.filter((_, i) => !confirming.has(i)).map(keep), kept: design.rows.map((_, i) => !confirming.has(i)) };
+  return { columns, rows: design.rows.filter((_, i) => !apart.has(i)).map(keep), kept: design.rows.map((_, i) => !apart.has(i)) };
 }
 
 /**
@@ -460,24 +474,47 @@ export function designRows(design) {
  * the end of a run sheet. They take the next places in the run order, no place in the standard order and no block,
  * and the run sheet gains its confirmation column the first time. Returns the new columns and rows.
  */
-export function withConfirmationRuns(design, at, count = CONFIRMATION_RUNS) {
+export const withConfirmationRuns = (design, at, count = CONFIRMATION_RUNS) => withMarkedRuns(design, Array(count).fill(at), CONFIRMS);
+
+/**
+ * Add the runs along a path of steepest ascent to the end of a run sheet, in the path's order, which is the order
+ * they are made in: ``path`` holds each run's settings. As confirmation runs, they are no runs of the design.
+ */
+export const withPathRuns = (design, path) => withMarkedRuns(design, path, ON_PATH);
+
+/** Add runs at the settings given, one each, to the end of a run sheet, marked ``mark`` in its confirmation column. */
+function withMarkedRuns(design, settings, mark) {
   const has = design.columns.includes(CONFIRMATION);
   const columns = has ? [...design.columns] : [...design.columns, CONFIRMATION];
   const rows = design.rows.map((row) => (has ? [...row] : [...row, null]));
   const order = columns.indexOf("Run order");
   const last = Math.max(0, ...rows.map((row) => Number(row[order]) || 0));
-  for (let i = 1; i <= count; i++) {
-    rows.push(columns.map((c) => (c === "Run order" ? last + i : c === CONFIRMATION ? CONFIRMS : c in at ? at[c] : null)));
-  }
+  settings.forEach((at, i) => {
+    rows.push(columns.map((c) => (c === "Run order" ? last + i + 1 : c === CONFIRMATION ? mark : c in at ? at[c] : null)));
+  });
   return { columns, rows };
 }
 
 /**
- * Take a run sheet's confirmation runs away, with their results and sources, and its confirmation column with them.
- * ``results`` and ``marks`` hold each response's results and their sources, by its column.
+ * Take a run sheet's confirmation runs away, with their results and sources. ``results`` and ``marks`` hold each
+ * response's results and their sources, by its column.
  */
-export function withoutConfirmationRuns(design, results, marks, curves = null) {
-  const { columns, rows, kept } = designRows(design);
+export const withoutConfirmationRuns = (design, results, marks, curves = null) => withoutRuns(design, confirmationRows(design), results, marks, curves);
+
+/** Take a run sheet's runs on the path away, with their results and sources. */
+export const withoutPathRuns = (design, results, marks, curves = null) => withoutRuns(design, pathRows(design), results, marks, curves);
+
+/** A run sheet less the runs at the places ``gone``; its confirmation column goes too once it marks no run. */
+function withoutRuns(design, gone, results, marks, curves) {
+  const out = new Set(gone);
+  const kept = design.rows.map((_, i) => !out.has(i));
+  const at = design.columns.indexOf(CONFIRMATION);
+  let rows = design.rows.filter((_, i) => kept[i]);
+  let columns = design.columns;
+  if (at >= 0 && rows.every((row) => !String(row[at] ?? "").trim())) {
+    columns = columns.filter((_, j) => j !== at);
+    rows = rows.map((row) => row.filter((_, j) => j !== at));
+  }
   const keep = (byName) => Object.fromEntries(Object.entries(byName).map(([name, values]) => [name, values.filter((_, i) => kept[i])]));
   return { columns, rows, results: keep(results), marks: keep(marks), curves: curves && curves.filter((_, i) => kept[i]) };
 }

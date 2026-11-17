@@ -632,6 +632,13 @@ Also:
   [Show me](https://factori.al/?example=worked&show=next)
   - *Details:* Runs added to the design are a fold-over, axial runs, center runs, runs chosen
     for the model, or every run again. The new study's ranges move along the steepest ascent.
+- **The path past your ranges, as runs to make.** When better results lie past the ranges, the
+  app lists four runs along the path of steepest ascent, each with its settings. You make
+  them one at a time and stop at the first that does worse than the run before it. One
+  press then starts a new study centred on the best run.
+  - *Details:* The runs join the end of the run sheet in the path's order and never enter
+    the fit. Each shows what the model predicts there, as a guide only. The app says which
+    run is best so far and which to make next. One press takes them off again.
 - **Every move has its price.** Each way to go on says how many runs it adds and what the
   study then holds: "8 more runs: 19 in this study". A campaign says how many runs it holds
   so far.
