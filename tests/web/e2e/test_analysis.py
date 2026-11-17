@@ -22,6 +22,7 @@ from tests.web.e2e._page import (
     enter_results,
     generate,
     headers,
+    open_statistician,
     practise,
     reveal,
     run_sheet,
@@ -321,11 +322,12 @@ def test_the_terms_to_fit_can_be_ticked_three_factor_interactions_included(blank
     page = blank_page
     generate(page, design_type="full_factorial", n_center_points=2)
     practise(page)
-    assert page.is_hidden("#terms")
-    choose(page, model="terms")
-    settled(page)
+    assert page.is_hidden("#terms"), "with the model, under For the statistician"
+    reveal(page, "#model")
+    open_statistician(page)
     assert page.is_visible("#terms")
-    assert ticked(page) == ["T", "P", "F", "T·P", "T·F", "P·F"], "the list starts from the design's own model"
+    assert page.input_value("#model") == ""
+    assert ticked(page) == ["T", "P", "F", "T·P", "T·F", "P·F"], "the terms of the design's own model are ticked"
     before = page.evaluate("window.__pi.count('api_analyze_runs')")
     page.get_by_label("T·P·F", exact=True).check()
     page.get_by_label("P·F", exact=True).uncheck()
@@ -336,16 +338,20 @@ def test_the_terms_to_fit_can_be_ticked_three_factor_interactions_included(blank
     }
     assert terms_fitted(page) == sorted(["Intercept", "T", "P", "F", "T·P", "T·F", "T·P·F"])
     assert 'model="T + P + F + T:P + T:F + T:P:F"' in page.text_content("#py-analyse code")
+    assert page.input_value("#model") == "terms", "a model the reader built"
 
 
-def test_the_terms_start_from_the_named_model_chosen_before(blank_page):
+def test_the_terms_ticked_are_those_of_the_model_fitted(blank_page):
     page = blank_page
     generate(page, design_type="box_behnken")
+    practise(page)
+    open_statistician(page)
+    choose(page, model="main_effects")
+    settled(page)
+    assert ticked(page) == ["T", "P", "F"]
     choose(page, model="quadratic")
-    choose(page, model="terms")
+    settled(page)
     assert ticked(page)[-3:] == ["T²", "P²", "F²"]
-    choose(page, model="")
-    assert page.is_hidden("#terms")
 
 
 def test_a_design_that_can_fit_the_aim_is_analysed_for_it(blank_page):
@@ -513,12 +519,14 @@ def test_a_nested_model_is_not_proposed_back_as_the_crossed_one(fresh_page):
     enter_results(page, {place: result(place, run) for place, run in enumerate(rows)})
     settled(page)
     reveal(page, "#model")
-    page.select_option("#model", "terms")
-    settled(page)
-    before = page.evaluate("window.__pi.count('api_analyze_runs')")
-    page.locator("#term-list label").filter(has_text=re.compile(r"^\s*Batch\s*$")).locator("input").uncheck()
-    page.wait_for_function(f"window.__pi.count('api_analyze_runs') > {before}")
-    settled(page)
+    open_statistician(page)
+    assert ticked(page) == ["Supplier", "Batch"], "the model fitted: each factor's own effect"
+    batch = page.locator("#term-list label").filter(has_text=re.compile(r"^\s*Batch\s*$")).locator("input")
+    for change in (page.get_by_label("Supplier·Batch", exact=True).check, batch.uncheck):
+        before = page.evaluate("window.__pi.count('api_analyze_runs')")
+        change()
+        page.wait_for_function(f"window.__pi.count('api_analyze_runs') > {before}")
+        settled(page)
     nested = ["Intercept", "Supplier[X]", "Supplier[Y]", "Supplier[X]·Batch", "Supplier[Y]·Batch", "Supplier[Z]·Batch"]
     assert terms_fitted(page) == sorted(nested), "Batch's effect within each supplier"
 
@@ -553,6 +561,7 @@ def test_a_model_of_terms_picked_from_its_results_says_so_until_the_reader_choos
     assert calls(page, "api_analyze_runs")[-1]["payload"]["model"] == {
         "terms": [["Temperature"], ["Pressure"], ["Flow"], ["Temperature", "Pressure"], ["Flow", "Flow"]]
     }, "Python is asked for the terms: that they were picked is the page's to say"
+    open_statistician(page)
     at = page.evaluate("[...document.querySelectorAll('#term-list input')].findLastIndex((box) => box.checked)")
     box = page.locator("#term-list input").nth(at)
 

@@ -22,6 +22,7 @@ from tests.web.e2e._page import (
     generate,
     headers,
     mark_corners,
+    open_statistician,
     practise,
     reveal,
     run_sheet,
@@ -192,7 +193,10 @@ def test_a_blocked_run_sheet_s_block_column_is_no_factor_s_name(blank_page):
 
 def test_the_terms_chosen_for_the_model_follow_a_rename(page):
     reveal(page, "#model")
-    page.select_option("#model", "terms")
+    open_statistician(page)
+    before = page.evaluate("window.__pi.count('api_analyze_runs')")
+    page.locator("#term-list input:checked").last.uncheck()  # a model of the reader's own terms
+    page.wait_for_function(f"window.__pi.count('api_analyze_runs') > {before}")
     settled(page)
     ticked = page.locator("#term-list input:checked").count()
     rename(page, 0, "Heat")

@@ -46,6 +46,8 @@ import {
   NUMERIC,
   axialDistance,
   candidateTerms,
+  mainEffectsBrought,
+  broughtWords,
   combinations,
   compareCells,
   comparedRow,
@@ -721,6 +723,30 @@ describe("the terms a reader ticks", () => {
       ["T·P·F"],
     );
     assert.deepEqual(terms.find((t) => t.group === "Squares"), { term: ["T", "T"], label: "T²", group: "Squares" });
+  });
+
+  test("terms the design cannot tell apart are one term, written with what it is aliased with", () => {
+    const four = ["A", "B", "C", "D"].map((name) => ({ name, low: -1, high: 1 }));
+    const aliases = [["A·B", "C·D"], ["A·C", "B·D"], ["A·D", "B·C"]]; // a half fraction of four factors
+    const pairs = (terms) => terms.filter((t) => t.group === "Two-factor interactions");
+    assert.deepEqual(pairs(candidateTerms(four, [], aliases)).map((t) => t.label), ["A·B = C·D", "A·C = B·D", "A·D = B·C"]);
+    assert.deepEqual(pairs(candidateTerms(four, [], aliases)).map((t) => t.term), [["A", "B"], ["A", "C"], ["A", "D"]], "the term fitted is the first"); // prettier-ignore
+    // A model that holds the other of two aliased terms keeps it in reach, apart from the first.
+    assert.deepEqual(pairs(candidateTerms(four, [["C", "D"]], aliases)).map((t) => t.label), ["A·B", "A·C = B·D", "A·D = B·C", "C·D"]);
+    // A main effect aliased with an interaction, as in a design of resolution III.
+    const labels = candidateTerms(three, [], [["T", "P·F"]]).map((t) => t.label);
+    assert.ok(labels.includes("T = P·F") && !labels.includes("P·F"));
+    assert.deepEqual(candidateTerms(four), candidateTerms(four, [], []), "a design with no aliases lists every term");
+  });
+
+  test("a term put into a model brings the main effects it is made of, when they are out", () => {
+    assert.deepEqual(mainEffectsBrought([["T"]], ["T", "P"]), [["P"]]);
+    assert.deepEqual(mainEffectsBrought([], ["T", "P", "F"]), [["T"], ["P"], ["F"]]);
+    assert.deepEqual(mainEffectsBrought([["P"], ["T", "P"]], ["T", "T"]), [["T"]], "a square brings its one factor, once");
+    assert.deepEqual(mainEffectsBrought([["T"], ["P"]], ["T", "P"]), [], "with both in, nothing");
+    assert.deepEqual(mainEffectsBrought([], ["T"]), [], "a main effect brings none");
+    assert.equal(broughtWords(["T", "P"], [["T"], ["P"]]), "T·P brought T and P with it.");
+    assert.equal(broughtWords(["F", "F"], [["F"]]), "F² brought F with it.");
   });
 
   test("a term written as the page shows it", () => {

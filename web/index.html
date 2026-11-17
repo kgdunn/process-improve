@@ -622,7 +622,9 @@
               <option value="main_effects">Main effects</option>
               <option value="interactions">Main effects + two-factor interactions</option>
               <option value="quadratic">Full quadratic</option>
-              <option value="terms">Terms you choose</option>
+              <!-- The reader's own terms, built by pressing them under "For the statistician": never offered here,
+                   and listed while it is the model (app.js listing). -->
+              <option value="terms" hidden>Your terms</option>
               <!-- bootstrap.MIXTURE_MODELS: offered for a mixture's runs only, in place of the ones above. -->
               <option value="scheffe_linear" data-mixture hidden>Linear blending</option>
               <option value="scheffe_quadratic" data-mixture hidden>Quadratic blending</option>
@@ -642,8 +644,16 @@
         <!-- Past bootstrap.MAX_INTERACTION_FACTORS factors: why the models with every interaction are not offered. -->
         <p id="model-many" class="hint" hidden></p>
         <p id="box-cox" class="hint" hidden><span id="box-cox-words"></span> <button type="button" class="link" id="box-cox-apply"></button></p>
+        <!-- The model as terms to press (app.js showTermsOfModel, termPressed). It is shown in the fold "For the
+             statistician", which app.js makes again with each analysis and moves this into: it stands here only
+             until the first one. The terms in the model are ticked; a press fits the model again. -->
         <fieldset id="terms" class="terms" hidden>
           <legend><button type="button" class="term" data-term="model-terms">Terms in the model</button></legend>
+          <p class="actions terms__whole">
+            <button type="button" id="terms-designed" class="link">As designed</button>
+            <button type="button" id="terms-clear" class="link">Keep the clear terms</button>
+            <span id="terms-said" class="hint" role="status"></span>
+          </p>
           <div id="term-list"></div>
           <!-- Past bootstrap.MAX_INTERACTION_FACTORS factors, the list holds the interactions the reader names here. -->
           <p id="term-adder" class="term-adder" hidden>Name an interaction:

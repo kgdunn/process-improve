@@ -359,8 +359,12 @@ table.trade-limits td, table.trade-limits th { white-space: nowrap; padding-righ
 .terms { border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin: 0 0 12px; max-width: 100%; }
 .terms legend { font-size: 0.9rem; padding: 0 4px; }
 .terms h4 { margin: 8px 0 4px; font-size: 0.85rem; font-weight: 600; color: var(--muted); }
-.terms .group { display: flex; flex-wrap: wrap; gap: 4px 14px; }
-.terms label { display: inline-flex; align-items: center; gap: 4px; font-size: 0.9rem; }
+.terms .group { display: flex; flex-wrap: wrap; gap: 6px; }
+/* A term to press: in the model when ticked. The whole of it takes the press, and the box says which it is. */
+.terms label { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 8px; border: 1px solid var(--line); border-radius: 999px; font-size: 0.9rem; cursor: pointer; }
+.terms label:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.terms label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.terms .terms__whole { margin: 0 0 4px; align-items: baseline; }
 .terms input { width: auto; padding: 0; }
 .terms .term-adder { margin: 10px 0 0; font-size: 0.9rem; }
 .terms .term-adder select { width: auto; max-width: 10em; }

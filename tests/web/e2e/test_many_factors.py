@@ -18,6 +18,7 @@ from tests.web.e2e._page import (
     candidates_done,
     choose,
     generate,
+    open_statistician,
     overflowing,
     practise,
     reveal,
@@ -155,8 +156,8 @@ def test_past_12_factors_learn_fits_an_interaction_the_reader_names(fresh_page):
     set_factors(page, factors(13))
     generate(page, design_type="dsd")  # its main effects are clear of every interaction, so X1·X2 can join them
     practise(page)
-    choose(page, model="terms")
-    settled(page)
+    reveal(page, "#model")
+    open_statistician(page)
     assert page.is_visible("#term-adder")
     assert page.locator("#term-list h4").all_text_contents() == ["Main effects", "Squares"], "no interaction yet"
     page.select_option("#term-first", "X1")

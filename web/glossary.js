@@ -78,8 +78,8 @@ export const GLOSSARY = {
     "Each factor centered and scaled, as its setting less the center, over half its range: it runs from -1 at " +
     "its low setting to +1 at its high one.",
   "model-terms":
-    "Tick the terms to fit; the intercept is always in. A term the design cannot tell apart from another is " +
-    "estimated with it, as their sum.",
+    "Press a term to put it in the model or to take it out: the ticked ones are fitted, and the intercept is " +
+    "always in. Terms the design cannot tell apart are listed as one, and estimated as their sum.",
   "std-error": "How precisely the coefficient is estimated: the standard deviation of its estimate.",
   interval:
     "The estimate plus or minus about two standard errors: intervals made this way hold the true coefficient " +

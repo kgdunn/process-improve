@@ -197,6 +197,8 @@ import {
   axialDistance,
   candidateRows,
   candidateTerms,
+  mainEffectsBrought,
+  broughtWords,
   cellBand,
   cellDesign,
   cellResolution,
@@ -422,6 +424,22 @@ function listing(select) {
 }
 const designs = listing($("#design-type"));
 const models = listing($("#model"));
+/**
+ * The terms of Learn's model and what stands beside them, held here: they are shown in the fold "For the
+ * statistician", which is made again with each analysis, so they are off the page between one fold and the next and
+ * cannot be looked up then.
+ */
+const TERMS = {
+  box: $("#terms"),
+  list: $("#term-list"),
+  adder: $("#term-adder"),
+  first: $("#term-first"),
+  second: $("#term-second"),
+  add: $("#add-term"),
+  designed: $("#terms-designed"),
+  clear: $("#terms-clear"),
+  said: $("#terms-said"),
+};
 const scenarios = listing($("#scenario"));
 // ---------------------------------------------------------------- the line to Python
 /** The last Python errors, newest last, each with the entry point it came from: a report of a problem carries them. */
@@ -2990,11 +3008,13 @@ function showChoicesFor(design) {
   $("#model-many").textContent = screeningSentence(k, "learn");
   $("#model-many").hidden = !screensOnly(k);
   const taken = (option) => option.value === "" || mixture === ("mixture" in option.dataset);
+  // The reader's own terms are a model the run sheet takes, and never one the list offers: it is listed while chosen.
+  const offered = (option) => taken(option) && option.value !== CHOSEN_TERMS;
   for (const [list, id, fallback] of [[scenarios, "#scenario", mixture ? "blend" : "reactor"], [models, "#model", ""]]) {
     const chosen = list.option($(id).value);
-    list.show(taken, chosen && taken(chosen) && !chosen.disabled ? chosen.value : fallback);
+    list.show(offered, chosen && taken(chosen) && !chosen.disabled ? chosen.value : fallback);
   }
-  $("#terms").hidden = $("#model").value !== CHOSEN_TERMS;
+  showTerms();
   $("#truth-units").textContent = `In ${mixture ? "proportions" : "coded units"}. The analysis estimates these coefficients from the noisy results.`;
   showScenarioHint();
 }
@@ -3477,7 +3497,7 @@ const PHASE_NAMES = { plan: "Design", run: "Run", learn: "Learn" };
 
 /** Learn's model as its form names it: the choice, or for terms ticked, how many. */
 function modelWords() {
-  if ($("#model").value === CHOSEN_TERMS) return `Terms you choose: ${tickedTerms().length} terms`;
+  if ($("#model").value === CHOSEN_TERMS) return `Your terms: ${tickedTerms().length} terms`;
   return $("#model").selectedOptions[0]?.textContent ?? "";
 }
 
@@ -3603,6 +3623,7 @@ function clearAnalysis() {
   ticket += 1;
   state.analysis = null;
   $("#analysis").hidden = true;
+  homeTerms();
   $("#printed").hidden = true;
   $("#py-analyse").hidden = true;
   $("#charts").hidden = true;
@@ -3726,6 +3747,7 @@ function renderAnalysis(reply) {
   if (!reply.ok) {
     setStatus("The results could not be analysed.", "error");
     showBoxCox(null);
+    homeTerms(); // out of the fold that goes, so the reader can still change the model that could not be fitted
     out.replaceChildren(...asideParts(), el("p", "error", reply.error), ...warningList(reply.warnings), reportResult());
     state.simpler = null;
     $("#charts").hidden = true;
@@ -3820,8 +3842,12 @@ function renderAnalysis(reply) {
   fold.id = "statistician";
   fold.open = statisticianOpen();
   fold.ontoggle = () => keepStatistician(fold.open);
-  fold.append(el("summary", "", "For the statistician: the model, its coefficients and each run"), ...parts);
+  // The terms move from the fold before into this one; a term the reader has just pressed keeps the keyboard.
+  const pressed = TERMS.box.contains(document.activeElement) ? document.activeElement : null;
+  showTermsOfModel();
+  fold.append(el("summary", "", "For the statistician: the model, its coefficients and each run"), TERMS.box, ...parts);
   out.replaceChildren(...shown, fold);
+  if (pressed?.isConnected) pressed.focus();
   renderAnswer();
 }
 
@@ -3887,7 +3913,7 @@ async function askSimpler(words, apply) {
 function fitSimpler() {
   if (!state.simpler?.length) return;
   setModel({ terms: state.simpler, picked: true });
-  $("#term-list").dispatchEvent(new Event("change"));
+  TERMS.list.dispatchEvent(new Event("change"));
 }
 
 /** A result typed or pasted again is a new result: its run is no longer set aside from that response's fit. */
@@ -4508,13 +4534,13 @@ let modelBefore = ""; // the model chosen before the reader asked to tick terms:
 function modelChoice() {
   if ($("#model").value !== CHOSEN_TERMS) return $("#model").value;
   const terms = tickedTerms();
-  return $("#term-list").dataset.picked === termsKey(terms) ? { terms, picked: true } : { terms };
+  return TERMS.list.dataset.picked === termsKey(terms) ? { terms, picked: true } : { terms };
 }
 
 /** A model as Python takes it: its name, or its terms. That the terms were picked from the results is the page's to say. */
 const asked = (model) => (model && typeof model === "object" ? { terms: model.terms } : model);
 
-const tickedTerms = () => [...document.querySelectorAll("#term-list input:checked")].map((b) => JSON.parse(b.value));
+const tickedTerms = () => [...TERMS.list.querySelectorAll("input:checked")].map((b) => JSON.parse(b.value));
 
 /** List every term the design's factors allow, grouped, with `ticked` ticked. */
 function renderTermList(ticked) {
@@ -4522,9 +4548,9 @@ function renderTermList(ticked) {
   const groups = new Map();
   const factors = state.design.spec.factors;
   // Past MAX_INTERACTION_FACTORS factors the list holds the interactions the reader names, with the boxes to name one.
-  $("#term-adder").hidden = !screensOnly(factors.length);
+  TERMS.adder.hidden = !screensOnly(factors.length);
   if (screensOnly(factors.length)) fillTermAdder(factors.map((f) => f.name));
-  for (const { term, label, group } of candidateTerms(factors, ticked)) {
+  for (const { term, label, group } of candidateTerms(factors, ticked, state.design.facts?.aliases)) {
     const tick = el("input", "", "");
     tick.type = "checkbox";
     tick.value = JSON.stringify(term);
@@ -4534,7 +4560,7 @@ function renderTermList(ticked) {
     if (!groups.has(group)) groups.set(group, []);
     groups.get(group).push(item);
   }
-  $("#term-list").replaceChildren(
+  TERMS.list.replaceChildren(
     ...[...groups].flatMap(([group, items]) => {
       const row = el("div", "group", "");
       row.append(...items);
@@ -4555,16 +4581,16 @@ function fillTermAdder(names) {
 }
 
 /** A factor has no interaction with itself: the button adds one only when the two boxes name different factors. */
-const showTermAdder = () => ($("#add-term").disabled = $("#term-first").value === $("#term-second").value);
+const showTermAdder = () => (TERMS.add.disabled = TERMS.first.value === TERMS.second.value);
 
 /** Add the interaction the two boxes name to the terms ticked, and fit the model with it. */
 function addNamedTerm() {
   const names = state.design.spec.factors.map((f) => f.name);
-  const term = interactionOf($("#term-first").value, $("#term-second").value, names);
+  const term = interactionOf(TERMS.first.value, TERMS.second.value, names);
   if (!term) return;
   const ticked = tickedTerms().filter((t) => JSON.stringify(t) !== JSON.stringify(term));
   renderTermList([...ticked, term]);
-  $("#term-list").dispatchEvent(new Event("change"));
+  TERMS.list.dispatchEvent(new Event("change"));
 }
 
 /** Start the list of terms from the model chosen before, or the one the design was made for. */
@@ -4574,16 +4600,71 @@ function startTermList() {
 
 /** Put a model into the analysis: a named one, "" for the design's own, or {terms} to tick. */
 function setModel(model) {
-  delete $("#term-list").dataset.picked;
+  delete TERMS.list.dataset.picked;
   if (model && typeof model === "object") {
     models.choose(CHOSEN_TERMS);
     renderTermList(model.terms);
-    if (model.picked) $("#term-list").dataset.picked = termsKey(model.terms);
+    if (model.picked) TERMS.list.dataset.picked = termsKey(model.terms);
   } else {
     models.choose(model);
     if (model === CHOSEN_TERMS) startTermList();
   }
-  $("#terms").hidden = $("#model").value !== CHOSEN_TERMS;
+  showTerms();
+}
+
+/**
+ * Stand the terms above the analysis, where they are before the first one, on show while the model is the reader's
+ * own. With no fold to hold them (nothing analysed yet, or a model that could not be fitted) they are still in
+ * reach there, so a model too large for the runs can be made smaller.
+ */
+function homeTerms() {
+  $("#analysis").before(TERMS.box);
+  TERMS.box.hidden = $("#model").value !== CHOSEN_TERMS || !state.design;
+}
+
+/** The model changed with no analysis on show: the terms above it follow. In an analysis's fold, its next one shows them. */
+function showTerms() {
+  if (!TERMS.box.closest("details.statistician")) homeTerms();
+}
+
+/**
+ * Show the model an analysis fitted as its terms, those in it ticked, for its fold: a named model's own, or the
+ * reader's as they stand. A mixture's model is chosen by its name, and has no terms to press.
+ */
+function showTermsOfModel() {
+  TERMS.box.hidden = blendStudy();
+  if (TERMS.box.hidden) return;
+  if ($("#model").value !== CHOSEN_TERMS) renderTermList(namedModelTerms($("#model").value || state.design.spec.model, state.design.spec.factors));
+  TERMS.designed.disabled = $("#model").value === "";
+}
+
+/**
+ * A term was pressed. A named model's terms become the reader's own. A term put in brings the main effects it is
+ * made of when they are out; one taken out takes nothing with it, so that a factor nested in another can be written.
+ */
+function termPressed(e) {
+  if ($("#model").value !== CHOSEN_TERMS) models.choose(CHOSEN_TERMS);
+  TERMS.designed.disabled = false; // the model is the reader's own from here
+  if (e.target === TERMS.list) return; // the terms were set as a whole (fitSimpler), not pressed
+  TERMS.said.textContent = "";
+  if (!e.target.checked) return;
+  const term = JSON.parse(e.target.value);
+  const brought = mainEffectsBrought(tickedTerms(), term);
+  const boxes = [...TERMS.list.querySelectorAll("input")];
+  for (const main of brought) boxes.find((box) => box.value === JSON.stringify(main)).checked = true;
+  if (brought.length) TERMS.said.textContent = broughtWords(term, brought);
+}
+
+/** Search for the terms the results support (bootstrap.simpler_model) and fit them at once, saying what was kept. */
+async function keepClearTerms() {
+  const mine = ticket;
+  TERMS.said.textContent = "Searching...";
+  const reply = await call("api_simpler_model", analysisRequest());
+  if (mine !== ticket) return; // another analysis has the page now
+  TERMS.said.textContent = reply.ok ? simplerWords(reply.result, fmt) : reply.error;
+  if (!reply.ok || !reply.result.changed || !reply.result.terms.length) return;
+  state.simpler = reply.result.terms;
+  fitSimpler();
 }
 
 // ---------------------------------------------------------------- charts
@@ -8523,7 +8604,8 @@ $("#share").onclick = shareLink;
 $("#model").onchange = () => {
   if ($("#model").value === CHOSEN_TERMS && state.design) startTermList();
   else modelBefore = $("#model").value;
-  $("#terms").hidden = $("#model").value !== CHOSEN_TERMS || !state.design;
+  TERMS.said.textContent = "";
+  showTerms();
   if (state.shown) state.models[state.shown] = modelChoice(); // the model of the response Learn shows
   analyseRuns();
   scheduleSave();
@@ -8538,16 +8620,22 @@ $("#box-cox-apply").onclick = () => {
   $("#transform").value = $("#box-cox-apply").dataset.transform;
   $("#transform").onchange();
 };
-$("#term-list").onchange = () => {
+TERMS.designed.onclick = () => {
+  models.choose("");
+  $("#model").onchange();
+};
+TERMS.clear.onclick = keepClearTerms;
+TERMS.list.onchange = (e) => {
+  termPressed(e);
   if (state.shown) state.models[state.shown] = modelChoice();
   scheduleAnalysis(); // a moment after the last tick, as for typed results
   scheduleSave();
 };
 installImport({ call, open: openImported });
 $("#stop").onclick = () => python.stop();
-$("#term-first").onchange = showTermAdder;
-$("#term-second").onchange = showTermAdder;
-$("#add-term").onclick = addNamedTerm;
+TERMS.first.onchange = showTermAdder;
+TERMS.second.onchange = showTermAdder;
+TERMS.add.onclick = addNamedTerm;
 for (const button of document.querySelectorAll("details.python .copy")) {
   button.onclick = async () => {
     const code = button.parentElement.querySelector("code");
