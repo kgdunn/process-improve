@@ -108,6 +108,10 @@ CONFIRMATION = "Confirmation run"
 #: What that column holds for a confirmation run; a run of the design leaves it blank.
 CONFIRMS = "yes"
 
+#: What that column holds for a run on the path of steepest ascent (or descent): a run made past the ranges, in
+#: the path's order, to find where the next study belongs. As a confirmation run, it is no run of the design.
+ON_PATH = "path"
+
 #: The most factors a study has on this page: a screening design's, made to find the few factors that matter among
 #: many, such as Plackett-Burman's 44 runs in 40 factors, or the catalog's largest, 40 factors in 81 runs.
 #: logic.js and campaign.js mirror it.
@@ -4417,26 +4421,38 @@ def _runs_frame(request: dict, spec: dict) -> pd.DataFrame:
     return runs
 
 
-def _confirming(runs: pd.DataFrame) -> pd.Series:
-    """Say which runs of a run sheet are confirmation runs: those its :data:`CONFIRMATION` column marks."""
+def _runs_marked(runs: pd.DataFrame, mark: str) -> pd.Series:
+    """Say which runs of a run sheet its :data:`CONFIRMATION` column marks with ``mark``."""
     if CONFIRMATION not in runs.columns:
         return pd.Series(False, index=runs.index)
-    return runs[CONFIRMATION].map(lambda mark: isinstance(mark, str) and mark.strip().lower() == CONFIRMS)
+    return runs[CONFIRMATION].map(lambda held: isinstance(held, str) and held.strip().lower() == mark)
+
+
+def _confirming(runs: pd.DataFrame) -> pd.Series:
+    """Say which runs of a run sheet are confirmation runs: those its :data:`CONFIRMATION` column marks."""
+    return _runs_marked(runs, CONFIRMS)
+
+
+def _on_path(runs: pd.DataFrame) -> pd.Series:
+    """Say which runs of a run sheet are runs on the path of steepest ascent: those marked :data:`ON_PATH`."""
+    return _runs_marked(runs, ON_PATH)
 
 
 def _design_runs(runs: pd.DataFrame) -> pd.DataFrame:
-    """Return the runs the model is fitted to: the run sheet less its confirmation runs, which test the model.
+    """Return the runs the model is fitted to: the run sheet less its confirmation runs and its runs on the path.
 
     A confirmation run is made at the settings the model recommends, to see whether the process
     gives what the model predicts there. Fitted to it, the model would be judged on a run it was
     made to fit, so every fit leaves the confirmation runs out, as if they were not on the sheet.
+    A run on the path of steepest ascent is made past the ranges, where this study's model does
+    not reach: it belongs to the next study, which is centred on the best of them.
     """
-    confirming = _confirming(runs)
-    if confirming.all():
+    apart = _confirming(runs) | _on_path(runs)
+    if apart.all():
         raise ValueError(
             "Every run on the run sheet is marked as a confirmation run, and the model is fitted to the design's runs."
         )
-    return runs.loc[~confirming].drop(columns=[CONFIRMATION], errors="ignore").reset_index(drop=True)
+    return runs.loc[~apart].drop(columns=[CONFIRMATION], errors="ignore").reset_index(drop=True)
 
 
 def _coded(runs: pd.DataFrame, factors: list[dict]) -> pd.DataFrame:
@@ -10426,6 +10442,9 @@ def _recommended(request: dict, whole: dict) -> tuple[dict[str, Any] | None, str
     ``confirm`` (confirmation runs at ``settings``, rounded for the plant), ``runs`` (``add_runs``
     with the kind ``recommended``), ``study`` (a new study with the ``ranges`` given) or None.
     ``outside_limits`` says the runs would break a limit on the settings, so the page offers none.
+    A move along the path also holds ``path``: its runs in the path's order, each its ``settings``
+    in the factors' own units and what the model ``predicted`` there, for the page to add to the
+    run sheet; None when a run of the path would break a limit on the settings.
     Nothing is shown for a goal of learning, a mixture, or before the results are sent.
     """
     found = _next_step(request, whole)
@@ -10466,7 +10485,8 @@ def _next_step(request: dict, whole: dict) -> dict[str, Any] | str | None:
     runs, scaled = _on_model_scale(_runs_frame(request, whole), whole)
     target = (_for_response(scaled, request.get("response")).get("response_info") or {}).get("target")
     confirming = _confirming(runs)
-    design = runs.loc[~confirming].drop(columns=[CONFIRMATION], errors="ignore")
+    # The runs on the path are of neither kind: the step is judged without them, made or not.
+    design = runs.loc[~confirming & ~_on_path(runs)].drop(columns=[CONFIRMATION], errors="ignore")
     confirmations = runs.loc[confirming]
     if "Run order" in runs.columns:
         confirmations = confirmations.sort_values("Run order", kind="stable")
@@ -10515,6 +10535,7 @@ def _shown_step(spec: dict, found: dict[str, Any]) -> dict[str, Any]:
         "label": None,
         "settings": None,
         "ranges": None,
+        "path": None,
         "outside_limits": False,
     }
     if action == "confirm":
@@ -10535,9 +10556,38 @@ def _shown_step(spec: dict, found: dict[str, Any]) -> dict[str, Any]:
         shown["outside_limits"] = not _runnable(spec, coded)
     elif action in ("widen_ranges", "move_region"):
         shown |= {"does": "study", "label": "Start a new study with these ranges", "ranges": _moved(spec, found)}
+        if action == "move_region":
+            shown["path"] = _path_runs(spec, found)
     if shown["outside_limits"]:
         shown |= {"does": None, "label": None}
     return shown
+
+
+def _path_runs(spec: dict, found: dict[str, Any]) -> list[dict[str, Any]] | None:
+    """Return the runs along the path of steepest ascent as the page lists them, or None when one breaks a limit.
+
+    Each run holds its ``settings``, a numeric factor's to three significant figures of its range
+    (0.1 degC for a range of 50 degC), as a plant can set it, and what the model ``predicted``
+    there, which is an extrapolation. A transformed response's predictions are on the model's
+    scale, so none is given.
+    """
+    runs = pd.DataFrame(found["runs"])
+    if not _runnable(spec, _coded(runs, spec["factors"]).to_numpy(dtype=float)):
+        return None
+    predictions = found.get("path_predictions") or []
+    shown = _transform_of(spec) is None and len(predictions) == len(runs)
+    path = []
+    for i, (_, run) in enumerate(runs.iterrows()):
+        settings: dict[str, Any] = {}
+        for f in spec["factors"]:
+            value = run[f["name"]]
+            if _categorical(f):
+                settings[f["name"]] = str(value)
+            else:
+                decimals = 2 - math.floor(math.log10(f["high"] - f["low"]))
+                settings[f["name"]] = round(float(value), decimals) + 0.0
+        path.append({"settings": settings, "predicted": float(predictions[i]) if shown else None})
+    return path
 
 
 def _moved(spec: dict, found: dict[str, Any]) -> list[dict[str, Any]]:
@@ -10592,8 +10642,8 @@ def add_runs(request: dict) -> dict:
     if made["blocked"] and BLOCK not in columns:  # the runs before are block 1; a confirmation run is in no block
         at = columns.index(names[0])
         columns.insert(at, BLOCK)
-        for row, confirming in zip(rows, _confirming(runs), strict=True):
-            row.insert(at, None if confirming else 1)
+        for row, apart in zip(rows, _confirming(runs) | _on_path(runs), strict=True):
+            row.insert(at, None if apart else 1)
     before = pd.DataFrame(rows, columns=columns)
     first_std, first_run = _last(before, "Std order") + 1, _last(before, "Run order") + 1
     block = _last(before, BLOCK) + 1 if made["blocked"] else None
