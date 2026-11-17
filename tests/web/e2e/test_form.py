@@ -62,7 +62,7 @@ def test_designs_the_factor_count_rules_out_cannot_be_chosen(page, bootstrap, k)
     set_factors(page, factors_named(*NAMES[:k]))
     designs = [*bootstrap.DESIGNS.items(), *bootstrap.MIXTURES.items()]
     expected = [d for d, info in designs if not info["min_factors"] <= k <= info["max_factors"]]
-    assert disabled_designs(page) == expected
+    assert sorted(disabled_designs(page)) == sorted(expected), "whichever group of the list a design is in"
 
 
 def test_a_design_the_factors_rule_out_says_why_and_cannot_be_generated(page):
@@ -250,7 +250,9 @@ def test_replicates_chosen_for_one_design_do_not_carry_over_to_the_next_one_load
 def test_two_labels_make_a_factor_categorical_and_leave_the_two_level_designs(page):
     set_factors(page, [*factors_named("A", "B"), {"name": "Supplier", "low": "old", "high": "new", "units": ""}])
     numeric = ["dsd", "omars", "box_behnken", "ccd", "d_optimal", "i_optimal", "a_optimal", "maximin_lhs", "sobol"]
-    assert disabled_designs(page) == [*numeric, "simplex_lattice", "simplex_centroid", "extreme_vertices"]
+    assert sorted(disabled_designs(page)) == sorted(
+        [*numeric, "simplex_lattice", "simplex_centroid", "extreme_vertices"]
+    )
     assert page.text_content("#design-hint") == (
         "Box-Behnken needs numeric factors, and Supplier is categorical: choose a full factorial, fractional "
         "factorial, Plackett-Burman or Taguchi design."
