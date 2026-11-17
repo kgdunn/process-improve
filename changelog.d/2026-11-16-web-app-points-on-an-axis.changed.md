@@ -7,3 +7,5 @@
   has one 2 px corner. What you typed or measured is in blue ink, what the app worked out is in print, and a
   simulated result stays grey and in italics. The page's ground is a neutral grey where it was cream. The rule
   over a stage's panels and the tint of a check, added with the stage colours, give way to these.
+  The app is set in one typeface, Outfit (SIL Open Font License), served from its own files so it reads the same
+  on every device and offline.
