@@ -14,17 +14,6 @@ from tests.web.e2e._page import reveal, settled
 SETTING = '#design-table button.setting[data-index="0"][data-factor="Temperature"]'
 
 
-def coefficient(page, term: str) -> float:
-    """Return a term's coefficient from the table under "For the statistician"."""
-    return float(
-        page.locator("#coefficients tbody tr")
-        .filter(has=page.locator("td:first-child", has_text=term))
-        .first.locator("td")
-        .nth(1)
-        .text_content()
-    )
-
-
 def type_setting(page, value: str, key: str = "Enter") -> None:
     page.click(SETTING)
     box = page.locator("#design-table input.setting")
