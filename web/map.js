@@ -13,8 +13,10 @@ const DATA = await fetch(new URL("map/graph.json", import.meta.url)).then((r) =>
   if (!r.ok) throw new Error(`map/graph.json: ${r.status}`);
   return r.json();
 });
-// The canvas draws its text in the page's own typeface.
+// The canvas draws its text in the page's own typeface, once that has loaded: a label measured in the font that
+// stands in for it would be placed for the wrong width.
 const FONT = getComputedStyle(document.body).fontFamily;
+await document.fonts?.load(`600 16px ${FONT}`).catch(() => {});
 const FAMILY = { DesignType: "design", Property: "design", Criterion: "design", Method: "method", Plot: "method", Phase: "method",
   Concept: "concept", Guideline: "guide", Diagnostic: "guide", Example: "context", Question: "context", Reference: "context" };
 const FAMILIES = {

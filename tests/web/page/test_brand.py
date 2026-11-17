@@ -8,6 +8,7 @@ in step with the generated one, and every file the page's head and manifest name
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import re
@@ -142,3 +143,21 @@ def test_the_published_address_is_the_one_the_deploy_is_checked_at():
     assert jobs["check-factorial"]["env"]["APP"] == PUBLISHED
     ssh = (ROOT / ".github" / "actions" / "factorial-ssh" / "action.yml").read_text(encoding="utf-8")
     assert f"HostName {urlsplit(PUBLISHED).hostname}\n" in ssh, "the deploy logs in to the host it then checks"
+
+
+#: The app's typeface as npm's @fontsource-variable/outfit 5.2.5 ships it: each file's SHA-256.
+OUTFIT = {
+    "outfit-latin-wght-normal.woff2": "45447a2b45991ea4e67ff0866444ca07fcf62c28dbfd5fa072ab76d3d0c46390",
+    "outfit-latin-ext-wght-normal.woff2": "46ef61bf3ff76e84672e5f611d6fb5ba3f56d09e1f6f0c35e29d8533fd844009",
+}
+
+
+def test_the_app_s_typeface_is_served_from_its_own_files_with_its_licence():
+    """Outfit is npm's files unchanged, named by the stylesheet, with the device's own font to fall back on."""
+    folder = ROOT / "web" / "vendor" / "outfit"
+    for name, digest in OUTFIT.items():
+        assert hashlib.sha256((folder / name).read_bytes()).hexdigest() == digest, name
+        assert f'url("vendor/outfit/{name}")' in source("style.css"), name
+    assert "SIL Open Font License" in (folder / "LICENSE").read_text(encoding="utf-8")
+    assert 'font: 16px/1.5 "Outfit", system-ui' in source("style.css"), "the device's font stands in until it loads"
+    assert "fonts.googleapis.com" not in source("style.css") + source("index.html"), "no font is fetched from elsewhere"

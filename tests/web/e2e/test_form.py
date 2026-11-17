@@ -8,8 +8,6 @@ run sheet it holds.
 
 from __future__ import annotations
 
-from itertools import pairwise
-
 import pytest
 
 from tests.web._support import ALL_DESIGNS, NO_BOOK_PAGE, factors_named
@@ -431,7 +429,7 @@ def test_a_factor_of_several_levels_says_which_designs_take_it(page):
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
-def test_on_a_phone_each_factor_is_a_numbered_card_with_its_headings(page):
+def test_on_a_phone_each_factor_is_a_numbered_group_with_its_headings(page):
     reveal(page, "#factors")
     flip(row(page, 1))
     captions = row(page, 1).evaluate(
@@ -441,11 +439,14 @@ def test_on_a_phone_each_factor_is_a_numbered_card_with_its_headings(page):
     assert captions == ['"Factor name"', '"Type"', '"Levels"'], "the levels take the row the low, high and units had"
     chips = row(page, 1).locator(".level-chips").bounding_box()
     name = row(page, 1).locator("[name=name]").bounding_box()
-    assert chips["width"] > 2 * name["width"], "the chips span the card"
-    cards = page.eval_on_selector_all("#factors tbody tr", "rows => rows.map((tr) => tr.getBoundingClientRect())")
-    gaps = [b["top"] - (a["top"] + a["height"]) for a, b in pairwise(cards)]
-    assert all(gap >= 8 for gap in gaps), "the cards stand apart"
-    border = row(page, 1).evaluate("tr => getComputedStyle(tr).borderTopStyle")
-    assert border == "solid", "each factor's boxes sit inside a card of their own"
+    assert chips["width"] > 2 * name["width"], "the chips span the group"
+    rooms = page.eval_on_selector_all(
+        "#factors tbody tr",
+        "rows => rows.map((tr) => getComputedStyle(tr))"
+        ".map((style) => parseFloat(style.paddingTop) + parseFloat(style.paddingBottom))",
+    )
+    assert all(room >= 16 for room in rooms), "the factors stand apart"
+    edges = row(page, 1).evaluate("tr => [getComputedStyle(tr).borderTopStyle, getComputedStyle(tr).borderLeftStyle]")
+    assert edges == ["solid", "none"], "a rule over each factor, and no box round it"
     text = row(page, 1).locator(".switch__text")
     assert text.evaluate("t => t.scrollWidth <= t.clientWidth + 1"), "Categorical is not cut short"

@@ -97,6 +97,11 @@ APP_FILES = (
     "sw-retire.js",
     "feedback.js",
     "vendor/modern-screenshot.mjs",
+    # The app's typeface, Outfit (SIL Open Font License), from @fontsource-variable/outfit 5.2.5: served from here so
+    # the page looks the same on every device and offline.
+    "vendor/outfit/outfit-latin-wght-normal.woff2",
+    "vendor/outfit/outfit-latin-ext-wght-normal.woff2",
+    "vendor/outfit/LICENSE",
     # The concept map, at map/: its page, its module, the graph it draws (built in pid-book) and Cytoscape.
     "map/index.html",
     "map.js",
@@ -1630,7 +1635,7 @@ def page_head(*, title: str, description: str, path: str, up: str) -> str:
   <meta name="description" content="{description}">
   <link rel="canonical" href="https://factori.al/{path}">
   <link rel="icon" href="{up}favicon.svg" type="image/svg+xml">
-  <meta name="theme-color" content="#faf8f3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#f5f6f4" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#141517" media="(prefers-color-scheme: dark)">
   <script>
     try {{

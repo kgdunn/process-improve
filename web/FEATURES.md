@@ -656,16 +656,28 @@ Also:
     where they left off, with no welcome.
 - **A colour for each step.** Design is blue, Run is ochre, Learn is green and Next is red:
   in the bar, in the welcome, and in the app's mark and its browser icon. Every screen says
-  which step it is: the rule over its panels and the button to press there are in the step's
+  which step it is: what you choose there and the button to press there are in the step's
   colour.
   - *Details:* A button that leads to the next step wears that step's colour: "Make the run
-    sheet" is ochre, "See what the results say" is green. A step's number says which it is,
-    so nothing rests on colour alone. On a phone the number of a step you are not in is a dot
-    of its colour.
-- **Checks you can read at a glance.** Under Learn's answer a check that passed is tinted
-  green, and one to look at is tinted ochre.
-  - *Details:* Each check keeps its mark, a tick or an exclamation mark, so the tint is not
-    the only sign.
+    sheet" is ochre, "See what the results say" is green. In the bar the steps are points on
+    one line; the step you are in has the larger point and its name in bold, so nothing rests
+    on colour alone.
+- **Drawn with an experiment's own marks.** A choice is a point, as a run is on a design: a
+  ring until you choose it, then filled. The four aims are levels on one axis. Nothing has a
+  box with a coloured edge, and nothing is rounded but a point.
+  - *Details:* A chosen point is also drawn when the system forces its own colours. A note
+    that asks for a look is marked with an ochre diamond.
+- **Checks you can read at a glance.** Under Learn's answer a check is a point: round and
+  green when it passed, an ochre diamond when there is something to look at, a ring when the
+  page cannot tell.
+  - *Details:* The shape says it, so the colour is not the only sign. A screen reader hears
+    "Passed", "To look at" or "Cannot tell".
+- **One typeface on every device.** The app is set in Outfit, served from its own files, so
+  it looks the same everywhere and with no network.
+  - *Details:* Until the typeface has loaded, the device's own font stands in.
+- **Your numbers in ink.** What you typed or measured is in blue ink. What Factorial worked
+  out is in print.
+  - *Details:* A simulated result is grey and in italics, as pencil, until you type over it.
 - **One menu holds every way in.** The study's name in the bar opens it: a new study, your
   studies, the worked example, data you have, and the design catalog. It also shares the
   study and shows its report.

@@ -435,7 +435,8 @@ def test_a_copy_at_another_address_sends_nothing_itself(context, relay, plotly_j
     assert page.input_value("#feedback-copied").startswith(f"Topic: General\n\n{MESSAGE}")
     assert page.text_content(STATUS).startswith("The browser would not copy the report"), "no clipboard over http"
     assert relay.reports == []
-    assert not [name for name in asked if name.startswith(("api/", "vendor/"))], "no post, and no screenshot"
+    sent = [name for name in asked if name.startswith(("api/", "vendor/")) and not name.startswith("vendor/outfit/")]
+    assert not sent, "no post, and no screenshot: the page's typeface is all it takes from vendor/"
 
 
 # --------------------------------------------------------------------------- the button's words
