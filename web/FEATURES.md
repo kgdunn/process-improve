@@ -67,7 +67,8 @@ Counts marked "(Nov 2026)" come from the build of 14 November 2026 and only grow
 
 *16 designs in one list, each for a kind of question.*
 
-The design list holds 16 designs.
+The design list holds 16 designs, in two groups: the six most used, then the rest, with the
+three mixture designs under a heading of their own.
 
 - **Full factorial (2-level).** For 1 to 7 factors. Every combination of low and high: the
   whole picture, for a few factors.
