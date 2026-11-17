@@ -11,6 +11,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import math
 import posixpath
 import re
 import statistics
@@ -95,22 +96,30 @@ def test_every_file_the_reproduction_page_loads_is_published(build_script):
     assert 'href="reproduced/"' in source(PAGE), "the catalog links to it"
 
 
-def test_the_example_the_reproduction_page_opens_with_is_the_book_s():
-    """The pilot plant of Box, Hunter and Hunter: the effect the book prints on its page, and the one its runs give."""
+def test_the_table_the_reproduction_page_opens_a_book_onto_is_the_book_s():
+    """The pilot plant of Box, Hunter and Hunter: each effect its Table 10.2 prints, and the one its runs give."""
     page = source("catalog/reproduced/index.html")
-    example = re.search(r'<figure class="trust-example".*?</figure>', page, flags=re.DOTALL).group(0)
+    box = r'<template id="receipt" data-source="box-hunter-hunter-1978">.*?</template>'
+    table = re.search(box, page, flags=re.DOTALL)
     (entry,) = [e for e in reference_experiments("box-hunter-hunter-1978") if e["name"] == "bhh-pilot-plant-2-3"]
-    (printed,) = [x for x in entry["expected"] if (x["what"], x["term"], x["where"]["page"]) == ("effect", "T", 309)]
-    assert f"p. {printed['where']['page']}</figcaption>" in example
-    assert f"<span>The book <strong>{printed['value']}</strong></span>" in example
-    rows = [dict(zip(entry["runs"]["columns"], row, strict=True)) for row in entry["runs"]["rows"]]
-    effect = statistics.mean(r["y"] for r in rows if r["T"] == 1) - statistics.mean(
-        r["y"] for r in rows if r["T"] == -1
-    )
-    assert "check" in printed, "the library recomputes it"
-    assert "disagreement" not in printed["check"], "and agrees with the book"
-    assert f"<span>Factorial <strong>{effect:.1f}</strong></span>" in example
-    assert 'href="#src=box-hunter-hunter-1978&amp;case=bhh-pilot-plant-2-3"' in example
+    printed = {x["term"]: x for x in entry["expected"] if x["what"] in {"effect", "mean"} and x["where"]["page"] == 317}
+    assert "Table 10.2, p. 317</figcaption>" in table.group(0)
+    runs = [dict(zip(entry["runs"]["columns"], row, strict=True)) for row in entry["runs"]["rows"]]
+    shown = re.findall(r'<tr><th scope="row">([^<]+)</th><td>([^<]+)</td><td>([^<]+)</td></tr>', table.group(0))
+    assert [term for term, _, _ in shown] == ["Average", "T", "C", "K", "T·C", "T·K", "C·K", "T·C·K"]
+    for term, book, ours in shown:
+        number = printed[None if term == "Average" else term]
+        assert book == number["value"]
+        assert "check" in number, "the library recomputes it"
+        assert "disagreement" not in number["check"], "and agrees with the book"
+        if term == "Average":
+            found = statistics.mean(r["y"] for r in runs)
+        else:
+            sign = [math.prod(r[factor] for factor in term.split("·")) for r in runs]
+            high = statistics.mean(r["y"] for r, s in zip(runs, sign, strict=True) if s == 1)
+            found = high - statistics.mean(r["y"] for r, s in zip(runs, sign, strict=True) if s == -1)
+        digits = len(book.partition(".")[2])
+        assert ours == f"{round(found, digits) + 0.0:.{digits}f}", term
 
 
 def test_the_app_links_to_the_catalog_and_the_catalog_back():
