@@ -1126,6 +1126,9 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 .printed .printed-model { margin: 8px 0 0; }
 .best { margin: 24px 0 0; padding: 14px 16px 16px; border-top: 2px solid var(--stage, var(--accent)); }
 .best h3 { margin: 0 0 6px; font-size: 1.05rem; }
+/* Where to run: one card. The dials and each goal's panel were cards of their own, and are parts of this one. */
+.where .best { margin: 12px 0 0; padding: 0; border-top: 0; }
+.where .goals { margin: 20px 0 4px; }
 .best h4 { margin: 0 0 6px; font-size: 0.95rem; }
 .best .lead { margin: 4px 0 8px; font-size: 1rem; font-weight: 600; }
 .best table.data td:nth-child(2) { font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -1173,7 +1176,9 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
   grid-column: 1 / -1; display: block; width: 100%; height: 132px; cursor: ew-resize;
   touch-action: pan-y; border: 1px solid var(--line); border-radius: 6px; background: var(--panel);
 }
-.profile[hidden] { display: none; }
+/* With a row of profiles for each response, each is shorter, and says which response it is of. */
+.what-if-settings--rows .profile { height: 96px; }
+.profile__name { fill: var(--fg); font-size: 11px; font-weight: 600; }
 .profile__band { fill: var(--accent); fill-opacity: 0.16; stroke: none; }
 .profile__line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .profile__line--beyond { stroke-dasharray: 5 4; }

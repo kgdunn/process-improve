@@ -173,7 +173,8 @@ def test_a_target_and_a_window_go_with_the_study_by_link_and_in_this_browser(ope
         again.wait_for_selector("#campaign-banner", state="visible")
         again.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
         settled(again)
-        again.wait_for_selector("#target-out .lead")
+        again.wait_for_selector("#target-out .lead")  # the card opens on the goal the study asks: its target
+        reveal(again, "#window")
         again.wait_for_selector("#window-out .lead")
         assert again.input_value(f'{YIELD} [name="target"]') == "62"
         yields = '#window-limits tr[data-response="Yield"]'
@@ -181,8 +182,9 @@ def test_a_target_and_a_window_go_with_the_study_by_link_and_in_this_browser(ope
         assert ends == ["60", ""], "an end left open stays open"
         assert last_reply(again, "api_target_settings")["result"]["settings"] == found["settings"]
         assert last_reply(again, "api_specification")["result"]["share"] == judged["share"]
-        assert again.locator("#target-clear").is_visible()
         assert again.locator("#window-clear").is_visible()
+        reveal(again, "#target")
+        assert again.locator("#target-clear").is_visible()
 
 
 def test_a_factor_solved_for_is_set_under_what_if_at_one_press(studied):

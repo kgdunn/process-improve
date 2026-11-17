@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 
 from tests.web._support import FACTORS
-from tests.web.e2e._page import generate, practise, reveal, set_factors, settled
+from tests.web.e2e._page import generate, practise, reveal, set_factors
 from tests.web.e2e.test_responses import three_responses
 from tests.web.e2e.test_what_if import rows, set_number
 
@@ -27,6 +27,7 @@ DRAWN = """(profiles) => profiles.map((one) => {
   const points = (line) => line.getAttribute('points').split(' ').map((point) => point.split(',').map(Number));
   return {
     factor: one.closest('[data-factor]').dataset.factor,
+    response: one.dataset.response,
     says: one.getAttribute('aria-label'),
     width: one.clientWidth, height: one.clientHeight,
     ends: [...one.querySelectorAll('.profile__end')].map((end) => end.textContent),
@@ -39,9 +40,11 @@ DRAWN = """(profiles) => profiles.map((one) => {
 })"""
 
 
-def drawn(page: Any) -> dict[str, dict]:  # noqa: ANN401 - a Playwright Page
-    """Return each factor's profile as the page draws it, by the factor's name."""
-    return {one["factor"]: one for one in page.locator(PROFILES).evaluate_all(DRAWN)}
+def drawn(page: Any, response: str | None = None) -> dict[str, dict]:  # noqa: ANN401 - a Playwright Page
+    """Return each factor's profile of a response as the page draws it, by the factor's name: the first response's."""
+    every = page.locator(PROFILES).evaluate_all(DRAWN)
+    response = response or every[0]["response"]
+    return {one["factor"]: one for one in every if one["response"] == response}
 
 
 def number(text: str) -> float:
@@ -220,18 +223,51 @@ def test_a_factor_with_levels_has_a_dot_for_each_and_a_press_chooses_one(blank_p
     assert drawn(page)["Catalyst"]["levels"] == [chosen == "Old", chosen == "New"], "the list moves the mark too"
 
 
-def test_with_several_responses_the_profiles_are_of_the_one_learn_shows(fresh_page):
+def test_with_several_responses_each_has_its_row_of_profiles_on_its_own_scale(fresh_page):
     page = fresh_page
     three_responses(page)
     practise(page)
     reveal(page, "#what-if")
     page.wait_for_selector("#what-if:not([hidden])")
-    assert drawn(page)["T"]["says"].startswith("Yield against T, ")
-    page.click("#response-picker >> text=Cost")
-    settled(page)
-    assert drawn(page)["T"]["says"].startswith("Cost against T, ")
-    assert page.text_content("#what-if-about").startswith("Each picture is Cost against one factor")
-    assert len(rows(page)) == 3, "the table under the dials still has every response"
+    assert page.locator(PROFILES).count() == 9, "three responses over three factors"
+    assert page.text_content("#what-if-about").startswith("Each picture is a response against one factor")
+    scales = {}
+    for response in ("Yield", "Cost", "Purity"):
+        row = drawn(page, response)
+        assert list(row) == ["T", "P", "F"]
+        assert row["T"]["says"].startswith(f"{response} against T, ")
+        ends = {tuple(one["ends"]) for one in row.values()}
+        assert len(ends) == 1, f"{response}: one scale for its row"
+        scales[response] = ends.pop()
+    assert len(set(scales.values())) == 3, "each response has a scale of its own"
+    # Each picture says which response it is of; the three of a factor stand one under another, over its slider.
+    names = page.locator('#what-if-settings [data-factor="T"] svg.profile .profile__name').all_text_contents()
+    assert names == ["Yield", "Cost", "Purity"]
+    tops = page.locator('#what-if-settings [data-factor="T"] svg.profile').evaluate_all(
+        "(all) => all.map((one) => one.getBoundingClientRect().top)"
+    )
+    slider = page.locator('#what-if-settings [data-factor="T"] input[name="slider"]').bounding_box()
+    assert tops == sorted(tops)
+    assert tops[-1] < slider["y"]
+    assert len(rows(page)) == 3, "the table under the dials has every response too"
+
+    # A press on one response's picture sets the factor for them all.
+    before = [drawn(page, response)["T"]["mark"][0] for response in ("Yield", "Cost", "Purity")]
+    was = setting(page, "T")
+    costs = page.locator('#what-if-settings [data-factor="T"] svg.profile[data-response="Cost"]')
+    costs.evaluate("(one) => one.scrollIntoView({ block: 'center' })")  # clear of the study's bar
+    box = costs.bounding_box()
+    at = 0.25 if was > 175 else 0.75
+    page.mouse.click(box["x"] + box["width"] * at, box["y"] + box["height"] / 2)
+    assert setting(page, "T") != was
+    marks = [drawn(page, response)["T"]["mark"][0] for response in ("Yield", "Cost", "Purity")]
+    assert len(set(marks)) == 1, "one setting, marked on every row"
+    assert marks != before, "and every row's mark has moved"
+
+
+def test_one_response_s_pictures_do_not_name_it(what_if):
+    assert what_if.locator("#what-if-settings .profile__name").count() == 0
+    assert what_if.locator(PROFILES).first.evaluate("(one) => one.clientHeight") > 120
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
