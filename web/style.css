@@ -1122,7 +1122,7 @@ table.runs input.sim { font-style: italic; color: var(--muted); }
    is pointed at, that turns into a box to type the setting the run was really made at. One typed over is the
    reader's own: in ink, with a dotted rule under it. */
 table.runs button.setting {
-  min-width: 3em; padding: 2px 4px; border: none; border-radius: var(--corner); background: none; color: inherit;
+  padding: 2px 0; border: none; border-radius: var(--corner); background: none; color: inherit;
   font: inherit; font-variant-numeric: tabular-nums; text-align: right; cursor: text;
 }
 table.runs button.setting:hover { text-decoration: underline dotted; }

@@ -2894,7 +2894,8 @@ function renderRuns() {
   const colUnits = d.columns.map((c) => words[c]?.units ?? factorUnits[c] ?? "");
   const terms = { "Std order": "std-order", "Run order": "run-order", Block: "blocks", [CONFIRMATION]: "confirmation-run" };
   renderTable(t, headings, rows, "Run order", colUnits, terms);
-  t.onclick = (e) => {
+  // On the body, which each drawing of the table makes anew: the table's own presses sort it by a heading.
+  t.tBodies[0].onclick = (e) => {
     const button = e.target.closest("button.setting");
     if (button) editSetting(button);
   };
