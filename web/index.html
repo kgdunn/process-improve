@@ -469,6 +469,9 @@
 
           <p class="actions">
             <button type="button" id="generate" class="primary" disabled>Make the run sheet</button>
+            <!-- A practice round (app.js practiceRound): the run sheet made, its results simulated from a known
+                 process, and Learn opened on them, so the reader sees what the plan can tell before a run is spent. -->
+            <button type="button" id="practice-round" class="button" disabled>Do a practice round</button>
             <span id="plan-note" class="hint" hidden></span>
           </p>
         </div>
@@ -626,6 +629,11 @@
 
       <section id="step-analyse" class="pane" data-pane="learn" role="tabpanel" aria-labelledby="h-analyse" hidden>
         <h2 id="h-analyse">What the results say</h2>
+        <!-- Over a practice round's analysis (app.js renderPracticeRound): that the app made up every result, and
+             the way on. -->
+        <p id="practice-note" class="hint practice-note" role="status" hidden>A practice round: the app made up every
+          result here, to show what this plan can and cannot tell you. No run has been made.
+          <button type="button" id="practice-over" class="link">Clear them and do the real runs</button></p>
         <p id="analyse-empty" class="hint">No results yet: enter them in <button type="button" class="link" data-go="run">Run</button>, or practise with simulated ones.</p>
         <!-- With several responses, a tab each: the analysis below is of the one chosen, with its own model. -->
         <div id="response-picker" class="picker" role="tablist" aria-label="The response analysed" hidden></div>
