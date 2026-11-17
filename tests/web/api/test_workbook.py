@@ -286,12 +286,13 @@ def test_the_study_a_study_builds_on_goes_through_the_workbook(api, held, simula
     "built_on",
     [
         "round-1",
+        ["round-1"],
         [{"id": ""}],
         [{"id": "round-1", "sha256": "abc"}],
         [{"id": "round-1", "title": "two\nlines"}],
         [{"id": f"round-{i}"} for i in range(5)],
     ],
-    ids=["not a list", "no id", "no digest", "a title of two lines", "too many"],
+    ids=["not a list", "a name where a study goes", "no id", "no digest", "a title of two lines", "too many"],
 )
 def test_a_study_built_on_that_the_page_did_not_write_is_refused(api, held, simulated, built_on):
     said = api.error("api_workbook", {**held, "responses": simulated["responses"], "builds_on": built_on})
