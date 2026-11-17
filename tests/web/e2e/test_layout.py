@@ -154,8 +154,11 @@ def test_a_desktop_shows_every_design_of_the_detailed_comparison(page):
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 1280, "height": 900}}])
-def test_the_study_bar_stays_in_view_and_names_the_study(page):
+def test_the_bar_stays_in_view_and_the_page_under_it_names_the_study(page):
     page.click("#go-learn")
+    name, bar = box(page, "#study-button"), box(page, "#studybar")
+    assert name["y"] >= bar["y"] + bar["height"], "the study's name heads the page, under the bar"
+    assert name["y"] <= box(page, "#workspace")["y"], "over the study"
     page.mouse.wheel(0, 2000)
     page.wait_for_function("window.scrollY > 500")
     assert box(page, "#studybar")["y"] == 0, "kept at the top as the page scrolls"
@@ -164,24 +167,24 @@ def test_the_study_bar_stays_in_view_and_names_the_study(page):
     assert page.text_content("#badge-run") == "15 of 15"
 
 
-#: What the bar holds, each as its box when it is drawn: the mark, the name, the study's name, the stages, feedback
-#: and the colour mode.
+#: What the bar holds, each as its box when it is drawn: the mark, the name, the stages, a new study, feedback and
+#: the colour mode.
 BAR = """() => Object.fromEntries(Object.entries({ mark: '.brand__home .mark', name: '.brand__home h1',
-    study: '#study-title', stages: '.phases', feedback: '#feedback', mode: '#mode' }).map(([part, at]) => {
+    stages: '.phases', new: '#bar-new', feedback: '#feedback', mode: '#mode' }).map(([part, at]) => {
   const box = document.querySelector(at).getBoundingClientRect();
   return [part, { top: box.top, bottom: box.bottom, left: box.left, right: box.right, drawn: box.width > 2 }]; }))"""
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 1440, "height": 900}}])
 def test_on_a_laptop_the_bar_is_one_row_no_taller_than_56_px(fresh_page):
-    """The mark, the name, the study, the stages, feedback and the colour mode are one row; the work starts under it."""
+    """The mark, the name, the stages, a new study, feedback and the colour mode are one row; the work is under it."""
     bar = box(fresh_page, "#studybar")
     assert bar["y"] == 0, "the bar opens the page"
     assert bar["height"] <= 56
     parts = fresh_page.evaluate(BAR)
     assert all(part["drawn"] for part in parts.values()), parts
     order = sorted(parts, key=lambda part: parts[part]["left"])
-    assert order == ["mark", "name", "study", "stages", "feedback", "mode"]
+    assert order == ["mark", "name", "stages", "new", "feedback", "mode"]
     assert all(part["top"] >= 0 and part["bottom"] <= bar["height"] for part in parts.values()), "each within the bar"
     # What leads away from the study is beside the stages on a screen this wide.
     links = fresh_page.locator(".studybar__link")
@@ -190,35 +193,56 @@ def test_on_a_laptop_the_bar_is_one_row_no_taller_than_56_px(fresh_page):
     assert all(link.is_visible() for link in links.all())
 
 
+#: Whether the study's name is drawn whole: no letter cut off, and its box within the page's width.
+WHOLE = """() => { const one = document.querySelector('#study-title'), box = one.getBoundingClientRect();
+  const width = document.documentElement.clientWidth;
+  return one.scrollWidth <= one.clientWidth + 1 && box.left >= 0 && box.right <= width; }"""
+LONG_NAME = "Yield of the second reactor after the new catalyst, by temperature, pressure and flow"
+
+
+@pytest.mark.parametrize(
+    "context_options",
+    [{"viewport": {"width": width, "height": 1000}} for width in (390, 744, 1024, 1100, 1200, 1440)],
+    ids=["390", "744", "1024", "1100", "1200", "1440"],
+)
+def test_the_study_s_name_is_read_whole_at_every_width(page):
+    """It heads the page with the page's width. In the bar it was cut short: to "Yiel..." beside the stages."""
+    for font in ("", "body, button { font-family: 'DejaVu Sans', sans-serif !important; font-size: 18px; }"):
+        if font:
+            page.add_style_tag(content=font)
+        assert page.evaluate(WHOLE), "none of the name is cut off"
+        page.evaluate("(name) => { document.querySelector('#study-title').textContent = name; }", LONG_NAME)
+        assert page.evaluate(WHOLE), "nor of a long one, which takes a second row"
+        assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+        page.evaluate("document.querySelector('#study-title').textContent = 'Yield (%), maximise'")
+
+
 @pytest.mark.parametrize(
     "context_options",
     [{"viewport": {"width": width, "height": 1000}} for width in (744, 820, 1024, 1099)],
     ids=["744", "820", "1024", "1099"],
 )
-def test_on_a_tablet_the_bar_is_two_rows_and_the_study_s_name_is_read_whole(page):
-    """A study with results: four stages and their badges. In one row they left the study's name no room at all."""
+def test_on_a_tablet_the_bar_is_two_rows(page):
+    """A study with results: four stages and their badges have a row of their own."""
     parts = page.evaluate(BAR)
     assert all(part["drawn"] for part in parts.values()), parts
-    assert parts["study"]["bottom"] <= parts["stages"]["top"], "the study's name is over the stages"
-    title = page.locator("#study-title")
-    assert title.evaluate("(one) => one.scrollWidth <= one.clientWidth"), "none of the name is cut off"
-    caret = page.locator(".study__caret").bounding_box()
-    assert caret["y"] + caret["height"] <= parts["stages"]["top"], "the menu's mark is not over a stage"
+    assert parts["new"]["bottom"] <= parts["stages"]["top"], "a new study is over the stages"
+    assert page.text_content("#bar-new .studybar__new-words") == "New study"
+    assert page.locator("#bar-new .studybar__new-words").bounding_box()["width"] > 40, "in words, at every width"
     assert box(page, "#studybar")["height"] <= 100
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
-    # In a wider font too: the name keeps its width, and the feedback button gives up its words first.
     page.add_style_tag(content="body, button { font-family: 'DejaVu Sans', sans-serif !important; font-size: 18px; }")
-    assert title.evaluate("(one) => one.scrollWidth <= one.clientWidth"), "nor in a wider font"
-    assert page.evaluate(BAR)["study"]["bottom"] <= page.evaluate(BAR)["stages"]["top"], "and still over the stages"
+    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth"), "wider font"
+    assert page.evaluate(BAR)["new"]["bottom"] <= page.evaluate(BAR)["stages"]["top"], "and still over the stages"
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
-def test_on_a_phone_the_bar_is_two_rows_the_study_s_name_over_the_stages(fresh_page):
-    """The name "Factorial" is read out and not drawn there, so the study's name has the first row."""
+def test_on_a_phone_the_bar_is_two_rows_a_new_study_over_the_stages(fresh_page):
+    """The name "Factorial" is read out and not drawn there."""
     parts = fresh_page.evaluate(BAR)
     assert not parts["name"]["drawn"]
     assert fresh_page.get_attribute(".brand__home", "aria-label") == "Factorial: the home page", "the mark says so"
-    assert parts["study"]["bottom"] <= parts["stages"]["top"], "the study's name is over the stages"
+    assert parts["new"]["bottom"] <= parts["stages"]["top"], "a new study is over the stages"
     assert parts["mode"]["bottom"] <= parts["stages"]["top"]
     assert box(fresh_page, "#studybar")["height"] <= 100
     assert fresh_page.locator(".studybar__link:visible").count() == 0, "the links away are in the menu and the footer"

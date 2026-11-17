@@ -9042,7 +9042,7 @@ $("#library-close").onclick = () => $("#library").close();
 closeOnBackdrop($("#library"));
 
 /**
- * The study's name in the bar opens a list: the ways in (a new study, the studies kept here, the worked example, a
+ * The study's name, at the head of the page, opens a list: the ways in (a new study, the studies kept here, the worked example, a
  * table of the reader's own, the catalog), then what is done with the study on the page. It is a list of buttons
  * under a button, which Tab walks. A choice, Escape, a press elsewhere and Tab out of the list each close it.
  */
@@ -9074,7 +9074,6 @@ $(".study").addEventListener("keydown", (e) => {
 });
 // Safari gives a pressed button no focus, so a press on the list is not taken for focus that left it.
 $(".study").addEventListener("focusout", (e) => {
-  // The button for a new study shares the menu's box, and is no part of the menu: focus that goes to it has left.
   const within = e.relatedTarget?.closest("#study-menu, #study-button");
   if (e.relatedTarget && !within) studyMenu(false);
 });

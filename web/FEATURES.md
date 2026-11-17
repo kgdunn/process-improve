@@ -657,10 +657,11 @@ Also:
 
 *On a phone or at a desk, in light or dark, with nothing held back.*
 
-- **Three steps, one page.** One bar at the top holds the name, the study and Design, Run and
-  Learn, each marked with how far it has got. It stays in view as the page scrolls.
-- **A new study in one press.** The bar has a button for it beside the study's name, on every
-  stage. On a screen narrower than 1340 px it is a plus.
+- **Four stages, one page.** One bar at the top holds Design, Run, Learn and Next, each marked
+  with how far it has got. It stays in view as the page scrolls.
+- **The study's name heads the page.** It is under the bar, with the page's width, so a long
+  name is read whole on a phone and on a desk.
+- **A new study in one press.** The bar has a button for it, in words, on every stage.
   - *Details:* The bar is one row on a desk, about 50 px tall, and two on a phone. A line
     under it says what the app is doing. That line is no part of the bar, so neither the bar
     nor the page moves when it comes and goes. An error stays, in room of its own.
@@ -703,7 +704,7 @@ Also:
 - **Your numbers in ink.** What you typed or measured is in blue ink. What Factorial worked
   out is in print.
   - *Details:* A simulated result is grey and in italics, as pencil, until you type over it.
-- **One menu holds every way in.** The study's name in the bar opens it: a new study, your
+- **One menu holds every way in.** The study's name opens it: a new study, your
   studies, the worked example, data you have, and the design catalog. It also shares the
   study and shows its report.
   - *Details:* The menu is a list of buttons under a button. Tab walks it, and a choice,
