@@ -463,7 +463,9 @@ def test_the_button_says_as_much_as_the_header_has_room_for(context, site, where
     page.goto(f"{site}{where}")
     page.wait_for_selector("#feedback")
     said = []
-    for width in range(320, 1281, 8):
+    # Up to a wide laptop's window: with four stages in the app's bar, the longest words need more than 1280 px in a
+    # wide font.
+    for width in range(320, 1441, 8):
         page.set_viewport_size({"width": width, "height": 800})
         words = page.evaluate(WORDS)
         assert words["named"] == (words["read"] or SHORT), f"one name, the words on show, at {width} px: {words}"
