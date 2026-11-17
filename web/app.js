@@ -1312,7 +1312,11 @@ function showType(tr, type) {
   const categorical = type === CATEGORICAL;
   const units = box(tr, "units");
   box(tr, "categorical").checked = categorical;
-  tr.querySelector(".switch__text").textContent = categorical ? "Categorical" : "Numeric";
+  // Written only when they change. Safari sends no click when the words under the pointer are written again between
+  // the press and the release, and leaving a factor's name does that: the switch then took a second press.
+  const words = categorical ? "Categorical" : "Numeric";
+  const text = tr.querySelector(".switch__text");
+  if (text.textContent !== words) text.textContent = words;
   tr.classList.toggle("categorical", categorical);
   const [first, second, third] = [box(tr, "low"), box(tr, "high"), units].map((b) => b.parentElement);
   first.colSpan = categorical ? 3 : 1;
@@ -1363,7 +1367,9 @@ function switchType(tr, type) {
     [low.value, high.value] = tr.dataset[NUMERIC] ? JSON.parse(tr.dataset[NUMERIC]) : START_LEVELS[NUMERIC];
   }
   showType(tr, type);
-  if (type === CATEGORICAL) box(tr, "level").focus();
+  // After the press is over: Safari gives the keyboard to the switch as the press ends, and would take it back from
+  // the box for the next level.
+  if (type === CATEGORICAL) setTimeout(() => box(tr, "level").focus());
 }
 
 /** Whether a factor still needs something before Python can take it, said or not yet said. */
@@ -8953,6 +8959,9 @@ const labelBox = (target) => target.matches('[name="name"], [name="units"]');
 $("#factors").addEventListener("input", (e) => {
   if (labelBox(e.target)) {
     showMakeable(showFactorProblems());
+    // The question is read back as it is typed. Were it to change only when the box is left, its line could come or
+    // grow at that moment and move the page under the press that left the box: Safari then sends that press nowhere.
+    renderQuestion();
     saveDraft();
   } else {
     factorsChanged();

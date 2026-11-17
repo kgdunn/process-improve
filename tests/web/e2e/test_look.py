@@ -208,3 +208,14 @@ def test_a_slider_is_drawn_by_the_page_a_thin_line_and_a_round_handle_in_the_acc
     line = max(set(row), key=row.count)
     assert row.count(line) > 0.6 * len(row), "one line for the range, under the handle"
     assert not near(line, accent), "and the line is not the handle's colour"
+
+
+def test_a_choice_in_the_feedback_form_is_a_round_point_not_a_sliver(page):
+    """A later rule for ticked boxes gave these points no width: each was 4 px wide and 18 px tall."""
+    page.click("#feedback")
+    points = page.locator("dialog.feedback input[type=radio]")
+    assert points.count() >= 3
+    sizes = points.evaluate_all(
+        "(all) => all.map((one) => { const box = one.getBoundingClientRect(); return [box.width, box.height]; })"
+    )
+    assert sizes == [[18, 18]] * len(sizes)
