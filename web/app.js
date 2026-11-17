@@ -3298,7 +3298,7 @@ async function downloadNotebook() {
 const REPORT_STEPS = ["design", "run", "analyse", "best", "balance"];
 
 /** What a report's copy of the page leaves out: what is there to use the page, and what the page hides. */
-const NOT_REPORTED = "[hidden], button:not(.term), input, select, textarea, details.python, .actions, .kept__do, .rounds__open, figure.chart, .simplify, .findings__more, svg.space";
+const NOT_REPORTED = "[hidden], button:not(.term), input, select, textarea, details.python, .actions, .kept__do, .rounds__open, figure.chart, .simplify, .findings__more, svg.space, .answer__where";
 
 /**
  * The attributes a report's copy keeps: those that say how a cell spans, where a link goes, how a part looks, and
@@ -4041,6 +4041,45 @@ function spaceOf(made, planned, factors, words) {
     svg.append(label);
   }
   return svg;
+}
+
+/** The runs of a design's sheet, each as its settings by the columns' names, for spacePoints. */
+const sheetRuns = (design) => design.rows.map((row) => Object.fromEntries(design.columns.map((name, j) => [name, Number(row[j])])));
+
+/**
+ * Where the best settings sit, as pictures for Learn's answer: for a study of two or three numeric factors, the
+ * settings as a filled point among the runs made (spaceOf); then a line a numeric factor, from the low end of its
+ * range to the high, with the setting as a point on it. Nothing for a study with no numeric factor.
+ */
+function answerPictures(best, design) {
+  const factors = design.spec.factors;
+  const numeric = best.settings.filter((s) => s.kind === "numeric" && Number.isFinite(s.coded));
+  const ranged = numeric.map((s) => [s, factors.find((f) => f.name === s.name)]).filter(([, f]) => f);
+  if (!ranged.length) return [];
+  const parts = [];
+  if ([2, 3].includes(factors.length) && ranged.length === factors.length) {
+    const words = `Where these settings sit among the runs made, over ${listNames(factors.map((f) => f.name))}: the filled point.`;
+    const at = factors.map((f) => ranged.find(([s]) => s.name === f.name)[0].coded);
+    parts.push(spaceOf(spacePoints(sheetRuns(design), factors), [at], factors, words));
+  }
+  const tracks = el("ul", "tracks", "");
+  for (const [setting, f] of ranged) {
+    const words = `${f.name} = ${num(setting.value)}, in a range from ${num(f.low)} to ${num(f.high)}`;
+    const line = svgEl("svg", { class: "track", viewBox: "0 0 120 12", role: "img", "aria-label": words });
+    line.append(
+      svgEl("line", { class: "space__edge", x1: 6, y1: 6, x2: 114, y2: 6 }),
+      svgEl("line", { class: "space__edge", x1: 6, y1: 2, x2: 6, y2: 10 }),
+      svgEl("line", { class: "space__edge", x1: 114, y1: 2, x2: 114, y2: 10 }),
+      svgEl("circle", { class: "space__new", cx: (60 + 54 * setting.coded).toFixed(1), cy: 6, r: 4.5 }),
+    );
+    const row = el("li", "", "");
+    const ends = [f.low, f.high].map((end) => el("span", "tracks__end", num(end)));
+    for (const end of ends) end.setAttribute("aria-hidden", "true");
+    row.append(el("span", "tracks__name", f.name), ends[0], line, ends[1]);
+    tracks.append(row);
+  }
+  parts.push(tracks);
+  return parts;
 }
 
 /** Whether the numbers behind the findings are shown beside them: the reader's choice, for as long as the page is open. */
@@ -5089,6 +5128,7 @@ function renderAnswer() {
     share: wholeShare,
   };
   renderChecks(shown ? learnChecks(state.analysis, best, tell, { blend }) : []);
+  $("#answer-where").replaceChildren(...(said && !blend ? answerPictures(best, state.design) : []));
   if (box.hidden) return;
   $("#answer-run").textContent = said ? said.run : first;
   $("#answer-expect").textContent = said?.expect ?? "";
@@ -7364,7 +7404,7 @@ function offerRuns(offer) {
   const fold = el("details", "next__runs", "");
   fold.append(el("summary", "", `See these ${offer.added.length} runs before they are made`));
   if ([2, 3].includes(factors.length) && !factors.some(isCategorical)) {
-    const sheet = design.rows.map((row) => Object.fromEntries(design.columns.map((name, j) => [name, Number(row[j])])));
+    const sheet = sheetRuns(design);
     const words = `Where these runs sit among the runs made, over ${listNames(factors.map((f) => f.name))}: a filled point is a run to add.`;
     fold.append(spaceOf(spacePoints(sheet, factors), spacePoints(offer.added, factors), factors, words));
   }
