@@ -624,7 +624,7 @@ ALPHAS = ("face_centered", "rotatable", "orthogonal")
 #: no term names has no effect. ``None`` draws the process at random from the seed.
 SCENARIOS: dict[str, dict[str, Any]] = {
     "reactor": {
-        "label": "Reactor yield",
+        "label": "A typical process",
         "hint": "Two strong main effects, an interaction between them, and curvature in the third factor.",
         "terms": {(): 62.0, (0,): 4.0, (1,): -3.1, (2,): 1.75, (0, 1): 1.5, (2, 2): -2.25},
         "sigma": 1.0,

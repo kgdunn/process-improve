@@ -235,7 +235,7 @@ Also:
   known, to see whether the analysis finds it. You set the noise, simulate again for new noise,
   and show the true process when you want it.
   [Show me](https://factori.al/?example=worked&show=panel-simulate)
-  - *Details:* Six processes with a known true model: Reactor yield, Main effects only, An
+  - *Details:* Six processes with a known true model: A typical process, Main effects only, An
     interaction, A maximum inside the ranges, Nothing active, and A random process. A mixture
     has one of its own (a synergy and an antagonism).
 - **A whole curve as a result.** A response that is a curve at each run, such as a spectrum

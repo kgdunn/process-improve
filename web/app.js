@@ -1698,19 +1698,25 @@ function setDesignForm(spec) {
  * and its aim in the form, with its runs in all and the runs it adds. The step the form stands on is pressed. A
  * mixture, a categorical factor or another number of factors has no ladder: the list of designs is theirs.
  */
-function renderLadder() {
+/** The steps of the ladder for the factors as they are, and the key of the step the form is on, or null. */
+function ladderNow() {
   const factors = readFactors();
   const steps = mixturePlanned() || factors.some(isCategorical) ? [] : ladderSteps(factors.length);
-  $("#ladder").hidden = !steps.length;
-  if (!steps.length) {
-    $("#ladder-steps").replaceChildren();
-    return;
-  }
   const on = ladderStepOf(steps, {
     design_type: $("#design-type").value,
     n_center_points: Number($("#n_center_points").value),
     resolution: Number($("#resolution").value),
   });
+  return { steps, on };
+}
+
+function renderLadder() {
+  const { steps, on } = ladderNow();
+  $("#ladder").hidden = !steps.length;
+  if (!steps.length) {
+    $("#ladder-steps").replaceChildren();
+    return;
+  }
   const items = steps.map((step) => {
     const button = el("button", "ladder__step", "");
     button.type = "button";
@@ -2453,6 +2459,7 @@ function candidateList(c, current) {
   ].filter(([kind]) => rows.some((r) => r.power[kind] !== null));
   const fitting = rows.filter((r) => r.fits);
   const parts = [];
+  let stepped = null; // the runs of the ladder step in force, when its row shows them in place of the table's own
   if (fitting.length) {
     const t = el("table", "data pick", "");
     const info = readResponseInfo();
@@ -2495,7 +2502,14 @@ function candidateList(c, current) {
     const thead = el("thead", "", "");
     thead.append(head, ...(kinds.length ? [sub] : []));
     const tbody = el("tbody", "", "");
-    for (const r of fitting) {
+    // The table compares each design as Design first makes it, with its center points. The step of the ladder the
+    // reader is on has runs of its own, so its design's row shows those: the two never disagree on the runs chosen.
+    const { steps, on } = ladderNow();
+    const step = steps.find((one) => one.key === on);
+    for (const listed of fitting) {
+      const mine = step && listed.design_type === $("#design-type").value && step.runs !== listed.runs;
+      const r = mine ? { ...listed, runs: step.runs, spare: listed.spare - (listed.runs - step.runs), power: {} } : listed;
+      if (mine) stepped = step.runs;
       const tr = el("tr", "", "");
       tr.dataset.design = r.design_type;
       const name = el("td", "", "");
@@ -2509,7 +2523,7 @@ function candidateList(c, current) {
       label.append(radio, term(r.label, { definition: designHint(r.design_type), concept }));
       name.append(label);
       tr.append(name, el("td", "", String(r.runs)), el("td", r.spare < SPARE_FOR_NOISE ? "low" : "", String(r.spare)));
-      for (const [kind] of kinds) tr.append(el("td", "", percent(r.power[kind])));
+      for (const [kind] of kinds) tr.append(el("td", "", kind in r.power ? percent(r.power[kind]) : ""));
       if (leads) tr.append(el("td", "stands", (best[r.design_type] ?? []).map((b) => b.words).join(", ")));
       if (current) tr.onclick = () => pickDesign(r.design_type);
       tbody.append(tr);
@@ -2518,6 +2532,9 @@ function candidateList(c, current) {
     const wrap = el("div", "scroll", "");
     wrap.append(t);
     parts.push(wrap);
+    if (stepped !== null) {
+      parts.push(el("p", "hint stepped", `Your design's row shows the ${stepped} runs of the step you chose above. The other designs are listed as Design first makes them, and the table has no power for your step.`));
+    }
   }
   const picked = designChosen ? "" : pickSentence(rows, $("#design-type").value);
   if (picked) parts.push(el("p", "hint picked", picked));

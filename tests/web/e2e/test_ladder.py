@@ -72,3 +72,21 @@ def test_the_ladder_is_for_two_to_five_numeric_factors(blank_page, names, count)
     set_factors(blank_page, factors_named(*names))
     assert blank_page.locator(STEPS).count() == count
     assert blank_page.is_visible("#ladder") == (count > 0)
+
+
+def test_the_table_s_row_for_the_step_chosen_shows_the_step_s_runs(blank_page):
+    """The table lists each design with its center points. A step without them said 4 runs over a row of 7."""
+    page = blank_page
+    set_factors(page, factors_named("Temp", "Solvent"))
+    page.click('#ladder-steps button[data-step="corners"]')
+    settled(page)
+    step = page.text_content('#ladder-steps button[data-step="corners"] .ladder__runs')
+    row = page.locator('#candidates tr[data-design="full_factorial"] td')
+    assert step == "4 runs"
+    assert row.nth(1).text_content() == "4", "the runs of the step chosen"
+    assert row.nth(2).text_content() == "0", "and its spare runs"
+    assert "shows the 4 runs of the step you chose" in page.text_content("#candidates .stepped")
+    page.click('#ladder-steps button[data-step="center"]')
+    settled(page)
+    assert row.nth(1).text_content() == "7", "the table's own row: the step is the design as first made"
+    assert page.locator("#candidates .stepped").count() == 0
