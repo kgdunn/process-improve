@@ -735,7 +735,8 @@ Also:
   Improvement using Data* (<https://learnche.org/pid>). A defined word leads there by way of
   its idea in the concept map. The book opens in one tab beside the app, and a later link goes
   to that tab.
-- **The worked example.** It opens at once, and can be run again in the tab.
+- **The worked example.** It opens at once, and can be run again in the tab. Its banner has
+  a button, "Start my own study", for a reader sent a link to it.
   - *Details:* A reactor's yield, studied over Temperature, Pressure and Flow in the 15 runs
     of a Box-Behnken design.
 - **Practice on a known process.** It shows the true model beside the fitted one.

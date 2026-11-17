@@ -8861,6 +8861,9 @@ $("#welcome-start").onclick = () => {
 $("#welcome-example").onclick = () => $("#show-example").click();
 $("#welcome-import").onclick = () => $("#import-data").click();
 $("#run-example").onclick = runExample;
+// A reader sent a link to the worked example lands in its results, far from the menu: the way to a study of their own
+// is in the example's own banner.
+$("#example-new").onclick = () => $("#new-study").click();
 // A press always changes the results: the first simulates them, and one more draws new noise for the same
 // process. With the seed as it was, a second press gave the same results, and looked as if it did nothing.
 $("#simulate").onclick = () => {

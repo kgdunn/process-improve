@@ -344,3 +344,21 @@ def test_a_mixture_goes_from_its_components_to_its_best_blend(fresh_page):
     name, html = download_report(page)
     assert name.endswith("-report.html")
     assert "Gloss" in opened(page, html).text_content("h1")
+
+
+@pytest.mark.parametrize(
+    "context_options",
+    [{"viewport": {"width": 1280, "height": 800}}, {"viewport": {"width": 390, "height": 844}, "is_mobile": True}],
+    ids=["a laptop", "a phone"],
+)
+def test_a_reader_sent_the_worked_example_sees_how_to_start_a_study_of_their_own(page):
+    """A link to the example lands in its results: the way to a new study is on the first screen, not in a menu."""
+    start = page.locator("#example-new")
+    assert start.text_content() == "Start my own study"
+    box = start.bounding_box()
+    assert box["y"] + box["height"] < page.viewport_size["height"], "on the first screen"
+    start.click()
+    assert page.get_attribute("#workspace", "data-phase") == "plan"
+    assert page.is_hidden("#demo-banner"), "the example has gone"
+    assert page.input_value("#response") == ""
+    assert page.evaluate("document.activeElement.id") == "response", "at the first thing to say"
