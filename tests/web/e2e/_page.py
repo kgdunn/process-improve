@@ -14,8 +14,6 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
-
 #: The <select>s of the form; every other setting is an <input>.
 SELECTS = {
     "design-type",
@@ -246,11 +244,12 @@ def generate(page: Any, **settings: object) -> None:  # noqa: ANN401
     )
     page.click("#generate")
     if entered:
-        try:
-            page.wait_for_selector("#replace-dialog[open]", timeout=2000)
-            page.click("#replace-go")
-        except PlaywrightTimeoutError:
-            pass  # the design is unchanged: the sheet and its results stay
+        # Waited for by the clock, with no Playwright name: the jobs without Playwright import this module too.
+        deadline = time.monotonic() + 2
+        while page.is_hidden("#replace-dialog") and time.monotonic() < deadline:
+            page.wait_for_timeout(25)
+        if page.is_visible("#replace-dialog"):
+            page.click("#replace-go")  # else the design is unchanged: the sheet and its results stay
     settled(page)
 
 
