@@ -156,6 +156,12 @@ Also:
     runs of the one before; the last is a face-centered central composite design. A press
     sets the design and the aim. Two factors have no half. A categorical factor, a mixture,
     or six factors or more keep the list of designs.
+- **Do a practice round first.** One press in Design makes the run sheet, fills it with
+  results the app makes up from a process whose true behaviour is known, and opens Learn on
+  them. You see what the plan can and cannot tell you before a run is spent.
+  - *Details:* Learn says it is a practice round and that no run has been made. One press
+    clears the made-up results and leads to the run sheet, for the real ones. A result you
+    type ends the note.
 - **Say what you know already, if you like.** The typical value, how much results vary from
   run to run, and the smallest change worth finding. The app then says how likely each
   design is to find that change.

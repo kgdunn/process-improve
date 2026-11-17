@@ -589,6 +589,7 @@ const state = {
   models: {}, // the model each response is analysed with, by its column, as modelChoice gives one
   simulation: null, // what api_simulate returned: the true process, its noise and seed
   practising: false, // the reader chose to practise with simulated results
+  practiceRound: false, // the results on the page are a practice round's: simulated by one press in Design
   analysis: null,
   contourPairs: {}, // for a response's column, the two factors the reader chose to draw its surface over: else the largest two
   moreCharts: false, // whether "More charts" is open
@@ -1992,6 +1993,7 @@ function pickCell(runs) {
 function showMakeable(unready) {
   const fits = !$("#design-type").selectedOptions[0].disabled; // the design takes this many factors, of these kinds
   $("#generate").disabled = !pythonReady || !fits || unready || factorCount() < 1 || limitsUnready() || responsesUnready;
+  $("#practice-round").disabled = $("#generate").disabled;
 }
 
 /**
@@ -3085,6 +3087,7 @@ function renderOffPlan() {
 
 function resultsChanged() {
   renderRunDone();
+  renderPracticeRound();
   describeSource();
   renderTruth();
   showResultsCode();
@@ -3114,6 +3117,40 @@ function sayLearnEmpty(text) {
   run.type = "button";
   run.dataset.go = "run";
   note.replaceChildren(text.slice(0, at + 4), run, text.slice(at + 7));
+}
+
+/**
+ * A practice round of the plan: make its run sheet, simulate its results from the process Run's practice panel holds,
+ * and open Learn on them. The reader sees what the plan can and cannot tell before a run is spent. The study is then
+ * as one practised on: Learn says it is a practice round until a result is typed or the simulated ones are cleared.
+ */
+async function practiceRound() {
+  if (!(await generate())) return;
+  selectTab("simulate");
+  await simulateResults();
+  state.practiceRound = true;
+  showPhase("learn");
+  renderPracticeRound();
+}
+
+/** Clear a practice round's simulated results and go to the run sheet, to make the runs for real. */
+function endPracticeRound() {
+  const names = resultNames();
+  state.results = noResults(names, state.design.rows.length);
+  state.marks = noResults(names, state.design.rows.length);
+  state.setAside = {};
+  state.practiceRound = false;
+  selectTab("real");
+  clearAnalysis();
+  renderRuns();
+  resultsChanged();
+  showPhase("run");
+  $("#tab-real").focus();
+}
+
+/** Learn says it shows a practice round while every result is one the practice round simulated. */
+function renderPracticeRound() {
+  $("#practice-note").hidden = !(state.practiceRound && state.design && anyResult(state.results) && allSimulated());
 }
 
 /** The run sheet's run numbers, in its order: its Run order column, or 1, 2, ... for runs as given without one. */
@@ -7854,6 +7891,7 @@ function newStudy() {
     picked: null,
     campaign: null,
     example: false,
+    practiceRound: false,
     widened: false,
     buildsOn: [],
   });
@@ -8340,6 +8378,7 @@ async function openCampaign(c, record, message, resume = false) {
   $("#demo-banner").hidden = true;
   setForm(c.design.spec);
   const left = stageLeft(record.id);
+  state.practiceRound = false;
   state.campaign = { ...record, title: c.title || titleOf(c.design.spec), ...(c.source ? { source: c.source } : {}) };
   state.design = { ...c.design, ...(c.planned ? { planned: structuredClone(c.planned) } : {}) };
   state.planKey = planKey();
@@ -9028,6 +9067,8 @@ $("#generate").onclick = async () => {
   if ((await generate()) && state.practising) await simulateResults();
 };
 $("#remake").onclick = $("#generate").onclick;
+$("#practice-round").onclick = practiceRound;
+$("#practice-over").onclick = endPracticeRound;
 $("#restore-plan").onclick = () => {
   setForm(state.design.spec);
   state.planKey = planKey();
