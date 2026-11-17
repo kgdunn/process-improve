@@ -377,7 +377,7 @@ def test_a_reader_sent_the_worked_example_sees_how_to_start_a_study_of_their_own
     ids=["a laptop", "a phone"],
 )
 def test_a_new_study_is_one_press_away_on_every_stage(page):
-    """The bar has its own button for it, beside the study's name: the menu is no longer the only way."""
+    """The bar has its own button for it, in words: the menu is no longer the only way."""
     for stage in ("plan", "run", "learn", "next"):
         page.click(f"#go-{stage}")
         assert page.is_visible("#bar-new"), stage

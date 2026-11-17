@@ -67,7 +67,7 @@
 <body>
 <a class="skip-link" href="#workspace">Skip to the study</a>
 <main>
-  <!-- The bar: the mark and the name, the study's name and its three phases, feedback and the colour mode, kept in
+  <!-- The bar: the mark and the name, the study's stages, a new study, feedback and the colour mode, kept in
        reach while the page scrolls, with the status line under them. -->
   <nav id="studybar" class="studybar" aria-label="Factorial, and the study">
     <div class="studybar__row">
@@ -83,37 +83,15 @@
         </svg>
         <h1>Factorial</h1>
       </a>
-      <!-- The study's name opens the ways in and what is done with the study (app.js studyMenu): a list of buttons
-           and links shown under a button, which the keyboard reaches with Tab and leaves with Escape. -->
-      <div class="study">
-        <button type="button" id="study-button" class="study__button" aria-expanded="false" aria-controls="study-menu"
-          title="Your studies, and what to do with this one">
-          <span class="studybar__title"><span id="study-title">A new study</span> <span id="study-about"></span></span>
-          <svg class="study__caret" viewBox="0 0 10 10" aria-hidden="true" focusable="false"><path d="M1.5 3.5 5 7l3.5-3.5"/></svg>
-        </button>
-        <ul id="study-menu" class="study__menu" aria-label="Studies, and this study" hidden>
-          <li><button type="button" id="new-study">New study</button></li>
-          <li><button type="button" id="open-library">Your studies <span id="library-count" class="badge">0</span></button></li>
-          <li><button type="button" id="show-example">Open the worked example</button></li>
-          <!-- A table of the reader's own, made into a study (import.js): a design run elsewhere, or a process's records. -->
-          <li><button type="button" id="import-data">Analyse data you have</button></li>
-          <li><a href="catalog/" id="catalog-link">Browse the design catalog</a></li>
-          <li class="study__rule" role="separator"></li>
-          <li><button type="button" id="menu-share">Share or download this study</button></li>
-          <li><button type="button" id="menu-report">View its report</button></li>
-        </ul>
-        <!-- A new study, in sight on every stage: the menu's first entry, one press away (app.js). It follows the
-             menu here, so Tab walks the menu's entries before it; the row draws it beside the study's name. On a tablet or a phone
-             it is the plus alone, with its words read out. -->
-        <button type="button" id="bar-new" class="studybar__new" title="Start a new study"><span class="studybar__plus"
-          aria-hidden="true">+</span><span class="studybar__new-words">New study</span></button>
-      </div>
       <div class="phases" role="tablist" aria-label="Design, run, learn, next">
         <button type="button" role="tab" id="go-plan" aria-controls="step-plan" aria-selected="true"><span class="step">1</span> Design<span id="badge-plan" class="badge" hidden></span></button>
         <button type="button" role="tab" id="go-run" aria-controls="step-run" aria-selected="false" tabindex="-1"><span class="step">2</span> Run<span id="badge-run" class="badge" hidden></span></button>
         <button type="button" role="tab" id="go-learn" aria-controls="step-analyse" aria-selected="false" tabindex="-1"><span class="step">3</span> Learn<span id="badge-learn" class="badge" hidden></span></button>
         <button type="button" role="tab" id="go-next" aria-controls="step-next" aria-selected="false" tabindex="-1"><span class="step">4</span> Next<span id="badge-next" class="badge" hidden></span></button>
       </div>
+      <!-- A new study, in sight on every stage: the menu's first entry, one press away (app.js). -->
+      <button type="button" id="bar-new" class="studybar__new" title="Start a new study"><span class="studybar__plus"
+        aria-hidden="true">+</span><span class="studybar__new-words">New study</span></button>
       <!-- What leads away from the study, on a wide screen: both are in the footer on every screen. -->
       <a class="studybar__link" href="catalog/">Design catalog</a>
       <a class="studybar__link" href="about.html">How it works</a>
@@ -170,6 +148,28 @@
       <li>Works without internet</li>
     </ul>
   </section>
+
+  <!-- The study's name heads the page, under the bar, where it has the width to be read whole. It opens the ways
+       in and what is done with the study (app.js studyMenu): a list of buttons and links shown under a button,
+       which the keyboard reaches with Tab and leaves with Escape. -->
+  <div class="study">
+    <button type="button" id="study-button" class="study__button" aria-expanded="false" aria-controls="study-menu"
+      title="Your studies, and what to do with this one">
+      <span class="studybar__title"><span id="study-title">A new study</span> <span id="study-about"></span></span>
+      <svg class="study__caret" viewBox="0 0 10 10" aria-hidden="true" focusable="false"><path d="M1.5 3.5 5 7l3.5-3.5"/></svg>
+    </button>
+    <ul id="study-menu" class="study__menu" aria-label="Studies, and this study" hidden>
+      <li><button type="button" id="new-study">New study</button></li>
+      <li><button type="button" id="open-library">Your studies <span id="library-count" class="badge">0</span></button></li>
+      <li><button type="button" id="show-example">Open the worked example</button></li>
+      <!-- A table of the reader's own, made into a study (import.js): a design run elsewhere, or a process's records. -->
+      <li><button type="button" id="import-data">Analyse data you have</button></li>
+      <li><a href="catalog/" id="catalog-link">Browse the design catalog</a></li>
+      <li class="study__rule" role="separator"></li>
+      <li><button type="button" id="menu-share">Share or download this study</button></li>
+      <li><button type="button" id="menu-report">View its report</button></li>
+    </ul>
+  </div>
 
   <div id="demo-banner" class="banner" hidden>
     <p>The worked example, computed with <span id="demo-version">process-improve</span>

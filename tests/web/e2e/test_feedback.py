@@ -475,11 +475,11 @@ def test_the_button_says_as_much_as_the_header_has_room_for(context, site, where
             said.append(words["read"])
             rows.append(width)
     # The app's bar has three layouts: two rows up to 1099 px; one row from 1100 px, where the stages share the
-    # button's row; and from 1340 px the links away join that row. The words start again at each: within a layout a
+    # button's row; and from 1200 px the links away join that row. The words start again at each: within a layout a
     # wider window never says less.
     if not where:
         ladder = ["", SHORT, MEDIUM, LONG]
-        edges = [0, 1100, 1340, 10_000]
+        edges = [0, 1100, 1200, 10_000]
         for low, high in pairwise(edges):
             run = [words for words, width in zip(said, rows, strict=True) if low <= width < high]
             assert run == [words for words in ladder if words in run], f"each change says more, from {low} px"
