@@ -1994,6 +1994,9 @@ main.reproduced .trust-section { background: none; border: 0; border-radius: 0; 
 
 /* The concept map (map/index.html, map.js): the ideas of designed experiments, and how the book links them.
    Every class is prefixed map- : the app already styles .card, .chip and .results its own way. */
+/* The concept map keeps the device's own font for now: its names are placed by their measured widths, and two of
+   them meet in Outfit. shortcut: one page off the app's typeface, until the map's names are placed again (#1326). */
+body:has(> main.map) { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
 main.map { max-width: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 /* The text keeps a reading width; the map and the bar under it take the page's whole width, up to 1600 px. */
 main.map > * { width: 100%; max-width: 980px; justify-self: center; box-sizing: border-box; }

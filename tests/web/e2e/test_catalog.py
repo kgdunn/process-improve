@@ -525,7 +525,9 @@ def test_the_map_says_what_a_press_listed_and_leads_to_the_list_where_a_design_o
     counted(page, "2 of 5")
     assert page.text_content("#map-said-text") == "2 listed: Full factorial, 3 factors, 8 runs."
     page.click("#map-list")
-    page.wait_for_function("document.querySelector('.catalog__listhead').getBoundingClientRect().top < innerHeight / 2")
+    # The list ends the page, so it rises as far as the page can scroll: into the window, clear of its foot.
+    head = "document.querySelector('.catalog__listhead').getBoundingClientRect().top"
+    page.wait_for_function(f"{head} < 0.6 * innerHeight")
     first = page.locator("#results .result__title").first
     assert first.evaluate("(title) => title === document.activeElement"), "the first design listed has the focus"
     assert set(shown(page)) == {PILOT, CUBE}
