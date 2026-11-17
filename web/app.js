@@ -391,7 +391,7 @@ const BOOK_PAGES = {
 const $ = (sel) => document.querySelector(sel);
 
 /**
- * A <select> that lists only some of its options at a time: the designs of the reader's level, the models a run
+ * A <select> that lists only some of its options at a time: the designs a study can take, the models a run
  * sheet takes. An <option> cannot be hidden in every browser, since Safari lists it all the same, as a phone's own
  * picker does, so an option the page leaves out is taken out of the list, and put back in its place when it is
  * wanted. Every option the select has, as index.html lists them, is kept here: what is said of an option, and

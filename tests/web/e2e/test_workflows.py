@@ -249,7 +249,14 @@ def test_a_first_visit_has_every_design_and_every_part_of_the_page(blank_page):
     assert len(designs) == 16, "every design the page makes"
     assert {"full_factorial", "dsd", "omars", "d_optimal", "sobol", "extreme_vertices"} <= set(designs)
     assert "given" not in designs, "runs as given are listed once a study has had some"
-    assert page.locator("#design-type optgroup option").count() == 3, "the mixtures, under their heading"
+    groups = page.locator("#design-type optgroup").evaluate_all(
+        "(all) => all.map((one) => [one.label, one.children.length])"
+    )
+    assert groups == [["Most used", 6], ["More designs", 7], ["Mixtures: proportions that sum to 1", 3]]
+    most = page.locator('#design-type optgroup[label="Most used"] option').evaluate_all(
+        "(all) => all.map((one) => one.value)"
+    )
+    assert most == ["full_factorial", "fractional_factorial", "plackett_burman", "dsd", "box_behnken", "ccd"]
     for part in ["#more-responses", "#limits", '[data-option="n_blocks"]']:
         assert page.locator(part).is_visible(), f"{part} is on the page before any study"
 

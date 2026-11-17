@@ -67,6 +67,11 @@ const RULE = /^-{3,}\s*$/;
 const opens = (line) => HEADING.test(line) || RULE.test(line) || ITEM.test(line) || line.startsWith("|");
 
 const DETAIL = /^\s+- \*Details:\* +/;
+/** Whether a part of the document holds a line of details at all. */
+const DETAIL_LINE = /^ +- \*Details:\* /m;
+/** What a part's button says while its details are closed, and while they are open. */
+export const OPEN_DETAILS = "Open the details in this part";
+export const CLOSE_DETAILS = "Close the details in this part";
 /** A point's picture, on a line of its own under it: one of the app's own, in chart-pictures/, and no other address. */
 const PICTURE = /^\s+!\[\]\((chart-pictures\/[a-z0-9_]+\.webp)\)\s*$/;
 /** The size every picture is drawn at (tests/web/e2e/test_chart_pictures.py), so the page keeps its room before it loads. */
@@ -163,9 +168,12 @@ export function page(text) {
     return (
       `<details class="feat-part"><summary><h3 id="${slug(name)}">${inline(name)}</h3>` +
       `${says ? `<span class="feat-says">${inline(says[1])}</span>` : ""}</summary>` +
-      `<div class="feat-body">${markdown(lines.join("\n"))}</div></details>`
+      `<div class="feat-body">${opener(body)}${markdown(lines.join("\n"))}</div></details>`
     );
   };
+  // What opens every point's details is in the part it opens, over its points: a press is seen where it is made.
+  const opener = (body) =>
+    DETAIL_LINE.test(body) ? `<p class="feat-open"><button type="button" class="link" aria-pressed="false">${OPEN_DETAILS}</button></p>` : "";
   const step = (chunk) => {
     const [name, body] = named(chunk);
     const [lead, ...parts] = body.split(/^(?=### )/m);

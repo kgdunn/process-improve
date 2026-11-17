@@ -32,11 +32,8 @@ SEEN = """() => { const all = (s) => [...document.querySelectorAll(s)];
     points: all('.feat-body li, .feat-body tbody tr').filter(drawn).length,
     asks: all('details.more > summary').filter(drawn).length,
     details: all('details.more > p').filter(drawn).length,
-    found: document.querySelector('#found').textContent, says: document.querySelector('#details-says').textContent,
-    switched: document.querySelector('#details').checked }; }"""
+    found: document.querySelector('#found').textContent }; }"""
 
-#: Where the page keeps whether every point's details are open: a key of its own, apart from the app's.
-DETAILS_KEY = "factorial-features-details"
 
 #: Where the concept map keeps its reading level, which this page leaves alone.
 LEVEL_KEY = "factorial-map-level"
@@ -100,8 +97,8 @@ def test_on_a_phone_the_footer_and_the_list_fit_the_screen(page, context, site):
     assert overflowing(listed) == [], "with every part and every line of details open too"
     tables = listed.locator("#features .scroll table")
     assert tables.count() == 2, "the limits and the library's designs, each in a box that scrolls if it must"
-    switch = listed.locator(".feat-details").bounding_box()
-    assert switch["height"] >= 44, "the switch is a row a finger can press"
+    button = listed.locator(".feat-open button").first.bounding_box()
+    assert button["height"] >= 44, "a part's button is a row a finger can press"
 
 
 # --------------------------------------------------------------------------- the page
@@ -145,52 +142,53 @@ def test_an_address_opens_at_its_part_and_one_from_when_the_parts_were_numbered_
     # A link of the list to another of its parts opens that part.
     old.click("#learn-the-method")
     old.click("#features a[href='#more-at-factorial']")
-    old.wait_for_function(AT_TOP, arg="more-at-factorial")
+    # The list's last part: the page ends under it, so it is brought into view and not always to the top.
+    old.wait_for_function(
+        "(id) => { const top = document.getElementById(id).getBoundingClientRect().top;"
+        " return top >= 0 && top < innerHeight - 100; }",
+        arg="more-at-factorial",
+    )
     assert "more-at-factorial" in old.evaluate(SEEN)["open"]
 
 
-def test_a_switch_opens_every_point_s_details_and_the_choice_is_the_page_s_own(context, site):
+def test_a_part_s_own_button_opens_the_details_of_its_points_where_the_press_is_made(context, site):
     page = features(context, site)
-    page.evaluate(f"localStorage.removeItem('{DETAILS_KEY}')")  # as on a first visit: other tests have them open
-    page.reload()
-    page.wait_for_function(SHOWN)
+    assert page.locator("#details").count() == 0, "no switch at the top of the page, far from what it opens"
     page.click("#your-data-and-your-trust")
+    part = page.locator(".feat-part").filter(has=page.locator("#your-data-and-your-trust"))
     first = page.evaluate(SEEN)
-    assert first["switched"] is False, "a first visit has the details closed"
     assert first["asks"] > 8, "each point's details are a press away"
     assert first["details"] == 0, "and none is open"
-    assert first["says"] == "Each point in plain words. Press Details under a point for the rest."
-    page.click(".feat-part[open] details.more >> nth=0 >> summary")
+    part.locator("details.more >> nth=0 >> summary").click()
     assert page.evaluate(SEEN)["details"] == 1
-    said = page.text_content(".feat-part[open] details.more[open] p")
-    assert "no cookies and no tracking script" in said, "what only some readers ask is there for those who do"
+    assert "no cookies and no tracking script" in part.locator("details.more[open] p").text_content()
 
-    page.check("#details")
+    button = part.locator(".feat-open button")
+    assert button.text_content() == "Open the details in this part"
+    top = button.bounding_box()["y"]
+    assert top < part.locator(".feat-body li").first.bounding_box()["y"], "over the points it opens"
+    button.click()
     full = page.evaluate(SEEN)
-    assert page.locator(".feat-part:not([open])").count() == 0, "every part opens, so the press is seen to work"
-    assert full["details"] == full["asks"] > first["asks"], "every line of details is open"
-    assert full["says"] == "Each point in plain words, with its details open."
-    page.uncheck("#details")
-    assert page.evaluate(SEEN)["open"] == ["your-data-and-your-trust"], "the parts the press opened fold again"
-    page.check("#details")
-    assert page.evaluate(f"() => localStorage.getItem('{DETAILS_KEY}')") == "open"
-    page.reload()
-    page.wait_for_function(SHOWN)
-    assert page.is_checked("#details"), "a reload keeps the choice"
-    page.click("#your-data-and-your-trust")
-    assert page.evaluate(SEEN)["details"] == first["asks"]
+    assert full["details"] == full["asks"] == first["asks"], "every line of details in the part is open"
+    assert full["points"] == first["points"], "and the points are the same"
+    assert abs(button.bounding_box()["y"] - top) < 1, "the button has not moved: what it did is under it"
+    assert (button.text_content(), button.get_attribute("aria-pressed")) == ("Close the details in this part", "true")
 
-    page.uncheck("#details")
-    closed = page.evaluate(SEEN)
-    assert (closed["asks"], closed["details"]) == (first["asks"], 0), "closed again, and still a press away"
-    assert page.evaluate(f"() => localStorage.getItem('{DETAILS_KEY}')") is None
+    # Another part is its own: its details stay a press away.
+    page.click("#easy-to-use")
+    other = page.locator(".feat-part[open]").filter(has=page.locator("#easy-to-use"))
+    assert other.locator("details.more[open]").count() == 0
+    assert other.locator(".feat-open button").get_attribute("aria-pressed") == "false"
+
+    button.click()
+    assert part.locator("details.more[open]").count() == 0, "closed again, and still a press away"
+    assert button.text_content() == "Open the details in this part"
     assert page.evaluate(f"() => localStorage.getItem('{LEVEL_KEY}')") is None, "the map's level is not the page's"
     assert page.evaluate("() => document.documentElement.dataset.level") is None, "and the page is drawn at no level"
 
 
 def test_the_box_finds_a_word_and_shows_what_mentions_it_alone(context, site):
     page = features(context, site)
-    page.uncheck("#details")  # closed, so that only the search opens a line of details
     before = page.evaluate(SEEN)
     page.fill("#find", "box-cox")
     found = page.evaluate(SEEN)
@@ -364,5 +362,4 @@ def test_a_list_that_cannot_be_read_says_so(context, site, console):
     page.wait_for_function(SHOWN)
     assert page.text_content("#features .error").startswith("The list could not be read.")
     assert page.is_hidden("#find"), "with no list there is nothing to find a word in"
-    assert page.is_hidden("#details")
     assert page.locator("main a[href$='web/FEATURES.md']").count() == 1, "the document, in the repository"

@@ -31,13 +31,12 @@
     in four steps: Design, Run, Learn and Next. It runs in your browser tab, so your data never leaves your device. This is everything it does
     today.</p>
   <p><a class="button primary" href="./">Start a study</a></p>
-  <!-- What the reader steers the list with: a word to find, and a switch that opens every point's details. Each
-       point is in plain words, with its details a press away; no point and no detail is ever left out. -->
+  <!-- What the reader steers the list with: a word to find. Each point is in plain words, with its details a press
+       away, and each part has a button over its points that opens them all; no point and no detail is ever left
+       out. -->
   <div class="feat-tools">
     <label class="feat-find"><span class="visually-hidden">Find a word in this list</span>
       <input type="search" id="find" placeholder="Find a word: blocks, offline, Box-Cox..." autocomplete="off" spellcheck="false"></label>
-    <label class="feat-details"><input type="checkbox" id="details"> Open the details of every point</label>
-    <p class="hint" id="details-says"></p>
     <p class="hint" id="found" role="status"></p>
   </div>
   <!-- The list is FEATURES.md, the document the app is described from, read by features.js: one text, so the page
@@ -50,42 +49,21 @@
     the app is described from</a>. A test fails when it names a design, a chart or a limit that the app does not have.</p>
 </main>
 <script type="module">
-  import { addressOf, page, shownPart } from "./features.js";
+  import { addressOf, CLOSE_DETAILS, OPEN_DETAILS, page, shownPart } from "./features.js";
 
   const list = document.getElementById("features");
   const find = document.getElementById("find");
-  const switched = document.getElementById("details");
   const all = (selector, within = list) => [...within.querySelectorAll(selector)];
-  /** Where the page keeps its one choice, apart from anything the app keeps: "open" while every detail is open. */
-  const DETAILS_KEY = "factorial-features-details";
-  let open = false;
+  /** Whether a part's details are all open: its own button says so. */
+  const detailsOpen = (part) => part.querySelector(".feat-open button")?.getAttribute("aria-pressed") === "true";
 
-  /** Open every point's details, or close them to a press away, and keep the choice for the next visit. */
-  function setDetails(to, keep = true) {
-    open = to;
-    switched.checked = open;
-    document.getElementById("details-says").textContent = open
-      ? "Each point in plain words, with its details open."
-      : "Each point in plain words. Press Details under a point for the rest.";
-    for (const more of all("details.more")) more.open = open;
-    if (!keep) return;
-    // A press shows what it did: every part opens with its details, and the parts the press opened fold again with
-    // them. Before, the details opened inside folded parts, and the switch seemed to do nothing.
-    for (const part of all(".feat-part")) {
-      if (open && !part.open) {
-        part.open = true;
-        part.dataset.opened = "details";
-      } else if (!open && part.dataset.opened === "details") {
-        part.open = false;
-        delete part.dataset.opened;
-      }
-    }
-    try {
-      if (open) localStorage.setItem(DETAILS_KEY, "open");
-      else localStorage.removeItem(DETAILS_KEY);
-    } catch {
-      /* storage refused: the choice holds for this visit */
-    }
+  /** Open every point's details in one part, or close them to a press away: the part's own button, over its points. */
+  function setDetails(button) {
+    const part = button.closest(".feat-part");
+    const open = !detailsOpen(part);
+    button.setAttribute("aria-pressed", String(open));
+    button.textContent = open ? CLOSE_DETAILS : OPEN_DETAILS;
+    for (const more of all("details.more", part)) more.open = open;
   }
 
   /**
@@ -110,7 +88,7 @@
         shown += on && !entry.hidden && entry.tagName !== "P";
         const more = entry.querySelector("details.more");
         if (!more) continue;
-        more.open = open || (on && holds(more)); // details that hold the words are opened to show them
+        more.open = detailsOpen(part) || (on && holds(more)); // details that hold the words are opened to show them
       }
       // A heading, a list or a table with none of its points left goes with them.
       for (const group of all(".feat-body ul, .feat-body ol, .feat-body .scroll", part)) group.hidden = !group.querySelector("li:not([hidden]), tbody tr:not([hidden])");
@@ -153,14 +131,10 @@
     list.innerHTML = page(shownPart(await answer.text()));
     // A picture that cannot be had (no network, and a copy that has not seen it) leaves its card to its words.
     for (const picture of all(".feat-pictures img")) picture.addEventListener("error", () => picture.remove());
-    let stored = null;
-    try {
-      stored = localStorage.getItem(DETAILS_KEY);
-    } catch {
-      /* storage refused: a first visit's, with the details closed */
-    }
-    setDetails(stored === "open", false);
-    switched.onchange = () => setDetails(switched.checked);
+    list.addEventListener("click", (event) => {
+      const button = event.target.closest(".feat-open button");
+      if (button) setDetails(button);
+    });
     find.addEventListener("input", search);
     addEventListener("hashchange", goTo);
     // The address may name a part of the list, which was not there when the browser looked for it.
