@@ -58,7 +58,8 @@ def test_make_the_run_sheet_again_with_the_design_unchanged_keeps_the_sheet_and_
 def test_a_changed_design_asks_before_it_clears_entered_results_and_keeps_them_by_default(blank_page):
     page = blank_page
     typed, runs = a_sheet_with_typed_results(page)
-    choose(page, n_replicates=2)
+    choose(page, design_type="box_behnken")  # chosen by name: the page's own pick of a design does not undo it
+    settled(page)
     press_make(page)
     dialog = page.locator("#replace-dialog")
     dialog.wait_for(state="visible")
@@ -78,7 +79,8 @@ def test_a_changed_design_asks_before_it_clears_entered_results_and_keeps_them_b
 def test_escape_closes_the_question_and_keeps_the_results(blank_page):
     page = blank_page
     typed, _ = a_sheet_with_typed_results(page)
-    choose(page, n_replicates=2)
+    choose(page, design_type="box_behnken")  # chosen by name: the page's own pick of a design does not undo it
+    settled(page)
     press_make(page)
     page.locator("#replace-dialog").wait_for(state="visible")
     page.keyboard.press("Escape")
@@ -90,13 +92,14 @@ def test_escape_closes_the_question_and_keeps_the_results(blank_page):
 def test_the_reader_can_start_the_new_study_and_the_study_before_keeps_its_results(blank_page):
     page = blank_page
     typed, _ = a_sheet_with_typed_results(page)
-    choose(page, n_replicates=2)
+    choose(page, design_type="box_behnken")  # chosen by name: the page's own pick of a design does not undo it
+    settled(page)
     press_make(page)
     page.locator("#replace-dialog").wait_for(state="visible")
     page.click("#replace-go")
     settled(page)
     page.click("#go-run")
-    assert len(results(page)) > len(typed), "the new design's runs: it has a replicate more"
+    assert len(results(page)) > len(typed), "the new design's runs: a Box-Behnken design has more"
     assert not any(results(page)), "blank, as the question said"
     kept = page.evaluate(
         """async () => (await (await import('./store.js')).savedCampaigns())
@@ -109,7 +112,8 @@ def test_one_result_is_enough_to_be_asked(blank_page):
     page = blank_page
     generate(page)
     type_results(page, {2: 61.5})
-    choose(page, n_replicates=2)
+    choose(page, design_type="box_behnken")  # chosen by name: the page's own pick of a design does not undo it
+    settled(page)
     press_make(page)
     page.locator("#replace-dialog").wait_for(state="visible")
     assert "holds 1 result you entered" in page.text_content("#replace-says")
@@ -121,7 +125,8 @@ def test_practice_results_are_made_again_without_a_question(blank_page):
     generate(page)
     practise(page)
     assert all(results(page))
-    choose(page, n_replicates=2)
+    choose(page, design_type="box_behnken")  # chosen by name: the page's own pick of a design does not undo it
+    settled(page)
     press_make(page)
     settled(page)
     assert page.is_hidden("#replace-dialog"), "simulated results are no loss: they are made again"
@@ -130,7 +135,8 @@ def test_practice_results_are_made_again_without_a_question(blank_page):
 def test_a_sheet_with_no_results_is_made_again_without_a_question(blank_page):
     page = blank_page
     generate(page)
-    choose(page, n_replicates=2)
+    choose(page, design_type="box_behnken")  # chosen by name: the page's own pick of a design does not undo it
+    settled(page)
     press_make(page)
     settled(page)
     assert page.is_hidden("#replace-dialog")
