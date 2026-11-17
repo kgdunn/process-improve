@@ -666,7 +666,8 @@ Also:
   you have.
   - *Details:* The welcome goes once you start, open a study or leave Design. A question
     begun there is kept as a draft. A reader with a study kept in the browser is picked up
-    where they left off, with no welcome.
+    where they left off, with no welcome: the study opens on the stage it was left on. A
+    study from a link or a file opens on the stage its results call for.
 - **A colour for each step.** Design is blue, Run is ochre, Learn is green and Next is red:
   in the bar, in the welcome, and in the app's mark and its browser icon. Every screen says
   which step it is: what you choose there and the button to press there are in the step's

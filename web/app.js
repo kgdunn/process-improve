@@ -712,12 +712,43 @@ const PANES = { plan: "#step-plan", run: "#step-run", learn: "#step-analyse", ne
  * Design. Charts drawn while their pane was hidden are fitted to it, and the designs that can learn
  * the brief are made once Design is on show.
  */
+/** Where this browser keeps the stage each of its studies was left on, by the study's id: its own bookkeeping. */
+const STAGE_KEY = "factorial-stage";
+/** The most studies whose stage is kept: the ones left most recently. */
+const STAGES_KEPT = 50;
+
+/** The stages kept, by study; none where storage is refused or holds something else. */
+function stagesLeft() {
+  try {
+    const kept = JSON.parse(localStorage.getItem(STAGE_KEY) ?? "{}");
+    return kept && typeof kept === "object" && !Array.isArray(kept) ? kept : {};
+  } catch {
+    return {};
+  }
+}
+
+/** The stage a study was left on in this browser, or null: for a study opened from what this browser keeps. */
+const stageLeft = (id) => (Object.hasOwn(PANES, stagesLeft()[id]) ? stagesLeft()[id] : null);
+
+/** Keep the stage the study on the page is on, so a later visit opens it there. */
+function keepStage(phase) {
+  const id = state.campaign?.id;
+  if (!id || !state.design) return;
+  const kept = Object.entries({ ...stagesLeft(), [id]: undefined }).filter(([, stage]) => stage);
+  try {
+    localStorage.setItem(STAGE_KEY, JSON.stringify(Object.fromEntries([...kept.slice(1 - STAGES_KEPT), [id, phase]])));
+  } catch {
+    /* storage refused: the study opens on the stage its results call for */
+  }
+}
+
 function showPhase(phase) {
   // On Design the question is the form itself. Over Run and Learn it is one line, closed on the way in from Design
   // and left as the reader has it between the two.
   if (phase === "plan") $("#question").open = true;
   else if ($("#workspace").dataset.phase === "plan") $("#question").open = false;
   state.phase = phase;
+  keepStage(phase);
   $("#workspace").dataset.phase = phase;
   for (const [name, pane] of Object.entries(PANES)) {
     const on = name === phase;
@@ -8191,7 +8222,7 @@ async function openSaved(record) {
     setStatus(err.message, "error");
     return;
   }
-  await openCampaign(campaign, { id: record.id, created: record.created }, `Opened ${campaign.title}.`);
+  await openCampaign(campaign, { id: record.id, created: record.created }, `Opened ${campaign.title}.`, true);
 }
 
 /** Say what was opened, or why a link could not be: a sentence, or a list of text and links. */
@@ -8207,13 +8238,14 @@ function showBanner(message, error = false) {
  * results, the process they were simulated from and the model, in Run, or in Learn once it has
  * results. The analysis follows once Python has started.
  */
-async function openCampaign(c, record, message) {
+async function openCampaign(c, record, message, resume = false) {
   if ($("#library").open) $("#library").close();
   $("#welcome").hidden = true;
   flushSave();
   studyTicket += 1;
   $("#demo-banner").hidden = true;
   setForm(c.design.spec);
+  const left = stageLeft(record.id);
   state.campaign = { ...record, title: c.title || titleOf(c.design.spec), ...(c.source ? { source: c.source } : {}) };
   state.design = { ...c.design, ...(c.planned ? { planned: structuredClone(c.planned) } : {}) };
   state.planKey = planKey();
@@ -8259,7 +8291,9 @@ async function openCampaign(c, record, message) {
   else hidePython("run");
   showBanner(message);
   renderStudyBar();
-  showPhase(done ? "learn" : "run");
+  // A study this browser kept opens on the stage it was left on; one from a link or a file, on the stage its
+  // results call for. Read before the page is drawn, which keeps the stage it shows.
+  showPhase((resume && left) || (done ? "learn" : "run"));
   scheduleSave(); // the study opened most recently is the one a later visit picks up
   if (!done) return;
   const mine = state.campaign.id;
@@ -8326,6 +8360,7 @@ async function start() {
         c,
         { id: last.id, created: last.created },
         `Picked up where you left off: ${c.title}, saved ${timeAgo(last.updated)}.`,
+        true,
       );
       return;
     } catch {
