@@ -2065,11 +2065,18 @@ async function mayReplaceRunSheet() {
   $("#replace-says").textContent =
     `This run sheet holds ${entered === 1 ? "1 result" : `${entered} results`} you entered. The design has changed, ` +
     `so a new run sheet starts a new study: blank, with its runs in a new order. ${kept}`;
-  dialog.returnValue = "";
   dialog.showModal();
-  const chosen = await new Promise((resolve) => dialog.addEventListener("close", () => resolve(dialog.returnValue), { once: true }));
-  return chosen === "go";
+  // Answered by a button at once, in the press itself, so what follows starts with no gap; Escape, which only
+  // closes the question, keeps the study.
+  return new Promise((resolve) => {
+    answerReplace = (go) => {
+      answerReplace = null;
+      resolve(go);
+      if (dialog.open) dialog.close();
+    };
+  });
 }
+let answerReplace = null; // the question on show, to be answered; null when none is
 
 const planIsStale = () => Boolean(state.design) && state.planKey !== null && planKey() !== state.planKey;
 
@@ -9358,8 +9365,9 @@ $("#generate").onclick = async () => {
   if (!(await mayReplaceRunSheet())) return;
   if ((await generate()) && state.practising) await simulateResults();
 };
-$("#replace-keep").onclick = () => $("#replace-dialog").close("keep");
-$("#replace-go").onclick = () => $("#replace-dialog").close("go");
+$("#replace-keep").onclick = () => answerReplace?.(false);
+$("#replace-go").onclick = () => answerReplace?.(true);
+$("#replace-dialog").addEventListener("close", () => answerReplace?.(false));
 $("#remake").onclick = $("#generate").onclick;
 $("#practice-round").onclick = practiceRound;
 // The card's boxes are the run sheet's: a result typed in one is typed in the sheet's box for that run.

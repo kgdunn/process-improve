@@ -14,6 +14,8 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+
 #: The <select>s of the form; every other setting is an <input>.
 SELECTS = {
     "design-type",
@@ -236,10 +238,19 @@ def generate(page: Any, **settings: object) -> None:  # noqa: ANN401
     """Make the run sheet the plan describes, after choosing any ``settings``, and wait for the page to settle."""
     choose(page, **settings)
     reveal(page, "#generate")
+    # Over a run sheet with entered results and a changed design the page asks first: the reader starts the new
+    # study. The question is waited for only where the sheet holds an entered result, so no other call is slowed.
+    entered = page.evaluate(
+        """() => [...document.querySelectorAll('#design-table input[data-response]')]
+             .some((box) => box.value !== '' && !box.classList.contains('sim'))"""
+    )
     page.click("#generate")
-    # Over a run sheet with entered results and a changed design the page asks first: the reader starts the new study.
-    if page.is_visible("#replace-dialog"):
-        page.click("#replace-go")
+    if entered:
+        try:
+            page.wait_for_selector("#replace-dialog[open]", timeout=2000)
+            page.click("#replace-go")
+        except PlaywrightTimeoutError:
+            pass  # the design is unchanged: the sheet and its results stay
     settled(page)
 
 
