@@ -452,3 +452,24 @@ def test_on_a_phone_each_factor_is_a_numbered_group_with_its_headings(page):
     assert edges == ["solid", "none"], "a rule over each factor, and no box round it"
     text = row(page, 1).locator(".switch__text")
     assert text.evaluate("t => t.scrollWidth <= t.clientWidth + 1"), "Categorical is not cut short"
+
+
+def test_leaving_a_factor_s_name_rewrites_nothing_under_the_press_that_left_it(blank_page):
+    """Safari sends a press nowhere when the page under it is rewritten, or moves, between the press and the release.
+
+    Leaving a factor's name did both: it wrote the switch's words again, and the question read back came or grew.
+    The Numeric/Categorical switch then took a second press. The words are written only when they change, and the
+    question is read back as it is typed.
+    """
+    page = blank_page
+    page.fill("#response", "Yield")
+    row = page.locator("#factors tbody tr").first
+    name = row.locator("[name=name]")
+    name.fill("Catalyst")
+    assert "Catalyst" in page.text_content("#asked"), "read back as it is typed, before the box is left"
+    page.evaluate("() => { window.__words = document.querySelector('#factors tbody tr .switch__text').firstChild; }")
+    top = row.locator(".switch").bounding_box()["y"]
+    name.blur()
+    settled(page)
+    assert page.evaluate("window.__words === document.querySelector('#factors tbody tr .switch__text').firstChild")
+    assert row.locator(".switch").bounding_box()["y"] == top, "and the switch has not moved"

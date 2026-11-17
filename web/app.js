@@ -8957,6 +8957,9 @@ const labelBox = (target) => target.matches('[name="name"], [name="units"]');
 $("#factors").addEventListener("input", (e) => {
   if (labelBox(e.target)) {
     showMakeable(showFactorProblems());
+    // The question is read back as it is typed. Were it to change only when the box is left, its line could come or
+    // grow at that moment and move the page under the press that left the box: Safari then sends that press nowhere.
+    renderQuestion();
     saveDraft();
   } else {
     factorsChanged();
