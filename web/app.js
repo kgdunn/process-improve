@@ -2992,6 +2992,7 @@ function renderRuns() {
   };
   t.onpaste = pasteResults;
   renderOffPlan();
+  renderRunDone();
   describeSource();
   renderBadges();
   renderCurves();
@@ -3077,12 +3078,36 @@ function renderOffPlan() {
 }
 
 function resultsChanged() {
+  renderRunDone();
   describeSource();
   renderTruth();
   showResultsCode();
   renderBadges();
   scheduleAnalysis();
   scheduleSave();
+}
+
+/** Run says so at its top once every run has a result for every response: the next step is Learn. */
+function renderRunDone() {
+  const all = Boolean(state.design) && resultNames().every((name) => state.results[name]?.length && state.results[name].every((v) => v !== null && v !== undefined));
+  $("#run-done").hidden = !all;
+}
+
+/**
+ * Set Learn's note for when it has nothing to show, with the stage it names as a way there: "enter them in Run".
+ * The words are the note's own; "Run" in them becomes a button.
+ */
+function sayLearnEmpty(text) {
+  const note = $("#analyse-empty");
+  const at = text.indexOf(" in Run");
+  if (at < 0) {
+    note.textContent = text;
+    return;
+  }
+  const run = el("button", "link", "Run");
+  run.type = "button";
+  run.dataset.go = "run";
+  note.replaceChildren(text.slice(0, at + 4), run, text.slice(at + 7));
 }
 
 /** The run sheet's run numbers, in its order: its Run order column, or 1, 2, ... for runs as given without one. */
@@ -3825,7 +3850,7 @@ function clearAnalysis() {
   $("#py-analyse").hidden = true;
   $("#charts").hidden = true;
   $("#charts").replaceChildren();
-  $("#analyse-empty").textContent = learnEmpty();
+  sayLearnEmpty(learnEmpty());
   $("#analyse-empty").hidden = false;
   $("#to-learn").hidden = true;
   $("#learn-report").hidden = true;
@@ -3887,7 +3912,7 @@ async function analyseRuns() {
     clearAnalysis();
     const curvesOnly = !anyResult(state.results);
     const where = curvesOnly ? "the runs' curves are drawn under What if" : "enter them in Run";
-    $("#analyse-empty").textContent = `No results for ${wordsOf(state.shown).label} yet: ${where}.`;
+    sayLearnEmpty(`No results for ${wordsOf(state.shown).label} yet: ${where}.`);
     setStatus(`No results for ${wordsOf(state.shown).label} yet.`);
     await findBalance();
     await findCurve();
@@ -8275,11 +8300,25 @@ async function openSaved(record) {
 }
 
 /** Say what was opened, or why a link could not be: a sentence, or a list of text and links. */
-function showBanner(message, error = false) {
+function showBanner(message, error = false, passing = false) {
   const banner = $("#campaign-banner");
   banner.replaceChildren(...[message].flat());
   banner.classList.toggle("error", error);
+  banner.dataset.passing = String(passing);
   banner.hidden = false;
+}
+
+// A banner that only says where the reader is ("Picked up where you left off") has done its work once the reader
+// does anything: the next press or key outside it takes it away. One that says what was opened, or what failed, stays.
+for (const kind of ["pointerdown", "keydown"]) {
+  document.addEventListener(
+    kind,
+    (event) => {
+      const banner = $("#campaign-banner");
+      if (banner.dataset.passing === "true" && !banner.hidden && !banner.contains(event.target)) banner.hidden = true;
+    },
+    true,
+  );
 }
 
 /**
@@ -8338,7 +8377,7 @@ async function openCampaign(c, record, message, resume = false) {
   const done = anyResult(state.results);
   if (done) showResultsCode();
   else hidePython("run");
-  showBanner(message);
+  showBanner(message, false, resume);
   renderStudyBar();
   // A study this browser kept opens on the stage it was left on; one from a link or a file, on the stage its
   // results call for. Read before the page is drawn, which keeps the stage it shows.
@@ -9017,7 +9056,7 @@ $("#study-menu").addEventListener(
   true,
 );
 document.addEventListener("click", (e) => {
-  if (!e.target.closest(".study")) studyMenu(false);
+  if (!e.target.closest("#study-menu, #study-button")) studyMenu(false);
 });
 $(".study").addEventListener("keydown", (e) => {
   if (e.key !== "Escape" || $("#study-menu").hidden) return;
@@ -9026,7 +9065,9 @@ $(".study").addEventListener("keydown", (e) => {
 });
 // Safari gives a pressed button no focus, so a press on the list is not taken for focus that left it.
 $(".study").addEventListener("focusout", (e) => {
-  if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget)) studyMenu(false);
+  // The button for a new study shares the menu's box, and is no part of the menu: focus that goes to it has left.
+  const within = e.relatedTarget?.closest("#study-menu, #study-button");
+  if (e.relatedTarget && !within) studyMenu(false);
 });
 $("#open-library").onclick = openLibrary;
 $("#answer-more").onclick = () => showPart("best");
@@ -9049,6 +9090,7 @@ for (const id of ["#n_center_points", "#resolution"]) for (const kind of ["input
 // A reader sent a link to the worked example lands in its results, far from the menu: the way to a study of their own
 // is in the example's own banner.
 $("#example-new").onclick = () => $("#new-study").click();
+$("#bar-new").onclick = () => $("#new-study").click();
 // A press always changes the results: the first simulates them, and one more draws new noise for the same
 // process. With the seed as it was, a second press gave the same results, and looked as if it did nothing.
 $("#simulate").onclick = () => {
@@ -9066,6 +9108,11 @@ $("#sigma").onchange = () => {
 $("#tab-simulate").onclick = () => selectTab("simulate");
 $("#tab-real").onclick = () => selectTab("real");
 $("#to-learn").onclick = () => showPhase("learn");
+// A stage named in a sentence is a way to it: "make it in Design", "enter them in Run", "See what the results say".
+document.addEventListener("click", (event) => {
+  const go = event.target.closest("button[data-go]");
+  if (go) showPhase(go.dataset.go);
+});
 $("#add-confirmation").onclick = () => addConfirmationRuns(state.best?.confirm_at, blendStudy() ? "the best blend" : "the best settings");
 $("#add-balance-confirmation").onclick = () => addConfirmationRuns(state.balance?.confirm_at, blendStudy() ? "the balanced blend" : "the balanced settings");
 $("#remove-balance-confirmation").onclick = removeConfirmationRuns;

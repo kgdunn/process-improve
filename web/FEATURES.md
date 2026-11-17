@@ -211,6 +211,7 @@ Also:
   - *Details:* A pasted block is matched by run number when it has one, with decimal commas
     read. The workbook is an .xlsx file.
 - **No need to wait for every run.** The app analyses the runs that have a result.
+  - *Details:* Once every run has its result, Run says so at its top, with the way to Learn.
 - **A run that left the plan.** Press a setting on the run sheet and type the setting the run
   was really made at. The model is fitted on it, and the sheet says which runs left the plan.
   - *Details:* For numeric factors; a mixture's proportions and a categorical factor's level
@@ -658,6 +659,8 @@ Also:
 
 - **Three steps, one page.** One bar at the top holds the name, the study and Design, Run and
   Learn, each marked with how far it has got. It stays in view as the page scrolls.
+- **A new study in one press.** The bar has a button for it beside the study's name, on every
+  stage. On a screen narrower than 1340 px it is a plus.
   - *Details:* The bar is one row on a desk, about 50 px tall, and two on a phone. A line
     under it says what the app is doing. That line is no part of the bar, so neither the bar
     nor the page moves when it comes and goes. An error stays, in room of its own.
@@ -870,7 +873,7 @@ What a careful reader, or an organisation, asks before using a tool.
   - *Details:* In four tiers.
 - **[The concept map](map/).** 237 ideas of designed experiments and 490 links between them,
   in 13 topics, each with its definition, the book's line and a link into the book. It has a
-  reading level of its own: Beginner, Intermediate or Adventurous.
+  slider for its depth: Beginner, Intermediate or Adventurous.
   - *Details:* An address that names an idea opens at the map, on that idea. "Compare
     books" sets two other textbooks beside this one: the links go, and a ring on each topic
     and each term says which of the three books has it. The names of a selected idea's

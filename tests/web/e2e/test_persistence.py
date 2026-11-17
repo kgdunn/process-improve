@@ -509,3 +509,14 @@ def test_a_run_sheet_made_for_the_brief_before_stays_out_of_a_new_study(blank_pa
     assert page.is_hidden("#run-out")
     assert page.is_hidden("#status")
     assert page.text_content("#study-title") == "A new study"
+
+
+def test_the_picked_up_banner_goes_once_the_reader_does_anything(context, blank_page):
+    """It says where the reader is. After a press it has nothing more to say; a banner of what was opened stays."""
+    generate(blank_page, design_type="full_factorial")
+    saved(blank_page, 1)
+    again = come_back(context)
+    assert again.is_visible(BANNER)
+    assert again.text_content(BANNER).startswith("Picked up where you left off: ")
+    again.click("#go-plan")
+    assert again.is_hidden(BANNER), "one press, and it is gone"

@@ -102,6 +102,11 @@
           <li><button type="button" id="menu-share">Share or download this study</button></li>
           <li><button type="button" id="menu-report">View its report</button></li>
         </ul>
+        <!-- A new study, in sight on every stage: the menu's first entry, one press away (app.js). It follows the
+             menu here, so Tab walks the menu's entries before it; the row draws it beside the study's name. On a tablet or a phone
+             it is the plus alone, with its words read out. -->
+        <button type="button" id="bar-new" class="studybar__new" title="Start a new study"><span class="studybar__plus"
+          aria-hidden="true">+</span><span class="studybar__new-words">New study</span></button>
       </div>
       <div class="phases" role="tablist" aria-label="Design, run, learn, next">
         <button type="button" role="tab" id="go-plan" aria-controls="step-plan" aria-selected="true"><span class="step">1</span> Design<span id="badge-plan" class="badge" hidden></span></button>
@@ -502,8 +507,11 @@
 
       <section id="step-run" class="pane" data-pane="run" role="tabpanel" aria-labelledby="h-run" hidden>
         <h2 id="h-run">Run the experiments</h2>
-        <p id="run-empty" class="hint">No run sheet yet: make it in Design.</p>
+        <p id="run-empty" class="hint">No run sheet yet: make it in <button type="button" class="link" data-go="plan">Design</button>.</p>
         <div id="run-out" hidden>
+          <!-- Every run has its result: the next step is Learn, said at the top of Run and not only under the sheet. -->
+          <p id="run-done" class="hint run-done" role="status" hidden>Every run has its result.
+            <button type="button" class="link" data-go="learn">See what the results say</button></p>
           <div id="design-stale" class="stale" role="status" hidden>
             <p>The design has changed since this run sheet was made.</p>
             <p class="actions">
@@ -618,7 +626,7 @@
 
       <section id="step-analyse" class="pane" data-pane="learn" role="tabpanel" aria-labelledby="h-analyse" hidden>
         <h2 id="h-analyse">What the results say</h2>
-        <p id="analyse-empty" class="hint">No results yet: enter them in Run, or practise with simulated ones.</p>
+        <p id="analyse-empty" class="hint">No results yet: enter them in <button type="button" class="link" data-go="run">Run</button>, or practise with simulated ones.</p>
         <!-- With several responses, a tab each: the analysis below is of the one chosen, with its own model. -->
         <div id="response-picker" class="picker" role="tablist" aria-label="The response analysed" hidden></div>
         <div id="response-panel">
