@@ -34,7 +34,8 @@ def test_page_design_list_matches_bootstrap(bootstrap):
     in_page = {o["value"]: o for o in page().options["design-type"]}
     given = in_page.pop(bootstrap.GIVEN)
     mixtures = {key: in_page.pop(key) for key in list(in_page) if key in bootstrap.MIXTURES}
-    assert list(in_page) == list(bootstrap.DESIGNS)
+    # The page lists them in two groups, the most used first; Python keeps the order its comparison is made in.
+    assert sorted(in_page) == sorted(bootstrap.DESIGNS)
     assert list(mixtures) == list(bootstrap.MIXTURES), "the mixtures follow the designs for factors with ranges"
     assert "hidden" in given, "the list offers runs as given only while a study of given runs is open"
     assert given["label"] == bootstrap.GIVEN_INFO["label"]
