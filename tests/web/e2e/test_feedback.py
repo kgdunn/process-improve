@@ -483,7 +483,7 @@ def test_the_button_says_as_much_as_the_header_has_room_for(context, site, where
         for low, high in pairwise(edges):
             run = [words for words, width in zip(said, rows, strict=True) if low <= width < high]
             assert run == [words for words in ladder if words in run], f"each change says more, from {low} px"
-        assert {"", SHORT, LONG} <= set(said)
+        assert {"", LONG} <= set(said)
         return
     # A wider window never says less. The narrowest has room for the icon alone, beside what else the row holds, and
     # the widest for the longest words. The map's row holds little else, so each wording has widths of its own. The

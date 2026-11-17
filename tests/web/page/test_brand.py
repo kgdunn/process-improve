@@ -160,7 +160,9 @@ def test_the_app_s_typeface_is_served_from_its_own_files_with_its_licence():
         assert f'url("vendor/outfit/{name}")' in source("style.css"), name
     assert "SIL Open Font License" in (folder / "LICENSE").read_text(encoding="utf-8")
     css = source("style.css")
-    assert 'h2, h3, h4, .answer__run, .asked { font-family: "Outfit", system-ui' in css, "the device's font stands in"
+    assert 'h2, h3, h4, .answer__run, .asked, #study-title { font-family: "Outfit", system-ui' in css, (
+        "the device's font stands in"
+    )
     assert "font: 16px/1.5 system-ui" in css, "body text, tables and numbers are in the device's own font"
     assert "fonts.googleapis.com" not in source("style.css") + source("index.html"), "no font is fetched from elsewhere"
 
