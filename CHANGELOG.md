@@ -11,6 +11,1480 @@ those changes.
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-11-17
+
+### Added
+
+- **`BatchPCA` and `BatchPLS` contributions take the batches, as `transform` does.**
+  `t2_contributions`, `spe_contributions` and `score_contributions` take a batch dictionary, with
+  the new `initial_conditions` keyword for its Z block, and unfold and scale it as `transform` reads
+  it. A batch dictionary raised a pandas error ("If using all scalar values, you must pass an
+  index"). A DataFrame is still taken to be the `unfold_and_scale` output, so existing calls give
+  the same numbers (#1144).
+- **The reference catalogue checks Montgomery's Bartlett and Kruskal-Wallis tests with the library's own.**
+  The six numbers of the etching example that it listed as missing from the library (q, c, χ²0 and P of
+  Bartlett's test; H and P of the Kruskal-Wallis test) are now recomputed with `bartlett_test` and
+  `kruskal_wallis_test`. A `classical_test` check takes `by`, a column whose values each pick one group of
+  runs. Both P-values differ in the last digit, as the book works them from its rounded statistic. (#1100)
+- The concept map (factori.al/map) has a reading-level slider: Beginner, Intermediate and Adventurous. Each level shows
+  the terms the book introduces up to that stage of chapter 5, together with every level below it; Adventurous is the
+  whole graph. A first visit opens on Beginner, and a reader's choice is remembered. Topic counts and search follow
+  the level; on a phone the two switches and the slider share one line. The map's
+  graph is refreshed from the book, with 11 new terms and the links from a review against a second textbook.
+- The concept map at factori.al has the app's Feedback button: the same dialog, sent through the same relay to the
+  maintainer, with a screenshot of the map and what is open on it. It offers no study, as the map has none.
+- The concept map (factori.al/map) finds a term under a name that another textbook uses for it, such as "treatment
+  combination" for a run or "Pareto chart" for a Pareto plot. The term's card lists these names on a quieter line of
+  their own, "In other texts", so each term keeps one leading name. The graph is refreshed from the book, with 18
+  terms carrying such names.
+- The concept map (factori.al/map) can show what two other textbooks also state. A switch above the map turns it on:
+  the kinds of term keep their shapes and give up their colours, and a colour then says who states a link or covers a
+  term: this book alone, Book B too, Book M too, or all three, whose links are the heaviest. Beside the switch, a tap on
+  "This book", "Book B", "Book M" or "All 3" fades or shows those links and terms. A term's card, and a link read out
+  below the map, name the books that have it.
+- **factori.al analyses data you have already.** "Analyse data you have" reads a table you paste or a
+  .csv or .xlsx file, of a design run elsewhere or of a process's records: a line of headings, a run on
+  each line. It guesses which columns are factors and which are responses, reads units from a heading
+  such as "Temp (degC)" and decimal commas where the columns are split by semicolons, and you correct
+  any of it before the study opens. The study is one of runs as given, so Learn does with it what it
+  does with any design. Its notes say what such runs cannot show: which factors moved together, so
+  their effects cannot be told apart, and that runs nobody planned may credit a factor with the effect
+  of something else. A workbook's formulas are never evaluated, and the table never leaves the
+  browser. (#1223)
+- **factori.al says what the results found, in sentences, and lists each run as the model sees it.**
+  Learn opens on "What the results say": which factor matters most and by how much in its own units,
+  which other effects are real, which effects depend on another factor, where the response curves,
+  how well the model fits and which runs to look at again. The sentences are written from the
+  analysis's numbers alone, with no language model, so the same results give the same words. Under
+  "Each run, as the model sees it" are every run's fitted value, residual, leverage and Cook's
+  distance; a run is marked by the Bonferroni outlier test, not a fixed limit. Both go into the
+  report. (#1223)
+- **factori.al draws eight more charts in Learn, and the reader chooses the response surface's two
+  factors.** Under "More charts": each factor's effect on the prediction, the runs' averages at each
+  setting, the interaction of two factors, the response surface in three dimensions, the predictions
+  at the corners of three factors, the residuals against the normal distribution and against the
+  order of the runs, and where the predictions are least certain. They are the library's own plots,
+  titled in the reader's words and units. (#1223)
+- **factori.al has a reading level: Beginner, Intermediate or Adventurous.** A switch in the header
+  sets how much of the page is shown; each level adds designs and charts to the ones below it, and
+  each shortened list says how many more a higher level has. The level of each design and chart is
+  its term's level in the concept map, and the two pages keep one choice. A level never leaves out
+  a result, a warning, or what the study on the page was made with. A first visit opens on
+  Intermediate. (#1223)
+- **factori.al proposes a simpler model when asked.** "Simplify the model" in Learn runs the
+  library's stepwise selection (AICc, keeping an interaction only with both its main effects) and
+  says which terms the results support and which they do not. Nothing is fitted until the reader
+  accepts; the terms are then ticked under "Terms you choose", to change as they see fit. A model
+  that uses every run, a blocked design and a factor of three levels or more are refused with the
+  reason. (#1223)
+- **factori.al's usage report counts each page, by day, week or month, and the server keeps a
+  year of its log.** `factorial-usage` gives each page a column (the app, the concept map, the
+  design catalog's pages, the multivariate page, About, and any other page), groups the rows by
+  day, week or month (`--by`), and draws a line of bars for each page over the period. The access
+  log is kept for 366 days, up from 90, so a year can be set beside the one before; a daily job
+  that `setup.sh` installs keeps each finished day's counts, numbers alone, in
+  `/var/lib/factorial/usage.csv` for longer still. The About page says both.
+- **factori.al shows which terms a study's runs tell apart.** Under the design, "Which terms these runs
+  tell apart" opens the correlation map the comparison of designs draws, for the study's own runs: a
+  design made on the page, or a table of your own, whose factors moved as the process did. Sentences
+  say what it draws, against the model the design estimates: a term aliased with one the model leaves
+  out, such as a main effect with a two-factor interaction in a resolution III fraction, and two terms
+  of the model that move together and are known less precisely for it. In a blocked design a term the
+  blocks take is listed as moving with them. The map is of the runs a model is fitted to, so a
+  confirmation run is left out of it, and only terms that are one column to the runs are said to be
+  aliased, or not to be told apart: short of that the words say how nearly. A table lists the largest
+  pairs. Python is asked only when the panel is opened. (#1231)
+- **factori.al makes three more designs: OMARS, A-optimal, and a Sobol space-filling design.**
+  An OMARS design has the three levels and clear main effects of a definitive screening design in
+  the number of runs you choose above its own, for 3 to 5 factors. An A-optimal design is made for
+  a model and inside limits on the settings, as the D- and I-optimal designs are. A Sobol sequence
+  fills the ranges for no model, as the Latin hypercube does. All three are at the Adventurous
+  reading level, and are chosen from the design list: the comparison of designs for a model does
+  not search for them on every change of the brief. The library's MaxPro design is not offered: its
+  search ends at slightly other settings under WebAssembly than natively, so the Python the page
+  shows would not make the page's own run sheet. (#1223)
+- **factori.al downloads the run sheet as a .csv file**, with the results it has, for any
+  spreadsheet or program. It is made in the page, so it works before Python has loaded. Text a
+  spreadsheet would run as a formula is written so that it stays text. (#1223)
+- **factori.al fits a model without a run you set aside.** Each run in "Each run, as the model sees
+  it" has a "Set aside" button. The run keeps its result on the run sheet, the model of the response
+  on show is fitted without it, and Learn says so above everything else, with a button that puts the
+  run back. The best settings, the what-if panel, the balance of the responses, the report and the
+  Python code all follow. A study with a run set aside is saved in study format 7, which an earlier
+  Factorial refuses in a sentence rather than open and lose the choice. (#1223)
+- **factori.al can stop a search you do not want to wait for.** Once Python has taken a few seconds
+  over a call, the status line offers Stop. It ends the call, starts Python again from the browser's
+  copy, and leaves the study as it was; until now a long search for an optimal design held up every
+  call behind it, with no way out but to reload the page. (#1223)
+- **factori.al opens without a network.** Once the page has been opened with one, a copy of it is kept
+  in the browser: its own files, Python and its packages, and the wheel. The copy costs no extra
+  download, since the visit has just fetched it all. The foot of the page says what the copy holds
+  and what it takes of the device's storage (about 170 MB), read from the copy itself each visit, so
+  it never claims what a browser has since dropped. A button
+  there adds the charts and the workbooks, a download of about 12 MB, after which a study can be
+  designed, analysed, drawn and saved in a lab with no signal; another removes the copy, and a copy
+  that could not be finished says why. With a network the page's own files always come from the
+  server, so a newer page is never held back, and a build made with `--no-service-worker` retires the
+  copy in every browser, whatever state the page's own code is in. Stop now starts Python again from
+  the copy, in seconds. (#1230)
+- **`count_nonzero(...)` in a constraint limits how many factors a run uses.** A factor at 0 is
+  left out, and `"count_nonzero(A, B, C, D) <= 2"`, `"count_nonzero(A, B, C) == 1"` or
+  `"3 <= count_nonzero(A, B, C, ...) <= 5"` says how many of the named factors a run may use. It
+  counts continuous factors and mixture components whose `low` is 0 or more; one with a
+  `min_when_used` is left out or at no less than that minimum. The settings such a rule allows are
+  pieces, one for each set of the factors in use, and the optimal designs take their candidates
+  piece by piece: every allowed set when the factors that can be left out are 10 or fewer, a sample
+  of the sets otherwise. Without the rule the runs of a design use few factors, since the most
+  informative settings are vertices; with it every run uses a number the rule allows. Columns no
+  allowed run can estimate, such as the interaction of two factors never used together, are left
+  out and listed in `metadata["inestimable_columns"]`. `DesignRegion.feasible`, `broken_limits` and
+  `sample` know the rule, `optimize_responses` returns an optimum it allows, `augment_design` adds
+  runs inside it, and a design type that cannot follow it is refused.
+- On "What Factorial does", the page of factori.al that lists the app's features, 17 points end with "Show me". It
+  opens the app on an example that has the feature, at the part of the page that shows it: the best settings of the
+  worked example, the terms a half fraction cannot tell apart, the analysis of an experiment run over two days, and
+  so on. The part is outlined for a moment. A link to the app can ask for a part of its page with `show`, beside the
+  example it opens, as in `https://factori.al/?example=worked&show=best`.
+- The concept map at factori.al draws the formulas on a term's card as mathematics, with KaTeX: in the definition, in
+  the line quoted from the book, and in the strip under the map. Until now a formula was shown as typed, such as
+  `trace((X'X)^-1)`, or as the book's raw markup. A screen reader is given each formula as MathML, once. KaTeX and its
+  fonts come from factori.al itself, and only when a card first holds a formula; if they cannot be fetched, the formula
+  is shown as it is written.
+- **A region with `min_when_used` factors can be sampled and searched.** Such a region is made of
+  pieces of different dimensions, one for each set of the factors in use. `DesignRegion.sample` draws
+  from the measure under which each such factor is left out as often as it is used, before the
+  constraints act, and is uniform between its minimum and `high` when it is used; I- and G-optimal
+  designs and the prediction variance of `evaluate_design` average over those points.
+  `optimize_responses` keeps, in each search, the set of factors its start uses, and from the best
+  result tries the neighbouring sets (one factor left out or brought in, or one exchanged for
+  another) until none is better, so the optimum has every such factor at 0 or at no less than its
+  minimum. On ingredients in buckets with limits on the bucket totals, the optimum of a linear model
+  matches a mixed-integer programme. A Pareto front keeps the sets its starts use.
+- **`Factor(min_when_used=...)`: an ingredient that is left out, or used at no less than a minimum.**
+  A continuous factor with `low=0` and `min_when_used=5` is 0 or between 5 and `high`, which keeps
+  traces out of a formulation. `generate_design` then chooses a D-optimal design when none is asked
+  for, and the candidate exchange places no run between 0 and the minimum: a grid level that falls
+  there moves up to the minimum, so a quadratic model still gets three levels, and candidates,
+  vertices and polishing moves that fall there are dropped. A classical design that would set the
+  factor there, in a run or a centre point, is refused with the factor's name; `fixed_runs` are kept
+  as given. `DesignRegion.feasible` is False for such a setting, `broken_limits` writes it as
+  `"A = 0 or A >= 5"`, and the region a design records carries the minimum.
+- **A ratio of components as a mixture constraint.** A mixture region now takes a ratio of two linear
+  expressions against a number, such as `"A / B <= 2.5"`, `"0.5 <= A / (B + C) <= 2"` or `"A / B >= 0.4"`.
+  It holds the limit that multiplying through by the denominator gives (`"A <= 2.5 * B"`), in
+  `generate_design`, in a design of components beside process factors, and in `DesignRegion`, whose
+  `linear_forms()` states that limit. The component bounds must keep the denominator above zero: where it can
+  reach zero the constraint is refused with the limit to write in its place, because that limit also admits
+  the blends where the ratio has no value. Such a constraint used to be refused as not linear.
+- **Mixture designs for many components in groups.** A mixture region with more vertices than
+  `extreme_vertices` lists (15 components in 5 groups, each group between 5% and 30% of the blend)
+  raised "Enumerating the vertices needs ... linear solves"; some of its vertices are now found by
+  linear programming, with the points between them standing in for its edges and faces, and
+  `metadata["vertices_sampled"]` says so. `extreme_vertices` raises `TooManyVertices`, a
+  `ValueError`, for such a region, and `sampled_vertices` returns the sample.
+- **A group of components held to a fixed total no longer refuses the design.** Five groups that
+  may each supply at most 20% of a blend supply exactly 20% each, which leaves one Scheffé column of
+  each group but the first inestimable, and the design was refused for "too few distinct blends".
+  It is now built for the columns the region can estimate, with a warning that names the others and
+  `metadata["inestimable_columns"]`. Candidates the caller supplies must still support the whole
+  model.
+- **`min_when_used` on a mixture component.** The component is left out of a blend or makes up no
+  less than that share of it: candidate blends with a trace are dropped, the design is D-optimal
+  with or without a budget, `DesignRegion.feasible` is False for a trace, and `optimize_responses`
+  returns a blend that leaves the component out or uses at least its minimum. Such a mixture region
+  is not sampled: `DesignRegion.sample` raises, and an I- or G-optimal design averages over the
+  candidate blends.
+- **A word's definition on factori.al leads to its idea in the concept map.** The definition a
+  dotted word opens ends in "See it in context" for 61 of the glossary's 78 words, and for a
+  design's name in the list of designs: a link that opens the concept map at that idea, in a tab
+  of its own, with the ideas around it, the book's line and the way into the book. A finger taps
+  it, a mouse moves onto it, and Tab goes from the word's box into it and on from there. The
+  concept map, opened by an address that names an idea, now opens at the map, with the idea's card
+  under it, where it opened at the page's top.
+- **factori.al shows the Python that draws every chart, and its notebook draws them.** Six of
+  the 17 charts are drawn by the page itself and showed no code: the coefficients, the runs at
+  each level of a study of one factor, the true response surface, and a mixture's fitted and true
+  triangles and its Cox traces. Each now shows code that runs as it is, in Plotly, on the numbers
+  of the analysis above it. "Download notebook (.ipynb)" ends each analysis with a cell for each
+  of its figures, under the figure's title, so a notebook run top to bottom shows them all.
+- **factori.al has a page of everything it does.** "See what Factorial does", a button in the
+  footer, opens the list: the designs, planning a study, running it, the calculations, the
+  figures, how the page is used, data in and out, privacy, security and operation, the other
+  pages, the limits, and what the app does not do. The page is drawn from `web/FEATURES.md`, the
+  document the app is described from, which a test holds to the app: a design, a chart or a limit
+  named on the page is one the app has. It opens without a network, with the rest of the copy.
+- **factori.al shows the Python that draws each figure.** A figure's own window holds the code of the
+  design, its results and their analysis, then the call to `visualize_doe` that draws the figure with
+  the library: copy it and it runs as it is. It is there for every figure drawn from the analysis:
+  the response surface, the residuals, the half-normal plot of the effects, and the charts under
+  "More charts". The figure is the library's own, with each factor in coded units, and it holds the
+  same numbers as the page's. The page's own figures, such as the coefficients' chart, have none:
+  the analysis's panel holds the code of their numbers.
+- **factori.al's figure window steps through the figures.** The window of a figure has an arrow to
+  the figure before it and one to the figure after, among the charts on show beside it, and says
+  where it is among them ("4 of 13"); the left and right arrow keys do the same. Each figure can
+  then be looked at large without closing the window between them. The shape a reader gave a figure,
+  by a press or by dragging its corner, is kept in the browser for the next visit.
+- **factori.al opens each figure in a window of its own.** Every chart has an Expand button beside
+  its heading. The figure opens over the page as large as the browser allows, with Plotly's buttons
+  to zoom and turn it. It takes the shape pressed (16:9, 4:3, square, or all the room there is) or
+  the size its corner is dragged to, with a mouse, a finger or the arrow keys, and the next figure
+  opens at that size. There, a response surface's axes fill the shape the reader gives it. The
+  figure is saved from the window as a PNG or an SVG in the shape shown, on white, under its title,
+  or copied to the clipboard to paste into a slide.
+- **factori.al names the run of each residual.** Where the pointer rests on a point of a chart of the
+  residuals, the chart says which run it is, by its place in the order the runs were made, so a
+  residual out of line is found in the run sheet. The residuals in run order are drawn at each run's
+  own number, where runs still to do had moved the later ones up. A chart with a line for each
+  factor or setting reads every line's value at one setting together, and what the pointer rests on
+  is named in the page's own colours, where a dark page showed pale text on white. Each chart is one
+  picture to a screen reader, named by its heading.
+- **factori.al marks a run wherever it is shown.** Rest the pointer on a run, on a chart of the
+  residuals, on a response surface, or on its row in the run sheet or in the table of each run, and
+  the same run is marked on every other chart and in both tables: ringed in the warning colour on
+  the charts, shaded in the tables. A press, or a tap, keeps it marked; a press again, or Escape,
+  lets it go. A point out of line on one chart is then found at once on the others and in the run
+  sheet. Each run on a response surface now says which run it is, and in the chart of the residuals
+  in run order the line through the points no longer takes the pointer from the run under it.
+- **factori.al draws how well the model knows each factor's effect.** Each line of "Each factor's
+  effect on the prediction" has a band around it, the 95% confidence interval of the prediction,
+  from the fit's own covariance and put back in the response's units with the line. Resting on the
+  chart reads each line's value with its interval. A fit that uses every run has no estimate of the
+  error, and its lines have no band.
+- **The other figures on factori.al show the Python that draws them.** The 17 charts of an
+  analysis showed their code; the page's other figures showed none. Each of these now shows code
+  that runs as it is, after the code of the step it is drawn from: the Pareto plot of the
+  coefficients, how tightly to hold each factor, the overlay of the responses' acceptable ranges,
+  the curve the what-if panel predicts, the FDS plot of the comparison, and the correlation maps
+  of the comparison and of the study's own runs.
+- **`feasible_region` allows for responses whose errors move together.** Its probability that one new
+  run meets every window multiplied the responses' chances, as if their errors were independent. A
+  new argument, `residual_correlation`, takes the correlation of the responses' errors on one run,
+  which the correlation of the models' residuals estimates. Each response keeps its own Student's t
+  distribution, and the responses are joined by a Gaussian copula, integrated with Genz's method.
+  Without the argument the result is unchanged.
+- **`analyze_experiment` reports the inverse of `X'X`.** The `"coefficients"` analysis gains
+  `"unscaled_covariance"`, in the order of its coefficients and on their scale. With the model
+  summary's `mse_residual` and `df_residual` it is what `feasible_region` works the scatter of a new
+  run from, so that function now takes the analysis result as it is, as `optimize_responses` does.
+  The `analyze_experiment` agent tool leaves the matrix out of its reply.
+- **`feasible_region`: the settings that meet a specification.** A new function in
+  `process_improve.experiments` takes each response's model as `optimize_responses` does, a window
+  for each response (`(low, high)`, an end of `None` open) and the settings to judge, and returns
+  for each setting every response's prediction, whether every prediction is inside its window
+  (`feasible`), and the `probability` that one new run there meets every window. The probability is
+  the share of a new run's distribution inside the window, Student's t about the prediction by the
+  standard error of a new observation, multiplied over the responses; a model holds what it is
+  worked from as `mse_residual`, `df_residual` and `unscaled_covariance`, and without them the
+  probability is NaN. The settings that meet the windows with a high probability, 0.9 say, are the
+  design space of quality by design.
+- On "What Factorial does", the page of factori.al that lists the app's features, each of the 17 charts has its
+  picture: a card with the chart as the app draws it, in the page's light or dark colours, three to a row on a
+  desktop and two on a phone. A picture is fetched when its part of the list is opened. The pictures are drawn
+  from the app itself by `tests/web/e2e/test_chart_pictures.py`, and a test fails while a chart has none.
+- An optimal mixture design keeps the blends already made: `generate_design(components, design_type="d_optimal",
+  fixed_runs=blends_made, budget=...)` puts them first, as given, and chooses the other runs as the blends that
+  add most to them for the model, under the same bounds, constraints, `min_when_used` and `count_nonzero`
+  limits. `fixed_runs` holds the proportions, a column per component; the budget counts them. A blend made
+  outside the region is kept with a warning, and `metadata["n_fixed_runs"]` and
+  `metadata["n_fixed_runs_outside_region"]` record them. It was refused for mixture designs. A split-plot
+  mixture design (`hard_to_change`) is still refused.
+- `optimize_responses` proves its optimum when every model is a straight line in the factors and every
+  constraint is one, which is the usual case for a formulation of many ingredients. The best setting is then
+  found by mixed-integer linear programming (HiGHS), not by a search from starting points: it bounds the
+  composite desirability of every set of factors in use and returns the setting with the proof that no setting
+  of the region scores higher, to one part in a million. Several responses, targets, `in_range` limits,
+  weights and importances are covered, with `Factor(min_when_used=...)`, `count_nonzero` limits, limits on
+  totals, and blends beside process factors. The desirability result says so in a new key, `proven_optimal`.
+  Where no factor can be left out, the setting reported is still the search's own, as before, and
+  `proven_optimal` says whether it reaches the bound.
+  A formulation of 26 or of 45 ingredients, most of them left out of any one blend, is solved in under a
+  second; the search it replaces took from 40 seconds to 13 minutes and gave no proof.
+- With a model that has an interaction or a squared term, or a curved constraint, the optimum is still searched
+  for, and `proven_optimal` is False unless the composite desirability reaches 1. That search is stronger where
+  factors can be left out: it starts from the most promising settings of 30 different sets of factors, tries
+  the sets next to the best three results, and uses the exact search on the models' tangents at the best
+  setting to pick a set that no neighbouring change reaches. Against the best of every allowed set of ten
+  components, with blending terms in three responses, it found the best setting in 44 of 44 cases, where the
+  search it replaces found it in 8 of the first 12.
+- **`factorial-usage` counts the visits a tagged link brought.** A link posted somewhere can name the
+  place, as `https://factori.al/?ref=linkedin`, and the report lists its visits as `?ref=linkedin`
+  under "Where readers came from", apart from the rest. That counts a place whose app opens links in
+  a browser of its own, which names no site. A tag is up to 24 letters, digits, `-` or `_`, read in
+  lower case; any other is not counted. It is a word for a place, never for a person. The app drops
+  the tag from its address once open, so a reload, or the address copied on, is not counted again.
+  The access log already holds each request's address, so visits made before this are counted too.
+  Run `setup.sh` on the server to install the new report.
+- In "What Factorial does", a design the library makes and the app does not reads "Not in the app yet. Request
+  it.", and "Request it" opens the app's Feedback with the request written: the topic is Interface suggestion and
+  the message names the design. Nothing is sent until the reader presses Send. The link is the app's address with
+  `?request=` and the design's name, such as `https://factori.al/?request=supersaturated`; a name that is not
+  lower-case letters and underscores opens nothing, so an address cannot put words of its own into a report.
+  Each link names its design to a screen reader.
+- **factori.al finds the settings that meet a specification.** Learn has a new section: type the
+  window a response must fall in, or the windows of several, either end or both. The page says over
+  what share of the settings the models predict every response inside its window, at what share one
+  new run meets every window with a chance of 50% or more and of 90% or more, and where that chance
+  is highest; those settings can be taken to the what-if panel or tested with confirmation runs. A
+  chart shades the settings that meet the windows over two factors of the reader's choice, the
+  others where the what-if panel has them, with a line for each chance, the runs made and the
+  limits on the settings. The numbers are the library's new `feasible_region`, and the section and
+  its chart show the Python that gives them.
+- **factori.al finds the settings that give a target.** Learn has a new section: type what a
+  response should be, or what several should be, or pick a run to match, and each response's
+  model is run backwards to the settings at which it predicts that. The
+  section says whether the settings give the targets, lists each factor's setting with where
+  it lies in its range and each response's target beside its prediction and interval, warns
+  when the settings lie beyond the runs, and draws each response's line of settings over two
+  factors of the reader's choice, with the runs. The settings found can be taken to the
+  what-if panel or tested with confirmation runs. One factor can be solved for from the
+  others, with the settings around it at which the 95% confidence interval of the prediction
+  still holds the target. The section and its chart show the Python that gives the same
+  numbers.
+- **factori.al shows what one response costs another.** Under the balance of a study with two
+  responses or more, a chart puts one response against another: 2,000 settings tried on the models,
+  each a point, with the runs made, a star at the balanced settings, and a line through the
+  settings that no other betters on both responses. The points can be coloured by a third response,
+  and a limit typed on any response keeps only the settings that meet it. A point pressed is chosen:
+  the what-if panel moves to its settings, and confirmation runs can be added there. A point where a
+  model predicts further from its runs than any run lies is drawn paler. Other settings nearly as
+  good as the balanced ones, when the search finds any far from them, are listed to choose from.
+- Factorial says which version it is at the foot of the page, as "Version 88ccccb, 13 November 2026.": the first
+  seven characters of the commit it was built from, as a link to that commit on GitHub, and the day of the commit.
+  The build's manifest gains `committed`, the commit's day, beside `commit`. A page that was not built, such as a
+  plain preview, shows no version.
+- A report from Feedback names the same version, the whole commit and then the day, on the last line of its email:
+  "Version: 88ccccbbe212e09c53d9f69b3ee7193262cc165a, 13 November 2026". The line was "App commit", first under
+  "What the page sent with it", and held the commit alone. The dialog's list of what will be sent, and the report
+  as text for an issue or an email, end with the same line. The email is written by the relay, so its last line
+  is there once `deploy/factorial/setup.sh` has run on the server again; until then the email keeps its
+  "App commit" line, which holds the commit and the day.
+- **factori.al: a campaign on one map and one chart.** On the Next stage, a campaign of two rounds or more is
+  now drawn. The map shows every run of every round where it was made, over two factors, with each round's
+  model inside that round's own ranges and nowhere else: a box marks the ranges. The chart beside it shows
+  every run in the order they were made, with the best result so far for the goal, and the target when there
+  is one. A choice shows the campaign as it stood after an earlier round. Each chart opens large and shows
+  Python that draws it.
+- **factori.al: the effects in the response's own units, against the change worth finding.** The chart of the
+  coefficients has a third view, "Effects", beside the estimates and the Pareto plot. It draws how far each
+  term moves the response over the factors' ranges, such as "+7.9 % of Yield from Temperature": twice a
+  coefficient in coded units, or the coefficient of a square. When you said what change is worth finding, a band
+  marks the changes smaller than it, so an effect can be seen to be real and still smaller than you care
+  about. The view shows the Python that draws it, and the choice of view is kept in the browser. A fit on a
+  transform's scale, and a mixture, keep the two views they had.
+- **factori.al: checks of the answer, on Learn.** Under the answer Learn now says whether to rely on it, in
+  four checks: the fit ("The model explains 99%"), the runs one by one ("No run stands apart"), the repeated
+  runs ("The repeats agree with the model") and the reach of the runs ("Beyond the runs"). Each shows its verdict
+  and opens to a sentence, its statistic and the way to its evidence on the page. A check to look at is open
+  already, and what the runs cannot tell is said so: a model that uses every run, or no repeated runs. Nothing
+  new is judged: these are the cautions the analysis and the best settings already gave, gathered where the
+  answer is. The report holds each check open.
+- **factori.al answers "which blend gives this result?" for a mixture.** "Settings that give a
+  target" and "Settings that meet a specification" were left out of a study whose factors are the
+  components of a blend. Both now answer in blends, drawn evenly from those the bounds allow: the
+  blend that gives the targets, nearest the middle of the region and weighed out for confirmation
+  runs; and the share of the blends that meets every window, how surely one new run does, and the
+  surest blend. Three components are drawn over their triangle, with the line of each target, or
+  the blends that meet the windows shaded and a line for each chance. The legend of a triangle chart
+  no longer sits on the name of the component at its top corner.
+- **factori.al: every next move has its price, and shows its runs before you make them.** On Next, what the
+  results call for and each way of adding runs now say how many runs they add and what the study then holds
+  ("8 more runs: 19 in this study"). A new study's runs are counted on their own, and a campaign says how many
+  runs it holds so far over its rounds. There is no budget to set against a price: what a campaign may spend is
+  often decided a round at a time. Under its price, each way of adding runs lists the runs it would add, each
+  with its settings and what that run is for; with two or three numeric factors they are also drawn on a square
+  or a cube, among the settings already run.
+- **factori.al: a prediction as 20 runs, and kept settings side by side.** Under the dials of What if, each
+  response is now also drawn as 20 runs you might get at those settings, each as likely as the next, piled up
+  where a run is likelier. The least and the greatest are the two ends of the 95% prediction interval in the
+  table beside them. A run inside the response's window is filled and one outside is a ring, so you see how
+  many of 20 runs the window would pass. The settings you keep under a name now sit side by side in one
+  table, a row each, with every factor's setting and every response as predicted there. A row puts its
+  settings back on the dials, adds confirmation runs there, or is deleted.
+- **factori.al: a fourth stage, Next, and studies linked as the rounds of a campaign.** A study started from
+  another (Learn's "Start a new study with these ranges") now names the study it builds on. Next, the new
+  stage after Learn, lists the rounds of that campaign from the studies your browser keeps: each round's runs,
+  its best result so far, and a button that opens it. It says when a run or a result of an earlier round
+  changed after a later round was built on it. What the results call for, which Learn ended with, is on Next,
+  and Learn ends with the way to it. The link between two rounds goes with the study through its file, its
+  link and its workbook: a study's own file holds the rounds before it, and a link holds the one study and
+  names the round before. Such a study is saved in study format 9, which an earlier Factorial refuses in a
+  sentence, so the link is not cut by a save. A study that stands alone reads as before.
+- **factori.al: a map beside the dials of What if.** The response is drawn over two factors, with the other
+  factors where the dials have them, beside the dials that move it: on a laptop both are in view together.
+  Press or drag on the map to set both factors at once. It marks where the dials are, stars the best
+  settings when it passes through them, and fades where the settings lie beyond the runs. Its two factors
+  are those you gave the response surface among the charts, else the first two numeric ones. On a phone a
+  tap sets both, and an up or down swipe still scrolls the page.
+- **Factorial: Learn's answer is drawn where it sits.** Beside "Run at ...", each numeric factor is a line from the
+  low end of its range to the high, with the setting as a point on it. For a study of two or three numeric factors
+  the settings are also a filled point on a square or a cube, among the runs made (#1326).
+- **Factorial: one run at a time, and a run that failed.** A card on Run shows the run to make now, with its settings
+  in large type, a box for each result and "Next run"; it is open at first on a phone, and the whole run sheet stays
+  under it. "This run failed" marks a run that gave no result: it stays on the run sheet, the fit goes without it,
+  and the next step does not wait for it (#1336, #814).
+- **Factorial: the ladder in Design.** For two to five numeric factors, the designs are steps on one line, each
+  holding the runs of the one before: half the corners, every corner, center points, then axial points. Each step
+  says its runs, the runs it adds and what they let you learn, and a press puts its design and its aim in the
+  form. The list of every design stays under it (#1336).
+- **Factorial lists the path of steepest ascent as runs to make.** When the results call for a move past the ranges,
+  Next shows four runs along the path, each with its settings and what the model predicts there. One press adds them
+  to the end of the run sheet, in the path's order; they never enter the fit. As their results come in, Next says
+  which run is best so far, which to make next, and when to stop: at the first run that does worse than the run
+  before it. One press then starts a new study centred on the best run (#1322, #798).
+- **Factorial: do a practice round before a run is made.** "Do a practice round", beside "Make the run sheet", makes
+  the run sheet, fills it with results the app makes up from a known process and opens Learn on them, with a note
+  that it is a practice round and a button that clears those results for the real ones (#1336).
+- **Factorial: Design reads the question back as one sentence.** Over the form: "Find the settings of Temperature,
+  Pressure and Flow that give the highest Yield." It follows the form as it is typed, and is what Learn's answer
+  then answers (#1336).
+- **Factorial: a run made at settings that differ from the plan.** A numeric factor's setting on the run sheet can be
+  pressed and typed over with the setting the run was really made at. The model is fitted on the settings really
+  made; the sheet says which runs left the plan, and one press puts the planned settings back. The planned setting
+  is kept with the study, in study format 10 (#1336, #814).
+
+### Changed
+
+- **A training row with nothing observed has an SPE of NaN in `PCA`, `PLS` and `TPLS`**, as in `MBPCA`
+  and `MBPLS`, and as `diagnose` gives such a row. It was 0. The fit still places the row at the centre,
+  so its scores and T² stay 0. `spe_limit` (and TPLS's `spe_limit`) is over the rows that have an SPE,
+  so a model fitted with such a row has a slightly higher limit than before. (#1114)
+- **One warning for a column with no variance across the family.** `PCA`, `PLS` (and `PLSDA`, `PRM`),
+  `OPLS`, `MBPCA` and `MBPLS` fitted a column whose observed values are all equal without a word; they
+  now give the `UserWarning` `TPLS` gave, for X and for Y: "Block X has columns with no variance, which
+  carry no information: 'c'. Drop them, or check the data for a stuck sensor." Its text no longer says
+  "and are excluded from the model", which is not so for an un-centred `PCA`. Only a fit the caller asks
+  for warns: a fit inside a cross-validation, or on a matrix another estimator derived (`ASCA`, `FPCA`),
+  does not. A block in which nothing varies gets the estimator's `NotEnoughVarianceError` alone. (#1114)
+- **The R² and RMSE of a weighted fit are measured in its weights.** `PLS` fitted with `sample_weight`,
+  and `PRM`, whose fit is a weighted `PLS`, reported `r2_cumulative_`, `r2_per_component_`,
+  `r2_per_variable_`, `r2y_per_variable_` and `rmse_` over every row with equal weight, outliers and rows
+  of weight 0 included. They are now over the rows in the weights the fit used, so a fit with zero
+  weights reports what the fit on the other rows reports. `PRM`'s R² and RMSE describe the rows it
+  trusts: on 30 rows with 9 shifted by 25 in y, its two-component R² rises from 0.014 to 0.866 and its
+  RMSE falls from 9.5 to 0.64, so its `prediction_interval`, which uses `rmse_`, narrows from about 39
+  to 2.7 wide. (#1114)
+- **A count that is not a whole number is refused**: `max_components`, `n_repeats` and `n_permutations`
+  of `PLS.select_n_components`, `PCA.select_n_components`, `MBPLS.select_n_components`, `PLS.nested_cv`
+  and `compare_cv_criteria` (and its `n_cv_permutations`), the `n_permutations` of
+  `randomization_test_mbpls`, `PLSDA.permutation_test`, `ASCA.permutation_test`, `ASCA.vasca` and
+  `GPA.consensus_test`, the `n_components` of `pseudo_validation_set`, and `impute_low_rank`'s
+  `n_components`. 2.5 was read as 2 without a word, or failed in a slice with a `TypeError`; it now
+  raises "max_components must be a whole number; got 2.5.". A float that holds a whole number is refused
+  too, as scikit-learn's `Integral` constraint refuses it in an estimator's settings. (#1114)
+- **Every multivariate estimator refuses a count that is not a whole number, as `PCA` does.** `PLS`,
+  `PLSDA`, `PRM`, `OPLS`, `AdaptivePCA`, `AdaptivePLS`, `CA`, `MCA`, `FAMD`, `MFA`, `FPCA`, `ASCA` and
+  `GPA` fitted `n_components=2.5` as 2 without a word, and so with a `max_iter`, `max_weight_iter`,
+  `n_orthogonal_components`, `spe_limit_window` or `n_basis` of 2.5; `FPCA`'s `degree` and
+  `penalty_order` failed inside numpy. `fit` now raises scikit-learn's `InvalidParameterError`, a
+  `ValueError` and a `TypeError`: "The 'n_components' parameter of PLS must be an instance of 'int' or
+  None. Got 2.5 instead." A float that holds a whole number, such as `max_iter=1e4`, is refused too; a
+  numpy integer is taken. (#1144)
+- **`BatchPCA`, `BatchPLS` and `BatchMonitor` check the settings they declare when they fit**, as the
+  multivariate estimators do. A `spe_window` of 1.5 or a `scale` of `"yes"` is refused with the same
+  message; `scale` and `group_by_batch` take numpy's `bool` as well as Python's. (#1144)
+- **The `robust_regression` tool fits at most 1,500 points.** With its default resamples a call
+  computes 40 repeated medians (the fit and 39 resamples), each costing time in proportion to the
+  square of the number of points, so a hosted call above about 1,500 points could run past the
+  10 s timeout on a slow machine; at 5,000 points it took 31 s even on a fast one. A call with more points is now refused by the tool's
+  input contract, before any worker starts, with a `ToolInputInvalidError` that says why and
+  suggests fitting a random sample or calling `process_improve.regression.robust_regression` in
+  Python, which keeps its own limit of 5,000 points. The tool's schema gives the limit as
+  `maxItems` on `x` and `y`. (#1130)
+- **`TPLS` refuses data with no variance with `NotEnoughVarianceError`, as `MBPLS` and `PLS` do.** A
+  first Y block with no variation, or F, D and Z with nothing that varies, is refused before the
+  iteration, with the words `MBPLS` uses; a component whose scores are not finite, because a block
+  has no variation for the iteration to follow, keeps its message. `NotEnoughVarianceError` is now a
+  `ValueError` as well as a `RuntimeError`, so code that caught the `ValueError` TPLS raised before
+  still catches it, and so does code that catches `RuntimeError`. (#1144)
+- **A Y uncorrelated with every column of X is refused across the PLS family.** With `X'Y` about
+  zero there is no first component. `PLS` (and `PLSDA` and `PRM`) and `OPLS` raised a
+  `numpy.linalg.LinAlgError` that blamed collinear columns, after numpy's division warnings, and
+  `MBPLS` fitted every weight 0, with an R²Y of 0, and predicted NaN for every new row. All now
+  raise `NotEnoughVarianceError`, as for a constant Y: "There is nothing in X to explain Y by: Y is
+  uncorrelated with every column of X." `NotEnoughVarianceError` is a `ValueError` as well
+  (#1166), so code that caught the old `LinAlgError`, a `ValueError`, still catches it. `X'Y` is
+  judged against `||X|| ||Y||`, so the units of the data do not matter (#1144).
+- **The reference catalogue records Box, Hunter and Hunter's 0.123 for the poison rates' scale as a slip in
+  the book.** The book takes the rates' residual mean square as 0.242, which neither the runs (0.240 on 36
+  degrees of freedom) nor its own analysis of variance (0.247 on 35) give; the cause was `unexplained`, and is
+  now `source_error`. (#1100)
+- **An X in which nothing varies is refused across the family.** When every column of every block is
+  constant or has no observed value, `PCA`, `PLS` (and `PLSDA` and `PRM`), `OPLS`, `MBPCA`, `MBPLS`,
+  `BatchPCA`, `BatchPLS`, `AdaptivePCA` and `AdaptivePLS` raise `NotEnoughVarianceError` in the words `MBPLS` used: "There is no
+  variance in X: every column is constant or has no observed value, so there is nothing to explain Y
+  by." (`PCA`, `MBPCA` and `AdaptivePCA` end "so there is nothing for a component to describe"; with
+  several blocks it reads "every column of every block"). `PCA`, `MBPCA` and `AdaptivePCA` fitted such
+  an X, with scores that told no row apart; `PLS` and `OPLS` refused it with "There is no variance left in the data array for X:
+  cannot compute any more components beyond component 0.". The error comes alone, before any warning
+  names the columns. `PLS` judges X over the rows its `sample_weight` keeps. A `PCA` that another
+  routine of this package fits on a matrix it derived, such as `ASCA`'s effect matrix of a term with
+  no effect, is fitted as before. (#1144)
+- **A block with no variance, beside blocks that vary, gets zero weight, and one warning names it as a
+  block.** `MBPCA` and `MBPLS` already fitted it with zero block scores, weights, VIP and
+  contributions; the warning listed every one of its columns, and now reads: 'Block X["b"] has no
+  variance: every column is constant or has no observed value, so it gets zero weight in the model.
+  Drop the block, or check the data for a stuck sensor.' A block with only some constant columns keeps
+  the warning that names them. (#1144)
+- **`TPLS` fits a group of F or D with no variation with zero weight.** A group whose F has no
+  variation over the blends, scaled or used as given (`skip_f_matrix_preprocessing`), or whose D has
+  none over its materials, beside a group that varies, takes no part in the model: its
+  `r_loadings_f`, `s_loadings_d`, `v_loadings_d` and `p_loadings_f` are 0, so the fit, the
+  predictions and the scores `diagnose` gives a new row are those of the model without that group,
+  whatever the row holds in it, and its VIP is 0. Such a group of F was refused ("TPLS cannot fit
+  component 1: its scores are not finite ..."), and so was a group of D with one material; a constant
+  group of D was fitted, with its F deflated. The warning above names the group, as `D["B"]` or
+  `F["B"]`. When no group has a column of F and a column of D that vary, the fit is refused, now also
+  when Z varies: "There is no variance in F and D: no group has a column of F and a column of D that
+  vary, so the blends have no F score to explain Y by. A TPLS model needs one, even when Z varies.".
+  `TPLS` names columns with no variance after these refusals, as `MBPLS` does, so a Y with no variance
+  gets its error alone. The error for scores that are not finite now ends "Check that each group of F
+  covaries with the first Y block, or fit fewer components." (#1144)
+- **`TPLS` counts only the columns that vary in a VIP's width**, as `MBPCA` and `MBPLS` do (#913). A
+  column of D or F with no variance, or one of a group with zero weight, has a loading of 0, and
+  counted in the width it raised the VIP of every other column of its block by the square root of the
+  count of all its columns over the count that vary: 6% for one constant column of F among nine. Its
+  own VIP stays 0, or, for a constant column of F used as given, which stays in the fit (#1084), what
+  its loading gives. A model fitted before this release keeps the width it was fitted with. (#1144)
+- **A `TPLS` group with zero weight has an SPE of 0**, in the fit and in `diagnose`, and a `spe_limit`
+  of 0, as `MBPLS` gives a block with no variance: the model uses none of its columns, so nothing of it
+  is left. `optimal_inversion` takes its lots as inputs, with no SPE rule on the group, which would
+  always be met. A group of F used as given keeps its values in the fit, so its SPE is their length.
+  (#1144)
+- **`BatchPCA.transform`, `diagnose` and `fit_transform` give the rows in the order of the batches
+  passed**, as `BatchPLS.transform` and `predict` do. They were sorted by batch id, so a batch keyed
+  `"g10"` came before `"g2"`, and a caller who lined the result up with their own list of batches
+  got the wrong rows. The fitted attributes, such as `scores_`, keep their order. (#1184)
+- **`batch_dtw` no longer prints a line per iteration to stdout.** The change in the weights at each
+  iteration is logged at DEBUG level on the `process_improve.batch.preprocessing` logger;
+  `docs/development/logging.rst` shows how to see it. `show_progress` still shows the progress
+  bars, on stderr. (#1184)
+- **A constant Y is refused in one set of words across the family.** `PLS`, `PRM`, `AdaptivePLS` and
+  `BatchPLS` refused a Y in which every response is constant or has no observed value with "There is no
+  variance left in the data array for Y: cannot compute any more components beyond component 0."; `MBPLS`
+  and `TPLS` said "There is no variance in Y: every response is constant or has no observed value, so
+  there is nothing for X to explain.", and `OPLS` "... the response is constant, ...". All now use the
+  `MBPLS` words (`TPLS` names its block, `Y["Y1"]`, and ends "for F, D and Z to explain"). The error is
+  still `NotEnoughVarianceError`. (#1149)
+- **One row is refused as too few rows by `BatchPCA` and `TPLS`, as across the family.** One batch, or
+  one blend, was refused as an X or a Y with no variance; it is now refused with the `ValueError` the
+  others raise: "Found array with 1 sample(s) ... while a minimum of 2 is required". (#1149)
+- **`TPLS` refuses a component after its Y is fitted exactly in the words of `PLS` and `MBPLS`:** "There
+  is no variance left in the data array for Y: cannot compute any more components beyond component 1."
+  It was refused because the component's scores were not finite, in words that pointed at the groups of
+  F. (#1149)
+- **factori.al's concept map has its own light and dark switch, shows the size of each topic, and can label its
+  links.** The colour-mode button sits beside the back link and is kept with the rest of the app. Each topic and
+  sub-topic shows its number of terms in square brackets on a second line, and the sub-topics appear a little sooner as
+  you zoom in. What the map shows is now set beside the search, and the zoom buttons stay below the map: "Term names"
+  (the former Aa button) and a new "Link labels" switch, off by default, which writes each link's verb along its line
+  in italic, with an arrow to show which way it reads. A label whose middle is taken slides along its line to a clear
+  spot, or waits until zooming in makes room for it; hovering a line, or tapping one of the selected term's links,
+  reads it as a sentence below the map. A term can be moved out of the way, dragged with the mouse or, on a touch
+  screen, held still for a moment and then dragged. The map zooms in 2.5 to 3 times deeper than before.
+- The concept map (factori.al/map) links to the how-to for building a map from your own texts, under "How this map
+  was made" below the map. The how-to holds the steps, so the page's own step-by-step guide is removed.
+- The concept map at factori.al sets everything it shows above the map, in two rows: the search with the term-name
+  and link-label switches and the reading level, then the kinds of term on one line, under short names (the full
+  name stays in each button's title and for screen readers). Zoom and fit stay below the map.
+- The concept map at factori.al draws the graph as corrected in pid-book #422, after a comparison with a second text:
+  231 terms and 468 links, up from 229 and 461, with two definitions corrected.
+- The concept map's term names and link labels at factori.al sit on the map with no box behind them: a soft halo in
+  the topic circles' colour keeps them readable where lines cross them.
+- On a screen wider than it is tall, the concept map at factori.al spreads its topics sideways to fill the width,
+  each topic moving whole with its sub-topics and terms. A phone held upright shows the drawing as before.
+- The concept map at factori.al takes the page's whole width on a wide screen (up to 1600 px, a little shorter),
+  while its text keeps its reading width. A tap on the map brings it up the page, its filters at the top of the
+  screen, so the card it opens below is in view. Each link bows a little, so lines that would cross at a shallow
+  angle part. A topic with no term at the chosen level, or of the kinds shown, is dimmed.
+- "Read it in the book" on the concept map at factori.al now opens the book at the very sentence the term quotes, and
+  highlights it, in browsers that support text fragments (Chrome, Edge, Safari, Firefox); others stop at the section.
+  For 19 terms whose quote is on another page than their section, the link now opens that page.
+- The concept map at factori.al draws the graph of pid-book #424: 237 terms and 489 links, up from 231 and 468, in 13
+  topics, up from 11 ("Factors and coding" and "Composite designs" are topics of their own). Six terms are new:
+  contrast, conditional inference chart, dispersion effect, orthogonal blocking, simplex-lattice design and
+  simplex-centroid design. "Mirror-image pair" is now "Foldover pair".
+- On the concept map at factori.al, link labels are larger and bold, with a firmer halo, so they read against the map
+  in both colour modes; and the level slider is drawn the same in every browser: a rounded track filled up to a round
+  handle, in the page's accent colour.
+- On the concept map, the shapes that show or hide each kind of term are about twice the size, and on a phone each
+  sits above its name.
+- The concept map no longer has the two links above the map, "How this map was made" and "Build one from your own
+  texts": both are in the section below the map.
+- **factori.al's header says "Data never leaves your device"**, and keeps its tagline and its three
+  reading levels on one line each, on a phone too. (#1223)
+- **`import process_improve` and `import process_improve.experiments` no longer load scikit-learn
+  and statsmodels.** Each public name is imported from its module when it is first asked for
+  (PEP 562), so `from process_improve.experiments import generate_design` loads the design
+  generators and nothing a model is fitted with. Every name is importable as before, from the same
+  places. The subpackages and modules are still attributes of their package
+  (`process_improve.univariate`, `experiments.models.lm`), and several threads may ask a package
+  for its names at once. Three things show:
+  - Where statsmodels or scikit-learn is missing or broken, the error comes when a name that needs
+    it is first used, no longer at `import process_improve`.
+  - `import process_improve` alone no longer imports plotly, so it no longer registers the Plotly
+    themes (`pi_journal` and the others) as a side effect. They are registered when
+    `process_improve.visualization` is imported, as documented, and before the library draws a
+    figure.
+  - The packages scikit-learn, statsmodels and plotly are now imported when first used, which may
+    be in a thread. A program that imports modules of `process_improve` in one thread while
+    another first uses the library should import them before the threads start, as for any
+    package whose dependencies import each other in a circle. (#1235)
+- The concept map at factori.al draws the graph of pid-book #426. With "Other textbooks" on, it now shows a second
+  textbook, Book M, beside Book B: Book M also states 155 of the 489 links, Book B 107, and both state 68. Three links
+  are reworded: "Optimal design suits split-plot design" (it was "Split-plot design is a kind of optimal design"),
+  "Full factorial may have blocking" (it was "uses"), and "Fraction-of-design-space plot complements I-optimality" (it
+  was "shows").
+- On the concept map (factori.al/map), a link is drawn only while both its terms are in view. Zoomed in on a topic, the
+  links that only crossed the view from terms outside it are gone, and each comes back when zooming out or moving the
+  map brings both its terms in. A selected term keeps all its links.
+- **`analysis_type="model_selection"` searches a formula over its own terms, keeps the blocks, and
+  knows a categorical factor.** Three changes to the stepwise search of `analyze_experiment`:
+  - An explicit formula was searched as the interactions model, with a note, so a square in the
+    formula could never be kept. It is now searched over its own terms, each free to enter once
+    every term of the formula that it contains is in (`A:B` after `A` and `B`, `I(A ** 2)` after
+    `A`). `candidate_model` is the formula, and there is no `note`.
+  - The blocks of a blocked design were left out of every model the search scored, so the
+    differences between blocks went to the residual and hid real effects. They are now in every
+    model, with any term of a formula that names the blocks itself (`C(Block)`, `Block:A`).
+    `selected_terms` holds the terms chosen, without the blocks, and `selected_formula` names the
+    `Block` column, so it can be given back as `model=`.
+  - A categorical factor has no square in the quadratic model's search, where the search used to
+    stop on one, and all its contrasts enter and leave together.
+
+  Results change for a blocked design, and for a formula with a square or with fewer terms than
+  the interactions model. (#1229)
+- **factori.al's table of coefficients reads at a glance, and can be saved.**
+  - The rows are ordered by p-value, the most significant first, with the intercept last; any
+    heading still sorts by its own column.
+  - Each estimate stands between the ends of its 95% interval, the low end on its left and the
+    high end on its right. The ends are dimmed and the estimate is bold.
+  - "Download this table (.csv)" saves the table in the order shown, each number in full where
+    the page shows four figures.
+  - On a narrow screen the column of terms stays in view when a table of the analysis is moved
+    sideways, and a number is no longer broken over two lines.
+- **factori.al's Beginner level now leaves out the older parts a first study does not need.** Blocks,
+  limits on the settings, a second response, the comparison of the designs in detail and a curve per
+  run come at Intermediate, each at the level the concept map gives its term. A first visit opens at
+  Intermediate, so it has them all as before, and a part the study on the page uses, such as its
+  blocks, stays in view at every level. (#1233)
+- **factori.al proposes a simpler model for a blocked study, and for a factor of several levels.**
+  "Simplify the model" used to refuse both. The blocks now stay in every model the search weighs
+  and in the model fitted when the proposal is accepted, and a categorical factor of three levels
+  or more is kept or dropped whole, every level with it. An interaction the blocks took is not
+  proposed back. A model with one factor nested in another is not searched, and the page says so:
+  the search would weigh the crossed model, which the reader left on purpose. (#1229)
+- **factori.al starts Python in about a third of the time.** Measured in Chromium, the wait until the
+  page says Ready fell from about 26 s to about 11 s on a first visit, and then to about 8 s. Four
+  changes do it. Pyodide's packages are loaded from the release's `pyc` folder, already compiled to
+  bytecode, and download while the interpreter starts. The build compiles the app's own Python, the
+  wheel and `web/bootstrap.py`, for the Python that Pyodide runs, and the wheel's browser copy
+  leaves out the reference catalogue's 29 MB of sources, which the page never reads. openpyxl and
+  plotly are installed when a call first needs them, a workbook or a chart, and no longer at
+  start-up, so a visit that makes a run sheet downloads neither, and the page starts on a network
+  that cannot reach PyPI. The build asks PyPI once for the exact files of those packages and writes
+  their addresses into its manifest: the page installs those files, asks no package index, and
+  chooses no version in the browser. And statsmodels and scikit-learn, which a model is fitted
+  with, are left out of the start: the page is ready once a design can be made, and fetches the two
+  in the background as soon as it is. That last step alone took Ready from 11.4 s to 8.3 s on a
+  first visit and from 10.2 s to 7.7 s on a later one, measured in one session, while what a model
+  is fitted with is in at the same moment as before, so a first analysis is no later. A fit asked
+  for before then waits for the same install, and the status line says so. (#1233, #1235)
+- "How Factorial works", the About page of factori.al, answers the questions a reader asks, in plain words: where the
+  work happens, where your studies are kept, whether it works with no network, how to share or move a study, what a
+  server sees, what the copy is built with, whether the code can be checked, and whether you can run a copy of your
+  own. It opens on six points in short. What only some readers ask (the names of the files, the study file's format,
+  what the server writes down and for how long, the versions, the build commands) is under each answer, in a fold.
+  Nothing the page said before is dropped.
+- "What Factorial does" has a part, More in the Python library, that says the app's limits are the app's and
+  not the library's. A table lists each design the library's `generate_design` makes with the factors the
+  library takes for it and the factors the app takes, or says that the app does not make it. The part names
+  what the library alone does: designs and analyses for hard-to-change factors, generalized linear models,
+  mixture components beside process factors, variance components and Gaussian process fits. A review of the
+  library had read the app's limits (a full factorial in at most 7 factors, a mixture of at most 6 components)
+  as the library's. The test of the page fails when a design the library registers is missing from the table,
+  when the library does not take the factors the table says, or when the app comes to have what the part says
+  it has not.
+- "What Factorial does", the page of factori.al that lists the app's features, is written for the person using the
+  app. Each point says first what it means in practice, in plain words; what a statistician asks, or the person who
+  looks after the computers, is under the point behind the word Details. The page opens on nine headline points as
+  cards, and each part is folded under a line that says what it holds, in the order of a study: Design, Run, Learn.
+  A box finds a word and opens what mentions it. The page follows the app's reading level: plain words alone at
+  Beginner, the details a press away at Intermediate, and open at Adventurous. On a phone the page is 2 screens
+  long where it was 22. A link to a part from when the parts were numbered still opens at that part.
+- On the concept map at factori.al, comparing this book with the other textbooks no longer colours every link by who
+  states it: on the whole map that read as a tangle. The switch is now "Compare books". While it is on no link is
+  drawn, and each topic and each term carries a ring with one sector per book, clockwise from the top, this book
+  first. A term's sector is in a book's colour when that book has the term; a topic's sector is in it as far round as
+  the share of the topic's terms that book has. A selected term still shows its own links, in grey, and a topic's card
+  says how many of its terms each textbook has. The buttons that faded one book's lines and terms are gone.
+- The concept map at factori.al draws the graph of pid-book #427. The formulas in 43 definitions are written as
+  mathematics, such as the trace in A-optimality's, and three quoted lines that stopped before a formula now carry it:
+  91 formulas on 45 cards. Three links are reworded: "Blocking limits disturbance" and "Pairing limits disturbance"
+  (each was "prevents"), and "Fraction-of-design-space plot complements G-optimality" (it was "shows"). The search
+  finds 52 more terms by a name another textbook uses, shown on the card under "In other texts".
+- On the concept map at factori.al, a link's label stands beside its line and no longer on it. On the line, the line ran
+  through the gaps between the label's words, in the label's own colour, so "is a kind of" read as one joined word. The
+  label is above its line whichever way the line runs, and it keeps clear of the selected term's other lines too: near a
+  term with many links it moves along its line to a clear place, or waits until zooming in makes room.
+- **`factorial-usage` counts the page of what Factorial does in a column of its own.** A visit
+  to `/features.html` was counted under Other; it now has the column Features, after About. The
+  kept counts (`/var/lib/factorial/usage.csv`) need no change by hand: the file is written whole
+  each day, and a day kept before the column has zero in it. Run `setup.sh` on the server to
+  install the new report.
+- The Feedback button at the top of factori.al and of its concept map asks for more where there is room: "Provide
+  critical feedback please" on a wide screen, "Feedback appreciated" on a narrower one and "Feedback" on a narrow one.
+  Where the header has no room for a word, as on a phone's start page, the button stays its icon, as before.
+- **factori.al's footer is in groups to scan.** Two paragraphs of running text with links inside
+  them are now one sentence on what Factorial is, a button to the list of what it does, and the
+  links in three named groups: the app (how it works, the design catalog, how its ideas link),
+  what is behind it (the Python package and the book), and where to send feedback. What is kept
+  on the device for use without a network is a group of its own, with a button to keep the charts
+  and workbooks too and one to remove the copy, where both were links.
+- **factori.al's button that simulates results always changes them.** "Simulate the results", pressed a
+  second time, drew the same results again and looked as if it did nothing, and new noise was a link
+  beside it. There is now one button: the first press simulates, and from then on it reads "Simulate
+  again, with new noise" and each press draws new noise for the same process. "Show the true process"
+  is a button beside it, and reads "Hide the true process" while the process is shown. The process and
+  its noise sit side by side at one height, with their labels on one line.
+- **factori.al: the catalog's map counts the designs by factors and runs, and a row opens into its
+  families.** The map drew a mark for each design, and nine in ten designs shared their point with
+  another; its lines gave the fewest runs a model needs, which is not whether a design estimates it.
+  The map is now a grid: a row for each number of factors and a cell for each band of runs, with its
+  designs counted and coloured by what most of them estimate, or by how many they are. A press on a
+  row's number opens the row into a lane for each family of design, with a mark for each run size.
+  A press on a cell or a mark lists its designs, and the map then says how many are listed, with a
+  link down to them: each has its details and a button that opens it in Factorial. The fewest runs
+  for the main effects and for the full quadratic run over the cells as two lines. The map is used
+  from the keyboard too, and is drawn without a chart library, so it no longer waits for one to load.
+- The screenshot that goes with Feedback from Factorial is sharp. The page is drawn at twice its size, or as large
+  as 16 megapixels allow, where it was drawn at its own size at most and reduced to 4 megapixels: a phone's page of
+  390 by 8,580 points arrives 780 pixels wide, where it arrived 390 wide, and a longer page was smaller still. At
+  that size the JPEG is 0.9 to 1.3 MB, within the 2 MB the relay takes. A screenshot larger than that is taken
+  again at a lower JPEG quality before the report goes without it.
+- Concept map: in the key to the rings, the mark beside each book's name is a short line (18 by 5 px; 11 to 16 px
+  long on a phone), where on a phone it was 9 px and read as a dot.
+- Concept map, on a phone: the switch that compares books and the key to its rings share one line, where the key
+  was on a line of its own under the switch. The switch says "Compare" there (a screen reader still hears "Compare
+  books"), and the key stands closer together. They share the line from a 360 px phone up in a font of the usual
+  width, and from 375 px in a wider one; on a narrower phone the key stays under the switch.
+- The concept map at factori.al draws the graph of pid-book #432. With "Compare books" on, Book B now also states the
+  links from "Two-factor interaction" and "Three-factor interaction" to "Interaction", so the map shows both terms as
+  in Book B (109 links, 107 before). Book M states 180 links and defines 124 terms as the book does (155 and 113
+  before). One link is new, "Half-normal plot shows interaction" (490 links): with it "Designed experiment" joins the
+  topic of full factorials, whose sub-topics regroup from four to five, and the topics sit at new places on the map.
+  With "Compare books" on, a small topic's name can now also sit off one of the four corners of its ring, where the
+  places below, above and beside it are taken.
+- **`factorial-usage` lists where readers came from without referrer spam.** A robot that sends a
+  made-up site as the page that linked here, to be listed in reports like this one, was listed. A
+  place is now listed only for a reader whose browser went on to ask for the page's stylesheet or
+  scripts, which such a robot does not; that holds for a tagged link (`?ref=`) too. The page views in
+  the table are counted as before. Run `setup.sh` on the server to install the new report.
+- **factori.al works fully offline after a first visit, with nothing to press.** The copy kept for
+  use without a network left out the charts and Excel files until a button was pressed, so the
+  footer had a state "Works offline, except charts and Excel files" that most readers met first.
+  They are now saved with the rest, about 12 MB more, and the footer says "Works fully offline."
+  with one button, to remove the copy. A browser set to save data is not sent them unasked: there
+  the button that adds them stays. If they cannot be had, the copy is said as it stands and the
+  next visit tries again.
+- **factori.al says plainly whether it works without internet.** The footer's panel on the copy
+  kept for use without a network was hard to read: it did not say whether the app works offline,
+  and its buttons did not say what pressing them does. It is now headed "Use without internet" and
+  opens with the answer: "Works fully offline.", "Works offline, except charts and Excel files." or
+  "Needs internet.", then how much room the copy takes. Its buttons are "Add charts and Excel files
+  (12 MB more)", "Save Factorial for offline use" and "Remove Factorial from this device", and a line
+  under the last says what follows: the space is freed, Factorial then needs internet to open, and
+  saved studies stay. What is kept, and when, is as it was.
+- In Factorial the D-, I- and A-optimal designs are limited by the size of their model and not by a number of
+  factors. They take 2 to 40 factors (D-optimal took 2 to 8, I- and A-optimal 2 to 6), for a model of up to 91
+  coefficients, the quadratic model in 12 factors: any model in up to 12 factors, and the main effects in up to
+  40. A larger model is refused, and the form does not offer it.
+- A search that takes long is the reader's to start. Timed under Pyodide, a search takes longer the more
+  coefficients its model has and the more factors there are, and no longer for more runs: 14 s at most for a
+  D-optimal design, and up to a minute and a half for an I- or A-optimal design of 40 factors. When a search is
+  expected to take 5 seconds or more, the design form says how long before the run sheet is made ("up to about
+  1.5 minutes"), and the list of designs that fit the brief leaves that design out until the reader asks for
+  the search, with the wait. The list used to hold every optimal design back from five factors for a model
+  beyond main effects, a quick D-optimal search among them; `api_candidates` now gives each waiting design's
+  `seconds`.
+- With limits on the settings a study still has up to 8 factors, now as a limit of its own
+  (`MAX_LIMITED_FACTORS`), and the I- and A-optimal designs are made for 7 and 8 of them.
+- **factori.al keeps the targets and the windows you type with the study.** "Settings that give a
+  target" and "Settings that meet a specification" were empty each time a study was opened again.
+  What was typed now goes with the study, in the browser, in its link and in its file, and the
+  settings it gives are found again from the results. Such a study is saved in format 8, which an
+  earlier version of the page refuses in a sentence instead of dropping what it cannot keep. On the
+  results screen the two sections lose their one-line hints, which repeated their headings.
+  The report now holds both sections, with their charts. A factor solved for from the others has a
+  button that sets it under What if. A "Show me" link to a part above the page's reading level
+  shows that part for the visit, where it used to open the page with the part left out. With
+  categorical factors, a target is now sought at every combination of their levels (it was the first
+  12), and a specification has a table of what its windows give at each level, beside the level
+  What if holds. With windows on several responses, the chance that one new run meets them all now
+  allows for errors that move together: the responses are joined with the correlation of their fits'
+  residuals when the runs leave five or more past the largest model's terms, and the page says so.
+- **factori.al's worked example names its factors in full.** The example a first visit and the link
+  `?example=worked` open on had factors T, P and F. They are Temperature, Pressure and Flow, so what
+  the results say reads in plain words: "Temperature matters most: raising Temperature from 150 to
+  200 degC raises Yield by 7.9 %, on average." The runs, the results and every number are as they
+  were. A study saved from the example keeps the names it was saved with. A study's file, named from
+  its title, now ends on a whole word where a long title is cut: `...-in-temperature.factorial.json`,
+  not `...-in-temperature-pressur.factorial.json`.
+- **factori.al's list of what it does has a switch of its own for the details.** The page "What
+  Factorial does" took the app's reading level: no details at Beginner, a "Details" fold under each
+  point at Intermediate, and every fold open at Adventurous. Every point now has its "Details" fold,
+  and one switch, "Open the details of every point", opens them all. The choice is kept in the
+  browser, apart from the app's level. A word typed in the search box still opens the details that
+  hold it.
+- **factori.al: each finding of Learn stands beside its picture.** In "What the results say", a small picture
+  now stands before the words it shows: a slope for a factor's own effect, a curve where the response curves,
+  two lines for a pair of factors that act together. The pictures share one scale, so a steeper line is a
+  larger effect, and each is said in words to a reader who does not see it. The terms that show no sign of an
+  effect are listed in one sentence, interactions and squares among them, where the page named only the
+  factors before; "Simplify the model" moves from the model's controls to stand with them, and does what it
+  did. "Show the numbers" puts each finding's coefficient, 95% interval and p-value under it. A finding of
+  the app's Python now names the fitted terms it is about and the picture it takes; its `quiet` kind is
+  replaced by `no_sign`.
+- **The browser app, a warmer first screen and a colour for each stage.** A first visit to
+  https://factori.al/ opens on a welcome that says what Factorial is for and shows a study's four
+  steps (Design, Run, Learn, Next), each in a colour of its own, with "Start my first experiment"
+  as the way in. Every screen now says which stage it is: the stages in the bar, the rule over a
+  stage's panels and the button to press there wear the stage's colour, and a button that leads
+  to the next stage wears that stage's. Under Learn's answer a check that passed is tinted green
+  and one to look at ochre, each with its mark as before. The app's mark and its browser icon are
+  drawn in the same colours: the cube's corners in blue, ochre and green, round a red centre.
+- **factori.al: Learn opens with the answer.** The first thing on Learn is now where to run and what to expect
+  there, such as "Run at Temperature = 200 degC, Pressure = 1 bar and Flow = 18.04 L/min. The model predicts
+  the highest Yield there: 68.25% (95% confidence interval for the mean: 66.17 to 70.33%)." It is worded from
+  the best settings the page already finds, further down, so the numbers are the same to the digit, and it
+  carries their cautions and a link to them. With no goal to reach it says which factor matters most. The
+  report opens Learn with the same answer. On a laptop screen the answer starts about 280 px from the top;
+  the best settings it comes from are about four screens down. The worked example's banner is one row.
+- **factori.al: Learn's model and tables fold under "For the statistician".** The equation, the fit
+  statistics, the table of the coefficients, Lenth's table, the analysis of variance, the lack of fit and each
+  run as the model sees it are now under one heading, closed until it is opened. Learn reads in sentences first:
+  the answer, its checks and what the results say. Nothing is removed, and the report holds every table whether
+  the heading is open or not. The heading stays as you leave it, for the next fit and the next visit (kept in
+  the browser as `factorial-statistician`). On a laptop screen Learn is 5.2 screens long with it closed, where
+  it was 7.2.
+- **factori.al no longer has a reading level.** The three buttons Beginner, Intermediate and
+  Adventurous are gone from the app, and so is every part of the page a level left out. Every
+  reader now has all 16 designs in the design list, every chart under "More charts", and the parts
+  that Beginner did without: a second response, limits on the settings, blocks, the comparison of
+  designs, the terms the runs tell apart, a curve as a response, "Simplify the model", the table of
+  each run, the settings for a target and the settings for a specification. No number changes. The
+  concept map keeps a reading level of its own.
+- **factori.al: the footer's words on using the app without internet are plainer.** It now says where working
+  offline helps: "Works fully offline, for example when travelling, or in a factory or laboratory without
+  internet." What is saved is called Factorial's tools, so that it is not taken for your own studies. The
+  button that removes them reads "Free up space", and the line under it says first that your saved studies
+  stay, then that Factorial needs internet to open and that the tools can be saved again later.
+- **factori.al starts with one bar.** The mark, the name, the study's name, the three steps, Feedback and
+  the colour mode share one row of about 50 px, in place of a header of about 280 px: the work starts higher
+  on every screen. The tagline and the line on what Factorial is sit over the four ways in. The status
+  line hangs under the bar and is no part of it, so the page no longer moves when the line comes and goes,
+  at the top of the page included. An error, which stays, has room of its own in the bar. On a phone the
+  bar is two rows, the study's name over the steps.
+- **The browser app has a look of its own: points on an axis.** https://factori.al/ is drawn with the marks an
+  experiment already uses. A choice is a point, a ring until it is chosen and then filled in its stage's
+  colour, with no box round it and no coloured edge; the four aims are levels on one axis; the stages in the
+  bar are points on one line. Under Learn's answer a check is a point whose shape says what it found: round
+  for a pass, a diamond for one to look at, a ring when the page cannot tell. A note that asks for a look
+  carries the same diamond where it had a coloured edge. Nothing is rounded but a point: every box and control
+  has one 2 px corner. What you typed or measured is in blue ink, what the app worked out is in print, and a
+  simulated result stays grey and in italics. The page's ground is a neutral grey where it was cream. The rule
+  over a stage's panels and the tint of a check, added with the stage colours, give way to these.
+  The headings, Learn's answer and the question read back are set in Outfit (SIL Open Font License), served from
+  the app's own files so they read the same on every device and offline. Body text, tables and numbers stay in the
+  device's own font.
+- **factori.al: on Run and Learn the question is one line.** The three cards (what you measure, what might
+  change it, what you want to learn) stay on Design. Over Run and Learn they are one line, such as "Yield (%),
+  maximise · Temperature 150 to 200 degC, Pressure 1 to 3 bar and Flow 10 to 20 L/min · to learn where each
+  factor's effect curves", and "Change" opens the same form in place. On a wide screen the runs and the results
+  now have the page's width: 1288 px at 1440, where the cards beside them left about 850. A phone and a tablet,
+  which showed nothing of the question on Run and Learn, now show the line too.
+- **factori.al: the four start buttons give way to a menu on the study's name, and a first visit is welcomed.**
+  The study's name in the bar opens a menu with every way in (New study, Your studies, Open the worked
+  example, Analyse data you have, Browse the design catalog), then "Share or download this study" and "View its
+  report". "Your studies" opens over the page, where it was a fold under the buttons. A first visit, and any
+  visit with nothing kept in the browser, opens on a blank question as before, now under a welcome that says
+  what Factorial is and offers a worked example, or to analyse your own data. A reader with a study
+  kept in the browser is picked up where they left off, as before. On a wide screen the bar links to the design
+  catalog and to how Factorial works. The work now starts about 90 px from the top of the page (about 170 px
+  on a first visit, under the welcome), where it started about 330 px down.
+- **factori.al: the model as terms to press.** Under "For the statistician", every term the model may hold is
+  now there, in whatever model is fitted, with the model's own ticked. One press takes a term out or puts it
+  in, and the model is fitted again: the answer, its checks and the findings above follow. A term put in
+  brings the main effects it is made of, and a term taken out takes nothing with it. Terms the design cannot
+  tell apart are one term, written "A·B = C·D". Beside the terms, "As designed" goes back to the design's own
+  model and "Keep the clear terms" fits the terms the results support at once. "Terms you choose" has left the
+  Model list, which says "Your terms" while the model is one you built. No number changes: a model built by
+  presses is fitted as the same terms ticked before.
+- **factori.al: What if is a row of dials.** Each factor now has a picture of the response against it, with the
+  other factors where you set them, over its slider and the box for its value. Drag on a picture, move the
+  slider or type a value, and every picture and each response's prediction follow at once. A picture has the
+  95% confidence band, a dashed line where the settings lie beyond the runs, and a mark where the factor is
+  set. The pictures share one scale, so a steeper line is a larger effect. A factor with levels has a dot for
+  each level. With several responses the pictures are of the response Learn shows. No prediction changes: the
+  pictures are drawn from the same fits as the table under them, and the panel's Python now gives the same
+  profiles.
+- **factori.al: one card answers "where to run".** The best settings, What if, the settings that give a target
+  and those that meet a specification were four cards of Learn, one under another. They are one card now. The
+  dials and the map of What if stand first; under them you choose what the settings are for (the best for
+  your goal, a target to hit, or a window to stay in) and that goal's settings are found there. Every control
+  of the four cards is in the one, and no number changes. With several responses, each has its own row of
+  pictures in the dials. A link to a part of a goal chooses that goal, and the report holds every goal's part.
+- **Factorial: the design list is in two groups.** "Most used" holds the full and fractional factorial,
+  Plackett-Burman, definitive screening, Box-Behnken and central composite designs; "More designs" holds the other
+  seven; the three mixture designs keep their own heading. Every design is still in the one list.
+- **Factorial: on the features page, the details are opened where they are.** The switch at the top of the page,
+  "Open the details of every point", is gone: it opened details far below it, inside parts that were folded. Each
+  part now has its own button over its points, "Open the details in this part".
+- **Factorial: the design catalog, the concept map and the multivariate page wear the app's look.** Chips have the
+  one corner every box has in place of a pill. A tier's list and an idea's card are marked by a point in their
+  colour, in place of a coloured edge. The multivariate page stands on the app's neutral ground (#1326).
+- **Factorial shows the study's name on the page, not in the bar.** The name and its menu head the page under the
+  bar, with the page's width, so a long name is read whole on a phone and on a desktop. The bar keeps the mark, the
+  four stages, "New study" with its words at every width, the links, feedback and the colour mode.
+- **Factorial: a study opens on the stage it was left on.** A study this browser keeps reopens on Design, Run, Learn
+  or Next, wherever the reader left it. Before, it always opened on Run while results were missing and on Learn once
+  they were in. A study from a link or a file still opens on the stage its results call for.
+- **Factorial: a stage named in a sentence is a way to it.** "No run sheet yet: make it in Design" and "No results
+  yet: enter them in Run" now lead there with a press. Once every run has its result, Run says so at its top, with
+  "See what the results say". The concept map's slider is named Depth, so that "level" means a factor's level only.
+- **Factorial's browser tests also run in WebKit, Safari's engine.** CI's new `web-app-webkit` job runs the tests of
+  the forms, the run sheet and the layout there, and `CI passed` needs it. `PI_BROWSER=webkit` runs any browser
+  test in WebKit locally.
+
+### Fixed
+
+- **A confidence level outside (0, 1) is refused, by every function that takes one.** A level
+  between -1 and 0 gave a reversed interval without a word: `robust_regression(x, y,
+  conflevel=-0.5)` returned a slope interval whose lower limit lay above its upper one. A level of
+  0 gave an interval of zero width, and one of 1 or more an infinite or NaN one.
+  `robust_regression`, `OLS`, `multiple_linear_regression`, `OLS.prediction_interval`,
+  `ttest_one_sample`, `ttest_independent`, `ttest_paired` (and their `_from_df` forms),
+  `confidence_interval`, `least_squares_means`, `intraclass_correlation_interval`,
+  `BlockedFit.predict`, `selectivity_ratio`, `product_means`, `compare_products`,
+  `analyze_descriptive` and the DOE plots of `visualize_doe` now raise
+  `ValueError: conflevel must lie in (0, 1); got -0.5.` (or `conf_level` or `confidence_level`, as
+  the function names it) before any work is done, as the multivariate limits already did.
+  `robust_regression` gave NaN intervals for a level of NaN, infinity or above 1 since 2.3.1; it
+  raises the same error now. `variance_interval` and `nonlinear_regression` already refused such a
+  level; their message now reads as the others do. The `visualize_doe` tool's `confidence_level`
+  was not bounded; its schema now refuses a level outside (0, 1), as the other tools' schemas do.
+  (#1132)
+- **A perfect fit no longer warns that `robust_regression`'s default intervals change in 3.0.** A
+  line through every point has intervals of zero width whether they are found by least squares or
+  by the bootstrap, so the change leaves them alone, and the `FutureWarning` and `intervals_note`
+  are gone there. Residuals of rounding size, such as those of `y = 0.7 x - 0.3` at x = 0.1, 0.2,
+  and so on, count as a perfect fit. (#1132)
+- **`MBPCA.display_results` and `MBPLS.display_results` line up their columns.** The headers were
+  as wide as their text and the values nine characters wide, so with a block name of any other
+  length the R² values sat away from their headers. Each column is now as wide as its widest
+  cell, header included, with every value right-aligned under its header.
+  `TPLS.display_results` without a Z block printed its `-` placeholder one character narrower than
+  a number, which moved the F, Y and timing columns one place to the left; they now line up. (#1083)
+- **`TPLS` keeps the names of the axes it labels.** A D block whose index is named, such as `Lot#`
+  in the pyphi example data, gave `r_loadings_f`, `p_loadings_f`, `spe["D"]`,
+  `feature_importance["F"]` and the F residuals of `diagnose` an unnamed axis. Each now keeps the
+  name, and so do the frames labelled by D's columns, Z's columns and Y's columns: `s_loadings_d`,
+  `v_loadings_d`, `w_loadings_z`, `p_loadings_z`, `q_loadings_y`, the predictions `hat_` and `hat`,
+  and those of `diagnose`. `material_names` and the other `*_names` attributes are still lists.
+  (#1083)
+- **An infinite response is named as Y.** `PLS`, `PRM`, `MBPLS` and `AdaptivePLS` said "Input X contains
+  infinity or a value too large for dtype('float64')." for an infinite cell of Y; they now say "Input Y
+  contains ...", as `OPLS` does. (#1114)
+- **`PRM` refuses a Y of another length with the family's error**: "The X and Y arrays must have the same
+  number of rows: X has 30 and Y has 20." It failed with an `IndexError` from its robust centring.
+  `MBPLS` says the same, where it said "y has 20 rows; expected 30 to match X-blocks." (#1114)
+- **`OPLS` refuses an X with no variance before it divides by zero**: an X of zeros raised
+  `NotEnoughVarianceError` after a `RuntimeWarning` ("invalid value encountered in divide"); now the
+  error comes alone. An X that varies but has no covariance with y, which gave a model of NaN after the
+  same warning, is refused as the rest of the PLS family refuses it (see the entry on a Y uncorrelated
+  with every column of X). (#1114)
+- **`PLS.select_n_components`, `compare_cv_criteria` and `pseudo_validation_set` take a row and a column
+  with nothing observed, as `fit` does.** `select_n_components` raised `RuntimeError` for such a row, and
+  warned of a "Mean of empty slice" for such a column; the other two refused both. A held-out row with
+  nothing observed in X has no prediction, as `predict` gives it none, and is left out of PRESS, of Q2's
+  reference and of the pseudo-validation alarm rates; a column with nothing observed is left out of every
+  model, with the warning `fit` gives. `PLS.cross_validate` and `MBPLS.select_n_components` already took
+  such a row, but kept it in Q2's reference while leaving it out of PRESS; they now leave it out of both.
+  The default component count of `PLS.select_n_components`, `MBPLS.select_n_components`,
+  `compare_cv_criteria` and `pseudo_validation_set` no longer counts a column with nothing observed,
+  which adds no component: with one, the folds were asked for one component too many, and refused. (#1114)
+- **`PRM.vip()` is finite on contaminated data.** Its R² was measured on every row, outliers too, so a
+  component could lower it, and VIP took the square root of a negative number: a `RuntimeWarning` and
+  NaN for some variables. (#1114)
+- **`PCA`, `PLS`, `PLSDA`, `PRM`, `OPLS`, `AdaptivePCA`, `AdaptivePLS`, `ASCA` and `FAMD` refuse an X with
+  no columns by name**, as `MBPCA`, `MBPLS` and `TPLS` do: "Block X has no columns; a block needs at
+  least one." So do `PLS`, `PRM` and `AdaptivePLS` for a Y with no columns. numpy's "at least one array
+  or dtype is required" named neither. (#1114)
+- **`PLS.prediction_interval` refuses a `cross_validate` result from a bootstrap**, which holds no rows
+  out and so has no `rmse_cv`, and says to pass a jackknife or K-fold result. It failed with an
+  `IndexError` from numpy. (#1077)
+- **`PLS.invert` refuses a `y_desired` DataFrame with other than one row**, and says to call `invert`
+  once per row. Two rows failed in numpy's broadcasting. Its error for a missing target names only the
+  targets that are missing, not every target. (#1077, #1144)
+- **`PLSDA.confusion`, `PLSDA.score` and `PLSDA.roc_auc` refuse labels whose count differs from the rows
+  of X**, naming both counts, as `fit` does. They failed in `zip`, in numpy or in scikit-learn. (#1077)
+- **`MBPCA`, `MBPLS` and `TPLS` refuse a block with no columns by name**: "Block X["b2"] has no
+  columns; a block needs at least one." numpy's "at least one array or dtype is required" named
+  neither. (#1077)
+- **One wording for a count below 1.** `PRM`'s `max_weight_iter`, the `max_components` of
+  `MBPLS.select_n_components` and the `n_permutations` of `GPA.consensus_test` say "must be >= 1; got
+  0.", as every other count does, where they said "must be at least 1". (#1144)
+- **The errors of `OPLS` name the value they refuse**: "n_orthogonal_components must be >= 0; got -1.",
+  "y_desired has 2 values; OPLS.invert expects a single desired response value." and "y_desired must be
+  a finite value; got inf." (#1077)
+- **`sensory.mixed_assessor_model` says which cells are missing, and why an F-test is NaN.** For an
+  attribute where a panelist did not score every product, the warning named only the attribute.
+  It now names each such panelist and the products they did not score, and the same text reaches
+  `sensory_panel_check` and `sensory_analyze_descriptive` under `library_warnings`. The `ftests`
+  table has a new `note` column that says why a row's F-tests are NaN: the missing cells, a panel
+  too small to test (one product, one panelist, or two products for the MAM F-test), or an error
+  sum of squares of zero. It is empty when both F-tests are computed. (#1099)
+- **The selectivity ratio's F critical value counts each feature's observed rows.** A feature's
+  ratio is formed over its observed cells, but `attrs["f_critical"]` counted every row of `X`, so a
+  feature with gaps was held to a lower bar than its rows support. It is now a Series indexed by
+  feature, also when every feature has the same count, where it was one float: read one feature's
+  value as `ratio.attrs["f_critical"]["name"]`, and `ratio > ratio.attrs["f_critical"]` compares
+  each feature with its own (#1144).
+- **`OPLS` contributions work.** `t2_contributions`, `spe_contributions`, `score_contributions`,
+  `group_contributions`, `meda` and `omeda` raised `AttributeError` (no `loadings_`). They take the
+  `X` that `transform` takes, and on the training data add up to the stored T², SPE and scores, as
+  the rest of the family's do (#1144).
+- **`PCA.select_n_components`, `PLS.select_n_components` and `PLS.nested_cv` read a pandas
+  missing value (`pd.NA`) as a missing cell**, as `fit` does. A nullable column holding one raised
+  `TypeError`; `PLSDA` followed `PLS` (#1144).
+- **TPLS refuses an `F` group with no variation used as given on every numpy build.** A group
+  whose every blend has the same row, with `skip_f_matrix_preprocessing=True`, gives the iteration
+  only rounding error to follow. Depending on the numpy build, TPLS refused the fit after an
+  overflow warning, or fitted it with F weights near 1e15 and no weight for F: one such group then
+  took a varying group out of the model without a word, and an all-constant `F` had VIPs of NaN. It
+  is now refused before the iteration follows the rounding error, with the message that asks for
+  each D and F group to vary (#1144).
+- **Adaptive history labels no longer repeat.** A row with no label is numbered one past the
+  largest integer label recorded so far, or by the number of rows recorded when that is larger; it
+  went on from the last label, so the labels 2 and "x" gave the next row 2 again. A DataFrame whose
+  rows pandas numbered 0, 1, ... is numbered on as an array is: two such frames passed to
+  `partial_fit` gave 0 to n - 1 twice (#1144).
+- **The multivariate family gives the same model for the same data in any units.** A floor that
+  decides "no spread" or "zero" is now relative to the data's own scale, where it was an absolute
+  1.5e-8 (or 1.5e-154) in the data's units. On LDPE in units 1e9 times smaller, with nothing else
+  changed:
+  - Hotelling's T² left out a component as having no spread when its score standard deviation
+    was below 1.5e-8 while every one was below 1: `PCA`'s T² counted one component of four, and
+    `PLS(scale=False)`'s was 0 for every row. A component now has no spread only at 1.5e-8 times
+    the largest. A model whose largest score sd is 1 or more keeps its T²; one whose component had
+    a score sd between 1.5e-8 times the largest and 1.5e-8 itself now counts that component.
+  - `PCA.select_n_components(scale_inside_folds=False)` recommended 4 components instead of 8, with
+    Q² NaN: the reference sum of squares counted as zero below 1.5e-8, and the imputation stopped
+    after one pass when the held-out cells were smaller than 1. A column now has no Q² only when
+    its observed values are all equal, as `MCUVScaler` reads one, and the imputation stops at a
+    change relative to the held-out cells' own size.
+  - `score_contributions(..., scaling="maximum")` and `scaling="within"`, single-block and
+    multi-block, left bars below 1.5e-8 unscaled. `"maximum"` now divides unless every bar is 0, and
+    `"within"` leaves a row alone when its total is at most 1.5e-8 times the largest row's.
+  - `PRM(scale=False)` moved its predictions by up to 1.05 standard deviations of y, and its row
+    weights by up to 0.51: its L1 median stopped at an absolute 1e-8, and the floors on the median
+    residual, the median distance, the score lengths and the stopping threshold were in the data's
+    units. They are now relative to each block's robust spread. On LDPE in units of 1, `PRM` gives
+    the same numbers, bit for bit, and `PRM(scale=False)`'s predictions move by 2e-8 standard
+    deviations of y. (#1114)
+  (#1070)
+- **Data near 1e160 or 1e-160 no longer lose their scaling.** `MCUVScaler`, and with it `PCA` on
+  autoscaled data, `PLS`, `PRM`, `MBPCA` and `MBPLS`, and `TPLS`'s own scaling, squared the data to
+  take a standard deviation, which overflowed to `inf` beyond about 1e154 and underflowed to 0
+  below about 1e-162, and a standard deviation below 1.5e-154 left a column unscaled. Data in
+  units 1e150 times larger raised "no variance left" in `PLS` and `MBPLS`, and gave `TPLS` other
+  scores with no warning; data in units 1e160 times smaller gave `PCA` and `MBPCA` other scores,
+  and raised in `PLS`, `MBPLS` and `TPLS`. Each column is now divided by a power of two near its
+  largest value first, which is exact, so ordinary data give the same standard deviation, bit for
+  bit. A column counts as unscaled only below the smallest normal float, 2.2e-308. (#1070)
+- **`PRM` gives a row far enough out that its squares overflow, beyond about 1e154, a weight of 0.**
+  It raised "distances must be finite". (#1114)
+- **`TPLS` warns when a component does not converge.** A component whose loop stopped at
+  `max_iter` was the state of the last pass, with no warning, and that state can differ from one
+  platform to another: the TPLS loop can alternate between two states for ever, as the third
+  component of the `tpls_new_materials` example did. The fit now gives a `SpecificationWarning` in
+  the words of `MBPLS` and `MBPCA`, and `fitting_statistics["converged"]` records, per component,
+  whether it converged. (#1163)
+- **A fitted model keeps its own copy of the caller's row and column labels.** `PCA`, `PLS`, `OPLS`,
+  `MBPLS`, `MBPCA` and `TPLS` kept the caller's index objects, so a name given to the caller's
+  axis after the fit, such as `X.index.name = "batch"`, renamed the model's scores, loadings and
+  other frames too. The numbers were not affected.
+- **`process-improve-mcp` without the `mcp` extra says which extra to install.** It stopped at
+  `No module named 'mcp'`; it now raises the `ImportError` that every other optional surface raises, which
+  names `pip install 'process-improve[mcp]'`. (#1100)
+- **`TPLS.vip` is finite beside a group with no variation.** One group of D with no variance made the
+  VIP of every group of D NaN, with numpy "Mean of empty slice" warnings: the block's R² per
+  component, which weighs the components, averaged that group's 0 / 0 in. The group is left out of
+  that average, so its VIP is 0, as its loadings are, and the others are finite. (#1169)
+- **On a phone, one finger scrolls past factori.al's concept map.** A drag on the map moved the map, and the
+  scrolling that took over at its edge could loop. Now one finger scrolls the page, as anywhere else on it, and
+  two fingers move and zoom the map, with a short hint the first time a finger drags across it.
+- **A hosted tool call's worker start-up no longer counts against the tool's timeout.** In safe
+  mode each call starts a fresh worker, which under `spawn` (the start method on macOS and Windows)
+  imports the package and its tools again: 2 to 3.5 s of the 10 s default timeout, measured on
+  Linux, and more on a slow machine, before any tool code ran. `safe_execute_tool_call` now waits
+  for the worker to start, with its own limit of 60 s, and only then starts the tool's timeout, so
+  `PROCESS_IMPROVE_TOOL_TIMEOUT` measures the tool's own work. A worker that does not start in
+  time is ended, and the call raises `ToolTimeoutError` with a message that says the tool did not
+  run; its `details["stage"]` is `"startup"`, and `"tool"` for a tool that ran too long. The total
+  time of a call does not change. (#1130)
+- **Every warning the package raises names the line that made the call, not only those in
+  `multivariate` and `batch`.** Some named a line inside `process_improve` instead:
+  `generate_design`'s warnings that splitting a CCD's cube into blocks confounds an interaction,
+  that no Plackett-Burman design of the smallest size is built, that a supersaturated budget
+  leaves factors fully aliased, and that `hard_to_change` is ignored; `analyze_experiment`'s that
+  whole plots are analysed by ordinary least squares, and its two that the fit changes, or loses
+  rank, once the factors are coded; and the Mixed Assessor Model's warning that a panelist did
+  not score every product, when `analyze_descriptive` raised it. The others named the caller only
+  when it called the function that warns directly. (#1169)
+- **`batch_dtw` gives a tag that does not vary within any batch zero weight, with a warning naming
+  it.** Such a tag took all of the weight: with two tags that vary and one that does not, the
+  weights were `[0, 0, 3]`, and the convergence test then followed only the flat tag. A tag that
+  holds one value within each batch, but a different one between batches, took a share of the
+  weight too. Neither says anything about timing. The tags that vary now share the weight as they
+  would without the flat one, so naming it changes nothing in the alignment. A call in which no
+  named tag varies raises `NotEnoughVarianceError`, a `ValueError`. (#1184)
+- **`batch_dtw`'s `last_average_batch` keeps a named tag that does not vary**, as the aligned
+  batches do; it dropped it without a word. (#1184)
+- **`resample_to_reference` refuses a tag with a missing value**, naming each batch and tag, and
+  points at `fill_gaps`. One missing value made the whole resampled tag NaN under the default cubic
+  interpolation. `batch_dtw` refuses a missing value in the same way. `find_reference_batch`, which
+  resamples first, gives the same error. (#1184)
+- **`find_reference_batch` works for any number of batches.** With 1 to 4 batches and
+  `judged_rows="fitted"` it raised "Found array with 1 sample(s)", as it did with 1 batch under any
+  setting, and with 5 it warned that more components were asked for than the data allow. Its PCA
+  fitted `n - 1` components to `n` batches, which passes through every batch, so every batch had
+  the same T² and rounding chose the reference. It now fits at most `n - 2`, so with 3 to 5
+  batches, or when the T² screen keeps 5 or fewer, the reference can differ from the one given
+  before. One batch is its own reference; of two, the one of average length comes first. When the
+  T² screen keeps fewer than 3 batches, only those are candidates, ranked by T²: the batch the
+  screen left out could be returned before, as the one direction of the model ran through it.
+  (#1184)
+- **`f_agemin` and `f_agemax` give NaN for a batch in which a tag has no observed value**, as
+  `f_min` and `f_max` do. Under pandas 3 they raised `ValueError`; pandas 2 gave NaN. (#1184)
+- **The `BatchPCA` example runs.** It passed `reference_batch="1"` to batches keyed by integers,
+  which raised `KeyError`. (#1184)
+- **`PLSDA` keeps every class in every training fold of an integer `cv`.** Its `select_n_components`,
+  `compare_cv_criteria`, `pseudo_validation_set`, `nested_cv` (outer and inner folds) and `cross_validate`
+  shuffled the rows into PLS's K-fold whatever their class, so a training fold could hold no row of a
+  class. Its indicator matrix was then constant, and the fold's fit raised `NotEnoughVarianceError`:
+  `nested_cv` on twelve rows of two classes failed for 7 seeds in 40. An integer `cv` now shuffles each
+  class into the folds on its own, as `StratifiedKFold` does (`RepeatedStratifiedKFold` with
+  `n_repeats`), with the seed the folds took before. The folds, and so the numbers, differ from those of
+  earlier releases for the same seed. (#1149)
+- **More components than the data support are cut to what they support, with a warning, across the
+  family.** `PCA`, `PLS` and `OPLS` cut a count above the smaller of the number of rows and of columns,
+  with a `SpecificationWarning`. `AdaptivePCA` and `AdaptivePLS` raised a raw `ValueError` or
+  `IndexError`, `MBPCA` and `MBPLS` emitted a numpy `RuntimeWarning` or fitted components to rounding
+  noise, and `TPLS` fitted them too. They now cut the count with the same warning, and `n_components_`
+  is the count fitted. `TPLS` cuts to the rank its D can have, the fewer of a group's materials and
+  properties in the group with most: every component's weights on the materials come through D, and a
+  component past its rank had super scores near 1e15. (#1149)
+- **`AdaptivePCA` names a column with no observed value, and both adaptive models leave it out.**
+  `AdaptivePCA` fitted such a column without the warning the rest of the family gives (#1098). Both
+  `AdaptivePCA` and `AdaptivePLS` added a new row's value in that column to the row's SPE, and an update
+  moved the column's centre toward it. The value now adds nothing to the row's scores or SPE, as in
+  `PCA` and `PLS`, and an update leaves the column out. (#1149)
+- **A column or row at `2**1023` (about 9e307) or above keeps its scaling and its length.**
+  `MCUVScaler` took a column whose largest absolute value is `2**1023` or more for a column with no
+  spread, and left it unscaled with no warning. On LDPE with one column brought to 1.3e308, `PCA`
+  on autoscaled data gave `inf` scores, `MBPCA` and `MBPLS` gave NaN, and `PLS` raised "no
+  variance left". `PRM`'s row lengths, and the L1 median it centres X at, were NaN for a row that
+  far out. Each divided by the power of two above the largest value, which there is `2**1024` and
+  overflows. Now such a column is scaled as in any other units, and these models are those of the
+  data in units of 1, to 1e-14; a row has its length: `[1e308, 0]` is 1e308 long, and
+  `[1e308, 1e308]` is 1.41e308 long, where `numpy.linalg.norm` gives `inf`. A standard deviation
+  or a length beyond the largest float, 1.8e308, is `inf` with numpy's overflow warning, as numpy
+  gives it. Data below `2**1023` give the same numbers, bit for bit. (#1149)
+- **`TPLS` pairs the materials of F with the rows of D by name.** `fit` paired each column of a
+  group of F with the row of D in the same position, so F that listed the materials of a group in
+  another order than D fitted each material with another material's properties, with no error and
+  no warning, and `diagnose` then scored the training blends up to 3.2 away from the fit. A model
+  fitted to such data now gives other scores, loadings, predictions and limits: the ones it gives
+  for F in D's order. F whose materials are already in D's order fits as before. A material of F
+  that D does not have, a material of D with no column in F, and a material that D names twice
+  are now refused with a `ValueError` that names them; the first was fitted without a word, and the
+  second failed on mismatched shapes. A material that no blend uses still fits, with a column of
+  zeros in F. (#1197)
+- **factori.al's status line is no longer left busy.** In a study whose only results are its curves,
+  "Installing plotly for the charts..." stayed on the status line, busy, after the curve was drawn.
+  The note now ends when plotly is installed ("Installed plotly for the charts."), or says why it
+  could not be. "Analysing..." also stayed when a new study was started while an analysis was on its
+  way; it now goes. (#1169)
+- **A factor's new units reach every part of factori.al that shows them.** A change of a factor's
+  units alone left the old units on the what-if panel's controls, on the factors held while looking
+  inside the limits' picture, and on the questions that adjust a proposed limit, and in their labels
+  for screen readers. A design in one factor kept its old name and units in its note on how it
+  compares the levels ("The runs compare T at 150 and at 200 degC"), after a change of either. Each
+  now takes the new label. (#1169)
+- **Work asked for in one study no longer lands in the study that took its place in factori.al.**
+  Runs added, results simulated, a run sheet made, or a design picked for the brief while a new
+  study was started, or another opened from Your studies, went into that study when Python
+  answered. A study opened meanwhile took the other study's runs and was saved with them; a new
+  study received the run sheet made for the brief before it, or that brief's design; and a new
+  study started while runs were added left "Adding the runs..." busy on the status line. Python's
+  answer is now dropped when the study that asked for it is no longer on the page, and its busy
+  note goes with it. (#1169)
+- **The worked example, shown after a study whose runs give curves, no longer stops with an
+  error.** The fit of the other study's curves stayed on the page, and the example's what-if panel
+  looked for a curve the example does not have. A new run sheet now starts without a fit. (#1169)
+- On macOS, projecting rows too sparse to estimate (`transform`, `diagnose` and the contribution functions on rows
+  with missing cells) no longer adds numpy's "invalid value encountered in matmul" warning beside the
+  `SpecificationWarning` that counts those rows: their NaN scores and SPE are now set, not computed.
+- The concept map at factori.al no longer scrolls sideways on a phone narrower than 360 px: the reading level moves
+  to its own line under the two switches.
+- The concept map at factori.al no longer draws a term with no link: a term whose every link leads to a hidden kind
+  of term, or past the reading level, is hidden with them. Each topic's and sub-topic's count is now the number of
+  terms it draws, so a sub-topic no longer reads `[8]` and then opens empty; the counts used to include the kinds
+  hidden in the legend.
+- **factori.al has a link past its header for a reader on a keyboard, and one id for one element.**
+  The page had two elements with `id="response-problems"`, of which only the first was ever
+  written to; the second is gone. (#1223)
+- **DOE plots: the 3D plots name their axes, a cube plot is a cube, and a blocked fit can be drawn.**
+  `surface_3d` and `cube_plot` now title their axes in Plotly's `layout.scene`, the response axis
+  included; the titles were written to `layout.xaxis` and `layout.yaxis`, which a 3D trace does not
+  read. A cube plot draws its twelve edges as lines, in a grey that shows on a white page, and its
+  corners as points with their values: a line used to zigzag through the eight corners in the order
+  they were listed. A corner's value is written to four significant figures, in full (`12350`, never
+  `1.235e+04`), not to two decimals. A wireframe layer with neither lines, points nor text is drawn
+  as nothing, where Plotly refused its empty mode. A design-quality plot (`prediction_variance`,
+  `fds_plot`, `power_curve`) given a blocked fit leaves the fit's block contrasts out of its model
+  and is drawn for the factors' terms, as `evaluate_design` scores a design whose model leaves its
+  blocks out; it used to stop with `formula references unknown name(s) ['Block1']`. A factor that is
+  itself named `Block1` stays in the model. factori.al draws the prediction-variance chart of a
+  blocked study with it. (#1229)
+- **A design-quality plot is drawn for a factor named `I` or `C`.** `prediction_variance`,
+  `fds_plot` and `power_curve`, given a fitted model that squares a factor, stopped with
+  `UnsafeFormulaError`: the fitted formula calls `I()`, and a column of that name hides it. The
+  plots now build their model matrix with such a factor under a stand-in name, as
+  `evaluate_design` does, and show the factor under its own name. factori.al draws the
+  prediction-variance chart of such a study with it. (#1229)
+- **An explicit formula that opens with `-1` keeps no intercept when its blocks are added.**
+  `analyze_experiment` puts the block contrasts in front of a formula that names `Block`, and
+  patsy reads `Block1 + -1 + x1` as a model with an intercept, so a mixture formula written
+  `y ~ -1 + x1 + x2 + x3 + Block` was fitted with one, and was rank-deficient for it. (#1229)
+- **Model selection no longer keeps terms the runs cannot tell apart.**
+  `analyze_experiment(..., analysis_type="model_selection")` started from every candidate term
+  whenever the runs outnumbered them. A term aliased with another, with the intercept or with the
+  blocks then could not leave, since the model fits as well with it as without, and under effect
+  heredity it held its main effects in the model too. A half fraction run twice kept all ten terms
+  of the interactions model whatever the data, and a two-level factorial searched as a quadratic
+  model kept every square and every main effect. Now:
+  - A candidate that adds nothing to the intercept and the blocks is no candidate: an interaction
+    confounded with the blocks, or the square of a factor run at two levels.
+  - Where the candidates are aliased with each other, or the runs estimate one only in part (an
+    interaction of two categories whose levels never all meet), the search is run twice and the
+    better result kept: from none, where the first of an aliased pair to enter is the one whose
+    main effects are in, and from the candidates the runs estimate together, those named first,
+    which finds an interaction one of whose main effects does nothing. `direction` says which
+    was kept.
+  - Of two moves that score the same, the one that leaves the term named first in the model is
+    taken, so a result does not depend on the rounding of a score.
+  - A factor of `True` and `False` is a category, as patsy reads it, and has no square.
+  - A formula with no intercept keeps one term at least, where the search stopped on an error when
+    no term stood out.
+  - Each term of a formula is scored as patsy fits it among the terms it is with. Scored from the
+    columns of the whole formula, the second of two categorical factors, or of two slopes within
+    levels (`P:x + Q:x`), lacked a column whenever the first was left out, and the terms chosen
+    turned on the order of the levels.
+
+  - `n_terms` counts the coefficients the selected model estimates: beside a mixture's components
+    a category was counted one too many.
+
+  Results are unchanged where the runs estimate every candidate term in full, no term of a
+  formula is coded by the terms beside it, and no two moves score exactly the same.
+- **`factorial-usage` counts Python started on factori.al from the request every start makes.**
+  The report counted a fetch of `bootstrap.py`. A build now ships the page's own Python in an
+  archive the browser keeps for a year, so a returning visitor no longer asks for it, and the
+  column would have read close to zero. It now counts the page's worker reading `runtime.json`,
+  which it does past every cache each time it starts Python; the same request was logged before
+  this change too, so the column reads the same over the logs kept. Run `setup.sh` on the server
+  to install the new report.
+- **factori.al's lists no longer rely on hiding an option, which not every browser does.** The design
+  list holds only the designs of the reading level, and a run sheet's lists of models and of processes
+  to simulate hold only those it takes: an option left out is taken out of the list, and put back in
+  its place when it is wanted. Safari, and a phone's own picker, listed a hidden option all the same,
+  so a study of factors with ranges was offered a mixture's blending models. (#1233)
+- **factori.al's new parts, after a critical review of them.** A factor that acts through its square
+  or an interaction is no longer said to be lost in the noise, and the factor that matters most is
+  the one whose largest real term moves the response furthest. Changing the reading level twice in
+  a row no longer draws the charts twice. Stop is outside the status line, so it can be reached
+  when that has faded, and is not offered while Python is starting again. A table of your own with
+  a quote never closed, a number too large to hold, or a workbook that unpacks to far more than it
+  weighs is refused in a sentence; a column named Time is a factor again. A result typed again for
+  a run set aside puts the run back in the fit, and results simulated afresh set none aside. The
+  chosen level and the skip link are readable in the dark theme. (#1223)
+- **factori.al keeps the two factors of a response surface for the response they were chosen for.**
+  A study of several responses drew every response's surface over the two factors chosen for one of
+  them; each response now keeps its own, and "Back to the two largest effects" takes a choice back.
+  When setting runs aside leaves too few for the model, the refusal names the runs set aside apart
+  from the runs still to do, and from the second run set aside Learn says what setting runs aside one
+  after another does to a fit. A model fitted with the terms "Simplify the model" proposed says, after
+  what its results say, that the terms were picked from those same results, so its p-values look
+  surer than they are; the page says so until you change the terms yourself, and the mark is kept
+  with the study and in a link to it. (#1232)
+- **An optimal design over many factors with limits on group totals is found.** With 15 ingredients
+  in 5 buckets, each bucket's total between 5% and 20% and the total of them all at most 60%,
+  `generate_design` raised "No candidate point satisfies all the constraints", though the region is
+  not empty: no point of the grid has every total inside its limits, and the region has too many
+  vertices to list. When the grid and the boundary points leave too few candidates for the model,
+  vertices of the region are now found by linear programming, each the furthest point of the region
+  in one direction, and added with the midpoints between them; `metadata["vertices_sampled"]` says
+  so. A region the grid covers keeps its candidates, so its designs do not change.
+  `DesignRegion.sample` and `evaluate_design` find such a region too.
+- `evaluate_design` judges a design on the columns its region can estimate when the region's limits cost the
+  model a column: the interactions of factors that a `count_nonzero(...)` rule keeps from being used together,
+  and one column of a group of mixture components that the limits hold to a fixed total. It reported such a
+  design, as `generate_design` builds it, rank-deficient with every metric `None`. The columns left out are
+  named in `result["notes"]["inestimable_columns"]`. A design that cannot estimate the columns the region
+  leaves is still reported rank-deficient.
+- The warning of `analyze_experiment`, when its default interactions model leaves out the interaction of two
+  factors that no run uses together, says that no run has the two both above their lowest values. It said
+  that one factor takes one value on a level of the other.
+- On the concept map at factori.al, a selected term's link that runs off the map carries its label on the part of the
+  line that can be seen. The label stood at the middle of the whole line, so zoomed in on a term with many links most
+  of its lines crossed the map with no label: Full factorial showed two of sixteen, and now shows eight. Labels are
+  also placed exactly where they are checked (on a long, bowed line the check was tens of pixels out, and two labels
+  could overlap), keep a line of text between each other, and, with "Other textbooks" on, keep clear of the lines
+  another textbook states as they do of the selected term's.
+- The concept map's page at factori.al no longer scrolls sideways in a window 484 to 591 px wide, such as a phone on
+  its side: the row of kinds of term (Designs, Methods, Concepts, Guides, Examples) reached past the screen there. Up
+  to 639 px each kind's shape now sits above its name, as on a phone, and at any width the row wraps before it would
+  reach past the screen.
+- On the concept map at factori.al, the line a term quotes from the book is shown as the book prints it. It was shown
+  as it is typed in the book's source, so 15 cards carried marks: asterisks around emphasis and strong words, single
+  backquotes, double dashes, and for Bias error a whole index entry. Emphasis stands upright in the italic line, strong
+  words are bold, a double dash is an en dash, and an index entry or a reference shows its words alone.
+- `optimize_responses` no longer estimates the gradient of a straight constraint by finite differences, a call of
+  the constraint per factor at every iteration, which took nearly all of a search's time over a formulation
+  with a limit for each group total. A straight constraint now carries its exact gradient, and a search is
+  given only the constraints that a factor free to move enters.
+- `optimize_responses` no longer reads a `factor_ranges` entry for a mixture component of `region` as a coded
+  range. It reported an `optimal_actual` for the blend that did not sum to 1; a proportion is the same on
+  either scale, so `optimal_actual` now repeats the blend.
+- **A copy of factori.al that is removed is less able to come back.** After a build retired the
+  worker, one of the copy's caches was once found still there (#1248). The worker looked for each
+  kept file in its cache by the cache's name, which in Chromium makes the cache: a look made as
+  the copy went brought its name back, for the worker to delete again. It now looks in every
+  cache at once, which makes none, so nothing is left if the worker is stopped first. And a
+  reader who removed the copy has any cache that came back deleted at their next visit.
+- **factori.al's surfaces no longer glare on a dark page.** A response surface, the variance of the
+  predictions, a mixture's triangle and the correlation map of a design were drawn in a ramp that
+  starts in near white: a bright patch on a dark page, where the response is low. On a dark page the
+  ramp now starts as dark as the page and ends in a light blue, so low still recedes into the page
+  and high stands out. An image saved from a dark page keeps the light page's ramp, on white. The
+  numbers on a surface's contour lines are now in the page's ink with a halo in the page's colour,
+  in both themes: they were black, which could not be read on the darkest bands.
+- **A definition on factori.al no longer covers the box the keyboard is in.** A word's definition
+  follows the keyboard to the box the word names. It opened under the word, which is the label
+  over the box, and so lay over the box being typed in. It now opens under the box and its word
+  together, or over both where there is no room below. "Spare runs" and "Power to find ..." over
+  the list of designs now end their definitions in "See it in context", as the glossary's words do.
+- **factori.al draws every chart inside its card.** The first chart of a row was drawn before its
+  neighbour was added, a whole row wide, and ran under the card beside it; each chart is now drawn
+  again whenever its room changes. Plotly's toolbar no longer sits over a chart's legend or its
+  colour bar's title: a card has none. An axis title too long for its axis is wrapped onto two lines
+  where it was cut short. The cube of predictions and the surface in three dimensions are seen
+  whole, from further back in a narrow card. The variance of a prediction is drawn square, as the
+  response surface it is drawn over, and a colour bar is narrow, with its title along its side, so
+  a surface keeps the width of its card. The runs on a response surface have a white face and a dark
+  edge, and read on a dark page; the lines of a chart with one line for each factor or setting each
+  have a pattern of their own as well as a colour. Under a finger, a drag on a card scrolls the page.
+- **factori.al no longer offers to send a chart to Plotly's servers.** Plotly.js 7 added a "Share
+  chart" button to every chart's toolbar, which uploads the chart to Plotly Cloud once the reader
+  agrees. A study's data stays in the reader's browser, so the button is never shown.
+- **factori.al's other pages no longer end in the browser's error page without a network.** The
+  copy kept for use without a network held the app's own page, so the footer's links to How
+  Factorial works, the design catalog and the concept map led nowhere unless each had been opened
+  with a network before. How Factorial works is now in the copy, as the list of what Factorial
+  does is. A larger page that the copy does not hold yet says that it needs a network, with a link
+  back to the app.
+- **factori.al saves a figure in the light theme's colours from a dark page.** An image for a file or
+  a report is drawn on white with the light theme's axes and text, but the page's own figures, such
+  as the coefficients' chart, drew their marks in the colours of the theme on the screen: pale marks
+  on white, from a dark page. They are now made in the light theme's colours for an image.
+- At factori.al, a link into the book opens in one tab, and a later link goes to that tab. Each link opened a tab of
+  its own: the app's links named the book's tab but cut the tie a browser finds a named tab by, and the concept map's
+  "Read it in the book" asked for a new tab each time. The app, the concept map, the list of what Factorial does and
+  the design catalog now use the one tab. A link to any other site opens a new tab, as before.
+- Concept map: the names around a selected term no longer lie on each other where there is room for them. Each
+  neighbour's name is drawn whatever it lands on; it now takes the place by its term where it lands on least, by
+  its size as drawn: below, above or beside the term, or at one of its corners. Across six terms tried, with and
+  without the book comparison, the pairs of names on each other fell from 28 to 4; those left are in clusters with
+  no place clear. While books are compared, a topic's name too wide for its topic at the furthest zoom goes beside
+  the topic, on the first side clear of the other topics and of the map's edge, so it no longer covers the sides
+  of the topic's ring ([#1258](https://github.com/kgdunn/process-improve/issues/1258)).
+- A build of Factorial that retires its service worker (`--no-service-worker`) now leaves nothing behind in the
+  visit that retires it. In Chromium, a look the worker had begun in the copies as the page deleted them could bring
+  one of them back, empty, some tens of milliseconds later, and it stayed until the next visit. The page now
+  removes the copies once more when Python has started, or has failed to, by which time no such look is left
+  ([#1248](https://github.com/kgdunn/process-improve/issues/1248)).
+- The Factorial page no longer jumps when the status line in the study's bar comes or goes. The line takes a row of
+  the bar, and the page under the bar moved down by that row as it came and up as it went, five seconds after
+  every success: a mouse resting on a word found itself on another, and an open definition closed. The page is now
+  scrolled by the same amount, so what is under the bar stays where it is in the window. The brief, where it is
+  pinned beside Run and Learn, is pinned under the room the bar has with its line, and no longer moves with it. At
+  the very top of the page there is nothing to scroll back over, and there the page still moves
+  ([#1271](https://github.com/kgdunn/process-improve/issues/1271)).
+- **factori.al: a figure's window zooms under a finger, and the catalog's map reads on a phone.** The
+  map draws a box on a drag, which filters the list on the page. Its window (Expand) drew the same
+  box, where nothing reads it, and the box stayed. A drag in a figure's window now zooms into that
+  part of the figure. On a touch screen a card in three dimensions could no longer be turned: it turns
+  again. The map's window has a title of its own, its legend no longer runs over its axis title, and
+  the window's links to save and copy a figure fit one line.
+- **factori.al: a run stays marked when the pointer comes to it from another chart.** A chart says the pointer
+  has left it a moment after it has. When the pointer had by then come to rest on a run in the next chart, that
+  late word let go of the run just marked, and its ring and its rows went until the pointer moved again. Leaving
+  is now heard only from the chart, or the table, where the pointer was resting.
+- **factori.al: Learn no longer says "No results yet" of a study that has its results.** A study opened with
+  its results, from Your studies, a link or the design catalog, showed "No results yet: enter them in Run"
+  in Learn until Python had started, beside a Run stage that said every result was in. Learn now says "Your
+  results are in. Their analysis follows once Python has started."
+- **factori.al: Python starts when the CDN refuses one of its packages at first.** Pyodide only logs a package
+  whose download failed, and the page then stopped with "Could not start Python" at the first import of what was
+  missing. The start now checks that every package it named arrived, with all each depends on, and asks again
+  for those that did not: three times, after 1, 3 and 9 seconds, saying so in the status line. What did arrive
+  is kept, so each try asks for less. Packages loaded later, for fitting and for charts, were asked for again
+  already. The copy kept for use without internet asks again in the same way for a file that did not arrive,
+  where one refused file used to end it with "Not fully saved".
+- **Factorial: the study's name is no longer squeezed out of the bar on a tablet.** Between 721 and 1099 px the four
+  stages and their badges shared one row with the name and left it no room, so only the menu's mark was drawn, over
+  the first stage. The bar is now two rows there, as on a phone: the name over the stages.
+- **Factorial: the topics in the Feedback form are round points again.** A rule for ticked boxes took the width
+  from these choices, so each was drawn as a sliver 4 px wide.
+- **Factorial no longer takes entered results off the page without asking.** "Make the run sheet", pressed again over a
+  sheet with typed results, showed a blank sheet in a new order, with no word that it was a new study and that the
+  results were in Your studies. With the design unchanged the sheet and its results now stay, and Run shows them.
+  With the design changed the app asks first, and says where the study is kept. Simulating practice results fills
+  only the runs that have no result of your own; it wrote over them before.
+- **Factorial: the table of designs agrees with the step chosen, and the practice process has a plain name.** A step
+  of the ladder without center points said "4 runs" over a table row of 7 for the same design: the row now shows
+  the step's runs, and a line says so. The first process to practise on was named "Reactor yield", which read as a
+  response the reader had not named; it is now "A typical process".
+- **Factorial: three faults the maintainer met.** A new study is one press away on every stage: the bar has a button
+  for it beside the study's name, where before it was only in the menu. A file box's "Choose file" button wears the
+  page's colours, so it can be read on the dark page. The banner "Picked up where you left off" goes on the reader's
+  next press or key; a banner that says what was opened, or what failed, stays.
+- **Factorial: in Safari the Numeric/Categorical switch takes the first press.** After a factor's name was typed, the
+  first press on its switch did nothing in Safari, and a categorical factor took two presses to make. Leaving the
+  name's box wrote the switch's words again and could move the page as the question read back came or grew, and
+  Safari sends no press to a page that changes under it. The words are written only when they change, and the
+  question is read back as it is typed.
+- **Factorial: a slider is drawn by the page, the same in every browser and theme.** The sliders under Learn's dials
+  and beside a held factor were the browser's own, with the box and padding every input has; on a dark page some
+  browsers drew them as two thick pale bars with no handle to be seen. Each is now a thin line with a round handle
+  in the accent colour.
+- **Factorial: a reader sent a link to the worked example can see how to start a study of their own.** The example's
+  banner has a button, "Start my own study", on the first screen. Before, the only way was the menu on the study's
+  name.
+- **Factorial tests: the test of a factor's units renamed in the limits panel waits for the row it reads.** It read
+  the held factor's row a moment before it was drawn again, and failed once in CI (#1343).
+
 ## [2.5.0] - 2026-11-06
 
 ### Added
@@ -11890,7 +13364,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v2.5.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v2.6.0...HEAD
+[2.6.0]: https://github.com/kgdunn/process-improve/compare/v2.5.0...v2.6.0
 [2.5.0]: https://github.com/kgdunn/process-improve/compare/v2.4.0...v2.5.0
 [2.4.0]: https://github.com/kgdunn/process-improve/compare/v2.3.1...v2.4.0
 [2.3.1]: https://github.com/kgdunn/process-improve/compare/v2.3.0...v2.3.1
