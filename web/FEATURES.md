@@ -679,9 +679,10 @@ Also:
   page cannot tell.
   - *Details:* The shape says it, so the colour is not the only sign. A screen reader hears
     "Passed", "To look at" or "Cannot tell".
-- **One typeface on every device.** The app is set in Outfit, served from its own files, so
-  it looks the same everywhere and with no network.
-  - *Details:* Until the typeface has loaded, the device's own font stands in.
+- **Headings of its own, text in your device's font.** The headings, Learn's answer and the
+  question read back are set in Outfit, served from the app's own files. Body text, tables
+  and numbers are in your device's own font, where they read plainest.
+  - *Details:* Until Outfit has loaded, the device's own font stands in for it.
 - **Your numbers in ink.** What you typed or measured is in blue ink. What Factorial worked
   out is in print.
   - *Details:* A simulated result is grey and in italics, as pencil, until you type over it.
