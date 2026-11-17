@@ -9056,7 +9056,7 @@ $("#study-menu").addEventListener(
   true,
 );
 document.addEventListener("click", (e) => {
-  if (!e.target.closest(".study")) studyMenu(false);
+  if (!e.target.closest("#study-menu, #study-button")) studyMenu(false);
 });
 $(".study").addEventListener("keydown", (e) => {
   if (e.key !== "Escape" || $("#study-menu").hidden) return;
@@ -9065,7 +9065,9 @@ $(".study").addEventListener("keydown", (e) => {
 });
 // Safari gives a pressed button no focus, so a press on the list is not taken for focus that left it.
 $(".study").addEventListener("focusout", (e) => {
-  if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget)) studyMenu(false);
+  // The button for a new study shares the menu's box, and is no part of the menu: focus that goes to it has left.
+  const within = e.relatedTarget?.closest("#study-menu, #study-button");
+  if (e.relatedTarget && !within) studyMenu(false);
 });
 $("#open-library").onclick = openLibrary;
 $("#answer-more").onclick = () => showPart("best");

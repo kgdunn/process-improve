@@ -655,8 +655,9 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 .studybar__new:hover { border-color: var(--accent); }
 .studybar__new:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
 .studybar__plus { font-weight: 700; }
-/* On a tablet or a phone the bar's first row has no room for its words: the plus alone, its words read out. */
-@media (max-width: 1099px) {
+/* Its words are drawn where the row has room for them beside the study's name and the links away: on a wide screen.
+   Narrower, it is the plus alone, its words read out. */
+@media (max-width: 1339px) {
   .studybar__new { padding: 4px 9px; }
   .studybar__new-words { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
@@ -678,8 +679,7 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 /* What leads away from the study: beside the stages where the bar has the room, and in the footer on every screen. */
 .studybar__link { flex: none; color: var(--muted); font-size: 0.95rem; text-decoration: none; white-space: nowrap; }
 .studybar__link:hover, .studybar__link:focus-visible { color: var(--fg); text-decoration: underline; }
-/* The links away give their room to the study's name before it is cut short: they are in the menu and the footer too. */
-@media (max-width: 1339px) { .studybar__link { display: none; } }
+@media (max-width: 1099px) { .studybar__link { display: none; } }
 /* A long name, such as a study's that lists its factors, ends in an ellipsis inside the bar, not beyond it. */
 #study-title { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
 #study-about { color: var(--muted); font-weight: 400; font-size: 0.9rem; }

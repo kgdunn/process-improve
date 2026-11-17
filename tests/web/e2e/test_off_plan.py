@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.web.e2e._page import generate, practise, reveal, settled
+from tests.web.e2e._page import generate, practise, reveal, saved_studies, settled
 
 SETTING = '#design-table button.setting[data-index="0"][data-factor="Temperature"]'
 #: The same setting in a study of the factors T, P and F.
@@ -87,7 +87,8 @@ def test_the_study_keeps_the_setting_made_and_the_planned_one(blank_page):
     box = page.locator("#design-table input.setting")
     box.fill("163")
     box.press("Enter")
-    page.wait_for_timeout(1500)  # the save is put off a moment
+    # The save is put off a moment: wait for the study this browser keeps to hold the planned setting.
+    saved_studies(page, lambda kept: len(kept) == 1 and bool(kept[0].get("planned")))
     page.reload()
     settled(page)
     page.click("#go-run")

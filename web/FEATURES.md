@@ -660,7 +660,7 @@ Also:
 - **Three steps, one page.** One bar at the top holds the name, the study and Design, Run and
   Learn, each marked with how far it has got. It stays in view as the page scrolls.
 - **A new study in one press.** The bar has a button for it beside the study's name, on every
-  stage. On a tablet or a phone it is a plus.
+  stage. On a screen narrower than 1340 px it is a plus.
   - *Details:* The bar is one row on a desk, about 50 px tall, and two on a phone. A line
     under it says what the app is doing. That line is no part of the bar, so neither the bar
     nor the page moves when it comes and goes. An error stays, in room of its own.

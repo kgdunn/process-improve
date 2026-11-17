@@ -91,10 +91,6 @@
           <span class="studybar__title"><span id="study-title">A new study</span> <span id="study-about"></span></span>
           <svg class="study__caret" viewBox="0 0 10 10" aria-hidden="true" focusable="false"><path d="M1.5 3.5 5 7l3.5-3.5"/></svg>
         </button>
-        <!-- A new study, in sight on every stage: the menu's first entry, one press away (app.js). On a tablet or a phone
-             it is the plus alone, with its words read out. -->
-        <button type="button" id="bar-new" class="studybar__new" title="Start a new study"><span class="studybar__plus"
-          aria-hidden="true">+</span><span class="studybar__new-words">New study</span></button>
         <ul id="study-menu" class="study__menu" aria-label="Studies, and this study" hidden>
           <li><button type="button" id="new-study">New study</button></li>
           <li><button type="button" id="open-library">Your studies <span id="library-count" class="badge">0</span></button></li>
@@ -106,6 +102,11 @@
           <li><button type="button" id="menu-share">Share or download this study</button></li>
           <li><button type="button" id="menu-report">View its report</button></li>
         </ul>
+        <!-- A new study, in sight on every stage: the menu's first entry, one press away (app.js). It follows the
+             menu here, so Tab walks the menu's entries before it; the row draws it beside the study's name. On a tablet or a phone
+             it is the plus alone, with its words read out. -->
+        <button type="button" id="bar-new" class="studybar__new" title="Start a new study"><span class="studybar__plus"
+          aria-hidden="true">+</span><span class="studybar__new-words">New study</span></button>
       </div>
       <div class="phases" role="tablist" aria-label="Design, run, learn, next">
         <button type="button" role="tab" id="go-plan" aria-controls="step-plan" aria-selected="true"><span class="step">1</span> Design<span id="badge-plan" class="badge" hidden></span></button>
