@@ -746,6 +746,28 @@ export function questionLine(title, factors, aim = "") {
 }
 
 /**
+ * The question read back as one sentence, as Design opens with it: "Find the settings of T and P that give the
+ * highest Yield." ``responses`` are the brief's, each {label, goal, target, units}; ``factors`` are its factors;
+ * ``blend`` words a mixture, whose settings are a blend. With no goal to reach the study is to learn how the
+ * factors change what is measured. "" until there is both a response and a factor to name.
+ */
+export function questionSentence(responses, factors, { blend = false } = {}) {
+  const measured = responses.filter((r) => r.label);
+  const names = factors.slice(0, FACTORS_NAMED).map((f) => f.name);
+  if (!measured.length || !names.length) return "";
+  if (factors.length > names.length) names.push(`${factors.length - names.length} more`);
+  const wanted = measured.flatMap((r) => {
+    if (r.goal === "maximize") return [`the highest ${r.label}`];
+    if (r.goal === "minimize") return [`the lowest ${r.label}`];
+    if (r.goal !== "target") return [];
+    const target = isFiniteNumber(r.target) ? ` of ${r.target}${r.units ? ` ${r.units}` : ""}` : "";
+    return [`${r.label} on its target${target}`];
+  });
+  if (!wanted.length) return `Learn how ${listNames(names)} change ${listNames(measured.map((r) => r.label))}.`;
+  return `Find the ${blend ? "blend" : "settings"} of ${listNames(names)} that ${blend ? "gives" : "give"} ${listNames(wanted)}.`;
+}
+
+/**
  * The power the designs are compared at, in the reader's words: the smallest change worth finding,
  * from a factor's low setting to its high one, and the coefficient in noise standard deviations it
  * is (half the change, over the noise); null without both numbers, when the default of one noise

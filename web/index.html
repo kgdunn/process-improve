@@ -168,8 +168,9 @@
 
   <div id="demo-banner" class="banner" hidden>
     <p>The worked example, computed with <span id="demo-version">process-improve</span>
-      <span id="demo-when">when this page was built</span>. Change anything to make it a study of your own.</p>
-    <p class="actions"><button type="button" id="run-example" class="button">Run it again in your browser</button></p>
+      <span id="demo-when">when this page was built</span>.</p>
+    <p class="actions"><button type="button" id="example-new" class="primary">Start my own study</button>
+      <button type="button" id="run-example" class="button">Run it again in your browser</button></p>
   </div>
   <p id="campaign-banner" class="banner" role="status" hidden></p>
 
@@ -177,6 +178,8 @@
     <!-- The question: what the study measures, what might change it, and what it is to learn. On Design it is the
          form itself, beside the designs on a wide screen. Over Run and Learn it is one line that opens to the same
          form (app.js showPhase, renderQuestion), so the runs and the results have the page's width. -->
+    <!-- Design opens with the question read back as one sentence (app.js renderQuestion, logic.js questionSentence). -->
+    <p id="asked" class="asked" hidden></p>
     <details id="question" class="question" open>
       <summary><b>The question</b> <span id="question-says" class="question__says"></span>
         <span class="question__change"><span data-when="closed">Change</span><span data-when="open">Close</span></span></summary>
