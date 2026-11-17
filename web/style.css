@@ -668,7 +668,7 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 .studybar .mode-switch { align-self: auto; }
 /* The study's name, a button that opens the ways in and what is done with the study. It heads the page under the
    bar, where it has the page's width: a long name goes onto a second row and is not cut short. */
-.study { position: relative; display: flex; margin: 0 0 12px; }
+.study { position: relative; display: flex; margin: 0 0 6px; }
 .study__button {
   display: flex; align-items: center; gap: 6px; min-width: 0; padding: 4px 8px; margin-left: -8px;
   border: 1px solid transparent; border-radius: var(--corner); background: none; color: inherit; font: inherit; cursor: pointer;
@@ -756,6 +756,7 @@ section { scroll-margin-top: 120px; }
 /* Narrower than a tablet the name "Factorial" is read out and not drawn. */
 @media (max-width: 720px) {
   .studybar h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .studybar .feedback-slot { flex: 0 0 38px; }
 }
 @media (max-width: 600px) {
   .studybar__title { font-size: 1.05rem; }

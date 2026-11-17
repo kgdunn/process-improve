@@ -39,19 +39,21 @@ def test_learn_opens_with_where_to_run_and_what_to_expect_in_the_panel_s_own_num
 @pytest.mark.parametrize(
     ("context_options", "within"),
     [
-        ({"viewport": {"width": 1440, "height": 900}}, 300),
+        ({"viewport": {"width": 1440, "height": 900}}, 340),
         ({"viewport": {"width": 390, "height": 844}, "is_mobile": True}, 844),
     ],
     ids=["a laptop", "a phone"],
 )
 def test_the_answer_is_at_the_top_of_learn(page, within):
-    """Under 300 px from the top on a laptop; on a phone, its words and each setting's line within the first screen.
+    """Under 340 px from the top on a laptop; on a phone, its words and each setting's line within the first screen.
+
+    Over it are the bar, the study's name, the worked example's banner and the question's line.
 
     The picture of the runs follows them on a phone, where there is no room beside the words.
     """
     box = page.locator("#answer").bounding_box()
     last = page.locator("#answer-where .tracks").bounding_box()
-    edge = box["y"] if within == 300 else last["y"] + last["height"]
+    edge = box["y"] if within == 340 else last["y"] + last["height"]
     assert edge < within
     assert box["y"] < page.locator("#analysis").bounding_box()["y"], "before the evidence"
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
