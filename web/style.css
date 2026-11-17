@@ -694,14 +694,17 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 .studybar:has(.status[data-state="error"]:not([hidden])) { margin-bottom: 12px; }
 .studybar:has(.status[data-state="error"]:not([hidden])) .studybar__under { position: static; padding: 4px 0 2px; }
 section { scroll-margin-top: 120px; }
-/* Narrower than a tablet the bar is two rows: the mark, the study's name and the two buttons, over the phases. The
-   name "Factorial" is then read out and not drawn, so the study's name has the row. */
-@media (max-width: 720px) {
+/* On a tablet or a phone the bar is two rows: the mark, the study's name and the two buttons, over the stages. In one
+   row the four stages and their badges leave the study's name no room there: it shrank to nothing on a tablet. */
+@media (max-width: 1099px) {
   .studybar__row { flex-wrap: wrap; }
-  .studybar h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .study { flex: 1 1 0; }
-  .studybar .feedback-slot { flex: 0 0 38px; }
   .phases { order: 1; width: 100%; }
+}
+/* Narrower than a tablet the name "Factorial" is read out and not drawn, so the study's name has the row. */
+@media (max-width: 720px) {
+  .studybar h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .studybar .feedback-slot { flex: 0 0 38px; }
 }
 @media (max-width: 600px) {
   .studybar__title { font-size: 0.95rem; }

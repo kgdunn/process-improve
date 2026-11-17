@@ -190,6 +190,24 @@ def test_on_a_laptop_the_bar_is_one_row_no_taller_than_56_px(fresh_page):
     assert all(link.is_visible() for link in links.all())
 
 
+@pytest.mark.parametrize(
+    "context_options",
+    [{"viewport": {"width": width, "height": 1000}} for width in (744, 820, 1024, 1099)],
+    ids=["744", "820", "1024", "1099"],
+)
+def test_on_a_tablet_the_bar_is_two_rows_and_the_study_s_name_is_read_whole(page):
+    """A study with results: four stages and their badges. In one row they left the study's name no room at all."""
+    parts = page.evaluate(BAR)
+    assert all(part["drawn"] for part in parts.values()), parts
+    assert parts["study"]["bottom"] <= parts["stages"]["top"], "the study's name is over the stages"
+    title = page.locator("#study-title")
+    assert title.evaluate("(one) => one.scrollWidth <= one.clientWidth"), "none of the name is cut off"
+    caret = page.locator(".study__caret").bounding_box()
+    assert caret["y"] + caret["height"] <= parts["stages"]["top"], "the menu's mark is not over a stage"
+    assert box(page, "#studybar")["height"] <= 100
+    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+
+
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
 def test_on_a_phone_the_bar_is_two_rows_the_study_s_name_over_the_stages(fresh_page):
     """The name "Factorial" is read out and not drawn there, so the study's name has the first row."""
