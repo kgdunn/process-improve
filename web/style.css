@@ -643,6 +643,7 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 #go-plan { --stage: var(--stage-plan); }
 #go-run { --stage: var(--stage-run); }
 #go-learn { --stage: var(--stage-learn); }
+#go-next { --stage: var(--stage-next); }
 .phases [role="tab"][aria-selected="true"] { color: var(--fg); border-bottom-color: var(--stage); font-weight: 600; }
 .phases [role="tab"]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .phases .step { width: 22px; height: 22px; font-size: 0.8rem; background: var(--stage); }
@@ -699,10 +700,12 @@ section { scroll-margin-top: 120px; }
 .workspace[data-phase="plan"] { --stage: var(--stage-plan); }
 .workspace[data-phase="run"] { --stage: var(--stage-run); }
 .workspace[data-phase="learn"] { --stage: var(--stage-learn); }
+.workspace[data-phase="next"] { --stage: var(--stage-next); }
 .workspace .card, .workspace .pane { border-top: 3px solid var(--stage); }
 .workspace .primary { background: var(--stage); border-color: var(--stage); }
 #generate { --stage: var(--stage-run); }
 #to-learn { --stage: var(--stage-learn); }
+#learn-to-next { --stage: var(--stage-next); }
 .card > .hint:first-of-type { margin-top: 0; }
 .pane { margin: 0 0 16px; }
 /* The answer Learn opens with: where to run and what to expect there, before the evidence. */
@@ -1201,6 +1204,10 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 .what-if-kept .kept__do { white-space: nowrap; }
 .what-if-kept .kept__do button { margin: 0 12px 0 0; }
 .what-if-kept .kept__do button.link { padding: 0; }
+/* The rounds of a campaign, on the Next stage: a row each, its study, its runs, its best result and the way to it. */
+.rounds table.data th, .rounds table.data td { padding: 6px 14px 6px 0; text-align: left; vertical-align: top; }
+.rounds table.data td:first-child, .rounds table.data td:last-child { white-space: nowrap; }
+.rounds table.data button.link { padding: 0; }
 /* A prediction as runs: for each response, dots that pile up where a run is likelier (app.js RUNS has the sizes). A
    run inside the response's window is filled, one outside is a ring, and the window is shaded behind them. */
 .what-if-runs { display: flex; flex-wrap: wrap; gap: 6px 28px; margin: 10px 0 4px; }

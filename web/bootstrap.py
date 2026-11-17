@@ -4303,7 +4303,16 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
         else:
             _checked_model(one, names, labelled)
     # read_workbook checks what_if itself.
-    dropped = ("response_info", "responses", "aim", "constraints", "analysis_transforms", "what_if", "curve")
+    dropped = (
+        "response_info",
+        "responses",
+        "aim",
+        "constraints",
+        "analysis_transforms",
+        "what_if",
+        "builds_on",
+        "curve",
+    )
     checked = {key: value for key, value in spec.items() if key not in dropped}
     limits = _checked_constraints(spec.get("constraints"), factors)
     transforms = _checked_transforms(spec, responses)
@@ -5165,6 +5174,8 @@ def read_workbook(request: dict) -> dict:
         reply["more_sources"] = {name: results[name][1] for name in names[1:]}
     if stored.get("what_if"):
         reply["what_if"] = _kept_settings(stored["what_if"])
+    if stored.get("builds_on"):
+        reply["builds_on"] = _built_on(stored["builds_on"])
     if spec.get("curve") is not None:
         reply["curves"] = _curves_read(curve_sheet, spec["curve"], runs)
     return reply
@@ -5190,6 +5201,41 @@ def _kept_settings(value: object) -> list[dict[str, Any]]:
     ):
         raise ValueError("The page sent kept settings this page did not write.")
     return [{"name": one["name"], "settings": dict(one["settings"])} for one in value]
+
+
+#: The most studies a study builds on (``BUILT_ON_HELD`` in ``web/campaign.js``).
+BUILT_ON_HELD = 4
+
+
+def _built_on(value: object) -> list[dict[str, Any]]:
+    """Check the studies a study builds on, the round before it, as ``checkBuiltOn`` in ``web/campaign.js`` checks them.
+
+    Each is the ``id`` that names the earlier study, the ``sha256`` of its runs and results when this
+    one was built on it (None when the browser could not work one out), and its ``title`` then. A
+    workbook carries them so the study is still a round of its campaign when it comes back.
+    """
+    if not isinstance(value, list) or len(value) > BUILT_ON_HELD or not all(map(_built_on_one, value)):
+        raise ValueError("The page sent a study this one builds on that this page did not write.")
+    return [
+        {"id": one["id"], "sha256": one.get("sha256"), **({"title": one["title"]} if one.get("title") else {})}
+        for one in value
+    ]
+
+
+def _built_on_one(one: object) -> bool:
+    """Say whether one study built on is an id of one line, a SHA-256 or none, and a title of one line or none."""
+    if not isinstance(one, dict):
+        return False
+    name, digest, title = one.get("id"), one.get("sha256"), one.get("title")
+    line = lambda text, most: (  # noqa: E731
+        isinstance(text, str) and len(text) <= most and not any(unicodedata.category(ch) == "Cc" for ch in text)
+    )
+    return (
+        line(name, 100)
+        and bool(name.strip())
+        and (digest is None or (isinstance(digest, str) and re.fullmatch(r"[0-9a-f]{64}", digest) is not None))
+        and (title is None or line(title, 200))
+    )
 
 
 def _kept_one(one: object) -> bool:
@@ -5258,6 +5304,8 @@ def workbook(request: dict) -> dict:
         spec = {**spec, "simulated": {k: simulated.get(k) for k in ("scenario", "sigma", "seed")}}
     if request.get("what_if"):
         spec = {**spec, "what_if": _kept_settings(request["what_if"])}
+    if request.get("builds_on"):
+        spec = {**spec, "builds_on": _built_on(request["builds_on"])}
     curves = None
     if spec.get("curve") is not None:
         points = len(spec["curve"]["argument"]["values"])

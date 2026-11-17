@@ -264,6 +264,41 @@ def test_the_settings_kept_from_the_what_if_panel_go_through_the_workbook(api, h
     assert back["responses"] == simulated["responses"]
 
 
+#: The round before, as a study started from another keeps it: its id, the digest of its runs then, and its title.
+BUILT_ON = [{"id": "8f1c0d2e-round-1", "sha256": "ab" * 32, "title": "Yield, maximise: Box-Behnken in T, P and F"}]
+
+
+def test_the_study_a_study_builds_on_goes_through_the_workbook(api, held, simulated):
+    """A workbook of a later round is still that round when it comes back."""
+    book = api.ok("api_workbook", {**held, "responses": simulated["responses"], "builds_on": BUILT_ON})
+    stored = json.loads(sheets_of(book["xlsx_base64"])["_pi_design"]["spec"].iloc[0])
+    assert stored["builds_on"] == BUILT_ON
+    back = api.ok("api_read_workbook", book)
+    assert back["builds_on"] == BUILT_ON
+    assert "builds_on" not in back["spec"], "the page keeps it with the study, not with its design"
+    plain = api.ok("api_workbook", {**held, "responses": simulated["responses"]})
+    assert "builds_on" not in api.ok("api_read_workbook", plain), "a study that stands alone names none"
+    unknown = api.ok("api_workbook", {**held, "responses": simulated["responses"], "builds_on": [{"id": "round-1"}]})
+    assert api.ok("api_read_workbook", unknown)["builds_on"] == [{"id": "round-1", "sha256": None}]
+
+
+@pytest.mark.parametrize(
+    "built_on",
+    [
+        "round-1",
+        ["round-1"],
+        [{"id": ""}],
+        [{"id": "round-1", "sha256": "abc"}],
+        [{"id": "round-1", "title": "two\nlines"}],
+        [{"id": f"round-{i}"} for i in range(5)],
+    ],
+    ids=["not a list", "a name where a study goes", "no id", "no digest", "a title of two lines", "too many"],
+)
+def test_a_study_built_on_that_the_page_did_not_write_is_refused(api, held, simulated, built_on):
+    said = api.error("api_workbook", {**held, "responses": simulated["responses"], "builds_on": built_on})
+    assert said == "The page sent a study this one builds on that this page did not write."
+
+
 def test_a_workbook_without_kept_settings_reads_back_without_them(api, held, simulated):
     for none in ({}, {"what_if": []}, {"what_if": None}):
         book = api.ok("api_workbook", {**held, "responses": simulated["responses"], **none})

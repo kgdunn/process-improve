@@ -314,6 +314,9 @@ import {
   bookName,
   campaignDone,
   campaignTitle,
+  bestResult,
+  checkBuiltOn,
+  roundsOf,
   checkBookExample,
   checkCampaign,
   CURVE_POINTS_HELD,
@@ -330,7 +333,7 @@ import {
   timeAgo,
   unpackCampaign,
 } from "./campaign.js";
-import { fileStem, readStudyFile, studyFile } from "./study-file.js";
+import { fileStem, readStudyFile, runsDigest, studyFile } from "./study-file.js";
 import {
   adoptLimits,
   currentLimits,
@@ -596,6 +599,7 @@ const state = {
   scenarios: [], // the settings the reader kept from the what-if panel, each {name, settings}: the study's what_if
   next: null, // the next step, {design, key, offers, notes, recommendation, waiting}: what api_next_runs returned for it
   widened: false, // the study was started with its ranges widened, nothing having stood out in the study before
+  buildsOn: [], // the study this one was started from, as the study keeps it (its builds_on): the round before
   goals: {}, // what the reader set of each response's goal in the balance, by its column: low, high, importance, shape
   comparison: null, // the designs that can learn the brief: what api_candidates returned, and the brief's key
   picked: null, // a design taken from the comparison, {key, design}, made again only if the plan changes
@@ -692,7 +696,7 @@ function wordsOf(name) {
 const mixturePlanned = () => isMixture($("#design-type").value);
 
 // ---------------------------------------------------------------- the phases
-const PANES = { plan: "#step-plan", run: "#step-run", learn: "#step-analyse" };
+const PANES = { plan: "#step-plan", run: "#step-run", learn: "#step-analyse", next: "#step-next" };
 
 /**
  * Show a phase: its tab is marked, its pane shown, and on a narrow screen the brief goes with
@@ -717,6 +721,7 @@ function showPhase(phase) {
     cancelCandidates();
     $("#welcome").hidden = true; // a first look is over once the reader has left the question
   }
+  if (phase === "next") renderRounds(); // from the studies this browser keeps now
   // The top of the workspace in view, under the study bar, when the phase starts above the window's top.
   const top = $("#workspace").getBoundingClientRect().top - $("#studybar").offsetHeight - 8;
   if (top < 0) window.scrollBy({ top, behavior: "instant" });
@@ -3190,6 +3195,7 @@ async function downloadWorkbook() {
     model: asked(modelOf(first)),
     ...(Object.keys(models).length ? { models } : {}),
     ...(state.scenarios.length ? { what_if: state.scenarios } : {}),
+    ...(state.buildsOn.length ? { builds_on: state.buildsOn } : {}),
     ...sentCurves(),
   });
   if (!reply.ok) {
@@ -3285,7 +3291,7 @@ async function downloadNotebook() {
 const REPORT_STEPS = ["design", "run", "analyse", "best", "balance"];
 
 /** What a report's copy of the page leaves out: what is there to use the page, and what the page hides. */
-const NOT_REPORTED = "[hidden], button:not(.term), input, select, textarea, details.python, .actions, .kept__do, figure.chart, .simplify, .findings__more";
+const NOT_REPORTED = "[hidden], button:not(.term), input, select, textarea, details.python, .actions, .kept__do, .rounds__open, figure.chart, .simplify, .findings__more";
 
 /**
  * The attributes a report's copy keeps: those that say how a cell spans, where a link goes, how a part looks, and
@@ -3394,6 +3400,7 @@ async function closingSections() {
     if (id === "target" && !$("#target-solve").hidden) html.push(`<h3>${$("#target-solve h4").textContent}</h3>`, reportCopy($("#solve-out")));
     sections.push({ heading: $(`#h-${id}`).textContent, html: html.join("\n") });
   }
+  if (!$("#rounds").hidden) sections.push({ heading: $("#h-rounds").textContent, html: reportCopy($("#rounds-out")) });
   if (!$("#next").hidden) sections.push({ heading: $("#h-next").textContent, html: reportCopy($("#next-out")) });
   const code = cumulative(...REPORT_STEPS.map((step) => stepCode[step]).filter(Boolean));
   sections.push({
@@ -3493,7 +3500,7 @@ async function viewReport() {
 
 // ---------------------------------------------------------------- feedback
 /** The phases by the names their tabs give them, as a report of a problem names the one on show. */
-const PHASE_NAMES = { plan: "Design", run: "Run", learn: "Learn" };
+const PHASE_NAMES = { plan: "Design", run: "Run", learn: "Learn", next: "Next" };
 
 /** Learn's model as its form names it: the choice, or for terms ticked, how many. */
 function modelWords() {
@@ -3575,6 +3582,7 @@ async function readUpload(file) {
   state.target = newTarget();
   state.window = newWindow();
   state.scenarios = r.what_if ?? [];
+  state.buildsOn = r.builds_on ?? []; // the round before, when the workbook is of a later round: Python checked it
   clearBalance();
   clearWhatIf();
   clearTarget();
@@ -4979,6 +4987,9 @@ function clearBest() {
   renderAnswer();
   $("#best").hidden = true;
   $("#next").hidden = true; // the next step follows the analysis; findNext shows it again with the next one
+  $("#to-next").hidden = true;
+  $("#next-empty").hidden = false;
+  renderRounds(); // the rounds are the study's, analysed or not: with no study on the page they go too
   hidePython("best");
 }
 
@@ -7033,12 +7044,67 @@ function renderNext() {
   const move = !called && Boolean(best) && movesOn(best);
   const shown = called || next.waiting || move || next.offers.length || next.notes.length;
   $("#next").hidden = !design || !state.analysis || !shown;
+  $("#to-next").hidden = $("#next").hidden;
+  $("#next-empty").hidden = !$("#next").hidden;
+  renderRounds();
   if ($("#next").hidden) return;
   $("#next-out").replaceChildren(
     ...(called ? calledFor(called) : next.waiting ? [said("hint", next.waiting)] : []),
     ...(move ? movedStudy(best) : []),
     ...(next.offers.length || next.notes.length ? addedRuns(next, Boolean(called)) : []),
   );
+}
+
+let roundsTicket = 0;
+
+/**
+ * Show the campaign the study on the page is a round of (campaign.js roundsOf), from the studies this browser keeps:
+ * each round's study, its runs and its best result so far, and a button that opens it. A round built on runs that
+ * have changed since says so. A study that stands alone, as most do, is one round, and nothing is listed.
+ */
+async function renderRounds() {
+  const mine = ++roundsTicket;
+  const id = state.campaign?.id;
+  let rounds = [];
+  if (id && state.design) {
+    // The study on the page as it is now, which its saved copy lags by a moment.
+    const here = { ...currentCampaign(), id, created: state.campaign.created };
+    const records = [...(await savedSoon()).filter((record) => record.id !== id), here];
+    const builtOn = new Set(records.map((record) => record.builds_on?.[0]?.id));
+    const digests = new Map();
+    for (const record of records) if (builtOn.has(record.id)) digests.set(record.id, await runsDigest(record));
+    rounds = roundsOf(records, id, digests);
+  }
+  if (mine !== roundsTicket) return; // another study, or a later look, has the page
+  const badge = $("#badge-next");
+  const round = rounds.find((one) => one.id === id)?.round;
+  $("#rounds").hidden = rounds.length < 2;
+  badge.hidden = $("#rounds").hidden;
+  badge.textContent = badge.hidden ? "" : `round ${round}`;
+  if ($("#rounds").hidden) return;
+  $("#next-empty").hidden = true;
+  const rows = rounds.map((one) => {
+    const study = el("span", "", one.missing ? `${one.title || "An earlier study"} (not in this browser)` : one.title);
+    const open = el("button", "link", "Open");
+    open.type = "button";
+    open.setAttribute("aria-label", `Open round ${one.round}: ${one.title}`);
+    open.onclick = () => openSaved(one.record);
+    return [`Round ${one.round}`, study, one.record ? progress(one.record.responses) : "", one.record ? roundBest(one.record) : "", one.id === id ? "This study" : one.record ? open : ""];
+  });
+  const stale = rounds.filter((one) => one.stale).map((one) => {
+    const before = rounds.find((other) => other.id === one.record.builds_on[0].id);
+    return `Round ${one.round} was built on round ${before.round} as it was then: a run or a result of round ${before.round} has changed since.`;
+  });
+  const listed = builtTable(["Round", "Study", "Runs", "Best so far", "Open it"], rows);
+  for (const row of listed.querySelectorAll("tr")) row.lastElementChild.classList.add("rounds__open"); // the page's own: no part of a report
+  $("#rounds-out").replaceChildren(listed, ...noteList(stale, "warnings"));
+}
+
+/** A round's best result so far for the goal of its first response, as the rounds' table writes it; "" for none. */
+function roundBest(record) {
+  const info = record.design.spec.response_info ?? {};
+  const best = bestResult(record.responses, info);
+  return best ? `${withUnit(best.value, info.units ?? "")}, in run ${best.run + 1}` : "";
 }
 
 /** A setting as the next step's table writes it: a number with its units, or a categorical factor's level. */
@@ -7200,10 +7266,15 @@ async function simulateFrom(before) {
  * runs not yet made. This study stays in Your studies. Runs as given are made for one study only, so the new one has
  * its design picked for it.
  */
-function startMovedStudy(factors, widened = false) {
+async function startMovedStudy(factors, widened = false) {
   const spec = state.design.spec;
   const given = spec.design_type === GIVEN;
+  // The new study is the next round of this one's campaign, when this one is a study the browser keeps: it names
+  // this study, with the digest of its runs and results as they are now. The worked example is no such study.
+  const before = state.campaign?.id ? currentCampaign() : null;
+  const on = before ? [{ id: state.campaign.id, sha256: await runsDigest(before), title: before.title }] : [];
   newStudy();
+  state.buildsOn = on;
   state.widened = widened; // nothing stood out in the study before: the next step stops rather than widen again
   setForm({ ...spec, factors, ...(given ? { design_type: "box_behnken", options: { n_center_points: 3 } } : {}) });
   if (given) designChosen = false;
@@ -7350,6 +7421,7 @@ function newStudy() {
     campaign: null,
     example: false,
     widened: false,
+    buildsOn: [],
   });
   draftSeed = null; // a new study, which takes a seed of its own
   clearTimeout(analysisTimer);
@@ -7413,6 +7485,7 @@ function writeDraft() {
     limits: currentLimits(),
     // A mixture's factor table reads as components, blank bounds and all, so the draft keeps the design with it.
     design: mixturePlanned() ? $("#design-type").value : null,
+    ...(state.buildsOn.length ? { builds_on: state.buildsOn } : {}),
   };
   try {
     localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
@@ -7468,7 +7541,13 @@ function readDraft() {
     /* limits this page did not write: the brief comes back without them */
   }
   const design = isMixture(draft.design) ? draft.design : null;
-  return { response, responses, factors, aim: AIMS.includes(draft.aim) ? draft.aim : null, limits, design };
+  let builtOn = [];
+  try {
+    builtOn = checkBuiltOn(draft.builds_on);
+  } catch {
+    /* a round before that this page did not write: the study stands alone */
+  }
+  return { response, responses, factors, aim: AIMS.includes(draft.aim) ? draft.aim : null, limits, design, builds_on: builtOn };
 }
 
 /** Put a draft brief back on the page, in Design. */
@@ -7491,6 +7570,7 @@ function restoreDraft(draft) {
   setLimits(draft.limits);
   aimChosen = Boolean(draft.aim);
   setAim(draft.aim ?? defaultAim(factorCount()));
+  state.buildsOn = draft.builds_on ?? [];
   refreshDesign();
   renderStudyBar();
 }
@@ -7521,7 +7601,7 @@ function currentCampaign() {
   const { spec, columns, rows, model, facts, outside_range: outside } = state.design;
   const [first, ...more] = resultNames();
   return {
-    v: studyFormat(spec, { what_if: state.scenarios, set_aside: keptAside(), ...keptAsked() }),
+    v: studyFormat(spec, { what_if: state.scenarios, set_aside: keptAside(), ...keptAsked(), builds_on: state.buildsOn }),
     title: state.campaign?.title ?? titleOf(spec),
     design: { spec, columns, rows, model, n_runs: rows.length, facts: facts ?? null, outside_range: outside ?? [] },
     ...sentResults(),
@@ -7534,6 +7614,7 @@ function currentCampaign() {
     ...(state.scenarios.length ? { what_if: state.scenarios } : {}),
     ...(Object.keys(keptAside()).length ? { set_aside: keptAside() } : {}),
     ...keptAsked(),
+    ...(state.buildsOn.length ? { builds_on: state.buildsOn } : {}),
     ...sentCurves(),
   };
 }
@@ -7649,11 +7730,24 @@ const SHARES_FILES = (() => {
   }
 })();
 
-/** The study file of `records`, the studies as this browser keeps them, as a file named `name`. */
-async function studyFileOf(records, name) {
+/** The study file of `records`, the studies as this browser keeps them, as a file named `name`; `opens` as studyFile takes it. */
+async function studyFileOf(records, name, opens = null) {
   const app = { url: `${location.origin}${location.pathname}`, process_improve: state.version };
-  const json = await studyFile(records, { app });
+  const json = await studyFile(records, { app, opens });
   return new File([`${JSON.stringify(json, null, 2)}\n`], name, { type: "application/json" });
+}
+
+/**
+ * A study's own file: the study, and with it the rounds before it that this browser keeps, the first round first,
+ * so the file carries the campaign the study is a round of. The file says which study it is of.
+ */
+async function ownStudyFile(record, title) {
+  const kept = new Map((await savedCampaigns()).map((one) => [one.id, one]));
+  const rounds = [record];
+  for (let on = record.builds_on?.[0]; on && kept.has(on.id) && !rounds.includes(kept.get(on.id)); on = rounds[0].builds_on?.[0]) {
+    rounds.unshift(kept.get(on.id));
+  }
+  return studyFileOf(rounds, `${fileStem(title)}.factorial.json`, rounds.length > 1 ? record.id : null);
 }
 
 /**
@@ -7666,7 +7760,7 @@ function shareButton(record, title) {
   button.type = "button";
   button.setAttribute("aria-label", `${button.textContent} ${title}`);
   let file = null;
-  const make = () => (file ??= studyFileOf([record], `${fileStem(title)}.factorial.json`));
+  const make = () => (file ??= ownStudyFile(record, title));
   button.onpointerdown = make;
   button.onfocus = make;
   button.onclick = async () => {
@@ -7736,9 +7830,16 @@ async function openStudyFile(file) {
     changed.length ? ` Changed by hand since it was saved: ${listNames(changed)}.` : "",
     refused.length ? ` Not opened: ${refused.join("; ")}.` : "",
   ].join("");
-  if (opened.length === 1 && read.studies.length === 1) {
-    const [record] = opened;
-    const where = already ? "It was already saved in this browser." : "It is saved in this browser now, under Your studies.";
+  // A file of one study opens it; so does a file of one study and the rounds before it, which says which it is of.
+  const of = read.studies.length === 1 ? 0 : read.studies.findIndex((one) => read.opens !== null && one.id === read.opens);
+  if (of >= 0 && opened.length === read.studies.length) {
+    const record = opened[of];
+    const before = opened.length - 1;
+    const where = before
+      ? `It and the ${before === 1 ? "round" : `${before} rounds`} before it are saved in this browser, under Your studies.`
+      : already
+        ? "It was already saved in this browser."
+        : "It is saved in this browser now, under Your studies.";
     await openCampaign(checkCampaign(record), { id: record.id, created: record.created }, `Opened ${record.title || "a study"} from ${file.name}. ${where}${notes}`);
     return;
   }
@@ -7805,6 +7906,7 @@ async function openCampaign(c, record, message) {
   state.target = { ...newTarget(), targets: structuredClone(c.targets ?? {}) };
   state.window = { ...newWindow(), windows: structuredClone(c.windows ?? {}) };
   state.scenarios = structuredClone(c.what_if ?? []);
+  state.buildsOn = structuredClone(c.builds_on ?? []);
   clearBalance();
   clearWhatIf();
   clearTarget();
@@ -8520,6 +8622,7 @@ $(".study").addEventListener("focusout", (e) => {
 });
 $("#open-library").onclick = openLibrary;
 $("#answer-more").onclick = () => showPart("best");
+$("#learn-to-next").onclick = () => showPhase("next");
 $("#menu-share").onclick = () => showPart("download");
 $("#menu-report").onclick = viewReport;
 // The welcome of a first visit leads to the blank question under it, and offers the other ways in by the menu's own

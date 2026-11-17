@@ -17,7 +17,8 @@
 //         "sha256": "ab12…",                    of the study's canonical JSON (report.js's canonicalJson)
 //         "study": { "v": 1, "title": "…", "design": { … }, "responses": [ … ], … }
 //       }
-//     ]
+//     ],
+//     "opens": "8f1c…"                          in a file of one study and the rounds before it: the study to open
 //   }
 //
 // A study is the object a link carries and this browser keeps (campaign.js), whole: its brief, design, run sheet,
@@ -32,6 +33,8 @@
 //   - `id` stays with a study through copies and files, so a later study can point to an earlier one by its id and
 //     its sha256: a design that follows another and its model, with factors added or dropped.
 //   - `sha256` lets a reader tell a study changed by hand from one as Factorial saved it. The study still opens.
+//   - A study that builds on another names it in `study.builds_on`, by its `id`, with the digest of its runs and
+//     results then (runsDigest) and its title. A file that holds both holds the campaign's rounds.
 
 import { CAMPAIGN_VERSION, checkCampaign } from "./campaign.js";
 import { canonicalJson, sha256 } from "./report.js";
@@ -56,14 +59,26 @@ function msTime(text, fallback) {
   return Number.isFinite(ms) ? ms : fallback;
 }
 
+/**
+ * The digest of a study's runs and their results: what a later study is built on. A study that builds on another
+ * keeps this of the earlier one (``builds_on``), so the page can say when a run or a result of an earlier round
+ * changed afterwards. What else a study keeps (its models, the settings kept, what Learn was asked) changes as the
+ * reader looks at it, and is no part of this. Null where the browser has no way to work a digest out.
+ */
+export function runsDigest(study) {
+  const { columns, rows } = study.design;
+  return sha256(canonicalJson({ columns, rows, responses: study.responses, more_responses: study.more_responses ?? null }));
+}
+
 /** A study as the file holds it: the study this browser keeps, without its bookkeeping. */
 export const studyOf = (record) => Object.fromEntries(Object.entries(record).filter(([key]) => !BOOKKEEPING.includes(key)));
 
 /**
  * The study file for `records`, the studies as this browser keeps them, as JSON to write out. `app` says what
- * wrote it (the page's address, the process-improve release); `exported` is when.
+ * wrote it (the page's address, the process-improve release); `exported` is when. `opens` is the id of the study
+ * the file is of, when it holds that study with the rounds before it: a reader opens that one.
  */
-export async function studyFile(records, { app = {}, exported = new Date() } = {}) {
+export async function studyFile(records, { app = {}, exported = new Date(), opens = null } = {}) {
   const studies = [];
   for (const record of records) {
     const study = studyOf(record);
@@ -75,7 +90,8 @@ export async function studyFile(records, { app = {}, exported = new Date() } = {
       study,
     });
   }
-  return { format: FILE_FORMAT, version: FILE_VERSION, exported: exported.toISOString(), app: { name: "Factorial", ...app }, studies };
+  const file = { format: FILE_FORMAT, version: FILE_VERSION, exported: exported.toISOString(), app: { name: "Factorial", ...app }, studies };
+  return opens ? { ...file, opens } : file;
 }
 
 /** Refuse a whole file, saying why in a sentence for the page. */
@@ -87,7 +103,7 @@ function refuse(why) {
  * Read a study file's text. Each study is checked as a link's study is (campaign.js's checkCampaign); one that
  * fails is refused, with its title and the reason ("it has no runs"), and the others are read. Each study read comes with its `id` (null when
  * the file gives none), its `created` and `updated` times in milliseconds, and `changed`, true when its sha256 does
- * not match it. Throws, with a sentence for the page, for a file that is not a study file or is of a later version.
+ * not match it. `opens` is the id of the study the file is of, when it says (a study with the rounds before it), or null. Throws, with a sentence for the page, for a file that is not a study file or is of a later version.
  */
 export async function readStudyFile(text, now = Date.now()) {
   let data;
@@ -123,7 +139,8 @@ export async function readStudyFile(text, now = Date.now()) {
     const created = msTime(entry.created, now);
     studies.push({ id, created, updated: msTime(entry.updated, created), study, changed: digest !== null && digest !== entry.sha256 });
   }
-  return { studies, refused };
+  const opens = typeof data.opens === "string" && data.opens && data.opens.length <= 100 ? data.opens : null;
+  return { studies, refused, opens };
 }
 
 /**

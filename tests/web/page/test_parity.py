@@ -778,6 +778,7 @@ def test_one_factor_s_runs_and_study_format_are_held_as_bootstrap_and_the_build_
         "CURVE_FORMAT",
         "SET_ASIDE_FORMAT",
         "TARGETS_FORMAT",
+        "ROUNDS_FORMAT",
     ]
     names = ["CAMPAIGN_VERSION", *each, "FEW_FACTORS"]
     formats = javascript(node, source("campaign.js"), [(name, []) for name in names])
