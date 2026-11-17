@@ -106,6 +106,7 @@ import {
   responseName,
   responseTitle,
   factorWords,
+  offPlanWords,
   questionLine,
   questionSentence,
   shownTheme,
@@ -1928,6 +1929,13 @@ describe("the question in one line", () => {
     const line = questionLine("Yield", many);
     assert.ok(line.includes("x6 0 to 1 and 3 more"), line);
     assert.ok(!line.includes("x7"), line);
+  });
+});
+
+describe("the runs made at settings that differ from the plan", () => {
+  test("one run, and several, each say what the fit does", () => {
+    assert.ok(offPlanWords([3]).startsWith("Run 3 was made at settings that differ from the plan. The model is fitted on the settings really made"));
+    assert.ok(offPlanWords([3, 7, 9]).startsWith("Runs 3, 7 and 9 were made at settings that differ from the plan."));
   });
 });
 

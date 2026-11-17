@@ -746,6 +746,15 @@ export function questionLine(title, factors, aim = "") {
 }
 
 /**
+ * What the run sheet says of the runs made at settings that differ from the plan, by their run numbers: which they
+ * are, and what the fit does with them.
+ */
+export function offPlanWords(runs) {
+  const which = runs.length === 1 ? `Run ${runs[0]} was` : `Runs ${listNames(runs.map(String))} were`;
+  return `${which} made at settings that differ from the plan. The model is fitted on the settings really made, so the design is no longer the balanced one that was planned.`;
+}
+
+/**
  * The question read back as one sentence, as Design opens with it: "Find the settings of T and P that give the
  * highest Yield." ``responses`` are the brief's, each {label, goal, target, units}; ``factors`` are its factors;
  * ``blend`` words a mixture, whose settings are a blend. With no goal to reach the study is to learn how the
