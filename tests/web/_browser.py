@@ -67,9 +67,14 @@ def launch(headed: bool) -> Iterator[Any]:
     proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
     args = [f"--proxy-server={proxy}", "--proxy-bypass-list=127.0.0.1;localhost"] if proxy else []
     try:
-        browser = manager.chromium.launch(
-            headless=not headed, executable_path=os.environ.get("PI_CHROMIUM") or None, args=args
-        )
+        if os.environ.get("PI_BROWSER") == "webkit":
+            # Safari's engine, for the faults only it shows. It takes its proxy as a setting, not as a switch.
+            route = {"server": proxy, "bypass": "127.0.0.1,localhost"} if proxy else None
+            browser = manager.webkit.launch(headless=not headed, proxy=route)
+        else:
+            browser = manager.chromium.launch(
+                headless=not headed, executable_path=os.environ.get("PI_CHROMIUM") or None, args=args
+            )
     except Error as exc:  # a missing or broken browser
         manager.stop()
         pytest.fail(f"Chromium could not be started ({exc}); {INSTALL_HINT}.")
