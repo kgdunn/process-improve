@@ -1,6 +1,7 @@
-// The rules of the reproduction page (catalog/reproduced/index.html), apart from the page: the tiers a
-// case falls in, what the page counts, which cases a search keeps, how far off each difference is, and
-// what the address keeps. catalog/reproduction.json, which the build writes, holds every case.
+// The rules of the reproduction page (catalog/reproduced/index.html), apart from the page: the states a
+// printed number is in and the reasons it is no match, what the page counts, the tiers a case falls in,
+// which cases a search keeps, and what the address keeps. catalog/reproduction.json, which the build
+// writes, holds every case.
 
 /**
  * The tiers, best first, as the library's REPRODUCTION_TIERS has them. ``mark`` names a tier beside
@@ -44,15 +45,15 @@ export const TIER_KEYS = TIERS.map((tier) => tier.key);
  */
 export const CAUSES = {
   differs: {
-    source_error: "Error in the source",
-    incorrect_option: "Wrong option of a quiz",
-    source_rounding: "The source's rounding",
+    source_error: "A misprint or slip in the book",
+    incorrect_option: "Multiple choice: wrong on purpose",
+    source_rounding: "The book rounds sooner",
     method: "Another method or convention",
-    library: "The library",
+    library: "A limit of Factorial",
     unexplained: "Not known yet",
   },
   unchecked: {
-    library_gap: "Not in the library yet",
+    library_gap: "Not in Factorial yet",
     check_gap: "Not read by a check yet",
     data_not_printed: "Data not printed",
     not_a_result: "Nothing to recompute",
@@ -66,6 +67,110 @@ export const CAUSES = {
 export const libraryRight = (number, right) => right.includes(number.cause);
 
 /**
+ * The states a printed number is in, in the order of the page's bar. ``gap`` is apart from the rest: its
+ * numbers are not recomputed, so they are no part of those that match or differ.
+ */
+export const STATES = [
+  { key: "match", label: "Matches the book" },
+  { key: "known", label: "Differs, and we know why" },
+  { key: "quiz", label: "Multiple choice, wrong on purpose" },
+  { key: "open", label: "Differs, reason not known yet" },
+  { key: "gap", label: "Not in Factorial yet" },
+];
+
+/** Why a printed number is no match: each cause the page counts, with its state, in the order of the bar. */
+export const REASONS = [
+  { cause: "source_rounding", state: "known" },
+  { cause: "source_error", state: "known" },
+  { cause: "method", state: "known" },
+  { cause: "library", state: "known" },
+  { cause: "incorrect_option", state: "quiz" },
+  { cause: "unexplained", state: "open" },
+  { cause: "library_gap", state: "gap" },
+].map((reason) => ({ ...reason, name: CAUSES.differs[reason.cause] ?? CAUSES.unchecked[reason.cause] }));
+
+/**
+ * Count the printed numbers of ``cases``: those recomputed (``checked``), those of them that match, and
+ * for each cause of REASONS those that are no match. A number not in the library yet is counted from
+ * every case, recomputed or not; it is no part of ``checked``.
+ */
+export function tally(cases) {
+  const out = { checked: 0, match: 0, causes: Object.fromEntries(REASONS.map((reason) => [reason.cause, 0])) };
+  for (const c of cases) {
+    out.causes.library_gap += c.unchecked?.library_gap ?? 0;
+    out.checked += c.checked;
+    out.match += c.checked - c.differs.length;
+    for (const number of c.differs) out.causes[number.cause] = (out.causes[number.cause] ?? 0) + 1;
+  }
+  return out;
+}
+
+/** A tally's numbers by state (see STATES): those that match, and each reason's under its state. */
+export function byState(counts) {
+  const out = Object.fromEntries(STATES.map((state) => [state.key, 0]));
+  out.match = counts.match;
+  for (const reason of REASONS) out[reason.state] += counts.causes[reason.cause];
+  return out;
+}
+
+/**
+ * The reasons a tally has numbers for, as a cascade: each with its count (``n``), where its bar starts
+ * (``from``) and how long it is (``share``), as shares of all of them (``whole``), so a bar starts where
+ * the one before it ended. ``differ`` counts those that differ, which leaves out those not in the library yet.
+ */
+export function cascade(counts) {
+  const whole = REASONS.reduce((sum, reason) => sum + counts.causes[reason.cause], 0);
+  let before = 0;
+  const steps = REASONS.filter((reason) => counts.causes[reason.cause]).map((reason) => {
+    const n = counts.causes[reason.cause];
+    const step = { ...reason, n, from: before / whole, share: n / whole };
+    before += n;
+    return step;
+  });
+  return { steps, whole, differ: whole - counts.causes.library_gap };
+}
+
+/** What an example's box shows: a number as a source prints one, with no more than 14 characters. */
+const A_NUMBER = /^[-−+]?[\d,]*\.?\d+%?$/;
+const FITS = 14;
+
+/**
+ * The numbers of ``cases`` that are no match for one ``cause`` and fit an example's box (a list of runs or
+ * an alias chain does not): what the source prints (``printed``) and the library's value (``found``, null
+ * for a number not in the library yet), with where it is printed and what it is. They come one source after another in turn, so the next example is
+ * from another source.
+ */
+export function examples(cases, cause) {
+  const fits = (value) => typeof value === "string" && value.length <= FITS && A_NUMBER.test(value);
+  const lists = new Map();
+  for (const c of cases) {
+    const numbers = cause === "library_gap" ? (c.missing ?? []) : c.differs.filter((number) => number.cause === cause);
+    for (const number of numbers) {
+      const found = cause === "library_gap" ? null : number.found;
+      if (!number.where || !fits(number.printed) || !(found === null || fits(found))) continue;
+      if (!lists.has(c.source)) lists.set(c.source, []);
+      // The catalogue calls a quantity it has no name for "other", and says what it is in its term.
+      const what = String((number.what === "other" ? number.term : number.what) ?? "").replaceAll("_", " ");
+      lists.get(c.source).push({ source: c.source, where: number.where, what, printed: number.printed, found });
+    }
+  }
+  const out = [];
+  const longest = Math.max(0, ...[...lists.values()].map((list) => list.length));
+  for (let i = 0; i < longest; i += 1) for (const list of lists.values()) if (i < list.length) out.push(list[i]);
+  return out;
+}
+
+/**
+ * How far off the numbers that differ are: how many fall within each tier's limit, leaving out those the
+ * library is right about (see libraryRight), whose difference measures the source.
+ */
+export function sizes(cases, limits, right = []) {
+  const out = Object.fromEntries(TIER_KEYS.slice(1).map((key) => [key, 0]));
+  for (const c of cases) for (const number of c.differs) if (!libraryRight(number, right)) out[tierOf(number.error, limits)] += 1;
+  return out;
+}
+
+/**
  * The tier a number that differs falls in, by the largest relative difference each tier allows (``limits``,
  * from the JSON). It differs by more than the source's rounding, so it is never in the first tier, even when
  * the six figures the library reports make its difference read as 0.
@@ -73,43 +178,6 @@ export const libraryRight = (number, right) => right.includes(number.cause);
 export function tierOf(error, limits) {
   if (error === null || error === undefined) return "not_reproduced";
   return TIER_KEYS.slice(1).find((key) => limits[key] === null || error <= limits[key]);
-}
-
-/**
- * Count the cases and the numbers in each tier. A case counts once, in its own tier; a number that
- * agrees counts as reproduced, so does one whose difference the library is right about (see
- * libraryRight), and any other number that differs in the tier its own difference falls in. A case
- * with no recomputed number is no reproduction, so it is counted apart (``unchecked``).
- */
-export function summarise(cases, limits, right = []) {
-  const zero = () => Object.fromEntries(TIER_KEYS.map((key) => [key, 0]));
-  const out = { cases: zero(), numbers: zero(), recomputed: 0, numbersChecked: 0, unchecked: 0 };
-  for (const c of cases) {
-    if (!c.tier) {
-      out.unchecked += 1;
-      continue;
-    }
-    out.recomputed += 1;
-    out.cases[c.tier] += 1;
-    out.numbersChecked += c.checked;
-    out.numbers.reproduced += c.checked - c.differs.length;
-    for (const number of c.differs) {
-      out.numbers[libraryRight(number, right) ? "reproduced" : tierOf(number.error, limits)] += 1;
-    }
-  }
-  return out;
-}
-
-/**
- * The books with a recomputed case, by name, each with its cases summarised (see summarise): the list the page
- * leads from to each book's page. Papers and handbooks are left to the list of every source.
- */
-export function bookTallies(cases, sources, limits, right = []) {
-  return Object.entries(sources)
-    .filter(([, source]) => source.form === "book")
-    .map(([key, source]) => ({ key, source, tally: summarise(cases.filter((c) => c.source === key), limits, right) }))
-    .filter((book) => book.tally.recomputed)
-    .sort((a, b) => a.source.short.localeCompare(b.source.short));
 }
 
 /** The share ``part`` is of ``whole``, as a percentage with one decimal; "0%" of nothing. */
@@ -130,9 +198,6 @@ export function formatError(error) {
   if (value >= 100) return `${Math.round(value).toLocaleString("en")}%`;
   return `${Number(value.toPrecision(2))}%`;
 }
-
-/** The first sentence of a text, such as a book's verdict, which a list of books shows of it. */
-export const firstSentence = (text) => (text ? `${text.split(". ")[0].replace(/\.$/, "")}.` : "");
 
 /** The quantity a number is, in a few words: what it is and of which term. */
 export const quantity = (number) =>
@@ -177,7 +242,7 @@ export function kinds(cases) {
 }
 
 /** Counts of cases by tier and of printed numbers, recomputed (``numbers``) and agreeing (``agree``), from none. */
-const tally = () => ({ total: 0, tiers: Object.fromEntries(TIER_KEYS.map((key) => [key, 0])), numbers: 0, agree: 0 });
+const blank = () => ({ total: 0, tiers: Object.fromEntries(TIER_KEYS.map((key) => [key, 0])), numbers: 0, agree: 0 });
 
 function count(into, c) {
   into.total += 1;
@@ -190,12 +255,12 @@ function count(into, c) {
 export const SOURCE_ORDERS = {
   year: (a, b) => (a.year ?? 9999) - (b.year ?? 9999) || a.short.localeCompare(b.short),
   name: (a, b) => a.short.localeCompare(b.short) || (a.year ?? 9999) - (b.year ?? 9999),
-  cases: (a, b) => b.total - a.total || a.short.localeCompare(b.short),
+  numbers: (a, b) => b.numbers - a.numbers || a.short.localeCompare(b.short),
 };
 
 /**
  * Each source's counts: its cases by tier, and its printed numbers recomputed and agreeing (see
- * ``tally``), with its name, year and form, in the ``order`` of SOURCE_ORDERS (oldest first unless told).
+ * ``blank``), with its name, year and form, in the ``order`` of SOURCE_ORDERS (oldest first unless told).
  */
 export function bySource(cases, sources, order = "year") {
   const rows = new Map();
@@ -203,7 +268,7 @@ export function bySource(cases, sources, order = "year") {
     if (!c.tier) continue;
     if (!rows.has(c.source)) {
       const info = sources[c.source] ?? {};
-      rows.set(c.source, { key: c.source, short: info.short ?? c.source, year: info.year ?? null, title: info.title ?? "", form: info.form ?? "other", ...tally() });
+      rows.set(c.source, { key: c.source, short: info.short ?? c.source, year: info.year ?? null, title: info.title ?? "", form: info.form ?? "other", ...blank() });
     }
     count(rows.get(c.source), c);
   }
@@ -216,7 +281,7 @@ export function bySource(cases, sources, order = "year") {
  */
 export function byForm(rows, forms) {
   const sum = (list) => {
-    const out = tally();
+    const out = blank();
     for (const row of list) {
       out.total += row.total;
       out.numbers += row.numbers;
@@ -232,40 +297,6 @@ export function byForm(rows, forms) {
   return { groups, totals: sum(rows) };
 }
 
-/**
- * The bands the page counts differences in, each by its largest relative difference, aligned so the
- * tiers' limits (1% and 5%) are edges. A difference with no relative size has a band of its own.
- */
-export const BANDS = [
-  { upTo: 1e-5, label: "< 0.001%" },
-  { upTo: 1e-4, label: "0.001-0.01%" },
-  { upTo: 1e-3, label: "0.01-0.1%" },
-  { upTo: 3e-3, label: "0.1-0.3%" },
-  { upTo: 1e-2, label: "0.3-1%" },
-  { upTo: 2e-2, label: "1-2%" },
-  { upTo: 5e-2, label: "2-5%" },
-  { upTo: 0.2, label: "5-20%" },
-  { upTo: 1, label: "20-100%" },
-  { upTo: Infinity, label: "> 100%" },
-  { upTo: null, label: "Not a number" },
-];
-
-/**
- * How many differing numbers of ``cases`` fall in each band, with the tier each band belongs to. A number
- * the library is right about (see libraryRight) is left out: its difference measures the source.
- */
-export function errorBands(cases, limits, right = []) {
-  const counts = BANDS.map((band) => ({ ...band, count: 0, tier: band.upTo === null ? "not_reproduced" : tierOf(band.upTo, limits) }));
-  for (const c of cases) {
-    for (const number of c.differs) {
-      if (libraryRight(number, right)) continue;
-      const at = number.error === null ? BANDS.length - 1 : BANDS.findIndex((band) => band.upTo !== null && number.error <= band.upTo);
-      counts[at].count += 1;
-    }
-  }
-  return counts;
-}
-
 /** The cases of one tier, grouped by source in the order of ``order`` (source keys), each group worst case first. */
 export function groupByTier(cases, tier, order) {
   const groups = new Map(order.map((key) => [key, []]));
@@ -274,19 +305,6 @@ export function groupByTier(cases, tier, order) {
   return [...groups]
     .filter(([, list]) => list.length)
     .map(([source, list]) => ({ source, cases: list.sort((a, b) => worst(b) - worst(a) || a.title.localeCompare(b.title)) }));
-}
-
-/**
- * How many numbers of ``cases`` differ for each cause, and how many are not recomputed for each cause, from
- * every case (``all`` filtered or not): the page shows these totals for all the sources together only.
- */
-export function causeTotals(cases) {
-  const out = { differs: {}, unchecked: {} };
-  for (const c of cases) {
-    for (const number of c.differs) out.differs[number.cause] = (out.differs[number.cause] ?? 0) + 1;
-    for (const [cause, n] of Object.entries(c.unchecked ?? {})) out.unchecked[cause] = (out.unchecked[cause] ?? 0) + n;
-  }
-  return out;
 }
 
 /** The clause of a reason that names what the library lacks: "the library has no ..." up to a ";" or ":". */

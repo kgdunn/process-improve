@@ -1,23 +1,24 @@
 // The reproduction page (catalog/reproduced/index.html, at factori.al/catalog/reproduced/): it reads
-// catalog/reproduction.json once and draws the books, each leading to its page, and behind "Show the numbers"
-// how closely the library reproduces each published case, as a table of tiers, a table by source and the
-// spread of the differences; then a list of the cases of each tier.
+// catalog/reproduction.json once and draws how many printed numbers Factorial gives as its sources print them:
+// one bar of them all, the reasons the others are no match as a cascade, each with an example, and a row for
+// each source. Behind "Search every case" are the cases, in a list for each tier, and what the library lacks.
 // The rules are in reproduced-logic.js; this module draws them. No Python runs here.
 
 import { element } from "./catalog-views.js";
 import {
+  CAUSES,
   DEFAULT_VIEW,
+  REASONS,
+  STATES,
   TIERS,
-  bookTallies,
   byForm,
   bySource,
-  CAUSES,
-  causeTotals,
+  byState,
+  cascade,
+  examples,
   libraryRight,
   missingByReason,
-  errorBands,
   filterCases,
-  firstSentence,
   formatError,
   fromHash,
   groupByTier,
@@ -25,7 +26,8 @@ import {
   kinds,
   percent,
   quantity,
-  summarise,
+  sizes,
+  tally,
   tierOf,
   toHash,
 } from "./reproduced-logic.js";
@@ -41,6 +43,10 @@ const GROUP_SHOWN = 25;
 let data = null;
 let view = structuredClone(DEFAULT_VIEW);
 let sourceOrder = "year";
+/** The form of source the list of sources keeps: every form while it is empty. */
+let shelfForm = "";
+/** The sources whose rows are open: at first the one the page has a table of its book for. */
+const openRows = new Set();
 /** Draws a tier's list into its box, once: the page calls it when it opens a tier itself, not waiting for the toggle. */
 const fillers = new Map();
 
@@ -55,285 +61,199 @@ const sourceName = (key) => {
 const chip = (tier, text = TIERS.find((t) => t.key === tier).mark) =>
   element("span", { class: "tierchip", "data-tier": tier, text });
 
+/** A state's mark: a square in its colour, hatched or empty for the two states that have no colour. */
+const stateKey = (state) => element("span", { class: "statekey", "data-state": state, "aria-hidden": "true" });
+
 /** The cases the reader's search, source and kind keep. */
 const shown = () => filterCases(data.cases, data.sources, view);
 
-// ---------------------------------------------------------------- the books
-/**
- * Each book with a recomputed case, by name: its cases as a bar by tier and the first sentence of its verdict,
- * leading to its page (catalog/books/<source>/, which the build writes).
- */
-function drawBooks() {
-  const books = bookTallies(data.cases, data.sources, data.tiers, right());
-  $("#books").replaceChildren(
-    ...books.map(({ key, source, tally }) => {
-      const parts = TIERS.filter((t) => tally.cases[t.key]).map((t) => {
-        const part = element("span", { class: "tierbar__part", "data-tier": t.key });
-        part.style.flexGrow = String(tally.cases[t.key]);
-        return part;
-      });
-      return element(
-        "li",
-        {},
-        element(
-          "a",
-          { href: `../books/${key}/` },
-          element("span", { class: "field-list__note", text: `${source.short} · ${source.year}` }),
-          element("span", { class: "field-list__title", text: source.title }),
-          element("span", { class: "tierbar", "aria-hidden": "true" }, ...parts),
-          element("span", { class: "field-list__note", text: firstSentence(source.verdict ?? "") }),
-        ),
-      );
-    }),
-  );
-  $("#books-section").hidden = books.length === 0;
-}
-
-/** Open the numbers when the address names a source, a kind of source or a tier, not a case: a book's page leads here. */
-function openNumbers() {
-  if ((view.source || view.form || view.open.length) && !view.focus) $("#numbers").open = true;
-}
-
-// ---------------------------------------------------------------- the headline and the table of tiers
 /** The causes the library is right about, from the JSON (see libraryRight). */
 const right = () => data.library_right;
 
-/** The headline, for all the sources together: it never follows the filters, so no count is one source's. */
-function drawStats() {
-  const all = summarise(data.cases, data.tiers, right());
-  const totals = causeTotals(data.cases);
-  const sources = new Set(data.cases.filter((c) => c.tier).map((c) => c.source)).size;
-  const agree = data.cases.reduce((n, c) => n + (c.tier ? c.checked - c.differs.length : 0), 0);
-  $("#stat-numbers").textContent = count(all.numbersChecked);
-  $("#stat-numbers-label").textContent = `printed numbers from ${plural(sources, "source")}, recomputed`;
-  $("#stat-agree").textContent = percent(agree, all.numbersChecked);
-  $("#stat-full").textContent = percent(all.cases.reproduced, all.recomputed);
-  $("#stat-full-label").textContent = `of the ${count(all.recomputed)} cases reproduce in full`;
-  $("#stat-errors").textContent = count(totals.differs.source_error ?? 0);
-  $("#stat-missing").textContent = count(totals.unchecked.library_gap ?? 0);
-  $("#stats").hidden = false;
-}
+// ---------------------------------------------------------------- the bar of every number
+/** A legend's line: a state's mark, its name and how many numbers are in it. */
+const stateLine = (state, n, name = STATES.find((s) => s.key === state).label) =>
+  element("li", {}, stateKey(state), element("span", {}, `${name} `, element("strong", { text: count(n) })));
 
 /**
- * The causes of the differences, and why numbers are not recomputed, for all the sources together: the
- * counts of errors in the sources are shown only here, never source by source.
+ * The headline and its bar, for all the sources together: they never follow the filters, so no count is one
+ * source's. The bar's end, past the numbers that match, opens into the reasons drawn under it.
  */
-function drawCauses() {
-  const totals = causeTotals(data.cases);
-  const table = (id, kind) => {
-    const counts = totals[kind];
-    const all = Object.values(counts).reduce((a, b) => a + b, 0);
-    const most = Math.max(1, ...Object.values(counts));
-    $(`#${id}-caption`).textContent = `${kind === "differs" ? "Numbers that differ from their source" : "Printed numbers not recomputed"}: ${count(all)}`;
-    $(`#${id} tbody`).replaceChildren(
-      ...Object.keys(data.causes[kind]).map((cause) => {
-        const n = counts[cause] ?? 0;
-        const bar = element("span", { class: "causes__bar", "aria-hidden": "true" }, element("span", { "data-cause": cause }));
-        bar.firstChild.style.width = `${(100 * n) / most}%`;
-        const name = cause === "library_gap" ? element("a", { href: "#missing-section", text: CAUSES[kind][cause] }) : CAUSES[kind][cause];
-        return element(
-          "tr",
-          { "data-cause": cause },
-          element("th", { scope: "row" }, element("span", { class: "causes__name" }, name), element("span", { class: "causes__means", text: data.causes[kind][cause] })),
-          element("td", { class: "num" }, element("strong", { text: count(n) }), element("span", { class: "share", text: percent(n, all) })),
-          element("td", { class: "causes__barcell" }, bar),
-        );
-      }),
-    );
-  };
-  table("causes-differs", "differs");
-  table("causes-unchecked", "unchecked");
-}
-
-function drawBreakdown(cases) {
-  const s = summarise(cases, data.tiers, right());
-  const filtered = view.query || view.source || view.form || view.kind;
-  $("#scope").replaceChildren(
-    filtered ? `Of the ${plural(s.recomputed, "case")} your filters keep. ` : `Of all ${plural(s.recomputed, "case")} with a recomputed number. `,
-    ...(filtered ? [element("button", { type: "button", class: "link", text: "Show every case", onclick: () => setView(DEFAULT_VIEW) })] : []),
-  );
-  const bar = $("#tierbar");
+function drawWhole() {
+  const all = tally(data.cases);
+  const states = byState(all);
+  $("#tally-value").textContent = `${count(all.match)} of ${count(all.checked)}`;
+  const held = STATES.filter((state) => states[state.key]);
+  const bar = $("#wholebar");
   bar.replaceChildren(
-    ...TIERS.filter((t) => s.cases[t.key]).map((t) => {
-      const part = element("span", { class: "tierbar__part", "data-tier": t.key, title: `${t.label}: ${plural(s.cases[t.key], "case")}` });
-      part.style.flexGrow = String(s.cases[t.key]);
+    ...held.map((state) => {
+      const text = state.key === "match" ? `${percent(all.match, all.checked)} match` : null;
+      const part = element("span", { class: "wholebar__part", "data-state": state.key, title: `${state.label}: ${count(states[state.key])}` }, text);
+      part.style.flexGrow = String(states[state.key]);
       return part;
     }),
   );
-  bar.setAttribute(
-    "aria-label",
-    TIERS.map((t) => `${t.label}: ${percent(s.cases[t.key], s.recomputed)} of the cases`).join("; "),
-  );
-  $("#tiers tbody").replaceChildren(
-    ...TIERS.map((t) => {
-      const n = s.cases[t.key];
-      const meter = element("span", { class: "meter", "aria-hidden": "true" }, element("span", { "data-tier": t.key }));
-      meter.firstChild.style.width = s.recomputed ? `${(100 * n) / s.recomputed}%` : "0";
-      const go = n
-        ? element("button", {
-            type: "button",
-            class: "link",
-            text: t.key === "reproduced" ? "List them" : `Show the ${plural(n, "case")}`,
-            onclick: () => openTier(t.key),
-          })
-        : null;
-      return element(
-        "tr",
-        { "data-tier": t.key },
-        element("th", { scope: "row" }, element("span", { class: "tier__name" }, chip(t.key), t.label)),
-        element("td", { class: "tier__means", text: t.means }),
-        element("td", { class: "num" }, element("strong", { text: count(n) }), element("span", { class: "share", text: percent(n, s.recomputed) }), meter),
-        element("td", { class: "num" }, count(s.numbers[t.key]), element("span", { class: "share", text: percent(s.numbers[t.key], s.numbersChecked) })),
-        element("td", {}, go),
-      );
-    }),
-  );
+  bar.setAttribute("aria-label", held.map((state) => `${state.label}: ${count(states[state.key])}`).join("; "));
+  const from = (1000 * all.match) / (all.checked + states.gap);
+  $("#zoomin polygon").setAttribute("points", `${from},0 1000,0 1000,34 0,34`);
+  $("#zoomin line").setAttribute("x2", from);
 }
 
-// ---------------------------------------------------------------- by source
-/** A count in the table by source: a zero is drawn muted, so the counts that are there stand out. */
-const cell = (n, extra = {}) => element("td", { class: n ? "num" : "num zero", ...extra }, count(n));
-
-/**
- * A row of the table by source: its counts by tier, its numbers recomputed and the share that agree. Only
- * a row that adds up several sources (a kind of source, or all of them) draws its cases by tier as a bar:
- * a bar beside one source would make a source of one hard case look like a source in error.
- */
-function sourceRow(head, tally, { bar = false, ...attributes } = {}) {
-  const parts = element("span", { class: "source__bar", "aria-hidden": "true" });
-  for (const t of bar ? TIERS : []) {
-    if (!tally.tiers[t.key]) continue;
-    const part = element("span", { "data-tier": t.key });
-    part.style.flexGrow = String(tally.tiers[t.key]);
-    parts.append(part);
-  }
-  return element(
-    "tr",
-    attributes,
-    element("th", { scope: "row" }, ...head),
-    cell(tally.total, { class: "num bysource__cases" }),
-    ...TIERS.map((t) => cell(tally.tiers[t.key], { "data-tier": t.key })),
-    cell(tally.numbers, { class: "num bysource__numbers" }),
-    element("td", { class: "num" }, element("strong", { text: percent(tally.agree, tally.numbers) })),
-    element("td", { class: "bysource__bar" }, bar ? parts : null),
-  );
+// ---------------------------------------------------------------- the reasons, as a cascade
+/** Play the turn of an example's box again, for the next example. */
+function flip(box) {
+  box.classList.remove("example__box--flip");
+  box.getBoundingClientRect(); // the class taken off is seen, so putting it back starts the turn again
+  box.classList.add("example__box--flip");
 }
 
 /**
- * The table by source: a group of rows for each form a source takes (books, journal papers, the rest),
- * each with its totals, and the totals of all. It counts the cases the search and the kind keep, from
- * every source, so a reader who has chosen one source can still see and choose the others.
+ * One number of a reason, in a box: where it is printed, what the source prints and what Factorial gives.
+ * "See another" puts the next number of the reason in the box, and after the last the first again.
  */
-function drawSources() {
-  const kept = filterCases(data.cases, data.sources, { ...view, source: "", form: "" });
-  const { groups, totals } = byForm(bySource(kept, data.sources, sourceOrder), data.forms);
-  const choose = (next) => setView({ ...view, source: "", form: "", ...next, focus: "" });
-  $("#bysource thead").replaceChildren(
-    element(
-      "tr",
-      {},
-      element("th", { scope: "col", text: "Source" }),
-      element("th", { scope: "col", class: "num bysource__cases", text: "Cases" }),
-      ...TIERS.map((t) => element("th", { scope: "col", class: "num", title: t.label }, chip(t.key), element("span", { class: "visually-hidden", text: t.label }))),
-      element("th", { scope: "col", class: "num bysource__numbers", text: "Numbers" }),
-      element("th", { scope: "col", class: "num", title: "The share of the printed numbers that agree with the library", text: "Agree" }),
-      element("th", { scope: "col", class: "bysource__bar" }, element("span", { class: "visually-hidden", text: "Cases by tier" })),
-    ),
-  );
-  $("#bysource").replaceChildren(
-    $("#bysource caption"),
-    $("#bysource thead"),
-    ...groups.map((group) =>
+function exampleOf(step) {
+  const list = examples(data.cases, step.cause);
+  if (!list.length) return null;
+  const box = element("div", { class: "example__box", "aria-live": "polite" });
+  let at = 0;
+  const show = () => {
+    const eg = list[at];
+    box.replaceChildren(
+      element("p", { class: "example__where", text: [`${sourceName(eg.source)}, ${eg.where}`, eg.what].filter(Boolean).join(" · ") }),
       element(
-        "tbody",
-        { "data-form": group.form },
-        sourceRow(
-          [
-            element("button", {
-              type: "button",
-              class: "link bysource__form",
-              "aria-pressed": String(view.form === group.form),
-              text: group.label,
-              onclick: () => choose(view.form === group.form ? {} : { form: group.form }),
-            }),
-            element("span", { class: "hint", text: ` ${plural(group.rows.length, "source")}` }),
-          ],
-          group.totals,
-          { class: "bysource__group", bar: true },
-        ),
-        ...group.rows.map((row) =>
-          sourceRow(
-            [
-              element("button", {
-                type: "button",
-                class: "link source",
-                "aria-pressed": String(view.source === row.key),
-                title: row.title,
-                text: sourceName(row.key),
-                onclick: () => choose(view.source === row.key ? {} : { source: row.key }),
-              }),
-            ],
-            row,
-            { "data-source": row.key },
-          ),
-        ),
+        "dl",
+        { class: "example__values" },
+        element("div", {}, element("dt", { text: step.state === "quiz" ? "A wrong option" : "The book" }), element("dd", { text: eg.printed })),
+        element("div", {}, element("dt", { text: "Factorial" }), element("dd", { text: eg.found ?? "no method yet" })),
       ),
-    ),
-    element("tfoot", {}, sourceRow([`All ${plural(groups.reduce((n, g) => n + g.rows.length, 0), "source")}`], totals, { bar: true })),
+    );
+  };
+  show();
+  const more = element("button", {
+    type: "button",
+    class: "link example__more",
+    text: "See another",
+    onclick: () => {
+      at = (at + 1) % list.length;
+      show();
+      flip(box);
+    },
+  });
+  return element(
+    "div",
+    { class: "example" },
+    element("div", { class: "example__side" }, element("span", { class: "example__label", text: "Example:" }), list.length > 1 ? more : null),
+    box,
   );
 }
 
-// ---------------------------------------------------------------- the spread of the differences
-const SVG = "http://www.w3.org/2000/svg";
-function shape(tag, attributes = {}, text = null) {
-  const node = document.createElementNS(SVG, tag);
-  for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, value);
-  if (text !== null) node.textContent = text;
-  return node;
+/**
+ * The reasons a number is no match, for all the sources together: a row each, with its count, an example and
+ * its bar, which starts where the bar of the row before ended. Under them an axis says how many differ.
+ */
+function drawReasons() {
+  const all = tally(data.cases);
+  const states = byState(all);
+  const { steps, whole, differ } = cascade(all);
+  const gap = whole - differ;
+  $("#reasons-title").textContent =
+    `The ${plural(differ, "number")} that ${differ === 1 ? "differs" : "differ"}` +
+    (gap ? `, and ${count(gap)} more that ${gap === 1 ? "is" : "are"} not in Factorial yet` : "");
+  $("#reasons-key").replaceChildren(...STATES.filter((s) => s.key !== "match" && states[s.key]).map((s) => stateLine(s.key, states[s.key])));
+  const rows = steps.map((step, i) => {
+    const bar = element("span", { class: "reason__bar", "data-state": step.state });
+    bar.style.left = `${100 * step.from}%`;
+    bar.style.width = `${100 * step.share}%`;
+    const link = element("span", { class: "reason__link" });
+    link.style.left = `${100 * (step.from + step.share)}%`;
+    return element(
+      "div",
+      { class: "reason", "data-state": step.state, "data-cause": step.cause },
+      element("div", { class: "reason__text" }, element("h3", { class: "reason__name" }, step.name, element("span", { class: "badge", text: count(step.n) })), exampleOf(step)),
+      element("div", { class: "reason__track", "aria-hidden": "true" }, bar, i < steps.length - 1 ? link : null),
+    );
+  });
+  const mid = gap && differ ? element("span", { class: "reason__mid", text: `${count(differ)} differ` }) : null;
+  if (mid) mid.style.left = `${(100 * differ) / whole}%`;
+  const axis = element(
+    "div",
+    { class: "reason reason--axis", "aria-hidden": "true" },
+    element("div", { class: "reason__text" }),
+    element("div", { class: "reason__track" }, element("span", { text: "0" }), mid, element("span", { text: count(whole) })),
+  );
+  $("#reasons").replaceChildren(...rows, axis);
+  const far = sizes(data.cases, data.tiers, right());
+  const of = Object.values(far).reduce((a, b) => a + b, 0);
+  $("#sizes").textContent = of
+    ? `Sizes of the ${plural(of, "difference")} that ${of === 1 ? "is" : "are"} neither a misprint nor a quiz option: ` +
+      `${count(far.within_1)} at 1% of the printed value or less, ${count(far.within_5)} more at 5% or less.`
+    : "";
 }
 
-function drawBands(cases) {
-  const bands = errorBands(cases, data.tiers, right());
-  const total = bands.reduce((sum, band) => sum + band.count, 0);
-  const small = bands.filter((band) => band.upTo !== null && band.upTo <= 0.01).reduce((sum, band) => sum + band.count, 0);
-  $("#bands-caption").textContent = total
-    ? `Each bar counts the printed numbers that differ from the library's by more than the source's rounding, by how far they differ, ` +
-      `leaving out those the source prints in error and quiz options its answer key marks wrong. ` +
-      `${percent(small, total)} of these ${plural(total, "number")} differ by 1% or less. The lines mark the tiers' limits, 1% and 5%.`
-    : "No number of the cases your filters keep differs from the library's.";
-  const svg = $("#bands");
-  const width = 760;
-  const height = 230;
-  const pad = { left: 8, right: 8, top: 22, bottom: 52 };
-  const slot = (width - pad.left - pad.right) / bands.length;
-  const most = Math.max(1, ...bands.map((band) => band.count));
-  const y = (n) => pad.top + (height - pad.top - pad.bottom) * (1 - n / most);
-  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
-  const nodes = [shape("line", { class: "bands__axis", x1: pad.left, x2: width - pad.right, y1: y(0), y2: y(0) })];
-  bands.forEach((band, i) => {
-    const x = pad.left + i * slot;
-    const h = y(0) - y(band.count);
-    const group = shape("g", { class: "bands__band", tabindex: "0", role: "img", "aria-label": `${band.label}: ${plural(band.count, "number")}` });
-    group.append(shape("title", {}, `${band.label}: ${plural(band.count, "number")}`));
-    group.append(shape("rect", { class: "bands__hit", x: x, y: pad.top, width: slot, height: y(0) - pad.top }));
-    if (band.count) {
-      group.append(shape("rect", { class: "bands__bar", "data-tier": band.tier, x: x + 5, y: y(band.count), width: slot - 10, height: Math.max(h, 1), rx: 3 }));
-    }
-    group.append(shape("text", { class: "bands__count", x: x + slot / 2, y: y(band.count) - 6, "text-anchor": "middle" }, count(band.count)));
-    const [first, second] = band.label.split(/(?<=-)/);
-    const label = shape("text", { class: "bands__label", x: x + slot / 2, y: y(0) + 16, "text-anchor": "middle" });
-    label.append(shape("tspan", { x: x + slot / 2, dy: 0 }, first));
-    if (second) label.append(shape("tspan", { x: x + slot / 2, dy: 14 }, second));
-    group.append(label);
-    nodes.push(group);
-  });
-  for (const [limit, text] of [[0.01, "1%"], [0.05, "5%"]]) {
-    const at = bands.findIndex((band) => band.upTo === limit) + 1;
-    const x = pad.left + at * slot;
-    nodes.push(shape("line", { class: "bands__limit", x1: x, x2: x, y1: pad.top - 14, y2: y(0) + 4 }));
-    nodes.push(shape("text", { class: "bands__limitlabel", x: x + 4, y: pad.top - 6 }, text));
+// ---------------------------------------------------------------- a row for each source
+/**
+ * A source's row: its name, its numbers recomputed, a bar of them by state and the share that match. It opens
+ * onto its counts by reason, how many of its cases match in every number, and the way to its own page.
+ */
+function shelfRow(row) {
+  const counts = tally(data.cases.filter((c) => c.source === row.key));
+  const states = byState(counts);
+  const facts = [["match", counts.match, STATES[0].label], ...REASONS.map((r) => [r.state, counts.causes[r.cause], r.name])].filter(([, n]) => n);
+  const bar = element("span", { class: "statebar", "aria-hidden": "true" });
+  for (const state of STATES) {
+    if (!states[state.key]) continue;
+    const part = element("span", { class: "statebar__part", "data-state": state.key });
+    part.style.flexGrow = String(states[state.key]);
+    bar.append(part);
   }
-  svg.replaceChildren(...nodes);
+  const table = $("#receipt");
+  const item = element(
+    "details",
+    { class: "shelf__row", "data-source": row.key, open: openRows.has(row.key) },
+    element(
+      "summary",
+      { "aria-label": `${sourceName(row.key)}: ${plural(row.numbers, "number")}. ${facts.map(([, n, name]) => `${name}: ${count(n)}`).join("; ")}.` },
+      element("span", {}, element("span", { class: "shelf__name", text: `${row.short} · ${row.year}` }), element("span", { class: "shelf__title", text: row.title })),
+      element("span", { class: "shelf__numbers", text: count(row.numbers) }),
+      bar,
+      element("span", { class: "shelf__share", text: percent(counts.match, counts.checked) }),
+      element("span", { class: "shelf__more", "aria-hidden": "true" }),
+    ),
+    element(
+      "div",
+      { class: "shelf__body" },
+      element("ul", { class: "states" }, ...facts.map(([state, n, name]) => stateLine(state, n, name))),
+      element("p", { class: "hint", text: `Cases that match in every number: ${count(row.tiers.reproduced)} of ${count(row.total)}.` }),
+      table?.dataset.source === row.key ? table.content.cloneNode(true) : null,
+      element("p", {}, element("a", { href: `../books/${row.key}/`, text: "Every example of this source, with each difference" })),
+    ),
+  );
+  item.addEventListener("toggle", () => (item.open ? openRows.add(row.key) : openRows.delete(row.key)));
+  return item;
+}
+
+/** The sources with a recomputed case, in the order chosen, those of one form when a form is chosen. */
+function drawShelf() {
+  const rows = bySource(data.cases, data.sources, sourceOrder);
+  const form = (key, text) =>
+    element("button", {
+      type: "button",
+      class: "shelf__form",
+      "aria-pressed": String(shelfForm === key),
+      text,
+      onclick: () => {
+        shelfForm = key;
+        drawShelf();
+      },
+    });
+  $("#forms").replaceChildren(form("", `All ${count(rows.length)}`), ...byForm(rows, data.forms).groups.map((g) => form(g.form, `${g.label} ${count(g.rows.length)}`)));
+  $("#shelf").replaceChildren(...rows.filter((row) => !shelfForm || row.form === shelfForm).map(shelfRow));
+  $("#books-section").hidden = rows.length === 0;
+}
+
+/** Open the cases when the address names a search, a source, a kind, a tier or a case: a book's page leads here. */
+function openCases() {
+  if (view.query || view.source || view.form || view.kind || view.open.length || view.focus) $("#numbers").open = true;
 }
 
 // ---------------------------------------------------------------- the lists of cases
@@ -484,14 +404,6 @@ function drawLists(cases) {
   );
 }
 
-function openTier(tier) {
-  const box = $(`#tier-${tier}`);
-  box.open = true;
-  fillers.get(tier)();
-  box.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
-  box.querySelector("summary").focus({ preventScroll: true });
-}
-
 /** Open the case the address names, with its tier, and bring it into view. */
 function focusCase() {
   const c = data.cases.find((x) => x.id === view.focus && x.tier);
@@ -563,9 +475,6 @@ function drawMissing() {
 // ---------------------------------------------------------------- the reader's view
 function draw() {
   const cases = shown();
-  drawBreakdown(cases);
-  drawSources();
-  drawBands(cases);
   drawLists(cases);
   drawMissing();
   $("#query").value = view.query;
@@ -622,11 +531,11 @@ function wire() {
   }
   $("#source-order").addEventListener("change", (event) => {
     sourceOrder = event.target.value;
-    drawSources();
+    drawShelf();
   });
   window.addEventListener("hashchange", () => {
     view = fromHash(location.hash, data.sources, data.forms);
-    openNumbers();
+    openCases();
     draw();
     focusCase();
   });
@@ -644,12 +553,14 @@ async function main() {
   }
   view = fromHash(location.hash, data.sources, data.forms);
   $("#status").hidden = true;
-  for (const id of ["#breakdown", "#causes-section", "#sources-section", "#bands-section", "#cases", "#missing-section"]) $(id).hidden = false;
+  for (const id of ["#summary", "#numbers"]) $(id).hidden = false;
   $("#built").textContent = `Recomputed with process-improve ${data.library}.`;
-  drawBooks();
-  openNumbers();
-  drawStats();
-  drawCauses();
+  const table = $("#receipt");
+  if (table) openRows.add(table.dataset.source);
+  drawWhole();
+  drawReasons();
+  drawShelf();
+  openCases();
   wire();
   draw();
   focusCase();

@@ -54,6 +54,12 @@
   --tier-within_5: #b87700;
   --tier-not_reproduced: #b3261e;
   --misprint: #7b4fa6; /* a book's example with a misprint, beside the tiers: its status names it too */
+  /* The reproduction page's states: a printed number matches, differs for a known reason, or differs for one not
+     known yet. Checked as a set for colour-blind readers on the panel, in both themes. They are no grade of a
+     source, so none is green. */
+  --state-match: #1f6fb2;
+  --state-known: #b87700;
+  --state-open: #b3261e;
   /* The kinds of design on a field's chart (field-chart.js); each also has a shape of its own. */
   --kind-full: #2c5f7c;
   --kind-screening: #b45f0b;
@@ -101,6 +107,9 @@
     --tier-within_5: #ad8a1e;
     --tier-not_reproduced: #e0587e;
     --misprint: #b48fe0;
+    --state-match: #5a8ee0;
+    --state-known: #ad8a1e;
+    --state-open: #e0587e;
     --kind-full: #8db8d6;
     --kind-screening: #e2a95a;
     --kind-surface: #5a9fe0;
@@ -143,6 +152,9 @@
   --tier-within_5: #ad8a1e;
   --tier-not_reproduced: #e0587e;
   --misprint: #b48fe0;
+  --state-match: #5a8ee0;
+  --state-known: #ad8a1e;
+  --state-open: #e0587e;
   --kind-full: #8db8d6;
   --kind-screening: #e2a95a;
   --kind-surface: #5a9fe0;
@@ -1781,8 +1793,8 @@ tr.row--outside td { background: color-mix(in srgb, var(--warn) 16%, transparent
   .tray__list { display: none; }
 }
 
-/* Reproduced from the books (catalog/reproduced/index.html): how closely the library reproduces each
-   published case. A tier's colour always comes with its mark or its name, and text keeps the ink colours. */
+/* Reproduced from the books (catalog/reproduced/index.html): how many printed numbers the library gives as its
+   sources print them. A state's colour, and a tier's, always comes with its name, and text keeps the ink colours. */
 main.reproduced { max-width: 1080px; }
 main.reproduced h1 { margin: 8px 0; font-size: 2rem; }
 [data-tier="reproduced"] { --tier: var(--tier-reproduced); }
@@ -1792,21 +1804,143 @@ main.reproduced h1 { margin: 8px 0; font-size: 2rem; }
 [data-tier="misprint"] { --tier: var(--misprint); }
 [data-tier="unexplained"] { --tier: var(--tier-not_reproduced); }
 .reproduced__status.error { color: var(--error); }
-.stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin: 16px 0 4px; }
-@media (max-width: 900px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.stat__link { display: grid; gap: 2px; color: inherit; text-decoration: none; }
-.stat__link:hover .stat__label, .stat__link:focus-visible .stat__label { color: var(--accent); text-decoration: underline; }
-.stat {
-  display: grid; align-content: start; gap: 2px; padding: 14px 16px; background: var(--panel);
+/* The states a printed number is in: a square in the state's colour, hatched for the options of a quiz that are
+   wrong on purpose and empty for the numbers not in Factorial yet, which are apart from the rest. */
+[data-state="match"] { --state: var(--state-match); }
+[data-state="known"] { --state: var(--state-known); }
+[data-state="open"] { --state: var(--state-open); }
+.statekey, .statebar__part, .wholebar__part, .reason__bar { background: var(--state); border-radius: var(--corner); }
+[data-state="quiz"]:is(.statekey, .statebar__part, .wholebar__part, .reason__bar) {
+  background: repeating-linear-gradient(135deg, var(--muted) 0 2px, transparent 2px 4.5px);
+  box-shadow: inset 0 0 0 1px var(--muted);
+}
+[data-state="gap"]:is(.statekey, .statebar__part, .wholebar__part, .reason__bar) {
+  background: none; box-shadow: inset 0 0 0 1.5px var(--muted);
+}
+.statebar__part[data-state="gap"], .wholebar__part[data-state="gap"] { margin-left: 4px; }
+.statekey { display: inline-block; flex: none; width: 11px; height: 11px; }
+.states { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 0; padding: 0; list-style: none; font-size: 0.92rem; }
+.states li { display: inline-flex; align-items: baseline; gap: 7px; }
+.states strong { font-variant-numeric: tabular-nums; }
+/* The headline: how many numbers match, then one bar of every number, whose end opens into the reasons. */
+.tally { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin: 12px 0 10px; font-size: 1.1rem; }
+.tally__value {
+  font: 700 2.9rem/1 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "DejaVu Serif", serif;
+  letter-spacing: -0.01em;
+}
+@media (max-width: 640px) { .tally__value { font-size: 2.2rem; } }
+.wholebar { display: flex; gap: 2px; height: 28px; }
+.wholebar__part { min-width: 3px; }
+.wholebar__part[data-state="match"] {
+  display: flex; align-items: center; overflow: hidden; padding-left: 10px;
+  color: var(--accent-fg); font-size: 0.9rem; font-weight: 600; white-space: nowrap;
+}
+.zoomin { display: block; width: 100%; height: 34px; overflow: visible; }
+.zoomin polygon { fill: var(--panel); }
+.zoomin line, .zoomin path { fill: none; stroke: var(--line); vector-effect: non-scaling-stroke; }
+main.reproduced .reasons { margin: 0; padding: 4px 18px 16px; border-top: 0; border-radius: 0 0 var(--corner) var(--corner); }
+.reasons h2 { display: block; margin: 0 0 8px; font-size: 1.15rem; }
+.reasons .states { margin: 0 0 10px; }
+#sizes { margin: 10px 0 0; }
+/* The cascade: a row for each reason, its bar starting where the bar of the row before it ended. */
+.reason {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); column-gap: 28px;
+  border-top: 1px solid var(--line);
+}
+.reason__text { padding: 13px 0 14px; }
+.reason__name { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 9px; margin: 0 0 7px; font-size: 1rem; }
+.reason__name .badge { margin: 0; color: var(--fg); font-size: 0.86rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.reason__track { position: relative; min-height: 48px; }
+.reason__bar { position: absolute; top: 16px; height: 14px; min-width: 2px; }
+.reason__link { position: absolute; top: 30px; bottom: -17px; width: 1px; background: var(--muted); opacity: 0.55; }
+.reason--axis .reason__text { padding: 0; }
+.reason--axis .reason__track {
+  display: flex; justify-content: space-between; min-height: 0; padding-top: 3px; border-top: 1px solid var(--muted);
+  color: var(--muted); font-size: 0.78rem; font-variant-numeric: tabular-nums;
+}
+.reason__mid { position: absolute; top: 3px; transform: translateX(-50%); white-space: nowrap; }
+.reason__mid::before { content: ""; position: absolute; left: 50%; top: -3px; width: 1px; height: 4px; background: var(--muted); }
+/* One number of the reason: set in from the row and framed, with its label and the way to the next beside it. */
+.example { display: flex; align-items: flex-start; gap: 10px; margin-left: 20px; }
+.example__side { flex: none; display: flex; flex-direction: column; align-items: flex-start; min-width: 4.7rem; padding-top: 9px; }
+.example__label { color: var(--muted); font-size: 0.88rem; font-style: italic; }
+.example__more {
+  display: inline-flex; align-items: flex-start; min-height: 44px; padding: 3px 0 0; color: var(--muted); font-size: 0.8rem;
+  text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, var(--muted) 45%, transparent);
+}
+.example__more:hover, .example__more:focus-visible { color: var(--accent); text-decoration-color: currentColor; }
+.example__box {
+  flex: 0 1 330px; min-width: 0; padding: 8px 12px 9px; background: var(--bg);
   border: 1px solid var(--line); border-radius: var(--corner);
 }
-.stat__value {
-  font: 700 2rem/1.1 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "DejaVu Serif", serif;
+.example__where { margin: 0; color: var(--muted); font-size: 0.88rem; overflow-wrap: anywhere; }
+.example__values {
+  display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 14px; margin: 0;
   font-variant-numeric: tabular-nums;
 }
-.stat__label { color: var(--muted); font-size: 0.88rem; }
-.scope { margin: -6px 0 10px; }
-.scope .link { padding: 0; }
+.example__values div { display: contents; }
+.example__values dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.example__box--flip { animation: example-flip 240ms ease-out; transform-origin: 50% 0; }
+@keyframes example-flip { from { transform: perspective(500px) rotateX(-75deg); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .example__box--flip { animation: none; } }
+/* On a phone a reason's bar is over its words, and the bars are joined by where they start alone. */
+@media (max-width: 760px) {
+  .reason { grid-template-columns: minmax(0, 1fr); }
+  .reason__track { order: -1; min-height: 30px; }
+  .reason__bar { top: 14px; }
+  .reason__link, .reason--axis .reason__text { display: none; }
+  .reason__text { padding-top: 6px; }
+  .example { margin-left: 0; gap: 7px; }
+  .example__side { padding-top: 8px; }
+  .example__box { padding: 7px 10px 8px; }
+}
+/* A row for each source: its name, its numbers, one bar of them by state and the share that match. */
+main.reproduced .shelf { margin: 32px 0 0; padding: 0; background: none; border: 0; border-radius: 0; }
+.shelf h2 { margin: 0 0 4px; }
+.shelf > .hint { margin: 0 0 10px; }
+.shelf > .states { margin: 0 0 12px; }
+.shelf__tools {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin: 0 0 12px;
+  font-size: 0.9rem;
+}
+.shelf__forms { display: flex; flex-wrap: wrap; gap: 6px; }
+.shelf__form { min-height: 36px; padding: 0 12px; background: var(--panel); font-size: 0.9rem; }
+.shelf__form[aria-pressed="true"] { background: var(--fg); border-color: var(--fg); color: var(--bg); }
+.shelf__cols, .shelf__row > summary {
+  display: grid; grid-template-columns: minmax(0, 1.5fr) 76px minmax(110px, 1fr) 64px 18px; gap: 4px 16px;
+  align-items: center;
+}
+.shelf__cols { padding: 0 0 6px; border-bottom: 1px solid var(--fg); color: var(--muted); font-size: 0.8rem; }
+.shelf__numbers, .shelf__share { text-align: right; font-variant-numeric: tabular-nums; }
+.shelf__row { margin: 0; border-bottom: 1px solid var(--line); }
+.shelf__row > summary { padding: 10px 0; color: var(--fg); list-style: none; }
+.shelf__row > summary::-webkit-details-marker { display: none; }
+.shelf__row > summary:hover .shelf__name { color: var(--accent); }
+.shelf__name { font-weight: 600; }
+.shelf__title { display: block; color: var(--muted); font-size: 0.86rem; }
+.shelf__row .shelf__share { font-weight: 700; }
+.shelf__more::after { content: "+"; color: var(--muted); font-weight: 600; }
+.shelf__row[open] .shelf__more::after { content: "\2212"; }
+.statebar { display: flex; gap: 2px; height: 10px; }
+.statebar__part { min-width: 2px; }
+.shelf__body { display: flex; flex-direction: column; gap: 12px; padding: 2px 0 18px; }
+.shelf__body p { margin: 0; }
+.receipt { max-width: 430px; margin: 0; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner); }
+.receipt figcaption { margin: 0 0 6px; color: var(--muted); font-size: 0.86rem; }
+.receipt table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.receipt th, .receipt td { padding: 3px 0; text-align: right; font-weight: 400; }
+.receipt th:first-child { text-align: left; }
+.receipt thead th { border-bottom: 1px solid var(--line); color: var(--muted); font-size: 0.82rem; }
+.receipt td:last-child { font-weight: 700; }
+@media (max-width: 680px) {
+  .shelf__cols { display: none; }
+  .shelf__row > summary { grid-template-columns: minmax(0, 1fr) auto 18px; }
+  .shelf__row > summary .shelf__numbers { display: none; }
+  .shelf__row > summary .statebar { grid-column: 1 / -1; grid-row: 2; }
+}
+/* In the lists of cases a tier is told by its mark and its name alone: the page's colours are the states'. */
+main.reproduced #numbers [data-tier] { --tier: var(--muted); }
 .tierbar { display: flex; gap: 2px; height: 14px; margin: 0 0 14px; }
 .tierbar__part { min-width: 3px; background: var(--tier); }
 .tierbar__part:first-child { border-radius: var(--corner) 0 0 var(--corner); }
@@ -1817,69 +1951,6 @@ main.reproduced h1 { margin: 8px 0; font-size: 2rem; }
   font-size: 0.78rem; font-weight: 700; line-height: 1.6; white-space: nowrap;
 }
 .table-scroll { position: relative; overflow-x: auto; }
-.tiers { width: 100%; border-collapse: collapse; font-size: 0.94rem; }
-.tiers th, .tiers td { padding: 10px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
-.tiers thead th { color: var(--muted); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
-.tiers .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.tiers td.num strong { font-size: 1.1rem; }
-.tiers .share { display: block; color: var(--muted); font-size: 0.82rem; }
-.tier__name { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
-.tier__means { color: var(--muted); min-width: 16em; }
-.tiers td:last-child { white-space: nowrap; }
-.tiers .link { padding: 0; text-align: left; }
-.meter { display: block; width: 84px; height: 6px; margin: 4px 0 0 auto; border-radius: 3px; background: var(--line); }
-.meter span { display: block; height: 100%; border-radius: 3px; background: var(--tier); }
-/* On a phone each tier is a row of its name and counts, its list button under them, and no explanation. */
-@media (max-width: 640px) {
-  .tiers tr { display: grid; grid-template-columns: minmax(0, 1fr) 5.5em 5.5em; }
-  .tiers thead th:nth-child(2), .tiers thead th:last-child, .tier__means { display: none; }
-  .tiers tbody tr { border-bottom: 1px solid var(--line); }
-  .tiers tbody th, .tiers tbody td { border-bottom: none; }
-  .tiers tbody td:last-child { grid-column: 1 / -1; padding-top: 0; }
-}
-.sources__head { display: flex; justify-content: flex-end; margin: -6px 0 6px; font-size: 0.9rem; }
-.bysource { width: 100%; border-collapse: collapse; font-size: 0.92rem; font-variant-numeric: tabular-nums; }
-.bysource th, .bysource td { padding: 5px 8px; text-align: left; vertical-align: middle; }
-.bysource thead th { border-bottom: 1px solid var(--line); color: var(--muted); font-size: 0.8rem; font-weight: 600; }
-.bysource .num { text-align: right; white-space: nowrap; }
-.bysource .zero { color: var(--muted); opacity: 0.6; }
-.bysource tbody th { font-weight: 400; }
-.bysource tbody + tbody .bysource__group th, .bysource tbody + tbody .bysource__group td { padding-top: 14px; }
-.bysource__group th, .bysource__group td { border-bottom: 1px solid var(--line); font-weight: 600; }
-.bysource tbody tr:not(.bysource__group) th { padding-left: 20px; }
-.bysource tfoot th, .bysource tfoot td { border-top: 2px solid var(--line); font-weight: 600; padding-top: 8px; }
-.bysource .link { padding: 0; text-align: left; font: inherit; }
-.bysource .link[aria-pressed="true"] { color: var(--fg); text-decoration: underline; text-decoration-thickness: 2px; }
-.bysource tr:has(.link[aria-pressed="true"]) { background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
-.bysource__bar { width: 22%; min-width: 90px; }
-.source__bar { display: flex; gap: 2px; height: 10px; }
-.source__bar span { min-width: 3px; background: var(--tier); }
-.source__bar span:first-child { border-radius: 3px 0 0 3px; }
-.source__bar span:last-child { border-radius: 0 3px 3px 0; }
-/* On a phone the table keeps the counts by tier and the share that agree; the bar and the totals they add to go. */
-@media (max-width: 640px) {
-  .bysource .bysource__bar, .bysource .bysource__numbers, .bysource .bysource__cases { display: none; }
-  .bysource { font-size: 0.82rem; }
-  .bysource th, .bysource td { padding: 5px 3px; }
-  .bysource tbody tr:not(.bysource__group) th { padding-left: 8px; }
-  .bysource .tierchip { min-width: 0; padding: 0 3px; font-size: 0.68rem; }
-}
-.causes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 28px; align-items: start; }
-@media (max-width: 900px) { .causes { grid-template-columns: minmax(0, 1fr); } }
-.causes__table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
-.causes__table caption { text-align: left; font-weight: 600; padding: 0 0 6px; }
-.causes__table th, .causes__table td { padding: 6px 6px; border-top: 1px solid var(--line); vertical-align: top; text-align: left; }
-.causes__table th { font-weight: 400; }
-.causes__name { display: block; font-weight: 600; }
-.causes__means { display: block; color: var(--muted); font-size: 0.84rem; }
-.causes__table .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.causes__table .share { display: block; color: var(--muted); font-size: 0.82rem; }
-.causes__barcell { width: 26%; min-width: 70px; padding-top: 12px; }
-.causes__bar { display: block; height: 8px; border-radius: var(--corner); background: var(--line); }
-.causes__bar span { display: block; height: 100%; border-radius: var(--corner); background: var(--muted); }
-.causes__bar [data-cause="source_error"], .causes__bar [data-cause="incorrect_option"] { background: var(--tier-reproduced); }
-.causes__bar [data-cause="library_gap"] { background: var(--accent); }
-@media (max-width: 640px) { .causes__barcell { display: none; } }
 .missing { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .missing__item { margin: 0; border: 1px solid var(--line); border-radius: var(--corner); background: var(--bg); }
 .missing__item > summary { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; padding: 8px 12px; color: var(--fg); }
@@ -1887,18 +1958,6 @@ main.reproduced h1 { margin: 8px 0; font-size: 2rem; }
 .missing__cases { margin: 0; padding: 4px 12px 10px 30px; font-size: 0.9rem; }
 .missing__cases li { margin: 2px 0; }
 #missing-more { margin: 8px 0 0; }
-/* Below 720px the chart keeps its labels legible and scrolls in its own box, never the page. */
-.bands { margin: 0; overflow-x: auto; }
-.bands svg { display: block; width: 100%; min-width: 720px; height: auto; overflow: visible; }
-.bands__axis { stroke: var(--line); }
-.bands__bar { fill: var(--tier); }
-.bands__hit { fill: transparent; }
-.bands__band:hover .bands__hit, .bands__band:focus-visible .bands__hit { fill: color-mix(in srgb, var(--fg) 6%, transparent); }
-.bands__band:focus-visible { outline: none; }
-.bands__count { fill: var(--fg); font-size: 12px; font-variant-numeric: tabular-nums; }
-.bands__label { fill: var(--muted); font-size: 11px; }
-.bands__limit { stroke: var(--muted); stroke-dasharray: 3 3; }
-.bands__limitlabel { fill: var(--muted); font-size: 11px; }
 .reproduced__filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 6px; }
 .reproduced__filters select { max-width: 16em; }
 .reproduced__try { margin: 0 0 4px; }
@@ -1948,8 +2007,8 @@ main.reproduced h1 { margin: 8px 0; font-size: 2rem; }
 .number__reason { margin: 6px 0 0; color: var(--muted); font-size: 0.86rem; }
 .group .more { margin: 8px 0 0; }
 @media (forced-colors: active) {
-  .tierbar__part, .tierbar__key, .book-status::before, .source__bar span, .meter span { background: CanvasText; }
-  .bands__bar { fill: CanvasText; }
+  .tierbar__part, .tierbar__key, .book-status::before { background: CanvasText; }
+  [data-state]:is(.statekey, .statebar__part, .wholebar__part, .reason__bar) { background: CanvasText; }
 }
 
 /* A field's page (catalog/fields/<field>/, written by the build) and the chart it shares with the planning panel. */
@@ -2056,27 +2115,13 @@ main.field-page section { background: none; border: 0; border-radius: 0; padding
 .book-values { display: flex; flex-wrap: wrap; gap: 4px 18px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .misprints + .field-list__rest .misprints { margin-top: 8px; }
 
-/* The top of the reproduction page: one example in words, why answers differ, the books; the tables behind "Show the numbers". */
-.trust-example {
-  display: flex; flex-direction: column; gap: 6px; max-width: 820px; margin: 16px 0 0; padding: 14px 16px;
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner);
-}
-.trust-example p { margin: 0; }
-.trust-example__what { font-weight: 700; font-size: 1.1rem; }
-.trust-example .book-values { font-size: 1.3rem; }
-.trust-example a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }
-main.reproduced .trust-section { background: none; border: 0; border-radius: 0; padding: 0; margin: 28px 0 0; max-width: 820px; }
-.trust-section h2 { margin: 0 0 4px; font-size: 1.2rem; }
-.trust-section > .hint { margin: 0 0 10px; }
-.trust-section .field-chart__legend { margin: 0 0 10px; }
+/* The fold of the reproduction page, which holds the cases and what the library lacks. */
 .trust-numbers { margin: 28px 0 0; }
 .trust-numbers > summary {
   display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; cursor: pointer; font-weight: 600;
   color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner);
 }
 .trust-numbers[open] > summary { margin-bottom: 8px; }
-@media (min-width: 900px) {
-  .trust-section .card-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* The top of the catalog (catalog/index.html): the reader's field, the doors to the books and to the reproduction
