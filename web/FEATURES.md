@@ -149,6 +149,13 @@ Also:
   - *Details:* Design reads the question back as one sentence over the form: "Find the settings
     of Temperature, Pressure and Flow that give the highest Yield." With no goal it reads
     "Learn how ... change Yield", and a mixture's settings are a blend.
+- **The ladder: start small and add runs.** For two to five numeric factors, the designs are
+  steps on one line: half the corners, every corner, center points, then axial points. Each
+  step says its runs, the runs it adds, and what they let you learn. Press one to plan it.
+  - *Details:* For three factors the steps are 4, 8, 11 and 17 runs. Each step holds the
+    runs of the one before; the last is a face-centered central composite design. A press
+    sets the design and the aim. Two factors have no half. A categorical factor, a mixture,
+    or six factors or more keep the list of designs.
 - **Say what you know already, if you like.** The typical value, how much results vary from
   run to run, and the smallest change worth finding. The app then says how likely each
   design is to find that change.

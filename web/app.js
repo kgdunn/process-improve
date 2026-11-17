@@ -286,6 +286,8 @@ import {
   DEFAULT_RESPONSE,
   responseTitle,
   questionLine,
+  ladderStepOf,
+  ladderSteps,
   offPlanWords,
   questionSentence,
   responsesOf,
@@ -1677,7 +1679,54 @@ function setDesignForm(spec) {
  * is at most the number of factors, Box-Behnken and a rotatable CCD keep a center
  * point, and an optimal design's runs follow its model unless the reader set them.
  */
+/**
+ * The ladder over the designs, for a study of two to five numeric factors: each step a button that puts its design
+ * and its aim in the form, with its runs in all and the runs it adds. The step the form stands on is pressed. A
+ * mixture, a categorical factor or another number of factors has no ladder: the list of designs is theirs.
+ */
+function renderLadder() {
+  const factors = readFactors();
+  const steps = mixturePlanned() || factors.some(isCategorical) ? [] : ladderSteps(factors.length);
+  $("#ladder").hidden = !steps.length;
+  if (!steps.length) {
+    $("#ladder-steps").replaceChildren();
+    return;
+  }
+  const on = ladderStepOf(steps, {
+    design_type: $("#design-type").value,
+    n_center_points: Number($("#n_center_points").value),
+    resolution: Number($("#resolution").value),
+  });
+  const items = steps.map((step) => {
+    const button = el("button", "ladder__step", "");
+    button.type = "button";
+    button.dataset.step = step.key;
+    button.setAttribute("aria-pressed", String(step.key === on));
+    const added = step.added === step.runs ? "" : `, ${step.added} more`;
+    button.append(el("span", "ladder__runs", `${step.runs} runs${added}`), el("strong", "", step.name), el("span", "ladder__learns", step.learns));
+    button.onclick = () => takeStep(step);
+    const item = el("li", "", "");
+    item.append(button);
+    return item;
+  });
+  $("#ladder-steps").replaceChildren(...items);
+}
+
+/** Put a step of the ladder in the form: its aim, then its design and settings, as if the reader had chosen each. */
+function takeStep(step) {
+  aimChosen = true;
+  designChosen = true;
+  setAim(step.aim);
+  if (state.design) state.design.spec = { ...state.design.spec, aim: currentAim() };
+  setDesignForm({ design_type: step.design_type, options: step.options });
+  scheduleCandidates();
+  renderStudyBar();
+  saveDraft();
+  document.querySelector(`#ladder-steps [data-step="${step.key}"]`)?.focus();
+}
+
 function refreshDesign() {
+  renderLadder();
   const k = factorCount();
   const full = factorRows().length >= MAX_FACTORS; // the add buttons stop at the most factors a study has, and say so
   for (const id of ["#add-factor", "#add-categorical"]) $(id).disabled = full;
@@ -8995,6 +9044,8 @@ $("#welcome-example").onclick = () => $("#show-example").click();
 $("#welcome-import").onclick = () => $("#import-data").click();
 $("#run-example").onclick = runExample;
 $("#off-plan-back").onclick = backOnPlan;
+// The ladder's pressed step follows the two settings that tell its steps apart, however they are changed.
+for (const id of ["#n_center_points", "#resolution"]) for (const kind of ["input", "change"]) $(id).addEventListener(kind, renderLadder);
 // A reader sent a link to the worked example lands in its results, far from the menu: the way to a study of their own
 // is in the example's own banner.
 $("#example-new").onclick = () => $("#new-study").click();

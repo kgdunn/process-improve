@@ -157,6 +157,8 @@ def test_units_changed_alone_reach_the_factors_held_and_the_questions_of_a_propo
     rename(page, 2, "L/h", key="units")
     page.wait_for_function(f"window.__pi.count('api_limits') > {asked} && window.__pi.idle()")
     reveal(page, "#limits")
+    # The held factors are drawn again after the reply, a moment after the call is counted (#1343).
+    page.wait_for_function("document.querySelector('#slice-held .held__units')?.textContent === 'L/h'")
     assert page.text_content("#slice-held .held__units") == "L/h"
     assert page.get_attribute("[name=held-box-F]", "aria-label") == "F, held at, in L/h"
     cuts = page.locator("#limit-proposals .cuts")
