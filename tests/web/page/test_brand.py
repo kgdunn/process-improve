@@ -163,3 +163,15 @@ def test_the_app_s_typeface_is_served_from_its_own_files_with_its_licence():
     assert 'h2, h3, h4, .answer__run, .asked { font-family: "Outfit", system-ui' in css, "the device's font stands in"
     assert "font: 16px/1.5 system-ui" in css, "body text, tables and numbers are in the device's own font"
     assert "fonts.googleapis.com" not in source("style.css") + source("index.html"), "no font is fetched from elsewhere"
+
+
+def test_the_other_pages_wear_the_app_s_look():
+    """The catalog, the concept map and the multivariate page: no pill, no coloured edge, and the app's ground."""
+    css = source("style.css")
+    assert "999px" not in css, "a chip has the one corner every box has"
+    for edged in (".tierlist", ".map-card"):
+        rule = next(line for line in css.splitlines() if line.startswith(f"{edged} {{"))
+        assert "border-left" not in rule, f"{edged} is marked by a point, not by a coloured edge"
+    mva = (ROOT / "web" / "mva" / "mva.css").read_text(encoding="utf-8")
+    assert "--bg: #f5f6f4;" in mva, "the multivariate page stands on the app's neutral ground"
+    assert "#faf8f3" not in mva
