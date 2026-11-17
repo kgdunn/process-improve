@@ -703,12 +703,16 @@ section { scroll-margin-top: 120px; }
    row the four stages and their badges leave the study's name no room there: it shrank to nothing on a tablet. */
 @media (max-width: 1099px) {
   .studybar__row { flex-wrap: wrap; }
-  .study { flex: 1 1 0; }
+  /* The study's name keeps the width it needs, and the feedback button has what the row has left: it gives up its
+     words before the name loses a letter. */
+  .study { flex: 0 1 auto; }
+  .studybar .feedback-slot { flex: 1 1 38px; min-width: 38px; max-width: 18.5rem; margin-left: auto; }
   .phases { order: 1; width: 100%; }
 }
 /* Narrower than a tablet the name "Factorial" is read out and not drawn, so the study's name has the row. */
 @media (max-width: 720px) {
   .studybar h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .study { flex: 1 1 0; }
   .studybar .feedback-slot { flex: 0 0 38px; }
 }
 @media (max-width: 600px) {
