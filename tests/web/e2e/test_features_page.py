@@ -167,9 +167,12 @@ def test_a_switch_opens_every_point_s_details_and_the_choice_is_the_page_s_own(c
 
     page.check("#details")
     full = page.evaluate(SEEN)
-    assert full["details"] == full["asks"] == first["asks"], "every line of details is open"
-    assert full["points"] == first["points"], "and the points are the same"
+    assert page.locator(".feat-part:not([open])").count() == 0, "every part opens, so the press is seen to work"
+    assert full["details"] == full["asks"] > first["asks"], "every line of details is open"
     assert full["says"] == "Each point in plain words, with its details open."
+    page.uncheck("#details")
+    assert page.evaluate(SEEN)["open"] == ["your-data-and-your-trust"], "the parts the press opened fold again"
+    page.check("#details")
     assert page.evaluate(f"() => localStorage.getItem('{DETAILS_KEY}')") == "open"
     page.reload()
     page.wait_for_function(SHOWN)

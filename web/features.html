@@ -69,6 +69,17 @@
       : "Each point in plain words. Press Details under a point for the rest.";
     for (const more of all("details.more")) more.open = open;
     if (!keep) return;
+    // A press shows what it did: every part opens with its details, and the parts the press opened fold again with
+    // them. Before, the details opened inside folded parts, and the switch seemed to do nothing.
+    for (const part of all(".feat-part")) {
+      if (open && !part.open) {
+        part.open = true;
+        part.dataset.opened = "details";
+      } else if (!open && part.dataset.opened === "details") {
+        part.open = false;
+        delete part.dataset.opened;
+      }
+    }
     try {
       if (open) localStorage.setItem(DETAILS_KEY, "open");
       else localStorage.removeItem(DETAILS_KEY);
