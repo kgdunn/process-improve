@@ -1312,7 +1312,11 @@ function showType(tr, type) {
   const categorical = type === CATEGORICAL;
   const units = box(tr, "units");
   box(tr, "categorical").checked = categorical;
-  tr.querySelector(".switch__text").textContent = categorical ? "Categorical" : "Numeric";
+  // Written only when they change. Safari sends no click when the words under the pointer are written again between
+  // the press and the release, and leaving a factor's name does that: the switch then took a second press.
+  const words = categorical ? "Categorical" : "Numeric";
+  const text = tr.querySelector(".switch__text");
+  if (text.textContent !== words) text.textContent = words;
   tr.classList.toggle("categorical", categorical);
   const [first, second, third] = [box(tr, "low"), box(tr, "high"), units].map((b) => b.parentElement);
   first.colSpan = categorical ? 3 : 1;
