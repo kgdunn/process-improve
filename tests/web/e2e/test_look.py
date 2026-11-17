@@ -179,3 +179,22 @@ def test_a_chosen_point_is_drawn_in_forced_colours(page):
     chosen = page.locator(".aim input:checked").evaluate(STYLE.format("backgroundColor"))
     other = page.locator(".aim input:not(:checked)").first.evaluate(STYLE.format("backgroundColor"))
     assert chosen != other, "the chosen aim is still told from the others"
+
+
+@THEMES
+def test_a_slider_is_drawn_by_the_page_a_thin_line_and_a_round_handle_in_the_accent_colour(page):
+    """The browser's own slider was two thick pale bars on the dark page, with no handle to be seen."""
+    reveal(page, "#what-if")
+    slider = page.locator('#what-if input[type="range"]').first
+    drawn = slider.evaluate(
+        """(one) => { const own = getComputedStyle(one), track = getComputedStyle(one, '::-webkit-slider-runnable-track'),
+          handle = getComputedStyle(one, '::-webkit-slider-thumb');
+          return { appearance: own.appearance, edge: own.borderTopWidth, padding: own.paddingLeft,
+                   track: track.height, handle: handle.backgroundColor, round: handle.borderRadius,
+                   size: handle.width }; }"""
+    )
+    assert drawn["appearance"] == "none", "the page draws it, the same in every browser"
+    assert (drawn["edge"], drawn["padding"]) == ("0px", "0px"), "no box, edge or padding of an input round it"
+    assert drawn["track"] == "4px", "a thin line for its range"
+    assert drawn["handle"] == page.evaluate(COLOUR_OF, "--accent")
+    assert (drawn["round"], drawn["size"]) == ("50%", "18px"), "a round handle, large enough to catch"
