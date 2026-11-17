@@ -270,6 +270,7 @@ export function resultsCode(design, results, simulation = null) {
   const marks = design.rows.map((row) => String(row[design.columns.indexOf(CONFIRMATION)] ?? "").trim().toLowerCase());
   const left = [
     ...(marks.includes("yes") ? ["# The confirmation runs are left out: they test the model, so they do not enter its fit."] : []),
+    ...(marks.includes("failed") ? ["# A run that failed has no result: it is left out, as a run still to do is."] : []),
     ...(marks.includes("path") ? ["# The runs along the path are left out: they belong to the next study, so they do not enter this fit."] : []),
   ];
   const at = (name) => columns.indexOf(name);

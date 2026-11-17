@@ -43,7 +43,7 @@ def test_simulating_fills_every_run_and_keeps_the_true_process_to_hand(blank_pag
     assert page.is_hidden("#truth"), "behind its button until the reader asks"
     assert page.text_content("#truth-equation").startswith("y = 62 + 4·T - 3.1·P + 1.75·F + 1.5·T·P")
     assert page.text_content("#run-source") == (
-        '11 of 11 results simulated from "Reactor yield" (noise 1, seed 1), in italics: '
+        '11 of 11 results simulated from "A typical process" (noise 1, seed 1), in italics: '
         "type over any to enter your own."
     )
     assert "TrueProcess(" in page.text_content("#py-run code")
@@ -92,7 +92,7 @@ def test_every_press_of_the_button_changes_the_results(blank_page):
     assert len({tuple(results) for results in seen}) == 3, "new results at each press"
     assert [call["payload"]["seed"] for call in calls(page, "api_simulate")] == [1, 2, 3]
     assert page.text_content("#run-source").startswith(
-        '11 of 11 results simulated from "Reactor yield" (noise 1, seed 3)'
+        '11 of 11 results simulated from "A typical process" (noise 1, seed 3)'
     )
     assert page.locator("#panel-simulate button").all_text_contents() == [
         "Simulate again, with new noise",

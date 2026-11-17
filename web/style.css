@@ -2351,3 +2351,19 @@ dialog.import { width: min(860px, 100vw - 32px); }
 .aside-runs { margin: 0 0 12px; }
 /* The runs along the path of steepest ascent, under what the results call for: a table that scrolls in its own box. */
 .next__path table { display: block; max-width: 100%; overflow-x: auto; }
+/* The run sheet a run at a time: the run to make now, its settings large enough to read at arm's length at a bench. */
+.bench { margin: 0 0 14px; border: 1px solid var(--line); border-radius: var(--corner); background: var(--panel); }
+.bench > summary { padding: 8px 12px; font-weight: 600; cursor: pointer; }
+.bench__card { padding: 4px 12px 12px; }
+.bench__count { margin: 0 0 8px; font-size: 1.05rem; }
+.bench__count b { font-size: 1.4rem; margin-right: 8px; }
+.bench__count span { color: var(--muted); }
+.bench__settings { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0 0 12px; }
+.bench__settings dt { color: var(--muted); align-self: center; }
+.bench__settings dd { margin: 0; font-size: 1.5rem; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.bench__results { display: grid; gap: 8px; margin: 0 0 10px; }
+.bench__results label { display: grid; gap: 2px; font-size: 0.92rem; }
+.bench__results input { max-width: 14rem; min-height: 44px; font-size: 1.3rem; color: var(--ink, var(--fg)); }
+.bench .actions { margin: 10px 0 0; }
+.bench .actions button { min-height: 44px; }
+table.runs input[data-response]:disabled { background: none; border-style: dashed; }

@@ -307,6 +307,19 @@ def test_a_run_without_its_result_waits_for_it(api, held, simulated):
     assert reply["waiting"] == "Once every run has its result, the results say what to run next."
 
 
+def test_a_run_that_failed_is_not_waited_for(api, held, simulated):
+    """Marked "failed", as best.js withFailed marks it: it has no result, and the step is judged without it."""
+    partial = list(simulated["responses"])
+    partial[3] = None
+    columns = [*held["columns"], "Confirmation run"]
+    rows = [[*row, "failed" if i == 3 else None] for i, row in enumerate(held["rows"])]
+    reply = api.ok("api_next_runs", {"spec": held["spec"], "columns": columns, "rows": rows, "responses": partial})
+    assert reply["waiting"] is None
+    assert reply["recommendation"] is not None
+    fit = api.ok("api_analyze_runs", {"spec": held["spec"], "columns": columns, "rows": rows, "responses": partial})
+    assert fit["n_completed"] == 14, "the fit goes without it, as without a run still to do"
+
+
 def test_a_goal_of_learning_calls_for_nothing(api, held, simulated):
     spec = {**held["spec"], "response_info": {**held["spec"]["response_info"], "goal": "learn"}}
     reply = api.ok("api_next_runs", {**held, "spec": spec, "responses": simulated["responses"]})

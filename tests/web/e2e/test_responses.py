@@ -247,7 +247,7 @@ def test_a_run_with_some_of_its_results_is_fitted_for_the_responses_it_has(fresh
     settled(page)
     assert page.text_content("#badge-run") == "14 of 15", "a run is complete when every response has its result"
     assert page.text_content("#run-source").startswith(
-        '14 of 15 runs\' results simulated from "Reactor yield", each response'
+        '14 of 15 runs\' results simulated from "A typical process", each response'
     )
     reveal(page, "#analysis")
     lines = page.locator("#analysis ul.fit li").all_text_contents()

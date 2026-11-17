@@ -59,6 +59,8 @@ import {
   NO_BLEND_OVERLAY,
   CONFIRMATION_RUNS,
   apartRows,
+  failedRows,
+  withFailed,
   IMPORTANCES,
   GOOD_END,
   UNCLEAR,
@@ -806,7 +808,8 @@ function renderBadges() {
   badge("plan", stale ? "changed" : "", stale ? "stale" : "");
   // The designed runs: confirmation runs are checked in Learn, beside the settings they test, and the runs on the path
   // in Next. A run is complete when every response has its result.
-  const confirming = new Set(state.design ? apartRows(state.design) : []);
+  // A run that failed has no result to wait for, so the count goes without it.
+  const confirming = new Set(state.design ? [...apartRows(state.design), ...failedRows(state.design)] : []);
   const complete = completeRuns(state.results, resultNames());
   const designed = complete.filter((_, i) => !confirming.has(i));
   const done = designed.length > 0 && designed.every(Boolean);
@@ -1695,19 +1698,25 @@ function setDesignForm(spec) {
  * and its aim in the form, with its runs in all and the runs it adds. The step the form stands on is pressed. A
  * mixture, a categorical factor or another number of factors has no ladder: the list of designs is theirs.
  */
-function renderLadder() {
+/** The steps of the ladder for the factors as they are, and the key of the step the form is on, or null. */
+function ladderNow() {
   const factors = readFactors();
   const steps = mixturePlanned() || factors.some(isCategorical) ? [] : ladderSteps(factors.length);
-  $("#ladder").hidden = !steps.length;
-  if (!steps.length) {
-    $("#ladder-steps").replaceChildren();
-    return;
-  }
   const on = ladderStepOf(steps, {
     design_type: $("#design-type").value,
     n_center_points: Number($("#n_center_points").value),
     resolution: Number($("#resolution").value),
   });
+  return { steps, on };
+}
+
+function renderLadder() {
+  const { steps, on } = ladderNow();
+  $("#ladder").hidden = !steps.length;
+  if (!steps.length) {
+    $("#ladder-steps").replaceChildren();
+    return;
+  }
   const items = steps.map((step) => {
     const button = el("button", "ladder__step", "");
     button.type = "button";
@@ -2450,6 +2459,7 @@ function candidateList(c, current) {
   ].filter(([kind]) => rows.some((r) => r.power[kind] !== null));
   const fitting = rows.filter((r) => r.fits);
   const parts = [];
+  let stepped = null; // the runs of the ladder step in force, when its row shows them in place of the table's own
   if (fitting.length) {
     const t = el("table", "data pick", "");
     const info = readResponseInfo();
@@ -2492,7 +2502,14 @@ function candidateList(c, current) {
     const thead = el("thead", "", "");
     thead.append(head, ...(kinds.length ? [sub] : []));
     const tbody = el("tbody", "", "");
-    for (const r of fitting) {
+    // The table compares each design as Design first makes it, with its center points. The step of the ladder the
+    // reader is on has runs of its own, so its design's row shows those: the two never disagree on the runs chosen.
+    const { steps, on } = ladderNow();
+    const step = steps.find((one) => one.key === on);
+    for (const listed of fitting) {
+      const mine = step && listed.design_type === $("#design-type").value && step.runs !== listed.runs;
+      const r = mine ? { ...listed, runs: step.runs, spare: listed.spare - (listed.runs - step.runs), power: {} } : listed;
+      if (mine) stepped = step.runs;
       const tr = el("tr", "", "");
       tr.dataset.design = r.design_type;
       const name = el("td", "", "");
@@ -2506,7 +2523,7 @@ function candidateList(c, current) {
       label.append(radio, term(r.label, { definition: designHint(r.design_type), concept }));
       name.append(label);
       tr.append(name, el("td", "", String(r.runs)), el("td", r.spare < SPARE_FOR_NOISE ? "low" : "", String(r.spare)));
-      for (const [kind] of kinds) tr.append(el("td", "", percent(r.power[kind])));
+      for (const [kind] of kinds) tr.append(el("td", "", kind in r.power ? percent(r.power[kind]) : ""));
       if (leads) tr.append(el("td", "stands", (best[r.design_type] ?? []).map((b) => b.words).join(", ")));
       if (current) tr.onclick = () => pickDesign(r.design_type);
       tbody.append(tr);
@@ -2515,6 +2532,9 @@ function candidateList(c, current) {
     const wrap = el("div", "scroll", "");
     wrap.append(t);
     parts.push(wrap);
+    if (stepped !== null) {
+      parts.push(el("p", "hint stepped", `Your design's row shows the ${stepped} runs of the step you chose above. The other designs are listed as Design first makes them, and the table has no power for your step.`));
+    }
   }
   const picked = designChosen ? "" : pickSentence(rows, $("#design-type").value);
   if (picked) parts.push(el("p", "hint picked", picked));
@@ -2953,6 +2973,14 @@ function renderRuns() {
   const t = $("#design-table");
   const words = Object.fromEntries(resultNames().map((name) => [name, wordsOf(name)]));
   const at = new Map(resultNames().map((name) => [d.columns.indexOf(name), name]));
+  const failed = new Set(failedRows(d));
+  // A run that failed holds no result, whatever filled the sheet: results simulated for every run, or pasted.
+  for (const name of resultNames()) {
+    for (const i of failed) {
+      if (state.results[name]) state.results[name][i] = null;
+      if (state.marks[name]) state.marks[name][i] = null;
+    }
+  }
   const rows = d.rows.map((row, i) => Object.assign([...row], { index: i }));
   // Each row is a run, by its place in the order the runs are made, as the analysis and the charts name it.
   const order = d.columns.indexOf("Run order");
@@ -2978,7 +3006,8 @@ function renderRuns() {
     const value = state.results[name]?.[i];
     const cls = state.marks[name]?.[i] === "simulated" ? "sim" : "";
     const label = escape(words[name].label);
-    return `<input class="${cls}" type="number" step="any" inputmode="decimal" data-index="${i}" data-response="${escape(name)}" aria-label="${label}, run ${i + 1}" value="${value ?? ""}">`;
+    const out = failed.has(i) ? ' disabled placeholder="failed"' : ""; // a run that failed has no result
+    return `<input class="${cls}" type="number" step="any" inputmode="decimal" data-index="${i}" data-response="${escape(name)}" aria-label="${label}, run ${i + 1}" value="${value ?? ""}"${out}>`;
   };
   t._key = (row, col) => (at.has(col) ? state.results[at.get(col)]?.[row.index] : row[col]); // a result sorts by its value
   const factorUnits = Object.fromEntries(d.spec.factors.map((f) => [f.name, f.units ?? ""]));
@@ -3004,6 +3033,7 @@ function renderRuns() {
   };
   t.onpaste = pasteResults;
   renderOffPlan();
+  renderBench();
   renderRunDone();
   describeSource();
   renderBadges();
@@ -3090,6 +3120,7 @@ function renderOffPlan() {
 }
 
 function resultsChanged() {
+  renderBench();
   renderRunDone();
   renderPracticeRound();
   if (state.design && pathRows(state.design).length) renderNext(); // the path's runs are read as they are typed
@@ -3103,8 +3134,97 @@ function resultsChanged() {
 
 /** Run says so at its top once every run has a result for every response: the next step is Learn. */
 function renderRunDone() {
-  const all = Boolean(state.design) && resultNames().every((name) => state.results[name]?.length && state.results[name].every((v) => v !== null && v !== undefined));
+  const failed = new Set(state.design ? failedRows(state.design) : []);
+  const has = (v, i) => failed.has(i) || (v !== null && v !== undefined); // a run that failed has no result to wait for
+  const all = Boolean(state.design) && resultNames().every((name) => state.results[name]?.length && state.results[name].every(has));
   $("#run-done").hidden = !all;
+}
+
+// ---------------------------------------------------------------- the run sheet, a run at a time
+/** Whether the reader keeps "One run at a time" open, kept in this browser: open at first on a phone. */
+const BENCH_KEY = "factorial-bench";
+let benchAt = null; // the place on the run sheet of the run the card shows
+let benchSpec = null; // the study the card shows a run of: another study starts at its first run to make
+let benchDrawn = ""; // what the card's boxes were drawn for, so typing in one does not draw them again
+
+/** The places on the run sheet in the order the runs are made: by their run order, else as listed. */
+function benchOrder(d) {
+  const order = d.columns.indexOf("Run order");
+  const places = d.rows.map((_, i) => i);
+  return order < 0 ? places : places.sort((a, b) => (Number(d.rows[a][order]) || 0) - (Number(d.rows[b][order]) || 0));
+}
+
+/**
+ * Show one run of the run sheet: its number, where it stands among the runs, each factor's setting in large type,
+ * a box for each response's result, and whether the run failed. It opens at the first run still to make. Its boxes
+ * are the run sheet's own: what is typed here is typed there.
+ */
+function renderBench() {
+  const d = state.design;
+  $("#bench").hidden = !d;
+  if (!d) return;
+  const order = benchOrder(d);
+  const names = resultNames();
+  const failed = new Set(failedRows(d));
+  const made = (i) => failed.has(i) || names.every((name) => (state.results[name]?.[i] ?? null) !== null);
+  if (benchSpec !== d.spec || benchAt === null || benchAt >= d.rows.length) benchAt = order.find((i) => !made(i)) ?? order[0];
+  benchSpec = d.spec;
+  const i = benchAt;
+  const where = order.indexOf(i);
+  const runOrder = d.columns.indexOf("Run order");
+  $("#bench-run").textContent = `Run ${runOrder < 0 ? i + 1 : d.rows[i][runOrder]}`;
+  const left = order.filter((place) => !made(place)).length;
+  const state_ = failed.has(i) ? "failed" : made(i) ? "made" : "to make";
+  $("#bench-of").textContent = `${where + 1} of ${order.length}, ${state_}. ${left ? `${left} still to make.` : "Every run is made."}`;
+  $("#bench-settings").replaceChildren(
+    ...d.spec.factors.flatMap((f) => [el("dt", "", f.name), el("dd", "", stepSetting(f, d.rows[i][d.columns.indexOf(f.name)]))]),
+  );
+  const key = `${i}|${names.join("|")}|${failed.has(i)}`;
+  const boxes = $("#bench-results");
+  if (benchDrawn !== key) {
+    benchDrawn = key;
+    boxes.replaceChildren(
+      ...names.map((name) => {
+        const label = el("label", "", withUnits(wordsOf(name).label, wordsOf(name).units ?? ""));
+        const box = el("input", "", "");
+        Object.assign(box, { type: "number", step: "any", inputMode: "decimal", disabled: failed.has(i) });
+        box.dataset.bench = name;
+        if (failed.has(i)) box.placeholder = "failed";
+        label.append(box);
+        return label;
+      }),
+    );
+  }
+  for (const box of boxes.querySelectorAll("input")) {
+    if (box !== document.activeElement) box.value = state.results[box.dataset.bench]?.[i] ?? "";
+  }
+  const apart = new Set(apartRows(d));
+  Object.assign($("#bench-failed"), { checked: failed.has(i), disabled: apart.has(i) });
+  $("#bench-prev").disabled = where <= 0;
+  $("#bench-next").disabled = where >= order.length - 1;
+}
+
+/** Show the run before or after the one on the card, in the order the runs are made. */
+function benchStep(by) {
+  const order = benchOrder(state.design);
+  const to = order[order.indexOf(benchAt) + by];
+  if (to === undefined) return;
+  benchAt = to;
+  renderBench();
+  $("#bench-results input:not(:disabled)")?.focus({ preventScroll: true });
+}
+
+/**
+ * Mark the run at ``place`` as failed, or as a run to make after all. A run that failed stays on the run sheet,
+ * marked, with no result: the fit goes without it, as without a run still to do, and the next step does not wait.
+ */
+function setFailed(place, failed) {
+  const { columns, rows } = withFailed(state.design, place, failed);
+  state.design = { ...state.design, columns, rows };
+  renderRuns();
+  renderStudyBar();
+  resultsChanged();
+  setStatus(failed ? "The run is marked as failed: it stays on the run sheet, with no result." : "The run is to make again.");
 }
 
 /**
@@ -9198,6 +9318,33 @@ $("#generate").onclick = async () => {
 };
 $("#remake").onclick = $("#generate").onclick;
 $("#practice-round").onclick = practiceRound;
+// The card's boxes are the run sheet's: a result typed in one is typed in the sheet's box for that run.
+$("#bench-results").oninput = (e) => {
+  const sheet = $("#design-table").querySelector(`input[data-index="${benchAt}"][data-response="${CSS.escape(e.target.dataset.bench)}"]`);
+  if (!sheet) return;
+  sheet.value = e.target.value;
+  sheet.dispatchEvent(new Event("input", { bubbles: true }));
+};
+$("#bench-prev").onclick = () => benchStep(-1);
+$("#bench-next").onclick = () => benchStep(1);
+$("#bench-failed").onchange = (e) => setFailed(benchAt, e.target.checked);
+{
+  // Open at first on a phone, where the sheet is too wide to work from at a bench; then as the reader left it.
+  let kept = null;
+  try {
+    kept = localStorage.getItem(BENCH_KEY);
+  } catch {
+    // no storage: open on a phone, closed on a desk
+  }
+  $("#bench").open = kept === null ? matchMedia("(max-width: 600px)").matches : kept === "open";
+  $("#bench").ontoggle = () => {
+    try {
+      localStorage.setItem(BENCH_KEY, $("#bench").open ? "open" : "closed");
+    } catch {
+      // the choice lasts for this visit
+    }
+  };
+}
 $("#practice-over").onclick = endPracticeRound;
 $("#restore-plan").onclick = () => {
   setForm(state.design.spec);

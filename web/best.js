@@ -448,6 +448,32 @@ function markedRows(design, mark) {
   return design.rows.flatMap((row, i) => (String(row[at] ?? "").trim().toLowerCase() === mark ? [i] : []));
 }
 
+/** What that column holds for a run of the design that failed, and has no result; mirrors bootstrap.FAILED. */
+export const FAILED = "failed";
+
+/** The places on a run sheet of the runs that failed, in order: runs of the design with no result to come. */
+export const failedRows = (design) => markedRows(design, FAILED);
+
+/**
+ * A run sheet with the run at ``place`` marked as failed, or (``failed`` false) as a run to make again. The sheet
+ * gains its confirmation column with the first mark and loses it with the last. Returns the new columns and rows.
+ */
+export function withFailed(design, place, failed) {
+  const has = design.columns.includes(CONFIRMATION);
+  let columns = has ? [...design.columns] : [...design.columns, CONFIRMATION];
+  const at = columns.indexOf(CONFIRMATION);
+  let rows = design.rows.map((row, i) => {
+    const copy = has ? [...row] : [...row, null];
+    if (i === place) copy[at] = failed ? FAILED : null;
+    return copy;
+  });
+  if (rows.every((row) => !String(row[at] ?? "").trim())) {
+    columns = columns.filter((_, j) => j !== at);
+    rows = rows.map((row) => row.filter((_, j) => j !== at));
+  }
+  return { columns, rows };
+}
+
 /** The places on a run sheet of its confirmation runs, in order. */
 export const confirmationRows = (design) => markedRows(design, CONFIRMS);
 

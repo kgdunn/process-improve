@@ -534,6 +534,22 @@
               <div class="scroll"><table id="correlation-pairs" class="data"></table></div>
             </details>
           </div>
+          <!-- The run sheet a run at a time (app.js renderBench): the run to make now, its settings in large type, its
+               result, and whether it failed. For a phone at the bench, where it is open at first; the whole sheet
+               stays under it. -->
+          <details id="bench" class="bench" hidden>
+            <summary>One run at a time</summary>
+            <div class="bench__card">
+              <p class="bench__count" role="status"><b id="bench-run"></b> <span id="bench-of"></span></p>
+              <dl id="bench-settings" class="bench__settings"></dl>
+              <div id="bench-results" class="bench__results"></div>
+              <label class="check"><input type="checkbox" id="bench-failed"> This run failed: it has no result</label>
+              <p class="actions">
+                <button type="button" id="bench-prev" class="button">Previous run</button>
+                <button type="button" id="bench-next" class="button">Next run</button>
+              </p>
+            </div>
+          </details>
           <div class="tabs" role="tablist" aria-label="Where the results come from">
             <button type="button" role="tab" id="tab-real" aria-selected="true" aria-controls="panel-real">Enter results</button>
             <button type="button" role="tab" id="tab-simulate" aria-selected="false" aria-controls="panel-simulate" tabindex="-1">Practise with simulated results</button>
@@ -549,7 +565,7 @@
               <label><span class="term" data-term="true-process">True process</span>
                 <!-- Mirrors bootstrap.SCENARIOS (label, hint); tests/web/page/test_parity.py keeps them in step. -->
                 <select id="scenario" autocomplete="off">
-                  <option value="reactor" selected data-hint="Two strong main effects, an interaction between them, and curvature in the third factor.">Reactor yield</option>
+                  <option value="reactor" selected data-hint="Two strong main effects, an interaction between them, and curvature in the third factor.">A typical process</option>
                   <option value="main_effects" data-hint="Each of the first three factors changes the response on its own, along a straight line.">Main effects only</option>
                   <option value="interaction" data-hint="The effect of the first factor depends on the level of the second.">An interaction</option>
                   <option value="optimum" data-hint="A curved surface in the first two factors, highest at a point inside their ranges.">A maximum inside the ranges</option>

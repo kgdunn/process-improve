@@ -1547,7 +1547,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_simulate",
         _mixed(scenario="reactor"),
         (
-            "The process 'Reactor yield' is for factors with ranges: a mixture's results are simulated from 'A "
+            "The process 'A typical process' is for factors with ranges: a mixture's results are simulated from 'A "
             "synergy and an antagonism'."
         ),
     ),
