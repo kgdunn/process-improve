@@ -232,10 +232,10 @@ Also:
   [Show me](https://factori.al/?example=worked&show=answer)
   - *Details:* The numbers are those of the best settings further down. With no goal to
     reach, the answer is the factor that matters most. The report opens with the same answer.
-  - *Details:* Beside the answer, where it sits: a line for each numeric factor, from the low
-    end of its range to the high, with the setting as a point on it. For two or three numeric
-    factors the settings are also a filled point on a square or a cube, among a ring for each
-    setting already run. On a phone the lines come first.
+    Beside the answer, where it sits: a line for each numeric factor, from the low end of its
+    range to the high, with the setting as a point on it. For two or three numeric factors
+    the settings are also a filled point on a square or a cube, among a ring for each setting
+    already run. On a phone the lines come first.
 - **Checks of the answer.** Under it, whether to rely on it: the fit, runs that stand apart,
   whether the repeated runs agree with the model, and whether the settings are within reach
   of the runs. Each says its verdict and opens to a sentence and its statistic.
