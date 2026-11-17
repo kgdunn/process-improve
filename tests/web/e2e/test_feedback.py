@@ -462,7 +462,7 @@ def test_the_button_says_as_much_as_the_header_has_room_for(context, site, where
     page = context.new_page()
     page.goto(f"{site}{where}")
     page.wait_for_selector("#feedback")
-    said = []
+    said, rows = [], []  # the wordings in turn, and for each the width its run began at
     # Up to a wide laptop's window: with four stages in the app's bar, the longest words need more than 1280 px in a
     # wide font.
     for width in range(320, 1441, 8):
@@ -470,7 +470,18 @@ def test_the_button_says_as_much_as_the_header_has_room_for(context, site, where
         words = page.evaluate(WORDS)
         assert words["named"] == (words["read"] or SHORT), f"one name, the words on show, at {width} px: {words}"
         assert page.evaluate(FITS) == {"cut": False, "on": False, "inside": True}, f"at {width} px, saying {words}"
-        said += [] if said and said[-1] == words["read"] else [words["read"]]
+        if not said or said[-1] != words["read"]:
+            said.append(words["read"])
+            rows.append(width)
+    # The app's bar is two rows up to 1099 px and one row from 1100 px, where the stages share the button's row: the
+    # words start again from the shortest there. Within each layout a wider window never says less.
+    one_row = next((i for i, width in enumerate(rows) if width >= 1100), len(rows))
+    if not where and one_row < len(rows):
+        ladder = ["", SHORT, MEDIUM, LONG]
+        for run in (said[:one_row], said[one_row:]):
+            assert run == [words for words in ladder if words in run], "each change says more"
+        assert {"", SHORT, LONG} <= set(said)
+        return
     # A wider window never says less. The narrowest has room for the icon alone, beside what else the row holds, and
     # the widest for the longest words. The map's row holds little else, so each wording has widths of its own. The
     # app's bar also holds the study's name and the steps, and its page is one of two widths: there the font decides
