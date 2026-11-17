@@ -206,6 +206,10 @@ def test_on_a_tablet_the_bar_is_two_rows_and_the_study_s_name_is_read_whole(page
     assert caret["y"] + caret["height"] <= parts["stages"]["top"], "the menu's mark is not over a stage"
     assert box(page, "#studybar")["height"] <= 100
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+    # In a wider font too: the name keeps its width, and the feedback button gives up its words first.
+    page.add_style_tag(content="body, button { font-family: 'DejaVu Sans', sans-serif !important; font-size: 18px; }")
+    assert title.evaluate("(one) => one.scrollWidth <= one.clientWidth"), "nor in a wider font"
+    assert page.evaluate(BAR)["study"]["bottom"] <= page.evaluate(BAR)["stages"]["top"], "and still over the stages"
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
