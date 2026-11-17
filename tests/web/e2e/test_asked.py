@@ -23,4 +23,4 @@ def test_nothing_is_read_back_before_there_is_a_question(blank_page):
     page = blank_page
     assert page.locator("#asked").is_hidden()
     page.fill("#response", "Strength")
-    assert page.locator("#asked").is_visible(), "the blank form names two factors already"
+    assert page.locator("#asked").is_visible(), "once a response is named: the factors are typed already"
