@@ -611,6 +611,13 @@ Also:
     its workbook. A study's own file holds the rounds before it; a link holds the one study
     and names the round before. The app says when a run or a result of an earlier round
     changed after a later round was built on it. A study that stands alone lists no rounds.
+- **The campaign on one map and one chart.** Every run of every round where it was made,
+  over two factors, with each round's model drawn inside that round's own ranges. Beside it,
+  every run in the order they were made, with the best result so far.
+  - *Details:* A box marks each round's ranges, and one scale of colour serves every round.
+    The two factors are those of the map beside the dials. A choice shows the campaign as it
+    stood after an earlier round. A target is a level line. Each chart opens large and shows
+    Python that draws it.
 
 ## Around the study
 

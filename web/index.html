@@ -922,6 +922,23 @@
         <section id="rounds" class="best rounds" aria-labelledby="h-rounds" hidden>
           <h3 id="h-rounds">The campaign so far</h3>
           <div id="rounds-out"></div>
+          <!-- The campaign's two charts (app.js drawCampaign; charts.js campaignMapFigure and campaignRunsFigure):
+               every run where it was made over two factors, with each round's model inside that round's own ranges,
+               and every run in the order they were made, with the best result so far. The rounds drawn are those up
+               to the one chosen, so the campaign can be seen as it stood then. -->
+          <p id="rounds-as-of" class="row" hidden><label>The campaign as it stood after
+            <select id="rounds-upto"></select></label></p>
+          <div id="campaign-charts" class="campaign-charts" hidden>
+            <figure id="campaign-map" class="chart" hidden>
+              <h4 id="campaign-map-title"></h4>
+              <div class="plot" id="campaign-map-plot"></div>
+              <figcaption class="hint">Each round's model is drawn inside its own ranges, which a box marks, and nowhere else.</figcaption>
+            </figure>
+            <figure id="campaign-runs" class="chart">
+              <h4 id="campaign-runs-title">Every run, in the order they were made</h4>
+              <div class="plot" id="campaign-runs-plot"></div>
+            </figure>
+          </div>
         </section>
         <!-- What the analysis points to next (app.js, with best.js; bootstrap.next_runs and add_runs): a new study
              with its ranges moved the way the best settings point, and runs to add to this study, each for what its

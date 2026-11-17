@@ -220,3 +220,98 @@ def test_on_a_phone_the_four_stages_and_the_rounds_fit(two_rounds):
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
     right = page.locator("#go-next").bounding_box()
     assert right["x"] + right["width"] <= 390
+
+
+# --------------------------------------------------------------------------- the campaign's two charts
+#: What the campaign's two charts draw: each round's model with the ends of what it is drawn over, the box at its
+#: ranges, the runs marked on the map and on the chart of the runs in order, and the best result so far.
+CHARTS = """() => {
+  const map = document.querySelector('#campaign-map-plot');
+  const runs = document.querySelector('#campaign-runs-plot');
+  const ends = (values) => [values[0], values.at(-1)];
+  return {
+    surfaces: map.data.filter((trace) => trace.type === 'contour')
+      .map((trace) => ({ round: trace.meta.round, x: ends(trace.x), y: ends(trace.y) })),
+    boxes: map.layout.shapes.map((box) => [box.x0, box.x1, box.y0, box.y1]),
+    marks: map.data.filter((trace) => trace.type === 'scatter').map((trace) => [trace.name, trace.x.length]),
+    runs: runs.data.filter((trace) => trace.mode === 'markers').map((trace) => [trace.name, trace.y]),
+    best: runs.data.find((trace) => trace.name === 'Best so far')?.y ?? null,
+  };
+}"""
+
+
+def charts(page: Any, surfaces: int = 2) -> dict:  # noqa: ANN401
+    """Return what the campaign's two charts draw, once the map holds ``surfaces`` rounds' models."""
+    page.wait_for_selector("#campaign-runs-plot.js-plotly-plot")
+    page.wait_for_function(
+        "(n) => document.querySelector('#campaign-map-plot').data?.filter((t) => t.type === 'contour').length === n",
+        arg=surfaces,
+    )
+    return page.evaluate(CHARTS)
+
+
+def test_the_map_draws_each_round_s_model_inside_its_own_ranges_and_every_run(two_rounds):
+    page = two_rounds
+    drawn = charts(page)
+    assert page.text_content("#campaign-map-title") == "Yield over T and P, round by round"
+    # The second round's ranges are the first's, moved the way its results pointed.
+    assert drawn["surfaces"] == [
+        {"round": 1, "x": [150, 200], "y": [1, 3]},
+        {"round": 2, "x": [175, 225], "y": [pytest.approx(0.24, abs=0.01), pytest.approx(2.24, abs=0.01)]},
+    ]
+    for surface, box in zip(drawn["surfaces"], drawn["boxes"], strict=True):
+        assert [*surface["x"], *surface["y"]] == box, "a box at the ranges a model is drawn over"
+    assert drawn["marks"] == [["Round 1", 15], ["Round 2", 15]]
+
+
+def test_every_run_is_drawn_in_the_order_made_with_the_best_result_so_far(two_rounds):
+    page = two_rounds
+    drawn = charts(page)
+    assert [(name, len(values)) for name, values in drawn["runs"]] == [("Round 1", 15), ("Round 2", 15)]
+    results = [value for _, values in drawn["runs"] for value in values]
+    best = drawn["best"]
+    assert len(best) == 30
+    assert best == [max(results[: i + 1]) for i in range(30)], "the highest so far: the study maximises Yield"
+    listed = rounds(page)
+    assert listed[1][3].startswith(f"{max(drawn['runs'][1][1]):.4g}"), "the round's own best is in its row"
+
+
+def test_the_campaign_is_seen_as_it_stood_after_an_earlier_round(two_rounds):
+    page = two_rounds
+    charts(page)
+    assert page.input_value("#rounds-upto") == "2", "as it stands now, until the reader asks for an earlier round"
+    page.select_option("#rounds-upto", "1")
+    then = charts(page, surfaces=1)
+    assert [one["round"] for one in then["surfaces"]] == [1]
+    assert then["marks"] == [["Round 1", 15]]
+    assert [name for name, _ in then["runs"]] == ["Round 1"]
+    assert len(then["best"]) == 15
+    page.select_option("#rounds-upto", "2")
+    assert len(charts(page)["best"]) == 30
+
+
+def test_each_chart_of_the_campaign_shows_the_python_that_draws_it(two_rounds):
+    page = two_rounds
+    charts(page)
+    page.click("#campaign-runs .expand")
+    panel = page.locator("dialog.figure details.python")
+    panel.locator("summary").click()
+    code = panel.locator("code").text_content()
+    assert 'runs = pd.DataFrame({"Round": [1, 1, ' in code
+    assert 'runs["Best so far"] = runs["Yield"].cummax()' in code
+    assert code.rstrip().endswith("fig.show()")
+    page.keyboard.press("Escape")
+
+    page.click("#campaign-map .expand")
+    panel = page.locator("dialog.figure details.python")
+    panel.locator("summary").click()
+    code = panel.locator("code").text_content()
+    assert code.count("# Round ") == 2
+    assert "fig.add_contour(x=150 + (side + 1) / 2 * (200 - 150), y=1 + (side + 1) / 2 * (3 - 1)" in code
+    assert 'grid["T"], grid["P"] = np.meshgrid(side, side)' in code
+
+
+def test_a_study_that_stands_alone_has_no_campaign_to_chart(page):
+    reveal(page, "#next")
+    assert page.is_hidden("#campaign-charts")
+    assert page.is_hidden("#rounds-as-of")
