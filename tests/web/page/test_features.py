@@ -422,9 +422,9 @@ def test_the_document_is_published_with_the_page_that_shows_it(build_script, nod
     assert shows <= set(build_script.APP_FILES)
     assert shows <= set(APP_SOURCES)
     html = source("features.html")
-    assert 'import { addressOf, page, shownPart } from "./features.js";' in html
+    assert 'import { addressOf, CLOSE_DETAILS, OPEN_DETAILS, page, shownPart } from "./features.js";' in html
     assert "factorial-map-level" not in html, "the page keeps its own choice, apart from the concept map's level"
-    assert 'const DETAILS_KEY = "factorial-features-details";' in html
+    assert "factorial-features-details" not in html, "no choice is kept: a part's details are opened where they are"
     assert 'fetch("FEATURES.md"' in html
     (mark,) = javascript(node, source("features.js"), [("SHOWN_FROM", [])])
     assert FEATURES.count(mark) == 1, "the line after which the page shows the document"

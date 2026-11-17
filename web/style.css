@@ -1401,8 +1401,9 @@ details.fold > :last-child { margin-bottom: 12px; }
 .feat-find input { width: 100%; padding: 10px 12px; font: inherit; border: 1px solid var(--line); border-radius: var(--corner);
   background: var(--panel); color: var(--fg); }
 /* The switch that opens every point's details: a row a finger can press. */
-.feat-details { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; width: fit-content; cursor: pointer; }
-.feat-details input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+/* A part's own button, over its points: it opens the details of every point under it. */
+.feat-open { margin: 0 0 4px; }
+.feat-open button { min-height: 44px; padding: 0; font-size: 0.9rem; }
 .about h2.feat-step { margin: 24px 0 6px; font-family: inherit; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.08em;
   text-transform: uppercase; color: var(--accent); }
 .feat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 8px 0; padding: 0;
