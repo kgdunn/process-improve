@@ -37,7 +37,11 @@ import {
   confirmationRows,
   confirmationSentences,
   confirmedAt,
+  apartRows,
   designRows,
+  pathRows,
+  withPathRuns,
+  withoutPathRuns,
   extrapolationSentence,
   flatSentence,
   intervalRows,
@@ -523,6 +527,26 @@ describe("confirmation runs on the run sheet", () => {
     assert.deepEqual(design.columns, SHEET.columns);
     assert.deepEqual(design.rows, SHEET.rows);
     assert.deepEqual(design.kept, [true, true, false, false, false]);
+  });
+
+  test("the runs along a path join the sheet in the path's order, apart from the design's and the confirmation runs", () => {
+    const confirmed = withConfirmationRuns(SHEET, { T: 200, P: 1, F: 18.04 }, 1);
+    const added = withPathRuns(confirmed, [
+      { T: 210, P: 1, F: 15 },
+      { T: 220, P: 0.5, F: 15 },
+    ]);
+    const column = (name) => added.rows.map((row) => row[added.columns.indexOf(name)]);
+    assert.deepEqual(column("Confirmation run"), [null, null, "yes", "path", "path"]);
+    assert.deepEqual(column("T").slice(3), [210, 220]);
+    assert.deepEqual(column("Run order").slice(2), [3, 4, 5]);
+    assert.deepEqual([confirmationRows(added), pathRows(added), apartRows(added)], [[2], [3, 4], [2, 3, 4]]);
+    assert.deepEqual(designRows(added).rows, SHEET.rows, "the fit takes neither");
+    const results = { Yield: [50, 51, 67, 70, 75] };
+    const off = withoutPathRuns(added, results, { Yield: [null, null, null, null, null] });
+    assert.deepEqual(off.rows, confirmed.rows, "the confirmation run stays, with its column");
+    assert.deepEqual(off.results, { Yield: [50, 51, 67] });
+    const bare = withoutPathRuns(withPathRuns(SHEET, [{ T: 210, P: 1, F: 15 }]), { Yield: [50, 51, 70] }, { Yield: [null, null, null] });
+    assert.deepEqual([bare.columns, bare.rows], [SHEET.columns, SHEET.rows], "the column goes once it marks no run");
   });
 
   test("taken off again, with every response's results and sources", () => {

@@ -292,7 +292,8 @@ def test_the_path_s_runs_on_the_run_sheet_are_no_part_of_the_fit_or_of_the_step(
 
 
 def test_a_path_that_breaks_a_limit_on_the_settings_lists_no_runs(api, held, simulated):
-    limits = api.ok("api_limits", {"factors": held["spec"]["factors"], "constraints": [{"expression": "T <= 205"}]})["constraints"]
+    asked = {"factors": held["spec"]["factors"], "constraints": [{"expression": "T <= 205"}]}
+    limits = api.ok("api_limits", asked)["constraints"]
     spec = {**held["spec"], "constraints": limits}
     called = api.ok("api_next_runs", {**held, "spec": spec, "responses": simulated["responses"]})["recommendation"]
     assert called is None or called["path"] is None

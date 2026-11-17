@@ -675,10 +675,11 @@ def test_each_goal_reads_its_readings_by_the_ratio_bootstrap_reads_them_by(boots
 
 def test_confirmation_runs_are_marked_and_counted_as_bootstrap_marks_and_counts_them(bootstrap, node):
     """The run sheet's column, its mark, how many runs the page adds, and how far each factor moves for the chart."""
-    asked = ["CONFIRMATION", "CONFIRMS", "CONFIRMATION_RUNS", "NUDGE"]
+    asked = ["CONFIRMATION", "CONFIRMS", "ON_PATH", "CONFIRMATION_RUNS", "NUDGE"]
     assert javascript(node, source("best.js"), [(name, []) for name in asked]) == [
         bootstrap.CONFIRMATION,
         bootstrap.CONFIRMS,
+        bootstrap.ON_PATH,
         bootstrap.CONFIRMATION_RUNS,
         bootstrap.NUDGE,
     ]

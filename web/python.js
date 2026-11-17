@@ -218,10 +218,13 @@ function codedLine(f) {
 /** The run sheet's column marking a confirmation run; mirrors best.js, which this module does not import. */
 export const CONFIRMATION = "Confirmation run";
 
-/** Whether each run of a run sheet is fitted: every run but a confirmation run, which tests the model. */
+/**
+ * Whether each run of a run sheet is fitted: every run but a confirmation run, which tests the model, and a run on
+ * the path of steepest ascent, which belongs to the next study ("yes" and "path", as best.js marks them).
+ */
 export function fittedRuns(design) {
   const at = design.columns.indexOf(CONFIRMATION);
-  return design.rows.map((row) => at < 0 || String(row[at] ?? "").trim().toLowerCase() !== "yes");
+  return design.rows.map((row) => at < 0 || !["yes", "path"].includes(String(row[at] ?? "").trim().toLowerCase()));
 }
 
 /** The decimals the page rounds simulated results to: two significant decimals below the noise's size. */
@@ -264,7 +267,11 @@ export function resultsCode(design, results, simulation = null) {
   const kept = fittedRuns(design);
   const rows = design.rows.filter((_, i) => kept[i]);
   const values = Object.fromEntries(names.map((name) => [name, (byName[name] ?? []).filter((_, i) => kept[i])]));
-  const left = kept.includes(false) ? ["# The confirmation runs are left out: they test the model, so they do not enter its fit."] : [];
+  const marks = design.rows.map((row) => String(row[design.columns.indexOf(CONFIRMATION)] ?? "").trim().toLowerCase());
+  const left = [
+    ...(marks.includes("yes") ? ["# The confirmation runs are left out: they test the model, so they do not enter its fit."] : []),
+    ...(marks.includes("path") ? ["# The runs along the path are left out: they belong to the next study, so they do not enter this fit."] : []),
+  ];
   const at = (name) => columns.indexOf(name);
   const settings = (f) => rows.map((row) => (labelled(f) ? row[at(f.name)] : Number(row[at(f.name)])));
   const blocked = at("Block") >= 0 && (spec.options?.n_blocks ?? 1) > 1;

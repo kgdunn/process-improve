@@ -58,6 +58,7 @@ import {
   CONFIRMATION,
   NO_BLEND_OVERLAY,
   CONFIRMATION_RUNS,
+  apartRows,
   IMPORTANCES,
   GOOD_END,
   UNCLEAR,
@@ -73,11 +74,11 @@ import {
   blendOverlayCaption,
   blendSentences,
   blendWhere,
-  confirmationRows,
   confirmationSentences,
   confirmedAt,
   dWords,
   designRows,
+  pathRows,
   extrapolationSentence,
   flatSentence,
   goalProblem,
@@ -100,8 +101,10 @@ import {
   whereSentences,
   whereWords,
   withConfirmationRuns,
+  withPathRuns,
   withUnit,
   withoutConfirmationRuns,
+  withoutPathRuns,
   columnsAt,
   curveAt,
   frontier,
@@ -322,6 +325,7 @@ import {
   campaignDone,
   campaignTitle,
   bestResult,
+  pathVerdict,
   bestSoFar,
   campaignRuns,
   campaignSoFar,
@@ -800,9 +804,9 @@ function renderBadges() {
   };
   const stale = planIsStale();
   badge("plan", stale ? "changed" : "", stale ? "stale" : "");
-  // The designed runs: confirmation runs are checked in Learn, beside the settings they test. A run is complete when
-  // every response has its result.
-  const confirming = new Set(state.design ? confirmationRows(state.design) : []);
+  // The designed runs: confirmation runs are checked in Learn, beside the settings they test, and the runs on the path
+  // in Next. A run is complete when every response has its result.
+  const confirming = new Set(state.design ? apartRows(state.design) : []);
   const complete = completeRuns(state.results, resultNames());
   const designed = complete.filter((_, i) => !confirming.has(i));
   const done = designed.length > 0 && designed.every(Boolean);
@@ -3088,6 +3092,7 @@ function renderOffPlan() {
 function resultsChanged() {
   renderRunDone();
   renderPracticeRound();
+  if (state.design && pathRows(state.design).length) renderNext(); // the path's runs are read as they are typed
   describeSource();
   renderTruth();
   showResultsCode();
@@ -4788,7 +4793,7 @@ function fitLines(r) {
   const pending = r.pending_runs.filter((run) => !aside.has(run));
   if (!several()) return fitStatistics(r.summary, r.n_completed, pending);
   const names = resultNames();
-  const confirming = new Set(confirmationRows(state.design));
+  const confirming = new Set(apartRows(state.design));
   const complete = completeRuns(state.results, names).filter((ok, i) => ok && !confirming.has(i)).length;
   const order = state.design.columns.indexOf("Run order");
   const runs = partialRuns(state.results, names)
@@ -5325,7 +5330,7 @@ async function libraryPlots(request, mine) {
  * which the model is not fitted to, aside.
  */
 function designComplete(name = state.shown) {
-  const confirming = new Set(state.design ? confirmationRows(state.design) : []);
+  const confirming = new Set(state.design ? apartRows(state.design) : []);
   return (state.results[name] ?? []).every((v, i) => confirming.has(i) || v !== null);
 }
 
@@ -7391,7 +7396,7 @@ function renderNext() {
   const called = next.recommendation;
   const best = state.best?.settings && !isMixture(design?.spec.design_type) ? state.best : null;
   const move = !called && Boolean(best) && movesOn(best);
-  const shown = called || next.waiting || move || next.offers.length || next.notes.length;
+  const shown = called || next.waiting || move || next.offers.length || next.notes.length || pathRows(design ?? { columns: [], rows: [] }).length;
   $("#next").hidden = !design || !state.analysis || !shown;
   $("#to-next").hidden = $("#next").hidden;
   $("#next-empty").hidden = !$("#next").hidden;
@@ -7399,6 +7404,7 @@ function renderNext() {
   if ($("#next").hidden) return;
   $("#next-out").replaceChildren(
     ...(called ? calledFor(called) : next.waiting ? [said("hint", next.waiting)] : []),
+    ...pathPart(called?.path ?? null),
     ...(move ? movedStudy(best) : []),
     ...(next.offers.length || next.notes.length ? addedRuns(next, Boolean(called)) : []),
   );
@@ -7587,12 +7593,136 @@ function calledFor(step) {
   return [part];
 }
 
+/**
+ * The runs along the path of steepest ascent (or descent): the step's own (``path``, bootstrap._path_runs), before
+ * they are on the run sheet, with the button that adds them; then the run sheet's, with their results, where the
+ * path stands (campaign.js pathVerdict) and the new study centred on the best of them. They are made in the path's
+ * order, and the path is left at the first run that does worse than the run before it.
+ */
+function pathPart(path) {
+  const design = state.design;
+  const factors = design.spec.factors;
+  const at = pathRows(design);
+  if (!at.length && !path) return [];
+  const part = el("div", "next__part next__path", "");
+  part.append(el("h4", "", "The runs along the path"));
+  const first = resultNames()[0];
+  const info = design.spec.response_info ?? {};
+  const settings = at.length ? at.map((i) => Object.fromEntries(factors.map((f) => [f.name, design.rows[i][design.columns.indexOf(f.name)]]))) : path.map((run) => run.settings);
+  const predicted = path?.length === settings.length && path.every((run) => run.predicted !== null) ? path.map((run) => run.predicted) : null;
+  const results = at.map((i) => state.results[first]?.[i] ?? null);
+  const order = design.columns.indexOf("Run order");
+  const headings = [at.length ? "Run" : "Step", ...factors.map((f) => f.name), ...(predicted ? ["The model predicts"] : []), ...(at.length ? ["Result"] : [])];
+  const rows = settings.map((run, i) => [
+    at.length ? (design.rows[at[i]][order] ?? at[i] + 1) : i + 1,
+    ...factors.map((f) => stepSetting(f, run[f.name])),
+    ...(predicted ? [withUnit(Number(predicted[i].toPrecision(4)), info.units ?? "")] : []),
+    ...(at.length ? [results[i] === null ? "" : withUnit(results[i], info.units ?? "")] : []),
+  ]);
+  part.append(
+    said("", "Make these runs one at a time, in this order. Stop at the first run that does worse than the run before it."),
+    said("hint", "The path does not know your process: before you make a run, check that its settings are possible and safe."),
+    ...(predicted ? [said("hint", "Past the ranges the model is a guide only: its predictions say where to look, not what you will find.")] : []),
+    table(headings, rows),
+  );
+  const actions = el("p", "actions", "");
+  const button = (id, cls, label, press) => {
+    const one = el("button", cls, label);
+    one.type = "button";
+    one.id = id;
+    one.onclick = press;
+    actions.append(one);
+  };
+  if (!at.length) {
+    part.append(priced(path.length));
+    button("path-add", "button", `Add these ${path.length} runs to the run sheet`, () => addPathRuns(path));
+  } else {
+    const verdict = pathVerdict(results, info);
+    const runOf = (i) => design.rows[at[i]][order] ?? at[i] + 1;
+    part.append(said("", pathWords(verdict, runOf, results, info)));
+    if (verdict.best !== null) {
+      button("path-study", "button", `Start a new study centred on run ${runOf(verdict.best)}`, () => startMovedStudy(centredOn(factors, settings[verdict.best])));
+    }
+    button("path-remove", "link", "Take these runs off the run sheet", removePathRuns);
+  }
+  part.append(actions);
+  return [part];
+}
+
+/** Where the path stands, in a sentence or two: the best run so far, the run that did worse, and the run to make next. */
+function pathWords(verdict, runOf, results, info) {
+  const value = (i) => withUnit(results[i], info.units ?? "");
+  if (verdict.best === null) return "None of these runs has a result yet: enter each in Run as you make it.";
+  const best = `Run ${runOf(verdict.best)} is the best of them so far (${value(verdict.best)}).`;
+  if (verdict.worse !== null) return `Run ${runOf(verdict.worse)} did worse than run ${runOf(verdict.best)}: stop here. ${best}`;
+  if (verdict.next !== null) return `${best} Make run ${runOf(verdict.next)} next.`;
+  return `Each run did better than the one before. ${best} A new study centred there can go further.`;
+}
+
+/** The factors of a new study centred on a run: each numeric factor's range as wide as it is, with the run's setting at its middle. */
+function centredOn(factors, run) {
+  const clean = (x) => Number(x.toPrecision(12));
+  return factors.map((f) => {
+    const middle = Number(run[f.name]);
+    if (isCategorical(f) || !Number.isFinite(middle)) return { ...f };
+    const half = (f.high - f.low) / 2;
+    return { ...f, low: clean(middle - half), high: clean(middle + half) };
+  });
+}
+
+/**
+ * Add the runs along the path to the end of the run sheet, in the path's order. They never enter the fit. While the
+ * results are practice ones, theirs are simulated as the other runs' are; else the reader makes them, one at a time.
+ */
+async function addPathRuns(path) {
+  if (!state.design || pathRows(state.design).length) return;
+  const before = state.design.rows.length;
+  const { columns, rows } = withPathRuns(state.design, path.map((run) => run.settings));
+  state.design = { ...state.design, columns, rows };
+  for (const name of resultNames()) {
+    state.results[name] = [...state.results[name], ...Array(path.length).fill(null)];
+    state.marks[name] = [...state.marks[name], ...Array(path.length).fill(null)];
+  }
+  curvesFor(path.length);
+  renderRuns();
+  renderStudyBar();
+  const practice = Boolean(state.simulation) && someSimulated();
+  const design = state.design;
+  if (practice) await simulateFrom(before);
+  if (state.design !== design) return; // another run sheet took its place meanwhile
+  showResultsCode();
+  scheduleSave();
+  await analyseRuns(); // the fit is the same: the path's runs are no part of it
+  if (state.design !== design) return;
+  setStatus(
+    practice
+      ? `${path.length} runs along the path added, their results simulated.`
+      : `${path.length} runs along the path added at the end of the run sheet: make them in order, and enter each result in Run.`,
+  );
+}
+
+/** Take the runs along the path off the run sheet, with their results. */
+async function removePathRuns() {
+  if (!state.design) return;
+  const { columns, rows, results, marks, curves } = withoutPathRuns(state.design, state.results, state.marks, state.curves);
+  state.design = { ...state.design, columns, rows };
+  state.results = results;
+  state.marks = marks;
+  state.curves = curves;
+  renderRuns();
+  renderStudyBar();
+  showResultsCode();
+  scheduleSave();
+  await analyseRuns();
+  setStatus("The runs along the path are off the run sheet.");
+}
+
 /** A move's price under the move: the runs it adds, beside the runs the study has already (campaign.js priceWords). */
 const priced = (runs) => said("price", `${priceWords(runs, state.design.rows.length)}.`);
 
 /** A new study's price: the runs of this study's design, its confirmation runs apart, counted on their own. */
 const newStudyPrice = () =>
-  said("price", `A new study: ${priceWords(state.design.rows.length - confirmationRows(state.design).length)} with this study's design.`);
+  said("price", `A new study: ${priceWords(state.design.rows.length - apartRows(state.design).length)} with this study's design.`);
 
 /** A factor's range as the next step's table writes it: "150 to 200 degC", or a categorical factor's levels. */
 const rangeWords = (f) =>

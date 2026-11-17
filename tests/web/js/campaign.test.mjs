@@ -24,6 +24,7 @@ import {
   tabOf,
   bookName,
   campaignSoFar,
+  pathVerdict,
   campaignDone,
   campaignTitle,
   checkBookExample,
@@ -969,5 +970,30 @@ describe("a move's price, and the campaign's runs so far", () => {
       campaignSoFar(rounds),
       "At least 11 runs so far in this campaign, over 2 rounds. A round that is not in this browser is not counted.",
     );
+  });
+});
+
+describe("the runs along a path of steepest ascent", () => {
+  const up = { goal: "maximize" };
+  test("no run made: the first is next", () => {
+    assert.deepEqual(pathVerdict([null, null, null, null], up), { best: null, worse: null, next: 0 });
+    assert.deepEqual(pathVerdict([], up), { best: null, worse: null, next: null });
+  });
+  test("each run better than the one before: the last made is the best, and the next is made", () => {
+    assert.deepEqual(pathVerdict([70, 75, null, null], up), { best: 1, worse: null, next: 2 });
+    assert.deepEqual(pathVerdict([70, 75, 78, 80], up), { best: 3, worse: null, next: null });
+  });
+  test("the path stops at the first run that does worse than the run before it", () => {
+    assert.deepEqual(pathVerdict([70, 75, 60, null], up), { best: 1, worse: 2, next: null });
+    assert.deepEqual(pathVerdict([70, 75, 60, 99], up), { best: 1, worse: 2, next: null }, "a run made after it does not restart the path");
+    assert.deepEqual(pathVerdict([70, 60], up), { best: 0, worse: 1, next: null });
+  });
+  test("a run left out stops the reading there: the runs are made in order", () => {
+    assert.deepEqual(pathVerdict([70, null, 90, null], up), { best: 0, worse: null, next: 1 });
+  });
+  test("the goal decides what better is", () => {
+    assert.deepEqual(pathVerdict([9, 7, 8], { goal: "minimize" }), { best: 1, worse: 2, next: null });
+    assert.deepEqual(pathVerdict([40, 48, 53], { goal: "target", target: 50 }), { best: 1, worse: 2, next: null });
+    assert.deepEqual(pathVerdict([40, 48], { goal: "learn" }), { best: null, worse: null, next: 0 }, "a goal that names no best");
   });
 });
