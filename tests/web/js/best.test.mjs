@@ -38,6 +38,8 @@ import {
   confirmationSentences,
   confirmedAt,
   apartRows,
+  failedRows,
+  withFailed,
   designRows,
   pathRows,
   withPathRuns,
@@ -547,6 +549,20 @@ describe("confirmation runs on the run sheet", () => {
     assert.deepEqual(off.results, { Yield: [50, 51, 67] });
     const bare = withoutPathRuns(withPathRuns(SHEET, [{ T: 210, P: 1, F: 15 }]), { Yield: [50, 51, 70] }, { Yield: [null, null, null] });
     assert.deepEqual([bare.columns, bare.rows], [SHEET.columns, SHEET.rows], "the column goes once it marks no run");
+  });
+
+  test("a run that failed is marked on the sheet, stays a run of the design, and can be made again", () => {
+    const marked = withFailed(SHEET, 1, true);
+    assert.deepEqual(marked.columns, [...SHEET.columns, "Confirmation run"]);
+    assert.deepEqual(failedRows(marked), [1]);
+    assert.deepEqual(apartRows(marked), [], "it is a run of the design still");
+    assert.equal(designRows(marked).rows.length, SHEET.rows.length);
+    const again = withFailed(marked, 1, false);
+    assert.deepEqual([again.columns, again.rows], [SHEET.columns, SHEET.rows], "the column goes with its last mark");
+    const confirmed = withConfirmationRuns(SHEET, { T: 200, P: 1, F: 18.04 }, 1);
+    const both = withFailed(confirmed, 0, true);
+    assert.deepEqual([failedRows(both), confirmationRows(both)], [[0], [2]]);
+    assert.deepEqual(withFailed(both, 0, false).rows, confirmed.rows, "the confirmation run keeps its mark");
   });
 
   test("taken off again, with every response's results and sources", () => {

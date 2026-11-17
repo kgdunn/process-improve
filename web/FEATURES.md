@@ -218,6 +218,14 @@ Also:
     read. The workbook is an .xlsx file.
 - **No need to wait for every run.** The app analyses the runs that have a result.
   - *Details:* Once every run has its result, Run says so at its top, with the way to Learn.
+- **One run at a time.** A card on Run shows the run to make now: its settings in large type,
+  a box for its result, and "Next run". It is open at first on a phone, for work at the
+  bench; the whole run sheet stays under it.
+  - *Details:* The card opens at the first run still to make. Its boxes are the run sheet's
+    own. The app remembers whether you left it open.
+- **A run that failed.** Tick "This run failed" on the card. The run stays on the run sheet,
+  marked, with no result. The fit goes without it, and the next step does not wait for it.
+  - *Details:* The count of runs goes without it too. Untick it to make the run again.
 - **A run that left the plan.** Press a setting on the run sheet and type the setting the run
   was really made at. The model is fitted on it, and the sheet says which runs left the plan.
   - *Details:* For numeric factors; a mixture's proportions and a categorical factor's level

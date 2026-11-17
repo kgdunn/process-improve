@@ -112,6 +112,10 @@ CONFIRMS = "yes"
 #: the path's order, to find where the next study belongs. As a confirmation run, it is no run of the design.
 ON_PATH = "path"
 
+#: What that column holds for a run of the design that failed: it was started and gave no result. It stays on the
+#: run sheet with no result, as a run still to do does, and the next step does not wait for it.
+FAILED = "failed"
+
 #: The most factors a study has on this page: a screening design's, made to find the few factors that matter among
 #: many, such as Plackett-Burman's 44 runs in 40 factors, or the catalog's largest, 40 factors in 81 runs.
 #: logic.js and campaign.js mirror it.
@@ -4436,6 +4440,11 @@ def _confirming(runs: pd.DataFrame) -> pd.Series:
 def _on_path(runs: pd.DataFrame) -> pd.Series:
     """Say which runs of a run sheet are runs on the path of steepest ascent: those marked :data:`ON_PATH`."""
     return _runs_marked(runs, ON_PATH)
+
+
+def _failed(runs: pd.DataFrame) -> pd.Series:
+    """Say which runs of a run sheet failed: those marked :data:`FAILED`, which have no result and will have none."""
+    return _runs_marked(runs, FAILED)
 
 
 def _design_runs(runs: pd.DataFrame) -> pd.DataFrame:
@@ -10484,6 +10493,7 @@ def _next_step(request: dict, whole: dict) -> dict[str, Any] | str | None:
     # A transformed response's step is judged on its model's scale, as the analysis fits it, its target there too.
     runs, scaled = _on_model_scale(_runs_frame(request, whole), whole)
     target = (_for_response(scaled, request.get("response")).get("response_info") or {}).get("target")
+    runs = runs.loc[~_failed(runs)]  # a failed run has no result to wait for: the step is judged without it
     confirming = _confirming(runs)
     # The runs on the path are of neither kind: the step is judged without them, made or not.
     design = runs.loc[~confirming & ~_on_path(runs)].drop(columns=[CONFIRMATION], errors="ignore")
