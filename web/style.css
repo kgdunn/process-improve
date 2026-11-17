@@ -1118,6 +1118,19 @@ table.runs input {
   width: 6.5em; padding: 2px 6px; text-align: right; font: inherit; font-variant-numeric: tabular-nums;
 }
 table.runs input.sim { font-style: italic; color: var(--muted); }
+/* A setting on the run sheet reads as the planned number it is, in print: a button with no box, underlined when it
+   is pointed at, that turns into a box to type the setting the run was really made at. One typed over is the
+   reader's own: in ink, with a dotted rule under it. */
+table.runs button.setting {
+  padding: 2px 0; border: none; border-radius: var(--corner); background: none; color: inherit;
+  font: inherit; font-variant-numeric: tabular-nums; text-align: right; cursor: text;
+}
+table.runs button.setting:hover { text-decoration: underline dotted; }
+table.runs button.setting:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+table.runs button.setting.off { color: var(--ink); font-weight: 600; text-decoration: underline dotted var(--warn); }
+table.runs input.setting { width: 5.5em; }
+.off-plan { margin: 8px 0 0; }
+.off-plan button { margin-left: 6px; }
 /* A heading's units, under its name: the run sheet's factors and its response. */
 .col-unit { display: block; padding: 0 10px 4px; font-size: 0.75rem; font-weight: 400; color: var(--muted); }
 

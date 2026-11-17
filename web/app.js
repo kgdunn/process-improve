@@ -286,6 +286,7 @@ import {
   DEFAULT_RESPONSE,
   responseTitle,
   questionLine,
+  offPlanWords,
   questionSentence,
   responsesOf,
   responsesTitle,
@@ -2866,10 +2867,22 @@ function renderRuns() {
   t._run = (row) => (order < 0 ? row.index + 1 : row[order]);
   if (t._design !== d) pressRun(null); // a run marked in the design before is none of this one's
   t._design = d;
+  // A numeric factor's setting can be typed over with the setting the run was really made at. A mixture's cannot:
+  // its proportions sum to one, so one cannot change alone.
+  const typed = isMixture(d.spec.design_type) ? new Map() : new Map(d.spec.factors.filter((f) => !isCategorical(f)).map((f) => [d.columns.indexOf(f.name), f]));
   t._cell = (row, col) => {
     const name = at.get(col);
-    if (name === undefined) return null;
     const i = row.index;
+    if (typed.has(col)) {
+      const f = typed.get(col);
+      const planned = d.planned?.[i]?.[f.name];
+      const off = planned === undefined ? "" : ` off" title="Planned: ${escape(String(planned))}`;
+      const shown = escape(String(+Number(row[col]).toPrecision(6)));
+      const label = `${escape(f.name)}, run ${i + 1}: ${shown}${planned === undefined ? "" : `, planned ${escape(String(planned))}`}. Change it to the setting the run was made at`;
+      // A button until it is pressed, then a box in its place (editSetting): the sheet's boxes are its results.
+      return `<button type="button" class="setting${off}" data-index="${i}" data-factor="${escape(f.name)}" aria-label="${label}">${shown}</button>`;
+    }
+    if (name === undefined) return null;
     const value = state.results[name]?.[i];
     const cls = state.marks[name]?.[i] === "simulated" ? "sim" : "";
     const label = escape(words[name].label);
@@ -2881,8 +2894,13 @@ function renderRuns() {
   const colUnits = d.columns.map((c) => words[c]?.units ?? factorUnits[c] ?? "");
   const terms = { "Std order": "std-order", "Run order": "run-order", Block: "blocks", [CONFIRMATION]: "confirmation-run" };
   renderTable(t, headings, rows, "Run order", colUnits, terms);
+  // On the body, which each drawing of the table makes anew: the table's own presses sort it by a heading.
+  t.tBodies[0].onclick = (e) => {
+    const button = e.target.closest("button.setting");
+    if (button) editSetting(button);
+  };
   t.oninput = (e) => {
-    const input = e.target.closest("input[data-index]");
+    const input = e.target.closest("input[data-response]");
     if (!input) return;
     const i = Number(input.dataset.index);
     const name = input.dataset.response;
@@ -2893,12 +2911,91 @@ function renderRuns() {
     resultsChanged();
   };
   t.onpaste = pasteResults;
+  renderOffPlan();
   describeSource();
   renderBadges();
   renderCurves();
 }
 
 /** Follow results typed or pasted into the run sheet: where they came from, the code, the badges, the analysis. */
+/**
+ * A setting typed over on the run sheet: the run was made there, so the model is fitted there. The planned setting
+ * is kept beside it (``design.planned``, by the run's place on the sheet and the factor's name) so the sheet can say
+ * which runs left the plan and put them back. A box left blank, or typed back to the plan, is the planned setting.
+ */
+function settingTyped(index, name, text) {
+  const d = state.design;
+  const col = d.columns.indexOf(name);
+  const planned = d.planned?.[index]?.[name] ?? d.rows[index][col];
+  const value = text.trim() === "" || !Number.isFinite(Number(text)) ? planned : Number(text);
+  d.rows[index][col] = value;
+  const kept = { ...(d.planned ?? {}) };
+  const row = { ...(kept[index] ?? {}) };
+  if (value === planned) delete row[name];
+  else row[name] = planned;
+  if (Object.keys(row).length) kept[index] = row;
+  else delete kept[index];
+  if (Object.keys(kept).length) d.planned = kept;
+  else delete d.planned;
+  renderRuns();
+  resultsChanged();
+}
+
+/**
+ * A setting's button pressed: a box takes its place, holding the setting, for the one the run was really made at.
+ * Leaving the box, or Enter, takes what it holds; Escape leaves the setting as it was.
+ */
+function editSetting(button) {
+  const { index, factor } = button.dataset;
+  const input = document.createElement("input");
+  Object.assign(input, { type: "number", step: "any", inputMode: "decimal", className: "setting", value: button.textContent });
+  input.setAttribute("aria-label", `${factor}, run ${Number(index) + 1}, the setting it was made at`);
+  let done = false;
+  // ``back`` puts the focus on the setting's button again: after a key, not after a press somewhere else.
+  const finish = (take, back) => {
+    if (done) return;
+    done = true;
+    if (take) settingTyped(Number(index), factor, input.value);
+    else renderRuns();
+    if (back) document.querySelector(`#design-table button.setting[data-index="${index}"][data-factor="${CSS.escape(factor)}"]`)?.focus();
+  };
+  input.onblur = () => finish(true, false);
+  input.onkeydown = (e) => {
+    if (e.key !== "Enter" && e.key !== "Escape") return;
+    e.preventDefault(); // or Enter would go on to press the button the focus returns to
+    finish(e.key === "Enter", true);
+  };
+  button.replaceWith(input);
+  input.focus();
+  input.select();
+}
+
+/** Put every run back at its planned settings. */
+function backOnPlan() {
+  const d = state.design;
+  for (const [index, row] of Object.entries(d.planned ?? {})) {
+    for (const [name, planned] of Object.entries(row)) d.rows[index][d.columns.indexOf(name)] = planned;
+  }
+  delete d.planned;
+  renderRuns();
+  resultsChanged();
+  $("#off-plan").focus();
+}
+
+/** Under the run sheet: that a setting can be typed over, or which runs left the plan and what that does to the fit. */
+function renderOffPlan() {
+  const d = state.design;
+  const box = $("#off-plan");
+  const numbers = runNumbers();
+  const runs = Object.keys(d.planned ?? {})
+    .filter((index) => index < d.rows.length) // a run taken off the sheet since is none of its runs
+    .map((index) => numbers[index])
+    .sort((a, b) => a - b);
+  box.hidden = isMixture(d.spec.design_type) || !d.spec.factors.some((f) => !isCategorical(f));
+  $("#off-plan-says").textContent = runs.length ? offPlanWords(runs) : "A run made at another setting than planned? Type the setting it was really made at over the planned one.";
+  $("#off-plan-back").hidden = !runs.length;
+}
+
 function resultsChanged() {
   describeSource();
   renderTruth();
@@ -2991,7 +3088,7 @@ function pasteSheet() {
  * heading. A block that does not fit is not pasted at all, and the status line says why.
  */
 function pasteResults(e) {
-  const input = e.target.closest("input[data-index]");
+  const input = e.target.closest("input[data-response]"); // a setting's box takes what is pasted as any box does
   if (!input) return;
   e.preventDefault(); // a number box would drop a block, or a value written 2,5
   const at = { index: Number(input.dataset.index), name: input.dataset.response };
@@ -7827,7 +7924,7 @@ function currentCampaign() {
   const { spec, columns, rows, model, facts, outside_range: outside } = state.design;
   const [first, ...more] = resultNames();
   return {
-    v: studyFormat(spec, { what_if: state.scenarios, set_aside: keptAside(), ...keptAsked(), builds_on: state.buildsOn }),
+    v: studyFormat(spec, { what_if: state.scenarios, set_aside: keptAside(), ...keptAsked(), builds_on: state.buildsOn, planned: state.design.planned ?? {} }),
     title: state.campaign?.title ?? titleOf(spec),
     design: { spec, columns, rows, model, n_runs: rows.length, facts: facts ?? null, outside_range: outside ?? [] },
     ...sentResults(),
@@ -7839,6 +7936,7 @@ function currentCampaign() {
     ...(state.campaign?.source ? { source: state.campaign.source } : {}),
     ...(state.scenarios.length ? { what_if: state.scenarios } : {}),
     ...(Object.keys(keptAside()).length ? { set_aside: keptAside() } : {}),
+    ...(state.design.planned ? { planned: state.design.planned } : {}),
     ...keptAsked(),
     ...(state.buildsOn.length ? { builds_on: state.buildsOn } : {}),
     ...sentCurves(),
@@ -8117,7 +8215,7 @@ async function openCampaign(c, record, message) {
   $("#demo-banner").hidden = true;
   setForm(c.design.spec);
   state.campaign = { ...record, title: c.title || titleOf(c.design.spec), ...(c.source ? { source: c.source } : {}) };
-  state.design = { ...c.design };
+  state.design = { ...c.design, ...(c.planned ? { planned: structuredClone(c.planned) } : {}) };
   state.planKey = planKey();
   const names = resultNames();
   state.results = joinResults(names, [...c.responses], structuredClone(c.more_responses ?? {}));
@@ -8861,6 +8959,7 @@ $("#welcome-start").onclick = () => {
 $("#welcome-example").onclick = () => $("#show-example").click();
 $("#welcome-import").onclick = () => $("#import-data").click();
 $("#run-example").onclick = runExample;
+$("#off-plan-back").onclick = backOnPlan;
 // A reader sent a link to the worked example lands in its results, far from the menu: the way to a study of their own
 // is in the example's own banner.
 $("#example-new").onclick = () => $("#new-study").click();

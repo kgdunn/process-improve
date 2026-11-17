@@ -563,6 +563,10 @@
           </div>
           <p id="run-source" class="hint"></p>
           <div class="scroll"><table id="design-table" class="data runs"></table></div>
+          <!-- A run made at other settings than planned (app.js settingTyped, renderOffPlan): which runs, and the way
+               back to the plan. -->
+          <p id="off-plan" class="hint off-plan" tabindex="-1" hidden><span id="off-plan-says"></span>
+            <button type="button" id="off-plan-back" class="link" hidden>Put the planned settings back</button></p>
           <details id="curves" class="curves">
             <summary>Each run gives a curve</summary>
             <p class="hint">When each run gives a curve, such as a colour over time or a spectrum, paste the curves

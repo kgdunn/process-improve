@@ -16,8 +16,10 @@
  * Format 6 holds a curve each run gives (``spec.curve`` and ``curves``), which an earlier page would drop too.
  * Format 7 holds the runs set aside from a fit, and format 8 the targets and the windows typed in Learn: dropped too.
  * Format 9 holds the study a study builds on (``builds_on``), which links the rounds of a campaign: dropped too.
+ * Format 10 holds the planned settings of the runs made at other settings (``planned``): dropped too, and with them
+ * the way back to the plan.
  */
-export const CAMPAIGN_VERSION = 9;
+export const CAMPAIGN_VERSION = 10;
 
 /** The format of a study of one factor; a study of more factors keeps format 1. */
 export const ONE_FACTOR_FORMAT = 2;
@@ -43,6 +45,9 @@ export const TARGETS_FORMAT = 8;
 /** The format of a study that builds on an earlier one (``builds_on``); a study that stands alone keeps an earlier format. */
 export const ROUNDS_FORMAT = 9;
 
+/** The format of a study with a run made at settings that differ from the plan (``planned``). */
+export const PLANNED_FORMAT = 10;
+
 /** The most factors a study of format 3 or earlier holds: a page of those formats refuses more. */
 export const FEW_FACTORS = 12;
 
@@ -51,11 +56,12 @@ export const CURVE_POINTS_HELD = 1000;
 
 /**
  * The lowest format that holds a study of this specification, which the study is saved in. ``study`` holds what it
- * keeps besides its runs and results, under the study's own keys: ``what_if``, ``set_aside``, ``targets``, ``windows``
- * and ``builds_on``.
+ * keeps besides its runs and results, under the study's own keys: ``what_if``, ``set_aside``, ``targets``, ``windows``,
+ * ``builds_on`` and ``planned``.
  */
 export function studyFormat(spec, study = {}) {
-  const { what_if: kept = [], set_aside: setAside = {}, targets = {}, windows = {}, builds_on: builtOn = [] } = study;
+  const { what_if: kept = [], set_aside: setAside = {}, targets = {}, windows = {}, builds_on: builtOn = [], planned = {} } = study;
+  if (Object.keys(planned).length) return PLANNED_FORMAT;
   if (builtOn.length) return ROUNDS_FORMAT;
   if (Object.keys(targets).length || Object.keys(windows).length) return TARGETS_FORMAT;
   if (Object.values(setAside).some((runs) => runs.length)) return SET_ASIDE_FORMAT;
@@ -564,8 +570,9 @@ export function checkCampaign(data) {
   const aside = setAside(data.set_aside, names, n);
   const [targets, windows] = [typedTargets(data.targets, names), typedWindows(data.windows, names)];
   const built = checkBuiltOn(data.builds_on);
+  const planned = plannedSettings(data.planned, s.factors, n);
   const out = {
-    v: studyFormat(s, { what_if: kept, set_aside: aside, targets, windows, builds_on: built }),
+    v: studyFormat(s, { what_if: kept, set_aside: aside, targets, windows, builds_on: built, planned }),
     title: data.title === undefined ? "" : text(data.title, "its title", 200),
     design: {
       spec: s,
@@ -591,6 +598,7 @@ export function checkCampaign(data) {
   if (Object.keys(targets).length) out.targets = targets;
   if (Object.keys(windows).length) out.windows = windows;
   if (built.length) out.builds_on = built;
+  if (Object.keys(planned).length) out.planned = planned;
   if (s.curve) out.curves = curvesOf(data.curves, n, s.curve.argument.values.length);
   return out;
 }
@@ -616,6 +624,27 @@ function studySource(data) {
  * The runs set aside from each response's fit: for a response's column, the places on the run sheet (from 0) of the
  * runs its model is fitted without. Their results stay on the run sheet. A response with none set aside is left out.
  */
+/**
+ * The planned settings of the runs made at other settings: for a run, by its place on the run sheet, each numeric
+ * factor's planned setting where the run was made at another. The run sheet holds the settings the runs were made at.
+ */
+function plannedSettings(data, factors, n) {
+  if (data === undefined || data === null) return {};
+  if (!isObject(data)) refuse("its planned settings are not listed by run");
+  const numeric = factors.filter((f) => !Array.isArray(f.levels) && isFiniteNumber(f.low)).map((f) => f.name);
+  const out = {};
+  for (const [index, row] of Object.entries(data)) {
+    if (!/^\d{1,4}$/.test(index) || Number(index) >= n) refuse("a planned setting is of a run the run sheet does not have");
+    if (!isObject(row)) refuse("a run's planned settings are not listed by factor");
+    for (const [name, value] of Object.entries(row)) {
+      if (!numeric.includes(name)) refuse("a planned setting is of a factor that takes no number");
+      if (!isFiniteNumber(value)) refuse("a planned setting is not a number");
+    }
+    if (Object.keys(row).length) out[Number(index)] = { ...row };
+  }
+  return out;
+}
+
 function setAside(data, names, n) {
   if (data === undefined || data === null) return {};
   if (!isObject(data)) refuse("its runs set aside are not listed by response");
