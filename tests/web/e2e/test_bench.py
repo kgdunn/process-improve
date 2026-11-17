@@ -78,7 +78,8 @@ def test_a_result_typed_on_the_run_sheet_shows_on_the_card(blank_page):
     place = page.evaluate(
         """() => { const run = document.querySelector('#bench-run').textContent.replace('Run ', '');
         const rows = [...document.querySelectorAll('#design-table tbody tr')];
-        const head = [...document.querySelectorAll('#design-table thead th')].findIndex((th) => th.textContent.includes('Run order'));
+        const heads = [...document.querySelectorAll('#design-table thead th')];
+        const head = heads.findIndex((th) => th.textContent.includes('Run order'));
         return rows.findIndex((row) => row.cells[head].textContent.trim() === run); }"""
     )
     page.locator("#design-table tbody tr").nth(place).locator("input[data-response]").first.fill("58")
@@ -96,7 +97,6 @@ def test_a_run_that_failed_stays_on_the_sheet_with_no_result_and_is_not_waited_f
     assert page.is_visible("#run-done")
     total = page.text_content("#badge-run")
     runs = int(total.split(" of ")[1])
-    page.click("#bench > summary") if not page.evaluate("document.querySelector('#bench').open") else None
     page.check("#bench-failed")
     settled(page)
     results = sheet_results(page)
