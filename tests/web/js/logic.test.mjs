@@ -107,6 +107,7 @@ import {
   responseTitle,
   factorWords,
   questionLine,
+  questionSentence,
   shownTheme,
   showsVif,
   sortNumber,
@@ -1927,6 +1928,41 @@ describe("the question in one line", () => {
     const line = questionLine("Yield", many);
     assert.ok(line.includes("x6 0 to 1 and 3 more"), line);
     assert.ok(!line.includes("x7"), line);
+  });
+});
+
+describe("the question read back as one sentence", () => {
+  const [T, P] = [{ name: "T" }, { name: "P" }];
+  const said = (responses, factors = [T, P], how = {}) => questionSentence(responses, factors, how);
+
+  test("a goal to reach asks for the settings that reach it", () => {
+    assert.equal(said([{ label: "Yield", goal: "maximize" }]), "Find the settings of T and P that give the highest Yield.");
+    assert.equal(said([{ label: "Cost", goal: "minimize" }], [T]), "Find the settings of T that give the lowest Cost.");
+    assert.equal(
+      said([{ label: "pH", goal: "target", target: 7, units: "" }, { label: "Yield", goal: "maximize" }]),
+      "Find the settings of T and P that give pH on its target of 7 and the highest Yield.",
+    );
+    assert.equal(said([{ label: "Size", goal: "target", target: 80, units: "nm" }]), "Find the settings of T and P that give Size on its target of 80 nm.");
+    assert.equal(said([{ label: "Size", goal: "target" }]), "Find the settings of T and P that give Size on its target.");
+  });
+
+  test("with no goal the study is to learn, and a response with none is left out of what is wanted", () => {
+    assert.equal(said([{ label: "Yield", goal: "learn" }]), "Learn how T and P change Yield.");
+    assert.equal(
+      said([{ label: "Yield", goal: "maximize" }, { label: "Colour", goal: "learn" }]),
+      "Find the settings of T and P that give the highest Yield.",
+    );
+  });
+
+  test("a mixture is a blend", () => {
+    assert.equal(said([{ label: "Taste", goal: "maximize" }], [T, P], { blend: true }), "Find the blend of T and P that gives the highest Taste.");
+  });
+
+  test("six factors are named and the rest counted; nothing is said without a response and a factor", () => {
+    const many = Array.from({ length: 8 }, (_, i) => ({ name: `x${i + 1}` }));
+    assert.ok(said([{ label: "Yield", goal: "maximize" }], many).includes("x5, x6 and 2 more that give"));
+    assert.equal(said([{ label: "", goal: "maximize" }]), "");
+    assert.equal(said([{ label: "Yield", goal: "maximize" }], []), "");
   });
 });
 

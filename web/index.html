@@ -177,6 +177,8 @@
     <!-- The question: what the study measures, what might change it, and what it is to learn. On Design it is the
          form itself, beside the designs on a wide screen. Over Run and Learn it is one line that opens to the same
          form (app.js showPhase, renderQuestion), so the runs and the results have the page's width. -->
+    <!-- Design opens with the question read back as one sentence (app.js renderQuestion, logic.js questionSentence). -->
+    <p id="asked" class="asked" hidden></p>
     <details id="question" class="question" open>
       <summary><b>The question</b> <span id="question-says" class="question__says"></span>
         <span class="question__change"><span data-when="closed">Change</span><span data-when="open">Close</span></span></summary>

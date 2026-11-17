@@ -145,6 +145,9 @@ Also:
 - **Start from the question.** Say what you measure (its name, its units, and a goal: maximise,
   minimise, hit a target, or just learn), what might change it, and what you want to learn.
   [Show me](https://factori.al/?example=worked&show=response-card)
+  - *Details:* Design reads the question back as one sentence over the form: "Find the settings
+    of Temperature, Pressure and Flow that give the highest Yield." With no goal it reads
+    "Learn how ... change Yield", and a mixture's settings are a blend.
 - **Say what you know already, if you like.** The typical value, how much results vary from
   run to run, and the smallest change worth finding. The app then says how likely each
   design is to find that change.

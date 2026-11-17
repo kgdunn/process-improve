@@ -286,6 +286,7 @@ import {
   DEFAULT_RESPONSE,
   responseTitle,
   questionLine,
+  questionSentence,
   responsesOf,
   responsesTitle,
   runBadge,
@@ -818,6 +819,10 @@ function renderQuestion() {
     readFactors(),
     aim?.textContent.replace(/\s+/g, " ").trim(),
   );
+  // Design opens with the same question read back as a sentence, once there is a response and a factor to name.
+  const asked = questionSentence(describedResponses().map(({ info }) => info), readFactors(), { blend: mixturePlanned() });
+  $("#asked").textContent = asked;
+  $("#asked").hidden = !asked;
 }
 
 // ---------------------------------------------------------------- the responses
