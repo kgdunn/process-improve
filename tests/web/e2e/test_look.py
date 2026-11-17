@@ -9,9 +9,12 @@ print, and a simulated result is pencil.
 
 from __future__ import annotations
 
+import io
+import re
 from typing import Any
 
 import pytest
+from PIL import Image
 
 from tests.web.e2e._page import enter_results, generate, open_statistician, practise, reveal
 
@@ -179,6 +182,32 @@ def test_a_chosen_point_is_drawn_in_forced_colours(page):
     chosen = page.locator(".aim input:checked").evaluate(STYLE.format("backgroundColor"))
     other = page.locator(".aim input:not(:checked)").first.evaluate(STYLE.format("backgroundColor"))
     assert chosen != other, "the chosen aim is still told from the others"
+
+
+@THEMES
+def test_a_slider_is_drawn_by_the_page_a_thin_line_and_a_round_handle_in_the_accent_colour(page):
+    """The browser's own slider was two thick pale bars on the dark page, with no handle to be seen."""
+    reveal(page, "#what-if")
+    slider = page.locator('#what-if input[type="range"]').first
+    drawn = slider.evaluate(
+        """(one) => { const own = getComputedStyle(one);
+          return { appearance: own.appearance, edge: own.borderTopWidth, padding: own.paddingLeft,
+                   face: own.backgroundColor, height: own.height }; }"""
+    )
+    assert drawn["appearance"] == "none", "the page draws it, the same in every browser"
+    assert (drawn["edge"], drawn["padding"]) == ("0px", "0px"), "no edge or padding of an input round it"
+    assert drawn["face"] == "rgba(0, 0, 0, 0)", "and no box behind it"
+    assert drawn["height"] == "24px", "tall enough for its handle to be caught"
+    # The line and the handle are parts the browser will not describe, so they are read off the slider's picture:
+    # the row of pixels through its middle holds the accent colour, its handle, on one line for its range.
+    accent = tuple(int(part) for part in re.findall(r"\d+", page.evaluate(COLOUR_OF, "--accent"))[:3])
+    picture = Image.open(io.BytesIO(slider.screenshot())).convert("RGB")
+    row = [picture.getpixel((x, picture.height // 2)) for x in range(picture.width)]
+    near = lambda a, b: all(abs(p - q) <= 12 for p, q in zip(a, b, strict=True))  # noqa: E731 - a colour, or one close by
+    assert sum(near(pixel, accent) for pixel in row) >= 6, "the handle, in the accent colour"
+    line = max(set(row), key=row.count)
+    assert row.count(line) > 0.6 * len(row), "one line for the range, under the handle"
+    assert not near(line, accent), "and the line is not the handle's colour"
 
 
 def test_a_choice_in_the_feedback_form_is_a_round_point_not_a_sliver(page):

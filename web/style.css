@@ -397,6 +397,36 @@ input, select {
   font: inherit; color: inherit; background: var(--bg);
   border: 1px solid var(--line); border-radius: var(--corner); padding: 6px 8px; max-width: 100%;
 }
+/* A slider is drawn by the page, the same in every browser and in both themes: a thin line for its range and a round
+   handle in the accent colour, with the panel's edge round it. The browser's own slider took the box, the edge and
+   the padding every input has, and on a dark page some browsers drew it as two thick pale bars with no handle to be
+   seen. The input keeps its height, so the handle is as easy to catch with a finger. The concept map's slider adds
+   a fill up to its handle (map.js). */
+input[type="range"] {
+  appearance: none; -webkit-appearance: none; height: 24px; margin: 0; padding: 0; border: 0; background: none;
+  box-shadow: none; cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--fg) 35%, transparent); }
+input[type="range"]::-moz-range-track { height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--fg) 35%, transparent); }
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 18px; height: 18px; margin-top: -7px; border-radius: 50%; background: var(--accent);
+  border: 2px solid var(--panel); box-shadow: 0 0 0 1px var(--accent), 0 1px 3px rgb(0 0 0 / 0.3);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 2px solid var(--panel);
+  box-shadow: 0 0 0 1px var(--accent), 0 1px 3px rgb(0 0 0 / 0.3);
+}
+input[type="range"]:focus-visible { outline: none; }
+input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--accent); }
+input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(--accent); }
+input[type="range"]:disabled { cursor: default; opacity: 0.5; }
+@media (forced-colors: active) {
+  /* One rule a browser: a list with another browser's part in it is dropped whole. */
+  input[type="range"]::-webkit-slider-runnable-track { background: CanvasText; }
+  input[type="range"]::-moz-range-track { background: CanvasText; }
+  input[type="range"]::-webkit-slider-thumb { background: Highlight; border-color: Canvas; }
+  input[type="range"]::-moz-range-thumb { background: Highlight; border-color: Canvas; }
+}
 /* What the reader typed is in ink. */
 input, textarea { color: var(--ink); }
 input[type="number"] { width: 7em; }
