@@ -342,7 +342,7 @@ button.term:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 .trade-view label { display: inline-flex; align-items: center; gap: 6px; font-size: 0.9rem; }
 .trade-view select { width: auto; max-width: 14em; }
 .trade-limits input { width: 6.5em; }
-.trade-limits td, .trade-limits th { white-space: nowrap; padding-right: 14px; }
+table.trade-limits td, table.trade-limits th { white-space: nowrap; padding-right: 14px; } /* over table.data th's none */
 .trade-limits th:nth-child(2), .trade-limits td:nth-child(2) { text-align: left; } /* the box, under its heading */
 #trade-chosen .actions { margin-top: 6px; }
 /* The settings that give a target: each response's box and slider, a bar for where a setting lies in its range. */
@@ -1191,9 +1191,23 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 .what-if table.data td:nth-child(n + 3) { text-align: left; }
 /* The settings kept with the study: their name and settings, each response there, and what to do with them. */
 .what-if-keep input[type="text"] { flex: 1 1 12rem; min-width: 0; }
-.what-if-kept { margin: 0; padding: 0; list-style: none; }
-.what-if-kept > li { margin: 8px 0; padding: 4px 0 4px 10px; border-left: 3px solid var(--line); }
-.what-if-kept > li > p { margin: 2px 0 6px; overflow-wrap: anywhere; }
+.what-if table.what-if-kept th, .what-if table.what-if-kept td { padding: 6px 14px 6px 0; text-align: left; vertical-align: top; }
+.what-if-kept th[scope="row"] { overflow-wrap: anywhere; min-width: 6rem; }
+.what-if-kept small { display: block; color: var(--muted); white-space: nowrap; }
+.what-if-kept .kept__do { white-space: nowrap; }
+.what-if-kept .kept__do button { margin: 0 12px 0 0; }
+.what-if-kept .kept__do button.link { padding: 0; }
+/* A prediction as runs: for each response, dots that pile up where a run is likelier (app.js RUNS has the sizes). A
+   run inside the response's window is filled, one outside is a ring, and the window is shaded behind them. */
+.what-if-runs { display: flex; flex-wrap: wrap; gap: 6px 28px; margin: 10px 0 4px; }
+.runs-figure { margin: 0; max-width: 100%; }
+.runs-figure figcaption { max-width: 240px; margin: 2px 0 0; }
+.runs { display: block; max-width: 100%; height: auto; overflow: visible; }
+.runs__window { fill: var(--accent); fill-opacity: 0.14; }
+.runs__foot { stroke: var(--line); stroke-width: 1; }
+.runs__run { fill: var(--panel); stroke: var(--accent); stroke-width: 1.5; }
+.runs__run--inside { fill: var(--accent); }
+.runs__end { fill: var(--muted); font-size: 11px; }
 
 /* The balance of the responses: each response's goal in a compact table of boxes and choices, then the balance as the
    best settings show theirs, and the overlay of the acceptable ranges. */

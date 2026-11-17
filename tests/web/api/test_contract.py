@@ -964,6 +964,7 @@ READS: dict[str, list[str]] = {
         "responses[].inverse[].[]: number",
         "responses[].mse: number?",
         "responses[].t: number?",
+        "responses[].run_quantiles: list?",
         "responses[].max_leverage: number",
     ],
     "predictors of levels": [

@@ -3,8 +3,8 @@
 The panel opens at the best settings, or at the balanced settings once two responses or more have a
 goal, and predicts there what they show. Moving a setting changes every response at once, in the
 page's own JavaScript, without a call to Python; settings past a limit on the settings name it.
-Settings kept under a name go with the study, through this browser and a link, and are listed
-below the panel with each response there; they can become confirmation runs.
+Settings kept under a name go with the study, through this browser and a link, and sit side by
+side in one table below the panel, with each response there; they can become confirmation runs.
 """
 
 from __future__ import annotations
@@ -158,20 +158,30 @@ def keep(page: Any, name: str = "") -> None:  # noqa: ANN401
 
 
 def kept(page: Any) -> list[dict]:  # noqa: ANN401
-    """Read the settings kept with the study as the list shows them: each one's line, table, sentence and buttons."""
+    """Read the settings kept with the study as their table shows them, a row each.
+
+    Each is its name, each factor's setting under the factor's heading, each response there (its prediction, then
+    its 95% prediction interval), why there is none (or None), and its buttons by their accessible names.
+    """
     return page.evaluate(
-        """() => [...document.querySelectorAll('#what-if-kept-list > li')].map((li) => ({
-            said: li.querySelector('p').textContent,
-            rows: [...li.querySelectorAll('tbody tr')].map((tr) => [...tr.cells].map((c) => c.textContent)),
-            hint: li.querySelector('p.hint')?.textContent ?? null,
-            buttons: [...li.querySelectorAll('.actions button')].map((b) => b.getAttribute('aria-label')),
-        }))"""
+        """() => { const table = document.querySelector('#what-if-kept-list table');
+            const heads = [...table.tHead.rows[0].cells].map((th) => th.textContent);
+            const factors = document.querySelectorAll('#what-if-settings [data-factor]').length;
+            return [...table.tBodies[0].rows].map((tr) => ({
+                name: tr.cells[0].textContent,
+                settings: Object.fromEntries([...tr.cells].slice(1, 1 + factors)
+                    .map((c, i) => [heads[i + 1], c.textContent])),
+                responses: [...tr.cells].slice(1 + factors, -1).filter((c) => !c.classList.contains('hint'))
+                    .map((c) => [...c.childNodes].map((part) => part.textContent)),
+                hint: tr.querySelector('td.hint')?.textContent ?? null,
+                buttons: [...tr.querySelectorAll('.kept__do button')].map((b) => b.getAttribute('aria-label')),
+            })); }"""
     )
 
 
 def names(page: Any) -> list[str]:  # noqa: ANN401
-    """Name the settings the list holds, in its order."""
-    return [one["said"].split(": ")[0] for one in kept(page)]
+    """Name the settings the table holds, in its order."""
+    return [one["name"] for one in kept(page)]
 
 
 def in_learn(page: Any) -> Any:  # noqa: ANN401
@@ -197,16 +207,24 @@ def test_settings_kept_under_a_name_are_listed_with_each_response_there(studied)
     keep(page, "Cooler")
     page.wait_for_selector("#what-if-kept:not([hidden])")
     [cooler] = kept(page)
-    assert cooler["said"].startswith("Cooler: T = 160 degC, P = ")
-    assert cooler["rows"] == there, "each response at the kept settings, as the panel showed it"
+    assert cooler["name"] == "Cooler"
+    assert cooler["settings"]["T (degC)"] == "160"
+    assert list(cooler["settings"]) == ["T (degC)", "P (bar)", "F (L/min)"], "a column for each factor"
+    # Each response there as the panel showed it: its prediction over its 95% prediction interval.
+    assert cooler["responses"] == [[row[1], row[3]] for row in there]
     assert cooler["buttons"] == [
+        "Show the settings kept as Cooler on the dials",
         "Add 3 confirmation runs at the settings kept as Cooler",
         "Delete the settings kept as Cooler",
     ]
     assert page.input_value(KEEP) == "", "ready to name the next"
 
     set_number(page, "T", 190)
-    assert kept(page)[0]["rows"] == there, "the panel moves on; the kept settings stay where they were kept"
+    assert kept(page)[0]["responses"] == cooler["responses"], "the panel moves on; the kept settings stay where kept"
+    assert rows(page) != there
+    page.click('[aria-label="Show the settings kept as Cooler on the dials"]')
+    assert rows(page) == there, "back on the dials, with every number the panel gives of them"
+    set_number(page, "T", 190)
     page.click("#what-if-keep button[type=submit]")
     assert names(page) == ["Cooler", "Settings 2"], "a name the page gives, when none is typed"
     keep(page, "Cooler")
@@ -275,7 +293,10 @@ def test_kept_settings_become_confirmation_runs(studied):
         assert {name: num(float(run[i])) for name, i in at.items()} == {k: num(float(v)) for k, v in settings.items()}
     in_learn(page)
     page.wait_for_selector("#what-if-kept:not([hidden])")
-    assert kept(page)[0]["buttons"] == ["Delete the settings kept as Cooler"], "runs there already"
+    assert kept(page)[0]["buttons"] == [
+        "Show the settings kept as Cooler on the dials",
+        "Delete the settings kept as Cooler",
+    ], "runs there already"
 
 
 def test_kept_settings_past_a_limit_say_so_instead_of_predicting(fresh_page):
@@ -289,11 +310,11 @@ def test_kept_settings_past_a_limit_say_so_instead_of_predicting(fresh_page):
     set_number(page, "T", 200)
     set_number(page, "P", 3)
     keep(page, "Too far")
-    page.wait_for_function("document.querySelector('#what-if-kept-list p.hint') !== null")
+    page.wait_for_function("document.querySelector('#what-if-kept-list td.hint') !== null")
     [too_far] = kept(page)
     limit = last_reply(page, "api_outside_limits")["result"]["broken"][0]["expression"]
     assert too_far["hint"] == f"These settings break your limit 1, {limit}, so the models do not predict there."
-    assert too_far["rows"] == []
+    assert too_far["responses"] == []
     assert too_far["buttons"] == ["Delete the settings kept as Too far"], "no confirmation runs where none can be made"
 
 
@@ -318,7 +339,7 @@ def test_kept_settings_outside_the_ranges_of_a_study_edited_since_say_so(open_co
     elsewhere.wait_for_selector("#what-if-kept:not([hidden])")
     [edited] = kept(elsewhere)
     assert edited["hint"] == "T = 260 degC is outside its range, 150 to 200 degC, so the models do not predict there."
-    assert edited["rows"] == []
+    assert edited["responses"] == []
 
 
 def test_kept_settings_follow_a_factor_renamed(page):
@@ -330,8 +351,9 @@ def test_kept_settings_follow_a_factor_renamed(page):
     rename(page, 0, "Heat")
     in_learn(page)
     page.wait_for_function(
-        "document.querySelector('#what-if-kept-list p')?.textContent.startsWith('Cooler: Heat = 160 degC')"
+        "document.querySelector('#what-if-kept-list thead th:nth-child(2)')?.textContent === 'Heat (degC)'"
     )
     [after] = kept(page)
-    assert after["rows"] == before["rows"], "the same settings, under the factor's new name"
+    assert after["settings"]["Heat (degC)"] == before["settings"]["Temperature (degC)"] == "160"
+    assert after["responses"] == before["responses"], "the same settings, under the factor's new name"
     assert after["hint"] is None

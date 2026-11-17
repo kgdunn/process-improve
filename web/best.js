@@ -718,10 +718,7 @@ export function columnsAt(factors, settings) {
  * response fitted on a transform's scale (its ``transform``) has its prediction and intervals put back in its units.
  */
 export function predictAt(fit, columns) {
-  const row = fit.terms.map((parts) => parts.reduce((product, name) => product * columns[name], 1));
-  const predicted = row.reduce((sum, x, i) => sum + x * fit.coefficients[i], 0);
-  const spread = row.map((_, i) => fit.inverse[i].reduce((sum, v, j) => sum + v * row[j], 0));
-  const leverage = Math.max(0, row.reduce((sum, x, i) => sum + x * spread[i], 0)); // never below 0 but by round-off
+  const { predicted, leverage } = modelAt(fit, columns);
   const extrapolating = leverage > fit.max_leverage * (1 + 1e-9) + 1e-12;
   const out = { predicted, confidence: null, prediction: null, leverage, max_leverage: fit.max_leverage, extrapolating };
   if (fit.mse === null || fit.t === null) return putBackAt(out, fit.transform);
@@ -729,6 +726,55 @@ export function predictAt(fit, columns) {
   const single = fit.t * Math.sqrt(fit.mse * (1 + leverage));
   const intervals = { confidence: [predicted - mean, predicted + mean], prediction: [predicted - single, predicted + single] };
   return putBackAt({ ...out, ...intervals }, fit.transform);
+}
+
+/** A fit's prediction at the columns of some settings, on the scale it is fitted on, and the leverage there. */
+function modelAt(fit, columns) {
+  const row = fit.terms.map((parts) => parts.reduce((product, name) => product * columns[name], 1));
+  const predicted = row.reduce((sum, x, i) => sum + x * fit.coefficients[i], 0);
+  const spread = row.map((_, i) => fit.inverse[i].reduce((sum, v, j) => sum + v * row[j], 0));
+  const leverage = Math.max(0, row.reduce((sum, x, i) => sum + x * spread[i], 0)); // never below 0 but by round-off
+  return { predicted, leverage };
+}
+
+/**
+ * A prediction as the runs a reader might get at the columns of some settings (see columnsAt), least first: one for
+ * each of the fit's ``run_quantiles``, the t values of equally likely runs (bootstrap.PREDICTED_RUNS of them), about
+ * the prediction with the spread of one new run there. The least and the greatest are the two ends of predictAt's
+ * prediction interval, so the two cannot disagree. In the response's units; null without residual degrees of
+ * freedom, or when a transform cannot put one of them back.
+ */
+export function runsAt(fit, columns) {
+  if (fit.mse === null || !fit.run_quantiles) return null;
+  const { predicted, leverage } = modelAt(fit, columns);
+  const single = Math.sqrt(fit.mse * (1 + leverage));
+  const runs = putBack(fit.run_quantiles.map((q) => predicted + q * single), fit.transform);
+  return runs.every(Number.isFinite) ? runs : null; // each transform rises with the scale it is fitted on, so the order holds
+}
+
+/** Whether each of some runs is inside a window, ``[least, most]`` with null for an end left open; with no window, every one. */
+export const insideWindow = (runs, [least, most] = [null, null]) => runs.map((run) => (least === null || run >= least) && (most === null || run <= most));
+
+/**
+ * Where to draw runs as dots that pile up where the runs are close: each run's column of ``columns`` across
+ * ``[low, high]``, and its place in that column's pile, 0 at the foot.
+ */
+export function dotPiles(runs, [low, high], columns) {
+  const piled = new Map();
+  return runs.map((run) => {
+    const column = Math.min(columns - 1, Math.max(0, Math.floor(((run - low) / (high - low || 1)) * columns)));
+    piled.set(column, (piled.get(column) ?? -1) + 1);
+    return { column, level: piled.get(column) };
+  });
+}
+
+/**
+ * The runs in words: how far they reach, and how many are inside the reader's window when one is typed. ``words`` is
+ * the response's ``label`` and ``units``; ``inside`` is insideWindow's answer.
+ */
+export function runsWords(runs, inside, { label, units }, windowed = false) {
+  const reach = `${label} as ${runs.length} runs you might get: ${rangeWords([runs[0], runs.at(-1)], units)}.`;
+  return windowed ? `${reach} ${inside.filter(Boolean).length} of them are inside your window.` : reach;
 }
 
 /** A prediction and its intervals on a transform's scale, put back in the response's units; the leverage as it is. */

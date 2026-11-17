@@ -369,6 +369,18 @@ Also:
     The star is drawn when the map passes through the best settings. On a phone a tap sets
     both factors, and an up or down swipe still scrolls the page. Its window shows the Python
     that draws the same surface.
+- **A prediction as 20 runs.** Under the dials, each response is drawn as 20 runs you might
+  get at those settings, each as likely as the next. A run inside the response's window is
+  filled, and one outside it is a ring.
+  - *Details:* The least and the greatest of the 20 are the two ends of the 95% prediction
+    interval in the table beside them. The dots pile up where a run is likelier. A model
+    with no run left to estimate the noise has no runs to draw.
+- **Kept settings, side by side.** Settings kept under a name sit in one table: a row each,
+  with every factor's setting and every response as predicted there, over its 95%
+  prediction interval.
+  - *Details:* A row puts its settings back on the dials, which then give every number of
+    them, adds confirmation runs there, or is deleted. Settings past a limit, or outside a
+    range edited since, say so in their row. The report holds the table.
 - **A target curve.** For a curve response, the settings whose predicted curve comes closest.
 - **Settings that give a target.** Type what a response should be, or what several should
   be, or pick a run to match. The app runs the models backwards and gives the settings, with
