@@ -2992,6 +2992,7 @@ function renderRuns() {
   };
   t.onpaste = pasteResults;
   renderOffPlan();
+  renderRunDone();
   describeSource();
   renderBadges();
   renderCurves();
@@ -3077,12 +3078,36 @@ function renderOffPlan() {
 }
 
 function resultsChanged() {
+  renderRunDone();
   describeSource();
   renderTruth();
   showResultsCode();
   renderBadges();
   scheduleAnalysis();
   scheduleSave();
+}
+
+/** Run says so at its top once every run has a result for every response: the next step is Learn. */
+function renderRunDone() {
+  const all = Boolean(state.design) && resultNames().every((name) => state.results[name]?.length && state.results[name].every((v) => v !== null && v !== undefined));
+  $("#run-done").hidden = !all;
+}
+
+/**
+ * Set Learn's note for when it has nothing to show, with the stage it names as a way there: "enter them in Run".
+ * The words are the note's own; "Run" in them becomes a button.
+ */
+function sayLearnEmpty(text) {
+  const note = $("#analyse-empty");
+  const at = text.indexOf(" in Run");
+  if (at < 0) {
+    note.textContent = text;
+    return;
+  }
+  const run = el("button", "link", "Run");
+  run.type = "button";
+  run.dataset.go = "run";
+  note.replaceChildren(text.slice(0, at + 4), run, text.slice(at + 7));
 }
 
 /** The run sheet's run numbers, in its order: its Run order column, or 1, 2, ... for runs as given without one. */
@@ -3825,7 +3850,7 @@ function clearAnalysis() {
   $("#py-analyse").hidden = true;
   $("#charts").hidden = true;
   $("#charts").replaceChildren();
-  $("#analyse-empty").textContent = learnEmpty();
+  sayLearnEmpty(learnEmpty());
   $("#analyse-empty").hidden = false;
   $("#to-learn").hidden = true;
   $("#learn-report").hidden = true;
@@ -3887,7 +3912,7 @@ async function analyseRuns() {
     clearAnalysis();
     const curvesOnly = !anyResult(state.results);
     const where = curvesOnly ? "the runs' curves are drawn under What if" : "enter them in Run";
-    $("#analyse-empty").textContent = `No results for ${wordsOf(state.shown).label} yet: ${where}.`;
+    sayLearnEmpty(`No results for ${wordsOf(state.shown).label} yet: ${where}.`);
     setStatus(`No results for ${wordsOf(state.shown).label} yet.`);
     await findBalance();
     await findCurve();
@@ -9081,6 +9106,11 @@ $("#sigma").onchange = () => {
 $("#tab-simulate").onclick = () => selectTab("simulate");
 $("#tab-real").onclick = () => selectTab("real");
 $("#to-learn").onclick = () => showPhase("learn");
+// A stage named in a sentence is a way to it: "make it in Design", "enter them in Run", "See what the results say".
+document.addEventListener("click", (event) => {
+  const go = event.target.closest("button[data-go]");
+  if (go) showPhase(go.dataset.go);
+});
 $("#add-confirmation").onclick = () => addConfirmationRuns(state.best?.confirm_at, blendStudy() ? "the best blend" : "the best settings");
 $("#add-balance-confirmation").onclick = () => addConfirmationRuns(state.balance?.confirm_at, blendStudy() ? "the balanced blend" : "the balanced settings");
 $("#remove-balance-confirmation").onclick = removeConfirmationRuns;
