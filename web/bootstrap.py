@@ -5747,9 +5747,7 @@ def plots(request: dict) -> dict:
     chosen = _chosen_pair(request.get("contour_factors"), axes)
     pair = chosen or _contour_pair(out["coefficients"], axes)
     best = _held_at_best(request.get("best"), spec, pair)
-    shading, held = _shading(spec, pair, best[0] if best else None)
-    if best:
-        shading, held = {**shading, "hold_values": best[0]}, best[1]
+    shading, held = _shading(spec, pair, best)
 
     figures = _Figures(spec, rows, order, plotly, _FittedModel(fit, coded, columns))
     draw = figures.draw
@@ -5932,7 +5930,7 @@ def _held_at_best(raw: object, spec: dict, pair: list[str]) -> tuple[dict[str, f
 
 
 def _shading(
-    spec: dict, pair: list[str], hold: dict[str, float] | None = None
+    spec: dict, pair: list[str], best: tuple[dict[str, float], list[dict[str, Any]]] | None = None
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Return what a response surface needs to shade the settings that cannot be run, and where it holds the others.
 
@@ -5941,6 +5939,14 @@ def _shading(
     without limits, else a central setting that can be (see ``DesignRegion.centroid``), which is
     listed in the factors' own units for the caption to say.
     """
+    shading, held = _limits_shading(spec, pair, best[0] if best else None)
+    return ({**shading, "hold_values": best[0]}, best[1]) if best else (shading, held)
+
+
+def _limits_shading(
+    spec: dict, pair: list[str], hold: dict[str, float] | None
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Return the region a surface shades by and the settings it holds the other factors at, from the limits alone."""
     if not spec.get("constraints"):
         return {}, []
     factors = _factors(spec)
@@ -9021,40 +9027,14 @@ def target_settings(request: dict) -> dict:
     rng = np.random.default_rng(TARGET_SEED)
     combinations = _level_combinations(whole)
     drawn = rng.uniform(-1.0, 1.0, size=(TARGET_DRAWN // len(combinations), len(numeric)))
-    by_level = region is not None and region.rules is not None  # a limit for some levels: judged level by level
-    if region is not None and not by_level:
+    if region is not None and region.rules is None:  # a limit for some levels is judged level by level, below
         drawn = drawn[region.feasible(drawn[:, [names.index(n) for n in region.names]])]
     if not len(drawn):
         raise ValueError("The limits on the settings leave no setting to try.")
-    whole_region, tried = region, [0]
-
-    def run_at(levels: dict[str, float], settings: np.ndarray) -> np.ndarray:
-        """Say which settings the limits allow at these levels."""
-        try:
-            here = _region_at(whole_region, whole, levels)
-        except _NotAllowedError:
-            return np.zeros(len(settings), dtype=bool)
-        return np.ones(len(settings), dtype=bool) if here is None else here.feasible(settings)
-
-    def off_target(levels: dict[str, float], settings: np.ndarray) -> np.ndarray:
-        """Return how far each response is predicted from its target at each setting, in units of its reach."""
-        point = {**dict.fromkeys(names, 0.0), **levels}
-        return np.column_stack([(fits[n].over(point, names, settings)[0] - targets[n]) / near[n] for n in targets])
-
-    def missed(levels: dict[str, float], settings: np.ndarray) -> np.ndarray:
-        """Return the same, with a setting the limits do not allow at these levels infinitely far."""
-        miss = off_target(levels, settings)
-        if by_level:
-            allowed = run_at(levels, settings)
-            tried[0] += int(allowed.sum())
-            miss[~allowed] = np.inf
-        return miss
-
+    off_target, missed, tried = _target_misses(fits, targets, near, names, (region, whole))
     best, giving = _start_of_those_tried(drawn, combinations, missed)
-    if not np.isfinite(best["miss"]):
-        raise ValueError("The limits on the settings leave no setting to try.")
     start, levels = best["x"], best["levels"]
-    region = _region_at(whole_region, whole, levels)  # from here, the region at the levels found
+    region = _region_at(region, whole, levels)  # from here, the region at the levels found
     # Meet the targets exactly where the models can, staying by the setting found: a small pull keeps it there.
     stay = math.sqrt(1e-4)
     polished = optimize.least_squares(
@@ -9087,8 +9067,8 @@ def target_settings(request: dict) -> dict:
         "max_leverage": leaning["max_leverage"],
         "leverage_of": leaning["name"],
         "extrapolating": any(r["extrapolating"] for r in responses),
-        "share": giving / (tried[0] if by_level else len(drawn) * len(combinations)),
-        "tried": tried[0] if by_level else len(drawn) * len(combinations),
+        "share": giving / tried[0],
+        "tried": tried[0],
         "near": TARGET_NEAR,
         "overlay": _target_overlay(whole, surfaces, goals, region, _pair_sent(request.get("pair"), names), design),
         "search": {
@@ -9224,6 +9204,43 @@ def _blends_run(design: pd.DataFrame, names: list[str]) -> list[list[float]]:
     return design[names].astype(float).drop_duplicates().to_numpy().tolist()
 
 
+def _target_misses(
+    fits: dict[str, _FittedModel],
+    targets: dict[str, float],
+    near: dict[str, float],
+    names: list[str],
+    limited: tuple[DesignRegion | None, dict],
+) -> tuple[Callable[..., np.ndarray], Callable[..., np.ndarray], list[int]]:
+    """Return how far settings are from the targets, the same for a search, and the count of settings it tried.
+
+    The first gives how far each response is predicted from its target at each setting, at given levels, in
+    units of its reach. The second puts a setting the limits do not allow at those levels infinitely far, and
+    counts the others in the list it shares: with a limit for some levels, what can be run differs by level.
+    ``limited`` is the region of the limits and the study's specification.
+    """
+    region, spec = limited
+    tried = [0]
+
+    def off_target(levels: dict[str, float], settings: np.ndarray) -> np.ndarray:
+        point = {**dict.fromkeys(names, 0.0), **levels}
+        return np.column_stack([(fits[n].over(point, names, settings)[0] - targets[n]) / near[n] for n in targets])
+
+    def missed(levels: dict[str, float], settings: np.ndarray) -> np.ndarray:
+        miss = off_target(levels, settings)
+        try:
+            here = _region_at(region, spec, levels)
+            allowed = (
+                np.ones(len(settings), dtype=bool) if here is None or region.rules is None else here.feasible(settings)
+            )  # type: ignore[union-attr]
+        except _NotAllowedError:
+            allowed = np.zeros(len(settings), dtype=bool)
+        tried[0] += int(allowed.sum())
+        miss[~allowed] = np.inf
+        return miss
+
+    return off_target, missed, tried
+
+
 def _start_of_those_tried(
     drawn: np.ndarray,
     combinations: list[dict[str, float]],
@@ -9248,6 +9265,8 @@ def _start_of_those_tried(
         if best is None or found["rank"] < best["rank"]:
             best = found
     assert best is not None  # there is always one combination of levels, the empty one
+    if not math.isfinite(best["miss"]):  # the limits on the settings allow none of those tried, at any levels
+        raise ValueError("The limits on the settings leave no setting to try.")
     return best, giving
 
 
@@ -9540,7 +9559,7 @@ def specification(request: dict) -> dict:
             whole_region, whole, {f["name"]: point[f["name"]] for f in whole["factors"] if _categorical(f)}
         )
     except _NotAllowedError:
-        raise ValueError("The limits on the settings never run these levels together: choose other levels.") from None
+        raise ValueError("The limits on the settings leave no setting to try.") from None
     every = np.random.default_rng(SPECIFICATION_SEED).uniform(-1.0, 1.0, size=(SPECIFICATION_DRAWN, len(names)))
     drawn = every
     if region is not None:
