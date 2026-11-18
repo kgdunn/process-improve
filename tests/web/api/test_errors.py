@@ -352,7 +352,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         ),
         (
             "The Fractional factorial (2-level) design runs each categorical factor at two levels, and S has more: "
-            "choose a full factorial or a Taguchi design."
+            "choose a full factorial, a Taguchi or an optimal design."
         ),
     ),
     "a label a spreadsheet reads as blank": (
@@ -365,7 +365,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _make(factors=[*FACTORS[:2], {"name": "S", "low": "A", "high": "B", "units": ""}]),
         (
             "The Box-Behnken design needs numeric factors, and S is categorical: choose a full factorial, "
-            "fractional factorial, Plackett-Burman or Taguchi design."
+            "fractional factorial, Plackett-Burman, Taguchi or optimal design."
         ),
     ),
     "a run at neither label": (

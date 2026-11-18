@@ -249,16 +249,24 @@ def test_replicates_chosen_for_one_design_do_not_carry_over_to_the_next_one_load
 
 def test_two_labels_make_a_factor_categorical_and_leave_the_two_level_designs(page):
     set_factors(page, [*factors_named("A", "B"), {"name": "Supplier", "low": "old", "high": "new", "units": ""}])
-    numeric = ["dsd", "omars", "box_behnken", "ccd", "d_optimal", "i_optimal", "a_optimal", "maximin_lhs", "sobol"]
+    numeric = ["dsd", "omars", "box_behnken", "ccd", "maximin_lhs", "sobol"]  # the optimal designs take a label
     assert sorted(disabled_designs(page)) == sorted(
         [*numeric, "simplex_lattice", "simplex_centroid", "extreme_vertices"]
     )
     assert page.text_content("#design-hint") == (
         "Box-Behnken needs numeric factors, and Supplier is categorical: choose a full factorial, fractional "
-        "factorial, Plackett-Burman or Taguchi design."
+        "factorial, Plackett-Burman, Taguchi or optimal design."
     )
     assert page.is_disabled("#generate")
     choose(page, design_type="full_factorial")
+    assert not page.is_disabled("#generate")
+
+
+def test_an_optimal_design_is_offered_with_a_categorical_factor(page):
+    """A reader with a supplier among the factors can ask for a D-optimal design (#813)."""
+    set_factors(page, [*factors_named("A", "B"), {"name": "Supplier", "low": "old", "high": "new", "units": ""}])
+    choose(page, design_type="d_optimal")
+    assert "d_optimal" not in disabled_designs(page)
     assert not page.is_disabled("#generate")
 
 
@@ -423,11 +431,12 @@ def test_a_factor_of_several_levels_says_which_designs_take_it(page):
     added.locator("[name=level]").fill("C")
     added.locator("[name=level]").press("Enter")
     assert page.text_content("#design-hint") == (
-        "Fractional factorial (2-level) needs factors of two levels, and Catalyst has 3: choose a full factorial or "
-        "Taguchi design, or give each categorical factor two levels."
+        "Fractional factorial (2-level) needs factors of two levels, and Catalyst has 3: choose a full factorial, "
+        "Taguchi or optimal design, or give each categorical factor two levels."
     )
     assert page.is_disabled("#generate")
-    assert [d for d in ALL_DESIGNS if d not in disabled_designs(page)] == ["full_factorial", "taguchi"]
+    offered = [d for d in ALL_DESIGNS if d not in disabled_designs(page)]
+    assert sorted(offered) == ["a_optimal", "d_optimal", "full_factorial", "i_optimal", "taguchi"]
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])

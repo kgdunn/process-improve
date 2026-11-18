@@ -2224,13 +2224,13 @@ def _check_categorical(design_type: str, factors: list[Factor]) -> None:
         verb = "is" if len(labelled) == 1 else "are"
         raise ValueError(
             f"The {DESIGNS[design_type]['label']} design needs numeric factors, and {_listed(labelled)} {verb} "
-            "categorical: choose a full factorial, fractional factorial, Plackett-Burman or Taguchi design."
+            "categorical: choose a full factorial, fractional factorial, Plackett-Burman, Taguchi or optimal design."
         )
     if (several := _several_names(factors)) and design_type not in SEVERAL_LEVEL_DESIGNS:
         verb = "has" if len(several) == 1 else "have"
         raise ValueError(
             f"The {DESIGNS[design_type]['label']} design runs each categorical factor at two levels, and "
-            f"{_listed(several)} {verb} more: choose a full factorial or a Taguchi design."
+            f"{_listed(several)} {verb} more: choose a full factorial, a Taguchi or an optimal design."
         )
 
 

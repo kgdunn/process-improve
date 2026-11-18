@@ -1825,12 +1825,12 @@ function refreshDesign() {
   } else if (option.disabled && twoLevels(option)) {
     const levels = several.map((f) => `${f.name} has ${levelsOf(f).length}`);
     hint.textContent =
-      `${option.textContent} needs factors of two levels, and ${listNames(levels)}: choose a full factorial or ` +
-      "Taguchi design, or give each categorical factor two levels.";
+      `${option.textContent} needs factors of two levels, and ${listNames(levels)}: choose a full factorial, ` +
+      "Taguchi or optimal design, or give each categorical factor two levels.";
   } else if (option.disabled && numericOnly(option)) {
     hint.textContent =
       `${option.textContent} needs numeric factors, and ${listNames(labelled)} ${labelled.length === 1 ? "is" : "are"} ` +
-      "categorical: choose a full factorial, fractional factorial, Plackett-Burman or Taguchi design.";
+      "categorical: choose a full factorial, fractional factorial, Plackett-Burman, Taguchi or optimal design.";
   } else if (option.disabled) {
     hint.textContent = `${option.textContent} takes ${option.dataset.minFactors} to ${option.dataset.maxFactors} factors on this page; you have ${k}.`;
   } else {
