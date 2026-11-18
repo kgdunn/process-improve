@@ -4656,7 +4656,11 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
         "factors": [_factor_spec(f) for f in factors],
         "response": responses[0]["name"],
         "model": model,
-        "options": {**options, **({"n_blocks": blocks} if (blocks := _blocks(options, most)) > 1 else {})},
+        "options": {
+            **{key: value for key, value in options.items() if key != "hard_to_change"},
+            **({"n_blocks": blocks} if (blocks := _blocks(options, most)) > 1 else {}),
+            **_hard_to_change({**options, "factors": spec.get("factors")}, ["hard_to_change"]),
+        },
         **_stored_responses(responses),
         **_aimed(spec),
         **({"constraints": limits} if limits else {}),
@@ -6601,6 +6605,8 @@ def _relabelled_spec(spec: dict, after: list[dict], names: dict[str, str]) -> di
         return {"terms": [[names.get(n, n) for n in term] for term in chosen["terms"]]}
 
     spec = {**spec, "factors": after}
+    if hard := (spec.get("options") or {}).get("hard_to_change"):
+        spec["options"] = {**spec["options"], "hard_to_change": [names.get(n, n) for n in hard]}
     if limits := spec.get("constraints"):
         spec["constraints"] = [{**limit, "expression": rename_factors(limit["expression"], names)} for limit in limits]
     if "analysis_model" in spec:
@@ -6663,6 +6669,8 @@ def _relabelled_facts(facts: dict, coded: np.ndarray, names: dict[str, str], spe
             notes.append(_aliasing_sentence(groups))
         elif note.startswith("The runs are made in "):
             notes.append(_relabelled_blocking(note, names))
+        elif (plots := re.search(r" hard to change, so the runs are made in (\d+) groups", note)) is not None:
+            notes.append(_whole_plots_sentence(spec["options"]["hard_to_change"], int(plots[1])))
         elif note.startswith(("The runs compare ", "The runs set ")) and len(spec["factors"]) == 1:
             notes.append(_levels_sentence(spec["factors"][0], coded[:, 0], given=spec["design_type"] == GIVEN))
         else:
@@ -10918,6 +10926,8 @@ def next_runs(request: dict) -> dict:
     spec, _, design = _study_runs(request)
     if _mixture(spec):
         return {"offers": [], "notes": [MIXTURE_EXTENSIONS], "recommendation": None, "waiting": None}
+    if (spec.get("options") or {}).get("hard_to_change"):
+        return {"offers": [], "notes": [WHOLE_PLOT_EXTENSIONS], "recommendation": None, "waiting": None}
     recommendation, waiting = _recommended(request, spec)
     offers, notes = [], []
     for kind in EXTENSIONS:
@@ -11162,6 +11172,11 @@ def _moved(spec: dict, found: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 #: What Learn says of a mixture, to which it offers to add no runs.
+#: Why a design with factors that are hard to change is offered no runs to add.
+WHOLE_PLOT_EXTENSIONS = (
+    "This design sets a factor once for each group of runs, and the runs Learn adds to a design are made one by one, "
+    "so it offers none here."
+)
 MIXTURE_EXTENSIONS = "A mixture's runs are blends, and the runs Learn adds to a design are not, so it offers none here."
 
 
@@ -11248,6 +11263,10 @@ def _made_for(request: dict, spec: dict, design: pd.DataFrame, kind: str) -> dic
     """Make the runs ``add_runs`` adds of one kind, or refuse, saying why the study cannot take them."""
     if _mixture(spec):
         raise ValueError("A mixture's runs are blends, and the runs Learn adds to a design are not.")
+    if (spec.get("options") or {}).get("hard_to_change"):
+        raise ValueError(
+            "This design sets a factor once for each group of runs, and the runs Learn adds are made one by one."
+        )
     if kind == RECOMMENDED:
         made = _recommended_runs(request, spec, design)
         if made is None:

@@ -74,6 +74,11 @@ CASES = {
         FACTORS,
         WORDS,
     ),
+    "a D-optimal design with a factor that is hard to change": (
+        {"design_type": "d_optimal", "model_type": "interactions", "budget": 12, "hard_to_change": ["T"]},
+        FACTORS,
+        WORDS,
+    ),
     "one factor, with center runs": (
         {"design_type": "full_factorial", "n_replicates": 2, "n_center_points": 3},
         FACTORS[:1],
@@ -101,7 +106,8 @@ def sent(design: dict) -> dict:
 def test_renaming_a_design_gives_what_making_it_under_the_new_names_gives(api, case):
     request, factors, names = case
     before = api.ok("api_make_design", {**request, "factors": factors})
-    after = api.ok("api_make_design", {**request, "factors": named(factors, names)})
+    hard = {"hard_to_change": [names.get(n, n) for n in request["hard_to_change"]]} if "hard_to_change" in request else {}
+    after = api.ok("api_make_design", {**request, **hard, "factors": named(factors, names)})
     assert after["rows"] == before["rows"], "the library makes a design from its factors' places, not their names"
 
     renamed = api.ok("api_relabel", {"design": sent(before), "factors": after["spec"]["factors"]})
@@ -118,6 +124,7 @@ NAMING = {
     "Main effects are clear of two-factor interactions, which are aliased": "a resolution IV fraction",
     " is confounded with the blocks": "a blocked full factorial",
     " are confounded with the blocks": "a blocked fraction, two of its factors swapped",
+    " hard to change, so the runs are made in ": "a D-optimal design with a factor that is hard to change",
     "The runs compare ": "one factor, with center runs",
     "The runs set ": "one factor's runs as given, at several settings",
 }
