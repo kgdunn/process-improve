@@ -23,13 +23,13 @@ from playwright.sync_api import sync_playwright
 WIDTH, HEIGHT = 1200, 630
 # The page as a card: the words on the left, the topics on the right, the rest of the page hidden.
 CARD_CSS = """
-.map-top, .map-meta, .map-find, .map-bar, .map-legend, .map-card, .map-links, .map-how {
+.map-top, .map-meta, .map-find, .map-bar, .map-legend, .map-books, .map-card, .map-links, .map-how, .site-foot {
   display: none !important;
 }
 main.map { width: 400px; max-width: none; margin: 0; padding: 72px 0 0 56px; }
 main.map h1 { font-size: 46px; line-height: 1.1; margin: 0 0 20px; }
 main.map .lede { font-size: 23px; line-height: 1.4; }
-.map-box { position: fixed; top: 32px; right: 32px; width: 700px; height: 566px; }
+.map-box { position: fixed !important; top: 32px; right: 32px; width: 700px !important; height: 566px !important; }
 .card-brand { position: fixed; left: 56px; bottom: 52px; margin: 0; display: flex; gap: 12px; align-items: center;
   font-size: 22px; color: var(--muted); }
 """
@@ -50,6 +50,13 @@ def draw(web: Path) -> Path:
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(executable_path=os.environ.get("PI_CHROMIUM"))
             page = browser.new_page(viewport={"width": WIDTH, "height": HEIGHT}, color_scheme="light")
+            # Every topic and term, as the reader who chose the deepest of the three depths sees the map.
+            page.add_init_script("try { localStorage.setItem('factorial-map-level', '3'); } catch {}")
+            # The map spreads its topics over the box it starts in, so the box has the card's shape before it starts.
+            page.add_init_script(
+                "document.addEventListener('DOMContentLoaded', () => document.head.insertAdjacentHTML('beforeend', "
+                "'<style>.map-box { width: 700px !important; height: 566px !important; }</style>'));"
+            )
             page.goto(f"http://127.0.0.1:{server.server_port}/map/")
             page.wait_for_function("() => window.conceptMap && document.querySelector('#card h2')")
             page.add_style_tag(content=CARD_CSS)
