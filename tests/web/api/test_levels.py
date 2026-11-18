@@ -450,7 +450,7 @@ def test_designs_with_a_factor_of_several_levels_are_scored_on_its_terms_togethe
     assert found["result"]["terms"][:3] == ["Intercept", "Catalyst_L1", "Catalyst_L2"]
 
 
-# --------------------------------------------------------------------------- an optimal design with a categorical factor
+# --------------------------------------------------------------------------- an optimal design, with levels
 @pytest.mark.parametrize("design_type", ["d_optimal", "i_optimal", "a_optimal"])
 def test_an_optimal_design_runs_every_level_and_its_results_are_read_as_a_factorial_s_are(api, design_type):
     """An optimal design chooses each run's level with its settings (#813): the analysis is the one a factorial has."""
