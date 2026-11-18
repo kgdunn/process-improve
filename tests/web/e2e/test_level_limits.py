@@ -45,7 +45,7 @@ def test_a_limit_for_one_level_is_built_from_five_choices_and_said_in_words(blan
     assert page.is_hidden("#level-limit"), "the choices close once the limit is in the list"
     assert not row.locator(".limit__bounds").is_visible(), "no bound box: it would write the limit for every level"
     assert page.locator("#limits-at option").all_text_contents() == ["RM = A", "RM = B"]
-    assert page.text_content("#limits-summary").startswith("The limits leave 75% of your ranges to run.")
+    assert page.text_content("#limits-summary").startswith("At RM = A: The limits leave 75% of your ranges to run.")
 
 
 def test_the_panel_is_shown_for_the_level_the_reader_chooses(blank_page):

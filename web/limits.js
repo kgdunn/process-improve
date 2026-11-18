@@ -350,6 +350,9 @@ function render() {
   summary.replaceChildren();
   if (fresh && hasLimits()) {
     const said = reply.ok ? limitsSummary(reply.result, hooks.factors()) : [{ text: reply.error, error: true }];
+    // With a limit for one level, what is left is said of the levels shown, by name.
+    const at = reply.ok && reply.result.levels && !said[0]?.error ? `At ${levelsText(reply.result.levels.chosen)}: ` : "";
+    if (at) summary.append(el("span", "", at));
     for (const s of said) summary.append(el("span", s.error ? "error" : "", `${s.text} `));
   }
   summary.hidden = !summary.childNodes.length;
