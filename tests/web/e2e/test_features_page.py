@@ -65,13 +65,19 @@ def test_the_footer_says_what_factorial_is_and_names_each_group_of_its_links(pag
             [
                 "Factorial, the app",
                 "What Factorial does",
-                "How Factorial works",
-                "The design catalog",
-                "The textbooks' answers, checked",
-                "How its ideas link",
+                "Catalog of experimental designs",
+                "Validation & technical accuracy",
+                "Experimental design concept map",
             ],
         ],
-        ["Behind it", ["process-improve, the Python package", "Process Improvement using Data, the book"]],
+        [
+            "Behind it",
+            [
+                "See behind the scenes: how Factorial works",
+                "process-improve, the Python package",
+                "Process Improvement using Data, the book",
+            ],
+        ],
         ["Something wrong or missing?", ["Send feedback"]],
     ]
     assert footer.locator("nav").get_attribute("aria-label") == "More about Factorial"

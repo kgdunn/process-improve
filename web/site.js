@@ -11,15 +11,15 @@ export const SITE_LINKS = [
     links: [
       ["./", "Factorial, the app"],
       ["features.html", "What Factorial does"],
-      ["about.html", "How Factorial works"],
-      ["catalog/", "The design catalog"],
-      ["catalog/reproduced/", "The textbooks' answers, checked"],
-      ["map/", "How its ideas link"],
+      ["catalog/", "Catalog of experimental designs"],
+      ["catalog/reproduced/", "Validation & technical accuracy"],
+      ["map/", "Experimental design concept map"],
     ],
   },
   {
     head: "Behind it",
     links: [
+      ["about.html", "See behind the scenes: how Factorial works"],
       ["https://github.com/kgdunn/process-improve", "process-improve, the Python package"],
       ["https://learnche.org/pid", "Process Improvement using Data, the book"],
     ],

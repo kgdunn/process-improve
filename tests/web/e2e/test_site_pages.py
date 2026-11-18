@@ -13,10 +13,10 @@ PAGES = ["about.html", "features.html", "catalog/", "catalog/reproduced/", "map/
 LINKS = [
     "Factorial, the app",
     "What Factorial does",
-    "How Factorial works",
-    "The design catalog",
-    "The textbooks' answers, checked",
-    "How its ideas link",
+    "Catalog of experimental designs",
+    "Validation & technical accuracy",
+    "Experimental design concept map",
+    "See behind the scenes: how Factorial works",
     "process-improve, the Python package",
     "Process Improvement using Data, the book",
 ]
@@ -37,7 +37,7 @@ def test_each_page_ends_in_the_same_footer_with_the_same_links_in_the_same_order
     assert links.all_text_contents() == LINKS
     hrefs = links.evaluate_all("(all) => all.map((one) => one.href)")
     assert hrefs[:6] == [
-        f"{site}{path}" for path in ("", "features.html", "about.html", "catalog/", "catalog/reproduced/", "map/")
+        f"{site}{path}" for path in ("", "features.html", "catalog/", "catalog/reproduced/", "map/", "about.html")
     ]
     assert page.locator(".site-foot").count() == 1
     assert page.locator("footer").count() == 1, "one footer, not the page's own and the shared one"
@@ -69,7 +69,7 @@ def test_the_mode_chosen_on_one_page_is_the_mode_of_the_next(reproduced_context,
     page = opened(reproduced_context, site, "about.html")
     page.click("#mode")
     chosen = page.evaluate("document.documentElement.dataset.theme")
-    page.click('.site-foot a:has-text("The textbooks\' answers, checked")')
+    page.click('.site-foot a:has-text("Validation & technical accuracy")')
     page.wait_for_selector(".site-foot a")
     assert page.url == f"{site}catalog/reproduced/"
     assert page.evaluate("document.documentElement.dataset.theme") == chosen
@@ -77,7 +77,7 @@ def test_the_mode_chosen_on_one_page_is_the_mode_of_the_next(reproduced_context,
 
 def test_the_app_links_to_the_textbooks_answers_in_its_footer(page, site):
     link = page.locator('footer.foot a[href="catalog/reproduced/"]')
-    assert link.text_content() == "The textbooks' answers, checked"
+    assert link.text_content() == "Validation & technical accuracy"
     footer = page.locator("footer.foot nav a")
     assert footer.all_text_contents() == LINKS, "the same links as every other page's footer, in its order"
 
