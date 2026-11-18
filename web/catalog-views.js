@@ -4,9 +4,7 @@
 
 import { tabOf } from "./campaign.js";
 import {
-  FAMILY_COLOURS,
   MAP_ROWS,
-  OTHER_COLOUR,
   RUN_BANDS,
   STEP_WORDS,
   bandPlace,
@@ -165,19 +163,18 @@ export function projectionExplorer(runs, names) {
 }
 
 // ---------------------------------------------------------------- the timeline
-/** The families in the order their colours are listed, then the rest: the order of a bar's segments. */
-const STACK = [...Object.keys(FAMILY_COLOURS)];
+/** The height of the strip of years, in the units it is drawn in: style.css gives it the same height on the page. */
+const STRIP = 28;
 
 /**
- * Draw the published designs by the year their source appeared: a bar per span of years, in the colours
- * of their families, the families first published within the span marked above, and the years
- * chosen in full colour. A bar is a button; the page also lets a reader drag across the years.
+ * Draw the published designs by the year their source appeared, as a strip for the filter panel: a bar per
+ * span of years, as tall as its share of the fullest span, with the years chosen in full colour. A bar is
+ * a button; the page also lets a reader drag across the years. The strip is stretched to the panel's width,
+ * so it holds no words: the page writes the first and last year under it.
  */
-export function drawTimeline(svg, bins, marks, [from, to]) {
+export function drawTimeline(svg, bins, [from, to]) {
   const width = 720;
-  const top = 22;
-  const height = 84;
-  svg.setAttribute("viewBox", `0 0 ${width} ${top + height + 18}`);
+  svg.setAttribute("viewBox", `0 0 ${width} ${STRIP}`);
   if (!bins.length) return svg.replaceChildren();
   const first = bins[0].from;
   const last = bins.at(-1).to + 1;
@@ -189,29 +186,15 @@ export function drawTimeline(svg, bins, marks, [from, to]) {
     const chosen = (from === null || bin.to >= from) && (to === null || bin.from <= to);
     const g = shape("g", { class: chosen ? "bin" : "bin bin--out", tabindex: "0", role: "button", "data-from": bin.from, "data-to": bin.to });
     g.setAttribute("aria-label", `${bin.from} to ${bin.to}: ${bin.count} designs`);
-    let base = top + height;
-    const families = Object.keys(bin.families).sort((a, b) => (STACK.indexOf(a) + 1 || 99) - (STACK.indexOf(b) + 1 || 99));
-    for (const family of families) {
-      const h = (height * bin.families[family]) / most;
-      base -= h;
-      g.append(shape("rect", { x: x(bin.from) + 1, y: base, width: Math.max(x(bin.to + 1) - x(bin.from) - 2, 1), height: h, fill: FAMILY_COLOURS[family] ?? OTHER_COLOUR }));
-    }
-    // A bar with few designs is still a target as tall as the plot.
-    g.append(shape("rect", { x: x(bin.from), y: top, width: x(bin.to + 1) - x(bin.from), height, class: "bin__hit" }));
+    // A span with designs shows at least a line, so a reader sees it is not empty.
+    const h = bin.count ? Math.max((STRIP * bin.count) / most, 1.5) : 0;
+    g.append(shape("rect", { x: x(bin.from) + 1, y: STRIP - h, width: Math.max(x(bin.to + 1) - x(bin.from) - 2, 1), height: h, class: "bin__bar" }));
+    // A bar with few designs is still a target as tall as the strip.
+    g.append(shape("rect", { x: x(bin.from), y: 0, width: x(bin.to + 1) - x(bin.from), height: STRIP, class: "bin__hit" }));
     return titled(g, `${bin.from} to ${bin.to}: ${bin.count} designs`);
   });
-  const ticks = [];
-  for (let year = Math.ceil(first / 10) * 10; year < last; year += 10) {
-    ticks.push(shape("text", { x: x(year), y: top + height + 14, class: "timeline__year", "text-anchor": "middle" }, String(year)));
-  }
-  const flags = marks.map((mark, i) => {
-    const cx = x(mark.year + 0.5);
-    const cy = 6 + (i % 2) * 9;
-    const flag = shape("path", { d: `M${cx} ${cy - 4} L${cx + 4} ${cy} L${cx} ${cy + 4} L${cx - 4} ${cy} Z`, fill: FAMILY_COLOURS[mark.family] ?? OTHER_COLOUR, class: "timeline__mark" });
-    return titled(flag, `${mark.label} designs, first published in ${mark.year}`);
-  });
-  const brush = shape("rect", { x: 0, y: top, width: 0, height, class: "timeline__brush", visibility: "hidden" });
-  svg.replaceChildren(...groups, ...ticks, ...flags, brush);
+  const brush = shape("rect", { x: 0, y: 0, width: 0, height: STRIP, class: "timeline__brush", visibility: "hidden" });
+  svg.replaceChildren(...groups, brush);
   return svg;
 }
 

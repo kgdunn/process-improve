@@ -896,7 +896,9 @@ What a careful reader, or an organisation, asks before using a tool.
     the library makes. Search in words, filter by family, field, runs, factors and model, and
     see them counted on a map of factors by runs: a row opens into its families of design,
     each mark coloured by what the design truly estimates, and a press on a cell or a mark
-    lists its designs. A design's page links to where its source
+    lists its designs. The filter for the years has a strip of bars over its two boxes: a
+    bar's height is the number of designs published in its five years, and a drag across the
+    strip, or a press on a bar, fills the boxes. A design's page links to where its source
     prints it, projects its runs onto two or three factors, and draws its correlation map. Up
     to four designs are compared side by side. More than 1,100 designs open in Factorial with
     one click. There is a page for each of 30 fields and for each source, a list of errata, a

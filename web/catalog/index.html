@@ -158,6 +158,11 @@
         </fieldset>
         <fieldset>
           <legend>Date published</legend>
+          <!-- How many published designs each five years holds, with every other filter as it is: drag across it,
+               or choose a bar, and the two boxes below take those years. -->
+          <svg id="year-bars" class="timeline" role="group" preserveAspectRatio="none"
+            aria-label="Published designs by the year their source appeared. Choose a bar, or drag across the years, to keep those years."></svg>
+          <div class="timeline__ends" aria-hidden="true"><span id="year-first"></span><span id="year-last"></span></div>
           <div class="facets__range"><span>Years</span>
             <input id="year-min" type="number" min="1900" max="2100" inputmode="numeric" aria-label="From the year" placeholder="from">
             <input id="year-max" type="number" min="1900" max="2100" inputmode="numeric" aria-label="To the year" placeholder="to"></div>
@@ -196,15 +201,6 @@
           with its details and a button that opens it in Factorial. A design left of a line has too few runs for
           that model; one right of it has enough, and may still not estimate it. The arrow keys move between the
           cells.</figcaption>
-      </figure>
-      <figure class="catalog__timeline">
-        <svg id="year-bars" class="timeline" role="group" aria-label="Published designs by the year their source appeared"></svg>
-        <figcaption class="hint" id="timeline-caption">The published designs by the year their source appeared, in the
-          colours of their families; a diamond marks the year a family was first published. Drag across the years, or
-          choose a bar, to keep those years.
-          <span class="visually-hidden">First published:</span>
-          <ul class="timeline__marks" id="timeline-marks" aria-label="The families first published in these years"></ul>
-        </figcaption>
       </figure>
       <div class="catalog__listhead">
         <label>Order <select id="sort"></select></label>

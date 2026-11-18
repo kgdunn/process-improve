@@ -731,6 +731,29 @@ def test_a_bar_of_the_timeline_keeps_its_years(context, site):
     counted(page, "2 of 5")
     assert (page.input_value("#year-min"), page.input_value("#year-max")) == ("1975", "1979")
     assert "year=1975-1979" in page.url
+    assert page.locator("#year-bars .bin--out").count() == page.locator("#year-bars .bin").count() - 1
+
+
+def test_the_years_are_a_strip_in_the_filter_panel_above_their_boxes(context, site):
+    page = open_catalog(context, site)
+    page.wait_for_selector("#year-bars .bin")
+    assert page.locator("#facets #year-bars").count() == 1, "with the filter it sets, not above the results"
+    strip, boxes = page.locator("#year-bars").bounding_box(), page.locator("#year-min").bounding_box()
+    assert strip["height"] == pytest.approx(28, abs=1)
+    assert strip["y"] + strip["height"] <= boxes["y"]
+    ends = (page.text_content("#year-first"), page.text_content("#year-last"))
+    bins = page.locator("#year-bars .bin")
+    assert ends == (bins.first.get_attribute("data-from"), bins.last.get_attribute("data-to"))
+    assert not page.locator("#timeline-marks, .timeline__mark").count(), "no diamonds and no list of them"
+
+
+def test_typing_the_years_shades_the_strip(context, site):
+    page = open_catalog(context, site)
+    page.wait_for_selector("#year-bars .bin")
+    page.fill("#year-min", "1975")
+    page.fill("#year-max", "1979")
+    page.wait_for_function("() => document.querySelectorAll('#year-bars .bin:not(.bin--out)').length === 1")
+    assert page.locator("#year-bars .bin:not(.bin--out)").get_attribute("data-from") == "1975"
 
 
 # --------------------------------------------------------------------------- phase 4: limits on the settings

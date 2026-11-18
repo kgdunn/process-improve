@@ -31,7 +31,6 @@ import {
   errataShown,
   factLine,
   familyCounts,
-  familyMarks,
   filtersOf,
   fromHash,
   generatorsLine,
@@ -207,6 +206,8 @@ function buildFacets() {
         element("input", { type: "checkbox", value: family }),
         swatch,
         element("span", { text: info.label }),
+        // The year the family was first published, where the catalog knows it.
+        ...(info.year ? [element("span", { class: "facets__year", text: info.year, title: `First published in ${info.year}` })] : []),
         element("span", { class: "count", "data-family": family }),
       );
       return label;
@@ -261,15 +262,9 @@ function renderCounts() {
 
 function renderTimeline() {
   const bins = yearBins(catalog, state);
-  const marks = familyMarks(catalog, bins);
-  drawTimeline($("#year-bars"), bins, marks, state.years);
-  $("#timeline-marks").replaceChildren(
-    ...marks.map((mark) => {
-      const swatch = element("span", { class: "swatch" });
-      swatch.style.background = FAMILY_COLOURS[mark.family] ?? OTHER_COLOUR;
-      return element("li", {}, swatch, `${mark.label} ${mark.year}`);
-    }),
-  );
+  drawTimeline($("#year-bars"), bins, state.years);
+  $("#year-first").textContent = bins.length ? bins[0].from : "";
+  $("#year-last").textContent = bins.length ? bins.at(-1).to : "";
 }
 
 // ---------------------------------------------------------------- the list
