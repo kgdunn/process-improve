@@ -1359,6 +1359,8 @@ def _read_limit(text: str, factors: list[Factor]) -> tuple[str, list[str]]:
     tree, hint = _parsed(text)
     if hint:
         raise ValueError(f"The limit {text!r} cannot be read: {hint}")
+    if _names_a_level(tree, factors):
+        return _read_rule(text, tree, factors)
     _one_comparison(text, tree, numeric)
     named = _factors_named(text, tree, factors)
     try:
@@ -1373,6 +1375,84 @@ def _read_limit(text: str, factors: list[Factor]) -> tuple[str, list[str]]:
     # form, the plain T of a full-width one (#808).
     canonical = rename_factors(text, {name: name for name in named})
     _short_enough(canonical)
+    return canonical, [name for name in numeric if name in named]
+
+
+#: The comparison that holds when a rule's own does not: ``not (K == 'B' and T > 170)`` is "at B, T <= 170".
+_OTHERWISE: dict[type[ast.cmpop], type[ast.cmpop]] = {
+    ast.Gt: ast.LtE,
+    ast.GtE: ast.Lt,
+    ast.Lt: ast.GtE,
+    ast.LtE: ast.Gt,
+}
+
+
+def _names_a_level(tree: ast.AST | None, factors: list[Factor]) -> bool:
+    """Say whether a parsed limit names a categorical factor: such a limit holds at some of its levels only."""
+    labelled = {f.name for f in factors if f.type == "categorical"}
+    return tree is not None and any(isinstance(node, ast.Name) and node.id in labelled for node in ast.walk(tree))
+
+
+def _rule_parts(tree: ast.AST | None, factors: list[Factor]) -> tuple[dict[str, str], str | None] | None:
+    """Read a limit for some levels: the levels it is for, and the limit on the numeric factors that holds there.
+
+    The page reads one form, ``not (K == 'B' and T > 170)``: any number of levels, each of a factor of
+    its own, and at most one inequality. It says "at catalyst B, T is at most 170"; without the
+    inequality, ``not (K == 'B' and S == 'X')``, it says that the two levels are never run together.
+    None for any other form.
+    """
+    # shortcut: one form of the rules the library reads (experiments/_rules.py), upgrade when a reader needs "or".
+    labelled = {f.name: [str(level) for level in f.levels or []] for f in factors if f.type == "categorical"}
+    if not (isinstance(tree, ast.UnaryOp) and isinstance(tree.op, ast.Not)):
+        return None
+    inner = tree.operand
+    parts = inner.values if isinstance(inner, ast.BoolOp) and isinstance(inner.op, ast.And) else [inner]
+    when: dict[str, str] = {}
+    holds: str | None = None
+    for part in parts:
+        if not (isinstance(part, ast.Compare) and len(part.ops) == 1):
+            return None
+        left, op, right = part.left, part.ops[0], part.comparators[0]
+        if isinstance(left, ast.Name) and left.id in labelled:
+            if not (isinstance(op, ast.Eq) and isinstance(right, ast.Constant)) or left.id in when:
+                return None
+            when[left.id] = str(right.value)
+        elif type(op) in _OTHERWISE and holds is None:
+            holds = ast.unparse(ast.Compare(left=left, ops=[_OTHERWISE[type(op)]()], comparators=[right]))
+        else:
+            return None
+    return (when, holds) if when and (holds is not None or len(when) > 1) else None
+
+
+def _read_rule(text: str, tree: ast.expr | None, factors: list[Factor]) -> tuple[str, list[str]]:
+    """Return the canonical text of a limit for some levels and the numeric factors it names; refuse it otherwise."""
+    numeric = [f.name for f in factors if f.type != "categorical"]
+    labelled = [f for f in factors if f.type == "categorical"]
+    parts = _rule_parts(tree, factors)
+    if parts is None:
+        name = next(f.name for f in labelled if _names_a_level(tree, [f]))
+        level = str((next(f for f in labelled if f.name == name).levels or ["B"])[-1])
+        example = f"not ({name} == {level!r} and {_example(numeric).replace('<=', '>')})"
+        raise ValueError(
+            f"The limit {text!r} names {name}, which is categorical: write a limit for one of its levels as "
+            f"{example}, which keeps the settings where that does not hold."
+        )
+    when, holds = parts
+    if holds is not None:  # the inequality is checked as any limit is, in the numeric factors
+        _read_limit(holds, [f for f in factors if f.type != "categorical"])
+    for name, level in when.items():
+        levels = [str(one) for one in next(f for f in labelled if f.name == name).levels or []]
+        if level not in levels:
+            raise ValueError(
+                f"The limit {text!r} names the level {level!r}, which {name} does not have: {_listed(levels)}."
+            )
+    canonical = ast.unparse(tree)  # type: ignore[arg-type]
+    _short_enough(canonical)
+    try:
+        DesignRegion(factors, [canonical])
+    except ValueError as exc:
+        raise ValueError(f"The limit {text!r} cannot be kept: {exc}") from exc
+    named = set(_named(tree))  # type: ignore[arg-type]
     return canonical, [name for name in numeric if name in named]
 
 
@@ -1477,16 +1557,66 @@ def _checked_constraints(raw: object, factors: list[Factor]) -> list[dict[str, A
     page had them.
     """
     limits = [(_read_limit(text, factors)[0], note) for text, note in _limit_items(raw)]
-    curved = set(_region(factors, [text for text, _ in limits]).curved_constraints()) if limits else set()
+    curved = _curved_limits(factors, [text for text, _ in limits])
     return [
         {"expression": text, "type": "nonlinear" if i in curved else "linear", **({"note": note} if note else {})}
         for i, (text, note) in enumerate(limits)
     ]
 
 
+def _for_levels(expression: str, factors: list[Factor]) -> tuple[dict[str, str], str | None] | None:
+    """Return the levels a stored limit is for and the limit that holds there, or None for a limit of every level."""
+    tree = ast.parse(expression, mode="eval").body
+    return _rule_parts(tree, factors) if _names_a_level(tree, factors) else None
+
+
+def _curved_limits(factors: list[Factor], expressions: list[str]) -> set[int]:
+    """Return which limits are curved, by their place: a limit for some levels by the inequality it holds there."""
+    numeric = [f for f in factors if f.type != "categorical"]
+    plain = {i: text for i, text in enumerate(expressions) if _for_levels(text, factors) is None}
+    curved = (
+        {list(plain)[j] for j in DesignRegion(numeric, list(plain.values())).curved_constraints()} if plain else set()
+    )
+    for i, text in enumerate(expressions):
+        parts = _for_levels(text, factors)
+        if parts and parts[1] is not None and DesignRegion(numeric, [parts[1]]).curved_constraints():
+            curved.add(i)
+    return curved
+
+
 def _region(factors: list[Factor], expressions: list[str]) -> DesignRegion:
-    """Return the region of settings that meets every limit, over the numeric factors."""
+    """Return the region of settings that meets every limit.
+
+    It is over the numeric factors, as every limit is that names them alone. With a limit for some
+    levels of a categorical factor it is over all the factors, and holds a region of the numeric
+    factors for each combination of levels the limits allow: :func:`_at` gives the one at given levels.
+    """
+    if any(_for_levels(text, factors) is not None for text in expressions):
+        try:
+            return DesignRegion(factors, expressions)
+        except ValueError as exc:
+            raise ValueError(f"The limits cannot be kept together: {exc}") from exc
     return DesignRegion([f for f in factors if f.type != "categorical"], expressions)
+
+
+def _feasible(region: DesignRegion, coded: np.ndarray, labels: Any = None) -> np.ndarray:  # noqa: ANN401 - a frame or a mapping
+    """Say which coded settings meet every limit; ``labels`` holds each one's level of the categorical factors."""
+    if region.rules is None:
+        return region.feasible(coded)
+    return region.feasible(coded, labels={name: list(labels[name]) for name in region.rules.factors})
+
+
+def _at(region: DesignRegion, levels: dict[str, str] | None = None) -> DesignRegion:
+    """Return the region of the numeric factors at given levels; a region with no limit for a level is its own.
+
+    ``levels`` names each categorical factor's level. Without them, the first combination the limits allow.
+    """
+    if region.rules is None:
+        return region
+    allowed = region.allowed_combinations()
+    names = [name for name in allowed.columns if name != "limits"]
+    chosen = {name: str((levels or {}).get(name, allowed[name].iloc[0])) for name in names}
+    return region.given(**chosen)
 
 
 # --------------------------------------------------------------------------- public API
@@ -1587,7 +1717,7 @@ def make_design(spec: dict) -> dict:
     if design_type in SPACE_FILLING:
         facts["notes"].insert(0, _spread_sentence(design_type, kwargs["budget"]))
     if region is not None:
-        if not region.feasible(coded[region.names].to_numpy(dtype=float)).all():
+        if not _feasible(region, coded[region.names].to_numpy(dtype=float), runs).all():
             raise RuntimeError("The design has a run outside the limits on the settings, which it must not have.")
         facts["notes"].append(INSIDE_LIMITS)
     return {
@@ -1940,7 +2070,7 @@ def _region_refusal(factors: list[Factor], region: DesignRegion, design_type: st
             f"With limits on the settings, the page makes designs in up to {MAX_LIMITED_FACTORS} factors; you have "
             f"{len(factors)}."
         )
-    if region.is_empty():
+    if region.rules is None and region.is_empty():  # with a limit for some levels, the library refused an empty level
         raise ValueError("No setting in your ranges meets every limit: loosen a limit, or widen a range.")
     return region
 
