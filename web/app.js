@@ -2331,7 +2331,9 @@ function renderDesign(warnings = state.designWarnings ?? []) {
       ? ` Some runs of ${r.outside_range.join(", ")} lie outside the ranges you entered; check they are safe to run.`
       : "";
     // Runs as given keep the order they came in; a study Learn added runs to holds runs the page put in random order.
-    const order = r.spec?.design_type === GIVEN && !r.spec.options?.grown ? "in the order given" : "in random run order";
+    const given = r.spec?.design_type === GIVEN && !r.spec.options?.grown;
+    // A design with a factor that is hard to change keeps the order of its whole plots, which its notes explain.
+    const order = given || r.spec?.options?.hard_to_change ? "in the order given" : "in random run order";
     parts.push(said("", `${r.n_runs} runs${centre}, ${order}.${outside}`), ...noteList(r.facts.notes));
   } else {
     parts.push(el("p", "", `${r.rows.length} runs, read from the workbook.`));

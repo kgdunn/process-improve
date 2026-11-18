@@ -389,11 +389,11 @@
                     data-hint="Main effects in a standard array of 4 to 81 runs, and at three levels each numeric factor's square; interactions are aliased with them. A categorical factor stays at its two levels.">Taguchi orthogonal array</option>
                   <option value="omars" data-options="budget n_replicates" data-min-factors="3" data-max-factors="5"
                     data-hint="Three levels, with main effects clear of interactions and squares as a definitive screening design has them, in the number of runs you choose above its own: the extra runs sharpen the squares and the interactions. The search takes up to a minute at five factors.">OMARS (three levels, runs you choose)</option>
-                  <option value="d_optimal" data-options="budget model_type n_replicates n_blocks" data-min-factors="2" data-max-factors="40"
+                  <option value="d_optimal" data-options="budget model_type n_replicates n_blocks hard_to_change" data-min-factors="2" data-max-factors="40"
                     data-hint="Best estimates of the chosen model's coefficients for a fixed number of runs.">D-optimal</option>
-                  <option value="i_optimal" data-options="budget model_type n_replicates n_blocks" data-min-factors="2" data-max-factors="40"
+                  <option value="i_optimal" data-options="budget model_type n_replicates n_blocks hard_to_change" data-min-factors="2" data-max-factors="40"
                     data-hint="Most precise predictions, on average over the factor space, for a fixed number of runs. The search takes longest of the designs here.">I-optimal</option>
-                  <option value="a_optimal" data-options="budget model_type n_replicates n_blocks" data-min-factors="2" data-max-factors="40"
+                  <option value="a_optimal" data-options="budget model_type n_replicates n_blocks hard_to_change" data-min-factors="2" data-max-factors="40"
                     data-hint="Smallest average variance of the chosen model's coefficients for a fixed number of runs: each coefficient counts the same, where a D-optimal design lets one be known well at another's cost.">A-optimal</option>
                   <option value="maximin_lhs" data-options="budget n_replicates n_blocks" data-min-factors="2" data-max-factors="8"
                     data-hint="Runs spread evenly through the ranges, made for no model: each factor takes as many different settings as there are runs. For mapping a response whose shape is unknown, or for a machine-learning model.">Space-filling (Latin hypercube)</option>

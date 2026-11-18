@@ -208,6 +208,33 @@ def test_the_python_shown_reproduces_blocks_replicates_and_a_typed_axial_distanc
 
 
 @pytest.mark.slow
+def test_the_python_shown_reproduces_a_design_with_a_factor_that_is_hard_to_change(api, node):
+    """The split-plot design, and each coefficient judged against the spread it meets, as the page judges it."""
+    plan = {"design_type": "d_optimal", "factors": FACTORS, "model_type": "interactions", "budget": 12}
+    held = held_of(api.ok("api_make_design", {**plan, "hard_to_change": [FACTORS[0]["name"]]}))
+    simulation = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 3})
+    analysis = api.ok("api_analyze_runs", {**held, "responses": simulation["responses"], "model": "main_effects"})
+    assert "split_plot" in analysis, "the results are enough for two spreads"
+    design = ("designCode", [held["spec"]])
+    code = panel(
+        node,
+        design,
+        ("resultsCode", [held, simulation["responses"], simulation]),
+        ("analyseCode", [analysis["formula"], True, held["spec"]]),
+    )
+    shown = {c["term"]: c for c in run(code)["split_plot"]["coefficients"]}
+    for c in analysis["coefficients"]:
+        for key in ("coefficient", "std_error", "p_value"):
+            assert shown[c["term"]][key] == pytest.approx(c[key], abs=1e-9), (c["term"], key)
+    names = [f["name"] for f in held["spec"]["factors"]]
+    made = run(panel(node, design))["result"].design_actual
+    assert made[names].to_numpy().tolist() == run_sheet(held)[names].to_numpy().tolist(), (
+        "the page's runs, in its order"
+    )
+    assert made["WholePlot"].tolist() == run_sheet(held)["Whole plot"].tolist()
+
+
+@pytest.mark.slow
 def test_the_comparison_code_reproduces_the_page_s_table(api, node):
     made, held_designs = generate_all(api, FACTORS, "main_quadratic")
     compared = api.ok("api_compare", {"model": "main_quadratic", "designs": held_designs})

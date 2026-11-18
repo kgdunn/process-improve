@@ -446,7 +446,7 @@ BOOK = "https://learnche.org/pid/"
 #: The name ``?example=`` gives the worked example (``WORKED`` in ``web/campaign.js``), which no other may take.
 WORKED = "worked"
 #: The latest campaign format the page reads (``CAMPAIGN_VERSION`` in ``web/campaign.js``).
-CAMPAIGN_VERSION = 10
+CAMPAIGN_VERSION = 11
 #: The format of a study of one factor (``ONE_FACTOR_FORMAT`` in ``web/campaign.js``): a page from before it could
 #: not analyse one, and refuses it in a sentence. A study of more factors keeps format 1.
 ONE_FACTOR_FORMAT = 2
@@ -474,6 +474,9 @@ ROUNDS_FORMAT = 9
 #: The format of a study with a run made at settings that differ from the plan (``PLANNED_FORMAT`` in
 #: ``web/campaign.js``). No example the build makes has one.
 PLANNED_FORMAT = 10
+#: The format of a study whose design sets a factor once for a group of runs (``WHOLE_PLOT_FORMAT`` in
+#: ``web/campaign.js``). No example the build makes has one.
+WHOLE_PLOT_FORMAT = 11
 #: The most factors a study of format 3 or earlier holds (``FEW_FACTORS`` in ``web/campaign.js``).
 FEW_FACTORS = 12
 

@@ -925,6 +925,32 @@ describe("a curve each run gives", () => {
   });
 });
 
+describe("a design that sets a factor once for a group of runs", () => {
+  const split = () => {
+    const made = campaign();
+    made.design.spec.options = { ...made.design.spec.options, hard_to_change: [made.design.spec.factors[0].name] };
+    return made;
+  };
+
+  test("the study keeps the factors that are hard to change, in a format of its own", async () => {
+    const { WHOLE_PLOT_FORMAT } = await import("../../../web/campaign.js");
+    const read = checkCampaign({ ...split(), v: WHOLE_PLOT_FORMAT });
+    assert.deepEqual(read.design.spec.options.hard_to_change, [split().design.spec.factors[0].name]);
+    assert.equal(read.v, WHOLE_PLOT_FORMAT);
+    assert.equal(CAMPAIGN_VERSION, WHOLE_PLOT_FORMAT, "the page reads it");
+  });
+
+  test("a list that is not of names is refused", () => {
+    const bad = (value) => {
+      const made = split();
+      made.design.spec.options.hard_to_change = value;
+      return () => checkCampaign({ ...made, v: CAMPAIGN_VERSION });
+    };
+    assert.throws(bad("T"), /the factors that are hard to change/);
+    assert.throws(bad([1]), /a factor that is hard to change/);
+  });
+});
+
 describe("a run made at settings that differ from the plan", () => {
   const off = () => ({ ...campaign(), planned: { 1: { T: 150 } } });
 
@@ -933,7 +959,7 @@ describe("a run made at settings that differ from the plan", () => {
     const read = checkCampaign({ ...off(), v: PLANNED_FORMAT });
     assert.deepEqual(read.planned, { 1: { T: 150 } });
     assert.equal(read.v, PLANNED_FORMAT);
-    assert.equal(CAMPAIGN_VERSION, PLANNED_FORMAT, "the page reads it");
+    assert.ok(CAMPAIGN_VERSION >= PLANNED_FORMAT, "the page reads it");
     assert.equal(checkCampaign(campaign()).planned, undefined, "a study on its plan holds none, in its earlier format");
   });
 

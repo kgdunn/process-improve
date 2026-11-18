@@ -18,8 +18,10 @@
  * Format 9 holds the study a study builds on (``builds_on``), which links the rounds of a campaign: dropped too.
  * Format 10 holds the planned settings of the runs made at other settings (``planned``): dropped too, and with them
  * the way back to the plan.
+ * Format 11 holds a design that sets a factor once for a group of runs (``options.hard_to_change``), whose list of
+ * factors an earlier page refuses as no setting of a design.
  */
-export const CAMPAIGN_VERSION = 10;
+export const CAMPAIGN_VERSION = 11;
 
 /** The format of a study of one factor; a study of more factors keeps format 1. */
 export const ONE_FACTOR_FORMAT = 2;
@@ -48,6 +50,9 @@ export const ROUNDS_FORMAT = 9;
 /** The format of a study with a run made at settings that differ from the plan (``planned``). */
 export const PLANNED_FORMAT = 10;
 
+/** The format of a study whose design sets a factor once for a group of runs, a whole plot (``options.hard_to_change``). */
+export const WHOLE_PLOT_FORMAT = 11;
+
 /** The most factors a study of format 3 or earlier holds: a page of those formats refuses more. */
 export const FEW_FACTORS = 12;
 
@@ -61,6 +66,7 @@ export const CURVE_POINTS_HELD = 1000;
  */
 export function studyFormat(spec, study = {}) {
   const { what_if: kept = [], set_aside: setAside = {}, targets = {}, windows = {}, builds_on: builtOn = [], planned = {} } = study;
+  if (spec.options?.hard_to_change?.length) return WHOLE_PLOT_FORMAT;
   if (Object.keys(planned).length) return PLANNED_FORMAT;
   if (builtOn.length) return ROUNDS_FORMAT;
   if (Object.keys(targets).length || Object.keys(windows).length) return TARGETS_FORMAT;
@@ -147,13 +153,20 @@ function factor(f, i) {
   };
 }
 
-/** The settings the design was made with: numbers, short text, or the true and false Python reads back. */
+/**
+ * The settings the design was made with: numbers, short text, or the true and false Python reads back; and the
+ * factors that are hard to change, a list of names, which Python checks against the study's factors.
+ */
 function options(value) {
   if (value === undefined || value === null) return {};
   if (!isObject(value)) refuse("the design's settings are not settings");
   const out = {};
   for (const [key, v] of Object.entries(value)) {
     if (!/^[a-z_]{1,32}$/.test(key)) refuse(`the design's setting ${JSON.stringify(key).slice(0, 40)} is unknown`);
+    if (key === "hard_to_change") {
+      out[key] = list(v, "the factors that are hard to change", FACTORS_HELD).map((name) => text(name, "a factor that is hard to change", 64));
+      continue;
+    }
     if (!(isFiniteNumber(v) || isText(v, 64) || typeof v === "boolean")) refuse(`the design's setting ${key} is not a value`);
     out[key] = v;
   }
