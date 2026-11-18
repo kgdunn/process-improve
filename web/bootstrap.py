@@ -10590,9 +10590,10 @@ def _matched(result: Any, request: dict, spec: dict, n_points: int) -> dict[str,
 def outside_limits(request: dict) -> dict:
     """Name the limits on the settings that some settings break, each by its place in the study's list.
 
-    ``settings`` holds each numeric factor's setting, a number in its own units inside its range; a
-    limit names numeric factors only. Each limit is judged alone, as the library judges a point
-    (:meth:`~process_improve.experiments.DesignRegion.feasible`).
+    ``settings`` holds each numeric factor's setting, a number in its own units inside its range, and
+    each categorical factor's level where the page has one. Each limit is judged alone, as the library
+    judges a point (:meth:`~process_improve.experiments.DesignRegion.feasible`); a limit for some levels
+    is broken only at those levels.
     """
     spec = _checked_spec(request.get("spec") or {})
     settings = request.get("settings")
@@ -10601,9 +10602,15 @@ def outside_limits(request: dict) -> dict:
     factors = _factors(spec)
     numeric = [f for f in spec["factors"] if not _categorical(f)]
     x = np.array([[_coded_value(_factor_of(f), _setting_of(f, settings)) for f in numeric]])
+    labels = {f["name"]: str(settings[f["name"]]) for f in spec["factors"] if _categorical(f) and f["name"] in settings}
+    ranges = [f for f in factors if f.type != "categorical"]
     broken = []
     for i, limit in enumerate(spec.get("constraints") or []):
-        if not bool(_region(factors, [limit["expression"]]).feasible(x)[0]):
+        parts = _for_levels(limit["expression"], factors)
+        if parts is not None and any(labels.get(name) != level for name, level in parts[0].items()):
+            continue  # a limit for other levels
+        holds = limit["expression"] if parts is None else parts[1]
+        if holds is None or not bool(DesignRegion(ranges, [holds]).feasible(x)[0]):
             broken.append({"index": i, "expression": limit["expression"]})
     return {"broken": broken}
 
