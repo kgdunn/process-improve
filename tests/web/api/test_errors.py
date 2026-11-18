@@ -65,6 +65,11 @@ def _spec(**change: object) -> Callable[[Example], dict]:
     return lambda ex: {**ex["held"], "spec": {**ex["held"]["spec"], **change}}
 
 
+def _measured(ex: Example) -> list[str]:
+    """Name the response the worked example measures, as the specification it holds names it."""
+    return [ex["held"]["spec"]["response"]]
+
+
 def _workbook(edit: Callable[[dict], object], **request: object) -> Callable[[Example], dict]:
     """Build an upload of the worked example's workbook, filled in and then changed as a reader could in Excel."""
 
@@ -879,6 +884,31 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_workbook",
         lambda ex: {**ex["held"], "what_if": [{"name": "Hot", "settings": {"T": [200]}}]},
         "The page sent kept settings this page did not write.",
+    ),
+    "a workbook's target for a response the study does not have": (
+        "api_workbook",
+        lambda ex: {**ex["held"], "targets": {"Not measured": 5}},
+        "The workbook holds a target for a response the study does not measure.",
+    ),
+    "a workbook's target that is not a number": (
+        "api_workbook",
+        lambda ex: {**ex["held"], "targets": dict.fromkeys(_measured(ex), "high")},
+        "The workbook holds a target that is not a number.",
+    ),
+    "a workbook's window for a response the study does not have": (
+        "api_workbook",
+        lambda ex: {**ex["held"], "windows": {"Not measured": [1, 2]}},
+        "The workbook holds a window for a response the study does not measure.",
+    ),
+    "a workbook's window with both ends open": (
+        "api_workbook",
+        lambda ex: {**ex["held"], "windows": {name: [None, None] for name in _measured(ex)}},
+        "The workbook holds a window that does not have two ends.",
+    ),
+    "a workbook's window with an end that is not a number": (
+        "api_workbook",
+        lambda ex: {**ex["held"], "windows": {name: ["low", 2] for name in _measured(ex)}},
+        "The workbook holds a window with an end that is not a number.",
     ),
     "a workbook keeping two settings under one name": (  # edited by hand: its kept settings are checked as data
         "api_read_workbook",
