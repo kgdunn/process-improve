@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
 # Tag a release that is already on main, and push the tag, which starts publish.yml.
 #
-#   tools/tag_release.sh 2.6.0            # check, tag, push, then watch the publish run
+#   cd ~/process-improve
 #   DRY_RUN=1 tools/tag_release.sh 2.6.0  # check only: nothing is tagged or pushed
+#   tools/tag_release.sh 2.6.0            # check, tag, push, then watch the publish run
 #
 # The tag goes on the commit of main that first carried the version (the merge of the release pull request), so
 # what was merged after it is not in the release. Every check prints its result, and the script stops at the
 # first one that fails, saying which. Run it as a script: it never closes the shell it was started from.
 set -u
+
+# The script works on the clone it is in, wherever it is started from.
+cd "$(dirname "$0")/.." || { echo "STOP: cannot go to the repository of this script" >&2; exit 1; }
 
 VERSION="${1:-}"
 if [ -z "$VERSION" ]; then
