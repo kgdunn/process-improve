@@ -123,7 +123,10 @@ def test_each_pin_that_is_not_the_latest_release_is_reported(checker):
 def test_the_weekly_check_tries_the_published_app_and_the_pins():
     workflow = (ROOT / ".github" / "workflows" / "web-app-live.yml").read_text(encoding="utf-8")
     assert "python tools/check_web_runtime.py" in workflow
-    assert "APP: https://kgdunn.github.io/process-improve/app/" in workflow
+    # Both addresses a reader can arrive at: factori.al first, then the copy on GitHub Pages.
+    assert "- https://factori.al/\n" in workflow
+    assert "- https://kgdunn.github.io/process-improve/app/\n" in workflow
+    assert "APP: ${{ matrix.app }}" in workflow
     assert '--web-app="$APP"' in workflow
 
 
