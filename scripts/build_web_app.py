@@ -73,6 +73,7 @@ APP_FILES = (
     "catalog/reproduced/index.html",
     "reproduced.js",
     "reproduced-logic.js",
+    "site.js",
     "field-chart.js",
     "app.js",
     "logic.js",
