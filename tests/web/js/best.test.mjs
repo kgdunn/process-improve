@@ -69,6 +69,7 @@ import {
   predictAt,
   putBack,
   rangeWords,
+  limitWords,
   scenarioProblem,
   settingsFit,
   settingsWords,
@@ -1173,6 +1174,15 @@ describe("what if", () => {
       "These settings lie beyond the runs for the models of Yield and Cost: confirm their predictions with a run.",
       "No runs are left to estimate the noise of Cost's model, so it gives no interval.",
     ]);
+  });
+
+  test("a limit for one level is said in words, and any other limit as it is written", () => {
+    assert.equal(limitWords("not (RM == 'A' and conc > 1.5)"), "conc <= 1.5 when RM is A");
+    assert.equal(limitWords("not (RM == 'B' and conc < 2)"), "conc >= 2 when RM is B");
+    assert.equal(limitWords("not (RM == 'A' and Line == '2')"), "never RM is A and Line is 2 together");
+    assert.equal(limitWords("T + 25 * P <= 215"), "T + 25 * P <= 215");
+    const broken = [{ index: 0, expression: "not (RM == 'A' and conc > 1.5)" }];
+    assert.deepEqual(whatIfSentences([], broken), ["These settings break your limit 1, conc <= 1.5 when RM is A."]);
   });
 });
 

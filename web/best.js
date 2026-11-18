@@ -911,6 +911,31 @@ export const settingsFit = (factors, settings) => Boolean(settings) && scenarioP
  * settings they break (``broken``, as bootstrap.outside_limits answered). A study or a workbook edited since the settings
  * were kept can hold the first three. ``factors`` is bootstrap.predictors' ``factors``; ``units`` each factor's units.
  */
+/** The comparison that holds where a limit for one level's own does not: "not (... and T > 170)" is T <= 170. */
+const OTHERWISE = { ">": "<=", ">=": "<", "<": ">=", "<=": ">" };
+
+/**
+ * A limit as a sentence shows it. A limit for one level of a categorical factor, which Python reads as
+ * ``not (RM == 'A' and conc > 1.5)``, reads "conc <= 1.5 when RM is A"; two levels never run together read
+ * "never RM is A and Line is 2 together". Any other limit is shown as it is written.
+ */
+export function limitWords(expression) {
+  // shortcut: a label that holds " and " is not split right, and the limit is then shown as written.
+  const inner = /^not \((.+)\)$/.exec(expression);
+  if (!inner) return expression;
+  const when = [];
+  const holds = [];
+  for (const part of inner[1].split(" and ")) {
+    const level = /^(\S+) == '(.*)'$/.exec(part);
+    const compared = /^(.+) (<=|>=|<|>) (.+)$/.exec(part);
+    if (level) when.push(`${level[1]} is ${level[2].replaceAll("\\'", "'")}`);
+    else if (compared) holds.push(`${compared[1]} ${OTHERWISE[compared[2]]} ${compared[3]}`);
+    else return expression;
+  }
+  if (!when.length || holds.length > 1) return expression;
+  return holds.length ? `${holds[0]} when ${when.join(" and ")}` : `never ${when.join(" and ")} together`;
+}
+
 export function scenarioProblem(factors, settings, units = {}, broken = []) {
   const not = "so the models do not predict there";
   for (const f of factors) {
@@ -927,7 +952,7 @@ export function scenarioProblem(factors, settings, units = {}, broken = []) {
     }
   }
   if (!broken.length) return null;
-  return `These settings break ${listed(broken.map((limit) => `your limit ${limit.index + 1}, ${limit.expression}`))}, ${not}.`;
+  return `These settings break ${listed(broken.map((limit) => `your limit ${limit.index + 1}, ${limitWords(limit.expression)}`))}, ${not}.`;
 }
 
 /** Settings as the list of kept settings writes them: "T = 175 degC, Catalyst at B", for each factor they set. */
@@ -1080,7 +1105,7 @@ export function whatIfRows(responses) {
  * bootstrap.outside_limits answered.
  */
 export function whatIfSentences(responses, broken = []) {
-  const said = broken.map((limit) => `These settings break your limit ${limit.index + 1}, ${limit.expression}.`);
+  const said = broken.map((limit) => `These settings break your limit ${limit.index + 1}, ${limitWords(limit.expression)}.`);
   const beyond = responses.filter((r) => r.at?.extrapolating).map((r) => r.label);
   if (beyond.length === 1) {
     said.push(`These settings lie beyond the runs for ${beyond[0]}'s model: confirm its prediction with a run.`);

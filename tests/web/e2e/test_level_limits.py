@@ -115,7 +115,7 @@ def test_what_if_says_a_limit_is_broken_only_at_the_level_it_is_for(blank_page):
     practise(page)
     reveal(page, "#what-if")
     page.wait_for_selector("#what-if:not([hidden])")
-    broken = "These settings break your limit 1: when RM is A, conc <= 1.5."
+    broken = "These settings break your limit 1, conc <= 1.5 when RM is A."
     assert broken in what_if_at(page, "A", 1.8), "raw material A at 1.8 % is past its limit"
     assert broken not in what_if_at(page, "B", 1.8), "raw material B at 1.8 % is not"
     assert broken not in what_if_at(page, "A", 1.2)
