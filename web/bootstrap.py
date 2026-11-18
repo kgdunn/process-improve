@@ -1592,6 +1592,42 @@ def _region(factors: list[Factor], expressions: list[str]) -> DesignRegion:
     return DesignRegion([f for f in factors if f.type != "categorical"], expressions)
 
 
+class _NotAllowed(ValueError):
+    """The limits never run these levels together."""
+
+
+def _limited_levels(region: DesignRegion | None) -> set[str]:
+    """Name the categorical factors the limits name: a search tries their levels, in the model or not."""
+    return set() if region is None or region.rules is None else set(region.rules.factors)
+
+
+def _region_at(region: DesignRegion | None, spec: dict, levels: dict[str, float]) -> DesignRegion | None:
+    """Return the region of the numeric factors at coded levels of the categorical factors.
+
+    ``levels`` holds each searched factor's level by its code, -1 to +1 over its levels in their order.
+    A factor the limits name that is not among them takes the first level they allow beside the others.
+    Raises :class:`_NotAllowed` when the limits never run those levels together.
+    """
+    if region is None or region.rules is None:
+        return region
+    return region.given(**_labels_at(region, spec, levels))
+
+
+def _labels_at(region: DesignRegion | None, spec: dict, levels: dict[str, float]) -> dict[str, str]:
+    """Return the level, by its label, of each categorical factor the limits name, at coded levels (see above)."""
+    if region is None or region.rules is None:
+        return {}
+    labels = {}
+    for f in spec["factors"]:
+        if _categorical(f) and f["name"] in levels:
+            names = _levels_of(f)
+            labels[f["name"]] = str(names[round((levels[f["name"]] + 1) / 2 * (len(names) - 1))])
+    for allowed in region.allowed_combinations().drop(columns="limits").astype(str).to_dict("records"):
+        if all(labels.get(name, level) == level for name, level in allowed.items()):
+            return allowed
+    raise _NotAllowed(str(labels))
+
+
 def _feasible(region: DesignRegion, coded: np.ndarray, labels: Any = None) -> np.ndarray:  # noqa: ANN401 - a frame or a mapping
     """Say which coded settings meet every limit; ``labels`` holds each one's level of the categorical factors."""
     if region.rules is None:
@@ -7686,6 +7722,8 @@ def best_settings(request: dict) -> dict:
     if found is None:
         return reply
     x, levels, reduced = found["x"], found["levels"], found["model"]
+    # From here the region is the one at the levels found: a limit for other levels does not hold there.
+    labels, region = _labels_at(region, spec, levels), _region_at(region, spec, levels)
     numeric = [f for f in spec["factors"] if not _categorical(f)]
     point = _full_point(spec, x, levels)
     predicted, confidence, prediction, leverage = fitted.at(point)
@@ -7705,7 +7743,7 @@ def best_settings(request: dict) -> dict:
         "extrapolating": leverage > fitted.max_leverage * (1 + 1e-9) + 1e-12,
         "settings": _settings_reply(spec, point, in_model, sense * gradient, tiny),
         "coded": point,
-        "limits": _limits_on(spec, region, x, sense * gradient, tiny) if not reached else [],
+        "limits": _limits_on(spec, region, x, sense * gradient, tiny, labels) if not reached else [],
         "stationary": _stationary(reduced, numeric, x, sense * gradient, region, in_model, found["spread"])
         if sense
         else None,
@@ -8034,15 +8072,23 @@ def _search(
     if not in_model or all(c["coefficient"] == 0 for c in coefficients if _parts(c["term"])):
         return None
     blocks = {c["term"]: 0.0 for c in coefficients if _block_contrast(c["term"], _model_columns(spec))}
-    points = _sample(len(numeric), region)
+    whole = region  # with a limit for some levels, the region of the numeric factors differs from level to level
 
     def score(levels: dict[str, float]) -> float:
+        try:
+            points = _sample(len(numeric), _region_at(whole, spec, levels))
+        except _NotAllowed:
+            return -math.inf
         held = _held_at(coefficients, {**blocks, **_held_columns(levels, spec)})
         return max(_objective(goal, v, target) for v in _predict(held, numeric_names, points))
 
-    combinations = _searched_levels(spec, in_model, score)
+    combinations = _searched_levels(spec, in_model | _limited_levels(whole), score)
     best: dict[str, Any] | None = None
     for levels in combinations:
+        try:
+            region = _region_at(whole, spec, levels)
+        except _NotAllowed:
+            continue
         held = {**blocks, **_held_columns(levels, spec)}
         model = _held_at(coefficients, held)
         sought = _goal(goal, target, model, spec["response"])
@@ -8189,8 +8235,13 @@ def _settings_reply(
     return settings
 
 
-def _limits_on(
-    spec: dict, region: DesignRegion | None, x: np.ndarray, ascent: np.ndarray, tiny: float
+def _limits_on(  # noqa: PLR0913 - the settings, the way to better, and the levels they are at
+    spec: dict,
+    region: DesignRegion | None,
+    x: np.ndarray,
+    ascent: np.ndarray,
+    tiny: float,
+    labels: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     """List the limits the best settings are on, numbered by their place, and whether the goal improves beyond each.
 
@@ -8201,9 +8252,13 @@ def _limits_on(
     if region is None:
         return []
     factors = _factors(spec)
+    numeric = [f for f in factors if f.type != "categorical"]
     on = []
     for i, limit in enumerate(spec["constraints"]):
-        alone = _region(factors, [limit["expression"]])
+        holds = _holds_at(limit["expression"], factors, labels or {})  # a limit for other levels is not met here
+        if holds is None:
+            continue
+        alone = DesignRegion(numeric, [holds])
         for g in alone.inequalities:
             value, normal = _value_and_normal(g, x)
             length = float(np.linalg.norm(normal))
@@ -8706,6 +8761,7 @@ def balance(request: dict) -> dict:
         return _balanced_blend(every_run, whole, aimed, fits, goals)
     region = _spec_region(whole)
     found = _balance_search(fits, goals, whole, region)
+    labels, region = _labels_at(region, whole, found["levels"]), _region_at(region, whole, found["levels"])
     point = _full_point(whole, found["x"], found["levels"])
     in_model = set().union(*(_factors_in(fit.out["coefficients"], whole) for fit in fits.values()))
     numeric = [f for f in whole["factors"] if not _categorical(f)]
@@ -8713,7 +8769,7 @@ def balance(request: dict) -> dict:
     reply = {
         **_balanced_at(aimed, goals, fits, point),
         "settings": _settings_reply(whole, point, in_model, still, 1.0),
-        "limits": _limits_on(whole, region, found["x"], still, 1.0),
+        "limits": _limits_on(whole, region, found["x"], still, 1.0, labels),
         "confirm_at": _practical(whole, point, region),
         "confirmation": _balanced_confirmation(every_run, whole, aimed, fits),
         "overlay": _overlay(whole, found, goals, region),
@@ -9949,10 +10005,22 @@ def _balance_search(
     def overall(models: dict[str, list[dict]], points: np.ndarray) -> np.ndarray:
         return _overall(models, goals, numeric_names, points)
 
-    points = _sample(len(numeric), region)
-    combinations = _searched_levels(spec, in_model, lambda levels: float(overall(held_models(levels), points).max()))
+    whole = region  # with a limit for some levels, the region of the numeric factors differs from level to level
+
+    def score(levels: dict[str, float]) -> float:
+        try:
+            points = _sample(len(numeric), _region_at(whole, spec, levels))
+        except _NotAllowed:
+            return -math.inf
+        return float(overall(held_models(levels), points).max())
+
+    combinations = _searched_levels(spec, in_model | _limited_levels(whole), score)
     best: dict[str, Any] | None = None
     for levels in combinations:
+        try:
+            region = _region_at(whole, spec, levels)
+        except _NotAllowed:
+            continue
         models = held_models(levels)
         heard: list[str] = []
         x = np.zeros(0)
