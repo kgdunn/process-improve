@@ -508,6 +508,8 @@ export const DEFAULT_RESPONSE = "y";
 
 /** The run sheet's column of each run's block, which no factor or response may be named; mirrors bootstrap.BLOCK. */
 export const BLOCK = "Block";
+/** The run sheet's column of each run's whole plot, in a design with a factor that is hard to change; mirrors bootstrap.WHOLE_PLOT. */
+export const WHOLE_PLOT = "Whole plot";
 
 /**
  * The run sheet's column for a response the reader names in words: "Yield" stays Yield, and "Tensile

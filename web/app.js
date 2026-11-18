@@ -148,6 +148,7 @@ import {
 import {
   AXIAL_DISTANCE,
   BLOCK,
+  WHOLE_PLOT,
   CAPTIONS,
   CHARTS,
   MORE_CHARTS,
@@ -1443,6 +1444,38 @@ function readFactors() {
 
 const factorCount = () => readFactors().length;
 
+/** The factor rows the reader marked as hard to change, among those that are factors; a mixture has none. */
+const hardRows = () => factorRows().filter((tr) => !blankRow(tr) && tr.dataset.hard === "1");
+
+/** The names of the factors that are hard to change, as the design is asked for them. */
+const hardNames = () => hardRows().map((tr) => box(tr, "name").value.trim());
+
+/** Mark the factors of these names as hard to change, and no other: a stored design's, as its options hold them. */
+function setHard(names) {
+  for (const tr of factorRows()) tr.dataset.hard = names.includes(box(tr, "name").value.trim()) ? "1" : "";
+  renderHard();
+}
+
+/** Draw a tick for each factor, in the plan's settings: ticked, the factor is set once for a group of runs. */
+function renderHard() {
+  const rows = factorRows().filter((tr) => !blankRow(tr));
+  const ticks = rows.map((tr) => {
+    const label = document.createElement("label");
+    label.className = "hard-to-change__factor";
+    const tick = document.createElement("input");
+    tick.type = "checkbox";
+    tick.name = "hard_to_change";
+    tick.checked = tr.dataset.hard === "1";
+    tick.addEventListener("change", () => {
+      tr.dataset.hard = tick.checked ? "1" : "";
+      markStale();
+    });
+    label.append(tick, ` ${box(tr, "name").value.trim()}`);
+    return label;
+  });
+  $("#hard-factors").replaceChildren(...ticks);
+}
+
 /**
  * The run sheet's columns besides its factors, which a factor renamed on it cannot take: its results
  * and its blocks. None while the factors differ from the run sheet's by more than their labels: a run
@@ -1494,6 +1527,7 @@ function limitsFollow(tr) {
   if (nameProblem(after, others, 1, takenNames())) return;
   if (before && before !== after) renameInLimits({ [before]: after });
   tr.dataset.name = after;
+  renderHard();
 }
 
 /**
@@ -1668,6 +1702,7 @@ function setDesignForm(spec) {
   // do not carry over.
   $("#n_replicates").value = options.n_replicates ?? 1;
   $("#n_blocks").value = options.n_blocks ?? 1;
+  setHard(options.hard_to_change ?? []);
   $("#n_levels").value = String(options.n_levels ?? 2); // a Taguchi array at two levels stores none
   if (isMixture(spec.design_type)) {
     // A mixture design stores the Scheffé model it is built for: a lattice's degree, or what extreme vertices are for.
@@ -1747,6 +1782,7 @@ function takeStep(step) {
 
 function refreshDesign() {
   renderLadder();
+  renderHard();
   const k = factorCount();
   const full = factorRows().length >= MAX_FACTORS; // the add buttons stop at the most factors a study has, and say so
   for (const id of ["#add-factor", "#add-categorical"]) $(id).disabled = full;
@@ -2021,6 +2057,11 @@ function planKey() {
     budget: $("#budget").value,
     n_replicates: $("#n_replicates").value,
     n_blocks: $("#n_blocks").value,
+    // By place, as a factor's name is a label: the rows that are factors, and which of them are ticked.
+    hard_to_change: factorRows()
+      .filter((tr) => !blankRow(tr))
+      .map((tr) => tr.dataset.hard === "1")
+      .join(),
     model_type: $("#model_type").value,
     lattice_degree: $("#lattice_degree").value,
     mixture_model: $("#mixture_model").value,
@@ -2154,6 +2195,7 @@ async function generate({ randomState } = {}) {
     alpha: axialDistance($("#alpha").value, $("#alpha_value").value),
     n_replicates: Number($("#n_replicates").value),
     n_blocks: Number($("#n_blocks").value),
+    hard_to_change: hardNames(),
     resolution: Number($("#resolution").value),
     n_levels: Number($("#n_levels").value),
     budget: Number($("#budget").value),
@@ -3052,7 +3094,13 @@ function renderRuns() {
   const factorUnits = Object.fromEntries(d.spec.factors.map((f) => [f.name, f.units ?? ""]));
   const headings = d.columns.map((c) => words[c]?.label ?? c);
   const colUnits = d.columns.map((c) => words[c]?.units ?? factorUnits[c] ?? "");
-  const terms = { "Std order": "std-order", "Run order": "run-order", Block: "blocks", [CONFIRMATION]: "confirmation-run" };
+  const terms = {
+    "Std order": "std-order",
+    "Run order": "run-order",
+    Block: "blocks",
+    [WHOLE_PLOT]: "whole-plot",
+    [CONFIRMATION]: "confirmation-run",
+  };
   renderTable(t, headings, rows, "Run order", colUnits, terms);
   // On the body, which each drawing of the table makes anew: the table's own presses sort it by a heading.
   t.tBodies[0].onclick = (e) => {

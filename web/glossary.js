@@ -69,6 +69,12 @@ export const GLOSSARY = {
   "run-order":
     "The order to make the runs in, chosen at random, so that disturbances you cannot measure show up as noise " +
     "rather than biasing a factor's effect.",
+  "whole-plot":
+    "A group of runs made one after another at one setting of the factors that are hard to change. Set those " +
+    "factors once for each whole plot, and again before the next, even to the same values.",
+  "hard-to-change":
+    "A factor you cannot set afresh for every run, such as an oven's temperature. Ticked, the design sets it " +
+    "once for a group of runs, called a whole plot, and its effect is then known less well than the others'.",
   "true-process":
     "The process the practice results are simulated from. Its coefficients are known, so the analysis can be " +
     "checked against them.",
@@ -319,6 +325,8 @@ export const CONTEXT = {
   aliasing: "confounding",
   "std-order": "standard_order",
   "run-order": "randomization",
+  "whole-plot": "split_plot_design",
+  "hard-to-change": "split_plot_design",
   coded: "coding",
   "std-error": "standard_error",
   interval: "confidence_interval",
