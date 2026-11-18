@@ -106,7 +106,7 @@ def sent(design: dict) -> dict:
 def test_renaming_a_design_gives_what_making_it_under_the_new_names_gives(api, case):
     request, factors, names = case
     before = api.ok("api_make_design", {**request, "factors": factors})
-    hard = {"hard_to_change": [names.get(n, n) for n in request["hard_to_change"]]} if "hard_to_change" in request else {}
+    hard = {key: [names.get(n, n) for n in request[key]] for key in ("hard_to_change",) if key in request}
     after = api.ok("api_make_design", {**request, **hard, "factors": named(factors, names)})
     assert after["rows"] == before["rows"], "the library makes a design from its factors' places, not their names"
 

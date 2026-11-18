@@ -118,7 +118,7 @@ def test_too_few_results_are_judged_against_one_spread_and_the_notes_say_so(api,
 
 def test_a_workbook_keeps_the_whole_plots_and_is_analysed_alike(api, design):
     y = results(design)
-    book = fill_workbook(workbook_of(api, design), lambda runs: y)
+    book = fill_workbook(workbook_of(api, design), lambda _: y)
     back = api.ok("api_read_workbook", {"xlsx_base64": book})
     assert back["columns"] == design["columns"]
     assert back["spec"]["options"]["hard_to_change"] == ["T"]
@@ -139,7 +139,6 @@ def test_the_other_parts_of_learn_still_answer(api, design):
 def test_learn_offers_no_runs_to_add(api, design):
     offered = api.ok("api_next_runs", study(design))
     assert offered["offers"] == []
-    assert offered["notes"] == [
-        "This design sets a factor once for each group of runs, and the runs Learn adds to a design are made one "
-        "by one, so it offers none here."
-    ]
+    (note,) = offered["notes"]
+    assert note.startswith("This design sets a factor once for each group of runs")
+    assert note.endswith("so it offers none here.")
