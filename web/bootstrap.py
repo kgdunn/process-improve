@@ -9015,25 +9015,47 @@ def target_settings(request: dict) -> dict:
     rng = np.random.default_rng(TARGET_SEED)
     combinations = _level_combinations(whole)
     drawn = rng.uniform(-1.0, 1.0, size=(TARGET_DRAWN // len(combinations), len(numeric)))
-    if region is not None:
+    by_level = region is not None and region.rules is not None  # a limit for some levels: judged level by level
+    if region is not None and not by_level:
         drawn = drawn[region.feasible(drawn[:, [names.index(n) for n in region.names]])]
     if not len(drawn):
         raise ValueError("The limits on the settings leave no setting to try.")
+    whole_region, tried = region, [0]
 
-    def missed(levels: dict[str, float], settings: np.ndarray) -> np.ndarray:
+    def run_at(levels: dict[str, float], settings: np.ndarray) -> np.ndarray:
+        """Say which settings the limits allow at these levels."""
+        try:
+            here = _region_at(whole_region, whole, levels)
+        except _NotAllowedError:
+            return np.zeros(len(settings), dtype=bool)
+        return np.ones(len(settings), dtype=bool) if here is None else here.feasible(settings)
+
+    def off_target(levels: dict[str, float], settings: np.ndarray) -> np.ndarray:
         """Return how far each response is predicted from its target at each setting, in units of its reach."""
         point = {**dict.fromkeys(names, 0.0), **levels}
         return np.column_stack([(fits[n].over(point, names, settings)[0] - targets[n]) / near[n] for n in targets])
 
+    def missed(levels: dict[str, float], settings: np.ndarray) -> np.ndarray:
+        """Return the same, with a setting the limits do not allow at these levels infinitely far."""
+        miss = off_target(levels, settings)
+        if by_level:
+            allowed = run_at(levels, settings)
+            tried[0] += int(allowed.sum())
+            miss[~allowed] = np.inf
+        return miss
+
     best, giving = _start_of_those_tried(drawn, combinations, missed)
+    if not np.isfinite(best["miss"]):
+        raise ValueError("The limits on the settings leave no setting to try.")
     start, levels = best["x"], best["levels"]
+    region = _region_at(whole_region, whole, levels)  # from here, the region at the levels found
     # Meet the targets exactly where the models can, staying by the setting found: a small pull keeps it there.
     stay = math.sqrt(1e-4)
     polished = optimize.least_squares(
-        lambda x: np.concatenate([missed(levels, x[None, :])[0], stay * (x - start)]), start, bounds=(-1.0, 1.0)
+        lambda x: np.concatenate([off_target(levels, x[None, :])[0], stay * (x - start)]), start, bounds=(-1.0, 1.0)
     ).x
     allowed = region is None or bool(region.feasible(polished[None, [names.index(n) for n in region.names]])[0])
-    after = missed(levels, polished[None, :])[0]
+    after = off_target(levels, polished[None, :])[0]
     # The step lowers the misses taken together, which can push one response out of reach to bring the others
     # nearer: settings that give every target are left only for settings that give them all too.
     closer = float((after**2).sum()) <= best["miss"] + 1e-12 and (not best["given"] or np.abs(after).max() <= 1.0)
@@ -9059,8 +9081,8 @@ def target_settings(request: dict) -> dict:
         "max_leverage": leaning["max_leverage"],
         "leverage_of": leaning["name"],
         "extrapolating": any(r["extrapolating"] for r in responses),
-        "share": giving / (len(drawn) * len(combinations)),
-        "tried": len(drawn) * len(combinations),
+        "share": giving / (tried[0] if by_level else len(drawn) * len(combinations)),
+        "tried": tried[0] if by_level else len(drawn) * len(combinations),
         "near": TARGET_NEAR,
         "overlay": _target_overlay(whole, surfaces, goals, region, _pair_sent(request.get("pair"), names), design),
         "search": {
