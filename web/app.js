@@ -2035,6 +2035,49 @@ function planKey() {
   return JSON.stringify([option.value, levels, Object.fromEntries(taken), limitsKey(factors.map((f) => f.name))]);
 }
 
+/** How many results on the run sheet the reader entered: typed, pasted or uploaded, not simulated for practice. */
+function enteredResults() {
+  if (!state.design) return 0;
+  const entered = (name) => (state.results[name] ?? []).filter((value, i) => value !== null && state.marks[name]?.[i] !== "simulated");
+  return resultNames().reduce((count, name) => count + entered(name).length, 0);
+}
+
+/**
+ * Whether a new run sheet may take the place of the one on the page. A new run sheet starts blank, in a new random
+ * order, and is a new study once the one on the page holds a result the reader entered (the study before stays in
+ * Your studies). A reader who pressed the button again met a blank sheet with no word of where the results went, so:
+ * - the design is as it was when the sheet was made: the sheet stays, and Run shows it;
+ * - the design has changed: the reader is asked, and told where this study and its results are kept.
+ * Results simulated for practice are made again with the sheet, so they are not asked about.
+ */
+async function mayReplaceRunSheet() {
+  const entered = enteredResults();
+  if (!entered) return true;
+  if (!planIsStale()) {
+    showPhase("run");
+    setStatus("The run sheet for this design is made already: your results are kept.");
+    return false;
+  }
+  const dialog = $("#replace-dialog");
+  const kept = state.campaign?.id
+    ? "This study and its results stay in Your studies, in the menu on the study's name."
+    : "This study's results are not kept: download the study first if you want them.";
+  $("#replace-says").textContent =
+    `This run sheet holds ${entered === 1 ? "1 result" : `${entered} results`} you entered. The design has changed, ` +
+    `so a new run sheet starts a new study: blank, with its runs in a new order. ${kept}`;
+  dialog.showModal();
+  // Answered by a button at once, in the press itself, so what follows starts with no gap; Escape, which only
+  // closes the question, keeps the study.
+  return new Promise((resolve) => {
+    answerReplace = (go) => {
+      answerReplace = null;
+      resolve(go);
+      if (dialog.open) dialog.close();
+    };
+  });
+}
+let answerReplace = null; // the question on show, to be answered; null when none is
+
 const planIsStale = () => Boolean(state.design) && state.planKey !== null && planKey() !== state.planKey;
 
 /** Say when the plan has changed since the run sheet was made, in Run and beside Design's button, until it is made again. */
@@ -3250,6 +3293,7 @@ function sayLearnEmpty(text) {
  * as one practised on: Learn says it is a practice round until a result is typed or the simulated ones are cleared.
  */
 async function practiceRound() {
+  if (!(await mayReplaceRunSheet())) return;
   if (!(await generate())) return;
   selectTab("simulate");
   await simulateResults();
@@ -3506,9 +3550,13 @@ async function simulateResults() {
   state.simulation = reply.result;
   const names = resultNames();
   const more = Object.fromEntries(Object.entries(reply.result.more ?? {}).map(([name, one]) => [name, one.responses]));
-  state.results = joinResults(names, [...reply.result.responses], more);
-  state.marks = Object.fromEntries(names.map((name) => [name, state.results[name].map(() => "simulated")]));
-  state.setAside = {}; // every result is new
+  // A result the reader entered stays: practice results fill the runs that have none of the reader's own.
+  const before = { results: state.results, marks: state.marks };
+  const own = (name, i) => (before.results[name]?.[i] ?? null) !== null && before.marks[name]?.[i] !== "simulated";
+  const simulated = joinResults(names, [...reply.result.responses], more);
+  state.results = Object.fromEntries(names.map((name) => [name, simulated[name].map((v, i) => (own(name, i) ? before.results[name][i] : v))]));
+  state.marks = Object.fromEntries(names.map((name) => [name, simulated[name].map((_, i) => (own(name, i) ? before.marks[name][i] : "simulated"))]));
+  state.setAside = {}; // every simulated result is new
   renderRuns();
   renderTruth();
   showResultsCode();
@@ -9314,8 +9362,12 @@ for (const id of ["#design-type", "#n_center_points", "#n_replicates"]) $(id).ad
 $("#generate").onclick = async () => {
   // While practising, the new runs are simulated from the same process, noise and seed, so the true process
   // and the analysis follow the plan as it now is.
+  if (!(await mayReplaceRunSheet())) return;
   if ((await generate()) && state.practising) await simulateResults();
 };
+$("#replace-keep").onclick = () => answerReplace?.(false);
+$("#replace-go").onclick = () => answerReplace?.(true);
+$("#replace-dialog").addEventListener("close", () => answerReplace?.(false));
 $("#remake").onclick = $("#generate").onclick;
 $("#practice-round").onclick = practiceRound;
 // The card's boxes are the run sheet's: a result typed in one is typed in the sheet's box for that run.

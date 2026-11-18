@@ -236,7 +236,20 @@ def generate(page: Any, **settings: object) -> None:  # noqa: ANN401
     """Make the run sheet the plan describes, after choosing any ``settings``, and wait for the page to settle."""
     choose(page, **settings)
     reveal(page, "#generate")
+    # Over a run sheet with entered results and a changed design the page asks first: the reader starts the new
+    # study. The question is waited for only where the sheet holds an entered result, so no other call is slowed.
+    entered = page.evaluate(
+        """() => [...document.querySelectorAll('#design-table input[data-response]')]
+             .some((box) => box.value !== '' && !box.classList.contains('sim'))"""
+    )
     page.click("#generate")
+    if entered:
+        # Waited for by the clock, with no Playwright name: the jobs without Playwright import this module too.
+        deadline = time.monotonic() + 2
+        while page.is_hidden("#replace-dialog") and time.monotonic() < deadline:
+            page.wait_for_timeout(25)
+        if page.is_visible("#replace-dialog"):
+            page.click("#replace-go")  # else the design is unchanged: the sheet and its results stay
     settled(page)
 
 

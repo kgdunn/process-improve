@@ -154,6 +154,7 @@ def test_a_result_typed_just_before_the_next_design_is_saved_with_its_design(con
     page.fill("#design-table input[data-index='0']", "12.5")
     reveal(page, "#generate")
     page.click("#generate")
+    page.click("#replace-go")  # the design has changed: the page asks before it starts the new study
     page.wait_for_function("window.__pi.count('api_make_design') === 2 && window.__pi.idle()")
     page.clock.resume()
     saved(page, 2)

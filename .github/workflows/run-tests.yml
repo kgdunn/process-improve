@@ -217,7 +217,8 @@ jobs:
         uv run --with playwright==1.64.1 pytest
         tests/web/e2e/test_asked.py tests/web/e2e/test_bench.py tests/web/e2e/test_designs.py
         tests/web/e2e/test_form.py
-        tests/web/e2e/test_ladder.py tests/web/e2e/test_layout.py tests/web/e2e/test_look.py
+        tests/web/e2e/test_keep_results.py tests/web/e2e/test_ladder.py tests/web/e2e/test_layout.py
+        tests/web/e2e/test_look.py
         tests/web/e2e/test_mixture.py tests/web/e2e/test_off_plan.py tests/web/e2e/test_one_factor.py
         tests/web/e2e/test_paste.py tests/web/e2e/test_path.py tests/web/e2e/test_practice_round.py
         tests/web/e2e/test_results.py tests/web/e2e/test_run_sheet.py tests/web/e2e/test_terms.py
