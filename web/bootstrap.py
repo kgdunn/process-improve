@@ -1359,6 +1359,8 @@ def _read_limit(text: str, factors: list[Factor]) -> tuple[str, list[str]]:
     tree, hint = _parsed(text)
     if hint:
         raise ValueError(f"The limit {text!r} cannot be read: {hint}")
+    if _names_a_level(tree, factors):
+        return _read_rule(text, tree, factors)
     _one_comparison(text, tree, numeric)
     named = _factors_named(text, tree, factors)
     try:
@@ -1373,6 +1375,81 @@ def _read_limit(text: str, factors: list[Factor]) -> tuple[str, list[str]]:
     # form, the plain T of a full-width one (#808).
     canonical = rename_factors(text, {name: name for name in named})
     _short_enough(canonical)
+    return canonical, [name for name in numeric if name in named]
+
+
+#: The comparison that holds when a rule's own does not: ``not (K == 'B' and T > 170)`` is "at B, T <= 170".
+_OTHERWISE: dict[type[ast.cmpop], type[ast.cmpop]] = {
+    ast.Gt: ast.LtE,
+    ast.GtE: ast.Lt,
+    ast.Lt: ast.GtE,
+    ast.LtE: ast.Gt,
+}
+
+
+def _names_a_level(tree: ast.AST | None, factors: list[Factor]) -> bool:
+    """Say whether a parsed limit names a categorical factor: such a limit holds at some of its levels only."""
+    labelled = {f.name for f in factors if f.type == "categorical"}
+    return tree is not None and any(isinstance(node, ast.Name) and node.id in labelled for node in ast.walk(tree))
+
+
+def _rule_parts(tree: ast.AST | None, factors: list[Factor]) -> tuple[dict[str, str], str | None] | None:
+    """Read a limit for some levels: the levels it is for, and the limit on the numeric factors that holds there.
+
+    The page reads one form, ``not (K == 'B' and T > 170)``: any number of levels, each of a factor of
+    its own, and at most one inequality. It says "at catalyst B, T is at most 170"; without the
+    inequality, ``not (K == 'B' and S == 'X')``, it says that the two levels are never run together.
+    None for any other form.
+    """
+    # shortcut: one form of the rules the library reads (experiments/_rules.py), upgrade when a reader needs "or".
+    labelled = {f.name: [str(level) for level in f.levels or []] for f in factors if f.type == "categorical"}
+    if not (isinstance(tree, ast.UnaryOp) and isinstance(tree.op, ast.Not)):
+        return None
+    inner = tree.operand
+    parts = inner.values if isinstance(inner, ast.BoolOp) and isinstance(inner.op, ast.And) else [inner]
+    when: dict[str, str] = {}
+    holds: str | None = None
+    for part in parts:
+        if not (isinstance(part, ast.Compare) and len(part.ops) == 1):
+            return None
+        left, op, right = part.left, part.ops[0], part.comparators[0]
+        if isinstance(left, ast.Name) and left.id in labelled:
+            if not (isinstance(op, ast.Eq) and isinstance(right, ast.Constant)) or left.id in when:
+                return None
+            when[left.id] = str(right.value)
+        elif type(op) in _OTHERWISE and holds is None:
+            holds = ast.unparse(ast.Compare(left=left, ops=[_OTHERWISE[type(op)]()], comparators=[right]))
+        else:
+            return None
+    return (when, holds) if when and (holds is not None or len(when) > 1) else None
+
+
+def _read_rule(text: str, tree: ast.expr | None, factors: list[Factor]) -> tuple[str, list[str]]:
+    """Return the canonical text of a limit for some levels and the numeric factors it names; refuse it otherwise."""
+    numeric = [f.name for f in factors if f.type != "categorical"]
+    labelled = [f for f in factors if f.type == "categorical"]
+    parts = _rule_parts(tree, factors)
+    if parts is None:
+        name = next(f.name for f in labelled if _names_a_level(tree, [f]))
+        level = str((next(f for f in labelled if f.name == name).levels or ["B"])[-1])
+        example = f"not ({name} == {level!r} and {_example(numeric).replace('<=', '>')})"
+        raise ValueError(
+            f"The limit {text!r} names {name}, which is categorical: write a limit for one of its levels as "
+            f"{example}, which keeps the settings where that does not hold."
+        )
+    when, holds = parts
+    if holds is not None:  # the inequality is checked as any limit is, in the numeric factors
+        _read_limit(holds, [f for f in factors if f.type != "categorical"])
+    for name, level in when.items():
+        levels = [str(one) for one in next(f for f in labelled if f.name == name).levels or []]
+        if level not in levels:
+            raise ValueError(
+                f"The limit {text!r} names the level {level!r}, which {name} does not have: {_listed(levels)}."
+            )
+    canonical = ast.unparse(tree)  # type: ignore[arg-type]
+    _short_enough(canonical)
+    _region(factors, [canonical])  # the library reads it too, and refuses what it cannot keep
+    named = set(_named(tree))  # type: ignore[arg-type]
     return canonical, [name for name in numeric if name in named]
 
 
@@ -1409,10 +1486,6 @@ def _factors_named(text: str, tree: ast.expr, factors: list[Factor]) -> list[str
             )
     named = [lookup.get(name, name) for name in _named(tree)]
     for name in named:
-        if name in names and name not in numeric:
-            raise ValueError(
-                f"The limit {text!r} names {name}, which is categorical: limits are on numeric factors only."
-            )
         if name not in numeric:
             raise ValueError(f"The limit {text!r} names {name}, which is not one of your factors: {_listed(names)}.")
     if not named:
@@ -1477,16 +1550,89 @@ def _checked_constraints(raw: object, factors: list[Factor]) -> list[dict[str, A
     page had them.
     """
     limits = [(_read_limit(text, factors)[0], note) for text, note in _limit_items(raw)]
-    curved = set(_region(factors, [text for text, _ in limits]).curved_constraints()) if limits else set()
+    curved = _curved_limits(factors, [text for text, _ in limits])
     return [
         {"expression": text, "type": "nonlinear" if i in curved else "linear", **({"note": note} if note else {})}
         for i, (text, note) in enumerate(limits)
     ]
 
 
+def _for_levels(expression: str, factors: list[Factor]) -> tuple[dict[str, str], str | None] | None:
+    """Return the levels a stored limit is for and the limit that holds there, or None for a limit of every level."""
+    tree = ast.parse(expression, mode="eval").body
+    return _rule_parts(tree, factors) if _names_a_level(tree, factors) else None
+
+
+def _curved_limits(factors: list[Factor], expressions: list[str]) -> set[int]:
+    """Return which limits are curved, by their place: a limit for some levels by the inequality it holds there."""
+    numeric = [f for f in factors if f.type != "categorical"]
+    plain = {i: text for i, text in enumerate(expressions) if _for_levels(text, factors) is None}
+    curved = (
+        {list(plain)[j] for j in DesignRegion(numeric, list(plain.values())).curved_constraints()} if plain else set()
+    )
+    for i, text in enumerate(expressions):
+        parts = _for_levels(text, factors)
+        if parts and parts[1] is not None and DesignRegion(numeric, [parts[1]]).curved_constraints():
+            curved.add(i)
+    return curved
+
+
 def _region(factors: list[Factor], expressions: list[str]) -> DesignRegion:
-    """Return the region of settings that meets every limit, over the numeric factors."""
+    """Return the region of settings that meets every limit.
+
+    It is over the numeric factors, as every limit is that names them alone. With a limit for some
+    levels of a categorical factor it is over all the factors, and holds a region of the numeric
+    factors for each combination of levels the limits allow: :func:`_at` gives the one at given levels.
+    """
+    if any(_for_levels(text, factors) is not None for text in expressions):
+        try:
+            return DesignRegion(factors, expressions)
+        except ValueError as exc:
+            raise ValueError(f"The limits cannot be kept together: {exc}") from exc
     return DesignRegion([f for f in factors if f.type != "categorical"], expressions)
+
+
+class _NotAllowedError(ValueError):
+    """The limits never run these levels together."""
+
+
+def _limited_levels(region: DesignRegion | None) -> set[str]:
+    """Name the categorical factors the limits name: a search tries their levels, in the model or not."""
+    return set() if region is None or region.rules is None else set(region.rules.factors)
+
+
+def _region_at(region: DesignRegion | None, spec: dict, levels: dict[str, float]) -> DesignRegion | None:
+    """Return the region of the numeric factors at coded levels of the categorical factors.
+
+    ``levels`` holds each searched factor's level by its code, -1 to +1 over its levels in their order.
+    A factor the limits name that is not among them takes the first level they allow beside the others.
+    Raises :class:`_NotAllowedError` when the limits never run those levels together.
+    """
+    if region is None or region.rules is None:
+        return region
+    return region.given(**_labels_at(region, spec, levels))
+
+
+def _labels_at(region: DesignRegion | None, spec: dict, levels: dict[str, float]) -> dict[str, str]:
+    """Return the level, by its label, of each categorical factor the limits name, at coded levels (see above)."""
+    if region is None or region.rules is None:
+        return {}
+    labels = {}
+    for f in spec["factors"]:
+        if _categorical(f) and f["name"] in levels:
+            names = _levels_of(f)
+            labels[f["name"]] = str(names[round((levels[f["name"]] + 1) / 2 * (len(names) - 1))])
+    for allowed in region.allowed_combinations().drop(columns="limits").astype(str).to_dict("records"):
+        if all(labels.get(name, level) == level for name, level in allowed.items()):
+            return allowed
+    raise _NotAllowedError(str(labels))
+
+
+def _feasible(region: DesignRegion, coded: np.ndarray, labels: Any = None) -> np.ndarray:  # noqa: ANN401 - a frame or a mapping
+    """Say which coded settings meet every limit; ``labels`` holds each one's level of the categorical factors."""
+    if region.rules is None:
+        return region.feasible(coded)
+    return region.feasible(coded, labels={name: list(labels[name]) for name in region.rules.factors})
 
 
 # --------------------------------------------------------------------------- public API
@@ -1587,7 +1733,7 @@ def make_design(spec: dict) -> dict:
     if design_type in SPACE_FILLING:
         facts["notes"].insert(0, _spread_sentence(design_type, kwargs["budget"]))
     if region is not None:
-        if not region.feasible(coded[region.names].to_numpy(dtype=float)).all():
+        if not _feasible(region, coded[region.names].to_numpy(dtype=float), runs).all():
             raise RuntimeError("The design has a run outside the limits on the settings, which it must not have.")
         facts["notes"].append(INSIDE_LIMITS)
     return {
@@ -1737,7 +1883,18 @@ def _given_limits_sentence(factors: list[Factor], limits: list[dict], coded: np.
     names = [f.name for f in factors]
     region = _region(factors, [limit["expression"] for limit in limits])
     points = coded[:, [names.index(name) for name in region.names]]
-    meets = np.all([g(points) <= LIMIT_TOLERANCE for g in region.inequalities], axis=0)
+    if region.rules is None:
+        meets = np.all([g(points) <= LIMIT_TOLERANCE for g in region.inequalities], axis=0)
+    else:  # a limit for some levels: each run is judged in the region at its own levels
+        allowed = region.allowed_combinations().drop(columns="limits").astype(str).to_dict("records")
+        meets = np.zeros(len(points), dtype=bool)
+        for i, point in enumerate(points):
+            levels = {}
+            for name in region.rules.factors:
+                labels = [str(level) for level in next(f for f in factors if f.name == name).levels or []]
+                levels[name] = labels[round((coded[i, names.index(name)] + 1) / 2 * (len(labels) - 1))]
+            here = region.given(**levels).inequalities if levels in allowed else None
+            meets[i] = here is not None and all(g(point[None, :])[0] <= LIMIT_TOLERANCE for g in here)
     outside = np.flatnonzero(~meets).tolist()
     return _outside_limits_sentence(outside) if outside else INSIDE_LIMITS
 
@@ -1940,8 +2097,15 @@ def _region_refusal(factors: list[Factor], region: DesignRegion, design_type: st
             f"With limits on the settings, the page makes designs in up to {MAX_LIMITED_FACTORS} factors; you have "
             f"{len(factors)}."
         )
-    if region.is_empty():
+    if region.rules is None and region.is_empty():
         raise ValueError("No setting in your ranges meets every limit: loosen a limit, or widen a range.")
+    if region.rules is not None:  # every combination of levels the limits allow must have settings to run
+        for levels in region.allowed_combinations().drop(columns="limits").astype(str).to_dict("records"):
+            if region.given(**levels).is_empty():
+                at = _listed([f"{name} = {level}" for name, level in levels.items()])
+                raise ValueError(
+                    f"No setting in your ranges meets every limit at {at}: loosen a limit, or widen a range."
+                )
     return region
 
 
@@ -5580,9 +5744,8 @@ def plots(request: dict) -> dict:
     axes = [f["name"] for f in spec["factors"] if not _several(f)]
     chosen = _chosen_pair(request.get("contour_factors"), axes)
     pair = chosen or _contour_pair(out["coefficients"], axes)
-    shading, held = _shading(spec, pair)
-    if best := _held_at_best(request.get("best"), spec, pair):
-        shading, held = {**shading, "hold_values": best[0]}, best[1]
+    best = _held_at_best(request.get("best"), spec, pair)
+    shading, held = _shading(spec, pair, best)
 
     figures = _Figures(spec, rows, order, plotly, _FittedModel(fit, coded, columns))
     draw = figures.draw
@@ -5764,7 +5927,9 @@ def _held_at_best(raw: object, spec: dict, pair: list[str]) -> tuple[dict[str, f
     return _held_columns(hold, spec), held
 
 
-def _shading(spec: dict, pair: list[str]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+def _shading(
+    spec: dict, pair: list[str], best: tuple[dict[str, float], list[dict[str, Any]]] | None = None
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Return what a response surface needs to shade the settings that cannot be run, and where it holds the others.
 
     Without limits on the settings, nothing. With them, the region, and the coded values the
@@ -5772,10 +5937,26 @@ def _shading(spec: dict, pair: list[str]) -> tuple[dict[str, Any], list[dict[str
     without limits, else a central setting that can be (see ``DesignRegion.centroid``), which is
     listed in the factors' own units for the caption to say.
     """
+    shading, held = _limits_shading(spec, pair, best[0] if best else None)
+    return ({**shading, "hold_values": best[0]}, best[1]) if best else (shading, held)
+
+
+def _limits_shading(
+    spec: dict, pair: list[str], hold: dict[str, float] | None
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Return the region a surface shades by and the settings it holds the other factors at, from the limits alone."""
     if not spec.get("constraints"):
         return {}, []
     factors = _factors(spec)
-    region = _region(factors, [limit["expression"] for limit in spec["constraints"]])
+    whole = _region(factors, [limit["expression"] for limit in spec["constraints"]])
+    if whole.rules is not None and set(pair) & set(whole.rules.factors):
+        # shortcut: a surface with a limited factor's levels on an axis is drawn unshaded; shade each level's
+        # half apart when readers ask for it.
+        return {}, []
+    # With a limit for some levels: the region at the levels the surface is held at, which the best settings give
+    # and so the limits allow, or the first allowed.
+    region = _region_at(whole, spec, hold or {})
+    assert region is not None  # there are limits, so there is a region
     if region.feasible(np.zeros((1, len(region.names))))[0]:
         return {"region": region}, []
     centroid = region.centroid() or {}
@@ -6573,9 +6754,15 @@ def compare(request: dict) -> dict:
         designs[str(item["label"])] = _coded(_runs_frame(item, spec), spec["factors"])
         if region is None and spec.get("constraints"):
             region = _region(_factors(spec), [limit["expression"] for limit in spec["constraints"]])
+    # shortcut: with a limit for some levels the designs are scored over the whole ranges, since the library scores
+    # over one region and such limits give one for each combination of levels; score level by level when it can.
+    by_level = region is not None and region.rules is not None
+    if by_level:
+        region = None
     with _listening():
         comparison = compare_designs(designs, model, effect_size=_effect_size(request), region=region)
     result = comparison.to_dict()
+    result["limits_by_level"] = by_level
     table = comparison.table
     result["display"] = {label: table[label].tolist() for label in comparison.designs}
     names = list(next(iter(designs.values())).columns)
@@ -6874,9 +7061,27 @@ def limits(request: dict) -> dict:
     numeric = [f for f in factors if f.type != "categorical"]
     entries = _limit_entries(request, factors)
     read = [i for i, entry in enumerate(entries) if "problem" not in entry]
-    region = _region(factors, [entries[i]["expression"] for i in read])
     probes = _probes(numeric)
-    alone = _describe_each(entries, read, region, factors, probes)
+    # With a limit for some levels, everything below is told at one combination of levels, the reader's or the first
+    # the limits allow: the limits that hold there are the region, and one that holds at other levels rules out nothing.
+    try:
+        whole = _region(factors, [entries[i]["expression"] for i in read])
+    except ValueError as exc:  # the limits leave a level with nothing to run
+        entries[read[-1]]["problem"] = str(exc)
+        read, whole = [], DesignRegion(numeric, [])
+    chosen = _chosen_levels(request.get("levels"), whole)
+    for i in read:
+        entries[i]["holds"] = _holds_at(entries[i]["expression"], factors, chosen)
+    applies = [i for i in read if entries[i]["holds"]]
+    region = DesignRegion(numeric, [entries[i]["holds"] for i in applies])
+    alone = _describe_each(entries, applies, region, factors, probes)
+    elsewhere = _curved_limits(factors, [entries[i]["expression"] for i in read])
+    for j, i in enumerate(read):
+        if i not in applies:
+            kind = "nonlinear" if j in elsewhere else "linear"
+            entries[i].update(
+                type=kind, removed=0.0, removes=None if probes is None else [], redundant=None, linear=None
+            )
     marked = _marked(request.get("marked"), probes)
     table = None if probes is None else _probe_table(probes[1], numeric, entries, read)
     empty = region.is_empty()
@@ -6888,7 +7093,8 @@ def limits(request: dict) -> dict:
         "empty": empty,
         "center_allowed": not read or bool(region.feasible(np.zeros((1, len(numeric))))[0]),
         "bounds": None if curved or empty else _narrowed(region.implied_bounds(), numeric),
-        "refusal": _limits_refusal(entries, read, factors, region),
+        "refusal": _limits_refusal(entries, read, factors, whole),
+        "levels": _levels_told(whole, chosen),
         "proposals": [],
         "picture": _picture(region, factors, entries, alone, every_pair=request.get("every_pair") is True),
     }
@@ -6899,6 +7105,40 @@ def limits(request: dict) -> dict:
     if "slice" in request:
         reply["slice"] = _sliced(request["slice"], factors, region, entries, alone)
     return reply
+
+
+def _chosen_levels(raw: object, region: DesignRegion) -> dict[str, str]:
+    """Return the levels the limits are told at: the reader's, when the limits allow them, or the first they allow."""
+    if region.rules is None:
+        return {}
+    allowed = region.allowed_combinations().drop(columns="limits").astype(str).to_dict("records")
+    asked = {str(k): str(v) for k, v in raw.items()} if isinstance(raw, dict) else None
+    return asked if asked in allowed else allowed[0]
+
+
+def _holds_at(expression: str, factors: list[Factor], chosen: dict[str, str]) -> str | None:
+    """Return the limit on the numeric factors that a limit is at given levels, or None where it does not hold."""
+    parts = _for_levels(expression, factors)
+    if parts is None:
+        return expression
+    when, holds = parts
+    return holds if all(chosen.get(name) == level for name, level in when.items()) else None
+
+
+def _levels_told(region: DesignRegion, chosen: dict[str, str]) -> dict[str, Any] | None:
+    """Return the levels the reply is told at and every combination the limits allow, or None with no such limit."""
+    if region.rules is None:
+        return None
+    allowed = region.allowed_combinations()
+    names = [name for name in allowed.columns if name != "limits"]
+    return {
+        "factors": names,
+        "chosen": chosen,
+        "combinations": [
+            {"levels": {name: str(row[name]) for name in names}, "limits": [str(limit) for limit in row["limits"]]}
+            for row in allowed.to_dict("records")
+        ],
+    }
 
 
 def _limit_entries(request: dict, factors: list[Factor]) -> list[dict[str, Any]]:
@@ -6912,7 +7152,10 @@ def _limit_entry(text: str, note: str, factors: list[Factor]) -> dict[str, Any]:
         canonical, named = _read_limit(text, factors)
     except ValueError as exc:
         return {"expression": text, "note": note, "problem": str(exc)}
-    return {"expression": canonical, "note": note, "factors": named}
+    entry: dict[str, Any] = {"expression": canonical, "note": note, "factors": named}
+    if parts := _for_levels(canonical, factors):  # for some levels: which, and what holds there in words
+        entry["when"], entry["at_levels"] = parts
+    return entry
 
 
 def _describe_each(
@@ -6928,7 +7171,7 @@ def _describe_each(
     covered = {read[j] for j in region.redundant_constraints()}
     alone = {}
     for i in read:
-        alone[i] = own = _region(factors, [entries[i]["expression"]])
+        alone[i] = own = DesignRegion([f for f in factors if f.type != "categorical"], [entries[i]["holds"]])
         removed = 1.0 - own.volume_fraction()
         removes = None if probes is None else np.flatnonzero(~own.feasible(probes[0])).tolist()
         # A straight limit that keeps every corner keeps the whole box, so the corners decide it exactly; a curved
@@ -7233,8 +7476,8 @@ def _picture(
     named = {name for i in alone for name in entries[i]["factors"]}
     shown = names if every_pair or len(names) <= PICTURE_EVERY_PAIR else [n for n in names if n in named]
     curved = [i for i in alone if entries[i]["type"] == "nonlinear"]
-    straight = DesignRegion(numeric, [entries[i]["expression"] for i in alone if entries[i]["type"] == "linear"])
-    within = DesignRegion(numeric, [entries[i]["expression"] for i in curved])
+    straight = DesignRegion(numeric, [entries[i]["holds"] for i in alone if entries[i]["type"] == "linear"])
+    within = DesignRegion(numeric, [entries[i]["holds"] for i in curved])
     ends = {f.name: f for f in numeric}
     pairs = []
     for x, y in itertools.combinations(shown, 2):
@@ -7500,6 +7743,8 @@ def best_settings(request: dict) -> dict:
     if found is None:
         return reply
     x, levels, reduced = found["x"], found["levels"], found["model"]
+    # From here the region is the one at the levels found: a limit for other levels does not hold there.
+    labels, region = _labels_at(region, spec, levels), _region_at(region, spec, levels)
     numeric = [f for f in spec["factors"] if not _categorical(f)]
     point = _full_point(spec, x, levels)
     predicted, confidence, prediction, leverage = fitted.at(point)
@@ -7519,7 +7764,7 @@ def best_settings(request: dict) -> dict:
         "extrapolating": leverage > fitted.max_leverage * (1 + 1e-9) + 1e-12,
         "settings": _settings_reply(spec, point, in_model, sense * gradient, tiny),
         "coded": point,
-        "limits": _limits_on(spec, region, x, sense * gradient, tiny) if not reached else [],
+        "limits": _limits_on(spec, region, x, sense * gradient, tiny, labels) if not reached else [],
         "stationary": _stationary(reduced, numeric, x, sense * gradient, region, in_model, found["spread"])
         if sense
         else None,
@@ -7848,15 +8093,22 @@ def _search(
     if not in_model or all(c["coefficient"] == 0 for c in coefficients if _parts(c["term"])):
         return None
     blocks = {c["term"]: 0.0 for c in coefficients if _block_contrast(c["term"], _model_columns(spec))}
-    points = _sample(len(numeric), region)
+    whole = region  # with a limit for some levels, the region of the numeric factors differs from level to level
 
     def score(levels: dict[str, float]) -> float:
+        try:
+            points = _sample(len(numeric), _region_at(whole, spec, levels))
+        except _NotAllowedError:
+            return -math.inf
         held = _held_at(coefficients, {**blocks, **_held_columns(levels, spec)})
         return max(_objective(goal, v, target) for v in _predict(held, numeric_names, points))
 
-    combinations = _searched_levels(spec, in_model, score)
+    combinations = _searched_levels(spec, in_model | _limited_levels(whole), score)
     best: dict[str, Any] | None = None
+    # None of these is at levels the limits never run together: up to three combinations are one factor's levels,
+    # each of which the limits allow, and among more the search scores such levels last.
     for levels in combinations:
+        region = _region_at(whole, spec, levels)
         held = {**blocks, **_held_columns(levels, spec)}
         model = _held_at(coefficients, held)
         sought = _goal(goal, target, model, spec["response"])
@@ -8004,7 +8256,12 @@ def _settings_reply(
 
 
 def _limits_on(
-    spec: dict, region: DesignRegion | None, x: np.ndarray, ascent: np.ndarray, tiny: float
+    spec: dict,
+    region: DesignRegion | None,
+    x: np.ndarray,
+    ascent: np.ndarray,
+    tiny: float,
+    labels: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     """List the limits the best settings are on, numbered by their place, and whether the goal improves beyond each.
 
@@ -8015,9 +8272,13 @@ def _limits_on(
     if region is None:
         return []
     factors = _factors(spec)
+    numeric = [f for f in factors if f.type != "categorical"]
     on = []
     for i, limit in enumerate(spec["constraints"]):
-        alone = _region(factors, [limit["expression"]])
+        holds = _holds_at(limit["expression"], factors, labels or {})  # a limit for other levels is not met here
+        if holds is None:
+            continue
+        alone = DesignRegion(numeric, [holds])
         for g in alone.inequalities:
             value, normal = _value_and_normal(g, x)
             length = float(np.linalg.norm(normal))
@@ -8520,6 +8781,7 @@ def balance(request: dict) -> dict:
         return _balanced_blend(every_run, whole, aimed, fits, goals)
     region = _spec_region(whole)
     found = _balance_search(fits, goals, whole, region)
+    labels, region = _labels_at(region, whole, found["levels"]), _region_at(region, whole, found["levels"])
     point = _full_point(whole, found["x"], found["levels"])
     in_model = set().union(*(_factors_in(fit.out["coefficients"], whole) for fit in fits.values()))
     numeric = [f for f in whole["factors"] if not _categorical(f)]
@@ -8527,7 +8789,7 @@ def balance(request: dict) -> dict:
     reply = {
         **_balanced_at(aimed, goals, fits, point),
         "settings": _settings_reply(whole, point, in_model, still, 1.0),
-        "limits": _limits_on(whole, region, found["x"], still, 1.0),
+        "limits": _limits_on(whole, region, found["x"], still, 1.0, labels),
         "confirm_at": _practical(whole, point, region),
         "confirmation": _balanced_confirmation(every_run, whole, aimed, fits),
         "overlay": _overlay(whole, found, goals, region),
@@ -8616,9 +8878,9 @@ def trade_offs(request: dict) -> dict:
     point = _point_sent(request.get("at"), spec)
     names = [f["name"] for f in numeric]
     transforms = spec.get("analysis_transforms") or {}
-    region = _spec_region(spec)
     coefficients, blocks = _searched_models(fits, spec)
     levels = {f["name"]: point[f["name"]] for f in spec["factors"] if _categorical(f)}
+    region = _region_at(_spec_region(spec), spec, levels)  # a limit for some levels: the region at the balance's
     held = {**blocks, **_held_columns(levels, spec)}
     models = {name: _held_at(c, held) for name, c in coefficients.items()}
     tried = np.random.default_rng(TRADE_OFF_SEED).uniform(-1.0, 1.0, size=(TRADE_OFF_DRAWN, len(numeric)))
@@ -8761,25 +9023,21 @@ def target_settings(request: dict) -> dict:
     rng = np.random.default_rng(TARGET_SEED)
     combinations = _level_combinations(whole)
     drawn = rng.uniform(-1.0, 1.0, size=(TARGET_DRAWN // len(combinations), len(numeric)))
-    if region is not None:
+    if region is not None and region.rules is None:  # a limit for some levels is judged level by level, below
         drawn = drawn[region.feasible(drawn[:, [names.index(n) for n in region.names]])]
     if not len(drawn):
         raise ValueError("The limits on the settings leave no setting to try.")
-
-    def missed(levels: dict[str, float], settings: np.ndarray) -> np.ndarray:
-        """Return how far each response is predicted from its target at each setting, in units of its reach."""
-        point = {**dict.fromkeys(names, 0.0), **levels}
-        return np.column_stack([(fits[n].over(point, names, settings)[0] - targets[n]) / near[n] for n in targets])
-
+    off_target, missed, tried = _target_misses(fits, targets, near, names, (region, whole))
     best, giving = _start_of_those_tried(drawn, combinations, missed)
     start, levels = best["x"], best["levels"]
+    region = _region_at(region, whole, levels)  # from here, the region at the levels found
     # Meet the targets exactly where the models can, staying by the setting found: a small pull keeps it there.
     stay = math.sqrt(1e-4)
     polished = optimize.least_squares(
-        lambda x: np.concatenate([missed(levels, x[None, :])[0], stay * (x - start)]), start, bounds=(-1.0, 1.0)
+        lambda x: np.concatenate([off_target(levels, x[None, :])[0], stay * (x - start)]), start, bounds=(-1.0, 1.0)
     ).x
     allowed = region is None or bool(region.feasible(polished[None, [names.index(n) for n in region.names]])[0])
-    after = missed(levels, polished[None, :])[0]
+    after = off_target(levels, polished[None, :])[0]
     # The step lowers the misses taken together, which can push one response out of reach to bring the others
     # nearer: settings that give every target are left only for settings that give them all too.
     closer = float((after**2).sum()) <= best["miss"] + 1e-12 and (not best["given"] or np.abs(after).max() <= 1.0)
@@ -8805,8 +9063,8 @@ def target_settings(request: dict) -> dict:
         "max_leverage": leaning["max_leverage"],
         "leverage_of": leaning["name"],
         "extrapolating": any(r["extrapolating"] for r in responses),
-        "share": giving / (len(drawn) * len(combinations)),
-        "tried": len(drawn) * len(combinations),
+        "share": giving / tried[0],
+        "tried": tried[0],
         "near": TARGET_NEAR,
         "overlay": _target_overlay(whole, surfaces, goals, region, _pair_sent(request.get("pair"), names), design),
         "search": {
@@ -8942,6 +9200,43 @@ def _blends_run(design: pd.DataFrame, names: list[str]) -> list[list[float]]:
     return design[names].astype(float).drop_duplicates().to_numpy().tolist()
 
 
+def _target_misses(
+    fits: dict[str, _FittedModel],
+    targets: dict[str, float],
+    near: dict[str, float],
+    names: list[str],
+    limited: tuple[DesignRegion | None, dict],
+) -> tuple[Callable[..., np.ndarray], Callable[..., np.ndarray], list[int]]:
+    """Return how far settings are from the targets, the same for a search, and the count of settings it tried.
+
+    The first gives how far each response is predicted from its target at each setting, at given levels, in
+    units of its reach. The second puts a setting the limits do not allow at those levels infinitely far, and
+    counts the others in the list it shares: with a limit for some levels, what can be run differs by level.
+    ``limited`` is the region of the limits and the study's specification.
+    """
+    region, spec = limited
+    tried = [0]
+
+    def off_target(levels: dict[str, float], settings: np.ndarray) -> np.ndarray:
+        point = {**dict.fromkeys(names, 0.0), **levels}
+        return np.column_stack([(fits[n].over(point, names, settings)[0] - targets[n]) / near[n] for n in targets])
+
+    def missed(levels: dict[str, float], settings: np.ndarray) -> np.ndarray:
+        miss = off_target(levels, settings)
+        try:
+            here = _region_at(region, spec, levels)
+            allowed = (
+                np.ones(len(settings), dtype=bool) if here is None or region.rules is None else here.feasible(settings)
+            )  # type: ignore[union-attr]
+        except _NotAllowedError:
+            allowed = np.zeros(len(settings), dtype=bool)
+        tried[0] += int(allowed.sum())
+        miss[~allowed] = np.inf
+        return miss
+
+    return off_target, missed, tried
+
+
 def _start_of_those_tried(
     drawn: np.ndarray,
     combinations: list[dict[str, float]],
@@ -8966,6 +9261,8 @@ def _start_of_those_tried(
         if best is None or found["rank"] < best["rank"]:
             best = found
     assert best is not None  # there is always one combination of levels, the empty one
+    if not math.isfinite(best["miss"]):  # the limits on the settings allow none of those tried, at any levels
+        raise ValueError("The limits on the settings leave no setting to try.")
     return best, giving
 
 
@@ -9251,13 +9548,33 @@ def specification(request: dict) -> dict:
         raise ValueError("A specification is met by moving a factor with a range, and this study has none.")
     windows = _windows_sent(request.get("windows"), whole, transforms)
     fits, spread = _target_fits(request, whole, design, list(windows), asked="its window is judged")
-    region = _spec_region(whole)
+    whole_region = _spec_region(whole)
     point = _point_of(request.get("at"), whole, "")
-    drawn = np.random.default_rng(SPECIFICATION_SEED).uniform(-1.0, 1.0, size=(SPECIFICATION_DRAWN, len(names)))
+    try:  # with a limit for some levels: the region at the levels the what-if panel has
+        region = _region_at(
+            whole_region, whole, {f["name"]: point[f["name"]] for f in whole["factors"] if _categorical(f)}
+        )
+    except _NotAllowedError:
+        raise ValueError("The limits on the settings leave no setting to try.") from None
+    every = np.random.default_rng(SPECIFICATION_SEED).uniform(-1.0, 1.0, size=(SPECIFICATION_DRAWN, len(names)))
+    drawn = every
     if region is not None:
         drawn = drawn[region.feasible(drawn[:, [names.index(n) for n in region.names]])]
     if not len(drawn):
         raise ValueError("The limits on the settings leave no setting to try.")
+
+    def drawn_at(at: dict[str, float]) -> np.ndarray:
+        """Return the settings tried at a point's levels: a limit for some levels allows others there."""
+        if whole_region is None or whole_region.rules is None:
+            return drawn
+        try:
+            here = _region_at(
+                whole_region, whole, {f["name"]: at[f["name"]] for f in whole["factors"] if _categorical(f)}
+            )
+        except _NotAllowedError:
+            return every[:0]
+        return every if here is None else every[here.feasible(every)]
+
     models = _region_models(fits)
     correlation = _residual_correlation(fits)
     judge = lambda settings, at=point: feasible_region(  # noqa: E731
@@ -9287,7 +9604,9 @@ def specification(request: dict) -> dict:
         "held": [
             {"name": f["name"], "value": _in_units(f, point[f["name"]])} for f in whole["factors"] if _categorical(f)
         ],
-        "levels": _windows_by_level(whole, point, lambda at: judge(drawn, at)),
+        "levels": _windows_by_level(
+            whole, point, lambda at: judge(tried_at, at) if len(tried_at := drawn_at(at)) else None
+        ),
         "overlay": _window_overlay(
             whole,
             fits,
@@ -9446,7 +9765,7 @@ def _residual_correlation(fits: dict[str, _FittedModel]) -> np.ndarray | None:
 
 
 def _windows_by_level(
-    spec: dict, point: dict[str, float], judged: Callable[[dict[str, float]], pd.DataFrame]
+    spec: dict, point: dict[str, float], judged: Callable[[dict[str, float]], pd.DataFrame | None]
 ) -> list[dict[str, Any]]:
     """Return what the windows give at each combination of the categorical factors' levels; none without such a factor.
 
@@ -9462,6 +9781,8 @@ def _windows_by_level(
     out = []
     for levels in _level_combinations(spec)[:SPECIFICATION_LEVELS] if categorical else []:
         tried = judged({**point, **levels})
+        if tried is None:  # the limits on the settings leave nothing to run at these levels
+            continue
         chance = tried["probability"].to_numpy()
         out.append(
             {
@@ -9763,10 +10084,21 @@ def _balance_search(
     def overall(models: dict[str, list[dict]], points: np.ndarray) -> np.ndarray:
         return _overall(models, goals, numeric_names, points)
 
-    points = _sample(len(numeric), region)
-    combinations = _searched_levels(spec, in_model, lambda levels: float(overall(held_models(levels), points).max()))
+    whole = region  # with a limit for some levels, the region of the numeric factors differs from level to level
+
+    def score(levels: dict[str, float]) -> float:
+        try:
+            points = _sample(len(numeric), _region_at(whole, spec, levels))
+        except _NotAllowedError:
+            return -math.inf
+        return float(overall(held_models(levels), points).max())
+
+    combinations = _searched_levels(spec, in_model | _limited_levels(whole), score)
     best: dict[str, Any] | None = None
+    # None of these is at levels the limits never run together: up to three combinations are one factor's levels,
+    # each of which the limits allow, and among more the search scores such levels last.
     for levels in combinations:
+        region = _region_at(whole, spec, levels)
         models = held_models(levels)
         heard: list[str] = []
         x = np.zeros(0)
@@ -10302,9 +10634,10 @@ def _matched(result: Any, request: dict, spec: dict, n_points: int) -> dict[str,
 def outside_limits(request: dict) -> dict:
     """Name the limits on the settings that some settings break, each by its place in the study's list.
 
-    ``settings`` holds each numeric factor's setting, a number in its own units inside its range; a
-    limit names numeric factors only. Each limit is judged alone, as the library judges a point
-    (:meth:`~process_improve.experiments.DesignRegion.feasible`).
+    ``settings`` holds each numeric factor's setting, a number in its own units inside its range, and
+    each categorical factor's level where the page has one. Each limit is judged alone, as the library
+    judges a point (:meth:`~process_improve.experiments.DesignRegion.feasible`); a limit for some levels
+    is broken only at those levels.
     """
     spec = _checked_spec(request.get("spec") or {})
     settings = request.get("settings")
@@ -10313,9 +10646,15 @@ def outside_limits(request: dict) -> dict:
     factors = _factors(spec)
     numeric = [f for f in spec["factors"] if not _categorical(f)]
     x = np.array([[_coded_value(_factor_of(f), _setting_of(f, settings)) for f in numeric]])
+    labels = {f["name"]: str(settings[f["name"]]) for f in spec["factors"] if _categorical(f) and f["name"] in settings}
+    ranges = [f for f in factors if f.type != "categorical"]
     broken = []
     for i, limit in enumerate(spec.get("constraints") or []):
-        if not bool(_region(factors, [limit["expression"]]).feasible(x)[0]):
+        parts = _for_levels(limit["expression"], factors)
+        if parts is not None and any(labels.get(name) != level for name, level in parts[0].items()):
+            continue  # a limit for other levels
+        holds = limit["expression"] if parts is None else parts[1]
+        if holds is None or not bool(DesignRegion(ranges, [holds]).feasible(x)[0]):
             broken.append({"index": i, "expression": limit["expression"]})
     return {"broken": broken}
 
@@ -10807,7 +11146,13 @@ def _runnable(spec: dict, new: np.ndarray) -> bool:
     if region is None or not len(new):
         return True
     names = [f["name"] for f in spec["factors"]]
-    return bool(region.feasible(new[:, [names.index(name) for name in region.names]]).all())
+    labels = {}  # each run's level of the categorical factors, for a limit that holds at some of them
+    for f in spec["factors"]:
+        if _categorical(f):
+            levels = _levels_of(f)
+            codes = new[:, names.index(f["name"])]
+            labels[f["name"]] = [str(levels[round((c + 1) / 2 * (len(levels) - 1))]) for c in codes]
+    return bool(_feasible(region, new[:, [names.index(name) for name in region.names]], labels).all())
 
 
 def _model_rank(coded: np.ndarray, kinds: list[str], model: str) -> tuple[int, int]:

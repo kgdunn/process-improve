@@ -260,7 +260,28 @@
           <p id="limit-names" class="limit-names" aria-label="Type a factor or a sign" hidden></p>
           <p class="actions">
             <button type="button" id="add-limit" class="link">+ Type a limit</button>
+            <!-- A limit that holds at one level of a categorical factor (limits.js): built from five choices, not typed. -->
+            <button type="button" id="add-level-limit" class="link" hidden>+ A limit for one level</button>
             <span id="limits-full" class="hint" hidden>A study can have at most 8 limits.</span>
+          </p>
+          <div id="level-limit" class="level-limit" role="group" aria-label="A limit for one level" hidden>
+            <span>When</span>
+            <select id="level-limit-factor" aria-label="The factor with levels"></select>
+            <span>is</span>
+            <select id="level-limit-level" aria-label="Its level"></select>
+            <span>:</span>
+            <select id="level-limit-numeric" aria-label="The factor it limits"></select>
+            <select id="level-limit-side" aria-label="At most or at least">
+              <option value="most">is at most</option>
+              <option value="least">is at least</option>
+            </select>
+            <input id="level-limit-value" type="number" step="any" inputmode="decimal" aria-label="The value">
+            <button type="button" id="level-limit-add" class="button">Add</button>
+            <button type="button" id="level-limit-cancel" class="link">Cancel</button>
+          </div>
+          <p id="limits-levels" class="limits-levels" hidden>
+            <label>Shown for <select id="limits-at"></select></label>
+            <span class="hint">A limit for one level changes what can be run from level to level.</span>
           </p>
           <p id="limits-summary" class="hint" role="status" aria-live="polite" hidden></p>
           <!-- The picture of the settings that can be run (picture.js): a panel per pair of numeric factors. -->
