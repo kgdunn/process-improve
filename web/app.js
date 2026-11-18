@@ -9419,7 +9419,13 @@ closeOnBackdrop($("#library"));
  * under a button, which Tab walks. A choice, Escape, a press elsewhere and Tab out of the list each close it.
  */
 function studyMenu(open) {
-  $("#study-menu").hidden = !open;
+  const menu = $("#study-menu");
+  menu.hidden = !open;
+  // The list is as wide as its longest line and starts under its button; where that runs past the screen's edge
+  // it is moved left by as much. On a phone the stylesheet gives it the screen's width, so nothing is moved.
+  menu.style.left = "";
+  const past = open ? menu.getBoundingClientRect().right - (document.documentElement.clientWidth - 8) : 0;
+  if (past > 0) menu.style.left = `${-past}px`;
   $("#study-button").setAttribute("aria-expanded", String(open));
   // A question with no run sheet yet has nothing to share and no report.
   if (open) for (const id of ["#menu-share", "#menu-report"]) $(id).disabled = !state.design;
