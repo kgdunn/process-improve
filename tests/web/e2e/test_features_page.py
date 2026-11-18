@@ -60,7 +60,17 @@ def test_the_footer_says_what_factorial_is_and_names_each_group_of_its_links(pag
              [...list.querySelectorAll('a, button')].map((to) => to.textContent)])"""
     )
     assert groups == [
-        ["The app", ["How Factorial works", "The design catalog", "How its ideas link"]],
+        [
+            "The app",
+            [
+                "Factorial, the app",
+                "What Factorial does",
+                "How Factorial works",
+                "The design catalog",
+                "The textbooks' answers, checked",
+                "How its ideas link",
+            ],
+        ],
         ["Behind it", ["process-improve, the Python package", "Process Improvement using Data, the book"]],
         ["Something wrong or missing?", ["Send feedback"]],
     ]
