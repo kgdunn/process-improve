@@ -167,6 +167,7 @@ jobs:
           VERSION="${{ needs.build.outputs.version }}"
           NOTES_FILE="release-notes.md"
           python - "${VERSION}" "${NOTES_FILE}" <<'PYEOF'
+          import os
           import sys
           import re
           import pathlib
@@ -186,8 +187,19 @@ jobs:
               print(f"::error::CHANGELOG.md has no entry for v{version}; "
                     "refusing to create a release without notes.")
               sys.exit(1)
-          out_path.write_text(m.group(1).strip() + "\n", encoding="utf-8")
-          print(f"Extracted release notes for v{version} ({len(m.group(1))} chars)")
+          notes = m.group(1).strip()
+          # GitHub refuses a release body over 125,000 characters (the v2.6.0
+          # release failed on it), so longer notes stop at the last whole line
+          # that fits and point to the full entry in the tagged CHANGELOG.md.
+          limit = 120_000
+          if len(notes) > limit:
+              kept = notes[:limit].rsplit("\n", 1)[0]
+              notes = (
+                  f"{kept}\n\n*These notes are cut short: GitHub limits their length. The full entry is in "
+                  f"[CHANGELOG.md](https://github.com/{os.environ['GITHUB_REPOSITORY']}/blob/v{version}/CHANGELOG.md).*"
+              )
+          out_path.write_text(notes + "\n", encoding="utf-8")
+          print(f"Extracted release notes for v{version} ({len(notes)} chars)")
           PYEOF
 
       - name: Create or update GitHub release
