@@ -609,7 +609,8 @@ Also:
     code and compare.
 - **A workbook for the lab.** The run sheet as a spreadsheet to fill in, which the app reads
   back.
-  - *Details:* An .xlsx file. Two downloads of one study are the same file.
+  - *Details:* An .xlsx file. Two downloads of one study are the same file. It also keeps the
+    targets and the specification limits typed in Learn, so they come back with the workbook.
 - **Run sheet (.csv).** It opens in any spreadsheet or program.
 - **A notebook.** It holds the study's code, with a cell that draws each figure of the
   analysis.

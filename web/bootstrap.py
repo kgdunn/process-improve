@@ -4318,6 +4318,8 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
         "constraints",
         "analysis_transforms",
         "what_if",
+        "targets",
+        "windows",
         "builds_on",
         "curve",
     )
@@ -5199,6 +5201,7 @@ def read_workbook(request: dict) -> dict:
         reply["more_sources"] = {name: results[name][1] for name in names[1:]}
     if stored.get("what_if"):
         reply["what_if"] = _kept_settings(stored["what_if"])
+    reply |= _kept_asked(stored, names)
     if stored.get("builds_on"):
         reply["builds_on"] = _built_on(stored["builds_on"])
     if spec.get("curve") is not None:
@@ -5329,6 +5332,7 @@ def workbook(request: dict) -> dict:
         spec = {**spec, "simulated": {k: simulated.get(k) for k in ("scenario", "sigma", "seed")}}
     if request.get("what_if"):
         spec = {**spec, "what_if": _kept_settings(request["what_if"])}
+    spec = {**spec, **_kept_asked(request, [r["name"] for r in _responses(spec)])}
     if request.get("builds_on"):
         spec = {**spec, "builds_on": _built_on(request["builds_on"])}
     curves = None
@@ -8960,6 +8964,36 @@ def _start_of_those_tried(
             best = found
     assert best is not None  # there is always one combination of levels, the empty one
     return best, giving
+
+
+def _kept_asked(held: dict, names: list[str]) -> dict[str, dict]:
+    """Return the targets and the windows typed in Learn as a workbook keeps them, checked: those there are.
+
+    ``held`` is the page's request, or the specification a workbook stores. A target is a number for a
+    response the study measures; a window is two ends for one, a number or None for an end left open,
+    and not both open. They are kept as typed, on the response's own scale: the page works out what
+    they give when the workbook is opened, as it does for a study it kept.
+    """
+    kept: dict[str, dict] = {}
+    targets, windows = held.get("targets"), held.get("windows")
+    if targets:
+        if not isinstance(targets, dict) or not set(targets) <= set(names):
+            raise ValueError("The workbook holds a target for a response the study does not measure.")
+        if any(_number(value) is None for value in targets.values()):
+            raise ValueError("The workbook holds a target that is not a number.")
+        kept["targets"] = {name: float(_number(value)) for name, value in targets.items()}  # type: ignore[arg-type]
+    if windows:
+        if not isinstance(windows, dict) or not set(windows) <= set(names):
+            raise ValueError("The workbook holds a window for a response the study does not measure.")
+        ends_of = {}
+        for name, ends in windows.items():
+            if not isinstance(ends, list) or len(ends) != 2 or all(end is None for end in ends):  # two ends, one typed
+                raise ValueError("The workbook holds a window that does not have two ends.")
+            if any(end is not None and _number(end) is None for end in ends):
+                raise ValueError("The workbook holds a window with an end that is not a number.")
+            ends_of[name] = [None if end is None else float(_number(end)) for end in ends]  # type: ignore[arg-type]
+        kept["windows"] = ends_of
+    return kept
 
 
 def _targets_sent(raw: object, spec: dict, transforms: dict[str, str]) -> dict[str, float]:

@@ -173,3 +173,35 @@ def test_the_same_workbook_can_be_read_again_after_edits_on_the_page(page, api, 
     settled(page)
     assert page.input_value('#design-table input[data-index="1"]') != "999"
     assert_the_page_holds(page, design)
+
+
+def test_a_target_and_a_window_typed_in_learn_come_back_with_the_workbook(page, tmp_path):
+    """The study's file and link kept them; the workbook did not, so a reader typed them again (#1301)."""
+    reveal(page, "#target")
+    page.fill('#target-goals tr[data-response="Yield"] [name="target"]', "63")
+    page.wait_for_selector("#target-out .lead")
+    reveal(page, "#window")
+    page.fill('#window-limits tr[data-response="Yield"] [name="low"]', "61")
+    page.wait_for_selector("#window-out .lead")
+    settled(page)
+    reveal(page, "#download")
+    with page.expect_download() as download:
+        page.click("#download")
+    path = tmp_path / "kept.xlsx"
+    download.value.save_as(path)
+    stored = json.loads(pd.read_excel(path, sheet_name="_pi_design")["spec"].iloc[0])
+    assert stored["targets"] == {"Yield": 63.0}
+    assert stored["windows"] == {"Yield": [61.0, None]}
+    # Typed over, then the workbook read back: what it kept is on the page again, and worked out again.
+    reveal(page, "#target")
+    page.fill('#target-goals tr[data-response="Yield"] [name="target"]', "")
+    settled(page)
+    upload(page, path)
+    settled(page)
+    reveal(page, "#target")
+    page.wait_for_selector("#target-out .lead")
+    assert float(page.input_value('#target-goals tr[data-response="Yield"] [name="target"]')) == 63
+    reveal(page, "#window")
+    page.wait_for_selector("#window-out .lead")
+    assert float(page.input_value('#window-limits tr[data-response="Yield"] [name="low"]')) == 61
+    assert page.input_value('#window-limits tr[data-response="Yield"] [name="high"]') == ""
