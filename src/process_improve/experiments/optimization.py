@@ -2854,12 +2854,16 @@ def _new_run_scatter(model: dict[str, Any], matrix: np.ndarray) -> tuple[np.ndar
     """Return the standard error of one new run at each row of a model's matrix, and the fit's degrees of freedom.
 
     None when the model does not hold its residual mean square, its residual degrees of freedom and its
-    unscaled covariance, or has no degrees of freedom left to estimate the error from.
+    unscaled covariance, or has no degrees of freedom left to estimate the error from. A model that holds
+    a ``"prior_sigma"`` is scaled by it instead: the error is then known, not estimated, so the degrees of
+    freedom are infinite (the normal distribution) and a saturated fit has a scatter too.
     """
-    # A result of analyze_experiment holds the first two in its model summary.
+    # A result of analyze_experiment holds these in its model summary.
     summary = model.get("model_summary") or {}
-    mse, df = (model.get(key, summary.get(key)) for key in ("mse_residual", "df_residual"))
+    mse, df, prior = (model.get(key, summary.get(key)) for key in ("mse_residual", "df_residual", "prior_sigma"))
     covariance = model.get("unscaled_covariance")
+    if prior is not None:
+        mse, df = float(prior) ** 2, np.inf
     if mse is None or df is None or covariance is None or float(df) <= 0:
         return None
     leverage = np.einsum("ij,jk,ik->i", matrix, np.asarray(covariance, dtype=float), matrix)
@@ -2890,6 +2894,9 @@ def feasible_region(
 
         - ``"mse_residual"`` (float) - the residual mean square of the fit.
         - ``"df_residual"`` (float) - its residual degrees of freedom.
+        - ``"prior_sigma"`` (float, optional) - the standard deviation of the error,
+          when it is known from before these runs. It replaces the two above, and the
+          new run is then normal about its prediction.
         - ``"unscaled_covariance"`` (2-D array) - the covariance of the coefficients
           over the residual variance, the inverse of ``X'X``, its rows and columns in
           the order of ``"coefficients"``. A statsmodels fit holds it as
@@ -2936,7 +2943,9 @@ def feasible_region(
     residual degrees of freedom of its model, scaled by the standard error of a new
     observation, ``sqrt(mse_residual * (1 + x' C x))``, where ``x`` is the settings'
     row of the model matrix and ``C`` the unscaled covariance. The probability for
-    one response is the share of that distribution inside its window. Without a
+    one response is the share of that distribution inside its window. A model with a
+    ``"prior_sigma"`` takes ``prior_sigma ** 2`` for the mean square and the normal
+    distribution for the t, since its error is not estimated from these runs. Without a
     *residual_correlation* the responses' errors are taken as independent, so the
     probability of meeting every window is the product over the responses. Responses
     measured on the same run are often correlated, and the product is then a guide:
