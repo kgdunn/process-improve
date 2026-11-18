@@ -711,6 +711,7 @@ number is.
    `CITATION.cff` and `CHANGELOG.md` on it, checks that the tag is new, then tags that commit and
    pushes the tag. Each check prints its result, and the script stops at the first that fails.
    `DRY_RUN=1 tools/tag_release.sh X.Y.Z` runs the checks only.
+   It works on the clone it is in, so `cd` to the clone and `git pull` first, to have the script.
 
 `publish.yml` refuses to ship if the tag does not equal
 `v<pyproject version>`, or if `CHANGELOG.md` has no `## [X.Y.Z]` heading,
