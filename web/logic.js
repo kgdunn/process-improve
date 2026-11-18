@@ -166,6 +166,17 @@ export function dayWords(day) {
 }
 
 /**
+ * A moment in words, in the reader's own time zone and on a 24-hour clock, as the footer dates a version:
+ * "13 November 2026, 16:42" for "2026-11-13T16:42:07+01:00" read in that zone; null for what is no moment.
+ */
+export function momentWords(moment) {
+  const at = new Date(typeof moment === "string" ? moment : Number.NaN);
+  if (Number.isNaN(at.getTime())) return null;
+  const two = (n) => String(n).padStart(2, "0");
+  return `${at.getDate()} ${MONTHS[at.getMonth()]} ${at.getFullYear()}, ${two(at.getHours())}:${two(at.getMinutes())}`;
+}
+
+/**
  * The version of the app a build names, as a report of a problem carries it: the whole commit, then the day it was
  * made when the build knows it; null with no commit, as in a preview that was not built.
  */

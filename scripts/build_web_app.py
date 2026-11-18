@@ -367,6 +367,26 @@ def committed(sha: str | None) -> str | None:
     return day if re.fullmatch(r"\d{4}-\d{2}-\d{2}", day) else None
 
 
+def committed_at(sha: str | None) -> str | None:
+    """Give the moment the commit ``sha`` was made, as ``2026-11-13T16:42:07+01:00``, if git can tell.
+
+    The page shows it in the reader's own time zone, to the minute, so two builds of one day are told apart.
+    """
+    git = shutil.which("git")
+    if sha is None or git is None:
+        return None
+    shown = subprocess.run(  # noqa: S603
+        [git, "show", "-s", "--format=%cI", sha],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        encoding="utf-8",
+    )
+    moment = shown.stdout.strip()
+    return moment if re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})", moment) else None
+
+
 @functools.cache
 def load_bootstrap() -> ModuleType:
     """Load ``web/bootstrap.py`` from its file, as ``web/worker.js`` loads it into Pyodide."""
@@ -2133,6 +2153,7 @@ def assemble(out_dir: Path, dist: Path = ROOT / "dist" / "web", *, service_worke
         "service_worker": service_worker,
         "commit": commit(),
         "committed": committed(commit()),
+        "committed_at": committed_at(commit()),
         "plotly": version("plotly"),
         "plotly_js": get_plotlyjs_version(),
         "on_demand": exact_files(on_demand_pins(version("plotly")), python),

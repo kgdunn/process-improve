@@ -169,6 +169,7 @@ import {
   waitWords,
   REPOSITORY,
   dayWords,
+  momentWords,
   shortCommit,
   versionText,
   codedLevel,
@@ -184,6 +185,13 @@ describe("the version of the app", () => {
     for (const not of [null, undefined, "", "2026-13-01", "2026-11-00", "13 November 2026", "2026-11-13T10:00:00Z"]) {
       assert.equal(dayWords(not), null, String(not));
     }
+  });
+
+  test("is dated to the minute in the reader's own time zone, on a 24-hour clock", () => {
+    // Moments written from this machine's own clock, so the test holds in any time zone.
+    assert.equal(momentWords(new Date(2026, 10, 18, 7, 5, 59).toISOString()), "18 November 2026, 07:05");
+    assert.equal(momentWords(new Date(2026, 0, 5, 23, 40).toISOString()), "5 January 2026, 23:40");
+    for (const not of [null, undefined, "", "soon", 1763000000000]) assert.equal(momentWords(not), null, String(not));
   });
 
   test("goes with a report as the whole commit and its day, within the 64 characters the relay takes", () => {
