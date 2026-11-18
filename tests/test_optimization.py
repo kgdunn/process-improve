@@ -1953,6 +1953,25 @@ class TestFeasibleRegion:
             feasible_region([{**model, "df_residual": 0}], {"y": (36, 43)}, self._grid(5))["probability"].isna().all()
         )
 
+    def test_a_prior_sigma_scales_a_new_run_and_the_normal_distribution_judges_it(self) -> None:
+        """A known sigma replaces the residual mean square, and has no degrees of freedom to pay for."""
+        from scipy import stats
+
+        model, fit, _ = self._fitted()
+        points = self._grid(5)
+        region = feasible_region([{**model, "prior_sigma": 0.7}], {"y": (36, 43)}, points)
+        predicted = fit.get_prediction(points)
+        scatter = 0.7 * np.sqrt(1 + predicted.var_pred_mean / fit.mse_resid)
+        expected = stats.norm.cdf((43 - predicted.predicted_mean) / scatter) - stats.norm.cdf(
+            (36 - predicted.predicted_mean) / scatter
+        )
+        np.testing.assert_allclose(region["probability"], expected, atol=1e-10)
+
+    def test_a_prior_sigma_gives_a_saturated_fit_its_probability(self) -> None:
+        model, _, _ = self._fitted()
+        saturated = {**model, "df_residual": 0, "mse_residual": float("nan"), "model_summary": {"prior_sigma": 0.7}}
+        assert feasible_region([saturated], {"y": (36, 43)}, self._grid(5))["probability"].notna().all()
+
     def test_a_model_of_the_intercept_alone_is_the_same_at_every_setting(self) -> None:
         flat = {**self.LINE, "coefficients": [{"term": "Intercept", "coefficient": 3.0}]}
         region = feasible_region([flat], {"y": (2, 4)}, self.ALONG_A)
