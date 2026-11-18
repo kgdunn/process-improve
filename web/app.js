@@ -1470,7 +1470,9 @@ function renderHard() {
       tr.dataset.hard = tick.checked ? "1" : "";
       markStale();
     });
-    label.append(tick, ` ${box(tr, "name").value.trim()}`);
+    const name = box(tr, "name").value.trim();
+    tick.setAttribute("aria-label", `${name} is hard to change`); // a name alone is also a term of the model, in Learn
+    label.append(tick, ` ${name}`);
     return label;
   });
   $("#hard-factors").replaceChildren(...ticks);

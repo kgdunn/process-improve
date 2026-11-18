@@ -769,11 +769,11 @@ Also:
   No setting takes a part of the page away.
 - **Words explained where you meet them.** A term on the page has a dotted underline and
   opens its definition, in the book's words.
-  - *Details:* The glossary holds 78 terms. A definition opens on a hover, a press or the
+  - *Details:* The glossary holds 80 terms. A definition opens on a hover, a press or the
     keyboard.
 - **A definition leads to its idea.** Under most definitions, "See it in context" opens the
   concept map at that idea, with the ideas around it and the way into the book.
-  - *Details:* 61 of the 78 terms have the link, and so do a design's name in the list of
+  - *Details:* 63 of the 80 terms have the link, and so do a design's name in the list of
     designs and the words over that list, Spare runs and Power. It opens in a tab of its own,
     so the study stays as it is. A finger, a mouse and the keyboard each reach it.
 - **A phone, a tablet or a desk.** The layout, the tables and the charts fit each.
@@ -1027,10 +1027,6 @@ runs can estimate.
 
 The library also does what the app leaves out:
 
-- **Factors that are hard to change, beside limits or blocks.** The app sets a factor once
-  for a group of runs in an optimal design without either.
-  - *Details:* `generate_design` with `hard_to_change`, analysed by `analyze_experiment` with
-    `analysis_type="split_plot"`; `backend="pyoptex"` keeps fixed runs in such a design.
 - **Results that are counts, or pass and fail.** A model made for such results. The app
   treats every result as a measured amount.
   - *Details:* A generalized linear model: `analysis_type="glm"`, for a Poisson, binomial or

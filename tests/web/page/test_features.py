@@ -54,7 +54,6 @@ LIBRARY = "### More in the Python library"
 #: without it while ``web/bootstrap.py`` never writes it. The app's refusal of a process factor beside a
 #: mixture's components, which has no name of its own, is in ``tests/web/api/test_errors.py``.
 ONLY_IN_THE_LIBRARY = {
-    "Factors that are hard to change.": ("hard_to_change", "split_plot"),
     "Results that are counts, or pass and fail.": ("glm",),
     "Recipes with process settings.": (),
     "Sources of variation.": ("variance_components", "multistratum_anova"),

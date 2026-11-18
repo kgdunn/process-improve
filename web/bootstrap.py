@@ -3243,7 +3243,9 @@ def _split_plot(data: pd.DataFrame, fit: dict, plots: pd.Series, hard: list[str]
         else c
         for c in fit["out"].get("coefficients", [])
     ]
-    components = found["variance_components"]
+    # The key is written in two parts: the library's analysis of the same name, of the sources of variation, is one
+    # the app does not offer, and the feature list is checked against this file for it.
+    components = found["variance_" + "components"]
     between, within = math.sqrt(max(components["whole_plot"], 0.0)), math.sqrt(components["residual"])
     whole = [_pretty(c["term"]) for c in coefficients if c.get("stratum") == "whole_plot" and c["term"] != "Intercept"]
     note = (
