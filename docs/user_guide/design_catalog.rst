@@ -200,18 +200,19 @@ library has no function for yet from one with nothing to recompute:
    for case in catalog_reproduction("lenth-1989"):
        print(case["tier"], case["title"][:40], [n["cause"] for n in case["differs"]])
 
-The catalog's page `Reproduced from the books <https://factori.al/catalog/reproduced/>`_ draws the
-same classification for every source: a table of the tiers, by case and by number; the causes of the
-differences and of the numbers not recomputed, for all the sources together; a table by source, with
-the sources grouped by their form (:func:`~process_improve.experiments.design_catalog.source_form`:
-books, journal papers, and handbooks, encyclopedias and courses) and each group's totals; the spread
-of the differences; a list of the cases in each tier; and a list of what the library lacks, the
-missing methods that would recompute the most printed numbers first. The tiers describe how far the
-library reproduces a source, not the quality of the source, and the errors found in the sources are
-counted for all of them together only.
+The catalog's page `Reproduced from the books <https://factori.al/catalog/reproduced/>`_ counts the
+printed numbers, not the cases. One bar holds every recomputed number, and says how many match. The
+others are drawn as a cascade of reasons: the causes above, by the names the page gives them, and after
+them the numbers the library has no function for yet. Each reason shows one number as an example, with
+what its source prints beside the library's value, and *See another* shows the next. Under them is a
+row for each source, with the share of its numbers that match and its counts by reason, in the order
+the reader chooses: by year, by name or by how many numbers it has, never by how much of it
+reproduces. The counts describe how far the library reproduces a source, not the quality of the
+source.
 
-The page opens with these in words, and keeps the tables behind *Show the numbers*. Each source also
-has a page of its own, under `Books <https://factori.al/catalog/books/>`_: how closely the library
+Behind *Search every case* the page lists the cases of each tier, and what the library lacks, the
+missing methods that would recompute the most printed numbers first. Each source also has a page of
+its own, under `Books <https://factori.al/catalog/books/>`_: how closely the library
 gives its answers, its cases in page order, the misprints found in it with the printed value beside
 the value its own data give, and the printed numbers the library has no function for yet. Each
 application has a page too, under `Fields <https://factori.al/catalog/fields/>`_: the typical size

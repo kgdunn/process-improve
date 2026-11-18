@@ -1,30 +1,33 @@
-// web/reproduced-logic.js: the tiers a case and a number fall in, what the reproduction page counts,
-// which cases a search keeps, the bands it counts differences in, and what its address keeps.
+// web/reproduced-logic.js: the states a printed number is in and the reasons it is no match, what the
+// reproduction page counts, the tiers a case and a number fall in, which cases a search keeps, and what its
+// address keeps.
 
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import {
-  BANDS,
+  CAUSES,
   DEFAULT_VIEW,
+  REASONS,
+  STATES,
   TIER_KEYS,
   SOURCE_ORDERS,
-  bookTallies,
   byForm,
   bySource,
-  causeTotals,
+  byState,
+  cascade,
+  examples,
   missingByReason,
   missingKey,
-  errorBands,
   filterCases,
-  firstSentence,
   formatError,
   fromHash,
   groupByTier,
   kinds,
   percent,
   quantity,
-  summarise,
+  sizes,
+  tally,
   tierOf,
   toHash,
 } from "../../../web/reproduced-logic.js";
@@ -57,18 +60,59 @@ describe("the tiers", () => {
     assert.equal(tierOf(null, LIMITS), "not_reproduced", "a difference that is not a number");
   });
 
-  test("the cases count once each, the numbers each in its own tier, and a case with no number apart", () => {
-    const s = summarise(CASES, LIMITS, RIGHT);
-    assert.deepEqual(s.cases, { reproduced: 2, within_1: 1, within_5: 1, not_reproduced: 1 });
-    assert.deepEqual(s.numbers, { reproduced: 20 + 48 + 9 + 7 + 11 + 1, within_1: 1, within_5: 2, not_reproduced: 1 });
-    assert.equal(s.numbersChecked, 100);
-    assert.equal(s.recomputed, 5);
-    assert.equal(s.unchecked, 1);
+  test("the sizes of the differences leave out those the library is right about", () => {
+    assert.deepEqual(sizes(CASES, LIMITS, RIGHT), { within_1: 1, within_5: 2, not_reproduced: 1 });
+    assert.equal(sizes(CASES, LIMITS, []).not_reproduced, 2, "the misprint, held to its size");
+  });
+});
+
+describe("the states and the reasons", () => {
+  test("the numbers count once each: those that match, and each of the others under its cause", () => {
+    const counts = tally(CASES);
+    assert.equal(counts.checked, 100);
+    assert.equal(counts.match, 95);
+    assert.deepEqual(counts.causes, { source_rounding: 0, source_error: 1, method: 4, library: 0, incorrect_option: 0, unexplained: 0, library_gap: 3 });
+    assert.equal(tally([CASES[4]]).checked, 0, "a number not in the library yet is no part of those recomputed");
   });
 
-  test("a number the library is right about counts as reproduced, and only when its cause says so", () => {
-    assert.equal(summarise(CASES, LIMITS, RIGHT).numbers.not_reproduced, 1);
-    assert.equal(summarise(CASES, LIMITS, []).numbers.not_reproduced, 2, "the misprint, held to its size");
+  test("a reason's numbers are under its state, the quiz and what the library lacks apart", () => {
+    assert.deepEqual(byState(tally(CASES)), { match: 95, known: 5, quiz: 0, open: 0, gap: 3 });
+    assert.deepEqual(STATES.map((s) => s.key), ["match", "known", "quiz", "open", "gap"]);
+    assert.deepEqual(REASONS.map((r) => r.state), ["known", "known", "known", "known", "quiz", "open", "gap"]);
+  });
+
+  test("every cause of a difference is a reason, by the name the page gives the cause", () => {
+    assert.deepEqual(new Set(REASONS.map((r) => r.cause)), new Set([...Object.keys(CAUSES.differs), "library_gap"]));
+    assert.equal(REASONS.find((r) => r.cause === "incorrect_option").name, "Multiple choice: wrong on purpose");
+    assert.equal(REASONS.at(-1).name, CAUSES.unchecked.library_gap);
+  });
+
+  test("in the cascade a bar starts where the one before it ended, and a reason with no number has no row", () => {
+    const { steps, whole, differ } = cascade(tally(CASES));
+    assert.deepEqual(steps.map((s) => [s.cause, s.n]), [["source_error", 1], ["method", 4], ["library_gap", 3]]);
+    assert.equal(whole, 8);
+    assert.equal(differ, 5, "those not in the library yet do not differ");
+    assert.deepEqual(steps.map((s) => s.from), [0, 1 / 8, 5 / 8]);
+    assert.equal(steps[2].from + steps[2].share, 1);
+  });
+
+  test("the examples of a reason are plain numbers, one source after another in turn", () => {
+    const cases = [
+      { ...CASES[0], differs: [number(0.1), { ...number(0.1), printed: ["a", "b"] }, { ...number(0.1), found: "x1, x2" }, { ...number(0.1), printed: "7", found: "8" }] },
+      { ...CASES[2], differs: [{ ...number(0.1), what: "other", term: "mode", printed: "3", found: "4" }] },
+    ];
+    const found = examples(cases, "method");
+    assert.deepEqual(found.map((e) => [e.source, e.printed, e.found]), [["lenth", "1", "1.1"], ["davies", "3", "4"], ["lenth", "7", "8"]]);
+    assert.deepEqual(found[0], { source: "lenth", where: "p. 1", what: "coefficient", printed: "1", found: "1.1" });
+    assert.equal(found[1].what, "mode", "a quantity the catalogue has no name for is named by its term");
+    assert.deepEqual(examples(CASES, "unexplained"), []);
+  });
+
+  test("an example of what the library lacks has the printed number, and no value of the library's", () => {
+    assert.deepEqual(
+      examples(CASES, "library_gap").map((e) => [e.source, e.what, e.printed, e.found]),
+      [["davies", "estimate", "4", null], ["davies", "estimate", "5", null], ["davies", "radius", "2", null]],
+    );
   });
 });
 
@@ -96,7 +140,7 @@ describe("the search", () => {
   });
 
   test("reads the name of a cause, and what the library cannot compute yet", () => {
-    assert.deepEqual(ids(filterCases(CASES, SOURCES, { query: "error in the source" })), ["f"]);
+    assert.deepEqual(ids(filterCases(CASES, SOURCES, { query: "slip in the book" })), ["f"]);
     assert.deepEqual(ids(filterCases(CASES, SOURCES, { query: "irls" }, { all: true })), ["e", "f"]);
   });
 
@@ -121,22 +165,9 @@ describe("the sources and the lists", () => {
     assert.deepEqual(bySource(CASES, SOURCES, "name").map((r) => r.key), ["davies", "lenth"]);
   });
 
-  test("the books are those with a recomputed case, by name, each with its cases by tier", () => {
-    const sources = { ...SOURCES, empty: { short: "Anyone", year: 2000, title: "No cases", form: "book" } };
-    const books = bookTallies(CASES, sources, LIMITS, RIGHT);
-    assert.deepEqual(books.map((b) => b.key), ["davies"], "a paper, and a book with no case, are left out");
-    assert.deepEqual(books[0].tally.cases, { reproduced: 1, within_1: 1, within_5: 1, not_reproduced: 0 });
-  });
-
-  test("a list of books shows the first sentence of each verdict", () => {
-    const verdict = "Factorial gives the book's answers. Where they differ, this page says why.";
-    assert.equal(firstSentence(verdict), "Factorial gives the book's answers.");
-    assert.equal(firstSentence("Factorial gives the paper's answers."), "Factorial gives the paper's answers.");
-    assert.equal(firstSentence(""), "");
-  });
-
   test("no order ranks the sources by how much of them reproduces", () => {
-    assert.deepEqual(Object.keys(SOURCE_ORDERS), ["year", "name", "cases"]);
+    assert.deepEqual(Object.keys(SOURCE_ORDERS), ["year", "name", "numbers"]);
+    assert.deepEqual(bySource(CASES, SOURCES, "numbers").map((r) => r.key), ["lenth", "davies"]);
   });
 
   test("the sources group by the form of their source, each group with its totals, and all of them", () => {
@@ -159,28 +190,9 @@ describe("the sources and the lists", () => {
       [["davies", ["c2", "c"]]],
     );
   });
-
-  test("the bands count each difference once, their edges at the tiers' limits", () => {
-    const bands = errorBands(CASES, LIMITS, RIGHT);
-    assert.equal(bands.length, BANDS.length);
-    assert.equal(bands.reduce((sum, band) => sum + band.count, 0), 4, "the misprint measures the source, not the library");
-    assert.equal(errorBands(CASES, LIMITS, []).reduce((sum, band) => sum + band.count, 0), 5);
-    const at = (label) => bands.find((band) => band.label === label);
-    assert.equal(at("0.3-1%").count, 1);
-    assert.equal(at("0.3-1%").tier, "within_1");
-    assert.equal(at("1-2%").tier, "within_5");
-    assert.equal(at("1-2%").count, 1, "a band holds its upper edge");
-    assert.equal(at("2-5%").count, 1);
-    assert.equal(at("5-20%").tier, "not_reproduced");
-    assert.equal(at("Not a number").count, 1);
-  });
 });
 
 describe("the causes", () => {
-  test("count the numbers that differ and those not recomputed, by cause", () => {
-    assert.deepEqual(causeTotals(CASES), { differs: { method: 4, source_error: 1 }, unchecked: { library_gap: 3, not_a_result: 3 } });
-  });
-
   test("the numbers of one missing method fall together, whatever each number is", () => {
     const ridge = "the library has no ridge analysis under linear restrictions: its ridge_analysis traces spheres";
     assert.equal(missingKey(`a point of path A at 400; ${ridge}`), "The library has no ridge analysis under linear restrictions");

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Reproduced from the books: Factorial</title>
-  <meta name="description" content="Every worked example, exercise and design of the books and papers in the design catalog, recomputed by process-improve: which reproduce in full, which within 1% or 5%, and why each number that differs does.">
+  <meta name="description" content="Every worked example, exercise and design of the books and papers in the design catalog, recomputed by process-improve: how many printed numbers match, and why each number that differs does.">
   <link rel="canonical" href="https://factori.al/catalog/reproduced/">
   <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
   <meta name="theme-color" content="#f5f6f4" media="(prefers-color-scheme: light)">
@@ -30,127 +30,73 @@
 <main class="reproduced">
   <p class="about__back"><a href="../"><img src="../../favicon.svg" alt="" width="28" height="28"> Back to the design catalog</a></p>
   <h1>Factorial gives the textbooks' answers</h1>
-  <p class="lede">We ran the worked examples of the classic books and papers through Factorial, and checked every
-    answer they print against ours.</p>
+  <p class="reproduced__status" id="status" role="status" aria-live="polite">Loading the cases...</p>
 
-  <figure class="trust-example" id="trust-example">
-    <figcaption class="field-list__note">Box, Hunter and Hunter · the pilot plant · p. 309</figcaption>
-    <p class="trust-example__what">The effect of temperature on yield</p>
-    <p class="book-values"><span>The book <strong>23</strong></span><span>Factorial <strong>23.0</strong></span></p>
-    <a href="#src=box-hunter-hunter-1978&amp;case=bhh-pilot-plant-2-3">See the whole example</a>
-  </figure>
+  <div id="summary" hidden>
+    <p class="tally"><strong class="tally__value" id="tally-value"></strong> <span>printed numbers match.</span></p>
+    <div class="wholebar" id="wholebar" role="img"></div>
+    <svg class="zoomin" id="zoomin" viewBox="0 0 1000 34" preserveAspectRatio="none" aria-hidden="true">
+      <polygon points="1000,0 1000,0 1000,34 0,34"></polygon>
+      <line x1="0.5" y1="34" x2="1000" y2="0"></line>
+      <path d="M999.5,0 V34"></path>
+    </svg>
+    <section class="reasons" aria-labelledby="reasons-title">
+      <h2 id="reasons-title"></h2>
+      <ul class="states" id="reasons-key"></ul>
+      <div id="reasons"></div>
+    </section>
+    <p class="hint" id="sizes"></p>
+  </div>
 
-  <section class="trust-section" aria-labelledby="reasons-title">
-    <h2 id="reasons-title">When an answer differs, we say why</h2>
-    <p class="hint">And where we do not know why yet, we say so.</p>
-    <ul class="field-list card-list">
-      <li><span class="field-list__title">A misprint in the book</span><span class="field-list__note">We show the page,
-        what the book prints, and the value its own data give.</span></li>
-      <li><span class="field-list__title">The book rounds sooner</span><span class="field-list__note">Worked by hand,
-        a book rounds part-way through. Factorial carries every digit.</span></li>
-      <li><span class="field-list__title">Another method</span><span class="field-list__note">The book uses another
-        method or convention, which we name.</span></li>
-      <li><span class="field-list__title">Not in Factorial yet</span><span class="field-list__note">A few methods,
-        such as ridge analysis, are still to come. Each book's page lists them.</span></li>
-    </ul>
-  </section>
-
-  <section class="trust-section" aria-labelledby="books-title" id="books-section" hidden>
+  <section class="shelf" aria-labelledby="books-title" id="books-section" hidden>
     <h2 id="books-title">Pick your book</h2>
-    <ul class="field-chart__legend">
-      <li><span class="tierbar__key" data-tier="reproduced"></span>Matches</li>
-      <li><span class="tierbar__key" data-tier="within_1"></span>Very close</li>
-      <li><span class="tierbar__key" data-tier="within_5"></span>Close</li>
-      <li><span class="tierbar__key" data-tier="not_reproduced"></span>Differs</li>
+    <p class="hint">Its bar is every number it prints that Factorial worked again.</p>
+    <ul class="states">
+      <li><span class="statekey" data-state="match"></span>Matches the book</li>
+      <li><span class="statekey" data-state="known"></span>Differs, and we know why</li>
+      <li><span class="statekey" data-state="quiz"></span>Multiple choice, wrong on purpose</li>
+      <li><span class="statekey" data-state="open"></span>Differs, reason not known yet</li>
+      <li><span class="statekey" data-state="gap"></span>Not in Factorial yet</li>
     </ul>
-    <ul class="field-list" id="books"></ul>
+    <div class="shelf__tools">
+      <div class="shelf__forms" id="forms" role="group" aria-label="The kind of source"></div>
+      <label>Order <select id="source-order">
+        <option value="year">Oldest first</option>
+        <option value="name">By name</option>
+        <option value="numbers">Most numbers first</option>
+      </select></label>
+    </div>
+    <div class="shelf__cols" aria-hidden="true">
+      <span>Source</span><span class="shelf__numbers">Numbers</span><span>Share of its numbers</span><span class="shelf__share">Match</span><span></span>
+    </div>
+    <div id="shelf"></div>
     <p><a href="../books/">Every book, paper and handbook</a></p>
   </section>
 
-  <p class="reproduced__status" id="status" role="status" aria-live="polite">Loading the cases...</p>
+  <!-- The table the row of Box, Hunter and Hunter opens onto: the book's own table beside what Factorial gives. -->
+  <template id="receipt" data-source="box-hunter-hunter-1978">
+    <figure class="receipt">
+      <figcaption>The pilot plant: effects on yield. Table 10.2, p. 317</figcaption>
+      <table>
+        <thead><tr><th scope="col">Effect</th><th scope="col">The book</th><th scope="col">Factorial</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Average</th><td>64.25</td><td>64.25</td></tr>
+          <tr><th scope="row">T</th><td>23.0</td><td>23.0</td></tr>
+          <tr><th scope="row">C</th><td>-5.0</td><td>-5.0</td></tr>
+          <tr><th scope="row">K</th><td>1.5</td><td>1.5</td></tr>
+          <tr><th scope="row">T·C</th><td>1.5</td><td>1.5</td></tr>
+          <tr><th scope="row">T·K</th><td>10.0</td><td>10.0</td></tr>
+          <tr><th scope="row">C·K</th><td>0.0</td><td>0.0</td></tr>
+          <tr><th scope="row">T·C·K</th><td>0.5</td><td>0.5</td></tr>
+        </tbody>
+      </table>
+    </figure>
+  </template>
 
-  <details class="trust-numbers" id="numbers">
-    <summary>Show the numbers</summary>
-    <div class="stats" id="stats" hidden>
-      <div class="stat"><span class="stat__value" id="stat-numbers"></span><span class="stat__label" id="stat-numbers-label">printed numbers recomputed</span></div>
-      <div class="stat"><span class="stat__value" id="stat-agree"></span><span class="stat__label">agree with the source to its last printed digit</span></div>
-      <div class="stat"><span class="stat__value" id="stat-full"></span><span class="stat__label" id="stat-full-label">of the cases reproduce in full</span></div>
-      <div class="stat"><span class="stat__value" id="stat-errors"></span><span class="stat__label">printed numbers in error in their source, where the library's value follows from the data</span></div>
-      <div class="stat"><a class="stat__link" href="#missing-section"><span class="stat__value" id="stat-missing"></span><span class="stat__label">printed numbers not in the library yet</span></a></div>
-    </div>
+  <details class="trust-numbers" id="numbers" hidden>
+    <summary>Search every case</summary>
 
-    <section aria-labelledby="breakdown-title" id="breakdown" hidden>
-      <h2 id="breakdown-title">How closely each case reproduces</h2>
-      <p class="hint scope" id="scope"></p>
-      <div class="tierbar" id="tierbar" role="img"></div>
-      <div class="table-scroll">
-        <table class="tiers" id="tiers">
-          <caption class="visually-hidden">The cases and the printed numbers in each tier</caption>
-          <thead>
-            <tr><th scope="col">Tier</th><th scope="col">What it means</th><th scope="col" class="num">Cases</th><th scope="col" class="num">Numbers</th><th scope="col"><span class="visually-hidden">The list</span></th></tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <p class="hint">A case is placed by its worst number, so one large difference puts a case in the last tier even
-        when every other number it prints agrees; the Numbers column counts each number in its own tier. A number the
-        source prints in error, or a quiz option its answer key marks wrong, does not count against a case: the
-        library's value is the right one.</p>
-    </section>
-
-    <section aria-labelledby="causes-title" id="causes-section" hidden>
-      <h2 id="causes-title">Why numbers differ, and which are not recomputed</h2>
-      <p class="hint">For all the sources together. The catalogue records the cause of every number that differs from
-        its source and of every printed number the library does not recompute.</p>
-      <div class="causes">
-        <div class="table-scroll">
-          <table class="causes__table" id="causes-differs">
-            <caption id="causes-differs-caption">Numbers that differ from their source</caption>
-            <tbody></tbody>
-          </table>
-        </div>
-        <div class="table-scroll">
-          <table class="causes__table" id="causes-unchecked">
-            <caption id="causes-unchecked-caption">Printed numbers not recomputed</caption>
-            <tbody></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <section aria-labelledby="sources-title" id="sources-section" hidden>
-      <h2 id="sources-title">By source</h2>
-      <p class="hint">Each row counts one source's cases in each tier, and the share of its printed numbers that agree
-        with the library. A difference is between the library and what a source prints, whatever its cause: the
-        source's own rounding, a misprint, or a method that differs from the library's. The tiers describe how far
-        the library reproduces each source, not the quality of the source. Choose a source, or a kind of source, to see
-        only its cases on this page.</p>
-      <div class="sources__head">
-        <label>Order <select id="source-order">
-          <option value="year">Oldest first</option>
-          <option value="name">By name</option>
-          <option value="cases">Most cases first</option>
-        </select></label>
-      </div>
-      <div class="table-scroll">
-        <table class="bysource" id="bysource">
-          <caption class="visually-hidden">The cases of each source in each tier, grouped by the kind of source</caption>
-          <thead></thead>
-        </table>
-      </div>
-    </section>
-
-    <section aria-labelledby="bands-title" id="bands-section" hidden>
-      <h2 id="bands-title">How far off the differences are</h2>
-      <p class="hint" id="bands-caption"></p>
-      <figure class="bands">
-        <svg id="bands" role="group" aria-labelledby="bands-title"></svg>
-      </figure>
-    </section>
-
-  </details>
-
-  <section aria-labelledby="cases-title" id="cases" hidden>
+  <section aria-labelledby="cases-title" id="cases">
     <h2 id="cases-title">Every case</h2>
     <div class="reproduced__filters">
       <label class="catalog__query">
@@ -173,14 +119,16 @@
     <div id="lists"></div>
   </section>
 
-  <section aria-labelledby="missing-title" id="missing-section" hidden>
-    <h2 id="missing-title">Not in the library yet</h2>
+  <section aria-labelledby="missing-title" id="missing-section">
+    <h2 id="missing-title">Not in Factorial yet</h2>
     <p class="hint">The printed numbers the library has no function for, grouped by what is missing, those that
       would recompute the most numbers first. The list follows the search and the source chosen above.</p>
     <p class="hint" id="missing-count" role="status" aria-live="polite"></p>
     <ol class="missing" id="missing"></ol>
     <button type="button" class="button" id="missing-more" hidden>Show more</button>
   </section>
+
+  </details>
 
   <footer>
     <p>The cases are those of the reference catalogue of

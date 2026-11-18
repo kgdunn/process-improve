@@ -895,9 +895,14 @@ What a careful reader, or an organisation, asks before using a tool.
     to four designs are compared side by side. More than 1,100 designs open in Factorial with
     one click. There is a page for each of 30 fields and for each source, a list of errata, a
     feed, and forms to propose a published design or share a case study.
-- **[Reproduced from the books](catalog/reproduced/).** How closely the library reproduces
-  each number its sources print, with the reason for each difference.
-  - *Details:* In four tiers.
+- **[Reproduced from the books](catalog/reproduced/).** How many of the numbers its sources
+  print the library gives too, and the reason for each one that differs.
+  - *Details:* One bar holds every printed number that was worked again. The others are a
+    cascade of reasons: the book rounds sooner, a misprint or slip in the book, another
+    method, a multiple-choice option that is wrong on purpose, a reason not known yet, and a
+    method Factorial does not have yet. Each reason shows one number as an example, and "See
+    another" shows the next. A row for each source opens onto its own counts. "Search every
+    case" lists the cases, and each number of a case that differs.
 - **[The concept map](map/).** 237 ideas of designed experiments and 490 links between them,
   in 13 topics, each with its definition, the book's line and a link into the book. It has a
   slider for its depth: Beginner, Intermediate or Adventurous.
