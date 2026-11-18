@@ -95,7 +95,8 @@ three mixture designs under a heading of their own.
 - **D-optimal.** For 2 to 40 factors. The runs that pin down your model's effects best, for the
   number of runs you can afford, inside any limits on the settings.
   - *Details:* For a model of up to 91 coefficients: any model in up to 12 factors, and the
-    main effects in up to 40.
+    main effects in up to 40. The three optimal designs take a categorical factor of 2 to 8
+    levels beside the numeric ones, and choose each run's level with its settings.
 - **I-optimal.** For 2 to 40 factors. The runs that predict best across the ranges, for the
   number of runs you can afford, inside any limits on the settings.
   - *Details:* For a model of up to 91 coefficients, as the D-optimal design is.
@@ -191,7 +192,10 @@ Also:
   rules out and how much of the ranges is left, and draws the settings that can be run.
   - *Details:* Up to 8 inequalities in the factors' own units, such as `T + 25*P <= 250`. A
     limit can also be proposed from the corners you mark as not runnable. The picture is
-    drawn for each pair of factors.
+    drawn for each pair of factors. A limit names numeric factors, and holds at every level
+    of a categorical factor beside them; a limit that depends on a level, such as a catalyst
+    that cannot run above a temperature, is not in the app yet
+    ([#813](https://github.com/kgdunn/process-improve/issues/813)).
 - **Know what your runs can tell apart.** Before a run is made, the app names the effects that
   these runs cannot separate from each other.
   [Show me](https://factori.al/?book=bioreactor-half-fraction&show=correlation)

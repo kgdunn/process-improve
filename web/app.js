@@ -1820,10 +1820,6 @@ function refreshDesign() {
       "instead, or remove the limits.";
   } else if (option.disabled && mixture) {
     hint.textContent = `${option.textContent} takes ${option.dataset.minFactors} to ${option.dataset.maxFactors} components on this page; you have ${k}.`;
-  } else if (option.disabled && limited && labelled.length) {
-    hint.textContent =
-      `Limits on the settings work with numeric factors only on this page, and ${listNames(labelled)} ${one ? "is" : "are"} ` +
-      `categorical: remove the limits, or ${one ? "that factor" : "those factors"}.`;
   } else if (option.disabled && outsideLimits(option)) {
     hint.textContent = `${option.textContent} cannot keep its runs inside your limits on the settings: choose D-optimal or I-optimal.`;
   } else if (option.disabled && twoLevels(option)) {

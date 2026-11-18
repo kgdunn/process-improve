@@ -437,9 +437,17 @@ def test_a_design_without_limits_is_as_it_was(api, design):
     assert "Every run is inside your limits on the settings." not in design["facts"]["notes"]
 
 
-@pytest.mark.parametrize("design_type", ["full_factorial", "d_optimal"])
-def test_limits_with_a_categorical_factor_name_the_conflict_whatever_the_design(api, design_type):
-    """A full factorial would send the reader to a D-optimal design, and back: the refusal names the real conflict."""
+def test_a_limit_holds_at_every_level_of_a_categorical_factor(api):
+    """An optimal design chooses each run's level with its settings, and keeps every run inside the limits (#813)."""
     factors = [*FACTORS[:2], SUPPLIER]
-    request = {"design_type": design_type, "factors": factors, "constraints": [{"expression": "T <= 190"}]}
-    assert api.error("api_make_design", request).startswith("Limits on the settings work with numeric factors only")
+    request = {"design_type": "d_optimal", "factors": factors, "constraints": [{"expression": "T <= 190"}]}
+    sheet = run_sheet(api.ok("api_make_design", request))
+    assert set(sheet[SUPPLIER["name"]]) == {SUPPLIER["low"], SUPPLIER["high"]}, "both suppliers are run"
+    assert (sheet["T"] <= 190 + 1e-9).all(), "at either supplier"
+    assert sheet["T"].max() == pytest.approx(190), "and the runs go up to the limit"
+
+
+def test_a_design_that_cannot_keep_limits_says_so_with_a_categorical_factor_too(api):
+    factors = [*FACTORS[:2], SUPPLIER]
+    request = {"design_type": "full_factorial", "factors": factors, "constraints": [{"expression": "T <= 190"}]}
+    assert "cannot keep its runs inside limits on the settings" in api.error("api_make_design", request)

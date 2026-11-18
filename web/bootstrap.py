@@ -1921,17 +1921,10 @@ def _outside_limits_sentence(outside: list[int]) -> str:
 def _region_refusal(factors: list[Factor], region: DesignRegion, design_type: str | None = None) -> DesignRegion:
     """Refuse limits on the settings that no design on this page can keep to, and return the region they leave.
 
-    The optimal designs are the only ones that place their runs inside limits, and on this page
-    they take numeric factors only, and two of them or more; so the refusals come in that order,
-    which names the real conflict: a full factorial and a D-optimal design would otherwise each send
-    the reader to the other. ``design_type`` is the design asked for, or None when none is asked for yet.
+    The optimal designs are the only ones that place their runs inside limits, and they take two
+    factors or more. A limit names numeric factors, and holds at every level of a categorical factor
+    beside them. ``design_type`` is the design asked for, or None when none is asked for yet.
     """
-    if labelled := [f.name for f in factors if f.type == "categorical"]:
-        verb, which = ("is", "that factor") if len(labelled) == 1 else ("are", "those factors")
-        raise ValueError(
-            f"Limits on the settings work with numeric factors only on this page, and {_listed(labelled)} {verb} "
-            f"categorical: remove the limits, or {which}."
-        )
     if len(factors) == 1:  # the optimal designs, which keep to limits, take two factors or more
         raise ValueError(
             f"A limit on {factors[0].name} alone narrows its range: set its low and high to the settings you can "

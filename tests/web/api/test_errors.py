@@ -1336,14 +1336,6 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _typed("T + " * 130 + "P <= 3"),
         "The limit 'T + T + T + T + T + T + ...' is longer than 500 characters.",
     ),
-    "limits with a categorical factor": (
-        "api_limits",
-        _typed("T <= 190", factors=WITH_SUPPLIER),
-        (
-            "Limits on the settings work with numeric factors only on this page, and S is categorical: remove the "
-            "limits, or that factor."
-        ),
-    ),
     "limits in more factors than an optimal design takes": (
         "api_limits",
         _typed("X0 + X1 <= 1", factors=factors_named(*(f"X{i}" for i in range(9)))),
