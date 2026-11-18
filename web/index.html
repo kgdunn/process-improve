@@ -92,9 +92,30 @@
       <!-- A new study, in sight on every stage: the menu's first entry, one press away (app.js). -->
       <button type="button" id="bar-new" class="studybar__new" title="Start a new study"><span class="studybar__plus"
         aria-hidden="true">+</span><span class="studybar__new-words">New study</span></button>
-      <!-- What leads away from the study, on a wide screen: both are in the footer on every screen. -->
+      <!-- The ways in and what is done with the study (app.js studyMenu), beside the button for a new one: a list of
+           buttons and links shown under a button, which the keyboard reaches with Tab and leaves with Escape. It
+           was on the study's name, where a reader did not think to look for it. -->
+      <div class="study">
+        <button type="button" id="study-button" class="study__button" aria-expanded="false" aria-controls="study-menu"
+          title="Your studies, and what to do with this one">
+          <span>Studies</span>
+          <svg class="study__caret" viewBox="0 0 10 10" aria-hidden="true" focusable="false"><path d="M1.5 3.5 5 7l3.5-3.5"/></svg>
+        </button>
+        <ul id="study-menu" class="study__menu" aria-label="Studies, and this study" hidden>
+          <li><button type="button" id="new-study">New study</button></li>
+          <li><button type="button" id="open-library">Your studies <span id="library-count" class="badge">0</span></button></li>
+          <li><button type="button" id="show-example">Open the worked example</button></li>
+          <!-- A table of the reader's own, made into a study (import.js): a design run elsewhere, or a process's records. -->
+          <li><button type="button" id="import-data">Analyse data you have</button></li>
+          <li><a href="catalog/" id="catalog-link">Browse the design catalog</a></li>
+          <li class="study__rule" role="separator"></li>
+          <li><button type="button" id="menu-share">Share or download this study</button></li>
+          <li><button type="button" id="menu-report">View its report</button></li>
+        </ul>
+      </div>
+      <!-- What leads away from the study, on a wide screen: the catalog, which the footer on every page links to
+           with the other pages. "How it works" was beside it; the bar gave its room to the menu of studies. -->
       <a class="studybar__link" href="catalog/">Design catalog</a>
-      <a class="studybar__link" href="about.html">How it works</a>
       <!-- Feedback (feedback.js): a report to the maintainer, which leaves the page only when the reader presses Send. -->
       <div class="feedback-slot">
         <button type="button" id="feedback" class="feedback-button" data-feedback="general">
@@ -149,27 +170,8 @@
     </ul>
   </section>
 
-  <!-- The study's name heads the page, under the bar, where it has the width to be read whole. It opens the ways
-       in and what is done with the study (app.js studyMenu): a list of buttons and links shown under a button,
-       which the keyboard reaches with Tab and leaves with Escape. -->
-  <div class="study">
-    <button type="button" id="study-button" class="study__button" aria-expanded="false" aria-controls="study-menu"
-      title="Your studies, and what to do with this one">
-      <span class="studybar__title"><span id="study-title">A new study</span> <span id="study-about"></span></span>
-      <svg class="study__caret" viewBox="0 0 10 10" aria-hidden="true" focusable="false"><path d="M1.5 3.5 5 7l3.5-3.5"/></svg>
-    </button>
-    <ul id="study-menu" class="study__menu" aria-label="Studies, and this study" hidden>
-      <li><button type="button" id="new-study">New study</button></li>
-      <li><button type="button" id="open-library">Your studies <span id="library-count" class="badge">0</span></button></li>
-      <li><button type="button" id="show-example">Open the worked example</button></li>
-      <!-- A table of the reader's own, made into a study (import.js): a design run elsewhere, or a process's records. -->
-      <li><button type="button" id="import-data">Analyse data you have</button></li>
-      <li><a href="catalog/" id="catalog-link">Browse the design catalog</a></li>
-      <li class="study__rule" role="separator"></li>
-      <li><button type="button" id="menu-share">Share or download this study</button></li>
-      <li><button type="button" id="menu-report">View its report</button></li>
-    </ul>
-  </div>
+  <!-- The study's name heads the page, under the bar, where it has the width to be read whole. -->
+  <p class="studyname"><span class="studybar__title"><span id="study-title">A new study</span> <span id="study-about"></span></span></p>
 
   <div id="demo-banner" class="banner" hidden>
     <p>The worked example, computed with <span id="demo-version">process-improve</span>

@@ -156,7 +156,7 @@ def test_a_desktop_shows_every_design_of_the_detailed_comparison(page):
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 1280, "height": 900}}])
 def test_the_bar_stays_in_view_and_the_page_under_it_names_the_study(page):
     page.click("#go-learn")
-    name, bar = box(page, "#study-button"), box(page, "#studybar")
+    name, bar = box(page, ".studyname"), box(page, "#studybar")
     assert name["y"] >= bar["y"] + bar["height"], "the study's name heads the page, under the bar"
     assert name["y"] <= box(page, "#workspace")["y"], "over the study"
     page.mouse.wheel(0, 2000)
@@ -167,10 +167,11 @@ def test_the_bar_stays_in_view_and_the_page_under_it_names_the_study(page):
     assert page.text_content("#badge-run") == "15 of 15"
 
 
-#: What the bar holds, each as its box when it is drawn: the mark, the name, the stages, a new study, feedback and
-#: the colour mode.
+#: What the bar holds, each as its box when it is drawn: the mark, the name, the stages, a new study, the menu of
+#: studies, feedback and the colour mode.
 BAR = """() => Object.fromEntries(Object.entries({ mark: '.brand__home .mark', name: '.brand__home h1',
-    stages: '.phases', new: '#bar-new', feedback: '#feedback', mode: '#mode' }).map(([part, at]) => {
+    stages: '.phases', new: '#bar-new', studies: '#study-button', feedback: '#feedback', mode: '#mode' })
+  .map(([part, at]) => {
   const box = document.querySelector(at).getBoundingClientRect();
   return [part, { top: box.top, bottom: box.bottom, left: box.left, right: box.right, drawn: box.width > 2 }]; }))"""
 
@@ -184,12 +185,12 @@ def test_on_a_laptop_the_bar_is_one_row_no_taller_than_56_px(fresh_page):
     parts = fresh_page.evaluate(BAR)
     assert all(part["drawn"] for part in parts.values()), parts
     order = sorted(parts, key=lambda part: parts[part]["left"])
-    assert order == ["mark", "name", "stages", "new", "feedback", "mode"]
+    assert order == ["mark", "name", "stages", "new", "studies", "feedback", "mode"]
     assert all(part["top"] >= 0 and part["bottom"] <= bar["height"] for part in parts.values()), "each within the bar"
     # What leads away from the study is beside the stages on a screen this wide.
     links = fresh_page.locator(".studybar__link")
-    assert links.all_text_contents() == ["Design catalog", "How it works"]
-    assert [link.get_attribute("href") for link in links.all()] == ["catalog/", "about.html"]
+    assert links.all_text_contents() == ["Design catalog"]
+    assert [link.get_attribute("href") for link in links.all()] == ["catalog/"]
     assert all(link.is_visible() for link in links.all())
 
 
@@ -247,6 +248,31 @@ def test_on_a_phone_the_bar_is_two_rows_a_new_study_over_the_stages(fresh_page):
     assert box(fresh_page, "#studybar")["height"] <= 100
     assert fresh_page.locator(".studybar__link:visible").count() == 0, "the links away are in the menu and the footer"
     assert fresh_page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+
+
+@pytest.mark.parametrize(
+    "context_options",
+    [{"viewport": {"width": width, "height": 900}} for width in (390, 744, 1100, 1440)],
+    ids=["390", "744", "1100", "1440"],
+)
+def test_the_menu_of_studies_is_a_button_in_the_bar_beside_new_study_and_opens_within_the_screen(page):
+    """It was on the study's name, where a reader did not think to look: "cryptic and unintuitive"."""
+    button = page.locator("#study-button")
+    assert button.text_content().strip() == "Studies"
+    new, menu_button = box(page, "#bar-new"), box(page, "#study-button")
+    assert abs(new["y"] - menu_button["y"]) < 6, "on the row of New study"
+    assert 0 < menu_button["x"] - (new["x"] + new["width"]) < 40, "next to it"
+    assert page.locator(".studyname button").count() == 0, "the study's name is a heading, not a second way in"
+    button.click()
+    menu = box(page, "#study-menu")
+    width = page.evaluate("document.documentElement.clientWidth")
+    assert menu["x"] >= 0
+    assert menu["x"] + menu["width"] <= width, "the list is within the screen"
+    assert menu["y"] >= menu_button["y"] + menu_button["height"], "under its button"
+    assert page.is_visible("#open-library")
+    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+    page.keyboard.press("Escape")
+    assert page.is_hidden("#study-menu")
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
