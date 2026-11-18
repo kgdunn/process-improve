@@ -9,6 +9,7 @@ type: software
 authors:
   - family-names: Dunn
     given-names: Kevin G.
+    orcid: "https://orcid.org/0000-0002-0681-6794"
 repository-code: "https://github.com/kgdunn/process-improve"
 url: "https://kgdunn.github.io/process-improve/"
 license: MIT
