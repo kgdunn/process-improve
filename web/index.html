@@ -170,8 +170,9 @@
     </ul>
   </section>
 
-  <!-- The study's name heads the page, under the bar, where it has the width to be read whole. -->
-  <p class="studyname"><span class="studybar__title"><span id="study-title">A new study</span> <span id="study-about"></span></span></p>
+  <!-- The study's name heads the page, under the bar, where it has the width to be read whole. It is a title, not
+       a paragraph: the screens' budgets of running text (tests/web/e2e/test_reading.py) do not count it. -->
+  <div class="studyname"><span class="studybar__title"><span id="study-title">A new study</span> <span id="study-about"></span></span></div>
 
   <div id="demo-banner" class="banner" hidden>
     <p>The worked example, computed with <span id="demo-version">process-improve</span>
