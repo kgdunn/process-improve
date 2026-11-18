@@ -2060,7 +2060,7 @@ async function mayReplaceRunSheet() {
   }
   const dialog = $("#replace-dialog");
   const kept = state.campaign?.id
-    ? "This study and its results stay in Your studies, in the menu on the study's name."
+    ? "This study and its results stay in Your studies, under Studies in the bar."
     : "This study's results are not kept: download the study first if you want them.";
   $("#replace-says").textContent =
     `This run sheet holds ${entered === 1 ? "1 result" : `${entered} results`} you entered. The design has changed, ` +
@@ -9412,7 +9412,7 @@ $("#library-close").onclick = () => $("#library").close();
 closeOnBackdrop($("#library"));
 
 /**
- * The study's name, at the head of the page, opens a list: the ways in (a new study, the studies kept here, the worked example, a
+ * "Studies", in the bar beside the button for a new study, opens a list: the ways in (a new study, the studies kept here, the worked example, a
  * table of the reader's own, the catalog), then what is done with the study on the page. It is a list of buttons
  * under a button, which Tab walks. A choice, Escape, a press elsewhere and Tab out of the list each close it.
  */

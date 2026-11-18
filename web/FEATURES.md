@@ -735,12 +735,12 @@ Also:
   colour-mode switch at the top and end in the same links, in the same order.
   - *Details:* A mode chosen on one page is the mode of the next. The footer marks the page
     you are on.
-- **One menu holds every way in.** The study's name opens it: a new study, your
+- **One menu holds every way in.** "Studies", in the bar beside "New study", opens it: a new study, your
   studies, the worked example, data you have, and the design catalog. It also shares the
   study and shows its report.
   - *Details:* The menu is a list of buttons under a button. Tab walks it, and a choice,
     Escape, or a press elsewhere closes it. On a wide screen the bar also links to the design
-    catalog and to how Factorial works.
+    catalog. On a phone the list spans the screen under the bar.
 - **Nothing is held back.** Every design, chart and option is on the page for every reader.
   No setting takes a part of the page away.
 - **Words explained where you meet them.** A term on the page has a dotted underline and
