@@ -155,7 +155,9 @@ def test_a_categorical_factor_leaves_out_the_designs_of_numeric_factors(api):
     factors = [*FACTORS[:2], {"name": "S", "low": "A", "high": "B", "units": ""}]
     listed = api.ok("api_candidates", {"factors": factors, "model": "main_effects"})
     reasons = {d["design_type"]: d["reason"] for d in listed["left_out"]}
-    assert reasons == dict.fromkeys(("dsd", "box_behnken", "ccd", "d_optimal", "i_optimal"), "categorical")
+    assert reasons == dict.fromkeys(("dsd", "box_behnken", "ccd"), "categorical")
+    made = {m["design_type"] for m in listed["made"]}
+    assert {"d_optimal", "i_optimal"} <= made, "an optimal design chooses each run's level with its settings"
 
 
 def test_limits_leave_out_every_design_but_the_optimal_ones(api):

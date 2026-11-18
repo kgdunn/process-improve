@@ -204,10 +204,10 @@ def test_corners_are_listed_for_up_to_eight_numeric_factors(api):
     assert nine["constraints"][0]["redundant"] is None, "without corners, the library says whether it rules out nothing"
 
 
-def test_a_categorical_factor_has_no_corners_and_holds_the_limits_back(api):
+def test_a_categorical_factor_has_no_corners_and_the_limits_hold_at_each_of_its_levels(api):
     shown = described(api, "T <= 190", factors=[*FACTORS[:2], {"name": "S", "low": "A", "high": "B", "units": ""}])
     assert shown["probes"]["columns"] == ["T", "P"]
-    assert shown["refusal"].startswith("Limits on the settings work with numeric factors only")
+    assert shown["refusal"] is None, "a limit on numeric factors stands beside a categorical one (#813)"
 
 
 def test_the_functions_a_limit_can_use_are_the_library_s(bootstrap):

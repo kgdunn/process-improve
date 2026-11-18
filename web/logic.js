@@ -316,10 +316,10 @@ export function analysisModel(designModel, aim, fits, factors) {
 }
 
 /** The designs that take a categorical factor; mirrors bootstrap.CATEGORICAL_DESIGNS. */
-export const CATEGORICAL_DESIGNS = ["full_factorial", "fractional_factorial", "plackett_burman", "taguchi"];
+export const CATEGORICAL_DESIGNS = ["full_factorial", "fractional_factorial", "plackett_burman", "taguchi", "d_optimal", "i_optimal", "a_optimal"];
 
 /** Of those, the designs that take a categorical factor of three levels or more; mirrors bootstrap.SEVERAL_LEVEL_DESIGNS. */
-export const SEVERAL_LEVEL_DESIGNS = ["full_factorial", "taguchi"];
+export const SEVERAL_LEVEL_DESIGNS = ["full_factorial", "taguchi", "d_optimal", "i_optimal", "a_optimal"];
 
 /** The most levels a categorical factor takes; mirrors bootstrap.MAX_LEVELS. */
 export const MAX_LEVELS = 8;

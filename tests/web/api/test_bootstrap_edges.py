@@ -224,16 +224,21 @@ def test_designs_that_cannot_fit_the_aim_score_no_power(api):
     The intercept, the catalyst's 2 contrasts, T, P, their squares, T:P and the catalyst's 2 interactions with each
     of T and P. The Taguchi array's 9 runs are too few; the full factorial's two-level T and P, with centre runs,
     give T squared and P squared the same column.
+    The optimal designs, which take a categorical factor too, are built for these 12 columns and fit them.
     """
     found = api.ok(
         "api_candidates",
         {"factors": [CATALYST, *FACTORS[:2]], "model": "quadratic", "response": "y", "random_state": 7},
     )
     assert len(found["result"]["terms"]) == 1 + 2 + 2 + 2 + 1 + 2 * 2
-    assert {m["design_type"] for m in found["made"]} == {"full_factorial", "taguchi"}
-    for values in found["result"]["values"].values():
-        assert (values["fits"], values["residual_df"]) == (False, 0)
-        assert values["power_main"] is values["power_interaction"] is values["power_quadratic"] is None
+    assert {m["design_type"] for m in found["made"]} == {"full_factorial", "taguchi", "d_optimal", "i_optimal"}
+    fits = {}
+    for label, values in found["result"]["values"].items():
+        fits[label.split(" [")[0]] = (values["fits"], values["residual_df"])
+        if not values["fits"]:
+            assert values["power_main"] is values["power_interaction"] is values["power_quadratic"] is None
+    assert fits["Full factorial"] == fits["Taguchi"] == (False, 0)
+    assert fits["D-optimal"] == fits["I-optimal"] == (True, 2), "an optimal design is made for the model asked for"
 
 
 def test_eighteen_pairs_are_too_many_to_count_every_pattern_of_signs(api):

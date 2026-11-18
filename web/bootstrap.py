@@ -438,13 +438,23 @@ MAX_BLOCKS = 8
 MAX_GIVEN_BLOCKS = 32
 
 #: The designs that take a categorical factor, one whose levels are labels (supplier A and B):
-#: the two-level designs, which need only the two levels of each factor, and the Taguchi arrays,
-#: which give a categorical factor a column of its own beside the numeric factors' columns.
-CATEGORICAL_DESIGNS = ("full_factorial", "fractional_factorial", "plackett_burman", "taguchi")
+#: the two-level designs, which need only the two levels of each factor, the Taguchi arrays,
+#: which give a categorical factor a column of its own beside the numeric factors' columns, and the
+#: optimal designs, which choose each run's level as they choose its settings.
+CATEGORICAL_DESIGNS = (
+    "full_factorial",
+    "fractional_factorial",
+    "plackett_burman",
+    "taguchi",
+    "d_optimal",
+    "i_optimal",
+    "a_optimal",
+)
 
 #: Of those, the designs that take a categorical factor of three levels or more: the full factorial,
-#: which runs every combination of the levels, and the Taguchi arrays, which have mixed-level columns.
-SEVERAL_LEVEL_DESIGNS = ("full_factorial", "taguchi")
+#: which runs every combination of the levels, the Taguchi arrays, which have mixed-level columns, and
+#: the optimal designs, whose model has a column for each level but one.
+SEVERAL_LEVEL_DESIGNS = ("full_factorial", "taguchi", "d_optimal", "i_optimal", "a_optimal")
 
 #: The most levels a categorical factor takes on this page; each level but one is a column of the model.
 MAX_LEVELS = 8
@@ -1911,17 +1921,10 @@ def _outside_limits_sentence(outside: list[int]) -> str:
 def _region_refusal(factors: list[Factor], region: DesignRegion, design_type: str | None = None) -> DesignRegion:
     """Refuse limits on the settings that no design on this page can keep to, and return the region they leave.
 
-    The optimal designs are the only ones that place their runs inside limits, and on this page
-    they take numeric factors only, and two of them or more; so the refusals come in that order,
-    which names the real conflict: a full factorial and a D-optimal design would otherwise each send
-    the reader to the other. ``design_type`` is the design asked for, or None when none is asked for yet.
+    The optimal designs are the only ones that place their runs inside limits, and they take two
+    factors or more. A limit names numeric factors, and holds at every level of a categorical factor
+    beside them. ``design_type`` is the design asked for, or None when none is asked for yet.
     """
-    if labelled := [f.name for f in factors if f.type == "categorical"]:
-        verb, which = ("is", "that factor") if len(labelled) == 1 else ("are", "those factors")
-        raise ValueError(
-            f"Limits on the settings work with numeric factors only on this page, and {_listed(labelled)} {verb} "
-            f"categorical: remove the limits, or {which}."
-        )
     if len(factors) == 1:  # the optimal designs, which keep to limits, take two factors or more
         raise ValueError(
             f"A limit on {factors[0].name} alone narrows its range: set its low and high to the settings you can "
@@ -2221,13 +2224,13 @@ def _check_categorical(design_type: str, factors: list[Factor]) -> None:
         verb = "is" if len(labelled) == 1 else "are"
         raise ValueError(
             f"The {DESIGNS[design_type]['label']} design needs numeric factors, and {_listed(labelled)} {verb} "
-            "categorical: choose a full factorial, fractional factorial, Plackett-Burman or Taguchi design."
+            "categorical: choose a full factorial, fractional factorial, Plackett-Burman, Taguchi or optimal design."
         )
     if (several := _several_names(factors)) and design_type not in SEVERAL_LEVEL_DESIGNS:
         verb = "has" if len(several) == 1 else "have"
         raise ValueError(
             f"The {DESIGNS[design_type]['label']} design runs each categorical factor at two levels, and "
-            f"{_listed(several)} {verb} more: choose a full factorial or a Taguchi design."
+            f"{_listed(several)} {verb} more: choose a full factorial, a Taguchi or an optimal design."
         )
 
 

@@ -437,7 +437,8 @@ def test_the_two_level_designs_are_left_out_saying_why(api):
     found = candidates(api, [CATALYST, T, FACTORS[1]], model="interactions")
     reasons = {d["design_type"]: d["reason"] for d in found["left_out"]}
     assert reasons["fractional_factorial"] == reasons["plackett_burman"] == "levels"
-    assert [m["design_type"] for m in found["made"]] == ["full_factorial", "taguchi"]
+    made = [m["design_type"] for m in found["made"]]
+    assert made == ["full_factorial", "taguchi", "d_optimal", "i_optimal"], "the optimal designs take the levels too"
 
 
 def test_designs_with_a_factor_of_several_levels_are_scored_on_its_terms_together(api):
@@ -447,3 +448,26 @@ def test_designs_with_a_factor_of_several_levels_are_scored_on_its_terms_togethe
     assert full["fits"] is True
     assert 0 < full["power_interaction"] <= full["power_main"] < 1
     assert found["result"]["terms"][:3] == ["Intercept", "Catalyst_L1", "Catalyst_L2"]
+
+
+# --------------------------------------------------------------------------- an optimal design, with levels
+@pytest.mark.parametrize("design_type", ["d_optimal", "i_optimal", "a_optimal"])
+def test_an_optimal_design_runs_every_level_and_its_results_are_read_as_a_factorial_s_are(api, design_type):
+    """An optimal design chooses each run's level with its settings (#813): the analysis is the one a factorial has."""
+    design = made(api, [CATALYST, T, FACTORS[1]], design_type, model="interactions")
+    sheet = run_sheet(design)
+    assert set(sheet["Catalyst"]) == {"A", "B", "C"}, "every level is run"
+    assert sheet["T"].between(150, 200).all()
+    analysis = api.ok(
+        "api_analyze_runs", {**held_of(design), "responses": results(design, noise=0.2), "model": "main_effects"}
+    )
+    effects = {c["label"]: c["coefficient"] for c in analysis["coefficients"]}
+    assert effects["Catalyst[B]"] == pytest.approx(3.0, abs=0.5)
+    assert effects["T"] == pytest.approx(2.0, abs=0.5)
+    held = held_of(design)
+    held["spec"]["response_info"] = {"goal": "maximize"}
+    best = api.ok("api_best_settings", {**held, "responses": results(design, noise=0.2), "model": "main_effects"})
+    catalyst = next(s for s in best["settings"] if s["name"] == "Catalyst")
+    assert "B" in (catalyst.get("level"), catalyst.get("value"), catalyst.get("label")), (
+        "the catalyst of the highest result"
+    )

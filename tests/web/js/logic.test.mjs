@@ -1347,7 +1347,7 @@ describe("limits on the settings", () => {
   });
 
   test("a refusal comes first, as an error, and nothing left says only that", () => {
-    const refusal = "Limits on the settings work with numeric factors only on this page, and S is categorical.";
+    const refusal = "A limit on T alone narrows its range: set its low and high to the settings you can run.";
     assert.deepEqual(limitsSummary(reply({ refusal }), factors)[0], { text: refusal, error: true });
     const problem = "The limit 'Z <= 3' names Z, which is not one of your factors: T and P.";
     const own = reply({ constraints: [{ expression: "Z <= 3", problem }, { expression: "T <= 190" }], refusal: problem });
