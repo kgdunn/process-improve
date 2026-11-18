@@ -1592,7 +1592,7 @@ def _region(factors: list[Factor], expressions: list[str]) -> DesignRegion:
     return DesignRegion([f for f in factors if f.type != "categorical"], expressions)
 
 
-class _NotAllowed(ValueError):
+class _NotAllowedError(ValueError):
     """The limits never run these levels together."""
 
 
@@ -1606,7 +1606,7 @@ def _region_at(region: DesignRegion | None, spec: dict, levels: dict[str, float]
 
     ``levels`` holds each searched factor's level by its code, -1 to +1 over its levels in their order.
     A factor the limits name that is not among them takes the first level they allow beside the others.
-    Raises :class:`_NotAllowed` when the limits never run those levels together.
+    Raises :class:`_NotAllowedError` when the limits never run those levels together.
     """
     if region is None or region.rules is None:
         return region
@@ -1625,7 +1625,7 @@ def _labels_at(region: DesignRegion | None, spec: dict, levels: dict[str, float]
     for allowed in region.allowed_combinations().drop(columns="limits").astype(str).to_dict("records"):
         if all(labels.get(name, level) == level for name, level in allowed.items()):
             return allowed
-    raise _NotAllowed(str(labels))
+    raise _NotAllowedError(str(labels))
 
 
 def _feasible(region: DesignRegion, coded: np.ndarray, labels: Any = None) -> np.ndarray:  # noqa: ANN401 - a frame or a mapping
@@ -5746,8 +5746,9 @@ def plots(request: dict) -> dict:
     axes = [f["name"] for f in spec["factors"] if not _several(f)]
     chosen = _chosen_pair(request.get("contour_factors"), axes)
     pair = chosen or _contour_pair(out["coefficients"], axes)
-    shading, held = _shading(spec, pair)
-    if best := _held_at_best(request.get("best"), spec, pair):
+    best = _held_at_best(request.get("best"), spec, pair)
+    shading, held = _shading(spec, pair, best[0] if best else None)
+    if best:
         shading, held = {**shading, "hold_values": best[0]}, best[1]
 
     figures = _Figures(spec, rows, order, plotly, _FittedModel(fit, coded, columns))
@@ -5930,7 +5931,9 @@ def _held_at_best(raw: object, spec: dict, pair: list[str]) -> tuple[dict[str, f
     return _held_columns(hold, spec), held
 
 
-def _shading(spec: dict, pair: list[str]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+def _shading(
+    spec: dict, pair: list[str], hold: dict[str, float] | None = None
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Return what a response surface needs to shade the settings that cannot be run, and where it holds the others.
 
     Without limits on the settings, nothing. With them, the region, and the coded values the
@@ -5941,7 +5944,16 @@ def _shading(spec: dict, pair: list[str]) -> tuple[dict[str, Any], list[dict[str
     if not spec.get("constraints"):
         return {}, []
     factors = _factors(spec)
-    region = _region(factors, [limit["expression"] for limit in spec["constraints"]])
+    whole = _region(factors, [limit["expression"] for limit in spec["constraints"]])
+    if whole.rules is not None and set(pair) & set(whole.rules.factors):
+        # shortcut: a surface with a limited factor's levels on an axis is drawn unshaded; shade each level's
+        # half apart when readers ask for it.
+        return {}, []
+    try:  # with a limit for some levels: the region at the levels the surface is held at, or the first allowed
+        region = _region_at(whole, spec, hold or {})
+    except _NotAllowedError:
+        return {}, []
+    assert region is not None  # noqa: S101 - there are limits, so there is a region
     if region.feasible(np.zeros((1, len(region.names))))[0]:
         return {"region": region}, []
     centroid = region.centroid() or {}
@@ -8077,7 +8089,7 @@ def _search(
     def score(levels: dict[str, float]) -> float:
         try:
             points = _sample(len(numeric), _region_at(whole, spec, levels))
-        except _NotAllowed:
+        except _NotAllowedError:
             return -math.inf
         held = _held_at(coefficients, {**blocks, **_held_columns(levels, spec)})
         return max(_objective(goal, v, target) for v in _predict(held, numeric_names, points))
@@ -8087,7 +8099,7 @@ def _search(
     for levels in combinations:
         try:
             region = _region_at(whole, spec, levels)
-        except _NotAllowed:
+        except _NotAllowedError:
             continue
         held = {**blocks, **_held_columns(levels, spec)}
         model = _held_at(coefficients, held)
@@ -8235,7 +8247,7 @@ def _settings_reply(
     return settings
 
 
-def _limits_on(  # noqa: PLR0913 - the settings, the way to better, and the levels they are at
+def _limits_on(
     spec: dict,
     region: DesignRegion | None,
     x: np.ndarray,
@@ -10010,7 +10022,7 @@ def _balance_search(
     def score(levels: dict[str, float]) -> float:
         try:
             points = _sample(len(numeric), _region_at(whole, spec, levels))
-        except _NotAllowed:
+        except _NotAllowedError:
             return -math.inf
         return float(overall(held_models(levels), points).max())
 
@@ -10019,7 +10031,7 @@ def _balance_search(
     for levels in combinations:
         try:
             region = _region_at(whole, spec, levels)
-        except _NotAllowed:
+        except _NotAllowedError:
             continue
         models = held_models(levels)
         heard: list[str] = []
