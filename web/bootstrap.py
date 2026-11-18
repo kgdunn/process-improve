@@ -1448,10 +1448,7 @@ def _read_rule(text: str, tree: ast.expr | None, factors: list[Factor]) -> tuple
             )
     canonical = ast.unparse(tree)  # type: ignore[arg-type]
     _short_enough(canonical)
-    try:
-        DesignRegion(factors, [canonical])
-    except ValueError as exc:
-        raise ValueError(f"The limit {text!r} cannot be kept: {exc}") from exc
+    _region(factors, [canonical])  # the library reads it too, and refuses what it cannot keep
     named = set(_named(tree))  # type: ignore[arg-type]
     return canonical, [name for name in numeric if name in named]
 
@@ -1489,10 +1486,6 @@ def _factors_named(text: str, tree: ast.expr, factors: list[Factor]) -> list[str
             )
     named = [lookup.get(name, name) for name in _named(tree)]
     for name in named:
-        if name in names and name not in numeric:
-            raise ValueError(
-                f"The limit {text!r} names {name}, which is categorical: limits are on numeric factors only."
-            )
         if name not in numeric:
             raise ValueError(f"The limit {text!r} names {name}, which is not one of your factors: {_listed(names)}.")
     if not named:
@@ -2070,8 +2063,15 @@ def _region_refusal(factors: list[Factor], region: DesignRegion, design_type: st
             f"With limits on the settings, the page makes designs in up to {MAX_LIMITED_FACTORS} factors; you have "
             f"{len(factors)}."
         )
-    if region.rules is None and region.is_empty():  # with a limit for some levels, the library refused an empty level
+    if region.rules is None and region.is_empty():
         raise ValueError("No setting in your ranges meets every limit: loosen a limit, or widen a range.")
+    if region.rules is not None:  # every combination of levels the limits allow must have settings to run
+        for levels in region.allowed_combinations().drop(columns="limits").astype(str).to_dict("records"):
+            if region.given(**levels).is_empty():
+                at = _listed([f"{name} = {level}" for name, level in levels.items()])
+                raise ValueError(
+                    f"No setting in your ranges meets every limit at {at}: loosen a limit, or widen a range."
+                )
     return region
 
 
@@ -7004,9 +7004,27 @@ def limits(request: dict) -> dict:
     numeric = [f for f in factors if f.type != "categorical"]
     entries = _limit_entries(request, factors)
     read = [i for i, entry in enumerate(entries) if "problem" not in entry]
-    region = _region(factors, [entries[i]["expression"] for i in read])
     probes = _probes(numeric)
-    alone = _describe_each(entries, read, region, factors, probes)
+    # With a limit for some levels, everything below is told at one combination of levels, the reader's or the first
+    # the limits allow: the limits that hold there are the region, and one that holds at other levels rules out nothing.
+    try:
+        whole = _region(factors, [entries[i]["expression"] for i in read])
+    except ValueError as exc:  # the limits leave a level with nothing to run
+        entries[read[-1]]["problem"] = str(exc)
+        read, whole = [], DesignRegion(numeric, [])
+    chosen = _chosen_levels(request.get("levels"), whole)
+    for i in read:
+        entries[i]["holds"] = _holds_at(entries[i]["expression"], factors, chosen)
+    applies = [i for i in read if entries[i]["holds"]]
+    region = DesignRegion(numeric, [entries[i]["holds"] for i in applies])
+    alone = _describe_each(entries, applies, region, factors, probes)
+    elsewhere = _curved_limits(factors, [entries[i]["expression"] for i in read])
+    for j, i in enumerate(read):
+        if i not in applies:
+            kind = "nonlinear" if j in elsewhere else "linear"
+            entries[i].update(
+                type=kind, removed=0.0, removes=None if probes is None else [], redundant=None, linear=None
+            )
     marked = _marked(request.get("marked"), probes)
     table = None if probes is None else _probe_table(probes[1], numeric, entries, read)
     empty = region.is_empty()
@@ -7018,7 +7036,8 @@ def limits(request: dict) -> dict:
         "empty": empty,
         "center_allowed": not read or bool(region.feasible(np.zeros((1, len(numeric))))[0]),
         "bounds": None if curved or empty else _narrowed(region.implied_bounds(), numeric),
-        "refusal": _limits_refusal(entries, read, factors, region),
+        "refusal": _limits_refusal(entries, read, factors, whole),
+        "levels": _levels_told(whole, chosen),
         "proposals": [],
         "picture": _picture(region, factors, entries, alone, every_pair=request.get("every_pair") is True),
     }
@@ -7029,6 +7048,40 @@ def limits(request: dict) -> dict:
     if "slice" in request:
         reply["slice"] = _sliced(request["slice"], factors, region, entries, alone)
     return reply
+
+
+def _chosen_levels(raw: object, region: DesignRegion) -> dict[str, str]:
+    """Return the levels the limits are told at: the reader's, when the limits allow them, or the first they allow."""
+    if region.rules is None:
+        return {}
+    allowed = region.allowed_combinations().drop(columns="limits").astype(str).to_dict("records")
+    asked = {str(k): str(v) for k, v in raw.items()} if isinstance(raw, dict) else None
+    return asked if asked in allowed else allowed[0]
+
+
+def _holds_at(expression: str, factors: list[Factor], chosen: dict[str, str]) -> str | None:
+    """Return the limit on the numeric factors that a limit is at given levels, or None where it does not hold."""
+    parts = _for_levels(expression, factors)
+    if parts is None:
+        return expression
+    when, holds = parts
+    return holds if all(chosen.get(name) == level for name, level in when.items()) else None
+
+
+def _levels_told(region: DesignRegion, chosen: dict[str, str]) -> dict[str, Any] | None:
+    """Return the levels the reply is told at and every combination the limits allow, or None with no such limit."""
+    if region.rules is None:
+        return None
+    allowed = region.allowed_combinations()
+    names = [name for name in allowed.columns if name != "limits"]
+    return {
+        "factors": names,
+        "chosen": chosen,
+        "combinations": [
+            {"levels": {name: str(row[name]) for name in names}, "limits": [str(limit) for limit in row["limits"]]}
+            for row in allowed.to_dict("records")
+        ],
+    }
 
 
 def _limit_entries(request: dict, factors: list[Factor]) -> list[dict[str, Any]]:
@@ -7042,7 +7095,10 @@ def _limit_entry(text: str, note: str, factors: list[Factor]) -> dict[str, Any]:
         canonical, named = _read_limit(text, factors)
     except ValueError as exc:
         return {"expression": text, "note": note, "problem": str(exc)}
-    return {"expression": canonical, "note": note, "factors": named}
+    entry: dict[str, Any] = {"expression": canonical, "note": note, "factors": named}
+    if parts := _for_levels(canonical, factors):  # for some levels: which, and what holds there in words
+        entry["when"], entry["at_levels"] = parts
+    return entry
 
 
 def _describe_each(
@@ -7058,7 +7114,7 @@ def _describe_each(
     covered = {read[j] for j in region.redundant_constraints()}
     alone = {}
     for i in read:
-        alone[i] = own = _region(factors, [entries[i]["expression"]])
+        alone[i] = own = DesignRegion([f for f in factors if f.type != "categorical"], [entries[i]["holds"]])
         removed = 1.0 - own.volume_fraction()
         removes = None if probes is None else np.flatnonzero(~own.feasible(probes[0])).tolist()
         # A straight limit that keeps every corner keeps the whole box, so the corners decide it exactly; a curved
@@ -7363,8 +7419,8 @@ def _picture(
     named = {name for i in alone for name in entries[i]["factors"]}
     shown = names if every_pair or len(names) <= PICTURE_EVERY_PAIR else [n for n in names if n in named]
     curved = [i for i in alone if entries[i]["type"] == "nonlinear"]
-    straight = DesignRegion(numeric, [entries[i]["expression"] for i in alone if entries[i]["type"] == "linear"])
-    within = DesignRegion(numeric, [entries[i]["expression"] for i in curved])
+    straight = DesignRegion(numeric, [entries[i]["holds"] for i in alone if entries[i]["type"] == "linear"])
+    within = DesignRegion(numeric, [entries[i]["holds"] for i in curved])
     ends = {f.name: f for f in numeric}
     pairs = []
     for x, y in itertools.combinations(shown, 2):
