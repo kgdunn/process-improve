@@ -306,8 +306,9 @@ def test_a_mixture_has_the_blend_for_a_target_and_the_blends_that_meet_a_specifi
     assert page.text_content("#target-chart figcaption").startswith("Each corner is a pure component")
     assert page.locator("#target-chart .trade-view").is_hidden(), "the triangle has no two factors to pick"
     assert page.text_content("#target-confirm") == "Add 3 confirmation runs at this blend"
-    for part in ("#target-what-if", "#target-solve", "#py-target"):
+    for part in ("#target-what-if", "#target-solve"):
         assert page.locator(part).is_hidden(), part
+    assert "DesignRegion(factors).sample(" in page.text_content("#py-target code"), "the blends, as the page draws them"
 
     reveal(page, "#window")
     page.fill(f'#window-limits tr[data-response="{response}"] [name="low"]', f"{middle:.4g}")
@@ -325,7 +326,7 @@ def test_a_mixture_has_the_blend_for_a_target_and_the_blends_that_meet_a_specifi
     assert listed[-2:] == ["Runs you made", "Surest blend"]
     assert page.text_content("#window-confirm") == "Add 3 confirmation runs at the surest blend"
     assert page.locator("#window-what-if").is_hidden()
-    assert page.locator("#py-window").is_hidden()
+    assert "feasible_region(models, windows, tried" in page.text_content("#py-window code"), "judged as the page does"
     before = len(run_sheet(page))
     page.click("#window-confirm")
     page.wait_for_function(f"document.querySelectorAll('#design-table tbody tr').length === {before + 3}")

@@ -454,7 +454,7 @@ Also:
     allow, the one nearest their middle that gives the targets, each component's proportion
     with where it lies between its bounds, and the blend weighed out for confirmation runs.
     Three components are drawn over their triangle. A mixture has no factor to solve for
-    alone, and its section shows no Python yet.
+    alone. Its section shows its Python.
 - **Settings that meet a specification.** Type the window a response must fall in, or the
   windows of several, either end or both. The app says what share of the settings the models
   put inside every window, and how surely one new run there meets them.
@@ -477,8 +477,8 @@ Also:
     holds what they gave and the chart. For a mixture the share and the chances are of the
     blends the bounds allow, and the surest blend is given, with confirmation runs at it.
     Three components are drawn over their triangle: the blends that meet the windows shaded,
-    a line for each chance reached, and a star at the surest blend. Its section shows no
-    Python yet.
+    a line for each chance reached, and a star at the surest blend. Its section shows its
+    Python: the blends are drawn from the region the bounds allow.
 - **Check the answer.** One button adds three confirmation runs at the settings found, and the
   app judges them when their results are in.
   [Show me](https://factori.al/?example=worked&show=confirm)

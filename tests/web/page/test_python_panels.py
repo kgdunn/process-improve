@@ -1828,6 +1828,40 @@ def test_the_target_settings_code_finds_the_page_s_settings(api, node, targets, 
 
 
 @pytest.mark.slow
+@pytest.mark.parametrize(
+    "targets",
+    [{"Hardness": None}, {"Hardness": None, "Cost": None}, {"Hardness": 1e6}],
+    ids=["one target", "two targets", "out of reach"],
+)
+def test_the_target_code_finds_the_page_s_blend(api, node, targets):
+    """A mixture's code draws the page's blends from the region of blends, and steps to the targets inside it."""
+    responses = [{"name": "Hardness", "goal": "maximize"}, {"name": "Cost", "goal": "minimize"}]
+    request = {**MIXTURES[1], "factors": components("simplex_lattice"), "responses": responses}
+    held = held_of(api.ok("api_make_design", request))
+    simulation = api.ok("api_simulate", {**held, "seed": 5})
+    results = {"Hardness": simulation["responses"], "Cost": simulation["more"]["Cost"]["responses"]}
+    # A target left open here is the middle of the response's results, which some blend gives.
+    middle = {name: (min(values) + max(values)) / 2 for name, values in results.items()}
+    asked = {name: middle[name] if target is None else target for name, target in targets.items()}
+    sent = {"responses": results["Hardness"], "more_responses": {"Cost": results["Cost"]}}
+    found = api.ok("api_target_settings", {**held, **sent, "models": {"Cost": "scheffe_linear"}, "targets": asked})
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, results, simulation]),
+        ("targetCode", [found, held["spec"]]),
+    )
+    assert "DesignRegion(factors).sample(" in code
+    namespace = run(code)
+    assert sum(namespace["settings"].values()) == pytest.approx(1.0)
+    for name, share in found["coded"].items():
+        assert namespace["settings"][name] == pytest.approx(share, abs=1e-5), name
+    for r in found["responses"]:
+        assert namespace["reached"][r["name"]] == pytest.approx(r["predicted"], rel=1e-5), r["name"]
+    assert float(namespace["giving"].mean()) == pytest.approx(found["share"], abs=1e-12)
+
+
+@pytest.mark.slow
 def test_the_target_settings_code_holds_a_categorical_factor_and_keeps_to_the_limits(api, node):
     factors = [*FACTORS[:2], {"name": "S", "low": "A", "high": "B", "units": ""}]
     spec = {"design_type": "full_factorial", "factors": factors, "responses": THREE[:2], "n_center_points": 3}
@@ -1907,6 +1941,33 @@ def test_the_target_chart_s_code_draws_each_response_s_line_as_the_page_does(api
 
 #: The settings the specification's tests judge through: the center of the worked example's ranges.
 CENTER = {"T": 175, "P": 2, "F": 15}
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("windowed", [("Hardness",), ("Hardness", "Cost")], ids=["one window", "two windows"])
+def test_the_specification_code_judges_the_page_s_blends(api, node, windowed):
+    """A mixture's code draws the page's blends from the region of blends and judges them as the page does."""
+    responses = [{"name": "Hardness", "goal": "maximize"}, {"name": "Cost", "goal": "minimize"}]
+    request = {**MIXTURES[1], "factors": components("simplex_lattice"), "responses": responses}
+    held = held_of(api.ok("api_make_design", request))
+    simulation = api.ok("api_simulate", {**held, "seed": 5})
+    results = {"Hardness": simulation["responses"], "Cost": simulation["more"]["Cost"]["responses"]}
+    # Each window is the upper half of the response's results, an end left open for the second.
+    low = {name: (min(values) + max(values)) / 2 for name, values in results.items()}
+    windows = {name: [low[name], None] for name in windowed}
+    sent = {"responses": results["Hardness"], "more_responses": {"Cost": results["Cost"]}}
+    found = api.ok("api_specification", {**held, **sent, "models": {"Cost": "scheffe_linear"}, "windows": windows})
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, results, simulation]),
+        ("windowCode", [found, held["spec"]]),
+    )
+    assert "DesignRegion(factors).sample(" in code
+    namespace = run(code)
+    assert_same_specification(namespace, found)
+    if found["likely"] is not None:
+        assert sum(namespace["settings"].values()) == pytest.approx(1.0)
 
 
 def assert_same_specification(namespace: dict, found: dict) -> None:

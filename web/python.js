@@ -913,7 +913,7 @@ const axisOf = (r) => (r.units ? `${r.label} (${r.units})` : r.label);
  * factor and block at, and how the settings tried were drawn. Null for a mixture.
  */
 export function targetCode(found, spec) {
-  if (isMixture(spec)) return null;
+  if (isMixture(spec)) return targetBlendCode(found, spec);
   const numeric = spec.factors.filter((f) => !labelled(f));
   const names = numeric.map((f) => f.name);
   const { held, formulas, targets, reach, drawn, seed } = found.search;
@@ -989,6 +989,80 @@ export function targetCode(found, spec) {
 }
 
 /**
+ * targetCode for a mixture: the blend that gives each response its target, after step 2's ``runs`` and ``X``. Each
+ * response with a target is fitted with its own Scheffé model; the blends the page tried are drawn from the region of
+ * blends, a ``DesignRegion`` of step 1's components (each between its bounds, the proportions summing to 1); of those
+ * that give every target, the one nearest the center of the region is taken, and a step from it meets the targets
+ * where the models can, inside the bounds and summing to 1.
+ */
+function targetBlendCode(found, spec) {
+  const names = spec.factors.map((f) => f.name);
+  const { formulas, targets, reach, drawn, seed } = found.search;
+  const scale = scaleLines(spec, Object.keys(formulas));
+  const bounds = spec.factors.map((f) => [f.low ?? 0, f.high ?? 1]);
+  return [
+    "import numpy as np",
+    "import pandas as pd",
+    "from scipy.optimize import minimize",
+    "from process_improve.experiments import DesignRegion, analyze_experiment",
+    "",
+    ...scale.lines.filter((line) => line !== "import numpy as np"),
+    "# What each response should be, and how near counts as giving it: 2% of the range of its results.",
+    ...(scale.lines.length ? ["# A transformed response's target and reach are on its scale, as the page searches."] : []),
+    `targets = ${repr(targets)}`,
+    `reach = ${repr(reach)}`,
+    "# Each response with a target, fitted with its own Scheffé model to the runs that have its result.",
+    "models = {}",
+    `for name, model in ${repr(formulas)}.items():`,
+    "    done = runs[name].notna()",
+    `    fit = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="coefficients", coding="actual")`,
+    '    models[name] = fit["coefficients"]',
+    "",
+    "",
+    "def predicted(coefficients, at):",
+    "    # A model's prediction at the blends at: each coefficient times its term, the product of its components.",
+    '    product = lambda term: np.prod([at[name] for name in term.split(":")], axis=0)',
+    '    return sum(c["coefficient"] * product(c["term"]) for c in coefficients)',
+    "",
+    "",
+    "def missed(at):",
+    "    # How far each response is predicted from its target at the blends at, in units of its reach.",
+    "    return pd.DataFrame({name: (predicted(models[name], at) - targets[name]) / reach[name] for name in targets})",
+    "",
+    "",
+    `# ${drawn} blends drawn evenly from the region of blends: each component between its bounds, the proportions summing to 1.`,
+    `names = ${repr(names)}`,
+    `tried = pd.DataFrame(DesignRegion(factors).sample(${drawn}, np.random.default_rng(${seed})), columns=names)`,
+    "miss = missed(tried)",
+    "giving = miss.abs().max(axis=1) <= 1  # the blends that give every target",
+    "print(giving.mean())  # the share of the blends tried that do",
+    "# Of those, the blend nearest the center of the region, the average of the blends drawn; with none, the blend that",
+    "# misses by least.",
+    "centre = tried.mean()",
+    "start = tried.loc[((tried[giving] - centre) ** 2).sum(axis=1).idxmin() if giving.any() else (miss**2).sum(axis=1).idxmin()]",
+    "# From there, a step meets the targets where the models can, inside the bounds and summing to 1; a small pull keeps",
+    "# it by that blend.",
+    "one = lambda x: pd.DataFrame([x], columns=names)",
+    "step = minimize(",
+    "    lambda x: float((missed(one(x)).iloc[0] ** 2).sum() + 1e-4 * ((x - start.to_numpy()) ** 2).sum()),",
+    "    start.to_numpy(),",
+    '    method="SLSQP",',
+    `    bounds=${repr(bounds)},`,
+    '    constraints={"type": "eq", "fun": lambda x: float(x.sum() - 1.0)},',
+    '    options={"ftol": 1e-14},',
+    ")",
+    "# The step is kept when it misses by no more, leaves no target it had, and is still a blend; else the blend it left.",
+    "after, before = missed(one(step.x)).iloc[0], miss.loc[start.name]",
+    "kept = (after**2).sum() <= (before**2).sum() + 1e-12 and (not giving.any() or after.abs().max() <= 1)",
+    "found = one(step.x) if kept and abs(step.x.sum() - 1.0) <= 1e-6 else one(start.to_numpy())",
+    "settings = found.iloc[0].to_dict()",
+    "print(settings)  # the blend that gives the targets: each component's proportion",
+    `reached = {name: ${scale.back("predicted(models[name], found)[0]")} for name in targets}`,
+    "print(reached)  # what each model predicts there",
+  ].join("\n");
+}
+
+/**
  * The chart of where the settings give the targets, after the code of the settings found (targetCode), which leaves
  * each response's ``models`` entry, its target, ``predicted`` and the settings ``found``: each response's prediction
  * over the two factors the page draws (``overlay.x`` and ``overlay.y``), on the page's grid, the others at the
@@ -1023,6 +1097,78 @@ export function targetOverlayCode(overlay, spec) {
 const endOf = (end) => (end === null ? "None" : String(end));
 
 /**
+ * windowCode for a mixture: the blends at which every response is predicted inside its window, and how surely a new
+ * run is, after step 2's ``runs`` and ``X``. Each response with a window is fitted with its own Scheffé model; the
+ * blends the page tried are drawn from the region of blends, a ``DesignRegion`` of step 1's components, and judged
+ * with the library's ``feasible_region``. The surest blend is each component's proportion.
+ */
+function windowBlendCode(found, spec) {
+  const names = spec.factors.map((f) => f.name);
+  const { formulas, windows, drawn, seed } = found.search;
+  const correlated = Boolean(found.search.correlation);
+  const scale = scaleLines(spec, Object.keys(formulas));
+  const windowed = Object.entries(windows).map(([name, [low, high]]) => `${repr(name)}: (${endOf(low)}, ${endOf(high)})`);
+  return [
+    "import numpy as np",
+    "import pandas as pd",
+    "from process_improve.experiments import DesignRegion, analyze_experiment, feasible_region",
+    "",
+    ...scale.lines.filter((line) => line !== "import numpy as np"),
+    "# The window each response must fall in, (low, high), an end of None left open.",
+    ...(scale.lines.length ? ["# A transformed response's window is on its scale, as the page judges it."] : []),
+    `windows = {${windowed.join(", ")}}`,
+    "",
+    "",
+    "def term_columns(terms, at):",
+    "    # Each term's column over the blends at: the product of its components.",
+    '    return np.column_stack([np.prod([at[name] for name in term.split(":")], axis=0) for term in terms])',
+    "",
+    "",
+    "# Each response with a window, fitted with its own Scheffé model to the runs that have its result, with what the",
+    "# scatter of a new run about its prediction is worked from: the fit's error, and the inverse of X'X of its model matrix.",
+    "models = []",
+    ...(correlated ? ["residuals = {}  # each fit's, by its response, for how the responses' errors move together"] : []),
+    `for name, model in ${repr(formulas)}.items():`,
+    "    done = runs[name].notna()",
+    `    fit = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="coefficients", coding="actual")`,
+    '    matrix = term_columns([c["term"] for c in fit["coefficients"]], X[done])',
+    ...(correlated ? [`    residuals[name] = ${scale.on("runs[name][done]")} - matrix @ [c["coefficient"] for c in fit["coefficients"]]`] : []),
+    "    models.append(",
+    "        {",
+    '            "response_name": name,',
+    '            "coefficients": fit["coefficients"],',
+    '            "factor_names": list(X.columns),',
+    '            "mse_residual": fit["model_summary"]["mse_residual"],',
+    '            "df_residual": fit["model_summary"]["df_residual"],',
+    '            "unscaled_covariance": np.linalg.pinv(matrix.T @ matrix),',
+    "        }",
+    "    )",
+    "",
+    `# ${drawn} blends drawn evenly from the region of blends: each component between its bounds, the proportions summing to 1.`,
+    `names = ${repr(names)}`,
+    `tried = pd.DataFrame(DesignRegion(factors).sample(${drawn}, np.random.default_rng(${seed})), columns=names)`,
+    ...(correlated
+      ? [
+          "# The responses' errors on one run are taken as correlated as the residuals of their fits are, over the runs",
+          "# every fit used: two windows are then likelier to be met together, or missed together.",
+          "correlation = pd.DataFrame(residuals).dropna().corr().to_numpy()",
+        ]
+      : []),
+    `judged = feasible_region(models, windows, tried${correlated ? ", residual_correlation=correlation" : ""})`,
+    'print(judged["feasible"].mean())  # the share of the blends at which every prediction is inside its window',
+    ...(found.likely
+      ? [
+          `likely = {chance: (judged["probability"] >= chance).mean() for chance in ${repr(Object.keys(found.likely).map(Number))}}`,
+          "print(likely)  # the share at which one new run meets every window with each chance or more",
+          'surest = judged["probability"].idxmax()',
+          "settings = tried.loc[surest].to_dict()",
+          'print(settings, judged["probability"][surest])  # the blend at which a new run is surest to meet them, and how sure',
+        ]
+      : []),
+  ].join("\n");
+}
+
+/**
  * The settings that meet a specification, after step 2's ``runs`` and ``X``: each response with a window fitted with
  * its own model, with what the scatter of a new run about its prediction is worked from; the settings the page tried,
  * every other column where the what-if panel has it; and the library's ``feasible_region`` over them, for the share
@@ -1031,7 +1177,7 @@ const endOf = (end) => (end === null ? "None" : String(end));
  * scale, the settings held as the models' columns, and how the settings tried were drawn. Null for a mixture.
  */
 export function windowCode(found, spec) {
-  if (isMixture(spec)) return null;
+  if (isMixture(spec)) return windowBlendCode(found, spec);
   const numeric = spec.factors.filter((f) => !labelled(f));
   const names = numeric.map((f) => f.name);
   const { formulas, windows, at, drawn, seed } = found.search;
