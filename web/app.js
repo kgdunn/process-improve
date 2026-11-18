@@ -3625,6 +3625,7 @@ async function downloadWorkbook() {
     model: asked(modelOf(first)),
     ...(Object.keys(models).length ? { models } : {}),
     ...(state.scenarios.length ? { what_if: state.scenarios } : {}),
+    ...keptAsked(), // the targets and the windows typed in Learn, as the study's file keeps them
     ...(state.buildsOn.length ? { builds_on: state.buildsOn } : {}),
     ...sentCurves(),
   });
@@ -4009,8 +4010,9 @@ async function readUpload(file) {
   state.models = { [names[0]]: modelChoice(), ...(r.spec.analysis_models ?? {}) };
   state.goals = {};
   state.trade = newTrade();
-  state.target = newTarget();
-  state.window = newWindow();
+  // The targets and the windows the workbook keeps: what they give is worked out again, as when a study opens.
+  state.target = { ...newTarget(), targets: structuredClone(r.targets ?? {}) };
+  state.window = { ...newWindow(), windows: structuredClone(r.windows ?? {}) };
   state.scenarios = r.what_if ?? [];
   state.buildsOn = r.builds_on ?? []; // the round before, when the workbook is of a later round: Python checked it
   clearBalance();

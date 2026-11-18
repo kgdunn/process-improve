@@ -254,6 +254,42 @@ KEPT = [
 ]
 
 
+def test_the_targets_and_the_windows_typed_in_learn_go_through_the_workbook(api, held, simulated):
+    """The study, its link and its file kept them; the workbook did not, so they were typed again (#1301)."""
+    name = held["spec"]["response"]
+    asked = {"targets": {name: 62.5}, "windows": {name: [60, None]}}
+    book = api.ok("api_workbook", {**held, "responses": simulated["responses"], **asked})
+    back = api.ok("api_read_workbook", book)
+    assert back["targets"] == {name: 62.5}
+    assert back["windows"] == {name: [60.0, None]}, "an end left open stays open"
+    assert "targets" not in back["spec"], "the page keeps them with the study, not with its design"
+    assert "windows" not in back["spec"]
+    plain = api.ok("api_read_workbook", api.ok("api_workbook", {**held, "responses": simulated["responses"]}))
+    assert "targets" not in plain, "a workbook of a study with none holds none"
+    assert "windows" not in plain
+
+
+@pytest.mark.parametrize(
+    ("asked", "why"),
+    [
+        ({"targets": {"Cost": 5}}, "a target for a response the study does not measure"),
+        ({"targets": {"NAME": "high"}}, "a target that is not a number"),
+        ({"windows": {"NAME": [None, None]}}, "a window that does not have two ends"),
+        ({"windows": {"NAME": [1, "x"]}}, "an end that is not a number"),
+        ({"windows": {"Cost": [1, 2]}}, "a window for a response the study does not measure"),
+    ],
+)
+def test_a_target_or_a_window_the_page_did_not_write_is_refused(api, held, simulated, asked, why):
+    name = held["spec"]["response"]
+    sent = {
+        kind: {(name if key == "NAME" else key): value for key, value in byname.items()}
+        for kind, byname in asked.items()
+    }
+    reply = api.reply("api_workbook", {**held, "responses": simulated["responses"], **sent})
+    assert not reply["ok"]
+    assert why in reply["error"]
+
+
 def test_the_settings_kept_from_the_what_if_panel_go_through_the_workbook(api, held, simulated):
     book = api.ok("api_workbook", {**held, "responses": simulated["responses"], "what_if": KEPT})
     stored = json.loads(sheets_of(book["xlsx_base64"])["_pi_design"]["spec"].iloc[0])
