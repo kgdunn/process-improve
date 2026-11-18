@@ -245,7 +245,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "label": "D-optimal",
         "hint": "Best estimates of the chosen model's coefficients for a fixed number of runs.",
         "model": "quadratic",
-        "options": ["budget", "model_type", "n_replicates", "n_blocks"],
+        "options": ["budget", "model_type", "n_replicates", "n_blocks", "hard_to_change"],
         "min_factors": 2,
         "max_factors": MAX_FACTORS,
     },
@@ -256,7 +256,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
             "The search takes longest of the designs here."
         ),
         "model": "quadratic",
-        "options": ["budget", "model_type", "n_replicates", "n_blocks"],
+        "options": ["budget", "model_type", "n_replicates", "n_blocks", "hard_to_change"],
         "min_factors": 2,
         "max_factors": MAX_FACTORS,
     },
@@ -267,7 +267,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
             "coefficient counts the same, where a D-optimal design lets one be known well at another's cost."
         ),
         "model": "quadratic",
-        "options": ["budget", "model_type", "n_replicates", "n_blocks"],
+        "options": ["budget", "model_type", "n_replicates", "n_blocks", "hard_to_change"],
         "min_factors": 2,
         "max_factors": MAX_FACTORS,
     },
@@ -532,6 +532,9 @@ BLANK_LABELS = frozenset(
 #: The run sheet's column naming each run's block, as ``generate_design`` names it. No factor may
 #: take the name, which the library refuses, and no response either.
 BLOCK = "Block"
+#: The run sheet's column of each run's whole plot: the runs made one after another at one setting of the
+#: factors that are hard to change. Mirrored by logic.js.
+WHOLE_PLOT = "Whole plot"
 
 #: Fractional factorial resolutions offered on the page, and the default.
 RESOLUTIONS = (3, 4, 5)
@@ -1721,6 +1724,8 @@ def make_design(spec: dict) -> dict:
     described = {**_stored_responses(responses), **_aimed(spec)}
 
     kwargs = _design_options(spec, design_type)
+    if kwargs.get("hard_to_change"):
+        _check_hard_to_change(kwargs, limits)
     made, asked = _library_arguments(factors, kwargs)
     # The limits are passed apart from the options, which hold one design's settings, as the comparison reuses them.
     result = generate_design(made, design_type=design_type, **asked, **({"constraints": expressions} if limits else {}))
@@ -1777,6 +1782,8 @@ def _made_runs(result: Any, factors: list[Factor], design_type: str, kwargs: dic
             runs[f.name] = [levels[i] for i in _level_indices(runs, {"name": f.name, "levels": levels})]
     if BLOCK in result.design_actual.columns:  # the runs are listed block by block
         runs.insert(0, BLOCK, result.design_actual[BLOCK].to_numpy())
+    if "WholePlot" in result.design_actual.columns:  # and whole plot by whole plot, in the order the library gives
+        runs.insert(0, WHOLE_PLOT, result.design_actual["WholePlot"].to_numpy())
     if design_type in SPACE_FILLING:
         _round_spread(runs, factors, kwargs["budget"])
     runs.insert(0, "Run order", range(1, len(runs) + 1))
@@ -2458,7 +2465,38 @@ def _design_options(spec: dict, design_type: str) -> dict[str, Any]:
         kwargs["n_replicates"] = replicates
     if "n_blocks" in allowed and (blocks := _blocks(spec)) > 1:
         kwargs["n_blocks"] = blocks
-    return kwargs
+    return {**kwargs, **_hard_to_change(spec, allowed)}
+
+
+def _hard_to_change(spec: dict, allowed: list[str]) -> dict[str, list[str]]:
+    """Read the factors that are hard to change, as the option a design that takes them stores.
+
+    They are names of the study's factors, kept in the factors' order. A design that sets no factor once for
+    a group of runs stores no such option, as a design made before the page had it.
+    """
+    raw = spec.get("hard_to_change")
+    if raw is None or "hard_to_change" not in allowed:
+        return {}
+    names = _factor_names(spec.get("factors") or [])
+    if not isinstance(raw, list) or not all(isinstance(name, str) and name in names for name in raw):
+        raise ValueError("Each factor that is hard to change must be one of the study's factors.")
+    hard = [name for name in names if name in raw]
+    return {"hard_to_change": hard} if hard else {}
+
+
+def _check_hard_to_change(kwargs: dict[str, Any], limits: list[dict]) -> None:
+    """Refuse what a design with a factor that is hard to change cannot have: the library's search takes neither."""
+    hard = _listed(kwargs["hard_to_change"])
+    if limits:
+        raise ValueError(
+            f"A design that sets {hard} once for a group of runs keeps no limits on the settings on this page yet: "
+            "remove the limits, or mark no factor as hard to change."
+        )
+    if kwargs.get("n_blocks", 1) > 1:
+        raise ValueError(
+            f"A design that sets {hard} once for a group of runs is not made in blocks on this page yet: "
+            "set the blocks to 1, or mark no factor as hard to change."
+        )
 
 
 def _model_type(spec: dict, design_type: str, k: int) -> str:
@@ -2683,6 +2721,8 @@ def _design_facts(result: Any, coded: np.ndarray, factors: list[dict], kwargs: d
         # A word confounded with the blocks takes its aliases with it (in a 2^(4-1), C·D goes with A·B).
         confounded = list(dict.fromkeys(t for w in words for t in next((g for g in groups if w in g), [w])))
         notes.append(_blocking_sentence(sizes, confounded))
+    if hard := kwargs.get("hard_to_change"):
+        notes.append(_whole_plots_sentence(hard, (result.metadata or {})["n_whole_plots"]))
     return {
         "resolution": result.resolution,
         "generators": [_spaced(g, names) for g in result.generators or []],
@@ -2691,6 +2731,16 @@ def _design_facts(result: Any, coded: np.ndarray, factors: list[dict], kwargs: d
         "center_runs": int(np.all(np.abs(coded) < ALIAS_TOLERANCE, axis=1).sum()),
         "notes": notes,
     }
+
+
+def _whole_plots_sentence(hard: list[str], n_plots: int) -> str:
+    """Say how the runs of a design with factors that are hard to change are made."""
+    verb = "is" if len(hard) == 1 else "are"
+    return (
+        f"{_listed(hard)} {verb} hard to change, so the runs are made in {n_plots} groups, called whole plots: set "
+        f"{_listed(hard)} once for each whole plot, as the {WHOLE_PLOT} column says, and keep the runs in the order "
+        "given. Before each new whole plot, set them again, even to the same values."
+    )
 
 
 def _aliased_groups(coded: np.ndarray, names: list[str], several: Collection[str] = ()) -> list[list[str]]:
@@ -3027,7 +3077,7 @@ def _analysis(
     model = _checked_model(model, names, categorical)
     fitted, columns = _fitted_model(model, spec)
     blocked = _blocked(spec)
-    missing_cols = [c for c in [*names, *([BLOCK] if blocked else []), response] if c not in runs.columns]
+    missing_cols = [c for c in [*names, *_grouping_columns(spec), response] if c not in runs.columns]
     if missing_cols:
         raise ValueError(f"The Runs sheet is missing column(s): {', '.join(missing_cols)}.")
 
@@ -3047,7 +3097,7 @@ def _analysis(
 
     y_done = y[done].reset_index(drop=True).rename(response)
     fit = _fit_estimable(coded, y_done, fitted, columns, categorical)
-    out = fit["out"]
+    out, fit, split = _judged(coded.assign(**{response: y_done}), fit, runs[done], spec)
     zero = ROUND_OFF * float(y[done].abs().max())
     transform = _transform_of(spec)  # the runs hold the response on its model's scale (see _on_model_scale)
     raw = y if transform is None else y.map(lambda v: _put_back(v, transform) if pd.notna(v) else np.nan)
@@ -3119,7 +3169,102 @@ def _analysis(
         "spread": _spread(_coded(runs, factors)[done].reset_index(drop=True), raw[done].to_numpy(float), spec, order),
         "diagnostics": diagnostics,
         "findings": _findings(spec, coefficients, out["model_summary"], lenth, out.get("lack_of_fit"), diagnostics),
+        **split,
     }
+
+
+def _grouping_columns(spec: dict) -> list[str]:
+    """Return the run sheet's columns that group a checked specification's runs: its blocks, its whole plots."""
+    hard = spec.get("options", {}).get("hard_to_change")
+    return [*([BLOCK] if _blocked(spec) else []), *([WHOLE_PLOT] if hard else [])]
+
+
+def _judged(data: pd.DataFrame, fit: dict, runs: pd.DataFrame, spec: dict) -> tuple[dict, dict, dict]:
+    """Return a fit's output, the fit and what the reply adds, each as its whole plots change it, if it has them.
+
+    ``data`` holds the coded runs with a result and those results, and ``runs`` the same runs of the run sheet.
+    """
+    hard = spec.get("options", {}).get("hard_to_change")
+    if not hard:
+        return fit["out"], fit, {}
+    split = _split_plot(data, fit, runs[WHOLE_PLOT], hard)
+    notes = [*fit["notes"], split["note"]]
+    if split["told"] is None:
+        return fit["out"], {**fit, "notes": notes}, {}
+    return {**fit["out"], **split["out"]}, {**fit, "notes": notes, "lenth": None}, {"split_plot": split["told"]}
+
+
+def _split_plot(data: pd.DataFrame, fit: dict, plots: pd.Series, hard: list[str]) -> dict[str, Any]:
+    """Judge each coefficient of a design with factors that are hard to change against the spread it meets.
+
+    Such a factor is set once for a whole plot, a group of runs, so its coefficient moves with the spread from
+    whole plot to whole plot, which is larger than the spread from run to run. The library fits both spreads
+    (REML) and gives each coefficient its own standard error and degrees of freedom. ``data`` holds the coded
+    runs and their results, and ``fit`` the ordinary fit of them. The reply's ``out`` holds the coefficients so
+    judged, in place of the ordinary fit's, and no ANOVA table or lack-of-fit test, which have one error only;
+    ``told`` is what the page shows of the two spreads, and ``note`` says it in a sentence. While the results
+    are too few for two spreads, the ordinary fit stands, ``told`` is None and the note says what that means.
+
+    shortcut: the residuals, the predictions and the settings Learn finds still come from the ordinary fit;
+    use the split-plot fit there when its estimates differ from the ordinary ones by more than their errors.
+    """
+    groups = pd.to_numeric(plots, errors="coerce")
+    if groups.isna().any():
+        raise ValueError(f"Each run needs a whole number in the {WHOLE_PLOT} column.")
+    verb = "was" if len(hard) == 1 else "were"
+    found = None
+    if 1 < groups.nunique() < len(groups):
+        frame = data.assign(WholePlot=groups.astype(int).to_numpy())
+        try:
+            with _listening():
+                found = doe.analyze_experiment(
+                    frame,
+                    model=fit["formula"],
+                    analysis_type="split_plot",
+                    coding="actual",
+                    whole_plot="WholePlot",
+                    response_column=str(data.columns[-1]),
+                )["split_plot"]
+        except (ValueError, np.linalg.LinAlgError):
+            found = None
+    if found is None:
+        note = (
+            f"{_listed(hard)} {verb} set once for each whole plot, and the results so far are too few to judge "
+            f"{'it' if len(hard) == 1 else 'them'} against the spread from whole plot to whole plot. Every term is "
+            "judged against one spread for now, which makes a factor that is hard to change look more certain "
+            "than it is."
+        )
+        return {"out": {}, "note": note, "told": None}
+    by_term = {c["term"]: c for c in found["coefficients"]}
+    keys = ("coefficient", "std_error", "t_value", "p_value", "ci_low", "ci_high")
+    coefficients = [
+        {**c, **{key: by_term[c["term"]][key] for key in keys}, "stratum": by_term[c["term"]]["stratum"]}
+        if c["term"] in by_term
+        else c
+        for c in fit["out"].get("coefficients", [])
+    ]
+    components = found["variance_components"]
+    between, within = math.sqrt(max(components["whole_plot"], 0.0)), math.sqrt(components["residual"])
+    whole = [_pretty(c["term"]) for c in coefficients if c.get("stratum") == "whole_plot" and c["term"] != "Intercept"]
+    note = (
+        f"{_listed(hard)} {verb} set once for each of the {found['n_whole_plots']} whole plots. The results differ "
+        f"from whole plot to whole plot by a standard deviation of {between:.3g}, and from run to run inside one by "
+        f"{within:.3g}. "
+        + (
+            f"{_listed(whole)} {'is' if len(whole) == 1 else 'are'} judged against the first, and "
+            "every other term against the second."
+            if whole
+            else "Every term is judged against the second."
+        )
+    )
+    told = {
+        "hard_to_change": hard,
+        "n_whole_plots": int(found["n_whole_plots"]),
+        "sd_whole_plot": between,
+        "sd_run": within,
+        "whole_plot_terms": whole,
+    }
+    return {"out": {"coefficients": coefficients, "anova_table": [], "lack_of_fit": None}, "note": note, "told": told}
 
 
 #: The chance of calling some run of a study unusual when none is: the outlier test's level, shared over the runs.
