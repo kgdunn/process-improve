@@ -114,7 +114,7 @@ process-improve-mcp = "process_improve.mcp_server:main"
 [project.urls]
 Homepage = "https://github.com/kgdunn/process-improve"
 Documentation = "https://kgdunn.github.io/process-improve/"
-"Try it in your browser" = "https://kgdunn.github.io/process-improve/app/"
+"Try it in your browser" = "https://factori.al/"
 Textbook = "https://learnche.org/pid"
 Repository = "https://github.com/kgdunn/process-improve"
 Issues = "https://github.com/kgdunn/process-improve/issues"
