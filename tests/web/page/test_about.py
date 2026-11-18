@@ -87,7 +87,9 @@ def test_the_answers_have_none_of_the_words_kept_for_the_folds():
 
 
 def test_the_app_s_footer_links_to_it():
-    assert '<li><a href="about.html">How Factorial works</a></li>' in " ".join(source("index.html").split())
+    assert '<li><a href="about.html">See behind the scenes: how Factorial works</a></li>' in " ".join(
+        source("index.html").split()
+    )
 
 
 def test_every_link_into_the_repository_names_a_path_that_exists():
