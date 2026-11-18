@@ -730,6 +730,11 @@ Also:
 - **Your numbers in ink.** What you typed or measured is in blue ink. What Factorial worked
   out is in print.
   - *Details:* A simulated result is grey and in italics, as pencil, until you type over it.
+- **Every page has the same top line and footer.** The pages on how Factorial works, what it
+  does, the design catalog, the textbooks' answers and the concept map each have the
+  colour-mode switch at the top and end in the same links, in the same order.
+  - *Details:* A mode chosen on one page is the mode of the next. The footer marks the page
+    you are on.
 - **One menu holds every way in.** The study's name opens it: a new study, your
   studies, the worked example, data you have, and the design catalog. It also shares the
   study and shows its report.

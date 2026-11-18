@@ -88,7 +88,7 @@ def test_every_file_the_reproduction_page_loads_is_published(build_script):
     fetched = set(re.findall(r'fetch\(app\(`?"?([\w./-]+)', source("reproduced.js")))
     # The list of books is written by the build (tests/web/page/test_book_pages.py), not copied from web/.
     books = "catalog/books/index.html"
-    assert loaded == {"catalog/index.html", "favicon.svg", "style.css", "reproduced.js", books}
+    assert loaded == {"catalog/index.html", "favicon.svg", "style.css", "reproduced.js", "site.js", books}
     assert imported == {"catalog-views.js", "reproduced-logic.js"}
     assert fetched == {"catalog/reproduction.json"}
     assert source("reproduced.js").count("fetch(") == len(fetched), "every fetch goes through app()"

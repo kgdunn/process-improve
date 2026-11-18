@@ -2412,3 +2412,8 @@ dialog.import { width: min(860px, 100vw - 32px); }
 .bench .actions { margin: 10px 0 0; }
 .bench .actions button { min-height: 44px; }
 table.runs input[data-response]:disabled { background: none; border-style: dashed; }
+/* The top line every page beside the app shares (site.js): the way back, and the colour-mode switch at its end. */
+.site-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* A page's own closing words, over the footer every page shares. */
+.page-note { margin-top: 28px; color: var(--muted); font-size: 0.92rem; }
+.page-note + .site-foot { margin-top: 16px; }

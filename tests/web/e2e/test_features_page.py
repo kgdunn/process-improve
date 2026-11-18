@@ -60,7 +60,17 @@ def test_the_footer_says_what_factorial_is_and_names_each_group_of_its_links(pag
              [...list.querySelectorAll('a, button')].map((to) => to.textContent)])"""
     )
     assert groups == [
-        ["The app", ["How Factorial works", "The design catalog", "How its ideas link"]],
+        [
+            "The app",
+            [
+                "Factorial, the app",
+                "What Factorial does",
+                "How Factorial works",
+                "The design catalog",
+                "The textbooks' answers, checked",
+                "How its ideas link",
+            ],
+        ],
         ["Behind it", ["process-improve, the Python package", "Process Improvement using Data, the book"]],
         ["Something wrong or missing?", ["Send feedback"]],
     ]
@@ -142,10 +152,12 @@ def test_an_address_opens_at_its_part_and_one_from_when_the_parts_were_numbered_
     # A link of the list to another of its parts opens that part.
     old.click("#learn-the-method")
     old.click("#features a[href='#more-at-factorial']")
-    # The list's last part: the page ends under it, so it is brought into view and not always to the top.
+    # The list's last part: it is opened and brought into view, at the top now that a footer follows the list (a
+    # fraction of a pixel over it, as the browser rounds). The page goes there a moment after the press, so the
+    # part being open is waited for with its place.
     old.wait_for_function(
-        "(id) => { const top = document.getElementById(id).getBoundingClientRect().top;"
-        " return top >= 0 && top < innerHeight - 100; }",
+        "(id) => { const at = document.getElementById(id), top = at.getBoundingClientRect().top;"
+        " return at.closest('details').open && top > -80 && top < innerHeight - 100; }",
         arg="more-at-factorial",
     )
     assert "more-at-factorial" in old.evaluate(SEEN)["open"]
