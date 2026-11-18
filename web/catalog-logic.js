@@ -348,16 +348,6 @@ export function yearBins(catalog, state, width = 5) {
   return bins;
 }
 
-/** The families first published within the years the bars span, each with its year: the marks on the timeline. */
-export function familyMarks(catalog, bins) {
-  if (!bins.length) return [];
-  const [first, last] = [bins[0].from, bins.at(-1).to];
-  return Object.entries(catalog.families ?? {})
-    .filter(([, f]) => f.year && f.year >= first && f.year <= last)
-    .map(([family, f]) => ({ family, year: f.year, label: f.label }))
-    .sort((a, b) => a.year - b.year);
-}
-
 // ---------------------------------------------------------------- the map of factors and runs
 /** The most factors the map gives a row of their own: a design of more is in the row after. */
 export const MAP_ROWS = 12;

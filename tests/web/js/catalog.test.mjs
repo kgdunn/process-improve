@@ -30,7 +30,6 @@ import {
   errataShown,
   isDesign,
   generatorsLine,
-  familyMarks,
   largestSecondOrderR,
   MAP_TERMS_FACTORS,
   mapTermsSentence,
@@ -841,14 +840,7 @@ describe("the errata", () => {
   });
 });
 
-describe("the timeline and where a design leads", () => {
-  test("the families first published within the years the bars span are marked", () => {
-    const catalog = { ...CATALOG, families: { ...CATALOG.families, full_factorial: { label: "Full factorial", year: 1926 }, dsd: { label: "Definitive screening", year: 2011 } } };
-    const marks = familyMarks(catalog, yearBins(catalog, state()));
-    assert.deepEqual(marks, [{ family: "dsd", year: 2011, label: "Definitive screening" }]);
-    assert.deepEqual(familyMarks(catalog, []), []);
-  });
-
+describe("where a design leads", () => {
   test("a step leads to the family's designs of at most as many factors, or at least as many for more factors", () => {
     const catalog = {
       ...CATALOG,
