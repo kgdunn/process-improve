@@ -438,13 +438,23 @@ MAX_BLOCKS = 8
 MAX_GIVEN_BLOCKS = 32
 
 #: The designs that take a categorical factor, one whose levels are labels (supplier A and B):
-#: the two-level designs, which need only the two levels of each factor, and the Taguchi arrays,
-#: which give a categorical factor a column of its own beside the numeric factors' columns.
-CATEGORICAL_DESIGNS = ("full_factorial", "fractional_factorial", "plackett_burman", "taguchi")
+#: the two-level designs, which need only the two levels of each factor, the Taguchi arrays,
+#: which give a categorical factor a column of its own beside the numeric factors' columns, and the
+#: optimal designs, which choose each run's level as they choose its settings.
+CATEGORICAL_DESIGNS = (
+    "full_factorial",
+    "fractional_factorial",
+    "plackett_burman",
+    "taguchi",
+    "d_optimal",
+    "i_optimal",
+    "a_optimal",
+)
 
 #: Of those, the designs that take a categorical factor of three levels or more: the full factorial,
-#: which runs every combination of the levels, and the Taguchi arrays, which have mixed-level columns.
-SEVERAL_LEVEL_DESIGNS = ("full_factorial", "taguchi")
+#: which runs every combination of the levels, the Taguchi arrays, which have mixed-level columns, and
+#: the optimal designs, whose model has a column for each level but one.
+SEVERAL_LEVEL_DESIGNS = ("full_factorial", "taguchi", "d_optimal", "i_optimal", "a_optimal")
 
 #: The most levels a categorical factor takes on this page; each level but one is a column of the model.
 MAX_LEVELS = 8

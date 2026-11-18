@@ -437,7 +437,8 @@ def test_the_two_level_designs_are_left_out_saying_why(api):
     found = candidates(api, [CATALYST, T, FACTORS[1]], model="interactions")
     reasons = {d["design_type"]: d["reason"] for d in found["left_out"]}
     assert reasons["fractional_factorial"] == reasons["plackett_burman"] == "levels"
-    assert [m["design_type"] for m in found["made"]] == ["full_factorial", "taguchi"]
+    made = [m["design_type"] for m in found["made"]]
+    assert made == ["full_factorial", "taguchi", "d_optimal", "i_optimal"], "the optimal designs take the levels too"
 
 
 def test_designs_with_a_factor_of_several_levels_are_scored_on_its_terms_together(api):

@@ -88,12 +88,12 @@ def test_optimal_designs_are_built_for_the_smallest_model_containing_the_compari
     assert same["notes"] == []
 
 
-def test_without_an_optimal_design_there_is_no_note_about_its_model(api):
-    """An optimal design takes numeric factors, so with a categorical one no note explains its model."""
+def test_an_optimal_design_with_a_categorical_factor_has_the_note_about_its_model(api):
+    """An optimal design takes a categorical factor too, so the note on the model it is built for is still said."""
     factors = [*FACTORS, {"name": "S", "low": "A", "high": "B"}]
     plan = api.ok("api_compare_plan", {"factors": factors, "model": "main_quadratic"})
-    assert not any(d["design_type"].endswith("_optimal") for d in plan["designs"])
-    assert plan["notes"] == []
+    assert any(d["design_type"].endswith("_optimal") for d in plan["designs"])
+    assert "built for the quadratic model" in plan["notes"][0]
 
 
 def test_a_model_the_comparison_does_not_define_is_refused(api):
@@ -150,6 +150,8 @@ def test_a_comparison_with_a_categorical_factor_offers_the_two_level_designs(api
         "fractional_factorial",
         "plackett_burman",
         "taguchi",
+        "d_optimal",
+        "i_optimal",
     ]
 
 
