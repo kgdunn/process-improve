@@ -251,3 +251,9 @@ def test_a_comparison_of_designs_says_its_scores_are_over_the_whole_ranges(api, 
     _, held = generate_all(api, FACTORS, "main_effects", constraints)
     compared = api.ok("api_compare", {"model": "main_effects", "designs": held, "constraints": constraints})
     assert compared["limits_by_level"] is True
+
+
+def test_a_target_with_no_setting_to_try_at_any_level_is_refused(api, study):
+    nowhere = [{"expression": f"not (RM == '{level}' and conc > -5)"} for level in "AB"]
+    held = {**study, "spec": {**study["spec"], "constraints": nowhere}, "targets": {"y": 64}}
+    assert api.error("api_target_settings", held) == "The limits on the settings leave no setting to try."
