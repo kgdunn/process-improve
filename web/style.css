@@ -1610,6 +1610,11 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
 .facets__family.empty { color: var(--muted); }
 .facets__more > summary { margin: 2px 0; color: var(--accent); font-size: 0.88rem; cursor: pointer; }
 .facets input[type="checkbox"] { width: auto; margin: 0; }
+/* A limit for one level of a categorical factor: five choices on a line, and the levels the panel is shown for. */
+.level-limit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 6px 0 10px; }
+.level-limit select, .level-limit input { min-width: 0; max-width: 11em; }
+.level-limit input { width: 6.5em; }
+.limits-levels { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 8px 0 4px; }
 .swatch { flex: none; width: 10px; height: 10px; border-radius: 50%; }
 .facets__range {
   display: grid; grid-template-columns: 4.4em minmax(0, 1fr) minmax(0, 1fr); gap: 6px; align-items: center;

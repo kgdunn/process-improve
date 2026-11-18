@@ -1320,10 +1320,35 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
             f"and the functions {FUNCTIONS}."
         ),
     ),
-    "a limit on a categorical factor": (
+    "a limit on a categorical factor that is not for one of its levels": (
         "api_limits",
         _typed("T + S <= 3", factors=WITH_SUPPLIER),
-        "The limit 'T + S <= 3' names S, which is categorical: limits are on numeric factors only.",
+        (
+            "The limit 'T + S <= 3' names S, which is categorical: write a limit for one of its levels as "
+            "not (S == 'B' and 2*T + P > 10), which keeps the settings where that does not hold."
+        ),
+    ),
+    "a limit for a level the factor does not have": (
+        "api_limits",
+        _typed("not (S == 'C' and T > 170)", factors=WITH_SUPPLIER),
+        "The limit \"not (S == 'C' and T > 170)\" names the level 'C', which S does not have: A and B.",
+    ),
+    "limits that leave a level with nothing to run": (
+        "api_limits",
+        _typed("not (S == 'A' and T > 170)", "not (S == 'A' and T < 180)", factors=WITH_SUPPLIER),
+        "No setting in your ranges meets every limit at S = A: loosen a limit, or widen a range.",
+    ),
+    "limits that never run a level": (
+        "api_limits",
+        _typed(
+            "not (S == 'A' and R == 'X')",
+            "not (S == 'A' and R == 'Y')",
+            factors=[*WITH_SUPPLIER, {"name": "R", "low": "X", "high": "Y", "units": ""}],
+        ),
+        (
+            "The limits cannot be kept together: The constraints leave no allowed run with S = 'A'. Remove that "
+            "level from the factor, or loosen the constraints."
+        ),
     ),
     "a limit on another factor": (
         "api_limits",

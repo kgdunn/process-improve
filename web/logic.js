@@ -2065,8 +2065,23 @@ export function shareText(share) {
  * out and how many corners of the ranges, from api_limits' description of it. "" for a limit that cannot be
  * read, which says its problem instead.
  */
+/**
+ * A limit that holds at one level of a categorical factor, as Python reads it: "when ``factor`` is ``level``,
+ * ``numeric`` is at most (or at least) ``value``" is written as the settings never run, those at that level
+ * beyond the value.
+ */
+export function levelLimit(factor, level, numeric, side, value) {
+  const quoted = `'${String(level).replaceAll("\\", "\\\\").replaceAll("'", "\\'")}'`;
+  return `not (${factor} == ${quoted} and ${numeric} ${side === "least" ? "<" : ">"} ${value})`;
+}
+
 export function limitEffect(entry, probes) {
   if (entry.problem) return "";
+  // A limit for some levels of a categorical factor: said in words first, then what it does at the levels shown.
+  const when = entry.when ? Object.entries(entry.when).map(([name, level]) => `${name} is ${level}`).join(" and ") : null;
+  if (when && !entry.at_levels) return `Never run when ${when}.`;
+  if (when && entry.holds === null) return `When ${when}: ${entry.at_levels}. It rules out nothing at the levels shown.`;
+  if (when) return `When ${when}: ${entry.at_levels}. ${limitEffect({ ...entry, when: null }, probes)}`;
   if (entry.redundant === "alone") return "Rules out nothing within your ranges.";
   if (entry.redundant === "others") return "Rules out nothing the other limits do not.";
   // From here the limit rules out a part of the ranges, even one too thin for the sample or the rounding to see.

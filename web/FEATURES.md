@@ -192,10 +192,18 @@ Also:
   rules out and how much of the ranges is left, and draws the settings that can be run.
   - *Details:* Up to 8 inequalities in the factors' own units, such as `T + 25*P <= 250`. A
     limit can also be proposed from the corners you mark as not runnable. The picture is
-    drawn for each pair of factors. A limit names numeric factors, and holds at every level
-    of a categorical factor beside them; a limit that depends on a level, such as a catalyst
-    that cannot run above a temperature, is not in the app yet
-    ([#813](https://github.com/kgdunn/process-improve/issues/813)).
+    drawn for each pair of factors. A limit on numeric factors holds at every level of a
+    categorical factor beside them.
+- **A limit for one level.** A raw material that can only be dosed up to 1.5 %, or a catalyst
+  that cannot run above a temperature: a limit that holds at one level of a categorical
+  factor and not at the others. It is built from five choices, not typed. Ranges that do not
+  overlap from level to level are two such limits.
+  - *Details:* For the three optimal designs. The panel, its picture and its corners are
+    shown for one combination of levels at a time, which the reader picks. Learn keeps to the
+    limit of the level it chooses: the best settings, a target, a specification, the
+    trade-offs and the settings tried in What if. Two levels that are never run together are
+    typed, as `not (A == 'x' and B == 'y')`. A comparison of designs scores them over the
+    whole ranges when a study has such a limit.
 - **Know what your runs can tell apart.** Before a run is made, the app names the effects that
   these runs cannot separate from each other.
   [Show me](https://factori.al/?book=bioreactor-half-fraction&show=correlation)

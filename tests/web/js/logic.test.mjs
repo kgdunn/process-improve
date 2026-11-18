@@ -19,6 +19,7 @@ import {
   filterCorners,
   settingLabel,
   insertAt,
+  levelLimit,
   limitEffect,
   limitsSummary,
   positional,
@@ -1352,6 +1353,18 @@ describe("limits on the settings", () => {
     ]);
     const below = limitsSummary(reply({ bounds: [{ name: "T", low: 155.55555, high: null }] }), factors);
     assert.equal(below.at(-1).text, "So T never goes below 155.6 degC.");
+  });
+
+  test("a limit for one level is written as Python reads it, and said in words", () => {
+    assert.equal(levelLimit("RM", "A", "conc", "most", 1.5), "not (RM == 'A' and conc > 1.5)");
+    assert.equal(levelLimit("RM", "B", "conc", "least", 2), "not (RM == 'B' and conc < 2)");
+    assert.equal(levelLimit("Lot", "it's", "T", "most", 3), "not (Lot == 'it\\'s' and T > 3)", "a quote in a label is escaped");
+    const held = { when: { RM: "A" }, at_levels: "conc <= 1.5", holds: "conc <= 1.5", removed: 0.25, removes: [1, 2], redundant: null };
+    assert.equal(limitEffect(held, { center: 4 }), "When RM is A: conc <= 1.5. Rules out 25% of your ranges: 2 of the 4 corners.");
+    const elsewhere = { ...held, holds: null, removed: 0, removes: [] };
+    assert.equal(limitEffect(elsewhere, { center: 4 }), "When RM is A: conc <= 1.5. It rules out nothing at the levels shown.");
+    const never = { when: { RM: "A", Line: "2" }, at_levels: null, holds: null, removed: 0 };
+    assert.equal(limitEffect(never, null), "Never run when RM is A and Line is 2.");
   });
 
   test("a refusal comes first, as an error, and nothing left says only that", () => {
