@@ -911,17 +911,14 @@ function applyHidden() {
   cy.nodes(".topic, .subtopic").forEach(n => n.toggleClass("empty", sizeAt(n.id()) === 0));
   cy.nodes(".subname").forEach(n => n.toggleClass("empty", sizeAt(n.id().replace(/-name$/, "")) === 0));
 }
-const levelSlider = document.getElementById("level"), levelName = document.getElementById("level-name");
+const levelChoice = document.getElementById("level");
 function showLevel() {
-  levelSlider.value = level;
-  levelSlider.style.setProperty("--fill", `${((level - 1) / (LEVELS.length - 1)) * 100}%`);   // the track's filled part
-  levelName.value = LEVELS[level - 1];
-  levelSlider.setAttribute("aria-valuetext", LEVELS[level - 1]);
+  for (const one of levelChoice.querySelectorAll("input")) one.checked = Number(one.value) === level;
 }
-levelSlider.closest(".map-level").hidden = !leveled;
+levelChoice.hidden = !leveled;
 showLevel();
-levelSlider.addEventListener("input", () => {
-  level = Number(levelSlider.value);
+levelChoice.addEventListener("change", ev => {
+  level = Number(ev.target.value);
   try { localStorage.setItem("factorial-map-level", String(level)); } catch {}
   showLevel();
   cy.batch(applyHidden);

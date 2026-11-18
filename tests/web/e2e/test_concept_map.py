@@ -40,6 +40,21 @@ STATE = """() => {
 }"""
 
 
+def set_depth(page, level) -> None:
+    """Choose how much of the map is drawn, as a reader does: by pressing one of the three depths, by its number."""
+    page.click(f'#level label:has(input[value="{level}"])')
+
+
+def depth(page) -> tuple[str, str]:
+    """Return the depth in force: its number and its name, as the three choices show it."""
+    return tuple(
+        page.evaluate(
+            """() => { const on = document.querySelector('#level input:checked');
+                 return [on.value, on.nextElementSibling.textContent]; }"""
+        )
+    )
+
+
 # Resolves once the map has stopped moving and redrawn: a fixed sleep raced the zoom under load. Two frames first, as
 # an animation started by a click joins cy.animated() on the next tick; two after, for the refresh a move queues.
 SETTLED = """() => new Promise((done) => {
@@ -372,7 +387,7 @@ def test_above_the_map_one_row_of_switches_and_one_row_of_kinds(context, site):
     # The kinds in DejaVu Sans, wider than any phone's own font: one line here is one line on any phone.
     page.evaluate("""() => { document.querySelector('#legend').style.fontFamily = '"DejaVu Sans", sans-serif'; }""")
     for level in LONG_LEVELS:
-        page.locator("#level").fill(level)
+        set_depth(page, level)
         rows = page.evaluate("""() => {
           const top = (s) => [...document.querySelectorAll(s)].map((e) => Math.round(e.getBoundingClientRect().top));
           const box = (s) => document.querySelector(s).getBoundingClientRect();
@@ -846,10 +861,10 @@ FAULTS = """() => {
 @pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
 def test_the_level_slider_shows_each_level_with_every_level_below_it(context, site):
     page = _open(context, site, level=None)
-    assert page.input_value("#level") == "1", "a first visit opens on Beginner"
+    assert depth(page)[0] == "1", "a first visit opens on Beginner"
     for level, name in reversed(list(enumerate(LEVELS, 1))):
-        page.locator("#level").fill(str(level))
-        assert page.text_content("#level-name") == name
+        set_depth(page, str(level))
+        assert depth(page)[1] == name
         expected = _drawn(level, {n["id"] for n in GRAPH["nodes"] if n["type"] in CONTEXT})
         assert page.evaluate(SHOWN) == expected, f"{name}: exactly the terms at that level or below"
         size = sum(1 for n in GRAPH["nodes"] if n["cluster"] == BIGGEST["id"] and n["id"] in expected)
@@ -861,7 +876,7 @@ def test_the_level_slider_shows_each_level_with_every_level_below_it(context, si
 
 def test_the_level_is_remembered_and_search_stays_within_it(context, site):
     page = _open(context, site, level=None)
-    page.locator("#level").fill("1")
+    set_depth(page, "1")
     advanced = next(n for n in GRAPH["nodes"] if n["level"] == 3 and n["type"] not in CONTEXT)
     page.fill("#q", advanced["name"])
     offered = "(i) => document.querySelectorAll(`#results button[data-id='${i}']`).length"
@@ -871,8 +886,8 @@ def test_the_level_is_remembered_and_search_stays_within_it(context, site):
     assert page.evaluate(offered, beginner["id"]) == 1
     page.reload()
     page.wait_for_function("() => window.conceptMap && document.querySelector('#card h2')")
-    assert page.input_value("#level") == "1"
-    assert page.text_content("#level-name") == "Beginner"
+    assert depth(page)[0] == "1"
+    assert depth(page)[1] == "Beginner"
 
 
 def test_a_term_is_found_under_a_name_another_text_uses_and_its_card_lists_that_name_apart(context, site):
@@ -900,9 +915,9 @@ def test_a_term_is_found_under_a_name_another_text_uses_and_its_card_lists_that_
 def test_on_a_phone_the_level_fits_inside_the_page(context, site):
     page = _open(context, site, level=None)
     for level in LONG_LEVELS:
-        page.locator("#level").fill(level)
+        set_depth(page, level)
         row = page.evaluate("""() => ({
-          right: document.querySelector('#level-name').getBoundingClientRect().right,
+          right: document.querySelector('#level label:last-of-type span').getBoundingClientRect().right,
           width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth })""")
         assert row["right"] <= row["width"] - 16 + 0.5, "the level's name ends inside the page's side margin"
         assert row["scroll"] == row["width"], "and the page does not scroll sideways"
@@ -925,7 +940,7 @@ def test_no_term_is_drawn_alone_and_every_count_is_what_is_drawn(context, site, 
     )
     hidden = {i for i, k in kind_of.items() if k in kinds}
     for level in (3, 2, 1):
-        page.locator("#level").fill(str(level))
+        set_depth(page, str(level))
         faults = page.evaluate(FAULTS)
         assert faults["alone"] == [], f"level {level}: every drawn term keeps a drawn link"
         assert faults["miscounted"] == [], f"level {level}: each topic counts the terms it draws"
@@ -946,7 +961,7 @@ def test_a_topic_with_no_term_at_the_level_is_dimmed(context, site):
     )
     assert empty == expected, "exactly the topics with no term drawn"
     assert empty, "the beginner level leaves at least one topic empty, or this test checks nothing"
-    page.locator("#level").fill("3")
+    set_depth(page, "3")
     assert page.evaluate("() => window.conceptMap.cy.nodes('.topic.empty').length") == 0, (
         "every topic has terms at the top"
     )
@@ -1714,3 +1729,30 @@ def test_while_books_are_compared_a_small_topic_s_name_is_beside_it_where_there_
     assert not [name["name"] for name in page.evaluate(TOPIC_NAMES) if name["beside"]], (
         "with no rings, a name is inside"
     )
+
+
+@pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
+def test_the_three_depths_are_in_sight_together_and_the_one_in_force_is_filled(context, site):
+    """It was a slider, which named one depth at a time: a reader could not see what the others were."""
+    page = context.new_page()
+    page.goto(f"{site}map/")
+    page.wait_for_selector("#level label")
+    names = page.locator("#level label span")
+    assert names.all_text_contents() == ["Beginner", "Intermediate", "Adventurous"]
+    assert all(name.is_visible() for name in names.all()), "each named before it is chosen"
+    assert page.locator('#level input[type="range"]').count() == 0
+    assert page.get_attribute("#level", "role") == "radiogroup"
+    fill = "(one) => getComputedStyle(one).backgroundColor"
+    set_depth(page, 2)
+    colours = names.evaluate_all(f"(all) => all.map({fill})")
+    assert colours[1] != colours[0] == colours[2], "the depth in force is the one filled"
+    assert depth(page) == ("2", "Intermediate")
+    assert page.evaluate("localStorage.getItem('factorial-map-level')") == "2"
+    # The keyboard moves among them as among any radio buttons.
+    page.focus('#level input[value="2"]')
+    page.keyboard.press("ArrowRight")
+    assert depth(page) == ("3", "Adventurous")
+    boxes = [name.bounding_box() for name in names.all()]
+    assert all(a["x"] + a["width"] <= b["x"] + 1 for a, b in pairwise(boxes)), "side by side"
+    assert all(box["height"] >= 34 for box in boxes), "each a target to press"
+    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")

@@ -2167,43 +2167,37 @@ main.map .lede { margin: 0; }
    the other textbooks on one line. Zoom and fit stay below the map. */
 .map-find { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 20px; }
 .map-view { display: flex; flex-wrap: wrap; gap: 0 18px; }
-.map-level { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.9rem; }
-.map-level input { width: 88px; }
-/* The level's slider: a rounded track filled with the accent up to a round handle (--fill, set by map.js), the same
-   in every browser. The input keeps its full height, so the handle is as easy to catch with a finger as before. */
-.map-level input[type="range"] { appearance: none; -webkit-appearance: none; height: 24px; margin: 0; padding: 0; border: 0;
-  background: none; box-shadow: none;
-  cursor: pointer; }
-.map-level input[type="range"]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px;
-  background: linear-gradient(to right, var(--accent) var(--fill, 0%), var(--line) var(--fill, 0%)); }
-.map-level input[type="range"]::-moz-range-track { height: 6px; border-radius: 3px; background: var(--line); }
-.map-level input[type="range"]::-moz-range-progress { height: 6px; border-radius: 3px; background: var(--accent); }
-.map-level input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px;
-  margin-top: -6px; border-radius: 50%; background: var(--accent); border: 2px solid var(--panel);
-  box-shadow: 0 0 0 1px var(--accent), 0 1px 3px rgb(0 0 0 / 0.3); }
-.map-level input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%;
-  background: var(--accent); border: 2px solid var(--panel); box-shadow: 0 0 0 1px var(--accent), 0 1px 3px rgb(0 0 0 / 0.3); }
-.map-level input[type="range"]:focus-visible { outline: none; }
-.map-level input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--accent); }
-.map-level input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(--accent); }
-.map-level output { color: var(--fg); min-width: 9ch; }
+.map-level { display: inline-flex; align-items: center; gap: 0; color: var(--muted); font-size: 0.9rem; }
+.map-level > .map-full { margin-right: 8px; }
+/* The depth of the map: three choices side by side, as one control. Each is a radio button, out of sight, and its
+   name, which is the part pressed: the one in force is filled, so the three depths are read before one is chosen. */
+.map-level label { display: inline-flex; margin: 0; cursor: pointer; }
+.map-level input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.map-level label span {
+  display: inline-flex; align-items: center; min-height: 34px; padding: 4px 12px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--fg); white-space: nowrap;
+}
+.map-level label + label span { border-left: 0; }
+.map-level label:first-of-type span { border-radius: var(--corner) 0 0 var(--corner); }
+.map-level label:last-of-type span { border-radius: 0 var(--corner) var(--corner) 0; }
+.map-level label:hover span { border-color: var(--accent); }
+.map-level input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600; }
+.map-level input:focus-visible + span { outline: 3px solid var(--accent); outline-offset: 2px; position: relative; }
+@media (forced-colors: active) { .map-level input:checked + span { background: Highlight; color: HighlightText; } }
 .map-level[hidden] { display: none; }
 .map-short { display: none; }
-/* On a phone the switches and the level share one line: short names show, the full ones stay for screen readers. */
+/* On a phone the two switches share one line, with short names (the full ones stay for screen readers), and the three
+   depths have the line under it, each a third of it, so every name is whole and each is a target a thumb can hit. */
 @media (max-width: 480px) {
-  .map-view { flex-wrap: nowrap; gap: 0 10px; flex: 1 1 100%; min-width: 0; }
+  .map-view { gap: 6px 10px; flex: 1 1 100%; min-width: 0; }
   .map-view .switch { gap: 6px; flex: none; }
   .map-full { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .map-short { display: inline; }
-  /* The slider takes what the line has left, so the row fits whatever the fonts measure. */
-  .map-level { gap: 4px; font-size: 0.85rem; flex: 1 1 auto; min-width: 0; }
-  .map-level input { width: auto; flex: 1 1 44px; min-width: 24px; max-width: 72px; }
-  .map-level output { min-width: 0; white-space: nowrap; }
-}
-/* Under 360 px the switches and the level need more than one line: the level wraps below them rather than widen the
-   page, which a phone would then scroll sideways. */
-@media (max-width: 359px) {
-  .map-view { flex-wrap: wrap; gap: 4px 10px; }
+  .map-level { flex: 1 1 100%; font-size: 0.85rem; }
+  .map-level > .map-full { margin: 0; }
+  .map-level label { flex: 1 1 0; min-width: 0; }
+  .map-level { max-width: 100%; box-sizing: border-box; }
+  .map-level label span { flex: 1 1 auto; min-width: 0; justify-content: center; min-height: 40px; padding: 4px 2px; overflow: hidden; }
 }
 .map-search { position: relative; flex: 1 1 200px; max-width: 420px; }
 .map-search label { display: block; color: var(--muted); font-size: 0.9rem; margin-bottom: 4px; }

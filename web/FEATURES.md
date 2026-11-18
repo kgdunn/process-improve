@@ -909,8 +909,8 @@ What a careful reader, or an organisation, asks before using a tool.
     another" shows the next. A row for each source opens onto its own counts. "Search every
     case" lists the cases, and each number of a case that differs.
 - **[The concept map](map/).** 237 ideas of designed experiments and 490 links between them,
-  in 13 topics, each with its definition, the book's line and a link into the book. It has a
-  slider for its depth: Beginner, Intermediate or Adventurous.
+  in 13 topics, each with its definition, the book's line and a link into the book. It has
+  three depths to choose from, side by side: Beginner, Intermediate and Adventurous.
   - *Details:* An address that names an idea opens at the map, on that idea. "Compare
     books" sets two other textbooks beside this one: the links go, and a ring on each topic
     and each term says which of the three books has it. The names of a selected idea's
