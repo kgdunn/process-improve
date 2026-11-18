@@ -83,7 +83,8 @@
     <span class="map-bookkey" id="bookkey" role="img"></span>
   </div>
 
-  <div class="map-box">
+  <!-- The map takes the keyboard's focus, so the arrow keys move it; they scroll the page everywhere else. -->
+  <div class="map-box" id="box" tabindex="0" role="group" aria-label="The map. The arrow keys move it; press ? for the keys.">
     <div id="cy" role="img" aria-label="Map of the topics and terms. The same items are listed as buttons below the map."></div>
   </div>
   <div class="map-bar">
@@ -95,6 +96,19 @@
       <button type="button" class="button" id="home" aria-label="Show all topics">
         <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4"/></svg>
       </button>
+      <button type="button" class="button map-keys-open" id="keys-open" aria-label="Keyboard shortcuts"
+        aria-expanded="false" aria-controls="keys">?</button>
+    </div>
+    <!-- The keys, listed over the map's corner. A phone has no keyboard, so it has neither the button nor the list. -->
+    <div class="map-keys" id="keys" hidden>
+      <h2>Keyboard shortcuts</h2>
+      <dl>
+        <div><dt><kbd>+</kbd> <kbd>&minus;</kbd></dt><dd>Zoom in and out</dd></div>
+        <div><dt><kbd>&larr;</kbd> <kbd>&rarr;</kbd> <kbd>&uarr;</kbd> <kbd>&darr;</kbd></dt><dd>Move the map, with the pointer on it</dd></div>
+        <div><dt><kbd>f</kbd></dt><dd>Fit all the topics in view</dd></div>
+        <div><dt><kbd>e</kbd></dt><dd>Show or hide the link labels</dd></div>
+        <div><dt><kbd>?</kbd></dt><dd>Show or hide this list</dd></div>
+      </dl>
     </div>
   </div>
 
