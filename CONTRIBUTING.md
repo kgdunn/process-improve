@@ -706,7 +706,11 @@ number is.
    to today, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, open a
    fresh empty `## [Unreleased]` above it, and add the compare link to the
    footer.
-4. Tag `vX.Y.Z` and push the tag.
+4. Once that commit is on main, tag it and push the tag with `tools/tag_release.sh X.Y.Z`. The
+   script finds the commit of main that first carried the version, checks `pyproject.toml`,
+   `CITATION.cff` and `CHANGELOG.md` on it, checks that the tag is new, then tags that commit and
+   pushes the tag. Each check prints its result, and the script stops at the first that fails.
+   `DRY_RUN=1 tools/tag_release.sh X.Y.Z` runs the checks only.
 
 `publish.yml` refuses to ship if the tag does not equal
 `v<pyproject version>`, or if `CHANGELOG.md` has no `## [X.Y.Z]` heading,
