@@ -1028,8 +1028,7 @@ runs can estimate.
 The library also does what the app leaves out:
 
 - **Factors that are hard to change, beside limits or blocks.** The app sets a factor once
-  for a group of runs in an optimal design without either. The library also has the classic
-  split-plot and strip-plot designs.
+  for a group of runs in an optimal design without either.
   - *Details:* `generate_design` with `hard_to_change`, analysed by `analyze_experiment` with
     `analysis_type="split_plot"`; `backend="pyoptex"` keeps fixed runs in such a design.
 - **Results that are counts, or pass and fail.** A model made for such results. The app
