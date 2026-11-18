@@ -348,11 +348,11 @@ def test_how_the_map_was_made_is_read_from_its_data(context, site):
     assert "undefined" not in text
     assert "NaN" not in text
     told = page.evaluate(
-        "() => [...document.querySelectorAll('#how > p, #how > ul')].map((e) => e.textContent).join(' ')"
+        "() => [...document.querySelectorAll('#how-all > p, #how-all > ul')].map((e) => e.textContent).join(' ')"
     )
     assert not re.search(r"\d", told), "an overview in words: the exact numbers wait behind 'Show the numbers'"
     for details in how.locator("details").all():
-        details.locator("summary").click()
+        details.locator(":scope > summary").click()
     numbers = how.text_content()
     assert f"{len(GRAPH['edges'])} links" in numbers
     assert how.locator(".map-kind svg").count() == 5, "each kind of term drawn in its legend shape"
@@ -381,6 +381,111 @@ SMALL_PHONE = {"viewport": {"width": 360, "height": 780}, "is_mobile": True}
 LONG_LEVELS = ("2", "3")  # Intermediate and Adventurous: the row of switches must hold either name
 
 
+def test_how_the_map_was_made_is_closed_until_it_is_opened(context, site):
+    page = _open(context, site)
+    assert page.get_attribute("#how-all", "open") is None
+    assert page.locator("#how-title").is_visible(), "its heading is what opens it"
+    assert not page.locator("#how-all > h3").first.is_visible()
+    page.click("#how-all > summary")
+    assert page.locator("#how-all > h3").first.is_visible()
+
+
+def test_a_card_s_words_use_the_card_s_width(context, site):
+    page = _open(context, site)
+    page.click("#how-all > summary")
+    widths = page.evaluate(
+        """() => ['#card p', '#how-all > p'].map((s) => { const p = document.querySelector(s);
+             const style = getComputedStyle(p.parentElement);
+             const room = p.parentElement.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+             return [p.getBoundingClientRect().width, room]; })"""
+    )
+    for words, holder in widths:
+        assert words == pytest.approx(holder, abs=2)
+
+
+def _view(page: Any) -> dict[str, float]:  # noqa: ANN401 - a Playwright Page
+    """Return the map's zoom and where it is panned to."""
+    return page.evaluate("() => ({ zoom: conceptMap.cy.zoom(), ...conceptMap.cy.pan() })")
+
+
+def test_the_keys_zoom_fit_and_label_the_links(context, site):
+    page = _open(context, site)
+    _settled(page)
+    whole = _view(page)
+    page.keyboard.press("+")
+    _settled(page)
+    assert _view(page)["zoom"] > whole["zoom"]
+    page.keyboard.press("-")
+    _settled(page)
+    assert _view(page)["zoom"] == pytest.approx(whole["zoom"])
+    page.keyboard.press("+")
+    _settled(page)
+    page.keyboard.press("f")
+    _settled(page)
+    assert _view(page)["zoom"] == pytest.approx(whole["zoom"], rel=1e-2), "f fits all the topics again"
+    assert not page.is_checked("#verbs")
+    page.keyboard.press("e")
+    assert page.is_checked("#verbs"), "e shows the link labels"
+    page.keyboard.press("e")
+    assert not page.is_checked("#verbs")
+
+
+def test_the_arrow_keys_move_the_map_only_when_the_reader_is_on_it(context, site):
+    page = _open(context, site)
+    _settled(page)
+    before = _view(page)
+    page.mouse.move(5, 5)
+    page.keyboard.press("ArrowRight")
+    assert _view(page) == before, "off the map, an arrow key is the page's"
+    page.focus("#box")
+    page.keyboard.press("ArrowRight")
+    page.keyboard.press("ArrowDown")
+    after = _view(page)
+    assert (after["x"], after["y"]) == pytest.approx((before["x"] - 80, before["y"] - 80))
+    page.keyboard.press("ArrowLeft")
+    page.keyboard.press("ArrowUp")
+    assert _view(page) == pytest.approx(before)
+    page.evaluate("document.activeElement.blur()")
+    box = page.locator("#box").bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + 20)
+    page.keyboard.press("ArrowLeft")
+    assert _view(page)["x"] == pytest.approx(before["x"] + 80), "with the pointer on the map, too"
+
+
+def test_a_key_typed_in_the_search_is_a_letter(context, site):
+    page = _open(context, site)
+    _settled(page)
+    before = _view(page)
+    page.click("#q")
+    page.keyboard.type("fe+")
+    assert page.input_value("#q") == "fe+"
+    assert not page.is_checked("#verbs")
+    assert _view(page) == before
+
+
+def test_the_list_of_keys_opens_and_closes(context, site):
+    page = _open(context, site)
+    assert not page.locator("#keys").is_visible()
+    page.keyboard.press("?")
+    assert page.locator("#keys").is_visible()
+    assert page.get_attribute("#keys-open", "aria-expanded") == "true"
+    box, keys = page.locator("#box").bounding_box(), page.locator("#keys").bounding_box()
+    assert box["y"] <= keys["y"], "the list is on the map, not over the page above it"
+    assert keys["y"] + keys["height"] <= box["y"] + box["height"]
+    page.keyboard.press("Escape")
+    assert not page.locator("#keys").is_visible()
+    page.click("#keys-open")
+    assert page.locator("#keys").is_visible()
+    page.click("#keys-open")
+    assert not page.locator("#keys").is_visible()
+
+
+@pytest.mark.parametrize("context_options", [PHONE])
+def test_a_phone_has_no_list_of_keys(context, site):
+    page = _open(context, site)
+    assert not page.locator("#keys-open").is_visible()
+
+
 @pytest.mark.parametrize("context_options", [SMALL_PHONE, PHONE, {"viewport": {"width": 1280, "height": 900}}])
 def test_above_the_map_one_row_of_switches_and_one_row_of_kinds(context, site):
     page = _open(context, site)
@@ -397,14 +502,20 @@ def test_above_the_map_one_row_of_switches_and_one_row_of_kinds(context, site):
         assert len(set(rows["kinds"])) == 1, "the kinds of term on one line"
         assert rows["view"]["bottom"] <= rows["legend"]["top"], "the switches, then the kinds"
         assert rows["legend"]["bottom"] <= rows["map"]["top"], "both above the map"
-        assert rows["zoom"]["top"] >= rows["map"]["bottom"], "zoom and fit stay below the map"
+        if page.viewport_size["width"] > 720:
+            assert rows["map"]["top"] < rows["zoom"]["top"], "with room, zoom and fit are on the map"
+            assert rows["zoom"]["bottom"] < rows["map"]["bottom"]
+            assert rows["zoom"]["left"] > rows["map"]["left"]
+        else:
+            assert rows["zoom"]["top"] >= rows["map"]["bottom"], "on a phone, zoom and fit stay below the map"
         if page.viewport_size["width"] > 600:
             assert rows["view"]["left"] >= rows["search"]["right"], "beside the search"
         else:
             assert rows["view"]["top"] >= rows["search"]["bottom"], "on a phone, on the row below the search"
     assert page.is_checked("#labels"), "term names start on"
     assert not page.is_checked("#verbs"), "link labels start off"
-    assert page.locator(".map-controls button").evaluate_all("(bs) => bs.map((b) => b.id)") == ["zin", "zout", "home"]
+    buttons = page.locator(".map-controls button").evaluate_all("(bs) => bs.map((b) => b.id)")
+    assert buttons == ["zin", "zout", "home", "keys-open"]
 
 
 # Every link label on the map as Cytoscape drew it, not as the map meant it: the label's middle is the middle of its
@@ -523,7 +634,7 @@ def test_it_reads_on_a_phone_without_scrolling_sideways(context, site):
     page = _open(context, site)
     page.locator("#how").scroll_into_view_if_needed()
     for details in page.locator("#how details").all():
-        details.locator("summary").click()
+        details.locator(":scope > summary").click()
     wider = page.evaluate(
         """() => [...document.querySelectorAll('body *')]
              .filter((e) => e.getBoundingClientRect().right > document.documentElement.clientWidth + 1)

@@ -972,6 +972,31 @@ othersSwitch.addEventListener("change", () => {
 document.getElementById("zin").addEventListener("click", () => zoomBy(1.6));
 document.getElementById("zout").addEventListener("click", () => zoomBy(1 / 1.6));
 document.getElementById("home").addEventListener("click", () => go(null));
+
+// ---------- the keys. A letter works anywhere but in a field the reader types in. The arrow keys scroll the page, as
+// they do everywhere, unless the pointer or the focus is on the map: there they move it.
+const keysList = document.getElementById("keys"), keysOpen = document.getElementById("keys-open"), box = document.getElementById("box");
+const showKeys = on => { keysList.hidden = !on; keysOpen.setAttribute("aria-expanded", String(on)); };
+keysOpen.addEventListener("click", () => showKeys(keysList.hidden));
+let pointerOnMap = false;
+box.addEventListener("pointerenter", () => { pointerOnMap = true; });
+box.addEventListener("pointerleave", () => { pointerOnMap = false; });
+const STEP = 80;   // px the map moves for one press of an arrow key
+const ARROWS = { ArrowLeft: [STEP, 0], ArrowRight: [-STEP, 0], ArrowUp: [0, STEP], ArrowDown: [0, -STEP] };
+const KEYS = {
+  "+": () => zoomBy(1.6), "=": () => zoomBy(1.6), "-": () => zoomBy(1 / 1.6), "_": () => zoomBy(1 / 1.6),
+  f: () => go(null), e: () => verbsSwitch.click(), "?": () => showKeys(keysList.hidden),
+};
+document.addEventListener("keydown", ev => {
+  if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+  if (ev.key === "Escape" && !keysList.hidden) { showKeys(false); return; }
+  if (ev.target.closest("input:not([type=checkbox], [type=radio]), textarea, select, dialog")) return;
+  const arrow = ARROWS[ev.key];
+  if (arrow && (pointerOnMap || document.activeElement === box) && !ev.target.matches("input")) {
+    ev.preventDefault(); cy.stop(); cy.panBy({ x: arrow[0], y: arrow[1] });
+  } else if (KEYS[ev.key]) { ev.preventDefault(); KEYS[ev.key](); }
+});
+
 document.getElementById("details").addEventListener("click", () =>
   document.getElementById("card").scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" }));
 
@@ -1030,8 +1055,9 @@ function renderHow() {
     return `<tr><td>${esc(c.short)}</td><td>${c.size}</td><td>${level}</td></tr>`;
   }).join("");
 
-  document.getElementById("how").innerHTML = `
-    <h2 id="how-title">How this map was made</h2>
+  // Closed until the reader opens it: the map and the term's card are what the page is for.
+  document.getElementById("how").innerHTML = `<details id="how-all">
+    <summary><h2 id="how-title">How this map was made</h2></summary>
 
     <h3>1. Where the ideas come from</h3>
     <p>Every term comes from <em>Process Improvement using Data</em>, the open textbook at <a href="https://learnche.org/pid" ${BOOK_TAB}>learnche.org/pid</a>, mostly
@@ -1105,7 +1131,8 @@ function renderHow() {
     <h3>Build one from your own texts</h3>
     <p><a href="${howto}" target="_blank" rel="noopener">The how-to</a> gives the steps, with a prompt to paste into an
       AI coding agent for each: draft the terms and links from your texts, check every quote against its line, review
-      them, and draw the map with a copy of this page.</p>`;
+      them, and draw the map with a copy of this page.</p>
+  </details>`;
 }
 renderHow();
 

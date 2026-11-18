@@ -912,7 +912,11 @@ What a careful reader, or an organisation, asks before using a tool.
 - **[The concept map](map/).** 237 ideas of designed experiments and 490 links between them,
   in 13 topics, each with its definition, the book's line and a link into the book. It has
   three depths to choose from, side by side: Beginner, Intermediate and Adventurous.
-  - *Details:* An address that names an idea opens at the map, on that idea. "Compare
+  Zoom and fit are buttons on the map's corner (under the map on a phone), and the keyboard
+  works too: + and - zoom, f fits all the topics, e shows the link labels, the arrow keys
+  move the map while the pointer or the focus is on it, and ? lists the keys.
+  - *Details:* "How this map was made" is closed until the reader opens it. An address
+    that names an idea opens at the map, on that idea. "Compare
     books" sets two other textbooks beside this one: the links go, and a ring on each topic
     and each term says which of the three books has it. The names of a selected idea's
     neighbours take whichever place by their idea is clear, and a topic's name too wide for

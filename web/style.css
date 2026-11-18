@@ -2279,7 +2279,7 @@ main.map .lede { margin: 0; }
 .map-card h2::before {
   content: ""; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--fam, var(--line));
 }
-.map-card p { margin: 0; max-width: 68ch; }
+.map-card p { margin: 0; }
 .map-type { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--fam, var(--muted)); }
 .map-aka { color: var(--muted); font-size: 0.92rem; }
 .map-elsewhere { font-size: 0.85rem; font-style: italic; }
@@ -2302,9 +2302,12 @@ main.map .lede { margin: 0; }
   font-size: 0.9rem; text-align: left; }
 .map-chip small { color: var(--muted); }
 main.map section.map-how { margin: 6px 0 0; display: grid; gap: 10px; }
-.map-how h2 { margin: 0; }
+.map-how h2 { margin: 0; display: inline; }
 .map-how h3 { margin: 10px 0 0; }
-.map-how p, .map-how li { margin: 0; max-width: 68ch; }
+/* The whole section is one heading until it is opened. */
+#how-all > summary { cursor: pointer; padding: 4px 0; }
+#how-all > h3 { margin-top: 18px; }
+.map-how p, .map-how li { margin: 0; }
 .map-how ul, .map-how ol { margin: 0; padding-left: 1.3em; display: grid; gap: 5px; }
 .map-kind { white-space: nowrap; }
 .map-kind svg { width: 0.95em; height: 0.95em; margin-right: 0.25em; vertical-align: -0.12em; }
@@ -2317,6 +2320,24 @@ main.map section.map-how { margin: 6px 0 0; display: grid; gap: 10px; }
 .map-how th, .map-how td { text-align: left; padding: 6px 12px 6px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
 .map-how th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
 .map-how td:nth-child(2) { text-align: right; }
+.map-box:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* The list of keys, over the map's corner above the buttons. */
+.map-keys { position: absolute; left: 10px; bottom: calc(100% + 68px); z-index: 2; width: min(340px, calc(100% - 20px)); padding: 12px 14px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18); }
+.map-keys h2 { margin: 0 0 8px; font-size: 1rem; }
+.map-keys dl { margin: 0; display: grid; gap: 6px; }
+.map-keys dl > div { display: grid; grid-template-columns: 7.5em 1fr; gap: 10px; align-items: baseline; }
+.map-keys dt, .map-keys dd { margin: 0; }
+.map-keys dd { color: var(--muted); font-size: 0.92rem; }
+.map-keys kbd { display: inline-block; min-width: 1.6em; padding: 1px 5px; text-align: center; font: inherit; font-size: 0.85rem;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 4px; }
+/* With room, zoom and fit sit on the map, in its corner, so they stay in sight while the reader looks at it. On a
+   phone they stay under the map: a thumb there covers nothing, and two fingers zoom the map itself. */
+@media (min-width: 721px) {
+  .map-bar { position: relative; }
+  .map-controls { position: absolute; left: 10px; bottom: calc(100% + 16px); z-index: 1; }
+}
+@media (max-width: 720px) { .map-controls .map-keys-open, .map-keys { display: none; } }
 /* Stretched across a wide screen, the map can be a little shorter and still hold the topics. */
 @media (min-width: 1100px) { .map-box { height: clamp(340px, 56vh, 580px); } }
 @media (max-width: 480px) {
