@@ -40,6 +40,7 @@ SUITES = (
     "catalog.test.mjs",
     "field-chart.test.mjs",
     "reproduced.test.mjs",
+    "site.test.mjs",
     "feedback.test.mjs",
     "comparison.test.mjs",
     "spread.test.mjs",
