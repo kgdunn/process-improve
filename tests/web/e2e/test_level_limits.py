@@ -7,7 +7,17 @@ from __future__ import annotations
 
 from typing import Any
 
-from tests.web.e2e._page import candidates_done, choose, generate, limits_done, reveal, run_sheet, set_factors
+from tests.web.e2e._page import (
+    candidates_done,
+    choose,
+    generate,
+    limits_done,
+    practise,
+    reveal,
+    run_sheet,
+    set_factors,
+    settled,
+)
 
 FACTORS = [
     {"name": "RM", "low": "A", "high": "B", "units": ""},
@@ -80,3 +90,32 @@ def test_the_run_sheet_keeps_each_level_inside_its_own_limit(blank_page):
     assert at["B"], "and so is B"
     assert max(at["A"]) <= 1.5 + 1e-9
     assert max(at["B"]) > 1.5, "B is run over its whole range"
+
+
+def what_if_at(page: Any, level: str, conc: float) -> list[str]:  # noqa: ANN401 - a Playwright Page
+    """Set the raw material and its concentration in What if, and return the warnings the panel then gives."""
+    before = page.evaluate("window.__pi.count('api_outside_limits')")
+    page.select_option('#what-if-settings [data-factor="RM"] select[name="level"]', level)
+    box = page.locator('#what-if-settings [data-factor="conc"] input[name="number"]')
+    box.fill(str(conc))
+    box.press("Tab")
+    page.wait_for_function(f"window.__pi.count('api_outside_limits') > {before}")
+    settled(page)
+    return page.locator("#what-if-out ul.warnings li").all_text_contents()
+
+
+def test_what_if_says_a_limit_is_broken_only_at_the_level_it_is_for(blank_page):
+    """The sliders stay free; the panel names the limit when the settings are past it, at that level alone."""
+    page = blank_page
+    set_factors(page, FACTORS)
+    add_for_one_level(page, "A", "most", "1.5")
+    candidates_done(page)
+    choose(page, design_type="d_optimal")
+    generate(page)
+    practise(page)
+    reveal(page, "#what-if")
+    page.wait_for_selector("#what-if:not([hidden])")
+    broken = "These settings break your limit 1: when RM is A, conc <= 1.5."
+    assert broken in what_if_at(page, "A", 1.8), "raw material A at 1.8 % is past its limit"
+    assert broken not in what_if_at(page, "B", 1.8), "raw material B at 1.8 % is not"
+    assert broken not in what_if_at(page, "A", 1.2)
