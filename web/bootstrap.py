@@ -1896,7 +1896,18 @@ def _given_limits_sentence(factors: list[Factor], limits: list[dict], coded: np.
     names = [f.name for f in factors]
     region = _region(factors, [limit["expression"] for limit in limits])
     points = coded[:, [names.index(name) for name in region.names]]
-    meets = np.all([g(points) <= LIMIT_TOLERANCE for g in region.inequalities], axis=0)
+    if region.rules is None:
+        meets = np.all([g(points) <= LIMIT_TOLERANCE for g in region.inequalities], axis=0)
+    else:  # a limit for some levels: each run is judged in the region at its own levels
+        allowed = region.allowed_combinations().drop(columns="limits").astype(str).to_dict("records")
+        meets = np.zeros(len(points), dtype=bool)
+        for i, point in enumerate(points):
+            levels = {}
+            for name in region.rules.factors:
+                labels = [str(level) for level in next(f for f in factors if f.name == name).levels or []]
+                levels[name] = labels[round((coded[i, names.index(name)] + 1) / 2 * (len(labels) - 1))]
+            here = region.given(**levels).inequalities if levels in allowed else None
+            meets[i] = here is not None and all(g(point[None, :])[0] <= LIMIT_TOLERANCE for g in here)
     outside = np.flatnonzero(~meets).tolist()
     return _outside_limits_sentence(outside) if outside else INSIDE_LIMITS
 
@@ -8882,9 +8893,9 @@ def trade_offs(request: dict) -> dict:
     point = _point_sent(request.get("at"), spec)
     names = [f["name"] for f in numeric]
     transforms = spec.get("analysis_transforms") or {}
-    region = _spec_region(spec)
     coefficients, blocks = _searched_models(fits, spec)
     levels = {f["name"]: point[f["name"]] for f in spec["factors"] if _categorical(f)}
+    region = _region_at(_spec_region(spec), spec, levels)  # a limit for some levels: the region at the balance's
     held = {**blocks, **_held_columns(levels, spec)}
     models = {name: _held_at(c, held) for name, c in coefficients.items()}
     tried = np.random.default_rng(TRADE_OFF_SEED).uniform(-1.0, 1.0, size=(TRADE_OFF_DRAWN, len(numeric)))

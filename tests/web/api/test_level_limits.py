@@ -144,3 +144,26 @@ def test_a_specification_is_judged_at_each_level_in_its_own_region(api, study):
 def test_the_charts_are_drawn_and_the_next_runs_keep_the_limit(api, study):
     api.ok("api_plots", study)
     api.ok("api_next_runs", study)
+
+
+def test_the_trade_offs_are_drawn_in_the_region_at_the_balance_s_levels(api):
+    responses = [{"name": "y", "goal": "maximize"}, {"name": "cost", "goal": "minimize"}]
+    constraints = [{"expression": UP_TO}]
+    design = api.ok(
+        "api_make_design",
+        {"design_type": "d_optimal", "factors": FACTORS, "responses": responses, "constraints": constraints},
+    )
+    sheet = run_sheet(design)
+    cost = (10 + 3 * sheet["conc"]).round(3).tolist()
+    request = {**held_of(design), "responses": results(design), "more_responses": {"cost": cost}}
+    balance = api.ok("api_balance", {**request, "model": "main_effects"})
+    api.ok("api_trade_offs", {**request, "model": "main_effects", "at": balance["coded"]})
+
+
+# --------------------------------------------------------------------------- runs as given
+def test_runs_as_given_are_judged_at_their_own_levels(api):
+    runs = [["A", 1.0, 20], ["A", 1.8, 60], ["B", 1.8, 20]]
+    request = {"design_type": "given", "factors": FACTORS, "runs": runs, "constraints": [{"expression": UP_TO}]}
+    notes = " ".join(api.ok("api_make_design", request)["facts"]["notes"])
+    assert "Run 2" in notes, "raw material A at 1.8 % is past its limit"
+    assert "Run 3" not in notes, "raw material B at 1.8 % is not"

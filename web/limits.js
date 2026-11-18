@@ -12,6 +12,7 @@ import {
   NOTE_LENGTH,
   insertAt,
   isCategorical,
+  levelLimit,
   limitEffect,
   limitsSummary,
   positional,
@@ -81,8 +82,15 @@ function request() {
   const marked = markedRows();
   const cuts = cutsAsked();
   const asked = limitsRequest();
-  return { ...asked, ...(marked.length ? { marked } : {}), ...(cuts ? { cuts } : {}), ...pictureAsked(asked.factors) };
+  const levels = shownLevels ? { levels: shownLevels } : {};
+  return { ...asked, ...levels, ...(marked.length ? { marked } : {}), ...(cuts ? { cuts } : {}), ...pictureAsked(asked.factors) };
 }
+
+/**
+ * The levels the panel is told at, when a limit holds at some levels only: the reader's choice, or null
+ * for the first combination the limits allow.
+ */
+let shownLevels = null;
 
 /** Whether Python has read the limits as they are now. */
 const current = () => reply !== null && answeredLimits === JSON.stringify(limitsRequest());
@@ -325,6 +333,7 @@ function render() {
   $("#limits-count").textContent = String(limits.length);
   $("#limits-count").hidden = limits.length === 0;
   renderNames();
+  renderLevelLimit();
   const fresh = current();
   for (const row of rows()) {
     const entry = fresh ? entryOf(row) : null;
@@ -336,6 +345,7 @@ function render() {
     row.querySelector(".limit-effect").textContent = entry && !problem ? limitEffect(entry, reply.result.probes) : "";
     renderBounds(row, entry);
   }
+  renderLevels(fresh && reply.ok ? reply.result.levels : null);
   const summary = $("#limits-summary");
   summary.replaceChildren();
   if (fresh && hasLimits()) {
@@ -345,9 +355,55 @@ function render() {
   summary.hidden = !summary.childNodes.length;
 }
 
+/** How a combination of levels reads in the list the panel is shown for: "RM = A", or "RM = A, Line = 2". */
+const levelsText = (levels) => Object.entries(levels).map(([name, level]) => `${name} = ${level}`).join(", ");
+
+/** Offer the combinations of levels the limits allow, the one shown chosen; nothing without a limit for a level. */
+function renderLevels(levels) {
+  $("#limits-levels").hidden = !levels;
+  if (!levels) return;
+  const select = $("#limits-at");
+  const wanted = levels.combinations.map((c) => JSON.stringify(c.levels));
+  if (JSON.stringify([...select.options].map((o) => o.value)) !== JSON.stringify(wanted)) {
+    select.replaceChildren(
+      ...levels.combinations.map((c) => {
+        const option = el("option", "", levelsText(c.levels));
+        option.value = JSON.stringify(c.levels);
+        return option;
+      }),
+    );
+  }
+  select.value = JSON.stringify(levels.chosen);
+}
+
+/** The factors a limit for one level is built from: those with levels, and those with a range. */
+const labelled = () => hooks.factors().filter((f) => isCategorical(f) && f.name);
+const ranged = () => hooks.factors().filter((f) => !isCategorical(f) && f.name);
+const levelsOfFactor = (f) => f.levels ?? [f.low, f.high];
+
+/** Offer "a limit for one level" where the brief has a factor with levels and one with a range, and room for a limit. */
+function renderLevelLimit() {
+  const possible = labelled().length > 0 && ranged().length > 0;
+  $("#add-level-limit").hidden = !possible;
+  if (!possible) $("#level-limit").hidden = true;
+}
+
+/** Fill the five choices from the brief, keeping what is chosen where it still fits. */
+function fillLevelLimit() {
+  const fill = (select, values, keep) => {
+    select.replaceChildren(...values.map((value) => Object.assign(el("option", "", String(value)), { value: String(value) })));
+    if (values.map(String).includes(keep)) select.value = keep;
+  };
+  fill($("#level-limit-factor"), labelled().map((f) => f.name), $("#level-limit-factor").value);
+  const factor = labelled().find((f) => f.name === $("#level-limit-factor").value);
+  fill($("#level-limit-level"), factor ? levelsOfFactor(factor) : [], $("#level-limit-level").value);
+  fill($("#level-limit-numeric"), ranged().map((f) => f.name), $("#level-limit-numeric").value);
+}
+
 /** Show a straight limit's bound boxes, at its bounds, unless the reader is typing in one. */
 function renderBounds(row, entry) {
-  const linear = entry && !entry.problem ? entry.linear : null;
+  // A limit for one level has no bound boxes: a bound typed there would write the limit over as one for every level.
+  const linear = entry && !entry.problem && !entry.when ? entry.linear : null;
   const bounds = row.querySelector(".limit__bounds");
   bounds.hidden = !linear;
   if (!linear) return;
@@ -412,6 +468,36 @@ export function installLimits({ call, factors, changed: onChange, runs }) {
     const row = addLimit();
     field(row, "expression").focus();
     changed();
+  };
+  $("#limits-at").addEventListener("change", () => {
+    shownLevels = JSON.parse($("#limits-at").value);
+    schedule();
+  });
+  $("#add-level-limit").onclick = () => {
+    fillLevelLimit();
+    $("#level-limit").hidden = false;
+    $("#level-limit-value").focus();
+  };
+  $("#level-limit-factor").addEventListener("change", fillLevelLimit);
+  $("#level-limit-cancel").onclick = () => {
+    $("#level-limit").hidden = true;
+    $("#add-level-limit").focus();
+  };
+  $("#level-limit-add").onclick = () => {
+    const value = $("#level-limit-value").value.trim();
+    if (value === "" || !Number.isFinite(Number(value))) return $("#level-limit-value").focus();
+    const expression = levelLimit(
+      $("#level-limit-factor").value,
+      $("#level-limit-level").value,
+      $("#level-limit-numeric").value,
+      $("#level-limit-side").value,
+      Number(value),
+    );
+    const row = addLimit({ expression });
+    $("#level-limit").hidden = true;
+    $("#level-limit-value").value = "";
+    changed();
+    return field(row, "expression").focus();
   };
   $("#limit-list").addEventListener("input", (event) => {
     if (event.target.name === "expression" || event.target.name === "note") changed();
