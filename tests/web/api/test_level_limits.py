@@ -10,7 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from tests.web._support import held_of, run_sheet
+from tests.web._support import generate_all, held_of, run_sheet
 
 FACTORS = [
     {"name": "RM", "low": "A", "high": "B", "units": ""},
@@ -167,3 +167,87 @@ def test_runs_as_given_are_judged_at_their_own_levels(api):
     notes = " ".join(api.ok("api_make_design", request)["facts"]["notes"])
     assert "Run 2" in notes, "raw material A at 1.8 % is past its limit"
     assert "Run 3" not in notes, "raw material B at 1.8 % is not"
+
+
+# --------------------------------------------------------------------------- levels never run together
+#: Raw material A is never run on line 2, and where it is run it is dosed up to 1.5 %.
+TWO = [FACTORS[0], {"name": "Line", "type": "categorical", "levels": ["1", "2"]}, FACTORS[1]]
+NEVER = "not (RM == 'A' and Line == '2')"
+
+
+@pytest.fixture
+def apart(api) -> dict:
+    """Return a study whose limits allow three of its four combinations of levels, with A on line 2 the best."""
+    constraints = [{"expression": NEVER}, {"expression": UP_TO}]
+    plan = {"design_type": "d_optimal", "model_type": "main_effects", "factors": TWO, "constraints": constraints}
+    design = api.ok("api_make_design", plan)
+    sheet = run_sheet(design)
+    assert not ((sheet["RM"] == "A") & (sheet["Line"] == "2")).any(), "no run is at the levels never run together"
+    rng = np.random.default_rng(2)
+    y = 50 + 6 * sheet["conc"] + 2 * (sheet["RM"] == "A") + 3 * (sheet["Line"] == "2") + rng.normal(0, 0.3, len(sheet))
+    held = held_of(design)
+    held["spec"]["response_info"] = {"goal": "maximize"}
+    return {**held, "responses": y.round(3).tolist(), "model": "main_effects"}
+
+
+def levels_of(reply: dict) -> tuple[str, str]:
+    found = {s["name"]: s.get("value", s.get("level")) for s in reply["settings"]}
+    return found["RM"], found["Line"]
+
+
+def test_the_best_settings_are_never_at_levels_the_limits_rule_out(api, apart):
+    assert levels_of(api.ok("api_best_settings", apart)) != ("A", "2"), "the model's best, which is never run"
+
+
+def test_a_target_is_met_at_levels_the_limits_allow(api, apart):
+    assert levels_of(api.ok("api_target_settings", {**apart, "targets": {"y": 60}})) != ("A", "2")
+
+
+def test_a_specification_at_levels_never_run_is_refused_and_the_other_levels_are_judged(api, apart):
+    window = {"windows": {"y": [55, None]}}
+    never = {**apart, **window, "at": {"RM": "A", "Line": "2", "conc": 1}}
+    assert api.error("api_specification", never) == "The limits on the settings leave no setting to try."
+    judged = api.ok("api_specification", {**apart, **window, "at": {"RM": "B", "Line": "2", "conc": 1}})
+    shown = {tuple(level["value"] for level in row["levels"]) for row in judged["levels"]}
+    assert ("A", "2") not in shown
+    assert len(shown) == 3
+
+
+def test_the_charts_of_such_a_study_are_drawn(api, apart):
+    assert api.ok("api_plots", apart)
+
+
+def test_a_balance_of_two_responses_is_struck_at_levels_the_limits_allow(api, apart):
+    spec = {**apart["spec"], "responses": [{"name": "y", "goal": "maximize"}, {"name": "cost", "goal": "minimize"}]}
+    sheet = run_sheet(apart)
+    cost = (10 + 3 * sheet["conc"]).round(3).tolist()
+    balance = api.ok("api_balance", {**apart, "spec": spec, "more_responses": {"cost": cost}})
+    assert levels_of(balance) != ("A", "2")
+
+
+def test_a_curved_limit_for_one_level_is_drawn_as_curved(api):
+    curved = "not (RM == 'A' and conc * temp > 60)"
+    assert told(api, [curved])["constraints"][0]["holds"] == "conc * temp <= 60"
+    elsewhere = told(api, [curved], levels={"RM": "B"})["constraints"][0]
+    assert (elsewhere["type"], elsewhere["removed"]) == ("nonlinear", 0.0), "curved, and it rules out nothing at B"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "not (RM == 'A' or conc > 1.5)",  # not levels joined by "and"
+        "not (RM != 'A' and conc > 1.5)",  # a level is named with ==
+        "not (RM == 'A' and conc > 1.5 and temp > 30)",  # one inequality at most
+        "not (RM == 'A')",  # a level alone is a level to remove from the factor
+    ],
+)
+def test_a_rule_of_another_form_is_refused_with_the_form_that_is_read(api, text):
+    said = told(api, [text])["constraints"][0]["problem"]
+    assert "names RM, which is categorical: write a limit for one of its levels as not (RM == 'B' and " in said
+
+
+def test_a_comparison_of_designs_says_its_scores_are_over_the_whole_ranges(api, study):
+    constraints = [{"expression": UP_TO}]
+    _, held = generate_all(api, FACTORS, "main_effects", constraints)
+    compared = api.ok("api_compare", {"model": "main_effects", "designs": held, "constraints": constraints})
+    assert compared["limits_by_level"] is True

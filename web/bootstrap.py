@@ -1635,19 +1635,6 @@ def _feasible(region: DesignRegion, coded: np.ndarray, labels: Any = None) -> np
     return region.feasible(coded, labels={name: list(labels[name]) for name in region.rules.factors})
 
 
-def _at(region: DesignRegion, levels: dict[str, str] | None = None) -> DesignRegion:
-    """Return the region of the numeric factors at given levels; a region with no limit for a level is its own.
-
-    ``levels`` names each categorical factor's level. Without them, the first combination the limits allow.
-    """
-    if region.rules is None:
-        return region
-    allowed = region.allowed_combinations()
-    names = [name for name in allowed.columns if name != "limits"]
-    chosen = {name: str((levels or {}).get(name, allowed[name].iloc[0])) for name in names}
-    return region.given(**chosen)
-
-
 # --------------------------------------------------------------------------- public API
 def _release() -> str | None:
     """Name the process-improve release the page runs, or None when it is not installed as a package."""
@@ -5966,10 +5953,9 @@ def _limits_shading(
         # shortcut: a surface with a limited factor's levels on an axis is drawn unshaded; shade each level's
         # half apart when readers ask for it.
         return {}, []
-    try:  # with a limit for some levels: the region at the levels the surface is held at, or the first allowed
-        region = _region_at(whole, spec, hold or {})
-    except _NotAllowedError:
-        return {}, []
+    # With a limit for some levels: the region at the levels the surface is held at, which the best settings give
+    # and so the limits allow, or the first allowed.
+    region = _region_at(whole, spec, hold or {})
     assert region is not None  # there are limits, so there is a region
     if region.feasible(np.zeros((1, len(region.names))))[0]:
         return {"region": region}, []
@@ -8119,11 +8105,10 @@ def _search(
 
     combinations = _searched_levels(spec, in_model | _limited_levels(whole), score)
     best: dict[str, Any] | None = None
+    # None of these is at levels the limits never run together: up to three combinations are one factor's levels,
+    # each of which the limits allow, and among more the search scores such levels last.
     for levels in combinations:
-        try:
-            region = _region_at(whole, spec, levels)
-        except _NotAllowedError:
-            continue
+        region = _region_at(whole, spec, levels)
         held = {**blocks, **_held_columns(levels, spec)}
         model = _held_at(coefficients, held)
         sought = _goal(goal, target, model, spec["response"])
@@ -10110,11 +10095,10 @@ def _balance_search(
 
     combinations = _searched_levels(spec, in_model | _limited_levels(whole), score)
     best: dict[str, Any] | None = None
+    # None of these is at levels the limits never run together: up to three combinations are one factor's levels,
+    # each of which the limits allow, and among more the search scores such levels last.
     for levels in combinations:
-        try:
-            region = _region_at(whole, spec, levels)
-        except _NotAllowedError:
-            continue
+        region = _region_at(whole, spec, levels)
         models = held_models(levels)
         heard: list[str] = []
         x = np.zeros(0)
