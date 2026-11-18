@@ -5953,7 +5953,7 @@ def _shading(
         region = _region_at(whole, spec, hold or {})
     except _NotAllowedError:
         return {}, []
-    assert region is not None  # noqa: S101 - there are limits, so there is a region
+    assert region is not None  # there are limits, so there is a region
     if region.feasible(np.zeros((1, len(region.names))))[0]:
         return {"region": region}, []
     centroid = region.centroid() or {}
@@ -6751,9 +6751,15 @@ def compare(request: dict) -> dict:
         designs[str(item["label"])] = _coded(_runs_frame(item, spec), spec["factors"])
         if region is None and spec.get("constraints"):
             region = _region(_factors(spec), [limit["expression"] for limit in spec["constraints"]])
+    # shortcut: with a limit for some levels the designs are scored over the whole ranges, since the library scores
+    # over one region and such limits give one for each combination of levels; score level by level when it can.
+    by_level = region is not None and region.rules is not None
+    if by_level:
+        region = None
     with _listening():
         comparison = compare_designs(designs, model, effect_size=_effect_size(request), region=region)
     result = comparison.to_dict()
+    result["limits_by_level"] = by_level
     table = comparison.table
     result["display"] = {label: table[label].tolist() for label in comparison.designs}
     names = list(next(iter(designs.values())).columns)
@@ -9527,13 +9533,33 @@ def specification(request: dict) -> dict:
         raise ValueError("A specification is met by moving a factor with a range, and this study has none.")
     windows = _windows_sent(request.get("windows"), whole, transforms)
     fits, spread = _target_fits(request, whole, design, list(windows), asked="its window is judged")
-    region = _spec_region(whole)
+    whole_region = _spec_region(whole)
     point = _point_of(request.get("at"), whole, "")
-    drawn = np.random.default_rng(SPECIFICATION_SEED).uniform(-1.0, 1.0, size=(SPECIFICATION_DRAWN, len(names)))
+    try:  # with a limit for some levels: the region at the levels the what-if panel has
+        region = _region_at(
+            whole_region, whole, {f["name"]: point[f["name"]] for f in whole["factors"] if _categorical(f)}
+        )
+    except _NotAllowedError:
+        raise ValueError("The limits on the settings never run these levels together: choose other levels.") from None
+    every = np.random.default_rng(SPECIFICATION_SEED).uniform(-1.0, 1.0, size=(SPECIFICATION_DRAWN, len(names)))
+    drawn = every
     if region is not None:
         drawn = drawn[region.feasible(drawn[:, [names.index(n) for n in region.names]])]
     if not len(drawn):
         raise ValueError("The limits on the settings leave no setting to try.")
+
+    def drawn_at(at: dict[str, float]) -> np.ndarray:
+        """Return the settings tried at a point's levels: a limit for some levels allows others there."""
+        if whole_region is None or whole_region.rules is None:
+            return drawn
+        try:
+            here = _region_at(
+                whole_region, whole, {f["name"]: at[f["name"]] for f in whole["factors"] if _categorical(f)}
+            )
+        except _NotAllowedError:
+            return every[:0]
+        return every if here is None else every[here.feasible(every)]
+
     models = _region_models(fits)
     correlation = _residual_correlation(fits)
     judge = lambda settings, at=point: feasible_region(  # noqa: E731
@@ -9563,7 +9589,9 @@ def specification(request: dict) -> dict:
         "held": [
             {"name": f["name"], "value": _in_units(f, point[f["name"]])} for f in whole["factors"] if _categorical(f)
         ],
-        "levels": _windows_by_level(whole, point, lambda at: judge(drawn, at)),
+        "levels": _windows_by_level(
+            whole, point, lambda at: judge(tried_at, at) if len(tried_at := drawn_at(at)) else None
+        ),
         "overlay": _window_overlay(
             whole,
             fits,
@@ -9722,7 +9750,7 @@ def _residual_correlation(fits: dict[str, _FittedModel]) -> np.ndarray | None:
 
 
 def _windows_by_level(
-    spec: dict, point: dict[str, float], judged: Callable[[dict[str, float]], pd.DataFrame]
+    spec: dict, point: dict[str, float], judged: Callable[[dict[str, float]], pd.DataFrame | None]
 ) -> list[dict[str, Any]]:
     """Return what the windows give at each combination of the categorical factors' levels; none without such a factor.
 
@@ -9738,6 +9766,8 @@ def _windows_by_level(
     out = []
     for levels in _level_combinations(spec)[:SPECIFICATION_LEVELS] if categorical else []:
         tried = judged({**point, **levels})
+        if tried is None:  # the limits on the settings leave nothing to run at these levels
+            continue
         chance = tried["probability"].to_numpy()
         out.append(
             {
@@ -11102,7 +11132,13 @@ def _runnable(spec: dict, new: np.ndarray) -> bool:
     if region is None or not len(new):
         return True
     names = [f["name"] for f in spec["factors"]]
-    return bool(region.feasible(new[:, [names.index(name) for name in region.names]]).all())
+    labels = {}  # each run's level of the categorical factors, for a limit that holds at some of them
+    for f in spec["factors"]:
+        if _categorical(f):
+            levels = _levels_of(f)
+            codes = new[:, names.index(f["name"])]
+            labels[f["name"]] = [str(levels[round((c + 1) / 2 * (len(levels) - 1))]) for c in codes]
+    return bool(_feasible(region, new[:, [names.index(name) for name in region.names]], labels).all())
 
 
 def _model_rank(coded: np.ndarray, kinds: list[str], model: str) -> tuple[int, int]:
