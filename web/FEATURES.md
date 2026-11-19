@@ -213,8 +213,9 @@ Also:
   each term against the spread it meets, so the factor does not look more certain than it is.
   - *Details:* A split-plot design, for the three optimal designs, with no limits on the
     settings and no blocks. Learn fits the spread from whole plot to whole plot and from run
-    to run (REML) for the coefficients' errors and p-values, and shows no ANOVA table or
-    lack-of-fit test, which have one error. The charts, the best settings and the predictions
+    to run (REML) for the coefficients' errors and p-values. In place of the ANOVA table and
+    the lack-of-fit test, which have one error, a table tests each term against its own
+    spread, a factor of several levels as one term (Satterthwaite's degrees of freedom). The charts, the best settings and the predictions
     come from the ordinary fit. Learn adds no runs to such a design, and practice results
     have no spread between whole plots. A study with such a factor is saved in study
     format 11.
@@ -530,7 +531,14 @@ Also:
   open it here. The app knows each program by the columns it writes, says which program it was,
   and leaves out the columns that only number and code the runs (Minitab's StdOrder, RunOrder
   and CenterPt; JMP's Pattern; Design-Expert's Std, Run and Space Type; MODDE's Exp No, Exp
-  Name, Run Order and Incl/Excl). A block column is kept as a factor.
+  Name, Run Order and Incl/Excl). A column headed Block is kept as the runs' blocks.
+- **A split-plot experiment run elsewhere.** Mark the column that says which group of runs
+  shared one setting of a factor that is hard to change, such as a batch of pulp split into
+  samples, as the whole plot, and any column of replicates or days as the block. Learn then
+  tests each term against the spread it meets, as JMP and the textbooks do.
+  - *Details:* The factors that keep one setting inside every whole plot are taken as hard to
+    change. A whole plot lies inside one block. Columns headed Block or Whole plot are guessed
+    so. The study is saved in study format 11, as a design the app makes with whole plots.
 - **Compare with the published answer.** A study opened from the catalog lists each number
   its source prints beside the app's own, and whether they agree.
 
@@ -1100,9 +1108,8 @@ The app does not have these, so do not describe it as having them.
 
 - Accounts, sign-in, shared workspaces, or a record of who changed what. There is no server
   to hold them.
-- Split-plot designs for hard-to-change factors, and supersaturated designs
-  ([#1225](https://github.com/kgdunn/process-improve/issues/1225)). The library makes both:
-  see [More in the Python library](#more-in-the-python-library).
+- Supersaturated designs ([#1225](https://github.com/kgdunn/process-improve/issues/1225)).
+  The library makes them: see [More in the Python library](#more-in-the-python-library).
 - An assistant that turns a typed description into a brief
   ([#1224](https://github.com/kgdunn/process-improve/issues/1224)).
 - A guided plan for a whole campaign of studies

@@ -4385,6 +4385,24 @@ function renderAnalysis(reply) {
       ),
     );
   }
+  const tests = r.split_plot?.tests;
+  if (tests?.length) {
+    // Satterthwaite's degrees of freedom: a whole number where the design is balanced, one decimal where not.
+    const errorDf = (v) => (Math.abs(v - Math.round(v)) < 0.05 ? String(Math.round(v)) : inMark(v.toFixed(1)));
+    // A design with whole plots has no ANOVA table, which has one error: each term is tested against its own spread.
+    parts.push(
+      el("h3", "", "Each term, tested against the spread it meets"),
+      table(
+        ["Source", "df", "Error df", "F", "p-value", "Tested against"],
+        tests.map((t) => [t.source, t.df, errorDf(t.df_error), fmt(t.F), pval(t.p_value), t.against === "whole plots" ? "Whole plots" : "Runs"]),
+        { df: "df", F: "f-value", "p-value": "p-value", "Tested against": "whole-plot" },
+      ),
+      said(
+        "hint",
+        "A term set once for each whole plot is tested against the spread from whole plot to whole plot, and the others against the spread from run to run.",
+      ),
+    );
+  }
   const lof = r.lack_of_fit;
   if (lof && lof.p_value !== null && lof.p_value !== undefined) {
     parts.push(

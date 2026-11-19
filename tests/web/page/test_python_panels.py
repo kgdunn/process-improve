@@ -243,10 +243,14 @@ def test_the_python_shown_reproduces_a_design_with_a_factor_that_is_hard_to_chan
         ("resultsCode", [held, simulation["responses"], simulation]),
         ("analyseCode", [analysis["formula"], True, held["spec"]]),
     )
-    shown = {c["term"]: c for c in run(code)["split_plot"]["coefficients"]}
+    found = run(code)["split_plot"]
+    shown = {c["term"]: c for c in found["coefficients"]}
     for c in analysis["coefficients"]:
         for key in ("coefficient", "std_error", "p_value"):
             assert shown[c["term"]][key] == pytest.approx(c[key], abs=1e-9), (c["term"], key)
+    tested = {t["source"]: t for t in found["tests"]}
+    for t in analysis["split_plot"]["tests"]:  # the page's table of tests, term by term
+        assert (tested[t["source"]]["F"], tested[t["source"]]["p_value"]) == pytest.approx((t["F"], t["p_value"]))
     names = [f["name"] for f in held["spec"]["factors"]]
     made = run(panel(node, design))["result"].design_actual
     assert made[names].to_numpy().tolist() == run_sheet(held)[names].to_numpy().tolist(), (

@@ -436,6 +436,11 @@ function splitPlotLines(spec, model, fitted) {
     ')["split_plot"]',
     'print(split_plot["coefficients"])',
     'print(split_plot["variance_components"])',
+    // shortcut: the fit names a factor of several levels by its contrasts, so the code tests each contrast where the
+    // page tests them together (bootstrap._split_tests); write the factor's labels in X if that is ever asked for.
+    spec.factors.some(isSeveral)
+      ? 'print(split_plot["tests"])  # each term\'s F test; the page tests a factor of several levels\' contrasts together'
+      : 'print(split_plot["tests"])  # each term\'s F test, against the spread it meets (the page\'s table of tests)',
   ];
 }
 

@@ -1185,6 +1185,19 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
             "leave it out, or make its column numbers."
         ),
     ),
+    "a table with two columns as the whole plot": (
+        "api_import_study",
+        lambda _: {
+            "columns": [
+                {"role": "factor", "name": "A"},
+                {"role": "whole_plot"},
+                {"role": "whole_plot"},
+                {"role": "response", "name": "y"},
+            ],
+            "rows": [[1, 1, 1, 2], [1, 1, 1, 4], [2, 2, 2, 5], [2, 2, 2, 6]],
+        },
+        "Choose one column at most as the block, and one at most as the whole plot.",
+    ),
     "a response of text": (
         "api_import_study",
         lambda _: {
@@ -1502,6 +1515,43 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_make_design",
         _make(design_type="given", runs=[[150, 1, 10]] * 66, blocks=[b for b in range(1, 34) for _ in (0, 1)]),
         "Runs as given come in at most 32 blocks on this page.",
+    ),
+    "given: a whole plot short": (
+        "api_make_design",
+        _make(design_type="given", runs=[[150, 1, 10], [200, 3, 20]], whole_plots=[1]),
+        "The runs as given need one whole plot for each run, or none at all.",
+    ),
+    "given: a whole plot that is no whole number": (
+        "api_make_design",
+        _make(design_type="given", runs=[[150, 1, 10], [200, 3, 20]], whole_plots=[1, 1.5]),
+        "Each run's whole plot must be a whole number from 1.",
+    ),
+    "given: a whole plot for each run": (
+        "api_make_design",
+        _make(design_type="given", runs=[[150, 1, 10], [200, 3, 20], [150, 3, 10]], whole_plots=[1, 2, 3]),
+        "The whole plots must group the runs: two or more of them, and fewer than one for each run.",
+    ),
+    "given: a whole plot across two blocks": (
+        "api_make_design",
+        _make(
+            design_type="given",
+            runs=[[150, 1, 10], [150, 3, 20], [200, 1, 10], [200, 3, 20]],
+            blocks=[1, 2, 1, 2],
+            whole_plots=[1, 1, 2, 2],
+        ),
+        "A whole plot lies in two blocks: each whole plot is a group of runs inside one block.",
+    ),
+    "given: whole plots with no factor set once for each": (
+        "api_make_design",
+        _make(
+            design_type="given",
+            runs=[[150, 1, 10], [200, 3, 20], [150, 3, 10], [200, 1, 20]],
+            whole_plots=[1, 1, 2, 2],
+        ),
+        (
+            "No factor keeps one setting inside every whole plot, so these groups are not whole plots: a factor "
+            "that is hard to change is set once for each of them."
+        ),
     ),
     "given: a block for each run": (
         "api_make_design",

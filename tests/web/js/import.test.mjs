@@ -11,8 +11,8 @@ const catalyst = { heading: "Catalyst", name: "Catalyst", units: "", kind: "text
 const yieldOf = { heading: "Yield (%)", name: "Yield", units: "%", kind: "number", settings: 16, low: 51, high: 68, role: "response" };
 
 describe("a table of the reader's own", () => {
-  test("a column is a factor, a response, or left out", () => {
-    assert.deepEqual(ROLES.map(([value]) => value), ["factor", "response", "ignore"]);
+  test("a column is a factor, a response, the block, the whole plot, or left out", () => {
+    assert.deepEqual(ROLES.map(([value]) => value), ["factor", "response", "block", "whole_plot", "ignore"]);
   });
 
   test("what a column holds is said in a few words", () => {
@@ -67,6 +67,16 @@ describe("a table of the reader's own", () => {
     assert.deepEqual(importProblems([temp, { ...catalyst, role: "response" }]), ["Catalyst holds labels, and a response is a number."]);
     assert.deepEqual(importProblems([{ ...temp, low: 200, high: 150 }, yieldOf]), ["Temp: the low value must be below the high value."]);
     assert.deepEqual(importProblems([{ ...temp, low: null }, yieldOf]), ["Temp: the low value must be below the high value."]);
+  });
+
+  test("one column at most is the block, and one the whole plot; neither needs a name", () => {
+    const block = { heading: "Block", name: "", kind: "text", settings: 3, role: "block" };
+    const plot = { heading: "Batch", name: "", kind: "text", settings: 9, role: "whole_plot" };
+    assert.deepEqual(importProblems([temp, block, plot, yieldOf]), []);
+    assert.deepEqual(importProblems([temp, block, { ...block, heading: "Day" }, plot, { ...plot, heading: "Lot" }, yieldOf]), [
+      "Choose one column at most as the block.",
+      "Choose one column at most as the whole plot.",
+    ]);
   });
 
   test("a study measures a few responses at most", () => {
