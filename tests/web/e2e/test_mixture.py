@@ -293,6 +293,8 @@ def test_confirmation_runs_at_the_best_blend_are_weighed_out_simulated_and_judge
 # --------------------------------------------------------------------------- a target and a specification
 #: The names of a chart's traces that its legend lists, and the kinds of trace it is drawn with.
 LISTED = "(plot) => plot.data.filter((trace) => trace.showlegend !== false).map((trace) => trace.name)"
+#: The first component of the triangle of the last reply of a function, given by its name.
+LAST_FIRST = "window.__pi.replies.filter((r) => r.fn === '%s').at(-1)?.reply?.result?.overlay?.components?.[0]"
 KINDS = "(plot) => [...new Set(plot.data.map((trace) => trace.type))]"
 
 
@@ -327,12 +329,8 @@ def test_four_components_have_a_target_and_a_specification_drawn_over_three_the_
     assert page.locator("#window-chart .plot").evaluate(KINDS) == ["scatterternary"]
     # Pick the held component into the triangle: both charts are found again over the new three.
     page.select_option("#window-triangle-component-1", held)
-    page.wait_for_function(
-        f"window.__pi.replies.filter((r) => r.fn === 'api_specification').at(-1)?.reply?.result?.overlay?.components?.[0] === {held!r}"
-    )
-    page.wait_for_function(
-        f"window.__pi.replies.filter((r) => r.fn === 'api_target_settings').at(-1)?.reply?.result?.overlay?.components?.[0] === {held!r}"
-    )
+    page.wait_for_function(f"{LAST_FIRST % 'api_specification'} === {held!r}")
+    page.wait_for_function(f"{LAST_FIRST % 'api_target_settings'} === {held!r}")
     page.wait_for_selector("#window-triangle-largest")
     assert page.input_value("#target-triangle-component-1") == held, "one picker's three, under every chart"
     page.click("#window-triangle-largest")
