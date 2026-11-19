@@ -1667,7 +1667,7 @@ export function blendOverlayFigure(overlay, responses, colours = palette(), { sh
   return {
     data,
     layout: {
-      ternary: { sum: 1, bgcolor: "rgba(0,0,0,0)", aaxis: axis(a), baxis: axis(b), caxis: axis(c) },
+      ternary: { sum: overlay.sum ?? 1, bgcolor: "rgba(0,0,0,0)", aaxis: axis(a), baxis: axis(b), caxis: axis(c) },
       legend: { ...LEGEND_ABOVE, y: 1.09 }, // clear of the name of the component at the top corner
       showlegend: true,
       margin: { l: 36, r: 36, t: 48, b: 36 },

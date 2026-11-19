@@ -296,6 +296,49 @@ LISTED = "(plot) => plot.data.filter((trace) => trace.showlegend !== false).map(
 KINDS = "(plot) => [...new Set(plot.data.map((trace) => trace.type))]"
 
 
+def test_four_components_have_a_target_and_a_specification_drawn_over_three_the_others_held(fresh_page):
+    """The triangle goes through the blend found; one picker, under each chart, sets the three of both."""
+    page = fresh_page
+    set_factors(page, [*BLEND, {"name": "Salt"}])
+    generate(page, design_type="simplex_centroid")
+    practise(page)
+    page.wait_for_selector("#target-goals tbody tr", state="attached")
+    reveal(page, "#target")
+    settled(page)
+    response = page.get_attribute("#target-goals tbody tr", "data-response")
+    slider = page.locator('#target-goals [name="slider"]')
+    middle = (float(slider.get_attribute("min")) + float(slider.get_attribute("max"))) / 2
+    page.fill('#target-goals [name="target"]', f"{middle:.4g}")
+    page.wait_for_selector("#target-chart .js-plotly-plot")
+    found = last_reply(page, "api_target_settings")["result"]
+    overlay = found["overlay"]
+    plot = page.locator("#target-chart .plot")
+    assert plot.evaluate(KINDS) == ["scatterternary"]
+    caption = page.text_content("#target-chart figcaption")
+    (held,) = overlay["held"]
+    assert caption.startswith(f"Each point is a blend with {held} held at ")
+    shown = [page.input_value(f"#target-triangle-component-{i}") for i in (1, 2, 3)]
+    assert shown == overlay["components"]
+    assert page.locator("#target-out .notes, #target-out ul").filter(has_text="no such blend").count() == 0
+
+    reveal(page, "#window")
+    page.fill(f'#window-limits tr[data-response="{response}"] [name="low"]', f"{middle:.4g}")
+    page.wait_for_selector("#window-chart .js-plotly-plot")
+    assert page.locator("#window-chart .plot").evaluate(KINDS) == ["scatterternary"]
+    # Pick the held component into the triangle: both charts are found again over the new three.
+    page.select_option("#window-triangle-component-1", held)
+    page.wait_for_function(
+        f"window.__pi.replies.filter((r) => r.fn === 'api_specification').at(-1)?.reply?.result?.overlay?.components?.[0] === {held!r}"
+    )
+    page.wait_for_function(
+        f"window.__pi.replies.filter((r) => r.fn === 'api_target_settings').at(-1)?.reply?.result?.overlay?.components?.[0] === {held!r}"
+    )
+    page.wait_for_selector("#window-triangle-largest")
+    assert page.input_value("#target-triangle-component-1") == held, "one picker's three, under every chart"
+    page.click("#window-triangle-largest")
+    page.wait_for_selector("#window-triangle-largest", state="detached")
+
+
 def test_a_mixture_has_the_blend_for_a_target_and_the_blends_that_meet_a_specification(fresh_page):
     """Both questions are answered in blends: no factor has a range to move alone, and no what-if panel holds one."""
     page = fresh_page

@@ -612,6 +612,7 @@ const state = {
   practiceRound: false, // the results on the page are a practice round's: simulated by one press in Design
   analysis: null,
   triangles: {}, // for a response's column, the three components of four or more its triangle is drawn over
+  overlayTriangle: null, // the three the balance, a target and a specification are drawn over: else the largest shares
   contourPairs: {}, // for a response's column, the two factors the reader chose to draw its surface over: else the largest two
   moreCharts: false, // whether "More charts" is open
   setAside: {}, // for a response's column, the places on the run sheet of the runs its fit goes without
@@ -2309,6 +2310,7 @@ function showDesign(design, warnings = [], { save = true } = {}) {
   state.setAside = {};
   state.contourPairs = {};
   state.triangles = {};
+  state.overlayTriangle = null;
   state.curves = null;
   state.curve = { fit: null, problem: null, target: null }; // the fit of the curves before goes with them
   state.shown = resultNames()[0];
@@ -4082,6 +4084,7 @@ async function readUpload(file) {
   state.setAside = {};
   state.contourPairs = {};
   state.triangles = {};
+  state.overlayTriangle = null;
   state.curves = r.curves ?? null;
   state.shown = names[0];
   state.simulation = null;
@@ -5427,7 +5430,7 @@ async function drawCharts(request, mine, given = null) {
       if (!figures[key]) continue;
       const card = captioned(key);
       if (key === "contour" && plots.axes?.length > 2) card.card.append(contourPicker(plots));
-      if (key === "ternary" && plots.ternary.held) card.card.append(trianglePicker(plots));
+      if (key === "ternary" && plots.ternary.held) card.card.append(fittedTrianglePicker(plots));
       charts.append(card.card);
       await draw(card.plot, figures[key], version, chartHeight(key), { python: python(key) });
       if (overtaken()) return;
@@ -5563,50 +5566,74 @@ function contourPicker(plots) {
 }
 
 /**
- * Three drop-downs under the triangle of a mixture of four components or more: the components it is drawn over. The
- * others stay held at the blend the caption names. Picking one already shown swaps the two, as the surface's do.
+ * Three drop-downs under a triangle of a mixture of four components or more: the components it is drawn over, the
+ * others held at the blend its caption names. Picking one already shown swaps the two, as the surface's do. ``shown``
+ * holds the three drawn, ``chosen`` whether the reader picked them, and ``pick`` takes a new three, or null for the
+ * page's own choice. ``id`` starts the boxes' ids, one picker to a chart.
  */
-function trianglePicker(plots) {
+function trianglePicker(shown, chosen, pick, id = "triangle") {
   const row = el("p", "hint contour-picker triangle-picker", "");
   const names = state.design.spec.factors.map((f) => f.name);
-  const shown = plots.ternary.components;
   const words = ["First", "Second", "Third"];
   const selects = shown.map((name, at) => {
     const select = el("select", "", "");
-    select.id = `triangle-component-${at + 1}`;
+    select.id = `${id}-component-${at + 1}`;
     select.setAttribute("aria-label", `${words[at]} component the triangle is drawn over`);
     for (const option of names) select.append(new Option(option, option));
     select.value = name;
     return select;
   });
-  const redraw = (focus) => {
-    const request = analysisRequest();
-    drawCharts(state.best?.coded ? { ...request, best: state.best.coded } : request, ticket).then(() => $(focus)?.focus());
-  };
   selects.forEach((select, at) => {
     select.onchange = () => {
       const other = selects.find((s, i) => i !== at && s.value === select.value);
       if (other) other.value = shown[at]; // the two change places
-      state.triangles[state.shown] = selects.map((s) => s.value);
-      redraw(`#${select.id}`);
+      pick(selects.map((s) => s.value), `#${select.id}`);
     };
   });
   // The three boxes share one line at any width: a narrow card makes each box narrower, never a second line.
   const boxes = el("span", "triangle-picker__boxes", "");
   boxes.append(...selects);
   row.append("Draw it over these three:", boxes);
-  if (plots.ternary.chosen) {
-    const back = el("button", "link", "Back to the three largest effects");
+  if (chosen) {
+    const back = el("button", "link", "Back to the page's choice");
     back.type = "button";
-    back.id = "triangle-largest";
-    back.onclick = () => {
-      delete state.triangles[state.shown];
-      redraw(`#${selects[0].id}`);
-    };
+    back.id = `${id}-largest`;
+    back.onclick = () => pick(null, `#${selects[0].id}`);
     row.append(back);
   }
   return row;
 }
+
+/** The picker of the fitted response's triangle: its three are kept for the response shown, and the charts redrawn. */
+function fittedTrianglePicker(plots) {
+  const pick = (three, focus) => {
+    if (three) state.triangles[state.shown] = three;
+    else delete state.triangles[state.shown];
+    const request = analysisRequest();
+    drawCharts(state.best?.coded ? { ...request, best: state.best.coded } : request, ticket).then(() => $(focus)?.focus());
+  };
+  const picker = trianglePicker(plots.ternary.components, plots.ternary.chosen, pick);
+  picker.querySelector("#triangle-largest")?.replaceChildren("Back to the three largest effects");
+  return picker;
+}
+
+/**
+ * Under the triangle of the balance, a target or a specification: one picker, whose three every one of those charts
+ * is drawn over, since each holds the others at its own blend. A pick finds each that is on the page again.
+ */
+function overlayTrianglePicker(card, overlay, id) {
+  card.querySelector(".triangle-picker")?.remove();
+  if (!overlay.held || Array.isArray(overlay.held)) return;
+  const pick = async (three, focus) => {
+    state.overlayTriangle = three;
+    await Promise.all([state.balance && findBalance(), state.target.found && findSettings(), state.window.found && findWindow()]);
+    $(focus)?.focus();
+  };
+  card.querySelector("figcaption").after(trianglePicker(overlay.components, state.overlayTriangle !== null, pick, id));
+}
+
+/** The three components the overlays of a mixture of four or more are drawn over, as a request carries them. */
+const overlayAsked = () => (state.overlayTriangle ? { triangle: state.overlayTriangle } : {});
 
 async function libraryPlots(request, mine) {
   // The reader's choice of the surface's two factors, for the response shown, holds while the study has both; a
@@ -6304,7 +6331,7 @@ async function findBalance() {
 }
 
 /** What the balance is asked with: the study, its results, each response's model and what the reader set of its goal. */
-const balanceAsked = () => ({ ...held(), ...splitResults(resultNames(), fitted()), models: modelsByName(), goals: sentGoals() });
+const balanceAsked = () => ({ ...held(), ...splitResults(resultNames(), fitted()), models: modelsByName(), goals: sentGoals(), ...overlayAsked() });
 
 /** Find the balance again after the reader changed a goal, and then the trade-offs, which are drawn at it. */
 async function rebalance() {
@@ -6492,6 +6519,7 @@ async function drawBalanceChart() {
   card.querySelector("figcaption").textContent = triangle
     ? blendOverlayCaption(b.overlay, b.responses)
     : overlayCaption(b.overlay, state.design.spec.factors, b.responses);
+  overlayTrianglePicker(card, b.overlay, "balance-triangle");
   const python = figureAfter("balance", () => overlayCode(b.overlay, state.design.spec));
   try {
     await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height, { python });
@@ -7290,7 +7318,7 @@ async function findSettings() {
   clearTimeout(targetTimer);
   const { targets, pair } = state.target;
   const mine = ++targetTicket;
-  const reply = Object.keys(targets).length ? await call("api_target_settings", { ...fitsAsked(), targets, ...(pair ? { pair } : {}) }) : null;
+  const reply = Object.keys(targets).length ? await call("api_target_settings", { ...fitsAsked(), ...overlayAsked(), targets, ...(pair ? { pair } : {}) }) : null;
   if (mine !== targetTicket) return;
   $("#target-problems").textContent = reply && !reply.ok ? reply.error : "";
   $("#target-problems").hidden = !reply || reply.ok;
@@ -7377,6 +7405,7 @@ async function drawTargetChart() {
       : overlayFigure(overlay, found.responses, axes, undefined, { star: FOUND, named: targetName });
   card.hidden = false;
   card.querySelector("figcaption").textContent = targetCaption(overlay, state.design.spec.factors, found.responses);
+  overlayTrianglePicker(card, overlay, "target-triangle");
   const python = figureAfter("target", () => targetOverlayCode(overlay, state.design.spec));
   try {
     await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height, { python });
@@ -7578,7 +7607,7 @@ async function findWindow() {
   const mine = ++windowTicket;
   $("#window-clear").hidden = !Object.keys(windows).length;
   // The chart holds its other factors, and every categorical factor, where the what-if panel has them.
-  const asked = { ...fitsAsked(), windows, at: state.whatIf?.settings, ...(pair ? { pair } : {}) };
+  const asked = { ...fitsAsked(), ...overlayAsked(), windows, at: state.whatIf?.settings, ...(pair ? { pair } : {}) };
   const reply = Object.keys(windows).length && (state.whatIf || blendStudy()) ? await call("api_specification", asked) : null;
   if (mine !== windowTicket) return;
   $("#window-problems").textContent = reply && !reply.ok ? reply.error : "";
@@ -7640,6 +7669,7 @@ async function drawWindowChart() {
       : overlayFigure(overlay, found.responses, axes, undefined, { shaded: IN_WINDOWS, star: WHAT_IF_SETTINGS, named: windowName });
   card.hidden = false;
   card.querySelector("figcaption").textContent = windowCaption(overlay, state.design.spec.factors);
+  overlayTrianglePicker(card, overlay, "window-triangle");
   const python = figureAfter("window", () => windowOverlayCode(overlay, state.design.spec, Boolean(found.search.correlation)));
   try {
     await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height, { python });
@@ -8242,6 +8272,7 @@ async function showBuiltExample() {
   state.setAside = {};
   state.contourPairs = {};
   state.triangles = {};
+  state.overlayTriangle = null;
   state.plotlyJs = example.plots.plotly_js;
   renderRuns();
   renderTruth();
@@ -8843,6 +8874,7 @@ async function openCampaign(c, record, message, resume = false) {
   state.setAside = structuredClone(c.set_aside ?? {});
   state.contourPairs = {};
   state.triangles = {};
+  state.overlayTriangle = null;
   state.curves = c.curves ? structuredClone(c.curves) : null;
   state.shown = names[0];
   state.models = { [names[0]]: c.model, ...(c.more_models ?? {}) };

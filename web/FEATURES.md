@@ -419,7 +419,8 @@ Also:
   best together. You set each response's acceptable range and its importance, and a picture
   shows where every response is acceptable.
   - *Details:* The settings of the best overall desirability, with each response's
-    acceptable range, importance and shape to edit.
+    acceptable range, importance and shape to edit. For a mixture of four components or more
+    the picture is over three of them, the others held at the balanced blend.
 - **What one goal costs another.** A chart puts one response against another, with thousands
   of settings tried on the models: you see how much of one must be given up for the other.
   Colour the points by a third response, type a limit on any response to keep only the
@@ -481,7 +482,8 @@ Also:
     For a mixture the answer is a blend: 20,000 blends drawn evenly from those the bounds
     allow, the one nearest their middle that gives the targets, each component's proportion
     with where it lies between its bounds, and the blend weighed out for confirmation runs.
-    Three components are drawn over their triangle. A mixture has no factor to solve for
+    Three components are drawn over their triangle; four or more over three of them, the
+    others held at the blend found. A mixture has no factor to solve for
     alone. Its section shows its Python.
 - **Settings that meet a specification.** Type the window a response must fall in, or the
   windows of several, either end or both. The app says what share of the settings the models
@@ -505,7 +507,8 @@ Also:
     Python. The windows typed are kept with the study, as the targets are, and the report
     holds what they gave and the chart. For a mixture the share and the chances are of the
     blends the bounds allow, and the surest blend is given, with confirmation runs at it.
-    Three components are drawn over their triangle: the blends that meet the windows shaded,
+    Three components are drawn over their triangle, four or more over three of them with the
+    others held at the surest blend: the blends that meet the windows shaded,
     a line for each chance reached, and a star at the surest blend. Its section shows its
     Python: the blends are drawn from the region the bounds allow.
 - **Check the answer.** One button adds three confirmation runs at the settings found, and the

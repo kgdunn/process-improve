@@ -9109,7 +9109,8 @@ def balance(request: dict) -> dict:
     if len(aimed) < 2:  # two responses or more are balanced
         return {"balanced": False, "aimed": [r["name"] for r in aimed]}
     if _mixture(whole):
-        return _balanced_blend(every_run, whole, aimed, fits, goals)
+        shown = _triangle_picked(request.get("triangle"), [f["name"] for f in whole["factors"]])
+        return _balanced_blend(every_run, whole, aimed, fits, goals, shown)
     region = _spec_region(whole)
     found = _balance_search(fits, goals, whole, region)
     labels, region = _labels_at(region, whole, found["levels"]), _region_at(region, whole, found["levels"])
@@ -9490,7 +9491,8 @@ def _target_blend(request: dict, whole: dict) -> dict:
     responses = _targets_at(whole, targets, near, fits, point)
     leaning = max(responses, key=lambda r: r["leverage"] / r["max_leverage"] if r["max_leverage"] else 0.0)
     confirm_at, rounding = _weighed(whole, x)
-    overlay = _blend_picture(whole, models, lambda name, z: (np.zeros(len(z), dtype=bool), [targets[name]]), x)
+    shown = _triangle_picked(request.get("triangle"), [f["name"] for f in whole["factors"]])
+    overlay = _blend_picture(whole, models, lambda name, z: (np.zeros(len(z), dtype=bool), [targets[name]]), x, shown)
     reply = {
         "responses": responses,
         "reached": all(r["given"] for r in responses),
@@ -10032,7 +10034,9 @@ def _blend_specification(request: dict, whole: dict) -> dict:
         "tried": len(drawn),
         "held": [],
         "levels": [],
-        "overlay": _window_triangle(whole, fits, windows, x, judge if known else None, design),
+        "overlay": _window_triangle(
+            whole, fits, windows, x, judge if known else None, design, _triangle_picked(request.get("triangle"), names)
+        ),
         "search": {
             "formulas": {n: fit.formula for n, fit in fits.items()},
             "windows": {n: list(ends) for n, ends in windows.items()},
@@ -10052,15 +10056,16 @@ def _window_triangle(
     x: np.ndarray | None,
     judge: Callable[[np.ndarray], pd.DataFrame] | None,
     design: pd.DataFrame,
+    shown: list[str] | None = None,
 ) -> dict[str, Any] | None:
-    """Return the picture of a specification over the triangle of three components; None for more.
+    """Return the picture of a specification over the triangle of three components (see :func:`_blend_picture`).
 
     It is :func:`_blend_picture`'s: each response's surface with the ends of its window as the levels drawn,
     and ``acceptable``, 1 at a blend where every prediction is inside its window, the ends counted as inside.
     ``at`` is the blend at which a new run is surest to meet the windows, None when no chance can be given.
     ``chances`` adds, for each of :data:`CHANCES`, the line along which one new run meets every window with
     that chance (``judge`` gives the chance at some blends; None when it cannot be said), and ``runs`` the
-    blends the design's runs were made at.
+    blends the design's runs were made at, of three components only.
     """
 
     def inside(name: str, z: np.ndarray) -> tuple[np.ndarray, list[float]]:
@@ -10069,15 +10074,16 @@ def _window_triangle(
         return within, [end for end in (low, high) if end is not None]
 
     names = [f["name"] for f in spec["factors"]]
-    picture = _blend_picture(spec, _blend_models(fits), inside, x)
+    picture = _blend_picture(spec, _blend_models(fits), inside, x, shown)
     if picture is None:
         return None
     lines = None
     if judge is not None:
-        grid, places = _ternary_grid(spec)
-        chance = judge(grid)["probability"].to_numpy()
+        blends, grid, places, _, _ = _picture_blends(spec, x, picture["components"] if "held" in picture else None)
+        chance = judge(blends)["probability"].to_numpy()
         lines = [{"chance": c, **_crossings(grid, places, chance, c)} for c in CHANCES]
-    return {**picture, "chances": lines, "runs": _blends_run(design, names)}
+    runs = _blends_run(design, names) if "held" not in picture else []  # a run is not on a triangle of three of four
+    return {**picture, "chances": lines, "runs": runs}
 
 
 def _residual_correlation(fits: dict[str, _FittedModel]) -> np.ndarray | None:
@@ -10620,7 +10626,12 @@ def _grid(values: np.ndarray, shape: tuple[int, ...]) -> list[list[float]]:
 
 
 def _balanced_blend(
-    every_run: pd.DataFrame, whole: dict, aimed: list[dict], fits: dict[str, _FittedModel], goals: list[dict]
+    every_run: pd.DataFrame,
+    whole: dict,
+    aimed: list[dict],
+    fits: dict[str, _FittedModel],
+    goals: list[dict],
+    shown: list[str] | None = None,
 ) -> dict:
     """Find the blend that balances the responses with a goal, by their overall desirability, on their Scheffé models.
 
@@ -10628,7 +10639,7 @@ def _balanced_blend(
     response's model, fitted on the proportions, with its goal as a desirability. The reply is
     :func:`balance`'s, with each component's proportion in ``settings`` (see :func:`_blend_settings`)
     and the blend weighed out for the confirmation runs (see :func:`_weighed`). ``overlay`` is drawn
-    over the triangle of three components (see :func:`_blend_overlay`), and is None for more.
+    over the triangle of three components (see :func:`_blend_overlay`), ``shown`` of four or more.
     """
     from process_improve.experiments import optimize_responses  # noqa: PLC0415 - loaded when the balance is asked for
 
@@ -10655,15 +10666,15 @@ def _balanced_blend(
         "confirm_at": confirm_at,
         "rounding": rounding,
         "confirmation": _balanced_confirmation(every_run, whole, aimed, fits),
-        "overlay": _blend_overlay(whole, models, goals, x),
+        "overlay": _blend_overlay(whole, models, goals, x, shown),
         "search": {"held": {}, "goals": goals, "formulas": {n: fit.formula for n, fit in fits.items()}},
     }
 
 
 def _blend_overlay(
-    spec: dict, models: dict[str, list[dict]], goals: list[dict], x: np.ndarray
+    spec: dict, models: dict[str, list[dict]], goals: list[dict], x: np.ndarray, shown: list[str] | None = None
 ) -> dict[str, Any] | None:
-    """Return the overlay of the acceptable ranges over the triangle of three components; None for more.
+    """Return the overlay of the acceptable ranges over the triangle of three components (see :func:`_blend_picture`).
 
     It is :func:`_blend_picture`'s: the levels drawn on a response are those its acceptable boundary is at
     (as :func:`_acceptable` gives them), ``acceptable`` is 1 at a blend where every response has a
@@ -10671,7 +10682,7 @@ def _blend_overlay(
     """
     by_name = {goal["response"]: goal for goal in goals}
     return _blend_picture(
-        spec, {name: models[name] for name in by_name}, lambda name, z: _acceptable(by_name[name], z), x
+        spec, {name: models[name] for name in by_name}, lambda name, z: _acceptable(by_name[name], z), x, shown
     )
 
 
@@ -10680,6 +10691,7 @@ def _blend_picture(
     models: dict[str, list[dict]],
     drawn_on: Callable[[str, np.ndarray], tuple[np.ndarray, list[float]]],
     x: np.ndarray | None,
+    shown: list[str] | None = None,
 ) -> dict[str, Any] | None:
     """Return the responses over the triangle of three components, each with the levels drawn on it; None for more.
 
@@ -10687,17 +10699,21 @@ def _blend_picture(
     response's prediction (``z``), the ``levels`` drawn on it and where it crosses each (``lines``, see
     :func:`_crossings`); ``acceptable``, 1 at a blend every response accepts; and ``at``, the blend marked,
     None for none. ``drawn_on`` gives, for a response's name and its predictions over the grid, where it
-    accepts a blend and the levels to draw. Four components or more make a solid, which no picture of the
-    triangle holds.
+    accepts a blend and the levels to draw.
+
+    Of four components or more the picture is over three, ``shown`` (else the three with the largest shares of
+    ``x``), the others held at ``x``, as :func:`_sub_triangle` draws the fitted response; ``held`` and ``sum``
+    say so. None then without a blend to hold them at, or when the held components leave the three nothing.
     """
     names = [f["name"] for f in spec["factors"]]
-    if len(names) != 3:  # the triangle of three components
+    placed = _picture_blends(spec, x, shown)
+    if placed is None:
         return None
-    grid, places = _ternary_grid(spec)
+    blends, grid, places, three, held = placed
     acceptable = np.ones(len(grid), dtype=bool)
     surfaces = []
     for name, model in models.items():
-        z = _predict(model, names, grid)
+        z = _predict(model, names, blends)
         inside, levels = drawn_on(name, z)
         acceptable &= inside
         surfaces.append(
@@ -10708,16 +10724,46 @@ def _blend_picture(
                 "lines": [_crossings(grid, places, z, level) for level in levels],
             }
         )
+    at = [names.index(name) for name in three]
     return {
         "kind": "ternary",
-        "components": names,
+        "components": three,
         "a": grid[:, 0].tolist(),
         "b": grid[:, 1].tolist(),
         "c": grid[:, 2].tolist(),
         "responses": surfaces,
         "acceptable": acceptable.astype(int).tolist(),
-        "at": None if x is None else x.tolist(),
+        "at": None if x is None else x[at].tolist(),
+        **({"held": held, "sum": round(1.0 - sum(held.values()), 9)} if held else {}),
     }
+
+
+def _picture_blends(
+    spec: dict, x: np.ndarray | None, shown: list[str] | None
+) -> tuple[np.ndarray, np.ndarray, list[tuple[int, int]], list[str], dict[str, float]] | None:
+    """Return the blends a triangle is drawn over: in full, the three shown, their lattice places, and what is held.
+
+    Of three components the blends are :func:`_ternary_grid`'s and nothing is held. Of four or more, the three
+    ``shown`` (else the three with the largest shares of ``x``) share what the others leave at ``x``; None
+    without ``x``, or when they leave the three nothing.
+    """
+    names = [f["name"] for f in spec["factors"]]
+    if len(names) == 3:
+        grid, places = _ternary_grid(spec)
+        return grid, grid, places, names, {}
+    if x is None:
+        return None
+    three = shown or [names[i] for i in sorted(np.argsort(-x, kind="stable")[:3])]
+    at = [names.index(name) for name in three]
+    others = [i for i in range(len(names)) if i not in at]
+    low, high = _bounds(spec)
+    left = float(1.0 - x[others].sum())
+    if left - low[at].sum() <= PROPORTION_TOLERANCE:
+        return None
+    grid, places = _lattice(low[at], high[at], left)
+    blends = np.tile(x, (len(grid), 1))
+    blends[:, at] = grid
+    return blends, grid, places, three, {names[i]: round(float(x[i]), 9) for i in others}
 
 
 def _crossings(
