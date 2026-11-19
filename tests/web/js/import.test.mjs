@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { ROLES, holdsWords, importProblems, isWorkbook, openedWords, takesRange } from "../../../web/import.js";
+import { ROLES, holdsWords, importProblems, isWorkbook, openedWords, readWords, takesRange } from "../../../web/import.js";
 import { MAX_RESPONSES } from "../../../web/logic.js";
 
 const temp = { heading: "Temp (degC)", name: "Temp", units: "degC", kind: "number", settings: 2, low: 150, high: 200, role: "factor" };
@@ -21,6 +21,19 @@ describe("a table of the reader's own", () => {
     assert.equal(holdsWords(catalyst), "labels: A, B");
     assert.equal(holdsWords({ ...catalyst, settings: 12 }), "labels: A, B, ...");
     assert.equal(holdsWords({ kind: "empty" }), "empty");
+  });
+
+  test("a table read says its size, and the DOE program that exported it with the columns left out", () => {
+    const columns = [temp, catalyst, yieldOf];
+    assert.equal(readWords({ n_rows: 16, columns }), "Read 16 runs in 3 columns. Check what each column is, then open the study.");
+    assert.equal(
+      readWords({ n_rows: 6, columns, exported_from: "Minitab", set_aside: ["StdOrder", "RunOrder", "CenterPt"] }),
+      "Read 6 runs in 3 columns exported from Minitab; its own StdOrder, RunOrder, and CenterPt columns are left out. Check what each column is, then open the study.",
+    );
+    assert.equal(
+      readWords({ n_rows: 6, columns, exported_from: "JMP", set_aside: ["Pattern"] }),
+      "Read 6 runs in 3 columns exported from JMP; its own Pattern column is left out. Check what each column is, then open the study.",
+    );
   });
 
   test("only a numeric factor takes a range", () => {
