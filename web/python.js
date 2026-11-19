@@ -734,7 +734,7 @@ const correlationMap = [
   "figure = go.Figure(",
   "    go.Heatmap(",
   "        z=correlations.to_numpy(), x=list(correlations.columns), y=list(correlations.index),",
-  '        zmin=0, zmax=1, colorscale="Blues",',
+  "        zmin=0, zmax=1, colorscale=colorscale(),  # the page's default colours, light for 0",
   "    )",
   ")",
   'figure.update_yaxes(autorange="reversed")  # the first term at the top',
@@ -749,6 +749,7 @@ export function correlationCode(factors) {
   return [
     "import plotly.graph_objects as go",
     "from process_improve.experiments import compare_designs",
+    "from process_improve.visualization.colors import colorscale",
     "",
     '# The figure "Correlation map": how far each pair of terms moves together over the runs. 0: the runs tell the',
     "# two apart in full. 1: they cannot tell them apart at all.",
@@ -767,6 +768,7 @@ export function comparisonFigureCode({ asked = null, limits = [], label = null }
   if (label !== null) {
     return [
       "import plotly.graph_objects as go",
+      "from process_improve.visualization.colors import colorscale",
       "",
       `# The figure "Correlation map, ${label}": how far each pair of terms moves together over the design's runs.`,
       `correlations = comparison.correlations[${repr(label)}]`,

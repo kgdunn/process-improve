@@ -1615,6 +1615,15 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
 .level-limit select, .level-limit input { min-width: 0; max-width: 11em; }
 .level-limit input { width: 6.5em; }
 .limits-levels { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 8px 0 4px; }
+/* A study's settings: each colour map is a choice with its colours beside its name. */
+.settings__group { border: 0; padding: 0; margin: 12px 0; min-width: 0; }
+.settings__group legend { padding: 0; font-weight: 600; margin-bottom: 6px; }
+.settings__maps { display: grid; gap: 6px; }
+.settings__map { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(80px, 40%); align-items: center; gap: 8px; cursor: pointer; }
+.settings__map input { width: 1.1em; height: 1.1em; margin: 0; flex: none; }
+.settings__swatch { height: 14px; border-radius: 3px; border: 1px solid var(--line); }
+.settings__keep { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.settings__keep input { width: auto; margin: 0; }
 /* The factors that are hard to change: a tick for each factor, on a line of the plan's settings. */
 .hard-to-change { border: 0; padding: 0; margin: 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
 .hard-to-change legend { float: left; padding: 0; margin-right: 12px; }

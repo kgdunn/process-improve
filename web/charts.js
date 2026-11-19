@@ -306,7 +306,7 @@ export function pageData(data, colours = LIGHT) {
   return data.map((trace) => {
     const changes = {};
     if (hasBar(trace)) changes.colorbar = slim(trace.colorbar);
-    if (isDark(colours) && isSurfaceRamp(trace.colorscale)) changes.colorscale = DEEP;
+    if (isSurfaceRamp(trace.colorscale)) changes.colorscale = rampFor(colours);
     return Object.keys(changes).length ? { ...trace, ...changes } : trace;
   });
 }
@@ -895,41 +895,44 @@ export function paretoFigure(coefficients, simulated, lenth = null, colours = pa
   };
 }
 
-// ColorBrewer's Blues, light at zero and dark at one, as the book draws its correlation maps.
-// Plotly.js's own "Blues" runs the other way, so the scale is written out.
-const BLUES = [
-  [0, "#f7fbff"],
-  [0.125, "#deebf7"],
-  [0.25, "#c6dbef"],
-  [0.375, "#9ecae1"],
-  [0.5, "#6baed6"],
-  [0.625, "#4292c6"],
-  [0.75, "#2171b5"],
-  [0.875, "#08519c"],
-  [1, "#08306b"],
-];
-
 // ---------------------------------------------------------------- a mixture's pictures
-/** The library's colours for a response surface, light for low and dark for high, as its contour plots draw them. */
-export const SURFACE = [
-  [0, "#EFF6FF"],
-  [0.25, "#93C5FD"],
-  [0.5, "#3B82F6"],
-  [0.75, "#1D4ED8"],
-  [1, "#1E3A8A"],
-];
-
 /**
- * The ramp of a dark page, for a surface and for a correlation map: dark for low, as near nothing as the page
- * itself, and light for high. A light page's ramps start in near white, which glares where the page is dark.
+ * The Scientific colour maps a study's surfaces and maps are drawn in (Crameri, F., 2018, Scientific colour maps,
+ * Zenodo, doi:10.5281/zenodo.1243862; MIT licence, copyright (c) Fabio Crameri): nine colours each, dark for one
+ * end and light for the other. Mirrors COLOUR_MAPS of the library's visualization/colors.py, which says how each
+ * is sampled; tests/web/page/test_parity.py holds the two equal.
  */
-export const DEEP = [
-  [0, "#1a2436"],
-  [0.25, "#1e40af"],
-  [0.5, "#2563eb"],
-  [0.75, "#60a5fa"],
-  [1, "#bfdbfe"],
-];
+export const COLOUR_MAPS = {
+  batlow: ["#011959", "#114360", "#226061", "#4d734d", "#828231", "#c09036", "#f29d6d", "#fdb4b6", "#faccfa"],
+  devon: ["#2c1a4c", "#293467", "#275186", "#376aae", "#6583d2", "#9b9ce8", "#bbb5f1", "#d2cef6", "#eae8fb"],
+  lajolla: ["#191900", "#372411", "#67342a", "#a64644", "#d9604e", "#e58851", "#edae54", "#f7da74", "#fffecb"],
+  grayC: ["#000000", "#232323", "#3d3d3d", "#565656", "#6e6e6e", "#848484", "#9c9c9c", "#b9b9b9", "#dcdcdc"],
+};
+
+/** The map of a study that chose none; mirrors the library's DEFAULT_COLOUR_MAP. */
+export const DEFAULT_COLOUR_MAP = "batlow";
+
+/** What the Settings list calls each map, in a word or two. */
+export const COLOUR_MAP_WORDS = { batlow: "Batlow: blue to gold to pink", devon: "Devon: blue", lajolla: "La Jolla: brown to yellow", grayC: "Grey" };
+
+let chosenMap = DEFAULT_COLOUR_MAP;
+
+/** Choose the map the charts are drawn in from here on: a study's own, or the default for a name the page lacks. */
+export function setColourMap(name) {
+  chosenMap = Object.hasOwn(COLOUR_MAPS, name) ? name : DEFAULT_COLOUR_MAP;
+}
+
+/** The map the charts are drawn in now. */
+export const colourMap = () => chosenMap;
+
+/** A map as Plotly takes it, a low value fading into the page: its light end on a light page, its dark end on a dark one. */
+export function rampOf(name, dark = false) {
+  const hexes = dark ? COLOUR_MAPS[name] : [...COLOUR_MAPS[name]].reverse();
+  return hexes.map((hex, i) => [i / (hexes.length - 1), hex]);
+}
+
+/** The library's own ramp for a surface, by which the page knows a surface in a figure from Python. */
+export const SURFACE = rampOf(DEFAULT_COLOUR_MAP);
 
 /** How light a colour written as #rgb or #rrggbb is: 0 for black, 1 for white. */
 export function lightness(hex) {
@@ -941,8 +944,8 @@ export function lightness(hex) {
 /** Whether ``colours`` are a dark page's: its text is the light part of it. */
 export const isDark = (colours) => lightness(colours.fg) > 0.5;
 
-/** The ramp to draw in ``colours``: a ``light`` page's own, or the dark page's. */
-export const rampFor = (light, colours) => (isDark(colours) ? DEEP : light);
+/** The ramp to draw in ``colours``: the chosen map, a low value fading into the page. */
+export const rampFor = (colours) => rampOf(chosenMap, isDark(colours));
 
 /** A run's marker on a surface: a white face and a dark edge, which read on its light and its dark blues alike. */
 const RUN_MARKER = { symbol: "circle", size: 10, color: "#ffffff", line: { width: 1.5, color: "#1a1a1a" } };
@@ -994,7 +997,7 @@ export function ternaryFigure(
           symbol: "circle",
           size: 7,
           color: grid[values],
-          colorscale: rampFor(SURFACE, colours),
+          colorscale: rampFor(colours),
           cmin: range[0],
           cmax: range[1],
           line: { width: 0 },
@@ -1232,7 +1235,7 @@ export function correlationFigure(terms, matrix, k, colours = palette()) {
         z: matrix,
         zmin: 0,
         zmax: 1,
-        colorscale: rampFor(BLUES, colours),
+        colorscale: rampFor(colours),
         showscale: false,
         hovertemplate: "%{y} with %{x}: |r| = %{z:.2f}<extra></extra>",
       },
@@ -1668,7 +1671,7 @@ export function tradeOffFigure({ across, up, tried, front, colour = null, runs =
   const cloud = (far) => {
     const kept = tried.filter((one) => Boolean(one.far) === far);
     const tint = colour
-      ? { color: kept.map((one) => colour.values[one.at]), colorscale: rampFor(SURFACE, colours), cmin: colour.least, cmax: colour.most }
+      ? { color: kept.map((one) => colour.values[one.at]), colorscale: rampFor(colours), cmin: colour.least, cmax: colour.most }
       : { color: colours.muted };
     return {
       type: "scatter",

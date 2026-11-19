@@ -31,7 +31,11 @@ import {
   SIGN_COLOURS,
   TRUE_MARKER,
   SURFACE,
-  DEEP,
+  COLOUR_MAPS,
+  DEFAULT_COLOUR_MAP,
+  colourMap,
+  rampOf,
+  setColourMap,
   isDark,
   lightness,
   rampFor,
@@ -578,27 +582,47 @@ describe("a surface's colours, on a light page and on a dark one", () => {
     assert.equal(isDark(COLOURS), false);
   });
 
-  test("each ramp starts as near nothing as its page: low is light on a light page, and dark on a dark one", () => {
+  test("each map runs one way all along, and low fades into the page: light on a light page, dark on a dark one", () => {
     const steps = (ramp) => ramp.map(([, hex]) => lightness(hex));
-    const falls = steps(SURFACE).every((light, i, all) => i === 0 || light < all[i - 1]);
-    const rises = steps(DEEP).every((light, i, all) => i === 0 || light > all[i - 1]);
-    assert.ok(falls && rises, "one way all along, so that an order of colours is an order of values");
-    assert.deepEqual(DEEP.map(([at]) => at), SURFACE.map(([at]) => at));
-    assert.ok(contrast(SURFACE[0][1], LIGHT.panel) < 1.15);
-    assert.ok(contrast(DEEP[0][1], DARK.panel) < 1.15, "no glare where the response is low");
-    assert.ok(contrast(DEEP.at(-1)[1], DARK.panel) > 7, "and high stands out");
-    assert.equal(rampFor(SURFACE, LIGHT), SURFACE);
-    assert.equal(rampFor(SURFACE, DARK), DEEP);
+    for (const name of Object.keys(COLOUR_MAPS)) {
+      const [light, dark] = [rampOf(name), rampOf(name, true)];
+      assert.ok(steps(light).every((one, i, all) => i === 0 || one < all[i - 1]), `${name}: darker as the value rises, on a light page`);
+      assert.ok(steps(dark).every((one, i, all) => i === 0 || one > all[i - 1]), `${name}: lighter as it rises, on a dark page`);
+      assert.deepEqual(dark.map(([at]) => at), [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1]);
+      assert.deepEqual(light.map(([, hex]) => hex), dark.map(([, hex]) => hex).reverse(), "one map, read from its other end");
+      assert.ok(contrast(dark.at(-1)[1], DARK.panel) > 7, `${name}: high stands out on a dark page`);
+      assert.ok(contrast(light.at(-1)[1], LIGHT.panel) > 7, `${name}: and on a light one`);
+      assert.notEqual(COLOUR_MAPS[name].at(-1).toLowerCase(), "#ffffff", `${name}: no end is the page itself`);
+    }
+    assert.deepEqual(SURFACE, rampOf(DEFAULT_COLOUR_MAP), "the library's ramp is the default map on a light page");
+    assert.deepEqual(rampFor(LIGHT), SURFACE);
+    assert.deepEqual(rampFor(DARK), rampOf(DEFAULT_COLOUR_MAP, true));
   });
 
-  test("a figure from Python in the library's ramp is drawn in the dark page's ramp, on a dark page only", () => {
-    assert.equal(pageData([bands], LIGHT)[0].colorscale, bands.colorscale);
-    assert.equal(pageData([bands], DARK)[0].colorscale, DEEP);
-    assert.equal(pageData([{ ...bands, type: "surface" }], DARK)[0].colorscale, DEEP);
+  test("the charts are drawn in the map that is chosen, and in the default for a name the page lacks", () => {
+    try {
+      setColourMap("lajolla");
+      assert.equal(colourMap(), "lajolla");
+      assert.deepEqual(rampFor(DARK), rampOf("lajolla", true));
+      assert.deepEqual(pageData([bands], LIGHT)[0].colorscale, rampOf("lajolla"), "a figure from Python follows it");
+      for (const not of ["plasma", undefined, null, "constructor"]) {
+        setColourMap(not);
+        assert.equal(colourMap(), DEFAULT_COLOUR_MAP, String(not));
+      }
+    } finally {
+      setColourMap(DEFAULT_COLOUR_MAP);
+    }
+  });
+
+  test("a figure from Python in the library's ramp is drawn in the page's ramp, dark for low on a dark page", () => {
+    const DEEP = rampOf(DEFAULT_COLOUR_MAP, true);
+    assert.deepEqual(pageData([bands], LIGHT)[0].colorscale, bands.colorscale);
+    assert.deepEqual(pageData([bands], DARK)[0].colorscale, DEEP);
+    assert.deepEqual(pageData([{ ...bands, type: "surface" }], DARK)[0].colorscale, DEEP);
     const other = [[0, "#DC2626"], [1, "#059669"]];
     assert.equal(pageData([{ ...bands, colorscale: other }], DARK)[0].colorscale, other, "a ramp with a meaning of its own");
     assert.equal(pageData([{ ...bands, colorscale: "Blues" }], DARK)[0].colorscale, "Blues");
-    assert.equal(pageData([bands])[0].colorscale, bands.colorscale, "a report's figure is the light page's");
+    assert.deepEqual(pageData([bands])[0].colorscale, bands.colorscale, "a report's figure is the light page's");
   });
 
   test("the numbers on a contour's lines are in the page's ink, with a halo in the page's colour", () => {
@@ -637,11 +661,12 @@ describe("a surface's colours, on a light page and on a dark one", () => {
       grid: { a: [1, 0, 0], b: [0, 1, 0], c: [0, 0, 1], fitted: [30, 25, 20], true: null },
       runs: { a: [1], b: [0], c: [0], y: [30.2] },
     };
-    assert.equal(ternaryFigure(ternary, { response: "Hardness" }, DARK).data[0].marker.colorscale, DEEP);
+    const DEEP = rampOf(DEFAULT_COLOUR_MAP, true);
+    assert.deepEqual(ternaryFigure(ternary, { response: "Hardness" }, DARK).data[0].marker.colorscale, DEEP);
     const map = (colours) => correlationFigure(["A", "B"], [[1, 0], [0, 1]], 2, colours).data[0].colorscale;
-    assert.equal(map(DARK), DEEP);
-    assert.notEqual(map(LIGHT), DEEP);
-    assert.ok(lightness(map(LIGHT)[0][1]) > 0.9, "no correlation is near white on a light page");
+    assert.deepEqual(map(DARK), DEEP);
+    assert.deepEqual(map(LIGHT), SURFACE);
+    assert.ok(lightness(map(LIGHT)[0][1]) > 0.7, "no correlation is the map's light end on a light page");
   });
 });
 
@@ -823,7 +848,7 @@ describe("a mixture's pictures", () => {
     assert.equal(surface.type, "scatterternary");
     assert.deepEqual(surface.marker.color, ternary.grid.fitted);
     assert.deepEqual([surface.marker.cmin, surface.marker.cmax], [20, 33]);
-    assert.equal(surface.marker.colorscale, SURFACE);
+    assert.deepEqual(surface.marker.colorscale, SURFACE);
     assert.equal(surface.marker.colorbar.title.text, "Hardness (HV)");
     assert.deepEqual(runs.customdata, ternary.runs.y);
     assert.equal(runs.marker.color, "#ffffff", "a white face, which reads on every blue");
