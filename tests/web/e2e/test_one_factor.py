@@ -74,7 +74,7 @@ def test_learn_compares_the_two_levels_and_draws_the_runs_at_each(fresh_page):
     practise(page)
     analysis = page.text_content("#analysis")
     assert "Whether B differs from A" in analysis
-    assert analysis.index("On average,") < analysis.index("In coded units."), "the comparison leads, the model follows"
+    assert analysis.index("On average,") < analysis.index("In coded units:"), "the comparison leads, the model follows"
     tests = page.locator("#analysis h4 + .scroll tbody tr")
     assert tests.count() == 4
     names = tests.locator("td:first-child .term").all_text_contents()

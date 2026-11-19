@@ -100,6 +100,12 @@ class TestScreeningResults:
         assert (path["A"].diff().dropna() > 0).all()  # each run further out than the one before
         assert (path["G"].diff().dropna() < 0).all()
         assert len(step["path_predictions"]) == 4
+        # The reason says it in plain words first, and keeps the numbers a statistician checks in brackets.
+        assert step["reasons"][0].startswith(
+            "The best settings in the ranges sit at their edge, and the model still rises there, by more than 2 times "
+            "the noise ("
+        )
+        assert " per coded unit; the noise's standard deviation is " in step["reasons"][0]
 
     def test_plackett_burman_with_centre_runs_tests_the_interaction_it_cannot_alias_away(self) -> None:
         """Main effects alone would leave A:C in the error, where it hides the effects."""

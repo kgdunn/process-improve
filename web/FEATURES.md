@@ -650,7 +650,9 @@ Also:
 - **A report to hand over.** One page that needs nothing else: the question, the design, the
   results, the analysis with its charts, the best settings, the next step and the code.
   - *Details:* An .html file. A stamp gives the seed, a fingerprint of the study (its
-    SHA-256) and a link that opens the same study. The software versions are at its foot.
+    SHA-256) and a link that opens the same study. It ends with "Terms used": each word the
+    report used that the page defines, with its meaning, since paper has no word to press.
+    The software versions are at its foot.
 - **A link to a study.** It carries the results or leaves them out. Whoever opens it has the
   same study, and the study in the link reaches no server.
   - *Details:* The study is packed after the `#`, which a browser sends to no server.

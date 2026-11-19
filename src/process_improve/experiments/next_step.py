@@ -1629,9 +1629,9 @@ def _move_region(ctx: _Context) -> _Step | None:
         f"Move past the ranges of {_names(ctx, moving)}: {len(runs)} runs along the path of steepest ascent.",
         [
             (
-                f"The best settings in the ranges sit at their edge, and the model's slope there gains "
-                f"{_g(ctx.gain_beyond)} per coded unit beyond it, more than {_WORTH_MOVING:g} times the noise "
-                f"(standard deviation {_g(noise)})."
+                f"The best settings in the ranges sit at their edge, and the model still rises there, by more "
+                f"than {_WORTH_MOVING:g} times the noise ({_g(ctx.gain_beyond)} per coded unit; the noise's standard "
+                f"deviation is {_g(noise)})."
             ),
             (
                 "Past the ranges the model is extrapolating: its predictions along the path "

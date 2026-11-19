@@ -17,6 +17,7 @@ import {
   sha256,
   stampRows,
   tableHtml,
+  termsHtml,
   whenWords,
 } from "../../../web/report.js";
 
@@ -160,11 +161,11 @@ describe("the study's tables", () => {
   });
 
   test("the brief: the factors' ranges, the responses' goals, the aim and the limits", () => {
-    const html = briefHtml(spec, { aim: "Which factors matter, and how they act together" });
+    const html = briefHtml(spec, { aim: "which factors matter, and how they act together (main effects)" });
     assert.match(html, /<td>T<\/td><td>150<\/td><td>200<\/td><td>degC<\/td>/);
     assert.match(html, /<td>Catalyst<\/td><td>Pd<\/td><td>Pt<\/td><td><\/td>/, "a categorical factor has no units");
     assert.match(html, /<td>Yield<\/td><td>%<\/td><td>Hit a target: 80<\/td>/);
-    assert.match(html, /<p>Aim: Which factors matter, and how they act together<\/p>/);
+    assert.match(html, /<p>Aim: which factors matter, and how they act together \(main effects\)\.<\/p>/);
     assert.match(html, /<li><code>T &lt;= 190<\/code>: the seal's rating<\/li>/);
     assert.match(briefHtml(spec, { mixture: true }), /<th>Component<\/th><th>Least<\/th><th>Most<\/th>/);
     assert.doesNotMatch(briefHtml({ ...spec, constraints: [] }), /Limits/);
@@ -217,6 +218,13 @@ describe("the report", () => {
     assert.match(page, /<a href="https:\/\/factori.al\/#c=a&amp;b">This study in Factorial, with its results<\/a>/);
     assert.match(page, /The fingerprint is made from this study: its brief, design, results and models\. Two reports/);
     assert.doesNotMatch(report({ title: "t", stamp: stamp.slice(0, 1), sections: [] }), /The fingerprint is made/);
+  });
+
+  test("lists the terms it used with their meanings, each word with a capital, every part escaped", () => {
+    const html = termsHtml([["leverage", "How far settings sit from the runs."], ["R²", "The variation <explained>."]]);
+    assert.match(html, /^<dl class="terms">/);
+    assert.match(html, /<dt>Leverage<\/dt><dd>How far settings sit from the runs\.<\/dd>/);
+    assert.match(html, /<dt>R²<\/dt><dd>The variation &lt;explained&gt;\.<\/dd>/);
   });
 
   test("names the software versions at its foot, not in the stamp", () => {
