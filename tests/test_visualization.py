@@ -35,6 +35,7 @@ from process_improve.visualization.colors import (
     CANNOT_RUN_FILL,
     COLOUR_MAPS,
     DEFAULT_COLOUR_MAP,
+    DESIRABILITY_COLORSCALE,
     ECHARTS_VISUAL_MAP_COLORS,
     SURFACE_COLORSCALE,
     colorscale,
@@ -1499,6 +1500,11 @@ class TestDesirabilityContourPlot:
         )
         spec = plot.to_spec()
         assert spec.plot_type == "desirability_contour"
+        # Light for a desirability of 0 and dark for 1, in the default map: not red to green, which not every
+        # reader tells apart.
+        scale = spec.panels[0].layers[0].style["colorscale"]
+        assert scale == DESIRABILITY_COLORSCALE == colorscale()
+        assert not {"#DC2626", "#059669"} & {colour for _, colour in scale}
 
     def test_single_response_fallback(self, quadratic_coefficients: list) -> None:
         """Falls back to top-level coefficients when no optimization key."""
