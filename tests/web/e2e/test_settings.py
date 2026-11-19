@@ -146,7 +146,8 @@ def test_a_stricter_significance_level_widens_the_intervals_and_is_named_across_
     assert "significance_level" not in page.locator("#py-analyse code").first.text_content()
     # The width of the first interval the coefficients' table shows: its "% high" cell less its "% low" cell.
     width = """(() => {
-      const table = [...document.querySelectorAll('#analysis table')].find((t) => /% low/.test(t.tHead?.textContent ?? ''));
+      const tables = [...document.querySelectorAll('#analysis table')];
+      const table = tables.find((t) => /% low/.test(t.tHead?.textContent ?? ''));
       const heads = [...table.tHead.rows[0].cells].map((cell) => cell.textContent);
       const cell = (row, end) => row.cells[heads.findIndex((head) => head.endsWith(end))].textContent;
       const number = (text) => Number(text.replace('\\u2212', '-'));
