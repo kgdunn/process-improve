@@ -156,22 +156,57 @@ def test_one_input_explains_all_the_variance():
     assert one_input().sensitivity().loc["x"].tolist() == pytest.approx([1.0, 1.0])
 
 
-def test_the_likelihood_s_gradient_is_its_derivative():
+@pytest.mark.parametrize("noise", [False, True], ids=["interpolating", "with-noise"])
+def test_the_likelihood_s_gradient_is_its_derivative(noise):
     runs = three_inputs(WAVY)
     x, y = runs[["a", "b", "c"]].to_numpy(), runs["y"].to_numpy()
     squared, step = gaussian_process._squared_differences(x, x), 1e-3  # R is near singular at the middle theta
     for log_theta in np.log([[4.0, 3.0, 0.2], [0.5, 0.5, 0.5], [50.0, 10.0, 1.0]]):
-        value, gradient = gaussian_process._criterion(log_theta, squared, y)
+        logs = np.append(log_theta, np.log(0.05)) if noise else log_theta  # the noise ratio last
+        value, gradient = gaussian_process._criterion(logs, squared, y, noise)
         central = [
             (
-                gaussian_process._criterion(log_theta + e, squared, y)[0]
-                - gaussian_process._criterion(log_theta - e, squared, y)[0]
+                gaussian_process._criterion(logs + e, squared, y, noise)[0]
+                - gaussian_process._criterion(logs - e, squared, y, noise)[0]
             )
             / (2 * step)
-            for e in step * np.eye(3)
+            for e in step * np.eye(len(logs))
         ]
         assert np.isfinite(value)
         np.testing.assert_allclose(gradient, central, rtol=1e-5)
+
+
+def scattered(seed: int = 1, repeats: int = 3) -> pd.DataFrame:
+    """Return a physical experiment's runs: a smooth output at eight settings, each made ``repeats`` times."""
+    rng = np.random.default_rng(seed)
+    x = np.repeat(np.linspace(0.0, 1.0, 8), repeats)
+    return pd.DataFrame({"x": x, "y": 5 * np.sin(3 * x) + rng.normal(0.0, 0.5, len(x))})
+
+
+def test_without_a_noise_term_the_fit_is_the_interpolating_one():
+    runs = three_inputs(WAVY)
+    plain, said = fit_gaussian_process(runs, "y"), fit_gaussian_process(runs, "y", noise=False)
+    np.testing.assert_array_equal(plain.theta, said.theta)
+    assert said.noise_ratio == 0.0
+    assert list(said.predict(runs[["a", "b", "c"]]).columns) == ["predicted", "std_error"]
+
+
+def test_a_noise_term_takes_repeated_runs_and_estimates_their_scatter():
+    runs = scattered()
+    fit = fit_gaussian_process(runs, "y", noise=True)
+    pooled = runs.groupby("x")["y"].var().mean()
+    assert fit.sigma2 * fit.noise_ratio == pytest.approx(pooled, rel=0.25), "the repeats' own variance, 16 df"
+
+
+def test_with_noise_the_prediction_smooths_the_runs_and_a_new_run_is_less_sure():
+    runs = scattered()
+    fit = fit_gaussian_process(runs, "y", noise=True)
+    at = fit.predict(runs[["x"]].drop_duplicates())
+    means = runs.groupby("x")["y"].mean().to_numpy()
+    assert np.abs(at["predicted"].to_numpy() - means).max() < 0.5, "near each setting's mean, not through every run"
+    assert (at["std_error"] > 0).all(), "a mean at a run is not known exactly"
+    new_run = np.sqrt(at["std_error"] ** 2 + fit.sigma2 * fit.noise_ratio)
+    np.testing.assert_allclose(at["std_error_new_run"], new_run)
 
 
 def test_a_seed_gives_the_same_fit_and_the_inputs_can_be_named():
