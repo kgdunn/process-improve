@@ -440,12 +440,25 @@ def test_the_overlay_shades_the_blends_where_every_response_is_acceptable(api):
     assert overlay["at"] == pytest.approx(blend_of(b).tolist())
 
 
-def test_four_components_are_balanced_without_an_overlay(api):
+def test_four_components_are_balanced_over_a_triangle_of_three_the_fourth_held_at_the_balanced_blend(api):
     _, sent = two_blended(api, 4)
     b = api.ok("api_balance", sent)
     assert b["balanced"] is True
-    assert b["overlay"] is None, "four components make a solid, which no triangle holds"
     assert sum(s["value"] for s in b["settings"]) == pytest.approx(1.0)
+    found = {s["name"]: s["value"] for s in b["settings"]}
+    overlay = b["overlay"]
+    held = [name for name in found if name not in overlay["components"]]
+    assert len(overlay["components"]) == 3
+    assert overlay["held"] == pytest.approx({name: found[name] for name in held})
+    shares = sorted(found.values(), reverse=True)
+    assert sorted((found[n] for n in overlay["components"]), reverse=True) == pytest.approx(shares[:3]), "the largest"
+    assert overlay["sum"] == pytest.approx(1.0 - sum(overlay["held"].values()))
+    sums = np.add(np.add(overlay["a"], overlay["b"]), overlay["c"])
+    np.testing.assert_allclose(sums, overlay["sum"], atol=1e-9)
+    assert overlay["at"] == pytest.approx([found[n] for n in overlay["components"]]), "the balanced blend is on it"
+    picked = api.ok("api_balance", {**sent, "triangle": ["D", "A", "B"]})["overlay"]
+    assert picked["components"] == ["D", "A", "B"]
+    assert set(picked["held"]) == {"C"}
 
 
 def test_confirmation_runs_at_the_balanced_blend_are_judged_response_by_response(api):

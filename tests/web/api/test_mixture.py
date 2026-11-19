@@ -349,6 +349,19 @@ def test_no_triangle_when_the_held_components_leave_the_three_nothing_to_share(a
     assert "cox" in charts
 
 
+def test_an_overlay_of_four_components_has_no_triangle_without_a_blend_or_with_nothing_left_to_share(bootstrap):
+    spec = {"design_type": "simplex_lattice", "factors": components(*"ABCD", **dict.fromkeys("ABCD", (0.0, 1.0)))}
+    assert bootstrap._picture_blends(spec, None, None) is None, "no blend found to hold the others at"
+    held_all = np.array([0.0, 0.0, 0.0, 1.0])
+    assert bootstrap._picture_blends(spec, held_all, ["A", "B", "C"]) is None, "D leaves the three nothing"
+    blends, grid, _, three, held = bootstrap._picture_blends(spec, np.array([0.1, 0.2, 0.3, 0.4]), None)
+    assert (three, held) == (["B", "C", "D"], {"A": 0.1}), "the three with the largest shares"
+    np.testing.assert_allclose(blends.sum(axis=1), 1.0, atol=1e-9)
+    np.testing.assert_allclose(grid.sum(axis=1), 0.9, atol=1e-9)
+    model = [{"term": name, "coefficient": 1.0} for name in "ABCD"]
+    assert bootstrap._blend_picture(spec, {"y": model}, lambda _, z: (z > 0, [1.0]), None) is None, "the picture too"
+
+
 # --------------------------------------------------------------------------- the workbook and renaming
 def test_a_mixture_comes_back_from_its_workbook_as_a_mixture(api):
     design = make(api, "extreme vertices, quadratic", 3)

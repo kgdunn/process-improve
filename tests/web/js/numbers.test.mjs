@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, test } from "node:test";
 
-import { blendUnclearSaid, num, numPlain, unclearSaid, withUnit } from "../../../web/best.js";
+import { blendOverlayCaption, blendUnclearSaid, num, numPlain, unclearSaid, windowCaption, withUnit } from "../../../web/best.js";
 import { CURVE_LINES, levelAverage } from "../../../web/charts.js";
 import { CHARTS, fmt, heldWords, levelValue, pval, severalSentence } from "../../../web/logic.js";
 import {
@@ -123,5 +123,15 @@ describe("the triangle of three of four components or more", () => {
     setDecimalMark("comma");
     assert.match(CHARTS.ternary.caption(null, { blendHeld: { Wax: 0.25 } }), /with Wax held at 0,25; the other three share the rest/);
     assert.match(CHARTS.ternary.caption(null, {}), /the white dots are the runs\.$/, "of three components, as before");
+  });
+
+  test("the overlays over such a triangle name what is held, and draw no runs", () => {
+    const overlay = { kind: "ternary", components: ["A", "B", "C"], held: { D: 0.3 }, at: [0.2, 0.3, 0.2], runs: [], chances: [], responses: [] };
+    assert.match(blendOverlayCaption(overlay), /^Each point is a blend with D held at 0\.3; the other three share the rest/);
+    const said = windowCaption(overlay);
+    assert.match(said, /^Each point is a blend with D held at 0\.3;/);
+    assert.match(said, /surest to meet them\.$/, "no dots on it");
+    const three = { kind: "ternary", components: ["A", "B", "C"], at: null, runs: [[0.2, 0.3, 0.5]], chances: [], responses: [] };
+    assert.match(windowCaption(three), /^Each corner is a pure component.* The dots are your runs\.$/, "of three, as before");
   });
 });

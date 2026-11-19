@@ -765,7 +765,7 @@ describe("the settings that balance the responses", () => {
         "acceptable; each line is a response's acceptable boundary; the star marks the balanced blend. No line for " +
         "Purity: it is acceptable at every blend drawn. Narrow a range in the table to draw its boundary.",
     );
-    assert.match(NO_BLEND_OVERLAY, /^With four components or more the blends fill a solid/);
+    assert.match(NO_BLEND_OVERLAY, /^With four components or more the triangle is drawn through the blend found/);
   });
 
   test("the response that holds D down most is named, with its importance when they differ", () => {
@@ -1332,7 +1332,7 @@ describe("the settings that meet a specification", async () => {
     const surest = { settings: { A: 0.62, B: 0.38 }, probability: 0.69 };
     assert.equal(surestSentence({ ...one, surest }, components, {}, { blend: true }), "A new run is surest to meet its window at the blend A = 0.62, B = 0.38: a chance of 69%.");
     const line = (chance, a) => ({ chance, a, b: a, c: a });
-    const triangle = { kind: "ternary", at: [0.6, 0.3, 0.1], chances: [line(0.5, [0.5, 0.4, null]), line(0.9, [])] };
+    const triangle = { kind: "ternary", at: [0.6, 0.3, 0.1], runs: [[0.5, 0.25, 0.25]], chances: [line(0.5, [0.5, 0.4, null]), line(0.9, [])] };
     const said = windowCaption(triangle);
     assert.match(said, /^Each corner is a pure component and each point a blend the bounds allow\. Shaded where every response is predicted inside its window; /);
     assert.match(said, /Inside the line of 50%, a new run meets every window at least that often/, "the surest line drawn, not one no blend reaches");
