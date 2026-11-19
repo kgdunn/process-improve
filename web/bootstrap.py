@@ -5188,6 +5188,20 @@ _BLANK_CELLS = {"", "na", "n/a", "nan", "null", "none", "-", "--", "?"}
 #: Headings of columns that number or date the runs: no factor and no response.
 _BOOKKEEPING = re.compile(r"(?i)^(run|runs|std|standard|order|run ?order|std ?order|id|index|no\.?|#|obs\w*|date)$")
 
+#: The columns each DOE program writes beside a design's factors and responses, to number and place its runs, as
+#: (headings that name the program, any set of them; the program's bookkeeping columns), each heading compared
+#: without case, spaces or marks. Minitab's CenterPt holds 0 and 1, so without this it is guessed a factor. A
+#: block column is kept: the block is a factor of the analysis.
+_EXPORTERS = {
+    "Minitab": (({"stdorder", "runorder"},), {"stdorder", "runorder", "centerpt", "pttype"}),
+    "MODDE": (({"expno", "expname"}, {"expno", "inclexcl"}), {"expno", "expname", "runorder", "inclexcl"}),
+    "Design-Expert": (
+        ({"std", "run", "spacetype"}, {"std", "run", "buildtype"}),
+        {"std", "run", "spacetype", "buildtype"},
+    ),
+    "JMP": (({"pattern"},), {"pattern"}),
+}
+
 #: A heading that ends in its units: "Temp (degC)" or "Yield [%]".
 _WITH_UNITS = re.compile(r"^(.*?)\s*[\(\[]\s*([^\)\]]{1,32})\s*[\)\]]\s*$")
 
@@ -5325,23 +5339,37 @@ def _column(heading: str, values: list[float | str | None]) -> dict[str, Any]:
     }
 
 
-def _guess_roles(columns: list[dict[str, Any]]) -> None:
+def _exported_from(headings: list[str]) -> tuple[str | None, list[str]]:
+    """Say which DOE program exported a table, from its headings, and which of them that program numbers runs with."""
+    plain = [re.sub(r"[^a-z0-9]", "", heading.lower()) for heading in headings]
+    for program, (signs, bookkeeping) in _EXPORTERS.items():
+        if any(sign <= set(plain) for sign in signs):
+            return program, [heading for heading, key in zip(headings, plain, strict=True) if key in bookkeeping]
+    return None, []
+
+
+def _guess_roles(columns: list[dict[str, Any]], aside: frozenset[str] = frozenset()) -> None:
     """Guess what each column of a table is: a factor, a response, or neither. The reader changes any of them.
 
     A column of one setting, of numbers or dates of the runs, or of more labels than a factor has levels, is
     neither. Numbers at a few settings were set, so they are a factor, and labels at a few are a categorical
     one. Numbers at many settings were measured: in a table that looks designed (two columns or more at a few
     settings, or one beside a result or two) they are responses; in a table where nothing was set, as a
-    plant's records are, the last is the response and the others are factors.
+    plant's records are, the last is the response and the others are factors. The headings ``aside`` are a DOE
+    program's bookkeeping (see :func:`_exported_from`), and so neither.
     """
-    kept = [c for c in columns if c["settings"] > 1 and not _BOOKKEEPING.match(c["label"])]
+
+    def idle(c: dict[str, Any]) -> bool:
+        return c["settings"] < 2 or c["heading"] in aside or bool(_BOOKKEEPING.match(c["label"]))
+
+    kept = [c for c in columns if not idle(c)]
     measured = [c for c in kept if c["kind"] == "number" and c["settings"] > FEW_SETTINGS]
     few = [c for c in kept if c["settings"] <= FEW_SETTINGS and (c["kind"] == "number" or c["settings"] <= MAX_LEVELS)]
     # One column at a few settings among many that were measured is a shift or a line in a plant's records, not
     # a design: a design sets two columns or more, or one beside a result or two.
     designed = len(few) > 1 or (len(few) == 1 and len(measured) <= 2)
     for c in columns:
-        if c["settings"] < 2 or _BOOKKEEPING.match(c["label"]):
+        if idle(c):
             c["role"] = "ignore"
         elif c["kind"] == "text":
             c["role"] = "factor" if c["settings"] <= MAX_LEVELS else "ignore"
@@ -5366,12 +5394,23 @@ def read_table(request: dict) -> dict:
     ``text`` holds delimited text, or ``xlsx_base64`` a workbook with the ``sheet`` to read (its first without).
     The reply holds the headings and the rows as read, each cell a number, a label or null, and for each column
     what :func:`_column` says of it with a guessed ``role`` (see :func:`_guess_roles`): the page shows them for
-    the reader to correct, and sends them back to :func:`import_study`. Nothing in the table is evaluated.
+    the reader to correct, and sends them back to :func:`import_study`. Nothing in the table is evaluated. A
+    design exported from JMP, Minitab, Design-Expert or MODDE is known by its headings: ``exported_from`` names
+    the program, and ``set_aside`` the columns it numbers and places the runs with, which are left out.
     """
     headings, rows, sheets, sheet = _table_of(request)
     columns = [_column(heading, [row[j] for row in rows]) for j, heading in enumerate(headings)]
-    _guess_roles(columns)
-    return {"columns": columns, "rows": rows, "n_rows": len(rows), "sheets": sheets, "sheet": sheet}
+    program, aside = _exported_from(headings)
+    _guess_roles(columns, frozenset(aside))
+    return {
+        "columns": columns,
+        "rows": rows,
+        "n_rows": len(rows),
+        "sheets": sheets,
+        "sheet": sheet,
+        "exported_from": program,
+        "set_aside": aside,
+    }
 
 
 def _sent_table(request: dict) -> tuple[list[dict], list[list]]:

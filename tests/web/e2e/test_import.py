@@ -44,6 +44,25 @@ def test_a_pasted_table_is_read_and_its_columns_guessed(fresh_page):
     assert page.is_enabled("#import-open")
 
 
+def test_a_design_exported_from_minitab_is_named_and_its_own_columns_left_out(fresh_page):
+    page = fresh_page
+    runs = [(-1, -1), (1, -1), (-1, 1), (1, 1), (0, 0), (0, 0)]
+    paste(
+        page,
+        "StdOrder,RunOrder,CenterPt,Blocks,T,P,Y\n"
+        + "".join(
+            f"{i + 1},{6 - i},{int(t == 0)},1,{175 + 25 * t},{2 + p},{60 + 3 * t + 0.2 * i}\n"
+            for i, (t, p) in enumerate(runs)
+        ),
+    )
+    assert page.text_content("#import-status") == (
+        "Read 6 runs in 7 columns exported from Minitab; its own StdOrder, RunOrder, and CenterPt columns are left"
+        " out. Check what each column is, then open the study."
+    )
+    assert column(page, "CenterPt").locator("select").input_value() == "ignore"
+    assert page.is_enabled("#import-open")
+
+
 def test_the_table_opens_as_a_study_with_its_results_and_learn_analyses_it(fresh_page):
     page = fresh_page
     paste(page, DESIGNED)

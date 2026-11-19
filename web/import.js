@@ -62,6 +62,19 @@ export function importProblems(columns) {
   return [...new Set(problems)];
 }
 
+/**
+ * What the page says once a table is read: its size, and, for a design a DOE program exported, which program
+ * and which of its own columns, those that number and code the runs, are left out.
+ */
+export function readWords(table) {
+  const read = `Read ${table.n_rows} runs in ${table.columns.length} columns`;
+  const aside = table.set_aside ?? [];
+  const from = table.exported_from
+    ? ` exported from ${table.exported_from}${aside.length ? `; its own ${new Intl.ListFormat("en").format(aside)} column${aside.length === 1 ? " is" : "s are"} left out` : ""}`
+    : "";
+  return `${read}${from}. Check what each column is, then open the study.`;
+}
+
 /** What the page says once the study is open: how many runs it has, and how many of the table's it left out. */
 export function openedWords(runs, leftOut) {
   const left = leftOut ? ` ${leftOut} run${leftOut === 1 ? "" : "s"} with no setting for some factor ${leftOut === 1 ? "was" : "were"} left out.` : "";
@@ -164,7 +177,7 @@ export function installImport({ call, open }) {
     sheets.value = table.sheet ?? "";
     $("#import-sheet-choice").hidden = table.sheets.length < 2;
     $("#import-columns").hidden = false;
-    say(`Read ${table.n_rows} runs in ${table.columns.length} columns. Check what each column is, then open the study.`);
+    say(readWords(table));
     showProblems();
   }
 
