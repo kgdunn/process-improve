@@ -196,7 +196,9 @@ jobs:
   web-app-webkit:
     runs-on: ubuntu-latest
     name: web-app (WebKit)
-    timeout-minutes: 30
+    # The tests take 12 minutes. The rest is for WebKit's system packages: when Ubuntu's mirror is slow their
+    # download alone has taken 27 minutes, and a limit of 30 then cancelled the job four times in a row.
+    timeout-minutes: 60
     steps:
     - uses: actions/checkout@v7
     - name: Set up the project environment
