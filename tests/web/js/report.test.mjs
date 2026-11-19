@@ -17,6 +17,7 @@ import {
   sha256,
   stampRows,
   tableHtml,
+  termsHtml,
   whenWords,
 } from "../../../web/report.js";
 
@@ -217,6 +218,13 @@ describe("the report", () => {
     assert.match(page, /<a href="https:\/\/factori.al\/#c=a&amp;b">This study in Factorial, with its results<\/a>/);
     assert.match(page, /The fingerprint is made from this study: its brief, design, results and models\. Two reports/);
     assert.doesNotMatch(report({ title: "t", stamp: stamp.slice(0, 1), sections: [] }), /The fingerprint is made/);
+  });
+
+  test("lists the terms it used with their meanings, each word with a capital, every part escaped", () => {
+    const html = termsHtml([["leverage", "How far settings sit from the runs."], ["R²", "The variation <explained>."]]);
+    assert.match(html, /^<dl class="terms">/);
+    assert.match(html, /<dt>Leverage<\/dt><dd>How far settings sit from the runs\.<\/dd>/);
+    assert.match(html, /<dt>R²<\/dt><dd>The variation &lt;explained&gt;\.<\/dd>/);
   });
 
   test("names the software versions at its foot, not in the stamp", () => {

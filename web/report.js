@@ -116,6 +116,16 @@ export function stampRows({ made, version, runtime, url, spec, runs, results, ma
   return rows.filter(([, text]) => text);
 }
 
+/**
+ * The words a report used, each with its meaning: a list of [word, definition], in the order the report used them.
+ * The word starts with a capital, as the head of its line.
+ */
+export function termsHtml(terms) {
+  const head = (word) => word.charAt(0).toUpperCase() + word.slice(1);
+  const lines = terms.map(([word, meaning]) => `<dt>${escape(head(word))}</dt><dd>${escape(meaning)}</dd>`);
+  return `<dl class="terms">\n${lines.join("\n")}\n</dl>`;
+}
+
 /** An HTML table of heads and rows of text, every cell escaped; ``classes`` marks a cell, by its row and column. */
 export function tableHtml(heads, rows, classes = () => "") {
   const head = `<tr>${heads.map((h) => `<th>${escape(h)}</th>`).join("")}</tr>`;
@@ -219,6 +229,9 @@ td.simulated { font-style: italic; }
 .dim { color: var(--muted); }
 td.strong { font-weight: 700; }
 td.low { color: var(--warn); }
+dl.terms { margin: 0; font-size: 0.9rem; }
+dl.terms dt { font-weight: 600; margin-top: 8px; }
+dl.terms dd { margin: 0; color: var(--muted); }
 table.stamp { display: table; width: 100%; }
 table.stamp th { width: 9.5em; text-align: left; color: var(--muted); font-weight: 500; }
 table.stamp td { text-align: left; overflow-wrap: anywhere; }

@@ -217,7 +217,7 @@ def test_the_report_holds_what_the_targets_and_the_windows_gave(studied):
     report = opened(page, html)
     asked = ["Settings that give a target", "Settings that meet a specification"]
     assert [heading for heading in headings(report) if heading in asked] == asked
-    assert headings(report)[-2:] == ["The next step", "The Python code"], "after them, as on the page"
+    assert headings(report)[-3:] == ["The next step", "The Python code", "Terms used"], "after them, as on the page"
     target, specification = (report.locator(f"section:has(> h2:text-is('{heading}'))") for heading in asked)
     assert target.locator("p").first.text_content() == "These settings give the target, by the models."
     assert target.locator("table").count() == 2, "each factor's setting, and each response there beside its target"

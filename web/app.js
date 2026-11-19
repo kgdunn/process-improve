@@ -375,7 +375,7 @@ import {
 } from "./limits.js";
 import { redrawRuns } from "./picture.js";
 import { drawFieldChart } from "./field-chart.js";
-import { RUN_ORDER_SEED, briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows } from "./report.js";
+import { RUN_ORDER_SEED, briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows, termsHtml } from "./report.js";
 import { mapCode, campaignMapCode, campaignRunsCode, analyseCode, balanceCode, bestCode, compareCode, comparisonFigureCode, correlationCode, cumulative, curveCode, designCode, figureCode, forResponse, notebook, overlayCode, ownFigureCode, resultsCode, sensitivityCode, targetCode, targetOverlayCode, tradeOffCode, whatIfCode, windowCode, windowOverlayCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { CONTEXT, DESIGN_CONTEXT, GLOSSARY, MARKED } from "./glossary.js";
@@ -3794,9 +3794,19 @@ const REPORTED_ATTRIBUTES = new Set(["class", "href", "colspan", "rowspan", "ope
  * sorts it and a dotted word each left as its text, and with none of the page's ids, ARIA or data. The page set its
  * text as text, so the HTML is safe as it is.
  */
+/** The glossary's words a report used, each by its key with the word as the report wrote it first: its "Terms used". */
+const reportTerms = new Map();
+
+/** The words whose meaning is how to use the page, which a report on paper has no use for. */
+const NOT_ON_PAPER = new Set(["model-terms"]);
+
 function reportCopy(node) {
   const copy = node.cloneNode(true);
-  for (const word of copy.querySelectorAll("th button, .term")) word.replaceWith(word.textContent);
+  for (const word of copy.querySelectorAll("th button, .term")) {
+    const key = word.dataset.term;
+    if (key && GLOSSARY[key] && !NOT_ON_PAPER.has(key) && !reportTerms.has(key)) reportTerms.set(key, word.textContent.trim());
+    word.replaceWith(word.textContent);
+  }
   for (const part of copy.querySelectorAll(NOT_REPORTED)) part.remove();
   for (const box of copy.querySelectorAll("details")) box.setAttribute("open", ""); // paper has no heading to press
   for (const part of [copy, ...copy.querySelectorAll("*")]) {
@@ -3926,8 +3936,11 @@ function reportedInputs() {
  */
 async function makeReport() {
   setStatus("Making the report...", "busy");
+  reportTerms.clear();
   const learned = await learnSections();
   const closing = await closingSections();
+  // A report has no word to press for its meaning, so the words it used are defined once, at its end.
+  if (reportTerms.size) closing.push({ heading: "Terms used", html: termsHtml([...reportTerms].map(([key, word]) => [word, GLOSSARY[key]])) });
   const inputs = reportedInputs();
   const url = `${location.origin}${location.pathname}`;
   const packed = await packCampaign(inputs).catch(() => null); // a study too large for a link has none

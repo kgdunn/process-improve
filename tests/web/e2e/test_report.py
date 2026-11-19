@@ -73,7 +73,15 @@ def test_the_worked_example_s_report_holds_the_study_and_what_learn_makes_of_it(
         "What the results say",
         "The next step",
         "The Python code",
+        "Terms used",
     ]
+    # The words the report used that the page defines, once each, in the order the report used them.
+    terms = report.locator("dl.terms dt").all_text_contents()
+    assert terms[:3] == ["Coded units", "R²", "Adjusted R²"]
+    assert {"Leverage", "Lack of fit", "Confidence interval"} <= set(terms)
+    assert len(terms) == len(set(terms)) == report.locator("dl.terms dd").count()
+    assert "Terms in the model" not in terms, "how to use the page is of no use on paper"
+    assert report.locator("dl.terms dd").first.text_content().startswith("Each factor centered and scaled")
     said = stamp(report)
     assert said["With"].startswith("Factorial (process-improve")
     assert said["On"].startswith(f"Python {platform.python_version()}, with numpy ")

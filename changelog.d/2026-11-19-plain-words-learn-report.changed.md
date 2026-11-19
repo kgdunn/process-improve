@@ -5,3 +5,5 @@
   factor whose range is zero or more, is marked "below zero", with a warning that it may not be possible. The
   library's reason for moving past the ranges (`recommend_next_step`) leads with "the model still rises there, by
   more than 2 times the noise" and keeps its numbers in brackets.
+- **Factorial's report ends with "Terms used".** Each word the report used that the page defines, such as leverage,
+  lack of fit and coded units, is listed once with its meaning, in the order the report used it.
