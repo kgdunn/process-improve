@@ -803,7 +803,7 @@ Also:
     the notes a design carries keep the period. Dates are written as your browser writes
     them. A study with settings is saved in study format 12. A workbook
     does not carry them, and the Python shown draws in batlow.
-  - *Details:* The significance level is 0.05 unless you change it, and the confidence of
+    The significance level is 0.05 unless you change it, and the confidence of
     every interval is one minus it: 99%, 95% or 90%. Every test, every interval, Lenth's
     margins and a design's power follow it, the page's words name it ("99% interval"), and
     the Python shown passes it to the library. It changes what a study finds, so a study
