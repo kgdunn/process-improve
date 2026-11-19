@@ -947,7 +947,9 @@ def test_the_trade_off_chart_s_code_draws_the_chart_at_another_level_as_the_page
         namespace = run(code.replace("figure.show()", ""))
     for name, shown in tried["candidates"]["responses"].items():
         np.testing.assert_allclose(namespace["cloud"][name], shown, rtol=1e-5)
-    assert len(namespace["figure"].data) == 2, "the settings tried and the best trade-off, with no star"
+    names = [trace.name for trace in namespace["figure"].data]
+    assert "Balanced settings" not in names, "no star at another level"
+    np.testing.assert_array_equal(namespace["far"], np.asarray(tried["candidates"]["far"], dtype=bool))
 
 
 @pytest.mark.slow
@@ -1926,8 +1928,13 @@ def test_the_trade_off_chart_s_code_tries_the_page_s_settings_and_draws_its_line
     across = [-v for v in candidates["responses"]["Yield"]]
     front = javascript(node, source("best.js"), [("frontier", [across, candidates["responses"]["Cost"], meets])])[0]
     assert namespace["front"].tolist() == front
-    cloud, line, star = namespace["figure"].data
-    assert len(cloud.x) == sum(meets)
+    far = np.asarray(candidates["far"], dtype=bool)
+    assert far.any(), "some settings tried lie beyond the runs"
+    np.testing.assert_array_equal(namespace["far"], far)
+    guessed, cloud, line, made, star = namespace["figure"].data
+    assert len(cloud.x) + len(guessed.x) == sum(meets)
+    assert len(guessed.x) == sum(met and f for met, f in zip(meets, far, strict=True))
+    assert len(made.x) == len(held["rows"]), "every run made has both results"
     np.testing.assert_allclose(line.x, np.sort(np.asarray(candidates["responses"]["Yield"])[front]), rtol=1e-5)
     assert (np.diff(line.x) >= 0).all(), "joined from left to right"
     by = {r["name"]: r["predicted"] for r in balance["responses"]}
