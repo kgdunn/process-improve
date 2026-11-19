@@ -1304,7 +1304,10 @@ export function windowLevels(found) {
     row.surest === null ? "none given" : shareWords(row.surest),
     row.here ? "yes" : "",
   ]);
-  return { columns: [...levels[0].levels.map((level) => level.name), "Settings that meet it", "Highest chance", "Under What if"], rows };
+  // Each combination costs a judging of every setting tried, so a study with very many has its first ones judged.
+  const inAll = found.levels_in_all ?? levels.length;
+  const note = inAll > levels.length ? `The first ${levels.length} of the ${inAll} combinations of levels are judged here. Set What if to another to judge it.` : null;
+  return { columns: [...levels[0].levels.map((level) => level.name), "Settings that meet it", "Highest chance", "Under What if"], rows, note };
 }
 
 /**

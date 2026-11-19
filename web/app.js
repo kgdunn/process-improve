@@ -7550,7 +7550,7 @@ function renderWindow() {
     said("lead", windowLead(found, { limits: Boolean(state.design.spec.constraints?.length), blend })),
     ...more.map((text) => said("", text)),
     ...(levels ? [el("h4", "", "At each level"), table(levels.columns, levels.rows)] : []),
-    ...noteList(blend && !found.overlay ? [NO_BLEND_OVERLAY] : []),
+    ...noteList([levels?.note, blend && !found.overlay ? NO_BLEND_OVERLAY : null].filter(Boolean)),
   );
   if (found.surest) $("#window-confirm").hidden = confirmedAt(state.design, found.surest.confirm_at);
   $("#window-confirm").textContent = `Add 3 confirmation runs at the surest ${blend ? "blend" : "settings"}`;

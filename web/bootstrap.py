@@ -9243,7 +9243,7 @@ SOLVE_ON = 1e-9
 #: they are drawn with; and the most combinations of the categorical factors' levels it is judged at, a row each.
 SPECIFICATION_DRAWN = 20_000
 SPECIFICATION_SEED = 1
-SPECIFICATION_LEVELS = 12
+SPECIFICATION_LEVELS = 48
 
 #: The fewest runs the fits must leave, past the terms of the largest model, for the responses' errors to be taken
 #: as correlated as the fits' residuals are. With fewer the correlation is too poorly known to use: with one run
@@ -9879,6 +9879,7 @@ def specification(request: dict) -> dict:
         "levels": _windows_by_level(
             whole, point, lambda at: judge(tried_at, at) if len(tried_at := drawn_at(at)) else None
         ),
+        "levels_in_all": _level_count(whole),
         "overlay": _window_overlay(
             whole,
             fits,
@@ -10036,6 +10037,12 @@ def _residual_correlation(fits: dict[str, _FittedModel]) -> np.ndarray | None:
     return None if np.isnan(correlation).any() else correlation
 
 
+def _level_count(spec: dict) -> int:
+    """Return how many combinations of the categorical factors' levels a study has; 0 without such a factor."""
+    counts = [len(_levels_of(f)) for f in spec["factors"] if _categorical(f)]
+    return math.prod(counts) if counts else 0
+
+
 def _windows_by_level(
     spec: dict, point: dict[str, float], judged: Callable[[dict[str, float]], pd.DataFrame | None]
 ) -> list[dict[str, Any]]:
@@ -10046,8 +10053,9 @@ def _windows_by_level(
     window there, None when no chance can be given; and ``here``, whether it is the combination ``point`` holds,
     whose share is the reply's own. ``judged`` judges the settings tried with every factor as at a point.
 
-    shortcut: the first :data:`SPECIFICATION_LEVELS` combinations are judged, each a row of a table; give the
-    table a way to show more once a study with more of them is judged against a specification.
+    shortcut: the first :data:`SPECIFICATION_LEVELS` combinations are judged, each a row of a table, since each
+    costs a judging of every setting tried; the reply's ``levels_in_all`` says how many there are, so the page says
+    when the table leaves some out. Judge them on fewer settings each, or as the reader asks, when a study has more.
     """
     categorical = [f for f in spec["factors"] if _categorical(f)]
     out = []
