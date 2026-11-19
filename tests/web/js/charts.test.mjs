@@ -32,6 +32,8 @@ import {
   TRUE_MARKER,
   SURFACE,
   COLOUR_MAPS,
+  DIVERGING_COLOUR_MAPS,
+  divergingRamp,
   DEFAULT_COLOUR_MAP,
   colourMap,
   colourMapFlipped,
@@ -670,10 +672,17 @@ describe("a surface's colours, on a light page and on a dark one", () => {
     };
     const DEEP = rampOf(DEFAULT_COLOUR_MAP, true);
     assert.deepEqual(ternaryFigure(ternary, { response: "Hardness" }, DARK).data[0].marker.colorscale, DEEP);
-    const map = (colours) => correlationFigure(["A", "B"], [[1, 0], [0, 1]], 2, colours).data[0].colorscale;
-    assert.deepEqual(map(DARK), DEEP);
-    assert.deepEqual(map(LIGHT), SURFACE);
-    assert.ok(lightness(map(LIGHT)[0][1]) > 0.7, "no correlation is the map's light end on a light page");
+    // A correlation has a sign, so its map runs from -1 to +1 in a map of two colours, whatever map the study chose.
+    const drawn = (colours) => correlationFigure(["A", "B"], [[1, -0.4], [-0.4, 1]], 2, colours).data[0];
+    assert.deepEqual([drawn(LIGHT).zmin, drawn(LIGHT).zmax], [-1, 1]);
+    assert.deepEqual(drawn(LIGHT).colorscale, divergingRamp());
+    assert.deepEqual(drawn(DARK).colorscale, divergingRamp(true));
+    const zero = (ramp) => ramp[4];
+    assert.equal(zero(divergingRamp())[0], 0.5, "zero is the middle of the map");
+    assert.ok(lightness(zero(divergingRamp())[1]) > 0.85, "no correlation is near white on a light page");
+    assert.ok(lightness(zero(divergingRamp(true))[1]) < 0.1, "and near black on a dark one");
+    assert.match(drawn(LIGHT).hovertemplate, / r = %\{z:\.2f\}/, "the pointer reads the correlation with its sign");
+    assert.deepEqual(Object.keys(DIVERGING_COLOUR_MAPS), ["vik", "berlin"]);
   });
 });
 

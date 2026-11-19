@@ -29,7 +29,7 @@ from process_improve.experiments import (
 from process_improve.experiments import _region_geometry as geometry
 from process_improve.experiments.compare import MEASURES, _curved_boundary, _model_exponents, _moments, _within
 from process_improve.experiments.visualization.plots import create_plot
-from process_improve.visualization.colors import SURFACE_COLORSCALE
+from process_improve.visualization.colors import diverging_colorscale
 
 #: The twelve design points behind the book's centre-run example: six half-rows and their negations.
 HALF = np.array([[0, 1, -1], [0, 1, 1], [1, -1, 0], [1, 0, -1], [1, 0, 1], [1, 1, 0]], dtype=float)
@@ -242,7 +242,12 @@ def test_correlations_cover_main_effects_squares_and_interactions():
     frame = compare_designs({"BBD": with_centre_runs(3)}).correlations["BBD [n=15]"]
     assert list(frame.columns) == ["A", "B", "C", "I(A ** 2)", "I(B ** 2)", "I(C ** 2)", "A:B", "A:C", "B:C"]
     np.testing.assert_allclose(frame.iloc[:3, :3], np.eye(3), atol=1e-12)
-    assert frame.loc["I(A ** 2)", "I(B ** 2)"] == pytest.approx(1 / 14)
+    # The correlation keeps its sign: two squares of a Box-Behnken design move opposite ways, a little.
+    assert frame.loc["I(A ** 2)", "I(B ** 2)"] == pytest.approx(-1 / 14)
+    values = frame.to_numpy()
+    assert np.nanmin(values) >= -1.0
+    assert np.nanmax(values) <= 1.0
+    np.testing.assert_allclose(values, values.T, atol=1e-12, err_msg="the correlation of a with b is that of b with a")
 
 
 def test_one_factor_has_no_pair_of_second_order_terms():
@@ -311,14 +316,15 @@ def test_the_correlation_map_renders_in_both_backends():
     rows = generate_design(factors(), "full_factorial", n_center_points=0).design[list("ABC")].to_dict("records")
     plot = create_plot("correlation_map", design_data=rows)
     trace = plot.to_plotly()["data"][0]
-    assert (trace["type"], trace["zmin"], trace["zmax"]) == ("heatmap", 0.0, 1.0)
+    assert (trace["type"], trace["zmin"], trace["zmax"]) == ("heatmap", -1.0, 1.0)
     shown = [[at, colour] for at, colour in trace["colorscale"]]
-    assert shown == SURFACE_COLORSCALE, "the default colour map, light for terms that do not move together"
+    assert shown == diverging_colorscale(), "blue for -1, near white for terms that do not move together, red for +1"
+    assert shown[4] == [0.5, "#ece5e0"]
     assert trace["z"][-4][3] is None, "the square of a two-level factor does not vary"
     option = plot.to_echarts()
     json.dumps(option, allow_nan=False)
     assert option["xAxis"]["type"] == option["yAxis"]["type"] == "category"
-    assert (option["visualMap"]["min"], option["visualMap"]["max"]) == (0.0, 1.0)
+    assert (option["visualMap"]["min"], option["visualMap"]["max"]) == (-1.0, 1.0)
 
 
 def test_the_correlation_map_without_data_says_so():
@@ -456,6 +462,9 @@ def test_without_a_region_the_comparison_is_what_it_was(case):
     assert region is None
     if not case["correlations"]:
         result.pop("correlations")
+    else:  # recorded when a correlation was given without its sign: its size is what must not have changed
+        for frame in result["correlations"].values():
+            frame["matrix"] = [[None if r is None else abs(r) for r in row] for row in frame["matrix"]]
     _assert_same(result, case["result"])
     explicit = compare_designs(designs, case["model"], region=None, **case["kwargs"]).to_dict()
     assert json.dumps(explicit) == json.dumps(comparison.to_dict()), "region=None is the default"

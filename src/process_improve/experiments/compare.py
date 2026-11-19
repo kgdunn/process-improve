@@ -261,10 +261,12 @@ class DesignComparison:
     notes : Mapping[str, tuple[str, ...]]
         For each design label, sentences that qualify its numbers.
     correlations : Mapping[str, pandas.DataFrame]
-        For each design label, the absolute Pearson correlation between its main
-        effects, squares and two-factor interactions, in that order; ``NaN`` for a
-        column that does not vary. The block of squares and interactions is the one
-        ``"max_r"`` reads.
+        For each design label, the Pearson correlation between its main effects,
+        squares and two-factor interactions, in that order, from -1 to +1; ``NaN`` for
+        a column that does not vary. The sign says which way two terms move together:
+        an effect left out of the model moves a correlated estimate up when it is
+        positive, and down when it is negative. The block of squares and interactions
+        is the one ``"max_r"`` reads, by its absolute values.
     g_points : str
         The points over which G was searched, shared by every design, and over a region
         with a curved limit the local searches that go on from them for each design.
@@ -756,7 +758,7 @@ def _factor_names(runs: list[tuple[np.ndarray, list[str] | None]]) -> list[str]:
 
 # --------------------------------------------------------------------------- the measures
 def _correlations(x: np.ndarray, names: Sequence[str]) -> pd.DataFrame:
-    """Return the absolute correlation between the main effects, squares and interactions."""
+    """Return the correlation, from -1 to +1, between the main effects, squares and interactions."""
     k = x.shape[1]
     pairs = list(itertools.combinations(range(k), 2))
     columns = np.column_stack([x, x**2, *[x[:, i] * x[:, j] for i, j in pairs]]) if pairs else np.hstack([x, x**2])
@@ -765,8 +767,8 @@ def _correlations(x: np.ndarray, names: Sequence[str]) -> pd.DataFrame:
     norms = np.linalg.norm(centred, axis=0)
     varying = norms > _CONSTANT * math.sqrt(len(x))
     unit = np.divide(centred, norms, out=np.zeros_like(centred), where=varying)
-    r = np.clip(np.abs(unit.T @ unit), 0.0, 1.0)
-    r[r < _CONSTANT] = 0.0  # rounding error on orthogonal columns
+    r = np.clip(unit.T @ unit, -1.0, 1.0)
+    r[np.abs(r) < _CONSTANT] = 0.0  # rounding error on orthogonal columns
     r[~varying, :] = np.nan
     r[:, ~varying] = np.nan
     return pd.DataFrame(r, index=labels, columns=labels)
@@ -774,7 +776,7 @@ def _correlations(x: np.ndarray, names: Sequence[str]) -> pd.DataFrame:
 
 def _largest_second_order_r(correlations: pd.DataFrame, k: int) -> float | None:
     """Return the largest |r| between two different second-order terms, or None without a pair."""
-    block = correlations.to_numpy()[k:, k:].copy()
+    block = np.abs(correlations.to_numpy()[k:, k:])
     np.fill_diagonal(block, np.nan)
     return None if np.all(np.isnan(block)) else float(np.nanmax(block))
 

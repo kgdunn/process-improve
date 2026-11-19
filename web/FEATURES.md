@@ -222,7 +222,9 @@ Also:
   these runs cannot separate from each other.
   [Show me](https://factori.al/?book=bioreactor-half-fraction&show=correlation)
   - *Details:* A correlation map of the study's own runs, with sentences that name each
-    aliased or correlated pair of terms.
+    aliased or correlated pair of terms. The map runs from -1 to +1: blue for two terms that
+    move opposite ways, red for two that move together, and the colour of the page for
+    neither, with a key beside it.
 - **Experiments like yours.** The plan beside what others in your field have published.
 - **Room for a large study.** Up to 40 factors.
   - *Details:* Interactions are modelled for up to 12.

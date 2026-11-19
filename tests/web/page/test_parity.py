@@ -14,7 +14,14 @@ import re
 import pandas as pd
 import pytest
 
-from process_improve.visualization.colors import COLOUR_MAPS, DEFAULT_COLOUR_MAP, SURFACE_COLORSCALE, colorscale
+from process_improve.visualization.colors import (
+    COLOUR_MAPS,
+    DEFAULT_COLOUR_MAP,
+    DIVERGING_COLOUR_MAPS,
+    SURFACE_COLORSCALE,
+    colorscale,
+    diverging_colorscale,
+)
 from tests.web._support import (
     ENTRY_POINT,
     FACTORS,
@@ -817,3 +824,7 @@ def test_the_page_s_colour_maps_are_the_library_s(node):
     maps, default, *ramps = javascript(node, source("charts.js"), calls)
     assert (maps, default) == (COLOUR_MAPS, DEFAULT_COLOUR_MAP)
     assert ramps == [colorscale(name, dark_page=dark) for name in COLOUR_MAPS for dark in (False, True)]
+    diverging = [("DIVERGING_COLOUR_MAPS", []), ("divergingRamp", [False]), ("divergingRamp", [True])]
+    maps, light, dark = javascript(node, source("charts.js"), diverging)
+    assert maps == DIVERGING_COLOUR_MAPS
+    assert (light, dark) == (diverging_colorscale(), diverging_colorscale(dark_page=True))

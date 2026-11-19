@@ -1069,8 +1069,8 @@ export function correlationMap(runs, names) {
   const matrix = units.map((a) =>
     units.map((b) => {
       if (!a || !b) return null;
-      const v = Math.min(1, Math.abs(a.reduce((sum, x, i) => sum + x * b[i], 0)));
-      return v < 1e-9 ? 0 : v;
+      const v = Math.max(-1, Math.min(1, a.reduce((sum, x, i) => sum + x * b[i], 0))); // with its sign
+      return Math.abs(v) < 1e-9 ? 0 : v;
     }),
   );
   return { terms: columns.map((c) => c.term), kinds: columns.map((c) => c.kind), matrix };
@@ -1092,7 +1092,7 @@ export function largestSecondOrderR(map) {
   map.kinds.forEach((a, i) =>
     map.kinds.forEach((b, j) => {
       const r = map.matrix[i][j];
-      if (i !== j && a !== "main" && b !== "main" && r !== null) most = Math.max(most ?? 0, r);
+      if (i !== j && a !== "main" && b !== "main" && r !== null) most = Math.max(most ?? 0, Math.abs(r));
     }),
   );
   return most;

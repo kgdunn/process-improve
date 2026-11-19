@@ -34,7 +34,7 @@ from process_improve.experiments.evaluate import (
     evaluate_design,
 )
 from process_improve.experiments.visualization.plots.registry import BasePlot, register_plot
-from process_improve.visualization.colors import DOE_PALETTE, SURFACE_COLORSCALE
+from process_improve.visualization.colors import DOE_PALETTE, diverging_colorscale
 from process_improve.visualization.spec import (
     Annotation,
     ChartSpec,
@@ -431,14 +431,16 @@ def _pretty_term(term: str) -> str:
 
 @register_plot("correlation_map")
 class CorrelationMapPlot(BasePlot):
-    """Absolute correlation between a design's main effects, squares and two-factor interactions.
+    """Correlation, from -1 to +1, between a design's main effects, squares and two-factor interactions.
 
     One row and one column per term, in three blocks divided by lines: the main
     effects, the squares, then the two-factor interactions, whether or not a model
-    includes them. A dark cell off the diagonal is a pair of terms the design finds
-    hard to tell apart; a blank row and column is a term that does not vary in the
+    includes them. The colours run from blue at -1, through near white at 0, to red
+    at +1: a strongly coloured cell off the diagonal is a pair of terms the design
+    finds hard to tell apart, and its colour says whether the two move the same way
+    or opposite ways. A blank row and column is a term that does not vary in the
     design (each square of a two-level design), so it has no correlation. The
-    largest value among the squares and interactions is the "max |r|" of
+    largest size among the squares and interactions is the "max |r|" of
     :func:`~process_improve.experiments.compare.compare_designs`.
 
     Data sources
@@ -474,9 +476,9 @@ class CorrelationMapPlot(BasePlot):
                 "x_grid": labels,
                 "y_grid": labels[::-1],
                 "z_matrix": matrix[::-1],
-                "zmin": 0.0,
+                "zmin": -1.0,
                 "zmax": 1.0,
-                "colorscale": SURFACE_COLORSCALE,
+                "colorscale": diverging_colorscale(),
             },
         )
         line = {"color": DOE_PALETTE["neutral"], "dash": "solid", "width": 1}
