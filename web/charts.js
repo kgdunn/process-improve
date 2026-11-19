@@ -1764,7 +1764,7 @@ export function tradeOffFigure({ across, up, tried, front, colour = null, runs =
     });
   }
   if (nearly.length) data.push(point(TRADE_MARKS.nearly, nearly, { ...BEST_MARKER, size: 13, symbol: "star-open", color: colours.fg }));
-  data.push(point(BALANCED, [balanced], BEST_MARKER));
+  if (balanced) data.push(point(BALANCED, [balanced], BEST_MARKER)); // none when the chart is at other levels
   if (chosen) {
     const marker = { ...TRUE_MARKER, color: colours.accent };
     data.push(point(TRADE_MARKS.chosen, [chosen], marker, { error_x: spread(chosen.spread?.across), error_y: spread(chosen.spread?.up) }));

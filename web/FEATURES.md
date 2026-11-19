@@ -426,7 +426,8 @@ Also:
   Colour the points by a third response, type a limit on any response to keep only the
   settings that meet it, and press a point to choose its settings.
   - *Details:* 2,000 settings drawn evenly from the ranges the limits allow, each categorical
-    factor at the balanced settings' level. A line joins the settings no other betters on
+    factor at the balanced settings' level, or at another level you pick above the chart, which
+    then has no star for the balanced settings. A line joins the settings no other betters on
     both responses; a paler point is further from the runs than any run lies, by its leverage.
     Settings chosen move the what-if panel there and can be tested with confirmation runs.
     Other bests of the search within 5% of the balanced settings' overall desirability are

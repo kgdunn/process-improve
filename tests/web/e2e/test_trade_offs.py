@@ -13,9 +13,20 @@ from typing import Any
 
 import pytest
 
-from tests.web.e2e._page import last_reply, practise, reveal, run_sheet, settled
+from tests.web._support import FACTORS
+from tests.web.e2e._page import (
+    candidates_done,
+    generate,
+    last_reply,
+    name_response,
+    practise,
+    reveal,
+    run_sheet,
+    set_factors,
+    settled,
+)
 from tests.web.e2e.test_rename import rename
-from tests.web.e2e.test_responses import three_responses
+from tests.web.e2e.test_responses import add_response, three_responses
 
 PLOT = "document.querySelector('#trade-chart .plot')"
 TRIED = f"{PLOT}.data.filter((trace) => trace.meta === 'tried')"
@@ -151,3 +162,35 @@ def test_the_settings_chosen_go_when_a_factor_is_renamed(traded):
     assert page.locator("#trade-chosen table").count() == 0
     assert "Settings chosen" not in names(page)
     assert "Temperature" in last_reply(page, "api_trade_offs")["result"]["candidates"]["settings"]
+
+
+def test_a_categorical_factor_s_level_is_picked_and_the_chart_is_drawn_at_it(fresh_page):
+    """The chart is drawn at the balanced level at first; another level is tried on the models there, with no star."""
+    page = fresh_page
+    name_response(page, "Yield", "%", goal="maximize")
+    add_response(page, "Cost", "$/kg", "minimize", None)
+    set_factors(page, [*FACTORS[:2], {"name": "Supplier", "low": "A", "high": "B"}])
+    candidates_done(page)
+    generate(page, design_type="full_factorial")
+    practise(page)
+    reveal(page, "#balance")
+    page.wait_for_selector("#trade-chart .js-plotly-plot")
+    settled(page)
+    first = last_reply(page, "api_trade_offs")["result"]
+    box = page.locator("#trade-levels select")
+    assert box.count() == 1
+    balanced = first["held"][0]["value"]
+    other = "A" if balanced == "B" else "B"
+    assert box.input_value() == balanced
+    assert f"{balanced} (balanced)" in box.locator("option").all_text_contents()
+    assert "Balanced settings" in names(page)
+    asked = page.evaluate("window.__pi.count('api_trade_offs')")
+    box.select_option(other)
+    page.wait_for_function(f"window.__pi.count('api_trade_offs') > {asked}")
+    settled(page)
+    again = last_reply(page, "api_trade_offs")["result"]
+    assert again["held"] == [{"name": "Supplier", "value": other}]
+    assert "Balanced settings" not in names(page), "the balanced settings are at the other level"
+    assert page.text_content("#trade-chart figcaption").startswith(f"Drawn with Supplier at {other}")
+    assert f"with Supplier at {other}" in page.text_content("#trade-about")
+    assert page.locator("#trade-levels select").input_value() == other

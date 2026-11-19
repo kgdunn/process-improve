@@ -922,7 +922,9 @@ export function overlayCode(overlay, spec) {
  * bootstrap.trade_offs drew them with), each response's prediction at each, those that meet the limits the reader
  * typed (``view.limits``, each response's two ends, null for one left open), and the best trade-off among them between
  * the responses on the two axes (``view.across`` and ``view.up``), each compared by its goal (``balance.responses``).
- * The points are coloured by ``view.colour`` when it is a response's column. Null for a mixture.
+ * The points are coloured by ``view.colour`` when it is a response's column. ``view.held``, when the chart is drawn at
+ * other levels than the balanced settings', holds the columns the models are then held at, over the ``fitted`` models the
+ * balance's code keeps; the star is left out. Null for a mixture.
  */
 export function tradeOffCode(view, balance, spec) {
   if (isMixture(spec)) return null;
@@ -965,11 +967,17 @@ export function tradeOffCode(view, balance, spec) {
     '    return sum(c["coefficient"] * product(c["term"]) for c in coefficients)',
     "",
     "",
+    ...(view.held
+      ? [
+          "# The chart is drawn at other levels than the balanced settings': each model is held at them instead.",
+          `models = [{**model, "coefficients": held_at(fitted[model["response_name"]], ${repr(view.held)})} for model in models]`,
+        ]
+      : []),
     "cloud, star = pd.DataFrame(index=tried.index), {}",
     "for model in models:",
     '    name = model["response_name"]',
     `    cloud[name] = ${scale.back('predicted(model["coefficients"], tried)')}`,
-    `    star[name] = ${scale.back('balanced["predicted_responses"][name]')}  # at the balanced settings`,
+    ...(view.held ? [] : [`    star[name] = ${scale.back('balanced["predicted_responses"][name]')}  # at the balanced settings`]),
     ends.length ? `kept = cloud[${ends.join(" & ")}]  # the settings that meet your limits` : "kept = cloud",
     `# The best trade-off between ${view.across} and ${view.up}: the settings tried that no other betters on both.`,
     "# Each response is compared by how far it falls short of its goal: the smaller, the better.",
@@ -980,7 +988,9 @@ export function tradeOffCode(view, balance, spec) {
     "    [",
     `        go.Scatter(x=kept[${across}], y=kept[${up}], mode="markers", name="Settings tried", marker={"size": 5, "opacity": 0.5${tint}}),`,
     `        go.Scatter(x=line[${across}], y=line[${up}], mode="lines", name="Best trade-off"),`,
-    `        go.Scatter(x=[star[${across}]], y=[star[${up}]], mode="markers", name="Balanced settings", marker={"symbol": "star", "size": 16}),`,
+    ...(view.held
+      ? []
+      : [`        go.Scatter(x=[star[${across}]], y=[star[${up}]], mode="markers", name="Balanced settings", marker={"symbol": "star", "size": 16}),`]),
     "    ]",
     ")",
     ...shown(axisOf(goalOf(view.across)), axisOf(goalOf(view.up))),
@@ -1928,10 +1938,11 @@ export function balanceCode(balance, spec) {
     ...(holds ? [heldComment(held, spec.factors), ...HELD_AT] : []),
     ...indicatorLines(spec, Object.values(formulas).join(" + ")),
     `# Each response with a goal, fitted with its own ${mixture ? "Scheffé model" : "model"} to the runs that have its result.`,
-    "models = []",
+    `models${holds ? ", fitted" : ""} = []${holds ? ", {}" : ""}`,
     `for name, model in ${repr(formulas)}.items():`,
     "    done = runs[name].notna()",
     `    fit = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="coefficients", coding="actual"${levelArg()})`,
+    ...(holds ? ['    fitted[name] = fit["coefficients"]  # as fitted, before the levels are held'] : []),
     `    coefficients = ${holds ? `held_at(fit["coefficients"], ${repr(held)})` : 'fit["coefficients"]'}`,
     `    models.append({"response_name": name, "coefficients": coefficients, "factor_names": ${repr(numeric.map((f) => f.name))}})`,
     "",

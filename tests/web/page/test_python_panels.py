@@ -924,6 +924,33 @@ def test_the_balance_code_fits_a_factor_nested_in_another_as_the_page_does(api, 
 
 
 @pytest.mark.slow
+def test_the_trade_off_chart_s_code_draws_the_chart_at_another_level_as_the_page_does(api, node):
+    """The chart at supplier A while the balance is at B: the code holds each fitted model at A, and draws no star."""
+    factors = [*FACTORS[:2], {"name": "S", "low": "A", "high": "B", "units": ""}]
+    spec = {"design_type": "full_factorial", "factors": factors, "responses": THREE[:2], "n_center_points": 3}
+    held = held_of(api.ok("api_make_design", spec))
+    x = coded(run_sheet(held), factors)
+    yields = (60 + 4 * x["T"] - 2 * x["P"] + 3 * x["S"] + x["T"] * x["P"]).tolist()
+    costs = (20 + 2 * x["T"] + x["P"] + 0.5 * x["S"]).tolist()
+    request = {**held, "responses": yields, "more_responses": {"Cost": costs}, "models": {"Yield": "interactions"}}
+    balance = api.ok("api_balance", request)
+    tried = api.ok("api_trade_offs", {**request, "at": {**balance["coded"], "S": -1.0}})
+    assert tried["held"] == [{"name": "S", "value": "A"}]
+    view = {"asked": tried["asked"], "across": "Yield", "up": "Cost", "colour": None, "limits": {}}
+    steps = [("designCode", [held["spec"]]), ("resultsCode", [held, {"Yield": yields, "Cost": costs}])]
+    view_at = {**view, "held": tried["held_columns"]}
+    code = panel(
+        node, *steps, ("balanceCode", [balance, held["spec"]]), ("tradeOffCode", [view_at, balance, held["spec"]])
+    )
+    assert "star[" not in code.split("cloud, star")[1].split("figure = go.Figure(")[0], "no star at another level"
+    with contextlib.redirect_stdout(io.StringIO()):
+        namespace = run(code.replace("figure.show()", ""))
+    for name, shown in tried["candidates"]["responses"].items():
+        np.testing.assert_allclose(namespace["cloud"][name], shown, rtol=1e-5)
+    assert len(namespace["figure"].data) == 2, "the settings tried and the best trade-off, with no star"
+
+
+@pytest.mark.slow
 def test_the_balance_code_finds_the_page_s_balanced_blend(api, node):
     """A mixture's two responses are balanced over its blends, each with its own Scheffé model."""
     responses = [{"name": "Hardness", "goal": "maximize"}, {"name": "Cost", "goal": "minimize"}]

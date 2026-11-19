@@ -9186,7 +9186,8 @@ def trade_offs(request: dict) -> dict:
     The request is the balance's (see :func:`balance`), with ``at``: the balanced settings it found, every
     factor coded, as its reply's ``coded``. The candidates are :data:`TRADE_OFF_DRAWN` settings of the numeric
     factors drawn evenly from their ranges, without those the limits on the settings rule out; each categorical
-    factor is at the balanced settings' level (``held``), and each block at the average block. ``candidates``
+    factor is at its level in ``at`` (``held``; the page sends another level to draw the chart at it), and each block
+    at the average block. ``held_columns`` writes them over the columns the models are fitted on. ``candidates``
     holds, a list each, in the candidates' order: every numeric factor's setting in its own units
     (``settings``), every balanced response's prediction (``responses``, in its units), the overall
     desirability ``d``, and ``far``, 1 where some response's model predicts further from its runs than any
@@ -9198,8 +9199,6 @@ def trade_offs(request: dict) -> dict:
     response's prediction and desirability there, and its overall desirability. ``asked`` is what the
     candidates were drawn with, for the code the page shows.
 
-    shortcut: the candidates keep each categorical factor at the balanced level; draw them at every level once
-    a study's trade-off between levels is asked for.
     """
     from process_improve.experiments import optimize_responses  # noqa: PLC0415 - loaded when a balance is asked for
 
@@ -9261,6 +9260,7 @@ def trade_offs(request: dict) -> dict:
         "held": [
             {"name": f["name"], "value": _level_at(f, point[f["name"]])} for f in spec["factors"] if _categorical(f)
         ],
+        "held_columns": held,
         "alternatives": [
             {
                 "settings": {f["name"]: _in_units(f, float(o["x"][i])) for i, f in enumerate(numeric)},

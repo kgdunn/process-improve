@@ -596,7 +596,7 @@ function toast(text, state = "ok") {
 
 // ---------------------------------------------------------------- state
 /** The trade-offs' view of a study just opened: nothing tried, picked, limited or chosen yet. */
-const newTrade = () => ({ tried: null, across: null, up: null, colour: "", limits: {}, chosen: null });
+const newTrade = () => ({ tried: null, across: null, up: null, colour: "", limits: {}, chosen: null, levels: {} });
 
 const state = {
   phase: "plan", // the phase on show: "plan", "run" or "learn"
@@ -6019,7 +6019,13 @@ async function findTradeOffs() {
     return;
   }
   const mine = ++tradeTicket;
-  const reply = await call("api_trade_offs", { ...balanceAsked(), at: b.coded });
+  // Each categorical factor at the level the reader drew the chart at, else at the balanced settings' level.
+  const levels = Object.fromEntries(
+    tradeFactors()
+      .filter((f) => f.kind === "categorical" && state.trade.levels?.[f.name] !== undefined)
+      .map((f) => [f.name, codedLevel(f, state.trade.levels[f.name])]),
+  );
+  const reply = await call("api_trade_offs", { ...balanceAsked(), at: { ...b.coded, ...levels } });
   if (mine !== tradeTicket || state.balance !== b) return;
   if (!reply.ok) {
     clearTradeOffs(); // the balance stands without them
@@ -6034,9 +6040,21 @@ async function findTradeOffs() {
   // The settings chosen stay chosen while the models say the same of the settings tried, as after confirmation runs.
   const before = state.trade.tried?.candidates.d;
   const same = before?.length === reply.result.candidates.d.length && before.every((d, i) => d === reply.result.candidates.d[i]);
-  state.trade = { tried: reply.result, across, up, colour, limits, chosen: same ? state.trade.chosen : null };
+  state.trade = { ...state.trade, tried: reply.result, across, up, colour, limits, chosen: same ? state.trade.chosen : null };
   renderTradeOffs();
 }
+
+/** A categorical factor's level, coded as the models take it: its levels spread evenly from -1 to +1. */
+function codedLevel(f, level) {
+  const levels = f.levels ?? [f.low, f.high];
+  return -1 + (2 * levels.indexOf(level)) / (levels.length - 1);
+}
+
+/** Whether the chart is drawn at the balanced settings' levels: only then is the balance's star on it. */
+const atBalancedLevels = () => state.trade.tried.held.every((h) => balancedLevel(h.name) === h.value);
+
+/** The level the balance found for a categorical factor. */
+const balancedLevel = (name) => state.balance.settings.find((s) => s.name === name)?.value;
 
 /** The study's factors with each one's kind, as the what-if panel has them, or else as the brief does. */
 const tradeFactors = () =>
@@ -6063,6 +6081,22 @@ function renderTradeOffs() {
   $("#trade-across").innerHTML = options(across, named);
   $("#trade-up").innerHTML = options(up, named);
   $("#trade-colour").innerHTML = options(colour, [["", "Nothing"], ...named, [OVERALL_D, "Overall desirability, D"]]);
+  // A box for each categorical factor: the chart is drawn at the level it holds, the balanced one at first.
+  const byName = Object.fromEntries(tradeFactors().map((f) => [f.name, f]));
+  $("#trade-levels").replaceChildren(
+    ...tried.held.map((h) => {
+      const f = byName[h.name];
+      const select = el("select", "trade-level", "");
+      select.dataset.factor = h.name;
+      for (const level of f.levels ?? [f.low, f.high]) {
+        const balancedHere = level === balancedLevel(h.name);
+        select.append(new Option(balancedHere ? `${level} (balanced)` : String(level), level, false, level === h.value));
+      }
+      const label = el("label", "", `${h.name} at `);
+      label.append(select);
+      return label;
+    }),
+  );
   const t = $("#trade-limits");
   const key = JSON.stringify(named);
   if (t.dataset.key !== key) {
@@ -6119,7 +6153,7 @@ function tradeDrawn() {
     return Number.isFinite(x) && Number.isFinite(y) ? [{ run: runOrderOf(place), across: x, up: y }] : [];
   });
   const nearly = tried.alternatives.map((a) => ({ across: a.responses[across], up: a.responses[up] }));
-  const star = { across: goalAcross.predicted, up: goalUp.predicted };
+  const star = atBalancedLevels() ? { across: goalAcross.predicted, up: goalUp.predicted } : null;
   return { across: goalAcross, up: goalUp, tried: points, front, colour: tint, runs, balanced: star, chosen: chosen && chosenPoint(chosen), nearly, met: at.length };
 }
 
@@ -6151,12 +6185,15 @@ async function drawTradeChart() {
       ? `${view.met.toLocaleString("en")} of the ${tried.toLocaleString("en")} settings tried meet your limits.`
       : "None of the settings tried meets every limit: loosen one.";
   card.hidden = false;
-  card.querySelector("figcaption").textContent =
-    "The star is the balanced settings. Settings on the line cannot be bettered on one response without giving up some of the other.";
+  const levelled = state.trade.tried.held.map((h) => `${h.name} at ${h.value}`).join(", ");
+  card.querySelector("figcaption").textContent = atBalancedLevels()
+    ? "The star is the balanced settings. Settings on the line cannot be bettered on one response without giving up some of the other."
+    : `Drawn with ${levelled}: the balanced settings are at another level, so no star. Settings on the line cannot be bettered on one response without giving up some of the other.`;
   const plot = card.querySelector(".plot");
   const python = figureAfter("balance", () => {
     const { tried, across, up, colour, limits } = state.trade;
-    return tradeOffCode({ asked: tried.asked, across, up, colour, limits }, state.balance, state.design.spec);
+    const view = { asked: tried.asked, across, up, colour, limits, held: atBalancedLevels() ? null : tried.held_columns };
+    return tradeOffCode(view, state.balance, state.design.spec);
   });
   try {
     await draw(plot, () => tradeOffFigure(view), state.plotlyJs, 440, { python });
@@ -6174,8 +6211,15 @@ async function drawTradeChart() {
 }
 
 /** The reader picked what the chart shows: another response on an axis, or what the points are coloured by. */
-function tradeViewChanged() {
+function tradeViewChanged(event) {
   if (!state.trade.tried) return;
+  if (event?.target?.classList.contains("trade-level")) {
+    // Another level: the settings tried are drawn at it, so Python is asked again; the keyboard stays on the box.
+    state.trade = { ...state.trade, levels: { ...state.trade.levels, [event.target.dataset.factor]: event.target.value } };
+    const factor = event.target.dataset.factor;
+    findTradeOffs().then(() => document.querySelector(`#trade-levels select[data-factor="${CSS.escape(factor)}"]`)?.focus());
+    return;
+  }
   let [across, up] = [$("#trade-across").value, $("#trade-up").value];
   // The two axes show two responses: choosing one axis's response for the other swaps them.
   if (across === up) [across, up] = across === state.trade.across ? [state.trade.up, up] : [across, state.trade.across];
@@ -9827,7 +9871,7 @@ $("#balance-reset").onclick = () => {
   scheduleSave();
   rebalance();
 };
-for (const id of ["#trade-across", "#trade-up", "#trade-colour"]) $(id).addEventListener("change", tradeViewChanged);
+for (const id of ["#trade-across", "#trade-up", "#trade-colour", "#trade-levels"]) $(id).addEventListener("change", tradeViewChanged);
 $("#trade-limits").addEventListener("input", tradeLimitTyped);
 $("#trade-chosen").addEventListener("click", tradeChosenPressed);
 $("#trade-nearly").addEventListener("click", tradeNearlyPressed);
