@@ -148,8 +148,9 @@ def test_a_stricter_significance_level_widens_the_intervals_and_is_named_across_
     width = """(() => {
       const table = [...document.querySelectorAll('#analysis table')].find((t) => /% low/.test(t.tHead?.textContent ?? ''));
       const heads = [...table.tHead.rows[0].cells].map((cell) => cell.textContent);
-      const ends = [...table.tBodies[0].rows].map((row) => ['% low', '% high'].map((end) =>
-        Number(row.cells[heads.findIndex((head) => head.endsWith(end))].textContent.replace('\\u2212', '-'))));
+      const cell = (row, end) => row.cells[heads.findIndex((head) => head.endsWith(end))].textContent;
+      const number = (text) => Number(text.replace('\\u2212', '-'));
+      const ends = [...table.tBodies[0].rows].map((row) => ['% low', '% high'].map((end) => number(cell(row, end))));
       const [low, high] = ends.find((pair) => pair.every(Number.isFinite));
       return high - low;
     })()"""
