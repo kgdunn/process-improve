@@ -34,7 +34,7 @@ from process_improve.experiments.evaluate import (
     evaluate_design,
 )
 from process_improve.experiments.visualization.plots.registry import BasePlot, register_plot
-from process_improve.visualization.colors import DOE_PALETTE
+from process_improve.visualization.colors import DOE_PALETTE, SURFACE_COLORSCALE
 from process_improve.visualization.spec import (
     Annotation,
     ChartSpec,
@@ -476,7 +476,7 @@ class CorrelationMapPlot(BasePlot):
                 "z_matrix": matrix[::-1],
                 "zmin": 0.0,
                 "zmax": 1.0,
-                "colorscale": "Blues",
+                "colorscale": SURFACE_COLORSCALE,
             },
         )
         line = {"color": DOE_PALETTE["neutral"], "dash": "solid", "width": 1}

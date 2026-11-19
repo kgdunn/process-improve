@@ -29,6 +29,7 @@ from process_improve.experiments import (
 from process_improve.experiments import _region_geometry as geometry
 from process_improve.experiments.compare import MEASURES, _curved_boundary, _model_exponents, _moments, _within
 from process_improve.experiments.visualization.plots import create_plot
+from process_improve.visualization.colors import SURFACE_COLORSCALE
 
 #: The twelve design points behind the book's centre-run example: six half-rows and their negations.
 HALF = np.array([[0, 1, -1], [0, 1, 1], [1, -1, 0], [1, 0, -1], [1, 0, 1], [1, 1, 0]], dtype=float)
@@ -311,6 +312,8 @@ def test_the_correlation_map_renders_in_both_backends():
     plot = create_plot("correlation_map", design_data=rows)
     trace = plot.to_plotly()["data"][0]
     assert (trace["type"], trace["zmin"], trace["zmax"]) == ("heatmap", 0.0, 1.0)
+    shown = [[at, colour] for at, colour in trace["colorscale"]]
+    assert shown == SURFACE_COLORSCALE, "the default colour map, light for terms that do not move together"
     assert trace["z"][-4][3] is None, "the square of a two-level factor does not vary"
     option = plot.to_echarts()
     json.dumps(option, allow_nan=False)

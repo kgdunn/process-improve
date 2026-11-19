@@ -653,6 +653,7 @@ const OWN_FIGURES = {
       "import pandas as pd",
       "import plotly.graph_objects as go",
       ...(model ? [] : ["from process_improve.experiments import TrueProcess"]),
+      "from process_improve.visualization.colors import colorscale",
       "",
       model
         ? `# The figure "${title}": the fitted model's response over a grid of blends, and the runs.`
@@ -675,7 +676,7 @@ const OWN_FIGURES = {
       "    [",
       "        go.Scatterternary(",
       `            a=grid[${a}], b=grid[${b}], c=grid[${c}], mode="markers", name=${repr(model ? "Fitted response" : "True response")},`,
-      `            marker={"color": response, "colorscale": "Blues", "size": 7, "colorbar": {"title": {"text": ${repr(axisWords(spec))}}}},`,
+      `            marker={"color": response, "colorscale": colorscale(), "size": 7, "colorbar": {"title": {"text": ${repr(axisWords(spec))}}}},`,
       "        ),",
       "        go.Scatterternary(",
       `            a=X[${a}][had], b=X[${b}][had], c=X[${c}][had], mode="markers", name="Runs",`,

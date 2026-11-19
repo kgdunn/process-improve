@@ -108,14 +108,11 @@ DIAGNOSTIC_COLORS: dict[str, str] = {
 }
 
 # ---------------------------------------------------------------------------
-# Desirability colour scale (red → yellow → green)
+# Desirability colour scale: the default map, light for d = 0 (worst) and dark for d = 1 (best). It was red, amber
+# and green, which a reader who does not tell red from green cannot read.
 # ---------------------------------------------------------------------------
 
-DESIRABILITY_COLORSCALE: list[list[float | str]] = [
-    [0.0, "#DC2626"],  # d = 0 (worst)
-    [0.5, "#F59E0B"],  # d = 0.5
-    [1.0, "#059669"],  # d = 1 (best)
-]
+DESIRABILITY_COLORSCALE: list[list[float | str]] = colorscale()
 
 # ---------------------------------------------------------------------------
 # Sweet-spot fill: a single flat green, used behind overlaid response contours
