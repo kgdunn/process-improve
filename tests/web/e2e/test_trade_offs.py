@@ -27,6 +27,7 @@ from tests.web.e2e._page import (
     settled,
 )
 from tests.web.e2e.test_rename import rename
+from tests.web.e2e.test_report import download_report, opened
 from tests.web.e2e.test_responses import add_response, three_responses
 
 PLOT = "document.querySelector('#trade-chart .plot')"
@@ -218,3 +219,15 @@ def test_the_chart_s_axes_colour_limits_and_choice_are_kept_with_the_study(trade
     assert page.input_value("#trade-colour") == "Cost"
     assert page.input_value('#trade-limits tr[data-response="Purity"] [name="low"]') == "62"
     assert page.text_content("#trade-chosen .lead") == chosen, "the same settings, found again among those tried"
+
+
+def test_the_report_holds_the_trade_off_chart_and_the_settings_chosen(traded):
+    page = traded
+    page.evaluate(f"{PLOT}.emit('plotly_click', {{ points: [{{ data: {{ meta: 'tried' }}, customdata: 7 }}] }})")
+    page.wait_for_selector("#trade-chosen table")
+    chosen = page.text_content("#trade-chosen .lead")
+    _, html = download_report(page)
+    report = opened(page, html)
+    text = report.text_content("body")
+    assert "What one response costs another" in text
+    assert chosen in text, "and the settings chosen on it"

@@ -432,7 +432,8 @@ Also:
     Settings chosen move the what-if panel there and can be tested with confirmation runs.
     Other bests of the search within 5% of the balanced settings' overall desirability are
     listed. The chart shows its Python. The study keeps the chart's axes, colour, limits,
-    levels and the settings chosen, in study format 14.
+    levels and the settings chosen, in study format 14, and the report holds the chart and
+    the settings chosen.
 - **What if.** A dial for each factor: a picture of the response against that factor, with
   the others where you set them, over a slider and a box for its value. Drag on a picture,
   move the slider or type a value, and each response's prediction follows at once. Settings

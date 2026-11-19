@@ -3928,6 +3928,8 @@ async function closingSections() {
   const sections = [];
   if (!$("#balance").hidden && state.balance) {
     const html = [reportCopy($("#balance-out")), chartsHtml(await chartsWithin($("#balance")))];
+    // The settings chosen on the trade-off chart, under it, as Learn says them.
+    if (state.trade.chosen && !$("#trade-offs").hidden) html.push(reportCopy($("#trade-chosen")));
     sections.push({ heading: $("#h-balance").textContent, html: html.join("\n") });
   }
   if (!$("#what-if").hidden && !$("#what-if-kept").hidden) {
