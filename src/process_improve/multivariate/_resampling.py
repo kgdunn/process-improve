@@ -16,6 +16,7 @@ from sklearn.base import BaseEstimator, clone
 from tqdm import tqdm
 
 from .._random import check_random_state
+from ..visualization.colors import colorscale
 from ._common import BlockSet
 from ._tpls import DataFrameDict
 
@@ -206,7 +207,7 @@ class Resampler:
         fig = ridgeplot.ridgeplot(
             samples=values.T,  # one row of samples per parameter
             kde_points=np.linspace(values.min(), values.max(), 500),
-            colorscale="viridis",  # pragma: no mutate - colour scale names are read in any case
+            colorscale=[(float(at), str(colour)) for at, colour in colorscale()],  # batlow, the package's own
             colormode="row-index",
             opacity=0.6,
             # An array-valued accessor gives integer column labels, which ridgeplot cannot join.

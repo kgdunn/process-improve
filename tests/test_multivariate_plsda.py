@@ -35,6 +35,7 @@ from process_improve.multivariate.methods import (
     SpecificationWarning,
     confusion_matrix_plot,
 )
+from process_improve.visualization.colors import colorscale
 
 
 def _separable(
@@ -536,6 +537,17 @@ def test_confusion_matrix_plot() -> None:
 
     with pytest.raises(ValueError, match="Model is not fitted"):
         confusion_matrix_plot(PLSDA(n_components=2))
+
+
+def test_confusion_matrix_plot_is_drawn_in_a_colour_map_of_the_package_unless_plotly_s_is_named() -> None:
+    """Devon by default, light where a cell is empty; another map of the package by its name; else Plotly's own."""
+    model = PLSDA(n_components=2).fit(*_separable(n_per_class=20, separation=1.0, seed=13))
+    as_stops = lambda scale: [list(stop) for stop in scale]  # noqa: E731
+    assert as_stops(model.confusion_matrix_plot().data[0].colorscale) == colorscale("devon")
+    lajolla = model.confusion_matrix_plot(settings={"colorscale": "lajolla"}).data[0].colorscale
+    assert as_stops(lajolla) == colorscale("lajolla")
+    blues = model.confusion_matrix_plot(settings={"colorscale": "Blues"}).data[0].colorscale
+    assert blues[0][1] == "rgb(247,251,255)", "Plotly's own Blues, as before"
 
 
 def test_confusion_matrix_plot_of_a_supplied_matrix() -> None:
