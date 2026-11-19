@@ -499,7 +499,8 @@ Also:
     shades the settings that meet the windows over two factors of your choice, the others
     where What if has them, with a line for each chance and the runs. A study with a
     categorical factor is judged at the level What if has, and a table beside it gives the
-    share and the highest chance at each of the other levels. No chance is given
+    share and the highest chance at each of the other levels: at up to 48 combinations of
+    levels, with a note when a study has more. No chance is given
     when the fit leaves no run to estimate the noise. The section and its chart show their
     Python. The windows typed are kept with the study, as the targets are, and the report
     holds what they gave and the chart. For a mixture the share and the chances are of the

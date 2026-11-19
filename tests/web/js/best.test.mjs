@@ -1360,7 +1360,13 @@ describe("the settings that meet a specification", async () => {
     assert.deepEqual(windowLevels({ ...two, levels }), {
       columns: ["S", "Lot", "Settings that meet it", "Highest chance", "Under What if"],
       rows: [["A", "1", "0%", "3.1%", ""], ["B", "2", "17%", "99%", "yes"]],
+      note: null,
     });
+    assert.equal(windowLevels({ ...two, levels, levels_in_all: 2 }).note, null, "every combination is judged");
+    assert.equal(
+      windowLevels({ ...two, levels, levels_in_all: 60 }).note,
+      "The first 2 of the 60 combinations of levels are judged here. Set What if to another to judge it.",
+    );
     const unknown = windowLevels({ ...two, levels: [{ ...levels[0], surest: null }] });
     assert.equal(unknown.rows[0][3], "none given", "no runs are left to estimate the noise");
     assert.equal(windowLevels({ ...one, levels: [] }), null, "a study with no categorical factor has no table");

@@ -223,8 +223,22 @@ def test_a_categorical_factor_is_held_at_the_level_the_reader_has_it_at(api):
         assert rows["A"]["surest"] < rows["B"]["surest"]
 
 
+def test_a_study_of_many_levels_is_judged_at_each_combination_up_to_a_limit_and_says_how_many_there_are(api, bootstrap):
+    factors = [*FACTORS[:2], {"name": "S", "levels": list("ABCDE")}, {"name": "R", "levels": list("WXYZ")}]
+    spec = {"design_type": "d_optimal", "factors": factors, "responses": TWO[:1], "budget": 40, "random_state": 1}
+    held = held_of(api.ok("api_make_design", spec))
+    yields = np.random.default_rng(1).normal(60, 2, len(held["rows"])).tolist()
+    request = {**held, "responses": yields, "models": {"Yield": "main_effects"}, "windows": {"Yield": [58.0, None]}}
+    reply = api.ok("api_specification", {**request, "at": {**CENTER, "S": "A", "R": "W"}})
+    assert reply["levels_in_all"] == 20
+    assert len(reply["levels"]) == 20, "more than the first 12, which was the limit"
+    assert sum(row["here"] for row in reply["levels"]) == 1
+    assert bootstrap.SPECIFICATION_LEVELS >= 20
+
+
 def test_a_study_with_no_categorical_factor_has_no_levels_to_judge_at(api):
-    assert judged(api, design_of(api, TWO[:1]), {"Yield": [60.0, None]})["levels"] == []
+    found = judged(api, design_of(api, TWO[:1]), {"Yield": [60.0, None]})
+    assert (found["levels"], found["levels_in_all"]) == ([], 0)
 
 
 def test_a_transformed_response_s_window_is_typed_and_drawn_in_its_own_units(api):
