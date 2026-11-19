@@ -431,7 +431,8 @@ Also:
     both responses; a paler point is further from the runs than any run lies, by its leverage.
     Settings chosen move the what-if panel there and can be tested with confirmation runs.
     Other bests of the search within 5% of the balanced settings' overall desirability are
-    listed. The chart shows its Python. The study keeps the chart's axes, colour, limits,
+    listed. A mixture's chart is of 2,000 blends drawn evenly from those its bounds allow.
+    The chart shows its Python, but a mixture's. The study keeps the chart's axes, colour, limits,
     levels and the settings chosen, in study format 14, and the report holds the chart and
     the settings chosen.
 - **What if.** A dial for each factor: a picture of the response against that factor, with

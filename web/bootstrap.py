@@ -9204,7 +9204,9 @@ def trade_offs(request: dict) -> dict:
 
     spec, _, aimed, fits, goals = _balance_fits(request)
     numeric = [f for f in spec["factors"] if not _categorical(f)]
-    if len(aimed) < 2 or _mixture(spec) or not numeric:
+    if len(aimed) >= 2 and _mixture(spec):
+        return _blend_trade_offs(request, spec, fits, goals)
+    if len(aimed) < 2 or not numeric:
         raise ValueError("The trade-offs are drawn for two responses or more with a goal, over factors with ranges.")
     point = _point_sent(request.get("at"), spec)
     names = [f["name"] for f in numeric]
@@ -9271,6 +9273,66 @@ def trade_offs(request: dict) -> dict:
             for o in others
         ],
         "asked": {"drawn": TRADE_OFF_DRAWN, "seed": TRADE_OFF_SEED},
+    }
+
+
+def _blend_trade_offs(request: dict, spec: dict, fits: dict[str, _FittedModel], goals: list[dict]) -> dict:
+    """Return what the trade-off chart of a mixture's balance draws, as :func:`trade_offs` does over a cube of factors.
+
+    The candidates are :data:`TRADE_OFF_DRAWN` blends drawn evenly from those the components' bounds allow, as a
+    specification of a mixture draws them, each with every component's proportion (``settings``). ``at`` is the
+    balanced blend, as the balance's reply has it in ``coded``. Nothing is held: a mixture has no level or block.
+    """
+    from process_improve.experiments import optimize_responses  # noqa: PLC0415 - loaded when a balance is asked for
+
+    names = [f["name"] for f in spec["factors"]]
+    at = _blend_sent(request.get("at"), spec)
+    if at is None:
+        raise ValueError("The page sent balanced settings this page did not write.")
+    region = DesignRegion(_components(spec))
+    tried = region.sample(TRADE_OFF_DRAWN, np.random.default_rng(TRADE_OFF_SEED))
+    models = {
+        name: [{"term": c["term"], "coefficient": c["coefficient"]} for c in fit.out["coefficients"]]
+        for name, fit in fits.items()
+    }
+    point = dict(zip(names, at.tolist(), strict=True))
+    far = np.zeros(len(tried), dtype=bool)
+    for fit in fits.values():
+        far |= fit.over(point, names, tried)[1] > fit.max_leverage * (1 + 1e-9) + 1e-12
+    with _listening():
+        found = optimize_responses(
+            [{"response_name": n, "coefficients": m, "factor_names": names} for n, m in models.items()],
+            goals=[_desirability_of(g) for g in goals],
+            region=region,
+            n_alternatives=TRADE_OFF_ALTERNATIVES,
+            significance_level=significance(),
+        )["desirability"]
+    others: list[dict[str, Any]] = []
+    for other in [found, *found.get("alternatives", [])]:
+        x = np.array([other["optimal_coded"][n] for n in names])
+        if all(float(np.linalg.norm(x - seen)) >= TRADE_OFF_APART for seen in [at, *(o["x"] for o in others)]):
+            others.append({"x": x, **other})
+    return {
+        "candidates": {
+            "settings": {name: _figures(tried[:, i]) for i, name in enumerate(names)},
+            "responses": {
+                g["response"]: _figures(np.asarray(_predict(models[g["response"]], names, tried))) for g in goals
+            },
+            "d": _figures(_overall(models, goals, names, tried)),
+            "far": far.astype(int).tolist(),
+        },
+        "held": [],
+        "held_columns": {},
+        "alternatives": [
+            {
+                "settings": dict(zip(names, (round(float(v), 9) for v in o["x"]), strict=True)),
+                "responses": {n: float(v) for n, v in o["predicted_responses"].items()},
+                "d": {n: float(v) for n, v in o["individual_desirability"].items()},
+                "composite": float(o["composite_desirability"]),
+            }
+            for o in others
+        ],
+        "asked": {"drawn": TRADE_OFF_DRAWN, "seed": TRADE_OFF_SEED, "blends": True},
     }
 
 

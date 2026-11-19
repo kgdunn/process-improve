@@ -488,3 +488,26 @@ def test_confirmation_runs_at_the_balanced_blend_are_judged_response_by_response
     for name, value in expected.items():
         assert verdicts[name]["predicted"] == pytest.approx(value, abs=1e-9), name
         assert verdicts[name]["inside"] is True, name
+
+
+def test_a_mixture_s_trade_offs_are_blends_drawn_from_its_bounds_with_the_balance_s_responses(api):
+    _, sent = two_blended(api)
+    b = api.ok("api_balance", sent)
+    found = api.ok("api_trade_offs", {**sent, "at": b["coded"]})
+    settings = pd.DataFrame(found["candidates"]["settings"])
+    assert list(settings.columns) == ["A", "B", "C"]
+    assert len(settings) == 2000
+    np.testing.assert_allclose(settings.sum(axis=1), 1.0, atol=1e-5)  # each a blend
+    for name in ("Hardness", "Cost"):
+        np.testing.assert_allclose(
+            found["candidates"]["responses"][name], blended(settings, terms_of(api, sent, name)), rtol=1e-4
+        )
+    assert found["held"] == []
+    assert set(found["candidates"]["far"]) <= {0, 1}
+    for other in found["alternatives"]:
+        assert sum(other["settings"].values()) == pytest.approx(1.0, abs=1e-6)
+    again = api.ok("api_trade_offs", {**sent, "at": b["coded"]})
+    assert again["candidates"] == found["candidates"], "drawn with the same seed"
+    assert (
+        api.error("api_trade_offs", {**sent, "at": None}) == "The page sent balanced settings this page did not write."
+    )

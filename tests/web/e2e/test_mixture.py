@@ -389,3 +389,27 @@ def test_a_mixture_has_the_blend_for_a_target_and_the_blends_that_meet_a_specifi
     added = dict(zip(headers(page), run_sheet(page)[-1], strict=False))
     assert sum(float(added[f["name"]]) for f in BLEND) == pytest.approx(1.0, abs=1e-9), "weighed out to sum to 1"
     assert [added[f["name"]] for f in BLEND] == [num(v) for v in judged["surest"]["confirm_at"].values()]
+
+
+def test_a_mixture_s_balance_has_a_trade_off_chart_over_its_blends(fresh_page):
+    page = fresh_page
+    set_factors(page, BLEND)
+    name_response(page, "Hardness", "", goal="maximize")
+    add_response(page, "Cost", "", "minimize", None)
+    choose(page, design_type="simplex_lattice")
+    generate(page)
+    practise(page)
+    reveal(page, "#balance")
+    page.wait_for_selector("#trade-chart .js-plotly-plot")
+    settled(page)
+    tried = last_reply(page, "api_trade_offs")["result"]
+    assert len(tried["candidates"]["d"]) == 2000
+    assert "2,000 blends tried on the models, drawn evenly from the blends the bounds allow" in page.text_content(
+        "#trade-about"
+    )
+    assert page.locator("#trade-levels select").count() == 0, "a mixture has no level to pick"
+    plot = "document.querySelector('#trade-chart .plot')"
+    page.evaluate(f"{plot}.emit('plotly_click', {{ points: [{{ data: {{ meta: 'tried' }}, customdata: 3 }}] }})")
+    page.wait_for_selector("#trade-chosen table")
+    said = page.text_content("#trade-chosen .lead")
+    assert said.startswith("Settings chosen: Water = ")

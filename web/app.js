@@ -6025,7 +6025,7 @@ function clearBalance() {
 let tradeTicket = 0;
 let tradeTimer = null;
 
-/** Take the trade-offs away: there is no balance to draw them at, or the study is a mixture's. */
+/** Take the trade-offs away: there is no balance to draw them at, or no factor with a range to try. */
 function clearTradeOffs() {
   tradeTicket += 1;
   clearTimeout(tradeTimer);
@@ -6044,7 +6044,8 @@ const factorUnits = () => Object.fromEntries(state.design.spec.factors.map((f) =
  */
 async function findTradeOffs() {
   const b = state.balance;
-  if (!b || blendStudy() || !b.settings.some((s) => s.kind !== "categorical")) {
+  // A mixture's are drawn over its blends; a study of factors needs one with a range to try settings along.
+  if (!b || (!blendStudy() && !b.settings.some((s) => s.kind !== "categorical"))) {
     clearTradeOffs();
     return;
   }
@@ -6114,8 +6115,8 @@ function renderTradeOffs() {
   const drawn = tried.candidates.d.length;
   const held = tried.held.map((h) => `${h.name} at ${h.value}`).join(", ");
   $("#trade-about").textContent =
-    `Each point is one of ${drawn.toLocaleString("en")} settings tried on the models${held ? `, with ${held}` : ""}, drawn evenly ` +
-    "from the ranges the limits allow. The line is the best one response can be for each value of the other. A paler " +
+    `Each point is one of ${drawn.toLocaleString("en")} ${blendStudy() ? "blends" : "settings"} tried on the models${held ? `, with ${held}` : ""}, drawn evenly ` +
+    `from the ${blendStudy() ? "blends the bounds" : "ranges the limits"} allow. The line is the best one response can be for each value of the other. A paler ` +
     "point is further from your runs than any run lies: there the models guess. Press a point to choose its settings.";
   const options = (chosen, list) =>
     list.map(([value, text]) => `<option value="${escape(value)}"${value === chosen ? " selected" : ""}>${escape(text)}</option>`).join("");
