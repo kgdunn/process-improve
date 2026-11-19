@@ -258,6 +258,21 @@ def test_the_footer_and_a_report_name_the_version_the_app_was_built_from(context
     assert relay.reports[0]["context"]["commit"] == f"{commit}, 13 November 2026"
 
 
+def test_the_footer_gives_the_time_of_the_version_in_the_reader_s_time_zone(context, site, plotly_js):
+    """A build that names the moment of its commit is dated to the minute, on a 24-hour clock, where the reader is."""
+    moment = "2026-11-13T22:05:30+00:00"
+    built = {"plotly_js": plotly_js[0], "commit": "88ccccbbe212e09c53d9f69b3ee7193262cc165a", "committed_at": moment}
+    context.route(f"{site}wheels/manifest.json", lambda route: route.fulfill(json={**built, "committed": "2026-11-13"}))
+    page = context.new_page()
+    page.goto(f"{site}?example=worked")
+    first_paint_done(page)
+    said = page.locator("footer #version").text_content()
+    assert re.fullmatch(r"Version 88ccccb, 1[34] November 2026, \d{2}:\d{2}\.", said), said
+    # The browser's own clock says which hour that is here: 22:05 in a browser at UTC.
+    here = page.evaluate("m => { const d = new Date(m); return [d.getHours(), d.getMinutes()]; }", moment)
+    assert said.endswith(f", {here[0]:02d}:{here[1]:02d}.")
+
+
 def test_a_page_that_was_not_built_shows_no_version(page):
     """The tests' manifest names no commit, as a plain preview has none: the footer says nothing of a version."""
     assert page.is_hidden("footer #version")

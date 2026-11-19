@@ -798,8 +798,8 @@ Also:
     each design the app does not make yet. Nothing is sent until you press Send.
 - **A footer to scan.** What Factorial is in a sentence, a button to this list, links in named
   groups, what is kept on the device, and which version of the app you have.
-  - *Details:* The version is the commit the app was built from, as a link to it, and the day of
-    that commit. A report sent from Feedback ends with the same version.
+  - *Details:* The version is the commit the app was built from, as a link to it, and the day and
+    time of that commit, in your own time zone on a 24-hour clock. A report sent from Feedback ends with the same version.
 
 ### Learn the method
 

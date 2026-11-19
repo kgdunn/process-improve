@@ -250,6 +250,7 @@ import {
   mixtureProblem,
   nTerms,
   dayWords,
+  momentWords,
   shortCommit,
   versionText,
   searchSeconds,
@@ -9004,10 +9005,11 @@ async function readManifest() {
     const res = await fetch("wheels/manifest.json", { cache: "no-store" });
     if (res.ok) {
       const manifest = await res.json();
-      const { plotly_js: plotlyJs, commit, committed } = manifest;
+      const { plotly_js: plotlyJs, commit, committed, committed_at: committedAt } = manifest;
       state.plotlyJs ??= plotlyJs ?? null;
       state.commit = commit ?? null;
       state.committed = committed ?? null;
+      state.committedAt = committedAt ?? null;
       showVersion();
       return manifest;
     }
@@ -9017,7 +9019,10 @@ async function readManifest() {
   return {};
 }
 
-/** Say at the foot of the page which version is on it: the commit, as a link to it, and the day it was made. */
+/**
+ * Say at the foot of the page which version is on it: the commit, as a link to it, and when it was made, in the
+ * reader's own time zone to the minute; the day alone from a build that names no moment.
+ */
 function showVersion() {
   const version = $("#version");
   version.hidden = !state.commit;
@@ -9025,7 +9030,7 @@ function showVersion() {
   const commit = link(`${REPOSITORY}/commit/${state.commit}`, shortCommit(state.commit), "_blank");
   commit.title = state.commit;
   commit.setAttribute("aria-label", `Commit ${shortCommit(state.commit)} on GitHub`);
-  const day = dayWords(state.committed);
+  const day = momentWords(state.committedAt) ?? dayWords(state.committed);
   version.replaceChildren("Version ", commit, day ? `, ${day}.` : ".");
 }
 
