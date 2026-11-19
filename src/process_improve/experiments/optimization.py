@@ -2784,19 +2784,21 @@ def _shares_below(
 _JOINT_NODES_LOG2 = 7
 
 
-def _joint_probability(below_low: np.ndarray, below_high: np.ndarray, correlation: np.ndarray) -> np.ndarray:
+def _joint_probability(below_low: np.ndarray, below_high: np.ndarray, correlations: np.ndarray) -> np.ndarray:
     """Return the chance that every response's new run is inside its window, their errors correlated.
 
     ``below_low`` and ``below_high`` hold a row for each setting and a column for each response: the chance
     that its new run falls below its window's low end, and below its high end (:func:`_shares_below`).
     Each response keeps that distribution of its own, and the responses are joined as normal variables
-    with this ``correlation`` are: a Gaussian copula. The chance is worked by Genz's method (1992): the
-    first response's error is drawn inside its window, the second's window is then judged given the first,
-    and so on, and the product is averaged over a set of evenly spread draws.
+    with a correlation are: a Gaussian copula. The chance is worked by Genz's method (1992): the first
+    response's error is drawn inside its window, the second's window is then judged given the first, and so
+    on, and the product is averaged over a set of evenly spread draws. ``correlations`` holds a correlation
+    for each draw, as :func:`_correlations` gives them: the same one each time when it is known, a draw of its
+    own each time when it is estimated, so the average is over the doubt in it too.
     """
     k = below_low.shape[1]
-    # Perfectly correlated responses are allowed: a hair off them keeps the factor below defined.
-    factor = np.linalg.cholesky((1 - 1e-9) * correlation + 1e-9 * np.eye(k))
+    # Perfectly correlated responses are allowed: a hair off them keeps the factors below defined.
+    factors = np.linalg.cholesky((1 - 1e-9) * correlations + 1e-9 * np.eye(k))
     steps = 2**_JOINT_NODES_LOG2
     # Evenly spread over the unit cube, a point for each draw; off its faces by half a step.
     nodes = (
@@ -2806,7 +2808,8 @@ def _joint_probability(below_low: np.ndarray, below_high: np.ndarray, correlatio
     )
     low, high = special.ndtri(below_low), special.ndtri(below_high)  # each end on the normal scale
     total = np.zeros(len(below_low))
-    for node in nodes:
+    # One response has one node and no correlation to draw from: its first factor stands for all.
+    for node, factor in zip(nodes, factors[: len(nodes)], strict=True):
         d, e = below_low[:, 0], below_high[:, 0]
         inside = e - d
         drawn: list[np.ndarray] = []
@@ -2819,6 +2822,30 @@ def _joint_probability(below_low: np.ndarray, below_high: np.ndarray, correlatio
             inside = inside * (e - d)
         total += inside
     return total / len(nodes)
+
+
+def _correlations(
+    correlation: np.ndarray, degrees_of_freedom: float | None, random_state: int | np.random.Generator | None
+) -> np.ndarray:
+    """Return a correlation of the responses' errors for each draw of :func:`_joint_probability`.
+
+    Without ``degrees_of_freedom`` the correlation is taken as known, the same for every draw. With them it is
+    an estimate from residuals with that many degrees of freedom, and each draw takes a correlation of its own
+    from what the residuals leave possible: the covariance of the errors is drawn from the inverse Wishart
+    distribution with those degrees of freedom about the residuals' cross-products, the posterior of a
+    multivariate regression under Jeffreys' prior, and scaled to a correlation. The correlation of such a draw
+    does not depend on the scale of the cross-products, so the correlation alone is enough to draw from.
+    """
+    k, draws = len(correlation), 2**_JOINT_NODES_LOG2
+    if degrees_of_freedom is None:
+        return np.broadcast_to(correlation, (draws, k, k))
+    # A perfect correlation is allowed, as in _joint_probability: a hair off it keeps the scale positive definite.
+    scale = (1 - 1e-9) * correlation + 1e-9 * np.eye(k)
+    covariances = stats.invwishart.rvs(
+        df=degrees_of_freedom, scale=scale, size=draws, random_state=check_random_state(random_state)
+    ).reshape(draws, k, k)
+    spread = np.sqrt(np.einsum("nii->ni", covariances))
+    return covariances / (spread[:, :, None] * spread[:, None, :])
 
 
 def _checked_correlation(raw: object, k: int) -> np.ndarray:
@@ -2875,6 +2902,9 @@ def feasible_region(
     windows: Mapping[str, Sequence[float | None]],
     points: pd.DataFrame,
     residual_correlation: Sequence[Sequence[float]] | np.ndarray | None = None,
+    *,
+    correlation_degrees_of_freedom: float | None = None,
+    random_state: int | np.random.Generator | None = None,
 ) -> pd.DataFrame:
     """Say, at each of some settings, whether every response is predicted inside its window, and how surely.
 
@@ -2918,6 +2948,15 @@ def feasible_region(
         *fitted_models*: the correlation of the models' residuals estimates it. None
         (the default) takes the errors as independent. It changes ``"probability"``
         alone.
+    correlation_degrees_of_freedom : float, optional
+        The residual degrees of freedom *residual_correlation* was estimated from: the
+        runs every model used, less the terms of the largest model. With it the chance
+        is averaged over the doubt in the correlation as well; without it (the default)
+        the correlation is taken as known. It must be more than the number of responses
+        less one.
+    random_state : int, numpy.random.Generator or None, optional
+        Seeds the draws of the correlation that *correlation_degrees_of_freedom* asks
+        for; the rest is not random. See the reproducibility contract.
 
     Returns
     -------
@@ -2934,8 +2973,9 @@ def feasible_region(
     ------
     ValueError
         If the windows and the models do not name the same responses, if a window's
-        low end is above its high end, if *points* lacks a factor's column, or if
-        *residual_correlation* is not a correlation matrix of the responses.
+        low end is above its high end, if *points* lacks a factor's column, if
+        *residual_correlation* is not a correlation matrix of the responses, or if
+        *correlation_degrees_of_freedom* is given without it or is too few.
 
     Notes
     -----
@@ -2955,7 +2995,11 @@ def feasible_region(
     Gaussian copula), which Genz's method (1992) integrates. A correlation estimated
     from few residual degrees of freedom is itself uncertain, and with one degree of
     freedom two models' residuals are always perfectly correlated: estimate it from
-    fits that leave several. More runs shrink
+    fits that leave several, and give *correlation_degrees_of_freedom* so that each of
+    the integration's draws takes a correlation of its own from the inverse Wishart
+    posterior of the error covariance. Taking an estimate as known understates the
+    chance a little, by up to a few points with three responses and five degrees of
+    freedom. More runs shrink
     ``C`` and add degrees of freedom, so the region of a given probability grows
     towards the region where the predictions are inside their windows, and never
     beyond the window's own scatter: a window narrower than the noise is met with a
@@ -2985,6 +3029,14 @@ def feasible_region(
         )
         raise ValueError(msg)
     correlation = None if residual_correlation is None else _checked_correlation(residual_correlation, len(names))
+    if correlation_degrees_of_freedom is not None and (
+        correlation is None or not correlation_degrees_of_freedom > len(names) - 1
+    ):
+        msg = (
+            "correlation_degrees_of_freedom goes with a residual_correlation, and must be more than the number of "
+            f"responses less one ({len(names) - 1}); got {correlation_degrees_of_freedom!r}."
+        )
+        raise ValueError(msg)
     out = pd.DataFrame(index=points.index)
     feasible = np.ones(len(points), dtype=bool)
     shares: list[tuple[np.ndarray, np.ndarray]] | None = []  # each response's, or None once one has no scatter
@@ -3009,5 +3061,6 @@ def feasible_region(
         out["probability"] = np.prod([high - low for low, high in shares], axis=0)
     else:
         below_low, below_high = (np.column_stack(ends) for ends in zip(*shares, strict=True))
-        out["probability"] = _joint_probability(below_low, below_high, correlation)
+        drawn = _correlations(correlation, correlation_degrees_of_freedom, random_state)
+        out["probability"] = _joint_probability(below_low, below_high, drawn)
     return out

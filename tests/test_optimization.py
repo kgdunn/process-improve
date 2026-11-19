@@ -1847,6 +1847,69 @@ class TestFeasibleRegion:
             expected = stats.multivariate_normal(cov=r).cdf(high, lower_limit=low)
             assert found == pytest.approx(expected, abs=3e-3)
 
+    def test_an_estimated_correlation_s_doubt_is_averaged_over_as_its_posterior_holds_it(self) -> None:
+        """Three responses and five degrees of freedom: the chance is averaged over the correlation's posterior.
+
+        The chance is that of a trivariate normal averaged over the correlations the inverse Wishart posterior allows,
+        worked here by plain Monte Carlo. Taking the estimate as known gives a lower chance.
+        """
+        from scipy import stats
+
+        models = [self._sure("y", 1.0), self._sure("z", 1.0), self._sure("w", 1.0)]
+        z = stats.norm.ppf(0.9)
+        windows = dict.fromkeys(("y", "z", "w"), (-z, z))
+        r = np.full((3, 3), -0.3) + 1.3 * np.eye(3)
+        at = pd.DataFrame({"A": [0.0]})
+        known = feasible_region(models, windows, at, residual_correlation=r)["probability"].iloc[0]
+        doubted = feasible_region(
+            models, windows, at, residual_correlation=r, correlation_degrees_of_freedom=5, random_state=0
+        )["probability"].iloc[0]
+        rng = np.random.default_rng(1)
+        covariances = stats.invwishart.rvs(df=5, scale=r, size=400, random_state=rng)
+        errors = rng.standard_normal((100_000, 3))
+        inside = []
+        for covariance in covariances:
+            spread = np.sqrt(np.diag(covariance))
+            drawn = errors @ np.linalg.cholesky(covariance / np.outer(spread, spread)).T
+            inside.append(np.mean(np.all(np.abs(drawn) < z, axis=1)))
+        assert doubted == pytest.approx(np.mean(inside), abs=0.01)
+        assert known == pytest.approx(stats.multivariate_normal(cov=r).cdf([z] * 3, lower_limit=[-z] * 3), abs=3e-3)
+        assert doubted > known + 0.02, "an estimate taken as known understates the chance here"
+
+    def test_the_doubt_in_a_correlation_fades_with_its_degrees_of_freedom_and_its_draws_are_seeded(self) -> None:
+        models = [self._sure("y", 1.0), self._sure("z", -0.5)]
+        windows = {"y": (-1.0, 1.5), "z": (None, 0.4)}
+        r = [[1.0, 0.6], [0.6, 1.0]]
+
+        def chance(df: float | None, seed: int = 0) -> np.ndarray:
+            region = feasible_region(
+                models,
+                windows,
+                self.ALONG_A,
+                residual_correlation=r,
+                correlation_degrees_of_freedom=df,
+                random_state=seed,
+            )
+            return region["probability"].to_numpy()
+
+        np.testing.assert_allclose(chance(1e6), chance(None), atol=2e-3)
+        np.testing.assert_array_equal(chance(5), chance(5))  # the same seed, the same chances
+        assert not np.array_equal(chance(5, seed=0), chance(5, seed=1))
+
+    @pytest.mark.parametrize(("correlation", "df"), [(None, 5.0), ([[1.0, 0.2], [0.2, 1.0]], 1.0)])
+    def test_degrees_of_freedom_of_a_correlation_go_with_one_and_are_more_than_the_responses_less_one(
+        self, correlation: list | None, df: float
+    ) -> None:
+        models = [self._sure("y", 1.0), self._sure("z", 1.0)]
+        with pytest.raises(ValueError, match="correlation_degrees_of_freedom goes with a residual_correlation"):
+            feasible_region(
+                models,
+                {"y": (0.0, None), "z": (0.0, None)},
+                self.ALONG_A,
+                residual_correlation=correlation,
+                correlation_degrees_of_freedom=df,
+            )
+
     def test_uncorrelated_responses_multiply_and_each_keeps_its_own_distribution(self) -> None:
         """With few degrees of freedom a response is Student's t, not normal: joined to another, it stays so."""
         model, _, _ = self._fitted()

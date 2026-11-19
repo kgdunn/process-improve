@@ -1343,7 +1343,7 @@ describe("the settings that meet a specification", async () => {
   });
 
   test("the chance says when the responses' errors were taken as correlated, and only then", () => {
-    const together = "The responses' errors are taken as correlated as the residuals of their fits are.";
+    const together = "The responses' errors are taken as correlated as the residuals of their fits are, and the doubt in that correlation is counted.";
     const correlated = { ...two, search: { correlation: [[1, 0.6], [0.6, 1]] } };
     assert.ok(windowChance(correlated).endsWith(` count too. ${together}`));
     assert.ok(windowChance({ ...correlated, likely: { 0.5: 0.03, 0.9: 0 } }).endsWith(` the runs are few. ${together}`));

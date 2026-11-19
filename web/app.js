@@ -7668,7 +7668,7 @@ async function drawWindowChart() {
   card.hidden = false;
   card.querySelector("figcaption").textContent = windowCaption(overlay, state.design.spec.factors);
   overlayTrianglePicker(card, overlay, "window-triangle");
-  const python = figureAfter("window", () => windowOverlayCode(overlay, state.design.spec, Boolean(found.search.correlation)));
+  const python = figureAfter("window", () => windowOverlayCode(overlay, state.design.spec, found.search.correlation ? found.search.seed : null));
   try {
     await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height, { python });
   } catch {

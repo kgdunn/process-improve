@@ -2076,11 +2076,14 @@ def test_the_specification_s_code_judges_the_page_s_settings_and_draws_its_chart
         ("designCode", [held["spec"]]),
         ("resultsCode", [held, by_name(simulation), simulation]),
         ("windowCode", [found, held["spec"]]),
-        ("windowOverlayCode", [overlay, held["spec"], True]),
+        ("windowOverlayCode", [overlay, held["spec"], found["search"]["seed"]]),
     )
     namespace = drawn_by(monkeypatch, code)
     assert_same_specification(namespace, found)
     np.testing.assert_allclose(namespace["correlation"], correlation, atol=1e-9)
+    assert namespace["correlation_df"] == found["search"]["correlation_df"] >= 5, (
+        "and the doubt in it, as the page has it"
+    )
     shaded, chance, star = namespace["figure"].data
     np.testing.assert_allclose(np.asarray(chance.z, dtype=float), overlay["probability"], atol=2e-6)
     assert (chance.contours.start, chance.contours.end) == (0.5, 0.9)

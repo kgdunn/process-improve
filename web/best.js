@@ -1329,7 +1329,7 @@ export function windowChance(found, { blend = false } = {}) {
   const all = found.responses.length === 1 ? "its window" : "every window";
   const [one, many] = blend ? ["blend", "blends"] : ["setting", "settings"];
   // Said when it is so: with too few runs to estimate it, the responses' errors are taken as independent.
-  const together = found.search?.correlation ? " The responses' errors are taken as correlated as the residuals of their fits are." : "";
+  const together = found.search?.correlation ? " The responses' errors are taken as correlated as the residuals of their fits are, and the doubt in that correlation is counted." : "";
   if (!found.likely) return `No runs are left to estimate the noise, so the chance that a new run meets ${all} cannot be given.`;
   const [low, high] = Object.keys(found.likely).map(Number).sort((a, b) => a - b);
   const at = (chance) => found.likely[String(chance)];
