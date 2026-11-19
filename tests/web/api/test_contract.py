@@ -195,6 +195,8 @@ READS: dict[str, list[str]] = {
         "n_rows: int",
         "sheets: list",
         "sheet: str?",
+        "exported_from: str?",
+        "set_aside: list",
     ],
     "table made a study": [
         "campaign.design.n_runs: int",

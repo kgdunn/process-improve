@@ -76,6 +76,54 @@ def test_in_records_where_nothing_was_set_the_last_measured_column_is_the_respon
     assert roles(table) == {"date": "ignore", "T": "factor", "P": "factor", "F": "factor", "yield": "response"}
 
 
+def exported(head: str, rows: list[str]) -> str:
+    """Return a 2^2 factorial with two centre points as a DOE program exports it: its own columns, then T, P, Y."""
+    runs = [(-1, -1), (1, -1), (-1, 1), (1, 1), (0, 0), (0, 0)]
+    return (
+        head
+        + "\n"
+        + "\n".join(
+            f"{rows[i]},{150 + 25 * (t + 1)},{2 + p},{60 + 3 * t - 2 * p + 0.3 * i}" for i, (t, p) in enumerate(runs)
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    ("program", "head", "rows", "aside"),
+    [
+        (
+            "Minitab",
+            "StdOrder,RunOrder,CenterPt,Blocks",
+            [f"{i},{7 - i},{int(i > 4)},1" for i in range(1, 7)],
+            ["StdOrder", "RunOrder", "CenterPt"],
+        ),
+        ("JMP", "Pattern", ["--", "+-", "-+", "++", "00", "00"], ["Pattern"]),
+        (
+            "Design-Expert",
+            "Std,Run,Space Type",
+            [f"{i},{7 - i},{'Center' if i > 4 else 'Factorial'}" for i in range(1, 7)],
+            ["Std", "Run", "Space Type"],
+        ),
+        (
+            "MODDE",
+            "Exp No,Exp Name,Run Order,Incl/Excl",
+            [f"{i},N{i},{7 - i},Incl" for i in range(1, 7)],
+            ["Exp No", "Exp Name", "Run Order", "Incl/Excl"],
+        ),
+    ],
+)
+def test_a_design_exported_from_a_doe_program_is_known_and_its_bookkeeping_left_out(api, program, head, rows, aside):
+    table = api.ok("api_read_table", {"text": exported(f"{head},T,P,Y", rows)})
+    assert (table["exported_from"], table["set_aside"]) == (program, aside)
+    assert {h: r for h, r in roles(table).items() if h in aside} == dict.fromkeys(aside, "ignore")
+    assert [roles(table)[h] for h in "TPY"] == ["factor", "factor", "response"]
+
+
+def test_a_table_no_doe_program_wrote_names_none(api):
+    table = api.ok("api_read_table", {"text": DESIGNED})
+    assert (table["exported_from"], table["set_aside"]) == (None, [])
+
+
 def test_a_workbook_is_read_by_its_values_and_its_formulas_are_never_evaluated(api):
     openpyxl = pytest.importorskip("openpyxl")
     book = openpyxl.Workbook()
