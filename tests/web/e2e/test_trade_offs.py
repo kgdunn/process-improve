@@ -17,6 +17,7 @@ from tests.web._support import FACTORS
 from tests.web.e2e._page import (
     candidates_done,
     generate,
+    headers,
     last_reply,
     name_response,
     practise,
@@ -124,29 +125,32 @@ def test_a_point_pressed_is_chosen_and_the_what_if_panel_moves_to_its_settings(t
     assert "Settings chosen" not in names(page)
 
 
-def test_other_settings_nearly_as_good_are_listed_each_with_a_button_that_chooses_it(traded):
-    """The practice study has one best, so Python's reply is given an alternative: the page lists it and chooses it."""
-    page = traded
-    assert page.locator("#trade-nearly table").count() == 0, "the balance has one best"
-    tried = last_reply(page, "api_trade_offs")["result"]
-    balance = last_reply(page, "api_balance")["result"]
-    other = {
-        "settings": {name: values[7] for name, values in tried["candidates"]["settings"].items()},
-        "responses": {name: values[7] for name, values in tried["candidates"]["responses"].items()},
-        "d": dict.fromkeys(tried["candidates"]["responses"], 0.9),
-        "composite": 0.97 * balance["composite"],
-    }
-    page.evaluate(
-        "(reply) => window.__pi.fake('api_trade_offs', reply)",
-        {"ok": True, "result": {**tried, "alternatives": [other]}},
-    )
+def test_other_settings_nearly_as_good_are_listed_each_with_a_button_that_chooses_it(fresh_page):
+    """A yield high where T and P are both high or both low, and a cost that hardly moves: two bests, as typed."""
+    page = fresh_page
+    name_response(page, "Yield", "%", goal="maximize")
+    add_response(page, "Cost", "$/kg", "minimize", None)
+    set_factors(page, FACTORS[:2])
+    candidates_done(page)
+    generate(page, design_type="full_factorial")
+    columns = headers(page)
+    for i, row in enumerate(run_sheet(page)):
+        at = dict(zip(columns, row, strict=False))
+        t, p = (float(at["T"]) - 175) / 25, float(at["P"]) - 2
+        page.fill(f'#design-table input[data-response="Yield"][data-index="{i}"]', f"{60 + 5 * t * p:g}")
+        page.fill(f'#design-table input[data-response="Cost"][data-index="{i}"]', f"{20 + 0.2 * t + 0.2 * p:g}")
+    settled(page)
+    reveal(page, "#balance")
     before = page.evaluate("window.__pi.count('api_trade_offs')")
-    page.fill('#balance-goals tr[data-response="Cost"] [name="high"]', "70")
+    page.fill('#balance-goals tr[data-response="Cost"] [name="high"]', "30")
     page.wait_for_function(f"window.__pi.count('api_trade_offs') > {before}")
     page.wait_for_selector("#trade-nearly table")
+    settled(page)
+    (other,) = last_reply(page, "api_trade_offs")["result"]["alternatives"]
+    assert other["settings"] == pytest.approx({"T": 200.0, "P": 3.0}, abs=1e-3), "the corner across the range"
     assert "Nearly as good" in names(page)
     row = page.locator("#trade-nearly tbody tr")
-    assert row.locator("td").first.text_content().startswith("T = ")
+    assert row.locator("td").first.text_content().startswith("T = 200")
     row.get_by_role("button", name="Choose the settings of row 1").click()
     page.wait_for_selector("#trade-chosen table")
     assert page.text_content("#trade-chosen .lead") == f"Settings chosen: {row.locator('td').first.text_content()}."
