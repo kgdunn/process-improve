@@ -1626,6 +1626,8 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
 .settings__swatch { min-width: 0; height: 14px; border-radius: 3px; border: 1px solid var(--line); }
 .settings__end { font-size: 0.85rem; color: var(--muted); }
 .settings__flip { min-height: 0; justify-self: start; }
+.settings__line { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-weight: 600; }
+.settings__line select { width: auto; font-weight: 400; }
 .settings__keep { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 .settings__keep input { width: auto; margin: 0; }
 /* The factors that are hard to change: a tick for each factor, on a line of the plan's settings. */

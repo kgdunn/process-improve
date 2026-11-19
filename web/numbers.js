@@ -24,3 +24,14 @@ export const marked = (text) => (mark === "." ? text : String(text).replace(".",
  * is no such number is as it was, so a label such as "A,B" stays a label.
  */
 export const pointed = (text) => (mark === "," && /^\s*[-+]?\d*,\d+\s*$/.test(String(text)) ? String(text).replace(",", ".") : text);
+
+/**
+ * An equation Python wrote, "Yield = 61.95 + 3.95·T", with the reader's mark in each of its numbers. Only what
+ * follows the "=" is changed: the response's name before it is the reader's own text.
+ */
+export function markedEquation(equation) {
+  if (mark === ".") return equation;
+  const at = String(equation).indexOf(" = ");
+  if (at < 0) return equation;
+  return equation.slice(0, at) + equation.slice(at).replace(/(\d)\.(\d)/g, "$1,$2");
+}

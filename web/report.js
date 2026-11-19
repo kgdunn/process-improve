@@ -40,8 +40,15 @@ export async function sha256(text) {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-/** A moment as the stamp gives it: the date and the minute, in UTC, which reads the same wherever it is opened. */
-export const whenWords = (date) => `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+/**
+ * A moment as the stamp gives it: the date as the reader's browser writes dates, the minute on a 24-hour clock, and
+ * the time zone, since a report is read elsewhere. ``locale`` and ``timeZone`` are for the tests.
+ */
+export function whenWords(date, locale = undefined, timeZone = undefined) {
+  const day = date.toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric", timeZone });
+  const time = date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZoneName: "short", timeZone });
+  return `${day}, ${time}`;
+}
 
 /** What the numbers were computed on: Python, Pyodide when the page ran in a browser, and the numeric packages. */
 export function runtimeWords(runtime) {

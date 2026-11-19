@@ -433,7 +433,9 @@ def javascript(node: str, module_source: str, calls: list[tuple[str, list]]) -> 
     A name that is not a function is read instead: ``("SPARE_RUNS", [])`` returns the constant.
     """
     # The source is run from its text, which has no folder: a module it imports from beside it is named in full.
-    module_source = re.sub(r'from "\./([\w-]+\.js)"', lambda found: f'from "{(WEB / found[1]).as_uri()}"', module_source)
+    module_source = re.sub(
+        r'from "\./([\w-]+\.js)"', lambda found: f'from "{(WEB / found[1]).as_uri()}"', module_source
+    )
     done = subprocess.run(  # noqa: S603 - Node, found on PATH, runs the page's own code
         [node, "--input-type=module", "-e", _DRIVER],
         input=json.dumps({"source": module_source, "calls": calls}),

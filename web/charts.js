@@ -4,6 +4,8 @@
 // be reached costs the picture, not the result. Nothing runs against the document until a
 // chart is built or drawn, so tests/web/js imports this module under Node.
 
+import { decimalMark, marked as inMark } from "./numbers.js"; // "marked" is this module's own word for a run
+
 const CDN = (version) => `https://cdn.jsdelivr.net/npm/plotly.js-dist-min@${version}/plotly.min.js`;
 /**
  * Plotly's settings for a chart. A card has no toolbar, which sat over its legend and its colour bar's title: a
@@ -134,6 +136,8 @@ export function contourLabels(colours) {
  */
 export function pageLayout(layout, height, colours = palette(), { width = 0, bar = 0, free = false } = {}) {
   const margin = { l: 56, r: 16, t: 12, b: 52, ...(layout.margin || {}) };
+  // Plotly writes an axis's and a pointer's numbers itself: its decimal mark, then the mark between thousands.
+  const separators = decimalMark() === "comma" ? ", " : ".,";
   const axis = (given, room = 0) => {
     const title = given?.title?.text;
     return {
@@ -159,6 +163,7 @@ export function pageLayout(layout, height, colours = palette(), { width = 0, bar
     legend: { orientation: "h", x: 0, y: -0.22, bgcolor: "rgba(0,0,0,0)", borderwidth: 0, ...(layout.legend || {}) },
     // What the pointer rests on is named in the page's own colours: the library's label is white, for a white page.
     hoverlabel: { bgcolor: colours.panel, bordercolor: colours.line, font: { color: colours.fg, size: 12 } },
+    separators,
     template: { ...layout.template, data: { ...layout.template?.data, contour: [contourLabels(colours)] } },
     xaxis: axis(layout.xaxis, width && width - margin.l - margin.r - bar),
     yaxis: axis(layout.yaxis, height - margin.t - margin.b),
@@ -1306,7 +1311,7 @@ export function sensitivityFigure(sensitivity, { label, units = "" }, colours = 
   const rows = sensitivity.filter((s) => s.in_model).sort((a, b) => size(b) - size(a));
   const names = rows.map((s) => s.name);
   const colour = { down: colours.warn, up: colours.accent };
-  const step = (s) => `${Number(s.step.toPrecision(4))}${s.units ? ` ${s.units}` : ""}`;
+  const step = (s) => `${inMark(String(Number(s.step.toPrecision(4))))}${s.units ? ` ${s.units}` : ""}`;
   const bars = (side) => ({
     type: "bar",
     orientation: "h",
@@ -1391,7 +1396,7 @@ export const chanceName = (chance) => `${Math.round(100 * chance)}% chance a new
 const CHANCE_DASHES = ["dot", "solid"];
 
 /** A response's line on that chart, as the legend names it: the response at its target, in its units. */
-export const targetName = (r) => `${r.label} at ${Number(Number(r.target).toPrecision(4))}${r.units === "%" ? "%" : r.units ? ` ${r.units}` : ""}`;
+export const targetName = (r) => `${r.label} at ${inMark(String(Number(Number(r.target).toPrecision(4))))}${r.units === "%" ? "%" : r.units ? ` ${r.units}` : ""}`;
 export const GREYED = "Outside your limits";
 
 /**
@@ -1399,7 +1404,7 @@ export const GREYED = "Outside your limits";
  * units. ``r`` is the response as bootstrap.balance gives it, its acceptable range from ``low`` to ``high``.
  */
 export function boundaryName(r) {
-  const at = (x) => `${Number(Number(x).toPrecision(4))}${r.units === "%" ? "%" : r.units ? ` ${r.units}` : ""}`;
+  const at = (x) => `${inMark(String(Number(Number(x).toPrecision(4))))}${r.units === "%" ? "%" : r.units ? ` ${r.units}` : ""}`;
   if (r.goal === "maximize") return `${r.label}: ${at(r.low)} and above`;
   if (r.goal === "minimize") return `${r.label}: ${at(r.high)} and below`;
   return `${r.label}: ${at(r.low).replace(/%$/, "")} to ${at(r.high)}`;

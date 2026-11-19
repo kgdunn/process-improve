@@ -63,8 +63,12 @@ describe("the digest of the study's inputs", () => {
 });
 
 describe("the stamp", () => {
-  test("gives the moment in UTC, to the minute", () => {
-    assert.equal(whenWords(new Date(Date.UTC(2026, 9, 17, 21, 4, 59))), "2026-10-17 21:04 UTC");
+  test("gives the moment as the reader's browser writes dates, to the minute, with its time zone", () => {
+    const moment = new Date(Date.UTC(2026, 9, 17, 21, 4, 59));
+    assert.equal(whenWords(moment, "en-GB", "UTC"), "17 October 2026, 21:04 UTC");
+    assert.equal(whenWords(moment, "en-US", "UTC"), "October 17, 2026, 21:04 UTC");
+    assert.equal(whenWords(moment, "de-DE", "Europe/Berlin"), "17. Oktober 2026, 23:04 MESZ");
+    assert.match(whenWords(moment), /2026/, "and in this machine's own form");
   });
 
   test("names Python, Pyodide in a browser, and the numeric packages' releases", () => {

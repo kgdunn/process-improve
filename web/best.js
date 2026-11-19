@@ -427,7 +427,7 @@ export const BLEND_SENSITIVITY =
 export function weighingSentence(best) {
   const { decimals = null, adjusted = null } = best.rounding ?? {};
   if (decimals === null) return "The confirmation runs use the blend as the search found it.";
-  const each = `The confirmation runs weigh out each proportion to ${(10 ** -decimals).toFixed(decimals)}`;
+  const each = `The confirmation runs weigh out each proportion to ${marked((10 ** -decimals).toFixed(decimals))}`;
   return adjusted ? `${each}, and ${adjusted} takes what the rounding leaves, so the blend still sums to 1.` : `${each}; the blend still sums to 1.`;
 }
 
@@ -1201,7 +1201,7 @@ export function targetShare(found, { blend = false } = {}) {
     : "more than one setting does. These are the ones nearest the center of your ranges, where your runs are gathered.";
   return (
     `${many} of the ${found.tried.toLocaleString("en")} ${blend ? "blends" : "settings"} tried give ${theTargets(found)} to within ` +
-    `${Number((100 * found.near).toPrecision(2))}% of the range of ${one ? "the response's" : "each response's"} results: ${which}`
+    `${marked(String(Number((100 * found.near).toPrecision(2))))}% of the range of ${one ? "the response's" : "each response's"} results: ${which}`
   );
 }
 
@@ -1267,8 +1267,8 @@ export function targetCaption(overlay, factors = [], responses = []) {
 /** A share as the page writes it: "17%", "3.4%", "less than 0.1%". */
 export function shareWords(share) {
   const percent = 100 * share;
-  if (percent > 0 && percent < 0.1) return "less than 0.1%";
-  return `${percent >= 10 ? Math.round(percent) : Number(percent.toFixed(1))}%`;
+  if (percent > 0 && percent < 0.1) return `less than ${marked("0.1")}%`;
+  return `${percent >= 10 ? Math.round(percent) : marked(String(Number(percent.toFixed(1))))}%`;
 }
 
 /** "the window" for one response with a window, "every window" for more. */
