@@ -358,6 +358,8 @@ def test_an_overlay_of_four_components_has_no_triangle_without_a_blend_or_with_n
     assert (three, held) == (["B", "C", "D"], {"A": 0.1}), "the three with the largest shares"
     np.testing.assert_allclose(blends.sum(axis=1), 1.0, atol=1e-9)
     np.testing.assert_allclose(grid.sum(axis=1), 0.9, atol=1e-9)
+    model = [{"term": name, "coefficient": 1.0} for name in "ABCD"]
+    assert bootstrap._blend_picture(spec, {"y": model}, lambda _, z: (z > 0, [1.0]), None) is None, "the picture too"
 
 
 # --------------------------------------------------------------------------- the workbook and renaming
