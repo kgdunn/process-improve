@@ -785,13 +785,13 @@
             </div>
             <p class="actions"><button type="button" id="what-if-back" class="link" hidden>Back to the best settings</button></p>
             <div id="what-if-out"></div>
-            <!-- A prediction as runs (app.js drawRuns, best.js runsAt): for each response, 20 runs a reader might get at
-                 these settings, each as likely as the next. The outer two are the ends of the 95% prediction interval
+            <!-- A prediction as runs (app.js drawRuns, best.js runsAt): for each response, the runs a reader might get
+                 at these settings (20 at 95%), each as likely as the next. The outer two are the ends of the prediction interval
                  in the table above, and those inside the response's window are filled. -->
             <div id="what-if-runs" class="what-if-runs" hidden></div>
             <!-- The curve each run gives, predicted at these settings in the page's own JavaScript (best.js curveAt). -->
             <div id="what-if-curve" hidden>
-              <div class="plot" id="what-if-curve-plot" role="img" aria-label="The curve predicted at these settings, with its 95% bands"></div>
+              <div class="plot" id="what-if-curve-plot" role="img" aria-label="The curve predicted at these settings, with its bands"></div>
               <p id="what-if-curve-said" class="hint"></p>
               <details id="curve-target">
                 <summary>Find the settings for a target curve</summary>
@@ -1115,6 +1115,14 @@
       </select>
     </label>
     <p class="hint">For the numbers the page shows and the ones you type. The Python code keeps the period.</p>
+    <label class="settings__line">Significance level
+      <select id="significance-level">
+        <option value="0.01">0.01, with 99% intervals</option>
+        <option value="0.05">0.05, with 95% intervals</option>
+        <option value="0.1">0.10, with 90% intervals</option>
+      </select>
+    </label>
+    <p class="hint">A p-value below it is a finding. Every test, every interval and a design's power follow it.</p>
     <label class="settings__keep"><input type="checkbox" id="settings-keep"> Use these for my new studies too</label>
   </dialog>
 

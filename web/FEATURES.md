@@ -792,9 +792,9 @@ Also:
     so the study stays as it is. A finger, a mouse and the keyboard each reach it.
 - **A phone, a tablet or a desk.** The layout, the tables and the charts fit each.
 - **Settings that travel with the study.** "Settings", under "Studies", chooses the colours
-  the charts are drawn in (batlow, devon, la jolla or grey) and the decimal mark, a period
-  or a comma. The study keeps the choices, so its link and its file show others what you
-  see.
+  the charts are drawn in (batlow, devon, la jolla or grey), the decimal mark, a period
+  or a comma, and the significance level: 0.01, 0.05 or 0.10. The study keeps the choices,
+  so its link and its file show others what you see.
   - *Details:* Each map's colours are drawn from "Low" to "High", as the charts draw them,
     and a switch flips the chosen map. A study's own settings always win. A tick keeps them
     for your new studies too, in this browser. With a comma, the page writes 1,5 in its
@@ -803,6 +803,12 @@ Also:
     the notes a design carries keep the period. Dates are written as your browser writes
     them. A study with settings is saved in study format 12. A workbook
     does not carry them, and the Python shown draws in batlow.
+  - *Details:* The significance level is 0.05 unless you change it, and the confidence of
+    every interval is one minus it: 99%, 95% or 90%. Every test, every interval, Lenth's
+    margins and a design's power follow it, the page's words name it ("99% interval"), and
+    the Python shown passes it to the library. It changes what a study finds, so a study
+    judged at 0.01 or 0.10 is saved in study format 13: a page from before the setting
+    refuses the study, and never judges it at 0.05.
 - **Light, dark or the system's colours.** The choice is kept in the browser.
 - **The keyboard and a screen reader.** Every control can be reached and has a name.
   - *Details:* A link past the header, sortable headings, labelled controls, and text that

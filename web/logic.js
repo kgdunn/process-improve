@@ -3,7 +3,7 @@
 // tests/web/page/test_parity.py holds the rules that mirror web/bootstrap.py to it.
 
 /** Spare runs an optimal design gets beyond its model's coefficients; mirrors bootstrap.SPARE_RUNS. */
-import { marked, pointed } from "./numbers.js";
+import { confidencePercent, marked, pointed, significance } from "./numbers.js";
 
 export const SPARE_RUNS = 4;
 
@@ -1234,7 +1234,7 @@ export function boxCoxSentence(hint, label) {
   if (!hint) return null;
   const two = (v) => marked(String(Number(v.toPrecision(2))));
   const [low, high] = hint.ci;
-  const said = `Box-Cox's λ is ${two(hint.lambda)} (95% interval ${two(low)} to ${two(high)})`;
+  const said = `Box-Cox's λ is ${two(hint.lambda)} (${confidencePercent()} interval ${two(low)} to ${two(high)})`;
   if (hint.suggests) {
     if (hint.suggests === hint.current) return null;
     const words = TRANSFORM_WORDS[hint.suggests];
@@ -1388,7 +1388,7 @@ export function findingNumbers(finding, coefficients, fmt, pval) {
     .filter(Boolean)
     .map((c) => {
       const tested = c.std_error !== null && c.std_error !== undefined;
-      const interval = tested ? ` (95% interval ${fmt(c.ci_low)} to ${fmt(c.ci_high)})` : "";
+      const interval = tested ? ` (${confidencePercent()} interval ${fmt(c.ci_low)} to ${fmt(c.ci_high)})` : "";
       const p = pval(c.p_value) ? `, p ${pval(c.p_value).startsWith("<") ? "" : "= "}${pval(c.p_value)}` : "";
       return `${c.label}: coefficient ${fmt(c.coefficient)}${interval}${p}`;
     })
@@ -1438,9 +1438,13 @@ export const CHARTS = {
   coefficients: { title: "Coefficients" },
   levels: {
     title: "The runs at each level",
-    caption:
-      "Each dot is a run, and beside the dots is the level's average with its 95% interval. The spread of the dots " +
-      "within a level is the noise a difference between the levels is judged against.",
+    // Read when the chart is drawn, so the interval is named at the study's own level.
+    get caption() {
+      return (
+        `Each dot is a run, and beside the dots is the level's average with its ${confidencePercent()} interval. The spread of the dots ` +
+        "within a level is the noise a difference between the levels is judged against."
+      );
+    },
   },
   contour: {
     title: "Fitted response surface",
@@ -1616,7 +1620,7 @@ export function comparisonSentence(comparison, { response, units = "", factorUni
   const lead = d.paired
     ? `Within the ${d.paired} pairs, ${response} is on average ${size} ${way} at ${at(d.to)} than at ${at(d.from)}.`
     : `On average, ${response} is ${size} ${way} at ${at(d.to)} than at ${at(d.from)}.`;
-  return `${lead} The 95% interval for the difference, ${interval}, ${verdict}.`;
+  return `${lead} The ${confidencePercent()} interval for the difference, ${interval}, ${verdict}.`;
 }
 
 /**
@@ -1630,7 +1634,7 @@ export function severalSentence(comparison, { response }) {
   const k = comparison.levels.length;
   const value = test.p_value < 0.0001 ? "below 0.0001" : `of ${pval(test.p_value)}`;
   const p = `the one-way analysis of variance gives a p-value ${value}`;
-  return test.p_value < 0.05
+  return test.p_value < significance()
     ? `The averages of ${response} at the ${k} levels differ by more than the noise in these runs: ${p}. Tukey's ` +
         "intervals below say which pairs differ."
     : `These runs do not show that the averages of ${response} at the ${k} levels differ by more than their noise: ${p}.`;
@@ -1654,7 +1658,7 @@ export const LEVEL_CHECKS = {
 export function checkSentences(comparison) {
   const several = comparison?.several;
   if (!several?.checks) return [];
-  const found = Object.fromEntries(several.checks.map((check) => [check.test, check.p_value < 0.05]));
+  const found = Object.fromEntries(several.checks.map((check) => [check.test, check.p_value < significance()]));
   const sentences = [];
   if (!("bartlett" in found)) {
     sentences.push("Bartlett's test needs two runs or more at each level, and results at each level that are not all alike.");
@@ -1681,7 +1685,7 @@ export function checkSentences(comparison) {
       "how far apart they are.",
     "false,false": `does not show that the levels differ, nor does ${anova}.`,
   };
-  sentences.push(`${lead} ${said[`${found.kruskal_wallis},${several.test.p_value < 0.05}`]}`);
+  sentences.push(`${lead} ${said[`${found.kruskal_wallis},${several.test.p_value < significance()}`]}`);
   return sentences;
 }
 
@@ -1918,7 +1922,7 @@ export function curveSaid(fit) {
   const shapes = fit.components.filter((c) => c.kept).length;
   return (
     `From ${fit.runs} runs' curves, the model follows ${shapes === 1 ? "one shape" : `${shapes} shapes`} in how they differ. ` +
-    "The shaded band holds the mean curve at these settings at each point 95% of the time; the dashed lines hold the whole of it."
+    `The shaded band holds the mean curve at these settings at each point ${confidencePercent()} of the time; the dashed lines hold the whole of it.`
   );
 }
 

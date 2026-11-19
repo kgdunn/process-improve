@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { LEVEL_AVERAGE, levelsFigure, spreadOf } from "../../../web/charts.js";
+import { levelAverage, levelsFigure, spreadOf } from "../../../web/charts.js";
 import { GLOSSARY } from "../../../web/glossary.js";
 import {
   CAPTIONS,
@@ -162,7 +162,7 @@ describe("the chart of the runs at each level", () => {
   });
 
   test("draws each level's average with its 95% interval beside the dots", () => {
-    assert.equal(averages.name, LEVEL_AVERAGE);
+    assert.equal(averages.name, levelAverage());
     assert.deepEqual(averages.x, [0.3, 1.3]);
     assert.deepEqual(averages.y, [84, 85.3]);
     assert.deepEqual(averages.error_y.array, [9, 94 - 85.3]);

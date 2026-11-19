@@ -135,3 +135,46 @@ def test_a_comma_as_the_decimal_mark_is_in_the_numbers_the_page_writes_and_the_s
     page.wait_for_function("/R² = 0\\.\\d/.test(document.querySelector('#analysis').textContent)")
     kept = saved_studies(page, lambda studies: bool(studies) and "decimal_mark" not in studies[0]["settings"])
     assert kept[0]["settings"] == {"colour_map": "batlow"}, "a study that keeps the period holds no setting for it"
+
+
+def test_a_stricter_significance_level_widens_the_intervals_and_is_named_across_the_page(blank_page):
+    page = blank_page
+    generate(page)
+    practise(page)
+    page.click("#go-learn")
+    page.wait_for_function("document.querySelector('#analysis').textContent.includes('95% low')")
+    assert "significance_level" not in page.locator("#py-analyse code").first.text_content()
+    # The width of the first interval the coefficients' table shows: its "% high" cell less its "% low" cell.
+    width = """(() => {
+      const table = [...document.querySelectorAll('#analysis table')].find((t) => /% low/.test(t.tHead?.textContent ?? ''));
+      const heads = [...table.tHead.rows[0].cells].map((cell) => cell.textContent);
+      const ends = [...table.tBodies[0].rows].map((row) => ['% low', '% high'].map((end) =>
+        Number(row.cells[heads.findIndex((head) => head.endsWith(end))].textContent.replace('\\u2212', '-'))));
+      const [low, high] = ends.find((pair) => pair.every(Number.isFinite));
+      return high - low;
+    })()"""
+    usual = page.evaluate(width)
+
+    page.click("#study-button")
+    page.click("#menu-settings")
+    assert page.input_value("#significance-level") == "0.05"
+    offered = ["0.01, with 99% intervals", "0.05, with 95% intervals", "0.10, with 90% intervals"]
+    assert page.locator("#significance-level option").all_text_contents() == offered
+    page.select_option("#significance-level", "0.01")
+    page.click("#settings-close")
+    page.wait_for_function("document.querySelector('#analysis').textContent.includes('99% low')")
+    assert "95%" not in page.locator("#analysis").text_content(), "no interval of the analysis is still named at 95%"
+    assert page.evaluate(width) > usual, "Python worked the intervals out again, at 99%"
+    assert "significance_level=0.01" in page.locator("#py-analyse code").first.text_content()
+    strict = {"colour_map": "batlow", "significance_level": 0.01}  # the settings as the dialog left them
+    kept = saved_studies(page, lambda studies: bool(studies) and studies[0].get("settings") == strict)
+    assert kept[0]["v"] == 13, "a format of its own: a page from before the setting refuses the study"
+
+    page.click("#study-button")
+    page.click("#menu-settings")
+    page.select_option("#significance-level", "0.05")
+    page.click("#settings-close")
+    page.wait_for_function("document.querySelector('#analysis').textContent.includes('95% low')")
+    assert page.evaluate(width) == usual
+    kept = saved_studies(page, lambda studies: bool(studies) and "significance_level" not in studies[0]["settings"])
+    assert kept[0]["v"] == 12, "a study judged at 0.05 holds no setting for it"

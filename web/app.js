@@ -60,7 +60,7 @@ import {
 } from "./charts.js";
 import {
   BLEND_SENSITIVITY,
-  BLEND_UNCLEAR,
+  blendUnclearSaid,
   CONFIRMATION,
   NO_BLEND_OVERLAY,
   CONFIRMATION_RUNS,
@@ -69,7 +69,7 @@ import {
   withFailed,
   IMPORTANCES,
   GOOD_END,
-  UNCLEAR,
+  unclearSaid,
   WHAT_IF_BACK,
   balanceConfirmation,
   balanceLead,
@@ -381,7 +381,7 @@ import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { CONTEXT, DESIGN_CONTEXT, GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
 import { closeOnBackdrop } from "./dialogs.js";
-import { DECIMAL_MARKS, decimalMark, marked as inMark, markedEquation, setDecimalMark } from "./numbers.js"; // terms.js has a "marked" too
+import { DECIMAL_MARKS, DEFAULT_SIGNIFICANCE, SIGNIFICANCE_LEVELS, confidencePercent, decimalMark, marked as inMark, markedEquation, setDecimalMark, setSignificance, significance } from "./numbers.js"; // terms.js has a "marked" too
 import { installImport, openedWords } from "./import.js";
 import { pythonLine } from "./worker-rpc.js";
 import { installOffline } from "./offline.js";
@@ -496,7 +496,10 @@ const python = pythonLine({
 });
 
 /** Call a Python ``api_*`` function; resolves to its decoded {ok, result|error, warnings}. */
-const call = (fn, payload = {}) => python.call(fn, payload);
+const call = (fn, payload = {}) => python.call(fn, atLevel(payload));
+
+/** A request with the study's significance level, when the study sets one: Python judges every test at it. */
+const atLevel = (payload) => (significance() === DEFAULT_SIGNIFICANCE ? payload : { ...payload, significance_level: significance() });
 
 /**
  * Python could not start: say why, and stop everything that waits for it. A worked example on
@@ -4888,13 +4891,13 @@ function comparisonParts(r) {
   const named = d.paired ? PAIRED_TESTS : COMPARISON_TESTS;
   const tests = testTable(
     named,
-    ["Test", "95% interval", "p-value"],
+    ["Test", `${confidencePercent()} interval`, "p-value"],
     d.tests.map((t) => [
       `${named[t.test].name}: ${named[t.test].how}`,
       t.ci_low === null || t.ci_low === undefined ? "" : `${fmt(t.ci_low)} to ${fmt(t.ci_high)}`,
       pval(t.p_value),
     ]),
-    { "95% interval": "interval", "p-value": "p-value" },
+    { [`${confidencePercent()} interval`]: "interval", "p-value": "p-value" },
   );
   const ways = d.paired ? `within each of the ${d.paired} pairs, tested three ways` : "tested four ways";
   const heading = el("h4", "", `The difference, ${d.to} less ${d.from}, ${ways}`);
@@ -4962,16 +4965,16 @@ function severalParts(c) {
   parts.push(
     heading("Every pair of levels, by ", "Tukey's intervals", "tukey"),
     table(
-      ["Pair", "Difference", "95% interval", "p-value"],
+      ["Pair", "Difference", `${confidencePercent()} interval`, "p-value"],
       v.pairs.map((x) => [`${x.to} less ${x.from}`, fmt(x.estimate), interval(x), pval(x.p_value)]),
-      { "95% interval": "interval", "p-value": "p-value" },
+      { [`${confidencePercent()} interval`]: "interval", "p-value": "p-value" },
     ),
     heading("Each level against a control, by ", "Dunnett's intervals", "dunnett"),
     picker,
     table(
-      ["Level", `Difference from ${v.control}`, "95% interval", "Differs"],
+      ["Level", `Difference from ${v.control}`, `${confidencePercent()} interval`, "Differs"],
       v.versus.map((x) => [String(x.level), fmt(x.estimate), interval(x), x.differs ? "yes" : "no"]),
-      { "95% interval": "interval" },
+      { [`${confidencePercent()} interval`]: "interval" },
     ),
   );
   return parts;
@@ -4994,9 +4997,9 @@ function checkParts(c) {
 /** Each level's runs summarised, a row a level: how many, their average, standard deviation and the average's interval. */
 function levelTable(c) {
   return table(
-    ["Level", "Runs", "Average", "Std. dev.", "95% interval"],
+    ["Level", "Runs", "Average", "Std. dev.", `${confidencePercent()} interval`],
     c.levels.map((l) => [String(l.level), l.n, fmt(l.mean), fmt(l.std_dev), l.ci_low === null ? "" : `${fmt(l.ci_low)} to ${fmt(l.ci_high)}`]),
-    { "95% interval": "confidence-interval" },
+    { [`${confidencePercent()} interval`]: "confidence-interval" },
   );
 }
 
@@ -5023,7 +5026,7 @@ function comparisonNotes(r) {
   if (shuffled && !shuffled.exact) {
     notes.push(`The ${runs} can ${ways} more ways than the randomization test counts: it draws ${shuffled.n_arrangements} of the ${what} at random.`);
   } else if (shuffled && shuffled.ci_low === null) {
-    notes.push(`The ${runs} can ${ways} ${shuffled.n_arrangements} ways, too few for the randomization test to give a 95% interval.`);
+    notes.push(`The ${runs} can ${ways} ${shuffled.n_arrangements} ways, too few for the randomization test to give a ${confidencePercent()} interval.`);
   }
   if (d.true !== null && d.true !== undefined) notes.push(`The true difference, in the process the results were simulated from: ${fmt(d.true)}.`);
   return notes;
@@ -5714,7 +5717,7 @@ function renderBest(reply) {
     s.kind === "categorical" ? s.value : withUnit(s.value, units[s.name]),
     whereWords(s, best, words),
   ]);
-  const cautions = [extrapolationSentence(best), best.unclear ? UNCLEAR : ""].filter(Boolean);
+  const cautions = [extrapolationSentence(best), best.unclear ? unclearSaid() : ""].filter(Boolean);
   $("#best-out").replaceChildren(
     said("lead", leadSentence(best, words)),
     table(["Factor", "Best setting", "Where it lies"], rows),
@@ -5735,7 +5738,7 @@ function renderBest(reply) {
  */
 function renderBlend(best, words) {
   const rows = best.settings.map((s) => [s.name, num(s.value), blendWhere(s, best, words)]);
-  const cautions = [blendExtrapolation(best), best.unclear ? BLEND_UNCLEAR : ""].filter(Boolean);
+  const cautions = [blendExtrapolation(best), best.unclear ? blendUnclearSaid() : ""].filter(Boolean);
   $("#best-out").replaceChildren(
     said("lead", blendLead(best, words)),
     table(["Component", "Proportion", "Where it lies"], rows),
@@ -6302,10 +6305,10 @@ function renderBalance(reply) {
 function balanceTable(b) {
   const t = el("table", "data balance-table", "");
   const head = t.createTHead().insertRow();
-  for (const [text, key] of [["Response", "response"], ["Predicted", null], ["95% prediction interval", "prediction-interval"], ["Desirability, d", "desirability"]]) {
+  for (const [text, key] of [["Response", "response"], ["Predicted", null], [`${confidencePercent()} prediction interval`, "prediction-interval"], ["Desirability, d", "desirability"]]) {
     const th = el("th", "", "");
     th.scope = "col";
-    th.append(...(key ? marked(text, { [text.replace(/^95% |, d$/g, "")]: key }) : [text]));
+    th.append(...(key ? marked(text, { [text.replace(/^\d+% |, d$/g, "")]: key }) : [text]));
     head.append(th);
   }
   const body = t.createTBody();
@@ -6750,12 +6753,12 @@ function showWhatIfSettings() {
 }
 
 /** The what-if table's columns, and the glossary entry of each whose heading is a term. */
-const WHAT_IF_COLUMNS = ["Response", "Prediction", "95% confidence interval", "95% prediction interval", "Leverage, against the runs' largest"];
-const WHAT_IF_TERMS = {
-  "95% confidence interval": "confidence-interval",
-  "95% prediction interval": "prediction-interval",
+const whatIfColumns = () => ["Response", "Prediction", `${confidencePercent()} confidence interval`, `${confidencePercent()} prediction interval`, "Leverage, against the runs' largest"];
+const whatIfTerms = () => ({
+  [`${confidencePercent()} confidence interval`]: "confidence-interval",
+  [`${confidencePercent()} prediction interval`]: "prediction-interval",
   "Leverage, against the runs' largest": "leverage",
-};
+});
 
 /** Each response at the columns of some settings (best.js columnsAt), as best.js predicts it from the fits Python sent. */
 const predictedAt = (w, columns) => w.responses.map((r) => (r.terms ? { ...r, at: predictAt(r, columns) } : r));
@@ -6779,7 +6782,7 @@ function renderWhatIf() {
   // a study whose only results so far are its curves has no response to list: the curve below is the prediction
   const fitted = w.responses.some((r) => r.terms);
   $("#what-if-out").replaceChildren(
-    ...(fitted ? [table(WHAT_IF_COLUMNS, whatIfRows(responses), WHAT_IF_TERMS)] : []),
+    ...(fitted ? [table(whatIfColumns(), whatIfRows(responses), whatIfTerms())] : []),
     ...noteList(whatIfSentences(fitted ? responses : [], w.broken), "warnings"),
   );
   drawRuns();
@@ -7275,7 +7278,7 @@ function renderTargetFound() {
   $("#target-out").replaceChildren(
     said("lead", targetLead(found, { limits: Boolean(state.design.spec.constraints?.length), blend })),
     settings,
-    table(["Response", "Target", `Predicted at ${here}`, "95% prediction interval"], targetRows(found), { "95% prediction interval": "prediction-interval" }),
+    table(["Response", "Target", `Predicted at ${here}`, `${confidencePercent()} prediction interval`], targetRows(found), { [`${confidencePercent()} prediction interval`]: "prediction-interval" }),
     ...[targetShare(found, { blend })].filter(Boolean).map((text) => said("hint", text)),
     said("hint", balanceLeverage(found)),
     ...noteList(blend ? (found.overlay ? [] : [NO_BLEND_OVERLAY]) : balanceWhere(found)),
@@ -9174,9 +9177,9 @@ function coefficientsTable(coefficients, { ratio, vif, simulated }) {
   const end = (c, which) => (c.std_error === null ? "" : fmt(c[which]));
   const columns = [
     ["Term", (c) => c.label, (c) => c.label],
-    ["95% low", (c) => end(c, "ci_low"), (c) => c.ci_low],
+    [`${confidencePercent()} low`, (c) => end(c, "ci_low"), (c) => c.ci_low],
     ["Coefficient", (c) => fmt(c.coefficient), (c) => c.coefficient],
-    ["95% high", (c) => end(c, "ci_high"), (c) => c.ci_high],
+    [`${confidencePercent()} high`, (c) => end(c, "ci_high"), (c) => c.ci_high],
     ["Std. error", (c) => fmt(c.std_error), (c) => c.std_error],
     ["p-value", (c) => pval(c.p_value), (c) => c.p_value],
     ...(ratio ? [["Low to high", (c) => (c.ratio === undefined || c.ratio === null ? "" : `×${fmt(c.ratio)}`), (c) => c.ratio]] : []),
@@ -9190,15 +9193,15 @@ function coefficientsTable(coefficients, { ratio, vif, simulated }) {
     names,
     rows,
     {
-      "95% low": "interval",
+      [`${confidencePercent()} low`]: "interval",
       Coefficient: "coefficient",
-      "95% high": "interval",
+      [`${confidencePercent()} high`]: "interval",
       "Std. error": "std-error",
       "p-value": "p-value",
       VIF: "vif",
       "True value": "true-value",
     },
-    { looks: { "95% low": "dim", Coefficient: "strong", "95% high": "dim" } },
+    { looks: { [`${confidencePercent()} low`]: "dim", Coefficient: "strong", [`${confidencePercent()} high`]: "dim" } },
   );
   const save = el("button", "button", "Download this table (.csv)");
   save.type = "button";
@@ -9326,6 +9329,7 @@ function takeSettings(settings) {
   state.settings = settings;
   setColourMap(settings.colour_map, settings.colour_map_flipped === true);
   setDecimalMark(settings.decimal_mark);
+  setSignificance(settings.significance_level);
 }
 
 /**
@@ -9353,6 +9357,7 @@ function renderSettings() {
   });
   $("#colour-maps").replaceChildren(...choices);
   $("#decimal-mark").value = decimalMark();
+  $("#significance-level").value = String(significance());
   $("#settings-keep").checked = localStorage.getItem(SETTINGS_KEY) !== null;
 }
 
@@ -9380,7 +9385,12 @@ function settingsChanged(event) {
   // A study that keeps the period holds no setting for it, as every study before the setting.
   if ($("#decimal-mark").value in DECIMAL_MARKS && $("#decimal-mark").value !== "period") settings.decimal_mark = $("#decimal-mark").value;
   else delete settings.decimal_mark;
+  // A study judged at 0.05 holds no setting for it, so it is saved in the format it had before the setting.
+  const chosenLevel = Number($("#significance-level").value);
+  if (SIGNIFICANCE_LEVELS.includes(chosenLevel) && chosenLevel !== DEFAULT_SIGNIFICANCE) settings.significance_level = chosenLevel;
+  else delete settings.significance_level;
   const numbers = decimalMark();
+  const judged = significance();
   if (document.querySelector(FLIP)?.checked) settings.colour_map_flipped = true;
   else delete settings.colour_map_flipped;
   takeSettings(settings);
@@ -9392,9 +9402,10 @@ function settingsChanged(event) {
   }
   renderSettings(); // the colours beside each name, and the line the switch is on, follow the choice
   // The list is drawn anew, so the keyboard's place is put back on the control that was changed.
-  const again = ["settings-keep", "decimal-mark"].includes(event.target.id) ? `#${event.target.id}` : event.target.type === "radio" ? '#colour-maps input[name="colour_map"]:checked' : FLIP;
+  const again = ["settings-keep", "decimal-mark", "significance-level"].includes(event.target.id) ? `#${event.target.id}` : event.target.type === "radio" ? '#colour-maps input[name="colour_map"]:checked' : FLIP;
   document.querySelector(again)?.focus();
-  if (decimalMark() !== numbers) rewriteNumbers();
+  if (decimalMark() !== numbers || significance() !== judged) rewriteNumbers();
+  if (significance() !== judged) scheduleCandidates(); // a design's power is worked out at the level
   redrawAll();
   if (state.design) scheduleSave();
 }

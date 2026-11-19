@@ -6,7 +6,7 @@ import { describe, test } from "node:test";
 
 import {
   BLEND_SENSITIVITY,
-  BLEND_UNCLEAR,
+  blendUnclearSaid,
   CONFIRMATION,
   NO_BLEND_OVERLAY,
   CONFIRMATION_RUNS,
@@ -15,7 +15,7 @@ import {
   IMPORTANCE,
   IMPORTANCES,
   SHAPE,
-  UNCLEAR,
+  unclearSaid,
   balanceConfirmation,
   balanceLead,
   balanceLeverage,
@@ -261,8 +261,8 @@ describe("the checks under the answer", () => {
     const none = { ...ANALYSIS, findings: [{ kind: "none" }] };
     const { fit } = by(learnChecks(none, null, WORDS));
     assert.deepEqual([fit.state, fit.title, fit.says], ["look", "No clear effect", "No factor's effect on Yield stands out from the noise."]);
-    assert.equal(by(learnChecks(ANALYSIS, { ...WORKED, unclear: true }, WORDS)).fit.says, UNCLEAR);
-    assert.equal(by(learnChecks(ANALYSIS, { ...WORKED, unclear: true }, WORDS, { blend: true })).fit.says, BLEND_UNCLEAR);
+    assert.equal(by(learnChecks(ANALYSIS, { ...WORKED, unclear: true }, WORDS)).fit.says, unclearSaid());
+    assert.equal(by(learnChecks(ANALYSIS, { ...WORKED, unclear: true }, WORDS, { blend: true })).fit.says, blendUnclearSaid());
   });
 
   test("what the runs cannot tell is said so: a model that uses every run, and no repeats", () => {
@@ -448,7 +448,7 @@ describe("how far the model reaches", () => {
   });
 
   test("no term clearly larger than the noise is said plainly", () => {
-    assert.match(UNCLEAR, /^No term of the model is clearly larger than the noise/);
+    assert.match(unclearSaid(), /^No term of the model is clearly larger than the noise/);
   });
 });
 
@@ -679,7 +679,7 @@ describe("a mixture's best blend", () => {
   test("the cautions and the chart's caption name the blend", () => {
     assert.equal(blendExtrapolation(BLEND), "");
     assert.match(blendExtrapolation({ ...BLEND, extrapolating: true }), /^This blend lies beyond the runs/);
-    assert.match(BLEND_UNCLEAR, /so this blend may follow the noise\.$/);
+    assert.match(blendUnclearSaid(), /so this blend may follow the noise\.$/);
     assert.match(BLEND_SENSITIVITY, /the others keeping their proportions to each other, so the blend still sums to 1\.$/);
   });
 
