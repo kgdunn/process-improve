@@ -1405,6 +1405,7 @@ function showComponents() {
   $("#h-high").textContent = mixture ? "Upper" : "High";
   for (const tr of factorRows()) showType(tr, typeOf(tr));
   $("#limits-mixture").hidden = !mixture;
+  $("#possible").hidden = mixture; // a component's bounds are its lower and upper proportions
 }
 
 /**
@@ -1524,6 +1525,67 @@ function renderHard() {
   $("#hard-factors").replaceChildren(...ticks);
 }
 
+/** The numeric factor rows: those a possible range is typed for. */
+const possibleRows = () => factorRows().filter((tr) => !blankRow(tr) && typeOf(tr) === NUMERIC);
+
+/** A bound typed for a factor's possible range: a number, or null for a blank or anything else. */
+const bound = (text) => (text?.trim() && Number.isFinite(Number(text)) ? Number(text) : null);
+
+/** Each numeric factor's possible range, by its name, as the design is asked for it: a blank bound is null. */
+function possibleRanges() {
+  const ranges = possibleRows()
+    .map((tr) => [box(tr, "name").value.trim(), [bound(tr.dataset.lowest), bound(tr.dataset.highest)]])
+    .filter(([, bounds]) => bounds.some((b) => b !== null));
+  return Object.fromEntries(ranges);
+}
+
+/** Give the factors of these names these possible ranges, and the others none: a stored design's. */
+function setPossible(ranges) {
+  for (const tr of factorRows()) {
+    const [lowest, highest] = ranges[box(tr, "name").value.trim()] ?? [null, null];
+    tr.dataset.lowest = lowest ?? "";
+    tr.dataset.highest = highest ?? "";
+  }
+  if (Object.keys(ranges).length) $("#possible").open = true;
+  renderPossible();
+}
+
+/** Draw a line for each numeric factor, with its lowest and highest possible settings, each kept on its row. */
+function renderPossible() {
+  const lines = possibleRows().map((tr) => {
+    const name = box(tr, "name").value.trim();
+    const units = box(tr, "units").value.trim();
+    const cell = (key, words) => {
+      const input = el("input", "", "");
+      input.type = "text";
+      input.inputMode = "decimal";
+      input.size = 6;
+      input.value = tr.dataset[key] ?? "";
+      input.setAttribute("aria-label", `${words} setting of ${name}`);
+      input.addEventListener("change", () => {
+        tr.dataset[key] = input.value.trim();
+        renderPossibleCount();
+        markStale();
+      });
+      const td = el("td", "", "");
+      td.append(input, units ? ` ${units}` : "");
+      return td;
+    };
+    const row = el("tr", "", "");
+    row.append(el("th", "", name), cell("lowest", "Lowest possible"), cell("highest", "Highest possible"));
+    return row;
+  });
+  $("#possible-rows").replaceChildren(...lines);
+  renderPossibleCount();
+}
+
+/** The badge on the possible ranges: how many factors have one. */
+function renderPossibleCount() {
+  const n = Object.keys(possibleRanges()).length;
+  $("#possible-count").textContent = String(n);
+  $("#possible-count").hidden = n === 0;
+}
+
 /**
  * The run sheet's columns besides its factors, which a factor renamed on it cannot take: its results
  * and its blocks. None while the factors differ from the run sheet's by more than their labels: a run
@@ -1576,6 +1638,7 @@ function limitsFollow(tr) {
   if (before && before !== after) renameInLimits({ [before]: after });
   tr.dataset.name = after;
   renderHard();
+  renderPossible();
 }
 
 /**
@@ -1751,6 +1814,7 @@ function setDesignForm(spec) {
   $("#n_replicates").value = options.n_replicates ?? 1;
   $("#n_blocks").value = options.n_blocks ?? 1;
   setHard(options.hard_to_change ?? []);
+  setPossible(spec.possible ?? {});
   $("#n_levels").value = String(options.n_levels ?? 2); // a Taguchi array at two levels stores none
   if (isMixture(spec.design_type)) {
     // A mixture design stores the Scheffé model it is built for: a lattice's degree, or what extreme vertices are for.
@@ -1831,6 +1895,7 @@ function takeStep(step) {
 function refreshDesign() {
   renderLadder();
   renderHard();
+  renderPossible();
   const k = factorCount();
   const full = factorRows().length >= MAX_FACTORS; // the add buttons stop at the most factors a study has, and say so
   for (const id of ["#add-factor", "#add-categorical"]) $(id).disabled = full;
@@ -2110,6 +2175,10 @@ function planKey() {
       .filter((tr) => !blankRow(tr))
       .map((tr) => tr.dataset.hard === "1")
       .join(),
+    // By place too: each numeric factor's lowest and highest possible settings, as typed.
+    possible: possibleRows()
+      .map((tr) => `${bound(tr.dataset.lowest) ?? ""}:${bound(tr.dataset.highest) ?? ""}`)
+      .join(),
     model_type: $("#model_type").value,
     lattice_degree: $("#lattice_degree").value,
     mixture_model: $("#mixture_model").value,
@@ -2244,6 +2313,7 @@ async function generate({ randomState } = {}) {
     n_replicates: Number($("#n_replicates").value),
     n_blocks: Number($("#n_blocks").value),
     hard_to_change: hardNames(),
+    possible: mixturePlanned() ? {} : possibleRanges(),
     resolution: Number($("#resolution").value),
     n_levels: Number($("#n_levels").value),
     budget: Number($("#budget").value),
@@ -7854,7 +7924,7 @@ function renderNext() {
   if ($("#next").hidden) return;
   $("#next-out").replaceChildren(
     ...(called ? calledFor(called) : next.waiting ? [said("hint", next.waiting)] : []),
-    ...pathPart(called?.path ?? null),
+    ...pathPart(called?.path ?? null, called?.path_stopped),
     ...(move ? movedStudy(best) : []),
     ...(next.offers.length || next.notes.length ? addedRuns(next, Boolean(called)) : []),
   );
@@ -8007,9 +8077,11 @@ function roundBest(record) {
 /** A setting as the next step's table writes it: a number with its units, or a categorical factor's level. */
 /**
  * Whether a setting on the path is one the page can tell may be impossible: below zero, for a factor whose whole
- * range is zero or more, as a pressure or a flow is. The page knows no other bound of a factor (#1322).
+ * range is zero or more, as a pressure or a flow is, and has no possible range typed: with one, the path stops before
+ * any setting past it.
  */
-const belowZero = (f, value) => typeof value === "number" && value < 0 && typeof f.low === "number" && f.low >= 0;
+const belowZero = (f, value) =>
+  typeof value === "number" && value < 0 && typeof f.low === "number" && f.low >= 0 && !state.design.spec.possible?.[f.name];
 
 const stepSetting = (f, value) => (typeof value === "string" ? value : withUnit(value, f.units ?? ""));
 
@@ -8055,7 +8127,7 @@ function calledFor(step) {
  * path stands (campaign.js pathVerdict) and the new study centred on the best of them. They are made in the path's
  * order, and the path is left at the first run that does worse than the run before it.
  */
-function pathPart(path) {
+function pathPart(path, stopped = false) {
   const design = state.design;
   const factors = design.spec.factors;
   const at = pathRows(design);
@@ -8080,6 +8152,9 @@ function pathPart(path) {
     said("hint", "The path does not know your process: before you make a run, check that its settings are possible and safe."),
     ...(predicted ? [said("hint", "Past the ranges the model is a guide only: its predictions say where to look, not what you will find.")] : []),
     table(headings, rows),
+    ...(stopped && !at.length
+      ? [said("hint", "The path stops here: its next run would leave a factor's possible range, or break a limit on the settings.")]
+      : []),
     ...(settings.some((run) => factors.some((f) => belowZero(f, run[f.name])))
       ? warningList(['A setting marked "below zero" may not be possible: stop the path before it.'])
       : []),

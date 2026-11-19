@@ -27,8 +27,10 @@ import { SIGNIFICANCE_LEVELS } from "./numbers.js";
  * how a study looks needs no format of its own. A setting that changes a number or a verdict still does.
  * Format 13 holds a significance level of a study's own, which an earlier page would judge at 0.05.
  * Format 14 holds what the study's trade-off chart shows (``trade``), which an earlier page would drop.
+ * Format 15 holds a factor's possible range (``possible`` in the design), past which no run can be made: an earlier
+ * page would drop it and offer such runs.
  */
-export const CAMPAIGN_VERSION = 14;
+export const CAMPAIGN_VERSION = 15;
 
 /** The format of a study of one factor; a study of more factors keeps format 1. */
 export const ONE_FACTOR_FORMAT = 2;
@@ -72,6 +74,9 @@ export const SIGNIFICANCE_FORMAT = 13;
 /** The format of a study that keeps what its trade-off chart shows (``trade``): its axes, limits, levels and choice. */
 export const TRADE_FORMAT = 14;
 
+/** The format of a study whose factors have a possible range (``possible``): settings past it cannot be made. */
+export const POSSIBLE_FORMAT = 15;
+
 /** What a study's trade-off chart colours its points by when it is the overall desirability, as app.js names it. */
 export const OVERALL_D = "(D)";
 
@@ -91,6 +96,7 @@ export const CURVE_POINTS_HELD = 1000;
  */
 export function studyFormat(spec, study = {}) {
   const { what_if: kept = [], set_aside: setAside = {}, targets = {}, windows = {}, builds_on: builtOn = [], planned = {} } = study;
+  if (Object.keys(spec.possible ?? {}).length) return POSSIBLE_FORMAT;
   if (Object.keys(study.trade ?? {}).length) return TRADE_FORMAT;
   if (study.settings?.significance_level !== undefined) return SIGNIFICANCE_FORMAT;
   if (Object.keys(study.settings ?? {}).length) return SETTINGS_FORMAT;
@@ -497,6 +503,28 @@ function spec(value) {
     if (Object.keys(kept).length) out.analysis_transforms = kept;
   }
   if (value.curve !== undefined && value.curve !== null) out.curve = curveOf(value.curve);
+  if (value.possible !== undefined && value.possible !== null) {
+    const kept = possibleOf(value.possible, factors);
+    if (Object.keys(kept).length) out.possible = kept;
+  }
+  return out;
+}
+
+/**
+ * Each numeric factor's possible range, by its name: the lowest and highest settings the process can take, either
+ * null. Python checks that the factor's range lies inside it.
+ */
+function possibleOf(value, factors) {
+  if (!isObject(value)) refuse("its possible ranges are not ranges");
+  const numeric = new Set(factors.filter((f) => !f.levels && typeof f.low === "number").map((f) => f.name));
+  const out = {};
+  for (const [name, bounds] of Object.entries(value)) {
+    if (!numeric.has(name)) refuse(`a possible range is for ${JSON.stringify(name).slice(0, 40)}, which is no numeric factor`);
+    if (!Array.isArray(bounds) || bounds.length !== 2 || !bounds.every((b) => b === null || isFiniteNumber(b))) {
+      refuse(`the possible range of ${name} is not two numbers or blanks`);
+    }
+    if (bounds.some((b) => b !== null)) out[name] = [...bounds];
+  }
   return out;
 }
 

@@ -190,6 +190,12 @@ Also:
   - *Details:* Nine measures of each design (precision of the coefficients and of the
     predictions, correlation between terms, power), fraction-of-design-space curves on one
     chart, and a correlation map of each design.
+- **What each factor can be set to.** A pressure cannot go below zero, nor a share past 100.
+  Type a factor's lowest or highest possible setting under the factors, and the path of
+  steepest ascent stops before it, and the next study's ranges stay inside it.
+  - *Details:* Optional, for each numeric factor; the study's range lies inside it. A design
+    whose runs pass it, as a rotatable design's axial runs can, names those runs. A study
+    with a possible range is saved in study format 15.
 - **Settings that cannot be run.** Say which combinations are out of bounds, such as a high
   pressure at a high temperature, and the app plans around them. It says what each limit
   rules out and how much of the ranges is left, and draws the settings that can be run.
@@ -715,7 +721,8 @@ Also:
   press then starts a new study centred on the best run.
   - *Details:* The runs join the end of the run sheet in the path's order and never enter
     the fit. Each shows what the model predicts there, as a guide only. The app says which
-    run is best so far and which to make next. One press takes them off again.
+    run is best so far and which to make next. One press takes them off again. The path
+    stops before its first run past a limit on the settings or a factor's possible range.
 - **Every move has its price.** Each way to go on says how many runs it adds and what the
   study then holds: "8 more runs: 19 in this study". A campaign says how many runs it holds
   so far.

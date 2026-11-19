@@ -251,6 +251,16 @@
             data-term="categorical">categorical factor</span></button>
           <span id="factors-full" class="hint" hidden>A study has at most 40 factors.</span>
         </p>
+        <!-- Each numeric factor's possible range (#1322): closed until a study has one, as the limits below are. -->
+        <details id="possible" class="known possible">
+          <summary>What each factor can be set to <span class="hint">(optional)</span> <span id="possible-count" class="badge" hidden></span></summary>
+          <p class="hint">A pressure cannot go below zero, nor a share past 100. The path of steepest ascent stops
+            before a setting past these, the next study's ranges stay inside them, and Learn adds no run outside them.</p>
+          <table class="data possible-table">
+            <thead><tr><th>Factor</th><th>Lowest possible</th><th>Highest possible</th></tr></thead>
+            <tbody id="possible-rows"></tbody>
+          </table>
+        </details>
         <!-- The limits on the settings (limits.js): closed until a study has some, so a first visit reads no more. -->
         <details id="limits" class="known limits">
           <summary>Settings you cannot run <span class="hint">(constraints)</span> <span id="limits-count" class="badge" hidden></span></summary>

@@ -1472,6 +1472,32 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "The page sent a slice of the settings this page did not write.",
     ),
     # Runs as given, which the design catalog opens: they must fit the factors.
+    # A factor's possible range: the lowest and highest settings the process can take (#1322).
+    "possible range: not ranges": (
+        "api_make_design",
+        _make(design_type="full_factorial", possible=[0, 1]),
+        "The page sent possible ranges this page did not write.",
+    ),
+    "possible range: of no numeric factor": (
+        "api_make_design",
+        _make(design_type="full_factorial", possible={"Z": [0, 1]}),
+        "Only a numeric factor of the study has a possible range, and Z is none.",
+    ),
+    "possible range: a word for a bound": (
+        "api_make_design",
+        _make(design_type="full_factorial", possible={"P": ["low", None]}),
+        "Factor P: its lowest and highest possible settings are numbers, or blank.",
+    ),
+    "possible range: above the factor's low": (
+        "api_make_design",
+        _make(design_type="full_factorial", possible={"P": [1.5, None]}),
+        "Factor P: its range starts at 1, below its lowest possible setting.",
+    ),
+    "possible range: below the factor's high": (
+        "api_make_design",
+        _make(design_type="full_factorial", possible={"T": [None, 180]}),
+        "Factor T: its range ends at 200, above its highest possible setting.",
+    ),
     "given: no runs": (
         "api_make_design",
         _make(design_type="given", runs=[]),

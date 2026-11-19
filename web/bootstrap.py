@@ -1576,6 +1576,49 @@ def _example(numeric: list[str]) -> str:
     return f"2*{first} + {second} <= 10"
 
 
+def _checked_possible(raw: object, factors: list[Factor]) -> dict[str, list[float | None]]:
+    """Read each numeric factor's possible range: the lowest and highest settings the process can take, either blank.
+
+    A pressure cannot go below zero, nor a share past 100 %. The path of steepest ascent stops before a run past
+    them, a study's next ranges stay inside them, and Learn adds no run outside them. ``raw`` maps a factor's name
+    to its lowest and highest possible settings, in its own units; the study's range lies inside them. None, or no
+    bound at all, is no possible range.
+    """
+    if raw is None or raw == {}:
+        return {}
+    numeric = {f.name: f for f in factors if f.type != "categorical"}
+    if not isinstance(raw, dict) or len(raw) > len(numeric):
+        raise ValueError("The page sent possible ranges this page did not write.")
+    checked: dict[str, list[float | None]] = {}
+    for name, bounds in raw.items():
+        f = numeric.get(name)
+        if f is None or not isinstance(bounds, list) or len(bounds) != 2:  # a lowest and a highest
+            raise ValueError(f"Only a numeric factor of the study has a possible range, and {str(name)[:40]} is none.")
+        lowest, highest = (None if b is None else _number(b) for b in bounds)
+        if any(b is not None and value is None for b, value in zip(bounds, (lowest, highest), strict=True)):
+            raise ValueError(f"Factor {name}: its lowest and highest possible settings are numbers, or blank.")
+        if lowest is not None and lowest > f.low:
+            raise ValueError(f"Factor {name}: its range starts at {f.low:g}, below its lowest possible setting.")
+        if highest is not None and highest < f.high:
+            raise ValueError(f"Factor {name}: its range ends at {f.high:g}, above its highest possible setting.")
+        if lowest is not None or highest is not None:
+            checked[name] = [lowest, highest]
+    return checked
+
+
+def _impossible(spec: dict, runs: pd.DataFrame) -> dict[str, list[int]]:
+    """Name the factors some runs, in their own units, set past their possible range, with those runs' positions."""
+    past: dict[str, list[int]] = {}
+    for name, (lowest, highest) in (spec.get("possible") or {}).items():
+        values = pd.to_numeric(runs[name], errors="coerce").to_numpy(dtype=float)
+        tolerance = 1e-9 * max(1.0, *(abs(b) for b in (lowest, highest) if b is not None))
+        below = values < lowest - tolerance if lowest is not None else np.zeros(len(values), dtype=bool)
+        above = values > highest + tolerance if highest is not None else np.zeros(len(values), dtype=bool)
+        if outside := np.flatnonzero(below | above).tolist():
+            past[name] = outside
+    return past
+
+
 def _checked_constraints(raw: object, factors: list[Factor]) -> list[dict[str, Any]]:
     """Check the limits a specification carries, and return them as a study stores them.
 
@@ -1736,6 +1779,7 @@ def make_design(spec: dict) -> dict:
     factors = _factors(spec)
     _check_factor_count(design_type, len(factors))
     limits = _checked_constraints(spec.get("constraints"), factors)
+    possible = _checked_possible(spec.get("possible"), factors)
     expressions = [limit["expression"] for limit in limits]
     region = _region_refusal(factors, _region(factors, expressions), design_type) if limits else None
     _check_categorical(design_type, factors)
@@ -1762,9 +1806,11 @@ def make_design(spec: dict) -> dict:
         "options": kwargs,
         **described,
         **({"constraints": limits} if limits else {}),
+        **({"possible": possible} if possible else {}),
     }
     coded = _coded(runs, stored["factors"])
     facts = _design_facts(result, coded.to_numpy(dtype=float), stored["factors"], kwargs)
+    facts["notes"] += _impossible_notes(stored, runs)
     if array := (result.metadata or {}).get("orthogonal_array"):
         facts["notes"].insert(0, _array_sentence(array, stored["model"]))
     if design_type in SPACE_FILLING:
@@ -1837,6 +1883,7 @@ def _given_design(spec: dict) -> dict:
     runs = _given_settings(rows, factors)
     responses = _checked_responses(spec, factors, blank="y")
     limits = _checked_constraints(spec.get("constraints"), factors)
+    possible = _checked_possible(spec.get("possible"), factors)
     blocks = _given_blocks(spec.get("blocks"), len(rows))
     plots, hard = _given_whole_plots(spec.get("whole_plots"), runs, blocks)
     stored: dict[str, Any] = {
@@ -1852,6 +1899,7 @@ def _given_design(spec: dict) -> dict:
         **_stored_responses(responses),
         **_aimed(spec),
         **({"constraints": limits} if limits else {}),
+        **({"possible": possible} if possible else {}),
     }
     coded = _coded(runs, stored["factors"]).to_numpy(dtype=float)
     kinds = ["categorical" if f.type == "categorical" else "numeric" for f in factors]
@@ -2137,6 +2185,28 @@ def _blend_kinds(blends: np.ndarray) -> list[str]:
         else:
             kinds.append(f"the {n} blends of {PARTS[size]} at 1/{size} each")
     return kinds
+
+
+def _impossible_notes(spec: dict, runs: pd.DataFrame) -> list[str]:
+    """Say which runs, by their place on the run sheet, set a factor past its possible range, as an axial run can."""
+    past = _impossible(spec, runs) if spec.get("possible") else {}
+    units = {f["name"]: f.get("units") or "" for f in spec["factors"]}
+
+    def bounds(name: str) -> str:
+        lowest, highest = spec["possible"][name]
+        unit = f" {units[name]}" if units[name] else ""
+        if lowest is None:
+            return f"at most {highest:g}{unit}"
+        return f"at least {lowest:g}{unit}" if highest is None else f"{lowest:g} to {highest:g}{unit}"
+
+    said = []
+    for name, at in past.items():
+        shown = [str(i + 1) for i in at]
+        which = f"Run {shown[0]} sets" if len(shown) == 1 else f"Runs {_listed(shown)} set"
+        said.append(f"{which} {name} past what it can be, {bounds(name)}")
+    if not said:
+        return []
+    return [f"{'; '.join(said)}. Choose another design, or narrower ranges, so that every run can be made."]
 
 
 def _outside_limits_sentence(outside: list[int]) -> str:
@@ -4771,9 +4841,11 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
         "windows",
         "builds_on",
         "curve",
+        "possible",
     )
     checked = {key: value for key, value in spec.items() if key not in dropped}
     limits = _checked_constraints(spec.get("constraints"), factors)
+    possible = _checked_possible(spec.get("possible"), factors)
     transforms = _checked_transforms(spec, responses)
     return {
         **checked,
@@ -4788,6 +4860,7 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
         **_stored_responses(responses),
         **_aimed(spec),
         **({"constraints": limits} if limits else {}),
+        **({"possible": possible} if possible else {}),
         **({"analysis_transforms": transforms} if transforms else {}),
         **({"curve": _checked_curve(spec["curve"])} if spec.get("curve") is not None else {}),
     }
@@ -6914,6 +6987,8 @@ def _relabelled_spec(spec: dict, after: list[dict], names: dict[str, str]) -> di
     spec = {**spec, "factors": after}
     if hard := (spec.get("options") or {}).get("hard_to_change"):
         spec["options"] = {**spec["options"], "hard_to_change": [names.get(n, n) for n in hard]}
+    if possible := spec.get("possible"):
+        spec["possible"] = {names.get(n, n): bounds for n, bounds in possible.items()}
     if limits := spec.get("constraints"):
         spec["constraints"] = [{**limit, "expression": rename_factors(limit["expression"], names)} for limit in limits]
     if "analysis_model" in spec:
@@ -6978,6 +7053,8 @@ def _relabelled_facts(facts: dict, coded: np.ndarray, names: dict[str, str], spe
             notes.append(_relabelled_blocking(note, names))
         elif (plots := re.search(r" hard to change, so the runs are made in (\d+) groups", note)) is not None:
             notes.append(_whole_plots_sentence(spec["options"]["hard_to_change"], int(plots[1])))
+        elif " past what it can be, " in note:
+            notes.extend(_impossible_notes(spec, _actual_runs(spec, coded)))
         elif note.startswith(("The runs compare ", "The runs set ")) and len(spec["factors"]) == 1:
             notes.append(_levels_sentence(spec["factors"][0], coded[:, 0], given=spec["design_type"] == GIVEN))
         else:
@@ -11549,6 +11626,7 @@ def _shown_step(spec: dict, found: dict[str, Any]) -> dict[str, Any]:
         "settings": None,
         "ranges": None,
         "path": None,
+        "path_stopped": False,
         "outside_limits": False,
     }
     if action == "confirm":
@@ -11571,6 +11649,7 @@ def _shown_step(spec: dict, found: dict[str, Any]) -> dict[str, Any]:
         shown |= {"does": "study", "label": "Start a new study with these ranges", "ranges": _moved(spec, found)}
         if action == "move_region":
             shown["path"] = _path_runs(spec, found)
+            shown["path_stopped"] = shown["path"] is not None and len(shown["path"]) < len(found["runs"])
     if shown["outside_limits"]:
         shown |= {"does": None, "label": None}
     return shown
@@ -11585,10 +11664,14 @@ def _path_runs(spec: dict, found: dict[str, Any]) -> list[dict[str, Any]] | None
     scale, so none is given.
     """
     runs = pd.DataFrame(found["runs"])
-    if not _runnable(spec, _coded(runs, spec["factors"]).to_numpy(dtype=float)):
+    coded = _coded(runs, spec["factors"]).to_numpy(dtype=float)
+    # The path goes on in a straight line, so it stops before its first run past a limit or a possible range.
+    kept = next((i for i in range(len(runs)) if not _runnable(spec, coded[i : i + 1])), len(runs))
+    if not kept:
         return None
+    runs = runs.iloc[:kept]
     predictions = found.get("path_predictions") or []
-    shown = _transform_of(spec) is None and len(predictions) == len(runs)
+    shown = _transform_of(spec) is None and len(predictions) >= len(runs)
     path = []
     for i, (_, run) in enumerate(runs.iterrows()):
         settings: dict[str, Any] = {}
@@ -11617,14 +11700,25 @@ def _moved(spec: dict, found: dict[str, Any]) -> list[dict[str, Any]]:
         if _categorical(f):
             moved.append(dict(f))
         elif f["name"] in widened:
-            low, high = widened[f["name"]]
+            low, high = _inside_possible(spec, f["name"], *widened[f["name"]], keep_width=False)
             moved.append({**f, "low": float(f"{low:.12g}"), "high": float(f"{high:.12g}")})
         elif f["name"] in shares:
             step = float(f"{shares[f['name']] * (f['high'] - f['low']) / 2:.2g}")
-            moved.append({**f, "low": float(f"{f['low'] + step:.12g}"), "high": float(f"{f['high'] + step:.12g}")})
+            low, high = _inside_possible(spec, f["name"], f["low"] + step, f["high"] + step, keep_width=True)
+            moved.append({**f, "low": float(f"{low:.12g}"), "high": float(f"{high:.12g}")})
         else:
             moved.append(dict(f))
     return moved
+
+
+def _inside_possible(spec: dict, name: str, low: float, high: float, *, keep_width: bool) -> tuple[float, float]:
+    """Bring a factor's next range inside its possible range: moved back whole, or cut at the bound when widened."""
+    lowest, highest = (spec.get("possible") or {}).get(name, [None, None])
+    if lowest is not None and low < lowest:
+        low, high = (lowest, high + lowest - low) if keep_width else (lowest, high)
+    if highest is not None and high > highest:
+        low, high = (low - (high - highest), highest) if keep_width else (low, highest)
+    return low, high
 
 
 #: What Learn says of a mixture, to which it offers to add no runs.
@@ -11777,9 +11871,13 @@ def _setting(factor: dict, coded: float) -> float | str:
 
 
 def _runnable(spec: dict, new: np.ndarray) -> bool:
-    """Say whether runs, coded, meet every limit on the settings; a study without limits runs any."""
+    """Say whether runs, coded, meet every limit on the settings and stay in each factor's possible range."""
+    if not len(new):
+        return True
+    if spec.get("possible") and _impossible(spec, _actual_runs(spec, new)):
+        return False
     region = _spec_region(spec)
-    if region is None or not len(new):
+    if region is None:
         return True
     names = [f["name"] for f in spec["factors"]]
     labels = {}  # each run's level of the categorical factors, for a limit that holds at some of them
@@ -11789,6 +11887,18 @@ def _runnable(spec: dict, new: np.ndarray) -> bool:
             codes = new[:, names.index(f["name"])]
             labels[f["name"]] = [str(levels[round((c + 1) / 2 * (len(levels) - 1))]) for c in codes]
     return bool(_feasible(region, new[:, [names.index(name) for name in region.names]], labels).all())
+
+
+def _actual_runs(spec: dict, coded: np.ndarray) -> pd.DataFrame:
+    """Return runs, coded, in their numeric factors' own units: the columns a possible range is judged on."""
+    names = [f["name"] for f in spec["factors"]]
+    return pd.DataFrame(
+        {
+            f["name"]: (f["low"] + f["high"]) / 2 + coded[:, names.index(f["name"])] * (f["high"] - f["low"]) / 2
+            for f in spec["factors"]
+            if not _categorical(f)
+        }
+    )
 
 
 def _model_rank(coded: np.ndarray, kinds: list[str], model: str) -> tuple[int, int]:
