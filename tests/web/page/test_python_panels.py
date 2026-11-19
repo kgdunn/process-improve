@@ -883,6 +883,47 @@ def test_the_balance_code_holds_a_categorical_factor_and_keeps_to_the_limits(api
 
 
 @pytest.mark.slow
+def test_the_balance_code_fits_a_factor_nested_in_another_as_the_page_does(api, node):
+    """S + P + S:T for Yield, T's effect within each level of S: the code adds S's indicators to X, as the page does."""
+    levels = {"name": "S", "type": "categorical", "levels": ["a", "b", "c"], "units": ""}
+    spec = {
+        "design_type": "full_factorial",
+        "factors": [*FACTORS[:2], levels],
+        "responses": THREE[:2],
+        "n_center_points": 0,
+        "n_replicates": 2,
+    }
+    held = held_of(api.ok("api_make_design", spec))
+    sheet = run_sheet(held)
+    x = coded(sheet, FACTORS[:2])
+    slope = sheet["S"].map({"a": 1.0, "b": 3.0, "c": 5.0})
+    yields = (60 + slope * x["T"] + 2 * x["P"] + np.arange(len(sheet)) % 4 * 0.1).tolist()
+    costs = (20 + 2 * x["T"] + x["P"] + np.arange(len(sheet)) % 3 * 0.1).tolist()
+    models = {"Yield": {"terms": [["S"], ["P"], ["S", "T"]]}, "Cost": "main_effects"}
+    request = {**held, "responses": yields, "more_responses": {"Cost": costs}, "models": models}
+    balance = api.ok("api_balance", request)
+    tried = api.ok("api_trade_offs", {**request, "at": balance["coded"]})
+    view = {"asked": tried["asked"], "across": "Yield", "up": "Cost", "colour": None, "limits": {}}
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, {"Yield": yields, "Cost": costs}]),
+        ("balanceCode", [balance, held["spec"]]),
+    )
+    assert 'X["S_I1"] = (runs["S"] == "a").astype(float)' in code
+    assert_same_balance(run(code), balance, ["T", "P"])
+    # The trade-off chart's code follows the balance's, and now runs on its fits too.
+    steps = [("designCode", [held["spec"]]), ("resultsCode", [held, {"Yield": yields, "Cost": costs}])]
+    charted = panel(
+        node, *steps, ("balanceCode", [balance, held["spec"]]), ("tradeOffCode", [view, balance, held["spec"]])
+    )
+    with contextlib.redirect_stdout(io.StringIO()):
+        cloud = run(charted.replace("figure.show()", ""))["cloud"]
+    for name, shown in tried["candidates"]["responses"].items():
+        np.testing.assert_allclose(cloud[name], shown, rtol=1e-5)
+
+
+@pytest.mark.slow
 def test_the_balance_code_finds_the_page_s_balanced_blend(api, node):
     """A mixture's two responses are balanced over its blends, each with its own Scheffé model."""
     responses = [{"name": "Hardness", "goal": "maximize"}, {"name": "Cost", "goal": "minimize"}]

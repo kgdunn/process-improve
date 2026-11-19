@@ -1926,6 +1926,7 @@ export function balanceCode(balance, spec) {
   return [
     ...imports,
     ...(holds ? [heldComment(held, spec.factors), ...HELD_AT] : []),
+    ...indicatorLines(spec, Object.values(formulas).join(" + ")),
     `# Each response with a goal, fitted with its own ${mixture ? "Scheffé model" : "model"} to the runs that have its result.`,
     "models = []",
     `for name, model in ${repr(formulas)}.items():`,
