@@ -986,7 +986,7 @@ describe("a study's settings", () => {
     assert.equal(strict.settings.significance_level, 0.01);
     assert.equal(strict.v, SIGNIFICANCE_FORMAT);
     assert.ok(SIGNIFICANCE_FORMAT > SETTINGS_FORMAT, "the page of format 12 reads formats 1 to 12, so it refuses this one");
-    assert.equal(CAMPAIGN_VERSION, SIGNIFICANCE_FORMAT, "the page reads it");
+    assert.ok(CAMPAIGN_VERSION >= SIGNIFICANCE_FORMAT, "the page reads it");
   });
 
   test("a level this page does not offer is refused, and never judged at another", () => {
@@ -994,6 +994,30 @@ describe("a study's settings", () => {
       const read = () => checkCampaign({ ...campaign(), v: CAMPAIGN_VERSION, settings: { significance_level: level } });
       assert.throws(read, /a significance level this page does not offer/);
     }
+  });
+});
+
+describe("a study's trade-off chart", () => {
+  test("a study keeps what its trade-off chart shows, in a format of its own", async () => {
+    const { TRADE_FORMAT } = await import("../../../web/campaign.js");
+    const trade = { across: "y", up: "y", colour: "(D)", limits: { y: [null, 21.5] }, levels: { Supplier: "B" }, chosen: { T: 160, Supplier: "B" } };
+    const read = checkCampaign({ ...campaign(), v: CAMPAIGN_VERSION, trade });
+    assert.deepEqual(read.trade, trade);
+    assert.equal(read.v, TRADE_FORMAT);
+    assert.equal(CAMPAIGN_VERSION, TRADE_FORMAT, "the page reads it");
+    assert.equal(checkCampaign({ ...campaign(), v: CAMPAIGN_VERSION }).trade, undefined, "a study with none keeps its format");
+  });
+
+  test("a trade-off chart that is not one of the study's is refused", () => {
+    const read = (trade) => () => checkCampaign({ ...campaign(), v: CAMPAIGN_VERSION, trade });
+    assert.throws(read("y"), /its trade-off chart is not described/);
+    assert.throws(read({ across: "Not measured" }), /across axis is no response it measures/);
+    assert.throws(read({ colour: "Not measured" }), /coloured by no response it measures/);
+    assert.throws(read({ limits: { y: [1] } }), /the trade-off limit of y is not its two ends/);
+    assert.throws(read({ levels: { T: "A" } }), /drawn at no level of T/);
+    assert.throws(read({ levels: { Supplier: "C" } }), /drawn at no level of Supplier/);
+    assert.throws(read({ chosen: { T: "hot" } }), /choice sets "T" to no value it takes/);
+    assert.throws(read({ chosen: { Nothing: 1 } }), /choice sets "Nothing" to no value it takes/);
   });
 });
 

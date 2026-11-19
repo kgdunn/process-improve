@@ -356,6 +356,7 @@ import {
   sameCampaign,
   shareable,
   studyFormat,
+  OVERALL_D,
   studySettings,
   timeAgo,
   unpackCampaign,
@@ -596,7 +597,36 @@ function toast(text, state = "ok") {
 
 // ---------------------------------------------------------------- state
 /** The trade-offs' view of a study just opened: nothing tried, picked, limited or chosen yet. */
-const newTrade = () => ({ tried: null, across: null, up: null, colour: "", limits: {}, chosen: null, levels: {} });
+const newTrade = () => ({ tried: null, across: null, up: null, colour: "", limits: {}, chosen: null, levels: {}, choose: null });
+
+/**
+ * What a study keeps of its trade-off chart (campaign.js tradeKept): the axes, the colour, the limits typed, the
+ * levels drawn at and the settings chosen. Nothing before the chart is drawn, so a study with none keeps its format.
+ */
+function keptTrade() {
+  const { tried, across, up, colour, limits, levels, chosen } = state.trade;
+  if (!tried) return {};
+  const typed = Object.entries(limits).filter(([, ends]) => ends.some((v) => v !== null));
+  return {
+    across,
+    up,
+    ...(colour ? { colour } : {}),
+    ...(typed.length ? { limits: Object.fromEntries(typed) } : {}),
+    ...(Object.keys(levels ?? {}).length ? { levels } : {}),
+    ...(chosen ? { chosen: chosen.settings } : {}),
+  };
+}
+
+/** The trade-off chart as a study opened keeps it: drawn again when its balance is, the choice found among the settings tried. */
+const tradeOpened = (kept = {}) => ({
+  ...newTrade(),
+  across: kept.across ?? null,
+  up: kept.up ?? null,
+  colour: kept.colour ?? "",
+  limits: structuredClone(kept.limits ?? {}),
+  levels: structuredClone(kept.levels ?? {}),
+  choose: kept.chosen ?? null,
+});
 
 const state = {
   phase: "plan", // the phase on show: "plan", "run" or "learn"
@@ -5992,8 +6022,6 @@ function clearBalance() {
 // ---------------------------------------------------------------- the trade-offs between the responses
 let tradeTicket = 0;
 let tradeTimer = null;
-/** What the list of what colours the points calls the overall desirability: no response's column, which is a name. */
-const OVERALL_D = "(D)";
 
 /** Take the trade-offs away: there is no balance to draw them at, or the study is a mixture's. */
 function clearTradeOffs() {
@@ -6042,6 +6070,18 @@ async function findTradeOffs() {
   const same = before?.length === reply.result.candidates.d.length && before.every((d, i) => d === reply.result.candidates.d[i]);
   state.trade = { ...state.trade, tried: reply.result, across, up, colour, limits, chosen: same ? state.trade.chosen : null };
   renderTradeOffs();
+  const choose = state.trade.choose;
+  if (choose) {
+    // The choice a study kept: the settings tried are drawn as they were, so it is found among them, or the others.
+    state.trade = { ...state.trade, choose: null };
+    const { candidates, held, alternatives } = reply.result;
+    const levelsMatch = held.every((h) => choose[h.name] === undefined || choose[h.name] === h.value);
+    const at = (settings) => Object.entries(settings).every(([name, v]) => choose[name] === v);
+    const place = candidates.d.findIndex((_, i) => at(Object.fromEntries(Object.entries(candidates.settings).map(([name, values]) => [name, values[i]]))));
+    const other = alternatives.findIndex((a) => at(a.settings));
+    if (levelsMatch && place >= 0) chooseCandidate(place);
+    else if (levelsMatch && other >= 0) chooseAlternative(other);
+  }
 }
 
 /** A categorical factor's level, coded as the models take it: its levels spread evenly from -1 to +1. */
@@ -6217,7 +6257,10 @@ function tradeViewChanged(event) {
     // Another level: the settings tried are drawn at it, so Python is asked again; the keyboard stays on the box.
     state.trade = { ...state.trade, levels: { ...state.trade.levels, [event.target.dataset.factor]: event.target.value } };
     const factor = event.target.dataset.factor;
-    findTradeOffs().then(() => document.querySelector(`#trade-levels select[data-factor="${CSS.escape(factor)}"]`)?.focus());
+    findTradeOffs().then(() => {
+      document.querySelector(`#trade-levels select[data-factor="${CSS.escape(factor)}"]`)?.focus();
+      scheduleSave();
+    });
     return;
   }
   let [across, up] = [$("#trade-across").value, $("#trade-up").value];
@@ -6225,6 +6268,7 @@ function tradeViewChanged(event) {
   if (across === up) [across, up] = across === state.trade.across ? [state.trade.up, up] : [across, state.trade.across];
   state.trade = { ...state.trade, across, up, colour: $("#trade-colour").value };
   renderTradeOffs();
+  scheduleSave(); // the study keeps what its chart shows
 }
 
 /** The reader typed a limit on a response: the chart keeps the settings that meet it, a moment after the last key. */
@@ -6234,7 +6278,10 @@ function tradeLimitTyped(e) {
   const ends = ["low", "high"].map((end) => numberOrNull(tr.querySelector(`[name="${end}"]`).value));
   state.trade = { ...state.trade, limits: { ...state.trade.limits, [tr.dataset.response]: ends } };
   clearTimeout(tradeTimer);
-  tradeTimer = setTimeout(drawTradeChart, 300);
+  tradeTimer = setTimeout(() => {
+    drawTradeChart();
+    scheduleSave(); // and the limits typed
+  }, 300);
 }
 
 /** Choose one of the settings tried, by its place among them: its settings, and each response's prediction there. */
@@ -6259,6 +6306,7 @@ function chooseSettings(chosen) {
   }
   renderTradeChosen();
   drawTradeChart();
+  if (state.design) scheduleSave(); // the study keeps the choice
 }
 
 /** Say the settings chosen and each response there, with what to do with them; nothing when none is chosen. */
@@ -6336,9 +6384,13 @@ function renderTradeNearly() {
 /** "Choose" was pressed beside settings nearly as good: they become the reader's choice. */
 function tradeNearlyPressed(e) {
   const i = e.target.closest("button[data-nearly]")?.dataset.nearly;
-  if (i === undefined) return;
+  if (i !== undefined) chooseAlternative(Number(i));
+}
+
+/** Choose one of the settings nearly as good as the balanced ones, by its place among them. */
+function chooseAlternative(i) {
   const { alternatives, held } = state.trade.tried;
-  const a = alternatives[Number(i)];
+  const a = alternatives[i];
   const settings = { ...a.settings, ...Object.fromEntries(held.map((h) => [h.name, h.value])) };
   chooseSettings({ settings, responses: a.responses, d: a.composite, far: false });
 }
@@ -8600,6 +8652,7 @@ function currentCampaign() {
       builds_on: state.buildsOn,
       planned: state.design.planned ?? {},
       settings: state.settings,
+      trade: keptTrade(),
     }),
     title: state.campaign?.title ?? titleOf(spec),
     design: { spec, columns, rows, model, n_runs: rows.length, facts: facts ?? null, outside_range: outside ?? [] },
@@ -8616,6 +8669,7 @@ function currentCampaign() {
     ...keptAsked(),
     ...(state.buildsOn.length ? { builds_on: state.buildsOn } : {}),
     ...(Object.keys(state.settings).length ? { settings: state.settings } : {}),
+    ...(Object.keys(keptTrade()).length ? { trade: keptTrade() } : {}),
     ...sentCurves(),
   };
 }
@@ -8921,7 +8975,7 @@ async function openCampaign(c, record, message, resume = false) {
   state.shown = names[0];
   state.models = { [names[0]]: c.model, ...(c.more_models ?? {}) };
   state.goals = structuredClone(c.goals ?? {});
-  state.trade = newTrade();
+  state.trade = tradeOpened(c.trade);
   state.target = { ...newTarget(), targets: structuredClone(c.targets ?? {}) };
   state.window = { ...newWindow(), windows: structuredClone(c.windows ?? {}) };
   state.scenarios = structuredClone(c.what_if ?? []);

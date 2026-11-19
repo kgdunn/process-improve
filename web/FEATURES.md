@@ -431,7 +431,8 @@ Also:
     both responses; a paler point is further from the runs than any run lies, by its leverage.
     Settings chosen move the what-if panel there and can be tested with confirmation runs.
     Other bests of the search within 5% of the balanced settings' overall desirability are
-    listed. The chart shows its Python.
+    listed. The chart shows its Python. The study keeps the chart's axes, colour, limits,
+    levels and the settings chosen, in study format 14.
 - **What if.** A dial for each factor: a picture of the response against that factor, with
   the others where you set them, over a slider and a box for its value. Drag on a picture,
   move the slider or type a value, and each response's prediction follows at once. Settings

@@ -22,6 +22,7 @@ from tests.web.e2e._page import (
     practise,
     reveal,
     run_sheet,
+    saved_studies,
     set_factors,
     settled,
 )
@@ -194,3 +195,26 @@ def test_a_categorical_factor_s_level_is_picked_and_the_chart_is_drawn_at_it(fre
     assert page.text_content("#trade-chart figcaption").startswith(f"Drawn with Supplier at {other}")
     assert f"with Supplier at {other}" in page.text_content("#trade-about")
     assert page.locator("#trade-levels select").input_value() == other
+
+
+def test_the_chart_s_axes_colour_limits_and_choice_are_kept_with_the_study(traded):
+    page = traded
+    page.select_option("#trade-colour", "Cost")
+    before = page.evaluate(POINTS)
+    page.fill('#trade-limits tr[data-response="Purity"] [name="low"]', "62")
+    page.wait_for_function(f"{POINTS} < {before}")
+    page.evaluate(f"{PLOT}.emit('plotly_click', {{ points: [{{ data: {{ meta: 'tried' }}, customdata: 7 }}] }})")
+    page.wait_for_selector("#trade-chosen table")
+    chosen = page.text_content("#trade-chosen .lead")
+    kept = saved_studies(page, lambda studies: bool(studies) and "chosen" in studies[0].get("trade", {}))
+    assert kept[0]["v"] == 14
+    assert kept[0]["trade"]["limits"] == {"Purity": [62, None]}
+    assert kept[0]["trade"]["colour"] == "Cost"
+
+    page.reload()
+    page.wait_for_selector("#trade-chart .js-plotly-plot")
+    settled(page)
+    page.wait_for_selector("#trade-chosen table")
+    assert page.input_value("#trade-colour") == "Cost"
+    assert page.input_value('#trade-limits tr[data-response="Purity"] [name="low"]') == "62"
+    assert page.text_content("#trade-chosen .lead") == chosen, "the same settings, found again among those tried"
