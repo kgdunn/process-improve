@@ -33,8 +33,11 @@ PACKAGE = Path.home() / ".cache" / "process-improve" / "node" / "node_modules" /
 
 CDN = "https://cdn.jsdelivr.net/pyodide/v{pyodide}/{distribution}/"
 
-#: Downloads of one file before giving up; a download cut short is the failure seen in CI.
-ATTEMPTS = 4
+#: Downloads of one file before giving up, and the longest wait between two (s): a download cut short is the
+#: failure seen in CI, and the CDN has also answered 503 for a wheel for some minutes at a time (#1315). The waits
+#: double from 2 s to the longest, so eight downloads span about three minutes.
+ATTEMPTS = 8
+LONGEST_WAIT = 60
 
 
 def package() -> Path:
@@ -52,7 +55,7 @@ def _kept(target: Path, url: str, sound: Callable[[Path], bool]) -> None:
         if target.is_file() and sound(target):
             return
         if attempt:
-            time.sleep(2**attempt)
+            time.sleep(min(2**attempt, LONGEST_WAIT))
         partial = target.with_name(f"{target.name}.{os.getpid()}.partial")
         try:
             urllib.request.urlretrieve(url, partial)

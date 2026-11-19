@@ -196,9 +196,12 @@ jobs:
   web-app-webkit:
     runs-on: ubuntu-latest
     name: web-app (WebKit)
-    # The tests take 12 minutes. The rest is for WebKit's system packages: when Ubuntu's mirror is slow their
-    # download alone has taken 27 minutes, and a limit of 30 then cancelled the job four times in a row.
-    timeout-minutes: 60
+    # Playwright's own image holds WebKit's system packages, which were downloaded from Ubuntu's mirror on every
+    # run before: when the mirror was slow that alone took 27 minutes, and cancelled the job four times (#1315).
+    # Its tag is the Playwright the tests pin. The tests take 12 minutes.
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
+    timeout-minutes: 30
     steps:
     - uses: actions/checkout@v7
     - name: Set up the project environment
@@ -211,7 +214,8 @@ jobs:
         path: ~/.cache/process-improve/cdn
         key: web-app-cdn-${{ hashFiles('web/runtime.json') }}
     - name: Install WebKit for Playwright
-      run: uv run --with playwright==1.64.1 playwright install --with-deps webkit
+      # The image holds the browsers and their packages; this finds them there and downloads nothing.
+      run: uv run --with playwright==1.64.1 playwright install webkit
     - name: The forms, the run sheet and the layout in WebKit
       env:
         PI_BROWSER: webkit
