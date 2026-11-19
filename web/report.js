@@ -154,7 +154,7 @@ export function briefHtml(spec, { aim = "", mixture = false } = {}) {
     responsesOf(spec).map((r) => [r.label || r.name, r.units ?? "", goalOf(r)]),
   );
   const parts = [factors, responses];
-  if (aim) parts.push(`<p>Aim: ${escape(aim)}</p>`);
+  if (aim) parts.push(`<p>Aim: ${escape(aim)}.</p>`);
   const limits = spec.constraints ?? [];
   if (limits.length) {
     const items = limits.map((l) => `<li><code>${escape(l.expression)}</code>${l.note ? `: ${escape(l.note)}` : ""}</li>`);

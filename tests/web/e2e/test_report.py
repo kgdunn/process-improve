@@ -86,7 +86,7 @@ def test_the_worked_example_s_report_holds_the_study_and_what_learn_makes_of_it(
     assert sheet.locator("tbody tr").count() == 15
     assert sheet.locator("td.simulated").count() == 15, "every result simulated, in italics"
     learn = report.locator("section:nth-of-type(3)")
-    heads = ["What the results say", "Coefficients", "ANOVA", "The best settings for your goal"]
+    heads = ["What each factor does", "Coefficients", "ANOVA", "The best settings for your goal"]
     assert learn.locator("h3").all_text_contents() == heads
     assert learn.locator("li").first.text_content().startswith("Temperature matters most: ")
     assert learn.locator("details.diagnostics[open] tbody tr").count() == 15, "each run, opened for paper"

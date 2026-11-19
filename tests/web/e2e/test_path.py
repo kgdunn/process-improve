@@ -51,6 +51,17 @@ def test_the_move_lists_the_path_s_runs_with_their_price(page):
     assert "4 more runs" in page.text_content(f"{PATH} .price")
 
 
+def test_a_setting_below_zero_on_the_path_is_marked_and_the_page_says_what_that_means(page):
+    """The path takes Pressure below zero in the worked example: the page knows a pressure's range began above it."""
+    reveal(page, "#next")
+    rows = path_table(page)
+    marked = [row[2] for row in rows if row[2].endswith(", below zero")]
+    assert marked, "the worked example's path reaches a pressure below zero"
+    assert all(setting.startswith("-") for setting in marked)
+    assert not any(cell.endswith("below zero") for row in rows for cell in (row[1], row[3])), "no other factor does"
+    assert 'A setting marked "below zero" may not be possible: stop the path before it.' in page.text_content(PATH)
+
+
 def test_the_path_s_runs_join_the_run_sheet_in_order_and_stay_out_of_the_fit(page):
     reveal(page, "#next")
     before = page.text_content("#badge-learn")

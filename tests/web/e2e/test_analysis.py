@@ -377,7 +377,7 @@ def test_learn_opens_on_what_the_results_say_in_sentences(page):
         findings[0]
         == "Temperature matters most: raising Temperature from 150 to 200 degC raises Yield by 7.9 %, on average."
     )
-    assert page.locator("#analysis h3").first.text_content() == "What the results say"
+    assert page.locator("#analysis h3").first.text_content() == "What each factor does"
     assert page.locator("#findings").evaluate(
         "(list) => list.compareDocumentPosition(document.querySelector('#analysis .equation')) & 4"
     )

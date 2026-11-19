@@ -3828,7 +3828,9 @@ function aimWords(aim) {
   const label = document.querySelector(`input[name=aim][value="${aim}"]`)?.closest("label");
   if (!label) return "";
   const words = (part) => label.querySelector(part)?.textContent.replace(/\s+/g, " ").trim() ?? "";
-  return `${words("strong")}: ${words(".hint")}`;
+  // "Where each factor's effect curves (main effects and squares)": the aim, then the model it stands for.
+  const lower = (text) => text.charAt(0).toLowerCase() + text.slice(1);
+  return `${lower(words("strong"))} (${lower(words(".hint"))})`;
 }
 
 /** What Learn shows of the response it shows, as a report section: its analysis, charts and best settings. */
@@ -3896,8 +3898,8 @@ async function closingSections() {
   sections.push({
     heading: "The Python code",
     html:
-      '<p class="hint">The design, its results and what Learn made of them, so it runs as it is with the releases ' +
-      `the stamp names.</p>\n<pre><code>${escape(code)}</code></pre>`,
+      '<p class="hint">The design, its results and what Learn made of them, so it runs as it is with the software ' +
+      `versions at the foot.</p>\n<pre><code>${escape(code)}</code></pre>`,
   });
   return sections;
 }
@@ -4268,7 +4270,8 @@ function renderAnalysis(reply) {
   $("#transform").value = r.transform ?? "";
   showBoxCox(boxCoxSentence(r.box_cox, responseWords(shownSpec()).label));
   const ratio = r.coefficients.some((c) => c.ratio !== undefined); // on the log scale, a main effect is a ratio
-  const scale = r.transform ? `In coded units, fitted to ${r.equation.split(" = ")[0]}.` : "In coded units.";
+  const coded = "-1 is a factor's low value and +1 its high value";
+  const scale = r.transform ? `In coded units, fitted to ${r.equation.split(" = ")[0]}: ${coded}.` : `In coded units: ${coded}.`;
   // What the results say, in sentences, with what a reader must know of the fit: its notes and its warnings.
   const shown = [
     ...asideParts(),
@@ -4633,7 +4636,7 @@ function findingParts(findings, coefficients, { picked, simpler }) {
     if (unclear) unclear.append(" ", simplerControl());
     else more.append(more.childNodes.length ? " " : "", simplerControl());
   }
-  return [el("h3", "", "What the results say"), list, ...(more.childNodes.length ? [more] : [])];
+  return [el("h3", "", "What each factor does"), list, ...(more.childNodes.length ? [more] : [])];
 }
 
 /**
@@ -7784,6 +7787,12 @@ function roundBest(record) {
 }
 
 /** A setting as the next step's table writes it: a number with its units, or a categorical factor's level. */
+/**
+ * Whether a setting on the path is one the page can tell may be impossible: below zero, for a factor whose whole
+ * range is zero or more, as a pressure or a flow is. The page knows no other bound of a factor (#1322).
+ */
+const belowZero = (f, value) => typeof value === "number" && value < 0 && typeof f.low === "number" && f.low >= 0;
+
 const stepSetting = (f, value) => (typeof value === "string" ? value : withUnit(value, f.units ?? ""));
 
 /**
@@ -7844,7 +7853,7 @@ function pathPart(path) {
   const headings = [at.length ? "Run" : "Step", ...factors.map((f) => f.name), ...(predicted ? ["The model predicts"] : []), ...(at.length ? ["Result"] : [])];
   const rows = settings.map((run, i) => [
     at.length ? (design.rows[at[i]][order] ?? at[i] + 1) : i + 1,
-    ...factors.map((f) => stepSetting(f, run[f.name])),
+    ...factors.map((f) => (belowZero(f, run[f.name]) ? `${stepSetting(f, run[f.name])}, below zero` : stepSetting(f, run[f.name]))),
     ...(predicted ? [withUnit(Number(predicted[i].toPrecision(4)), info.units ?? "")] : []),
     ...(at.length ? [results[i] === null ? "" : withUnit(results[i], info.units ?? "")] : []),
   ]);
@@ -7853,6 +7862,9 @@ function pathPart(path) {
     said("hint", "The path does not know your process: before you make a run, check that its settings are possible and safe."),
     ...(predicted ? [said("hint", "Past the ranges the model is a guide only: its predictions say where to look, not what you will find.")] : []),
     table(headings, rows),
+    ...(settings.some((run) => factors.some((f) => belowZero(f, run[f.name])))
+      ? warningList(['A setting marked "below zero" may not be possible: stop the path before it.'])
+      : []),
   );
   const actions = el("p", "actions", "");
   const button = (id, cls, label, press) => {
