@@ -6478,12 +6478,13 @@ def _mixture_plots(request: dict, spec: dict) -> dict:
         "held_best": best is not None,
         "plotly_js": plotly.offline.get_plotlyjs_version(),
     }
+    picked = _triangle_picked(request.get("triangle"), names)  # checked for every mixture, used for four or more
     if len(names) == 3:
         reply["ternary"] = _ternary(spec, blends, y, fitted, true)
         return reply
     reply["cox"] = _cox_traces(names, out, fitted, true) if best is None else _cox_through(spec, best, fitted, true)
     through = best if best is not None else np.array([out["effect_reference"][n] for n in names])
-    shown = _triangle_picked(request.get("triangle"), names) or _largest_three(reply["cox"])
+    shown = picked or _largest_three(reply["cox"])
     if (triangle := _sub_triangle(spec, through, shown, fitted, true)) is not None:
         reply["ternary"] = triangle | {"chosen": request.get("triangle") is not None}
     return reply

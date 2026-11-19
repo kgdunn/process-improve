@@ -1067,6 +1067,11 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _mixed(best={"A": 0.5, "B": 0.6, "C": 0.0}),
         "The page sent a best blend this page did not write.",
     ),
+    "a triangle over components that are not three of the study's": (
+        "api_plots",
+        _mixed(triangle=["A", "A", "B"]),
+        "Pick three different components of the study to draw the triangle over.",
+    ),
     "a mixture's model to simplify": (
         "api_simpler_model",
         _mixed(),
