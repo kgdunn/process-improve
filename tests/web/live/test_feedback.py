@@ -35,5 +35,5 @@ def test_the_built_app_sends_a_screenshot_of_the_tab(page):
         page.unroute("**/api/feedback")
     [report] = reports
     assert base64.b64decode(report["screenshot"].split(",", 1)[1])[:3] == b"\xff\xd8\xff"
-    assert any(row.startswith("With: process-improve ") for row in report["context"]["stamp"])
+    assert any(row.startswith("With: Factorial (process-improve ") for row in report["context"]["stamp"])
     assert report["context"]["errors"] == []

@@ -93,7 +93,7 @@ def test_the_footer_s_button_opens_the_list_of_what_factorial_does(page):
     assert page.text_content("h1") == "What Factorial does"
     seen = page.evaluate(SEEN)
     assert seen["steps"] == ["In one minute", "Design", "Run", "Learn", "Next", "Around the study", "The fine print"]
-    assert seen["cards"] == 9, "the headline points, as cards"
+    assert seen["cards"] == 10, "the headline points, as cards"
     assert len(seen["parts"]) >= 12
     assert seen["open"] == [], "each part is folded, under a line that says what it holds"
     assert page.locator(".feat-part .feat-says").count() == len(seen["parts"])
