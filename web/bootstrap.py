@@ -819,15 +819,47 @@ def _reply(fn: Callable[[dict], dict], payload: str) -> str:
     """
     with _listening() as heard:
         try:
-            reply: dict[str, Any] = {"ok": True, "result": _clean(fn(_request(payload)))}
+            request = _request(payload)
+            _take_significance(request)
+            reply: dict[str, Any] = {"ok": True, "result": _clean(fn(request))}
         except (ValueError, KeyError, TypeError) as exc:
             reply = {"ok": False, "error": str(exc)}
         except Exception as exc:  # noqa: BLE001 - anything else still reaches the reader as one line
             if needs := _lacking(exc):
                 return json.dumps({"ok": False, "needs": needs})
             reply = {"ok": False, "error": f"Python stopped with {type(exc).__name__}: {exc}"}
+        finally:  # the level is the call's own: what runs next, without a request, runs at the default
+            _CALL["significance"] = DEFAULT_SIGNIFICANCE
     reply["warnings"] = list(dict.fromkeys(_LOG_PREFIX.sub("", message) for message in heard))
     return json.dumps(reply)
+
+
+#: The significance levels a study may set, in the page's Settings; 0.05 unless the study says otherwise.
+SIGNIFICANCE_LEVELS = (0.01, 0.05, 0.1)
+DEFAULT_SIGNIFICANCE = 0.05
+
+#: The level of the call that is running. Every request carries its study's level, so no call sees another's.
+_CALL = {"significance": DEFAULT_SIGNIFICANCE}
+
+
+def significance() -> float:
+    """Return the study's significance level: what every test's verdict is judged at."""
+    return _CALL["significance"]
+
+
+def confidence_level() -> float:
+    """Return the confidence of every interval: one minus the study's significance level."""
+    return round(1 - significance(), 2)
+
+
+def _take_significance(request: dict) -> None:
+    """Take ``significance_level`` out of the request, as the level of this call; refuse one the page does not offer."""
+    level = request.pop("significance_level", DEFAULT_SIGNIFICANCE)
+    if isinstance(level, bool) or level not in SIGNIFICANCE_LEVELS:
+        raise ValueError(
+            f"Unknown significance level {level!r}: the page offers {', '.join(map(str, SIGNIFICANCE_LEVELS))}."
+        )
+    _CALL["significance"] = float(level)
 
 
 def _request(payload: str) -> dict:
@@ -3211,6 +3243,7 @@ def _split_plot(data: pd.DataFrame, fit: dict, plots: pd.Series, hard: list[str]
                     coding="actual",
                     whole_plot="WholePlot",
                     response_column=str(data.columns[-1]),
+                    significance_level=significance(),
                 )["split_plot"]
         except (ValueError, np.linalg.LinAlgError):
             found = None
@@ -3256,14 +3289,8 @@ def _split_plot(data: pd.DataFrame, fit: dict, plots: pd.Series, hard: list[str]
     return {"out": {"coefficients": coefficients, "anova_table": [], "lack_of_fit": None}, "note": note, "told": told}
 
 
-#: The chance of calling some run of a study unusual when none is: the outlier test's level, shared over the runs.
-UNUSUAL_AT = 0.05
-
 #: A factor whose variance inflation factor is past this moved with the others too closely to be judged alone.
 TANGLED_VIF = 10.0
-
-#: The level an effect is judged real at, where the runs leave a measure of the noise to judge it with.
-REAL_AT = 0.05
 
 
 def _diagnostics(
@@ -3275,7 +3302,7 @@ def _diagnostics(
 
     ``studentized`` is the residual in standard deviations, with the run itself left out of the fit that
     estimates them. It follows Student's t when the run is like the others, so ``unusual`` marks a run past
-    the t value that one of the study's runs in :data:`UNUSUAL_AT` would pass by chance (the Bonferroni outlier
+    the t value that one of the study's runs in :func:`significance` would pass by chance (the Bonferroni outlier
     test): a fixed limit of 3 would mark runs of a small study that are nothing out of the way. Each run is named
     by its place in the order the runs were made, and the values are on the model's scale.
     """
@@ -3284,14 +3311,21 @@ def _diagnostics(
     with warnings.catch_warnings():
         # Its tests of the residuals as a whole, which the page does not show, warn when the runs are few.
         warnings.simplefilter("ignore")
-        found = doe.analyze_experiment(coded, y, model=formula, analysis_type="residual_diagnostics", coding="actual")
+        found = doe.analyze_experiment(
+            coded,
+            y,
+            model=formula,
+            analysis_type="residual_diagnostics",
+            coding="actual",
+            significance_level=significance(),
+        )
     found = found["residual_diagnostics"]
 
     def finite(value: float | None) -> float | None:
         return float(value) if value is not None and math.isfinite(value) else None
 
     n = len(y)
-    limit = float(t_distribution.ppf(1 - UNUSUAL_AT / (2 * n), residual_df - 1)) if residual_df > 1 else math.inf
+    limit = float(t_distribution.ppf(1 - significance() / (2 * n), residual_df - 1)) if residual_df > 1 else math.inf
     rows = []
     for i in range(n):
         studentized = finite(found["externally_studentized_residuals"][i])
@@ -3313,7 +3347,7 @@ def _real(coefficient: dict, beyond_margin: dict[str, bool]) -> bool | None:
     """Say whether an effect stands out from the noise: by its p-value, else by Lenth's margin; None when untested."""
     p = coefficient.get("p_value")
     if p is not None and math.isfinite(p):
-        return p < REAL_AT
+        return p < significance()
     return beyond_margin.get(coefficient["term"])
 
 
@@ -3527,7 +3561,14 @@ def _box_cox_hint(coded: pd.DataFrame, raw: pd.Series, fit: dict, transform: str
         return None
     try:
         with _listening():
-            found = doe.analyze_experiment(coded, raw, model=fit["formula"], analysis_type="box_cox", coding="actual")
+            found = doe.analyze_experiment(
+                coded,
+                raw,
+                model=fit["formula"],
+                analysis_type="box_cox",
+                coding="actual",
+                significance_level=significance(),
+            )
     except (ValueError, np.linalg.LinAlgError):
         return None
     found = found.get("box_cox") or {}
@@ -3627,9 +3668,6 @@ def _sse(frame: pd.DataFrame, y: pd.Series, terms: list[str]) -> float:
     return float(((y.to_numpy(float) - fitted) ** 2).sum())
 
 
-#: The confidence of each interval the comparison of one factor's levels gives, as of the coefficients'.
-CONFIDENCE = 0.95
-
 #: The most arrangements of the runs the randomization test counts: every one up to this many, else this many
 #: drawn at random. Its interval, which counts every arrangement, is given only then.
 ARRANGEMENTS = 200_000
@@ -3715,7 +3753,7 @@ def _paired_difference(low: np.ndarray, high: np.ndarray, factor: dict, seed: in
     so it is exact with ties too.
     """
     differences = high - low
-    paired = ttest_paired(pd.Series(differences), conflevel=CONFIDENCE)
+    paired = ttest_paired(pd.Series(differences), conflevel=confidence_level())
     tests: list[dict[str, Any]] = [
         {
             "test": "paired",
@@ -3730,7 +3768,7 @@ def _paired_difference(low: np.ndarray, high: np.ndarray, factor: dict, seed: in
     interval: dict[str, Any] = {"ci_low": None, "ci_high": None, "confidence": None}
     if found["exact"]:
         with contextlib.suppress(ValueError):  # too few patterns of signs for a 95% interval: 5 pairs make 32
-            made = randomization_interval(differences, confidence=CONFIDENCE)
+            made = randomization_interval(differences, confidence=confidence_level())
             interval = {k: made[k] for k in interval}
     tests.append(
         {
@@ -3795,7 +3833,7 @@ def _several_levels(levels: list[dict], control: object = None) -> dict[str, Any
         "p_value": float(stats.f.sf(f_value, k - 1, df)) if math.isfinite(f_value) else 0.0,
         "std_dev": s,
     }
-    q = studentized_range_value(CONFIDENCE, k, df)
+    q = studentized_range_value(confidence_level(), k, df)
     pairs = []
     for i, j in itertools.combinations(range(k), 2):
         se = s * math.sqrt((1 / n[i] + 1 / n[j]) / 2)
@@ -3854,7 +3892,7 @@ def _dunnett_critical(runs: np.ndarray, control_runs: int, df: int) -> float:
     sqrt(c_i c_j), with c_i = n_i / (n_i + n_0), which is one half when every level has as many runs as the
     control. The library's ``dunnett_value`` takes each level's c_i, so the value is exact for unequal runs too.
     """
-    return dunnett_value(CONFIDENCE, len(runs), df, correlation=(runs / (runs + control_runs)).tolist())
+    return dunnett_value(confidence_level(), len(runs), df, correlation=(runs / (runs + control_runs)).tolist())
 
 
 def _level(factor: dict, setting: float, values: np.ndarray, runs: list[int]) -> dict[str, Any]:
@@ -3882,17 +3920,17 @@ def _actual(factor: dict, coded: float) -> float:
 
 
 def _critical_t(df: int) -> float:
-    """Return the two-sided critical value of Student's t at :data:`CONFIDENCE` on ``df`` degrees of freedom."""
+    """Return the two-sided critical value of Student's t at :func:`confidence_level` on ``df`` degrees of freedom."""
     from scipy import stats  # noqa: PLC0415 - scipy is loaded with the library
 
-    return float(stats.t.ppf(1 - (1 - CONFIDENCE) / 2, df))
+    return float(stats.t.ppf(1 - (1 - confidence_level()) / 2, df))
 
 
 def _difference(low: np.ndarray, high: np.ndarray, factor: dict, seed: int) -> dict[str, Any]:
     """Test the difference between a factor's high and low levels four ways; see :func:`_comparison`."""
     tests = []
     for name, equal in (("pooled", True), ("welch", False)):
-        found = ttest_independent(pd.Series(low), pd.Series(high), conflevel=CONFIDENCE, equal_var=equal)
+        found = ttest_independent(pd.Series(low), pd.Series(high), conflevel=confidence_level(), equal_var=equal)
         tests.append(
             {
                 "test": name,
@@ -3907,7 +3945,7 @@ def _difference(low: np.ndarray, high: np.ndarray, factor: dict, seed: int) -> d
     interval: dict[str, Any] = {"ci_low": None, "ci_high": None, "confidence": None}
     if found["exact"]:
         with contextlib.suppress(ValueError):  # too few arrangements for a 95% interval: 3 runs at each make 20
-            made = randomization_interval(low, high, confidence=CONFIDENCE)
+            made = randomization_interval(low, high, confidence=confidence_level())
             interval = {k: made[k] for k in interval}
     tests.append(
         {
@@ -4139,7 +4177,9 @@ def _mixture_fit(blends: pd.DataFrame, y: pd.Series, model: str, analyses: list[
     """Fit a Scheffé model to blends, refusing one the runs cannot estimate in full."""
     with _listening() as heard:
         wanted = analyses or MIXTURE_ANALYSES
-        out = doe.analyze_experiment(blends, y, model=model, analysis_type=wanted, coding="actual")
+        out = doe.analyze_experiment(
+            blends, y, model=model, analysis_type=wanted, coding="actual", significance_level=significance()
+        )
     summary = out["model_summary"]
     if summary["rank_deficient"]:
         raise ValueError(
@@ -4205,7 +4245,9 @@ def _fit_estimable(
     blocked = BLOCK in coded.columns and len(set(coded[BLOCK])) > 1
     formula, early = _first_formula(coded, model, names, categorical, blocked=blocked)
     with _listening() as heard:
-        out = doe.analyze_experiment(coded, y, model=formula, analysis_type=ANALYSES, coding="actual")
+        out = doe.analyze_experiment(
+            coded, y, model=formula, analysis_type=ANALYSES, coding="actual", significance_level=significance()
+        )
     chains: dict[str, list[str]] = {}
     labels: dict[str, str] = {}
     not_estimable: list[str] = []
@@ -4219,7 +4261,9 @@ def _fit_estimable(
         kept = [term for term in _fitted_terms(out, names) if term not in dropped]
         if dropped and kept:
             formula = _formula(kept, names, blocked=blocked)
-            out = doe.analyze_experiment(coded, y, model=formula, analysis_type=ANALYSES, coding="actual")
+            out = doe.analyze_experiment(
+                coded, y, model=formula, analysis_type=ANALYSES, coding="actual", significance_level=significance()
+            )
     else:
         _relay(heard)
     summary = out["model_summary"]
@@ -4269,7 +4313,9 @@ def _vifs(coded: pd.DataFrame, out: dict[str, Any], names: list[str]) -> dict[st
     blocked = BLOCK in coded.columns and len(set(coded[BLOCK])) > 1
     formula = _formula(_fitted_terms(out, names), names, blocked=blocked)
     with _listening():  # a given run far beyond its range is warned about as uncoded, which it is not
-        found: dict[str, float] = evaluate_design(coded, model=formula, metric="vif").get("vif") or {}
+        found: dict[str, float] = (
+            evaluate_design(coded, model=formula, metric="vif", alpha=significance()).get("vif") or {}
+        )
     if not found:
         return {}
     contrasts = [c["term"] for c in out["coefficients"] if _block_contrast(c["term"], names)]
@@ -4346,7 +4392,9 @@ def _saturated(
                 "be tested. Add runs, or fit fewer terms."
             )
         ]
-    lenth = doe.analyze_experiment(coded, y, model=formula, analysis_type="lenth_method")["lenth_method"]
+    lenth = doe.analyze_experiment(
+        coded, y, model=formula, analysis_type="lenth_method", significance_level=significance()
+    )["lenth_method"]
     lenth["effects"] = [{**e, "label": labels.get(e["term"], _pretty(e["term"]))} for e in lenth["effects"]]
     notes = [
         (
@@ -5109,7 +5157,12 @@ def _add_true_values(coefficients: list[dict], coded: pd.DataFrame, formula: str
     mean = TrueProcess(truth, sigma=1.0).mean(coded)
     with _listening():
         noiseless = doe.analyze_experiment(
-            coded, pd.Series(mean, name="y"), model=formula, analysis_type="coefficients", coding="actual"
+            coded,
+            pd.Series(mean, name="y"),
+            model=formula,
+            analysis_type="coefficients",
+            coding="actual",
+            significance_level=significance(),
         )
     # Rounded to drop the rounding error of a fit with no noise (a true zero reads 1e-14).
     expected = {c["term"]: round(c["coefficient"], 9) + 0.0 for c in noiseless["coefficients"]}
@@ -5754,8 +5807,10 @@ def _runs_on_surface(rows: list[dict], pair: list[str], order: list[int]) -> lis
 #: How a figure's trace says it is part of an interval drawn around a line, and no line of the library's own.
 INTERVAL = "interval"
 
-#: The name, in a figure's legend, of the band drawn around each of its lines.
-INTERVAL_WORDS = "95% interval"
+
+def interval_words() -> str:
+    """Return the name, in a figure's legend, of the band drawn around each of its lines."""
+    return f"{confidence_level():.0%} interval"
 
 
 def _seen_through(colour: str, alpha: float = 0.16) -> str:
@@ -5792,7 +5847,7 @@ def _interval_bands(figure: dict, fitted: _FittedModel, transform: str | None) -
             legendgroup=line["name"],
             hovertemplate="%{y:.4g} (%{customdata[0]:.4g} to %{customdata[1]:.4g})",
         )
-    key = {"type": "scatter", "mode": "lines", "x": [None], "y": [None], "name": INTERVAL_WORDS, "meta": INTERVAL}
+    key = {"type": "scatter", "mode": "lines", "x": [None], "y": [None], "name": interval_words(), "meta": INTERVAL}
     key.update(line={"width": 10, "color": _seen_through("", 0.4)}, hoverinfo="skip")
     figure["data"] = [*bands, *lines, key]
     # Where the pointer rests is a coded setting, which the axis marks only at its ends and its middle.
@@ -5825,7 +5880,12 @@ class _Figures:
         if kind == "residuals_vs_order":  # each residual at its run's own number, which the library reads from here
             rows = [{**row, "RunOrder": number} for row, number in zip(rows, self.order, strict=True)]
         figure = create_plot(
-            kind, analysis_results=results, design_data=rows, response_column=self.spec["response"], **options
+            kind,
+            analysis_results=results,
+            design_data=rows,
+            response_column=self.spec["response"],
+            **options,
+            confidence_level=confidence_level(),
         )
         dressed = _dressed(figure.to_plotly(), kind, self.spec, options.get("factors_to_plot", []), scale)
         _name_runs(dressed, kind, results, self.order)
@@ -5887,7 +5947,12 @@ def plots(request: dict) -> dict:
     with _listening():
         fit = _fit_estimable(coded, y, fitted, columns, categorical)
         out = doe.analyze_experiment(
-            coded, y, model=fit["formula"], analysis_type=["coefficients", "residual_diagnostics"], coding="actual"
+            coded,
+            y,
+            model=fit["formula"],
+            analysis_type=["coefficients", "residual_diagnostics"],
+            coding="actual",
+            significance_level=significance(),
         )
     rows = coded.assign(**{response: y}).to_dict("records")
     order = runs.loc[done, RUN_ORDER].astype(int).tolist() if RUN_ORDER in runs else list(range(1, len(rows) + 1))
@@ -5916,7 +5981,9 @@ def plots(request: dict) -> dict:
     if fit["out"]["model_summary"]["df_residual"] > 0:
         draw("residuals", "residuals_vs_fitted", out, transform)
     if fit["lenth"]:
-        effects = doe.analyze_experiment(coded, y, model=fit["formula"], analysis_type="effects")["effects"]
+        effects = doe.analyze_experiment(
+            coded, y, model=fit["formula"], analysis_type="effects", significance_level=significance()
+        )["effects"]
         draw("half_normal", "half_normal", {"effects": effects, "lenth_method": fit["lenth"]}, transform)
     more = _more_charts(spec, axes, pair, coded, transform, fit["out"]["model_summary"]["df_residual"])
     for key, drawn in more.items():
@@ -5984,7 +6051,14 @@ def simpler_model(request: dict) -> dict:
         # smallest that holds them all, so a term they took out can come back when the results call for it.
         within = model if isinstance(model, str) else _standard_model_of(before)
         searched = _searched_frame(runs, spec)[done].reset_index(drop=True)
-        chosen = doe.analyze_experiment(searched, y, model=within, analysis_type="model_selection", coding="actual")
+        chosen = doe.analyze_experiment(
+            searched,
+            y,
+            model=within,
+            analysis_type="model_selection",
+            coding="actual",
+            significance_level=significance(),
+        )
     kept = chosen["model_selection"]["selected_terms"]
     return {
         "terms": [_page_term(term) for term in kept],
@@ -6360,7 +6434,13 @@ def _mixture_plots(request: dict, spec: dict) -> dict:
     figures = {}
     if out["model_summary"]["df_residual"] > 0:
         rows = blends.assign(**{response: y}).to_dict("records")
-        figure = create_plot("residuals_vs_fitted", analysis_results=out, design_data=rows, response_column=response)
+        figure = create_plot(
+            "residuals_vs_fitted",
+            analysis_results=out,
+            design_data=rows,
+            response_column=response,
+            confidence_level=confidence_level(),
+        )
         dressed = _dressed(figure.to_plotly(), "residuals_vs_fitted", spec, [])
         figures["residuals"] = json.dumps(dressed, cls=plotly.utils.PlotlyJSONEncoder)
     reply: dict[str, Any] = {
@@ -6838,10 +6918,13 @@ def _level_plan(request: dict, factors: list[Factor], model: str) -> dict[str, A
     difference = 2 * _effect_size({key: info.get(key) for key in ("noise", "smallest_change")})
     means = least_favourable_means(difference, k)
     try:
-        n = int(one_way_sample_size(LEVEL_POWER, 1.0, means, max_n=MAX_LEVEL_RUNS)["n"])
+        n = int(one_way_sample_size(LEVEL_POWER, 1.0, means, max_n=MAX_LEVEL_RUNS, alpha=significance())["n"])
     except ValueError:  # no number of runs the page makes reaches it
         n = MAX_LEVEL_RUNS
-    rows = [{"n": m, "runs": k * m, "power": one_way_power(m, 1.0, means)["power"]} for m in sorted({*LEVEL_RUNS, n})]
+    rows = [
+        {"n": m, "runs": k * m, "power": one_way_power(m, 1.0, means, alpha=significance())["power"]}
+        for m in sorted({*LEVEL_RUNS, n})
+    ]
     reached = next(row["power"] for row in rows if row["n"] == n) >= LEVEL_POWER
     return {"n": n, "power": LEVEL_POWER, "reached": reached, "rows": rows}
 
@@ -6915,7 +6998,9 @@ def compare(request: dict) -> dict:
     if by_level:
         region = None
     with _listening():
-        comparison = compare_designs(designs, model, effect_size=_effect_size(request), region=region)
+        comparison = compare_designs(
+            designs, model, effect_size=_effect_size(request), region=region, significance_level=significance()
+        )
     result = comparison.to_dict()
     result["limits_by_level"] = by_level
     table = comparison.table
@@ -6935,6 +7020,7 @@ def compare(request: dict) -> dict:
                 fds_resolution=FDS_POINTS,
                 random_state=1,
                 region=region,
+                alpha=significance(),
             )["fds"]["curve"]
         fds[sized] = {"fraction": curve["fraction"], "variance": curve["prediction_variance"]}
     result["fds"] = fds
@@ -7087,7 +7173,7 @@ def _powers(request: dict) -> dict[str, Any]:
         "model": model,
         "terms": terms,
         "effect_size": effect,
-        "significance_level": 0.05,
+        "significance_level": significance(),
         "designs": designs,
         "values": values,
         "measures": [],
@@ -7122,7 +7208,7 @@ def _group_power(b: np.ndarray, block: np.ndarray, df: int) -> float:
     from scipy import stats  # noqa: PLC0415 - scipy is loaded with the library
 
     noncentrality = float(b @ np.linalg.solve(block, b))
-    critical = stats.f.ppf(0.95, len(b), df)
+    critical = stats.f.ppf(confidence_level(), len(b), df)
     return float(stats.ncf.sf(critical, len(b), df, noncentrality))
 
 
@@ -7797,13 +7883,15 @@ def _coded_value(factor: Factor, value: float) -> float:
 #: The goals the page finds the best settings for: what the reader wants of the response, less ``learn``.
 AIMED = ("maximize", "minimize", "target")
 
-#: The confidence level of the intervals at the best settings.
-LEVEL = 0.95
 
-#: How many runs the page draws a prediction as, each as likely as the next: the t values at the middle of that many
-#: equal shares. The least and the greatest of them are the two ends of the prediction interval at ``LEVEL``, which is
-#: what makes it 20 for 95%.
-PREDICTED_RUNS = round(1 / (1 - LEVEL))
+def predicted_runs() -> int:
+    """Return how many runs the page draws a prediction as, each as likely as the next.
+
+    They are the t values at the middle of that many equal shares, so the least and the greatest of them are the
+    two ends of the prediction interval at :func:`confidence_level`: 20 runs for 95%.
+    """
+    return round(1 / significance())
+
 
 #: How far each numeric factor moves from the best settings, either way, to show how tightly it must be held: this
 #: share of its range, 0.1 in coded units.
@@ -7828,9 +7916,6 @@ LEVEL_COMBINATIONS = 4096
 
 #: The most corners of the numeric factors' ranges each combination of levels is judged at: all of them up to 8 factors.
 LEVEL_CORNERS = 256
-
-#: The significance level below which a term is clearly larger than the noise.
-CLEAR = 0.05
 
 #: The best settings are a stationary point when no slope there is above this share of the model's spread: the
 #: optimiser stops far closer to a flat point than this.
@@ -7913,7 +7998,7 @@ def best_settings(request: dict) -> dict:
     reply |= {
         "predicted": predicted,
         "reached": reached,
-        "level": LEVEL,
+        "level": confidence_level(),
         "confidence": confidence,
         "prediction": prediction,
         "leverage": leverage,
@@ -7988,8 +8073,8 @@ class _FittedModel:
         summary = self.out["model_summary"]
         self.df = int(summary["df_residual"])
         self.mse = float(summary["mse_residual"]) if self.df > 0 else None
-        self.t = float(stats.t.ppf(1 - (1 - LEVEL) / 2, self.df)) if self.df > 0 else None
-        shares = (np.arange(PREDICTED_RUNS) + 0.5) / PREDICTED_RUNS
+        self.t = float(stats.t.ppf(1 - (1 - confidence_level()) / 2, self.df)) if self.df > 0 else None
+        shares = (np.arange(predicted_runs()) + 0.5) / predicted_runs()
         self.run_quantiles = stats.t.ppf(shares, self.df).tolist() if self.df > 0 else None
         leverages = np.einsum("ij,jk,ik->i", x, self.inverse, x)
         self.max_leverage = float(leverages.max())
@@ -8277,6 +8362,7 @@ def _search(
                     goals=[sought],
                     factor_ranges={f["name"]: {"low": f["low"], "high": f["high"]} for f in numeric},
                     region=region,
+                    significance_level=significance(),
                 )["desirability"]
             _relay(heard)
             x = np.array([result["optimal_coded"][n] for n in numeric_names])
@@ -8513,12 +8599,12 @@ def _ascent(numeric: list[dict], ascent: np.ndarray, tiny: float) -> dict[str, f
 
 
 def _unclear(coefficients: list[dict], names: list[str]) -> bool:
-    """Say whether no term of the model is clearly larger than the noise: every p-value at or above :data:`CLEAR`."""
+    """Say whether no term of the model is clearly larger than the noise: no p-value below :func:`significance`."""
     p_values = [
         c.get("p_value") for c in coefficients if c["term"] != "Intercept" and not _block_contrast(c["term"], names)
     ]
     known = [p for p in p_values if p is not None and math.isfinite(p)]
-    return bool(known) and all(p >= CLEAR for p in known)
+    return bool(known) and all(p >= significance() for p in known)
 
 
 def _sensitivity(
@@ -8680,6 +8766,7 @@ def _best_blend(request: dict, whole: dict, spec: dict, goal: str, target: float
             [{"response_name": spec["response"], "coefficients": coefficients, "factor_names": names}],
             goals=[sought],
             region=DesignRegion(_components(whole)),
+            significance_level=significance(),
         )["desirability"]
     _relay(heard)
     low, high = _bounds(spec)
@@ -8696,7 +8783,7 @@ def _best_blend(request: dict, whole: dict, spec: dict, goal: str, target: float
         "flat": False,
         "predicted": predicted,
         "reached": reached,
-        "level": LEVEL,
+        "level": confidence_level(),
         "confidence": confidence,
         "prediction": prediction,
         "leverage": leverage,
@@ -8762,7 +8849,7 @@ def _unclear_blend(out: dict[str, Any]) -> bool:
     """
     p_values = [row.get("p_value") for row in out.get("anova_table") or []]
     known = [p for p in p_values if p is not None and math.isfinite(p)]
-    return bool(known) and all(p >= CLEAR for p in known)
+    return bool(known) and all(p >= significance() for p in known)
 
 
 def _blend_settings(spec: dict, x: np.ndarray, ascent: np.ndarray, tiny: float) -> list[dict[str, Any]]:
@@ -9053,6 +9140,7 @@ def trade_offs(request: dict) -> dict:
             factor_ranges={f["name"]: {"low": f["low"], "high": f["high"]} for f in numeric},
             region=region,
             n_alternatives=TRADE_OFF_ALTERNATIVES,
+            significance_level=significance(),
         )["desirability"]
     balanced = np.array([point[n] for n in names])
     in_model = set().union(*(_factors_in(fit.out["coefficients"], spec) for fit in fits.values()))
@@ -10266,6 +10354,7 @@ def _balance_search(
                     goals=desirable,
                     factor_ranges={f["name"]: {"low": f["low"], "high": f["high"]} for f in numeric},
                     region=region,
+                    significance_level=significance(),
                 )["desirability"]
             x = np.array([result["optimal_coded"][n] for n in numeric_names])
             at_end = np.abs(np.abs(x) - 1) <= 1e-9  # stopped on an end of the range, to rounding: put it there
@@ -10458,6 +10547,7 @@ def _balanced_blend(
             [{"response_name": name, "coefficients": model, "factor_names": names} for name, model in models.items()],
             goals=[_desirability_of(g) for g in goals],
             region=DesignRegion(_components(whole)),
+            significance_level=significance(),
         )["desirability"]
     _relay(heard)
     low, high = _bounds(whole)
@@ -10575,7 +10665,7 @@ def predictors(request: dict) -> dict:
     without one) as Learn fits it (:func:`_fitted`). Its reply holds the formula fitted, for the code
     the page shows, and what :meth:`_FittedModel.at` needs: each term as the columns it multiplies
     (``I(T ** 2)`` as ``T`` twice), the coefficients, ``(X'X)^-1``, the residual mean square, the
-    t value of 95% intervals and the t values of ``PREDICTED_RUNS`` equally likely runs (all None
+    t value of 95% intervals and the t values of :func:`predicted_runs` equally likely runs (all None
     without residual degrees of freedom), and the largest leverage of the runs fitted. The page
     (``predictAt`` and ``runsAt`` in ``web/best.js``) then gives the prediction, its intervals, its
     leverage and the runs a reader might get as the reader moves a setting, at once. A block
@@ -10632,7 +10722,7 @@ def _predictor(fitted: _FittedModel) -> dict[str, Any]:
         "t": fitted.t,
         "run_quantiles": fitted.run_quantiles,
         "df": fitted.df,
-        "level": LEVEL,
+        "level": confidence_level(),
         "max_leverage": fitted.max_leverage,
     }
 
@@ -10697,11 +10787,13 @@ def functional(request: dict) -> dict:
         # which terms the runs can estimate depends on the runs alone, so any one number per run decides it
         stand_in = pd.Series(np.nanmean(values[done], axis=1), name="curve")
         fit = _fit_estimable(coded, stand_in, model, columns, categorical)
-        result = doe.analyze_functional_experiment(coded, curves, model=fit["formula"])
+        result = doe.analyze_functional_experiment(
+            coded, curves, model=fit["formula"], significance_level=significance()
+        )
         drawn = grid if grid.size <= CURVE_DRAWN else np.linspace(grid[0], grid[-1], CURVE_DRAWN)
         maps = result.curve_maps(grid=drawn, n_bootstrap=CURVE_REPLICATES, random_state=0)
     kept = [i for i, term in enumerate(maps["terms"]) if not _block_contrast(term, columns)]
-    t = float(stats.t.ppf(0.5 + LEVEL / 2, max(maps["df_residual"], 1)))
+    t = float(stats.t.ppf(0.5 + confidence_level() / 2, max(maps["df_residual"], 1)))
     reply = {
         "points": drawn,
         "runs": len(curves),
@@ -10715,8 +10807,8 @@ def functional(request: dict) -> dict:
             for mean, linear in zip(maps["replicate_means"], maps["replicate_maps"], strict=True)
         ],
         "t": t,
-        "widening": t / float(stats.norm.ppf(0.5 + LEVEL / 2)),
-        "level": LEVEL,
+        "widening": t / float(stats.norm.ppf(0.5 + confidence_level() / 2)),
+        "level": confidence_level(),
         "components": [
             {"name": str(name), "variance": float(row["variance_ratio"]), "kept": bool(row["kept"])}
             for name, row in result.components.iterrows()
@@ -11059,6 +11151,7 @@ def _next_step(request: dict, whole: dict) -> dict[str, Any] | str | None:
                 history=history,
                 block=block,
                 model_terms=mains,
+                alpha=significance(),
             )
         _relay(heard)
     except ValueError as exc:

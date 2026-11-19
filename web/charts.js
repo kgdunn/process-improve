@@ -4,7 +4,7 @@
 // be reached costs the picture, not the result. Nothing runs against the document until a
 // chart is built or drawn, so tests/web/js imports this module under Node.
 
-import { decimalMark, marked as inMark } from "./numbers.js"; // "marked" is this module's own word for a run
+import { confidencePercent, decimalMark, marked as inMark } from "./numbers.js"; // "marked" is this module's own word for a run
 
 const CDN = (version) => `https://cdn.jsdelivr.net/npm/plotly.js-dist-min@${version}/plotly.min.js`;
 /**
@@ -642,7 +642,7 @@ export function coefficientFigure(coefficients, simulated, colours = palette(), 
     },
   ];
   if (terms.some((c) => c.ci_low !== null && c.ci_low !== undefined)) {
-    data.push({ ...legendKey("95% interval", colours.accent), legendrank: 2 });
+    data.push({ ...legendKey(`${confidencePercent()} interval`, colours.accent), legendrank: 2 });
   }
   if (simulated) {
     // Drawn first, under the estimates, so a dot on its true value shows inside the diamond.
@@ -775,7 +775,7 @@ export function effectsFigure(coefficients, { simulated = false, change = null, 
     };
   };
   const data = [bars(true), bars(false)].filter((trace) => trace.x.length > 0);
-  if (intervals) data.push(legendKey("95% interval", colours.fg));
+  if (intervals) data.push(legendKey(`${confidencePercent()} interval`, colours.fg));
   if (simulated) {
     data.push({
       type: "scatter",
@@ -850,7 +850,7 @@ export function paretoFigure(coefficients, simulated, lenth = null, colours = pa
     };
   };
   const data = [bars(true), bars(false)].filter((trace) => trace.x.length > 0);
-  if (intervals) data.push(legendKey("95% interval", colours.fg));
+  if (intervals) data.push(legendKey(`${confidencePercent()} interval`, colours.fg));
   if (simulated) {
     data.push({
       type: "scatter",
@@ -1141,7 +1141,7 @@ export function coxFigure(cox, { response, units = "", best = null }, colours = 
 }
 
 /** What the chart of one factor's levels marks beside each level's runs. */
-export const LEVEL_AVERAGE = "Average, with its 95% interval";
+export const levelAverage = () => `Average, with its ${confidencePercent()} interval`;
 
 /**
  * How far a run's dot sits from its level's line, a fraction of the space between two levels: spread by the run's
@@ -1173,7 +1173,7 @@ export function levelsFigure(comparison, { response, units = "", factorUnits = "
   const averages = {
     type: "scatter",
     mode: "markers",
-    name: LEVEL_AVERAGE,
+    name: levelAverage(),
     x: at.map((i) => i + 0.3),
     y: levels.map((level) => level.mean),
     customdata: named,
@@ -1785,8 +1785,13 @@ export function tradeOffFigure({ across, up, tried, front, colour = null, runs =
 /** What the curve chart's legend calls each line, and the band it shades. */
 export const CURVE_LINES = {
   curve: "Predicted curve",
-  pointwise: "95% band at each point",
-  simultaneous: "95% band over the whole curve",
+  // Read when a chart is drawn, so each band is named at the study's own level.
+  get pointwise() {
+    return `${confidencePercent()} band at each point`;
+  },
+  get simultaneous() {
+    return `${confidencePercent()} band over the whole curve`;
+  },
   target: "Target",
 };
 

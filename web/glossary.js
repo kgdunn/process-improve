@@ -88,8 +88,8 @@ export const GLOSSARY = {
     "always in. Terms the design cannot tell apart are listed as one, and estimated as their sum.",
   "std-error": "How precisely the coefficient is estimated: the standard deviation of its estimate.",
   interval:
-    "The estimate plus or minus about two standard errors: intervals made this way hold the true coefficient " +
-    "95% of the time.",
+    "The estimate plus or minus about two standard errors at 95% confidence: intervals made this way hold the true " +
+    "coefficient as often as the study's confidence level says, 95% unless Settings change it.",
   "p-value":
     "The probability of an estimate at least this far from zero if the true coefficient were zero. A small value " +
     "is evidence that it is not.",
@@ -118,11 +118,11 @@ export const GLOSSARY = {
     "spread against how far the runs at each level spread about their own average, which is the noise.",
   tukey:
     "Tukey's intervals: one for the difference between each pair of levels, each made wider so that all " +
-    "together hold their true differences 95% of the time. A pair whose interval holds no zero differs by more than " +
+    "together hold their true differences at the study's confidence level. A pair whose interval holds no zero differs by more than " +
     "the noise.",
   dunnett:
-    "Dunnett's intervals: one for each level's difference from a single level, the control, made wider so that " +
-    "together they hold their true differences 95% of the time. There are fewer of them than pairs, so each is " +
+    "Dunnett's intervals: one for each level's difference from the control, made wider so that " +
+    "together they hold their true differences at the study's confidence level. There are fewer of them than pairs, so each is " +
     "narrower than Tukey's.",
   bartlett:
     "Bartlett's test of whether the runs at every level spread alike, as the one-way analysis of variance takes " +
@@ -140,7 +140,7 @@ export const GLOSSARY = {
     "Wilcoxon's test for pairs: the differences are ranked by size, and the ranks' signs are compared with every " +
     "pattern of signs they could have had. One wild pair moves it little.",
   pse: "The pseudo standard error: a robust estimate of the standard error of an effect, from the effects themselves.",
-  me: "The margin of error, the individual 95% cutoff: an effect whose size exceeds it is significant on its own.",
+  me: "The margin of error, the individual cutoff at the study's significance level: an effect whose size exceeds it is significant on its own.",
   sme: "The simultaneous margin of error: the stricter cutoff, for scanning all the effects at once.",
   anova:
     "The analysis of variance: how much of the variation in the results each source explains, and how much is " +
@@ -197,9 +197,11 @@ export const GLOSSARY = {
 
   // The best settings
   "confidence-interval":
-    "The range that holds the mean response at these settings, the average of many runs there, 95% of the time.",
+    "The range that holds the mean response at these settings, the average of many runs there, at the study's " +
+    "confidence level: 95% of the time unless Settings change it.",
   "prediction-interval":
-    "The range that one new run at these settings falls in 95% of the time. It is wider than the confidence " +
+    "The range that one new run at these settings falls in at the study's confidence level, 95% of the time unless " +
+    "Settings change it. It is wider than the confidence " +
     "interval, since one run carries the run-to-run noise too.",
   leverage:
     "How far settings sit from the runs, as the model sees them: the variance of the prediction there, in units of " +

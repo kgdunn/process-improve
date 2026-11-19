@@ -4,7 +4,7 @@
 // touches the document, so tests/web/js runs it under Node.
 
 /** The run sheet's column marking a confirmation run, and what it holds for one; mirrors bootstrap.CONFIRMATION and CONFIRMS. */
-import { marked } from "./numbers.js";
+import { confidencePercent, marked, significance } from "./numbers.js";
 
 export const CONFIRMATION = "Confirmation run";
 export const CONFIRMS = "yes";
@@ -154,7 +154,7 @@ export function learnChecks(analysis, best, tell, { blend = false } = {}) {
   if (found("saturated").length) {
     checks.push({ key: "fit", state: "unknown", title: "No runs left to judge the fit", says: said("saturated"), numbers: "Residual degrees of freedom = 0" });
   } else if (found("none").length || best?.unclear) {
-    const says = best?.unclear ? (blend ? BLEND_UNCLEAR : UNCLEAR) : said("none");
+    const says = best?.unclear ? (blend ? blendUnclearSaid() : unclearSaid()) : said("none");
     checks.push({ key: "fit", state: "look", title: "No clear effect", says, numbers: statistics });
   } else {
     const [fit] = found("fit");
@@ -325,8 +325,8 @@ export function sensitivityCaption(best) {
 }
 
 /** The caution when no term of the model is clearly larger than the noise. */
-export const UNCLEAR =
-  "No term of the model is clearly larger than the noise (every p-value is 0.05 or above), so these settings may follow the noise.";
+export const unclearSaid = () =>
+  `No term of the model is clearly larger than the noise (every p-value is ${marked(String(significance()))} or above), so these settings may follow the noise.`;
 
 /** What the panel says for a goal of learning, or a target not yet typed; of a mixture's best blend with ``blend``. */
 export function noGoalSentence(best, { label }, { blend = false } = {}) {
@@ -366,7 +366,7 @@ export function confirmationSentences(group, factors, { label, units }, where = 
     return [`${head}${some} With no runs left to estimate the noise, the page cannot judge their average.`];
   }
   const average = `The average of ${group.done === 1 ? "the one result" : `their ${runs(group.done)}`}, ${withUnit(group.mean, units)},`;
-  const interval = `the 95% prediction interval for the average of ${runs(group.done)}, ${range}`;
+  const interval = `the ${confidencePercent()} prediction interval for the average of ${runs(group.done)}, ${range}`;
   return group.inside
     ? [`${head}${some}`, `${average} is inside ${interval}: the model holds at ${where}.`]
     : [
@@ -413,8 +413,8 @@ export const blendExtrapolation = (best) =>
   best.extrapolating ? "This blend lies beyond the runs, so the prediction leans on the model there: confirm it with a run." : "";
 
 /** The caution when no test of a mixture's model finds anything clearly larger than the noise. */
-export const BLEND_UNCLEAR =
-  "No test of the model finds the blends differ by more than the noise (every p-value is 0.05 or above), so this blend may follow the noise.";
+export const blendUnclearSaid = () =>
+  `No test of the model finds the blends differ by more than the noise (every p-value is ${marked(String(significance()))} or above), so this blend may follow the noise.`;
 
 /** What the chart of how tightly to weigh out each component moves: each along its Cox direction. */
 export const BLEND_SENSITIVITY =
@@ -753,8 +753,8 @@ export function balanceConfirmation(group, factors, responses) {
     const range = `${num(v.interval[0])} to ${withUnit(v.interval[1], units)}`;
     said.push(
       v.inside
-        ? `${label}: ${average}, is inside the 95% prediction interval, ${range}: the model holds here.`
-        : `${label}: ${average}, is outside the 95% prediction interval, ${range}: the process differs from the model here.`,
+        ? `${label}: ${average}, is inside the ${confidencePercent()} prediction interval, ${range}: the model holds here.`
+        : `${label}: ${average}, is outside the ${confidencePercent()} prediction interval, ${range}: the process differs from the model here.`,
     );
   }
   const judged = group.responses.filter((v) => v.inside !== null);
@@ -1233,7 +1233,7 @@ export function solveSentences(solved, { held = "", units = "", label = solved.r
     const [low, high] = s.interval;
     const from = low === null ? "the low end of its range" : withUnit(low, units);
     const to = high === null ? "the high end of its range" : withUnit(high, units);
-    return `${said} From ${from} to ${to}, the 95% confidence interval of the prediction still holds the target.`;
+    return `${said} From ${from} to ${to}, the ${confidencePercent()} confidence interval of the prediction still holds the target.`;
   });
 }
 

@@ -271,6 +271,12 @@ FUNCTIONS = "abs, sqrt, exp, log and log10"
 REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     # The factors, as typed into the brief.
     "no factors": ("api_make_design", _make(factors=[]), "Enter at least one factor."),
+    # The study's significance level, which every request may carry.
+    "a significance level the page does not offer": (
+        "api_make_design",
+        _make(significance_level=0.2),
+        "Unknown significance level 0.2: the page offers 0.01, 0.05, 0.1.",
+    ),
     "one factor, for a design of three or more": (
         "api_make_design",
         _make(factors=FACTORS[:1]),

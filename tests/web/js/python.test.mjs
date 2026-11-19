@@ -2,9 +2,10 @@
 // reproduces the page is checked by tests/web/page/test_python_panels.py.
 
 import assert from "node:assert/strict";
-import { describe, test } from "node:test";
+import { afterEach, describe, test } from "node:test";
 
 import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, figureCode, notebook, ownFigureCode, resultsCode } from "../../../web/python.js";
+import { DEFAULT_SIGNIFICANCE, setSignificance } from "../../../web/numbers.js";
 
 const FACTORS = [
   { name: "T", low: 150, high: 200, units: "degC" },
@@ -364,5 +365,27 @@ describe("a mixture", () => {
     assert.match(code, /region=DesignRegion\(factors\), {2}# the blends/);
     assert.doesNotMatch(code, /factor_ranges|held_at|"shape"/);
     assert.match(code, /print\(balanced\["optimal_coded"\]\) {2}# the balanced blend/);
+  });
+});
+
+describe("a study judged at a level of its own", () => {
+  afterEach(() => setSignificance(DEFAULT_SIGNIFICANCE));
+  const surface = { plot_type: "contour", factors_to_plot: ["T", "P"] };
+
+  test("at 0.05 the code names no level, as the library's own is 0.05", () => {
+    const code = cumulative(analyseCode("T + P"), figureCode("Fitted response surface", surface, "T + P", true, { response: "y" }));
+    assert.doesNotMatch(code, /significance_level|confidence_level/);
+  });
+
+  test("at another level each call of the library is given it, under the name that function has for it", () => {
+    setSignificance(0.01);
+    assert.match(analyseCode("quadratic"), /coding="actual",.*\n {4}significance_level=0\.01,\n\)/);
+    const figure = figureCode("Fitted response surface", surface, "T + P", true, { response: "y" });
+    assert.match(figure, /drawn = analyze_experiment\(\n.*\n {4}significance_level=0\.01,\n\)/);
+    assert.match(figure, /\n {4}confidence_level=0\.99,\n\)/);
+    assert.match(compareCode(FACTORS, [{ label: "A", design_type: "ccd", options: {} }], "quadratic"), /compare_designs\(designs, model="quadratic", significance_level=0\.01\)/);
+    setSignificance(0.1);
+    assert.match(analyseCode("quadratic"), /\n {4}significance_level=0\.1,\n\)/);
+    assert.match(figureCode("Fitted response surface", surface, "T + P", true, { response: "y" }), /confidence_level=0\.9,/);
   });
 });
