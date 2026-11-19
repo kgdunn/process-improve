@@ -1,1 +1,0 @@
-- **Factorial names its catalog the same in the "Studies" menu as in the footer:** "Catalog of experimental designs".
