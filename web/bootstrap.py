@@ -7007,9 +7007,11 @@ def correlations(request: dict) -> dict:
     together = []
     for i, j in itertools.combinations(range(len(terms)), 2):
         inside = [terms[i] in estimated, terms[j] in estimated]
-        if r[i, j] >= PARTLY_TOGETHER and any(inside):  # false for a term that does not vary: it has no correlation
+        # The map keeps each correlation's sign; how far two terms move together is its size. False for a term that
+        # does not vary: it has no correlation.
+        if abs(r[i, j]) >= PARTLY_TOGETHER and any(inside):
             a, b = (terms[i], terms[j]) if inside[0] else (terms[j], terms[i])
-            together.append({"a": a, "b": b, "r": float(r[i, j]), "both": all(inside), "blocks": False})
+            together.append({"a": a, "b": b, "r": float(abs(r[i, j])), "both": all(inside), "blocks": False})
     if _blocked(spec):
         in_model = [term for term in terms if term in estimated]
         # A term that takes one value in each block is confounded with the blocks, whatever the center runs add:

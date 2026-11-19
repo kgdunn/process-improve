@@ -203,6 +203,31 @@ def test_the_map_of_a_fraction_says_which_main_effects_are_aliased_and_draws_the
     assert "T·P" in labels
 
 
+def test_the_map_gives_each_correlation_its_sign_from_minus_one_to_one_with_a_key(blank_page):
+    """Blue for two terms that move opposite ways, red for two that move together, near white for neither."""
+    page = blank_page
+    generate(page, design_type="dsd", n_center_points=1)
+    open_the_map(page)
+    page.wait_for_selector("#correlation-plot.js-plotly-plot")
+    trace = page.locator("#correlation-plot").evaluate(
+        """(plot) => { const [t] = plot.data;
+          const values = t.z.flat().filter((v) => v !== null);
+          const ends = [0, 4, 8].map((at) => t.colorscale[at][1]);
+          return { range: [t.zmin, t.zmax], values, ends, key: [t.showscale, t.colorbar.ticktext] }; }"""
+    )
+    assert trace["range"] == [-1, 1]
+    assert min(trace["values"]) < -0.3, (
+        "a definitive screening design has squares and interactions that move opposite ways"
+    )
+    assert max(trace["values"]) == 1
+    assert trace["ends"] == ["#001261", "#ece5e0", "#590008"], "vik: blue, near white, red"
+    assert trace["key"] == [True, ["-1", "0", "+1"]]
+    # The pairs the words list are judged by the size of the correlation, whatever its sign.
+    sizes = [float(row) for row in page.locator("#correlation-pairs tbody tr td:nth-child(3)").all_text_contents()]
+    assert sizes == sorted(sizes, reverse=True)
+    assert all(size > 0 for size in sizes)
+
+
 def test_the_map_follows_the_design_while_it_is_open_and_is_asked_for_once_a_design(blank_page):
     page = blank_page
     generate(page, design_type="fractional_factorial", resolution=3, n_center_points=0)

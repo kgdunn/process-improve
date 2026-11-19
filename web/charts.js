@@ -944,6 +944,21 @@ export function rampOf(name, dark = false) {
   return hexes.map((hex, i) => [i / (hexes.length - 1), hex]);
 }
 
+/**
+ * The Scientific colour maps for a value with a sign (Crameri, 2018, as above), blue for negative and red for
+ * positive: vik, near white at zero, and berlin, near black at zero. Mirrors the library's DIVERGING_COLOUR_MAPS.
+ */
+export const DIVERGING_COLOUR_MAPS = {
+  vik: ["#001261", "#034481", "#307da6", "#94bed2", "#ece5e0", "#dbaa8d", "#c27041", "#912d06", "#590008"],
+  berlin: ["#9eb0ff", "#519fd3", "#286886", "#14303e", "#190c09", "#411201", "#7d341e", "#be6f63", "#ffadad"],
+};
+
+/** The diverging map as Plotly takes it, zero fading into the page: vik on a light page, berlin on a dark one. */
+export function divergingRamp(dark = false) {
+  const hexes = DIVERGING_COLOUR_MAPS[dark ? "berlin" : "vik"];
+  return hexes.map((hex, i) => [i / (hexes.length - 1), hex]);
+}
+
 /** The library's own ramp for a surface, by which the page knows a surface in a figure from Python. */
 export const SURFACE = rampOf(DEFAULT_COLOUR_MAP);
 
@@ -1249,11 +1264,15 @@ export function correlationFigure(terms, matrix, k, colours = palette()) {
         x: labels,
         y: labels,
         z: matrix,
-        zmin: 0,
+        // A correlation has a sign: blue for two terms that move opposite ways, red for two that move together,
+        // and the colour of the page for none.
+        zmin: -1,
         zmax: 1,
-        colorscale: rampFor(colours),
-        showscale: false,
-        hovertemplate: "%{y} with %{x}: |r| = %{z:.2f}<extra></extra>",
+        colorscale: divergingRamp(isDark(colours)),
+        // The colours need their key now that they have a sign: the bar, marked at -1, 0 and +1.
+        showscale: true,
+        colorbar: { tickvals: [-1, 0, 1], ticktext: ["-1", "0", "+1"], len: 0.6, title: { text: "r" } },
+        hovertemplate: "%{y} with %{x}: r = %{z:.2f}<extra></extra>",
       },
     ],
     layout: {

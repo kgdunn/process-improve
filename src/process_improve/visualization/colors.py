@@ -86,6 +86,34 @@ def colorscale(name: str = DEFAULT_COLOUR_MAP, *, dark_page: bool = False) -> li
     return [[i / (len(colours) - 1), colour] for i, colour in enumerate(colours)]
 
 
+#: The Scientific colour maps for a value that has a sign, such as a correlation from -1 to +1 (Crameri, 2018, as
+#: above): nine colours each, blue for the negative end and red for the positive. ``vik`` is near white at zero, for
+#: a light page; ``berlin`` is near black at zero, for a dark one, where a white zero would glare.
+DIVERGING_COLOUR_MAPS: dict[str, list[str]] = {
+    "vik": ["#001261", "#034481", "#307da6", "#94bed2", "#ece5e0", "#dbaa8d", "#c27041", "#912d06", "#590008"],
+    "berlin": ["#9eb0ff", "#519fd3", "#286886", "#14303e", "#190c09", "#411201", "#7d341e", "#be6f63", "#ffadad"],
+}
+
+
+def diverging_colorscale(*, dark_page: bool = False) -> list[list[float | str]]:
+    """Return the Plotly colour scale for a value with a sign, zero fading into the page.
+
+    Parameters
+    ----------
+    dark_page : bool
+        Whether the figure is on a dark page: ``berlin`` then, whose zero is near black, and ``vik`` on a light
+        page, the default, whose zero is near white.
+
+    Returns
+    -------
+    list of [float, str]
+        The colour at each of nine evenly spaced fractions from 0, the most negative value, to 1, the most
+        positive; 0.5 is zero.
+    """
+    colours = DIVERGING_COLOUR_MAPS["berlin" if dark_page else "vik"]
+    return [[i / (len(colours) - 1), colour] for i, colour in enumerate(colours)]
+
+
 #: Plotly-style continuous colour scale for contour and surface plots: batlow, light for low and dark for high.
 SURFACE_COLORSCALE: list[list[float | str]] = colorscale()
 

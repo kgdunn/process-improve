@@ -735,7 +735,7 @@ const correlationMap = [
   "figure = go.Figure(",
   "    go.Heatmap(",
   "        z=correlations.to_numpy(), x=list(correlations.columns), y=list(correlations.index),",
-  "        zmin=0, zmax=1, colorscale=colorscale(),  # the page's default colours, light for 0",
+  "        zmin=-1, zmax=1, colorscale=diverging_colorscale(),  # blue for -1, near white for 0, red for +1",
   "    )",
   ")",
   'figure.update_yaxes(autorange="reversed")  # the first term at the top',
@@ -750,10 +750,11 @@ export function correlationCode(factors) {
   return [
     "import plotly.graph_objects as go",
     "from process_improve.experiments import compare_designs",
-    "from process_improve.visualization.colors import colorscale",
+    "from process_improve.visualization.colors import diverging_colorscale",
     "",
     '# The figure "Correlation map": how far each pair of terms moves together over the runs. 0: the runs tell the',
-    "# two apart in full. 1: they cannot tell them apart at all.",
+    "# two apart in full. +1 or -1: they cannot tell them apart at all. The sign says whether the two move the same",
+    "# way or opposite ways.",
     `compared = compare_designs({"runs": X[${repr(factors)}]})`,
     "correlations = list(compared.correlations.values())[0]  # of the one design compared: these runs",
     ...correlationMap,
@@ -769,7 +770,7 @@ export function comparisonFigureCode({ asked = null, limits = [], label = null }
   if (label !== null) {
     return [
       "import plotly.graph_objects as go",
-      "from process_improve.visualization.colors import colorscale",
+      "from process_improve.visualization.colors import diverging_colorscale",
       "",
       `# The figure "Correlation map, ${label}": how far each pair of terms moves together over the design's runs.`,
       `correlations = comparison.correlations[${repr(label)}]`,
