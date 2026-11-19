@@ -201,7 +201,7 @@ describe("the study file", () => {
     const dir = mkdtempSync(join(tmpdir(), `factorial-format-${format}-`));
     try {
       const web = new URL("../../../web/", import.meta.url);
-      for (const name of ["study-file.js", "report.js", "logic.js"]) copyFileSync(new URL(name, web), join(dir, name));
+      for (const name of ["study-file.js", "report.js", "logic.js", "numbers.js"]) copyFileSync(new URL(name, web), join(dir, name));
       const source = readFileSync(new URL("campaign.js", web), "utf8");
       const earlier = source.replace(/export const CAMPAIGN_VERSION = \d+;/, `export const CAMPAIGN_VERSION = ${format};`);
       assert.notEqual(earlier, source);

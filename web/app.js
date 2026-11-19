@@ -102,6 +102,7 @@ import {
   noGoalSentence,
   noIntervalSentence,
   num,
+  numPlain,
   overlayCaption,
   sensitivityCaption,
   settingWords,
@@ -6339,7 +6340,7 @@ function renderGoals(b) {
     for (const name of ["low", "high", "importance", "shape"]) {
       const input = tr.querySelector(`[name="${name}"]`);
       if (input === document.activeElement && input.tagName === "INPUT") continue; // the reader is typing in it
-      input.value = name === "low" || name === "high" ? num(r[name]) : String(r[name]);
+      input.value = name === "low" || name === "high" ? numPlain(r[name]) : String(r[name]);
       input.removeAttribute("aria-invalid");
     }
   }
@@ -6726,7 +6727,7 @@ function showWhatIfSettings() {
     const value = state.whatIf.settings[row.dataset.factor];
     for (const input of row.querySelectorAll("input, select")) {
       if (input.name === "number" && input === document.activeElement) continue;
-      input.value = input.name === "number" ? num(value) : String(value);
+      input.value = input.name === "number" ? numPlain(value) : String(value);
     }
   }
 }
@@ -9670,7 +9671,7 @@ $("#balance-goals").addEventListener("input", goalChanged);
 $("#what-if-settings").addEventListener("input", whatIfChanged);
 $("#what-if-settings").addEventListener("change", (e) => {
   const row = e.target.closest("[data-factor]");
-  if (e.target.name === "number" && row && state.whatIf) e.target.value = num(state.whatIf.settings[row.dataset.factor]);
+  if (e.target.name === "number" && row && state.whatIf) e.target.value = numPlain(state.whatIf.settings[row.dataset.factor]);
 });
 // A profile is drawn to its dial's width, which the page knows once the panel is on show, and again when it changes.
 new ResizeObserver(() => {

@@ -3,6 +3,8 @@
 // tests/web/page/test_parity.py holds the rules that mirror web/bootstrap.py to it.
 
 /** Spare runs an optimal design gets beyond its model's coefficients; mirrors bootstrap.SPARE_RUNS. */
+import { marked, pointed } from "./numbers.js";
+
 export const SPARE_RUNS = 4;
 
 /** Count the coefficients, intercept included, of each named model in k factors. */
@@ -427,7 +429,7 @@ export function isLabel(text) {
 }
 
 /** A level as the form sends it: a label as its text, a blank box as null, and anything else as a number. */
-export const levelValue = (text) => (isLabel(text) ? String(text).trim() : numberOrNull(String(text ?? "")));
+export const levelValue = (text) => (isLabel(pointed(text)) ? String(text).trim() : numberOrNull(String(pointed(text) ?? "")));
 
 /**
  * Whether a factor is categorical: its type says so, as the brief and a study of several levels send it, or both its
@@ -1127,7 +1129,7 @@ export const listNames = (names) =>
   names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names.join("");
 
 /** A number to four significant figures, or nothing for a value the fit could not give. */
-export const fmt = (x) => (x === null || x === undefined ? "" : Number(x).toPrecision(4));
+export const fmt = (x) => (x === null || x === undefined ? "" : marked(Number(x).toPrecision(4)));
 
 const isNumber = (v) => typeof v === "number" && Number.isFinite(v);
 const isWhole = (v) => Math.abs(v - Math.round(v)) < 1e-9 * Math.max(1, Math.abs(v));
@@ -1178,7 +1180,7 @@ export function comparedRow(values, direction, ranked = values.map(() => true)) 
 }
 
 /** A p-value to four decimals, or "< 0.0001". */
-export const pval = (p) => (p === null || p === undefined ? "" : p < 0.0001 ? "< 0.0001" : Number(p).toFixed(4));
+export const pval = (p) => (p === null || p === undefined ? "" : marked(p < 0.0001 ? "< 0.0001" : Number(p).toFixed(4)));
 
 /**
  * A fit's coefficients in the order their table lists them: the smallest p-value first, so what the runs are surest of
@@ -1599,7 +1601,7 @@ export function comparisonSentence(comparison, { response, units = "", factorUni
   const d = comparison?.difference;
   const pooled = d?.tests.find((t) => t.test === (d.paired ? "paired" : "pooled"));
   if (!pooled || pooled.ci_low === null || pooled.ci_high === null) return null;
-  const num = (x) => String(Number(Number(x).toPrecision(4)));
+  const num = (x) => marked(String(Number(Number(x).toPrecision(4))));
   const after = (u) => (!u ? "" : u === "%" ? "%" : ` ${u}`); // no space before a percent sign
   const at = (level) => `${level}${after(factorUnits)}`;
   const size = `${num(Math.abs(d.estimate))}${after(units)}`;
@@ -1692,7 +1694,7 @@ export const SN_WORDS = { larger: "larger is better", smaller: "smaller is bette
  * factor his second step moves the mean with; and the runs left out. ``factorUnits`` gives each factor's units.
  */
 export function spreadSentences(spread, { response, units = "", factorUnits = {} }) {
-  const num = (x) => String(Number(Number(x).toPrecision(3)));
+  const num = (x) => marked(String(Number(Number(x).toPrecision(3))));
   const after = (u) => (!u ? "" : u === "%" ? "%" : ` ${u}`); // no space before a percent sign
   const at = (f, level) => `${f.name} at ${level}${after(factorUnits[f.name])}`;
   const lines = [];

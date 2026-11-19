@@ -77,6 +77,7 @@ APP_FILES = (
     "field-chart.js",
     "app.js",
     "logic.js",
+    "numbers.js",
     "limits.js",
     "corners.js",
     "picture.js",

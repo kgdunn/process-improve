@@ -6,6 +6,7 @@
 // to look inside the region: the other factors are held where the reader sets them, and the
 // settings that can be run there are drawn exactly, with every straight limit's boundary.
 
+import { marked } from "./numbers.js";
 import { isCategorical, listNames } from "./logic.js";
 
 const $ = (sel) => document.querySelector(sel);
@@ -54,7 +55,7 @@ function svg(tag, attrs = {}, text = "") {
 }
 
 /** A value as the picture writes it: four significant figures. */
-const num = (value) => String(Number(Number(value).toPrecision(4)));
+const num = (value) => marked(String(Number(Number(value).toPrecision(4))));
 
 /** A numeric factor's ends, low first, and its units, from the factors Python read. */
 function endsOf(name) {
@@ -503,7 +504,7 @@ function describe(x, y, region, bounds, numeric, held = null) {
 function lookInside(x, y) {
   const centre = drawn.picture.center ?? {};
   const others = factorsDrawn.filter((f) => !isCategorical(f) && f.name !== x && f.name !== y);
-  inside = { x, y, at: Object.fromEntries(others.map((f) => [f.name, Number(num(centre[f.name] ?? (f.low + f.high) / 2))])) };
+  inside = { x, y, at: Object.fromEntries(others.map((f) => [f.name, Number(Number(centre[f.name] ?? (f.low + f.high) / 2).toPrecision(4))])) };
   $("#region-panels").hidden = true;
   $("#region-legend").hidden = true;
   $("#region-slice").hidden = false;
