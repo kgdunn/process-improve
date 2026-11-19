@@ -299,7 +299,10 @@ jobs:
     # cp1252 on Windows (#994); tests/conftest.py fails the run when the call is ours.
     env:
       PYTHONWARNDEFAULTENCODING: "1"
-    continue-on-error: ${{ matrix.experimental }}
+    # On a pull request the macOS rows are advisory: GitHub's macOS runner was lost before the job began seven times
+    # in three days, and each loss failed `CI passed` until a re-run of about 15 minutes. A push to main, the nightly
+    # run and a manual run still gate on them.
+    continue-on-error: ${{ matrix.experimental || (github.event_name == 'pull_request' && matrix.os == 'macos-latest') }}
     defaults:
       run:
         shell: bash -e {0}
