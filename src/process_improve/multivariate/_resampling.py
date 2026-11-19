@@ -207,7 +207,7 @@ class Resampler:
         fig = ridgeplot.ridgeplot(
             samples=values.T,  # one row of samples per parameter
             kde_points=np.linspace(values.min(), values.max(), 500),
-            colorscale=[tuple(stop) for stop in colorscale()],  # batlow, as the package's other figures
+            colorscale=[(float(at), str(colour)) for at, colour in colorscale()],  # batlow, the package's own
             colormode="row-index",
             opacity=0.6,
             # An array-valued accessor gives integer column labels, which ridgeplot cannot join.
