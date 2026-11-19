@@ -6,6 +6,8 @@
 // A campaign read back, from this browser or from a link someone sent, is checked field by
 // field before the page uses any of it: a link is text anyone can write.
 
+import { SIGNIFICANCE_LEVELS } from "./numbers.js";
+
 /**
  * The latest format of a campaign this page reads; one of a later format is refused, not guessed at. Each study is
  * saved in the lowest format that holds it (studyFormat), so a page from before a format opens every study it can.
@@ -24,7 +26,7 @@
  * format on, a page keeps a setting it does not know and takes no notice of it, so a later setting that only changes
  * how a study looks needs no format of its own. A setting that changes a number or a verdict still does.
  */
-export const CAMPAIGN_VERSION = 12;
+export const CAMPAIGN_VERSION = 13;
 
 /** The format of a study of one factor; a study of more factors keeps format 1. */
 export const ONE_FACTOR_FORMAT = 2;
@@ -59,6 +61,12 @@ export const WHOLE_PLOT_FORMAT = 11;
 /** The format of a study with settings of its own (``settings``); a study with none keeps an earlier format. */
 export const SETTINGS_FORMAT = 12;
 
+/**
+ * The format of a study judged at a significance level of its own (``settings.significance_level``). The level
+ * changes what the study finds, so a page from before the setting refuses the study and never judges it at 0.05.
+ */
+export const SIGNIFICANCE_FORMAT = 13;
+
 /** The most settings a study holds, known to this page or not. */
 export const SETTINGS_HELD = 32;
 
@@ -75,6 +83,7 @@ export const CURVE_POINTS_HELD = 1000;
  */
 export function studyFormat(spec, study = {}) {
   const { what_if: kept = [], set_aside: setAside = {}, targets = {}, windows = {}, builds_on: builtOn = [], planned = {} } = study;
+  if (study.settings?.significance_level !== undefined) return SIGNIFICANCE_FORMAT;
   if (Object.keys(study.settings ?? {}).length) return SETTINGS_FORMAT;
   if (spec.options?.hard_to_change?.length) return WHOLE_PLOT_FORMAT;
   if (Object.keys(planned).length) return PLANNED_FORMAT;
@@ -198,6 +207,9 @@ export function studySettings(value) {
     if (!/^[a-z][a-z_]{0,31}$/.test(key)) refuse(`its setting ${JSON.stringify(key).slice(0, 40)} has no name the page reads`);
     if (!(isFiniteNumber(v) || isText(v, 64) || typeof v === "boolean")) refuse(`its setting ${key} is not a value`);
   }
+  // A look the page lacks is drawn as the default; a level it lacks would change what the study finds, so it is refused.
+  const level = value.significance_level;
+  if (level !== undefined && !SIGNIFICANCE_LEVELS.includes(level)) refuse(`it is judged at a significance level this page does not offer, ${JSON.stringify(level)}`);
   return Object.fromEntries(entries);
 }
 

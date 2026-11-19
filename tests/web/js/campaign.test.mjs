@@ -957,7 +957,7 @@ describe("a study's settings", () => {
     const read = checkCampaign({ ...campaign(), v: SETTINGS_FORMAT, settings: { colour_map: "lajolla" } });
     assert.deepEqual(read.settings, { colour_map: "lajolla" });
     assert.equal(read.v, SETTINGS_FORMAT);
-    assert.equal(CAMPAIGN_VERSION, SETTINGS_FORMAT, "the page reads it");
+    assert.ok(CAMPAIGN_VERSION >= SETTINGS_FORMAT, "the page reads it");
     for (const none of [undefined, null, {}]) {
       const plain = checkCampaign({ ...campaign(), v: CAMPAIGN_VERSION, settings: none });
       assert.equal(plain.settings, undefined);
@@ -978,6 +978,22 @@ describe("a study's settings", () => {
     assert.throws(with_({ colour_map: { name: "lajolla" } }), /its setting colour_map is not a value/);
     assert.throws(with_({ colour_map: "x".repeat(65) }), /its setting colour_map is not a value/);
     assert.throws(with_(Object.fromEntries(Array.from({ length: 33 }, (_, i) => [`s${"a".repeat(i + 1)}`, 1]))), /too many/);
+  });
+
+  test("a study judged at a level of its own is saved in a later format, which a page from before the setting refuses", async () => {
+    const { SETTINGS_FORMAT, SIGNIFICANCE_FORMAT } = await import("../../../web/campaign.js");
+    const strict = checkCampaign({ ...campaign(), v: CAMPAIGN_VERSION, settings: { colour_map: "lajolla", significance_level: 0.01 } });
+    assert.equal(strict.settings.significance_level, 0.01);
+    assert.equal(strict.v, SIGNIFICANCE_FORMAT);
+    assert.ok(SIGNIFICANCE_FORMAT > SETTINGS_FORMAT, "the page of format 12 reads formats 1 to 12, so it refuses this one");
+    assert.equal(CAMPAIGN_VERSION, SIGNIFICANCE_FORMAT, "the page reads it");
+  });
+
+  test("a level this page does not offer is refused, and never judged at another", () => {
+    for (const level of [0.02, 0.5, "0.01", true]) {
+      const read = () => checkCampaign({ ...campaign(), v: CAMPAIGN_VERSION, settings: { significance_level: level } });
+      assert.throws(read, /a significance level this page does not offer/);
+    }
   });
 });
 
