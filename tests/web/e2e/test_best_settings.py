@@ -99,7 +99,7 @@ def test_the_worked_example_says_where_to_run_its_process(page, first_paint):
 def test_its_words_open_their_definitions(page):
     reveal(page, "#best")
     assert definition(page, '#best th .term[data-term="prediction-interval"]').startswith(
-        "The range that one new run at these settings falls in 95% of the time."
+        "The range that one new run at these settings falls in at the study's confidence level, 95% of the time"
     )
     assert definition(page, '#best th .term[data-term="leverage"]').startswith("How far settings sit from the runs")
     assert definition(page, '#confirm h4 .term[data-term="confirmation-run"]').startswith(
