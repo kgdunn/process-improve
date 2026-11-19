@@ -539,8 +539,9 @@ class TestPlotResults:
         for trace in named:
             np.testing.assert_array_equal(trace.x, np.linspace(-5.0, 5.0, 500))
 
-        # Viridis runs from #440154 to #fde725: the first row takes its top, the last its bottom, at opacity 0.6.
-        assert [trace.fillcolor for trace in named] == ["rgba(253, 231, 37, 0.6)", "rgba(68, 1, 84, 0.6)"]
+        # Batlow, the package's colour map, runs from #faccfa to #011959: the first row takes its dark end, the
+        # last its light end, at opacity 0.6.
+        assert [trace.fillcolor for trace in named] == ["rgba(1, 25, 89, 0.6)", "rgba(250, 204, 250, 0.6)"]
 
         # norm="probability": each density sums to 1 over the grid. The first row sits at 0, and the
         # second one spacing below it, 0.1 times the tallest density.

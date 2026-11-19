@@ -25,6 +25,7 @@ except ImportError:  # pragma: no cover - exercised via env-without-plotly
     go = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
     make_subplots = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
 
+from process_improve.visualization.colors import COLOUR_MAPS, colorscale
 from process_improve.visualization.themes import (
     DEFAULT_THEME,
     LIMIT_LINE_COLOR,
@@ -1579,7 +1580,7 @@ def confusion_matrix_plot(
             {
                 "normalize": False,             # bool: show row fractions, not counts
                 "title": "Confusion matrix",    # str: overall plot title
-                "colorscale": "Blues",          # str: any Plotly colorscale name
+                "colorscale": "devon",          # str: a Scientific colour map of the package, or a Plotly name
                 "show_values": True,            # bool: print the value in each cell
                 "html_image_height": 500,       # int: image height in pixels
                 "html_aspect_ratio_w_over_h": 1.0,  # float: width as ratio of height
@@ -1615,7 +1616,7 @@ def confusion_matrix_plot(
 
         normalize: bool = False
         title: str = "Confusion matrix"
-        colorscale: str = "Blues"
+        colorscale: str = "devon"
         show_values: bool = True
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 1.0
@@ -1645,7 +1646,11 @@ def confusion_matrix_plot(
         "z": values,
         "x": [str(label) for label in matrix.columns],
         "y": [str(label) for label in matrix.index],
-        "colorscale": setdict["colorscale"],
+        # One of the package's own maps is drawn from its light end, so an empty cell fades into the page; any other
+        # name is Plotly's to read.
+        "colorscale": colorscale(setdict["colorscale"])
+        if setdict["colorscale"] in COLOUR_MAPS
+        else setdict["colorscale"],
         "colorbar": dict(title=colorbar_title),
         "hovertemplate": "True %{y}, predicted %{x}: %{z}<extra></extra>",
     }
