@@ -1425,6 +1425,12 @@ export function simplerWords(found, fmt) {
 }
 
 
+/** The components a triangle holds, in words: "D held at 0.25", "C at 0.2 and D at 0.1 held". */
+export function heldWords(held) {
+  const parts = Object.entries(held).map(([name, share]) => `${name} at ${marked(String(Number(Number(share).toPrecision(3))))}`);
+  return parts.length === 1 ? `${parts[0].replace(" at ", " held at ")}` : `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)} held`;
+}
+
 /** How the caption of a response surface says which two factors it is drawn over. */
 export const pairWords = (chosen) => (chosen ? "the two factors you chose" : "the two factors with the largest main effects");
 
@@ -1471,10 +1477,16 @@ export const CHARTS = {
   },
   ternary: {
     title: "Fitted response over the blends",
-    /** With the best blend found, a star marks it (``starred``). */
-    caption: (_, { starred = false } = {}) =>
-      "Each corner is a pure component and each point a blend, coloured by the fitted response, over the blends the " +
-      `bounds allow; the white dots are the runs${starred ? ", and the star the best blend" : ""}.`,
+    /**
+     * With the best blend found, a star marks it (``starred``). Of four components or more, the triangle is of three,
+     * the others held (``blendHeld``, each name with its share): its corners are where one of the three takes all they share.
+     */
+    caption: (_, { starred = false, blendHeld = null } = {}) =>
+      blendHeld
+        ? `Each point is a blend, coloured by the fitted response, with ${heldWords(blendHeld)}; the other three share the ` +
+          `rest, and each corner is where one of them takes all of it${starred ? ". The star is the best blend" : ""}.`
+        : "Each corner is a pure component and each point a blend, coloured by the fitted response, over the blends the " +
+          `bounds allow; the white dots are the runs${starred ? ", and the star the best blend" : ""}.`,
   },
   true_ternary: {
     title: "True response over the blends",

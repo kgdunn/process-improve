@@ -6478,12 +6478,15 @@ def _mixture_plots(request: dict, spec: dict) -> dict:
         "held_best": best is not None,
         "plotly_js": plotly.offline.get_plotlyjs_version(),
     }
+    picked = _triangle_picked(request.get("triangle"), names)  # checked for every mixture, used for four or more
     if len(names) == 3:
         reply["ternary"] = _ternary(spec, blends, y, fitted, true)
-    elif best is None:
-        reply["cox"] = _cox_traces(names, out, fitted, true)
-    else:
-        reply["cox"] = _cox_through(spec, best, fitted, true)
+        return reply
+    reply["cox"] = _cox_traces(names, out, fitted, true) if best is None else _cox_through(spec, best, fitted, true)
+    through = best if best is not None else np.array([out["effect_reference"][n] for n in names])
+    shown = picked or _largest_three(reply["cox"])
+    if (triangle := _sub_triangle(spec, through, shown, fitted, true)) is not None:
+        reply["ternary"] = triangle | {"chosen": request.get("triangle") is not None}
     return reply
 
 
@@ -6549,6 +6552,68 @@ def _ternary(
     }
 
 
+def _triangle_picked(raw: object, names: list[str]) -> list[str] | None:
+    """Return the three components the reader picked for the triangle, in the order picked; None for no pick."""
+    if raw is None:
+        return None
+    if not (isinstance(raw, list) and len(raw) == 3 and len(set(raw)) == 3 and set(raw) <= set(names)):
+        raise ValueError("Pick three different components of the study to draw the triangle over.")
+    return list(raw)  # the order the drop-downs hold them in, so a pick stays where it was made
+
+
+def _largest_three(cox: dict) -> list[str]:
+    """Return the three components whose Cox trace moves the fitted response most, in the study's order."""
+    span = {t["component"]: max(t["fitted"]) - min(t["fitted"]) for t in cox["traces"]}
+    largest = sorted(span, key=lambda name: -span[name])[:3]
+    return [name for name in cox["components"] if name in largest]
+
+
+def _sub_triangle(
+    spec: dict, through: np.ndarray, shown: list[str], fitted: dict[str, float], true: dict[str, float] | None
+) -> dict | None:
+    """Return the fitted response over the triangle of three components, the others held at the blend ``through``.
+
+    The three share what the held components leave, ``sum``, so each point reads in the real proportions of the
+    recipe, not rescaled to 1. The triangle keeps the blends the bounds allow, as :func:`_ternary_grid` does; None
+    when the held components leave the three nothing to share. The runs are not drawn: a run of four components or
+    more is not on this triangle unless it holds the others at these same proportions.
+    """
+    names = [f["name"] for f in spec["factors"]]
+    at = [names.index(name) for name in shown]
+    held = [i for i in range(len(names)) if i not in at]
+    low, high = _bounds(spec)
+    left = float(1.0 - through[held].sum())
+    if left - low[at].sum() <= PROPORTION_TOLERANCE:
+        return None
+    grid, _ = _lattice(low[at], high[at], left)
+    blends = np.tile(through, (len(grid), 1))
+    blends[:, at] = grid
+    frame = pd.DataFrame(blends, columns=names)
+    return {
+        "components": shown,
+        "grid": {
+            "a": grid[:, 0].tolist(),
+            "b": grid[:, 1].tolist(),
+            "c": grid[:, 2].tolist(),
+            "fitted": _blended(fitted, frame),
+            "true": None if true is None else _blended(true, frame),
+        },
+        "runs": {"a": [], "b": [], "c": [], "y": []},
+        "sum": round(left, 9),
+        "held": {names[i]: round(float(through[i]), 9) for i in held},
+    }
+
+
+def _lattice(low: np.ndarray, high: np.ndarray, total: float) -> tuple[np.ndarray, list[tuple[int, int]]]:
+    """Return the blends of three proportions summing to ``total``, each in its bounds, and their lattice places."""
+    n = TERNARY_STEPS
+    places = [(i, j) for i in range(n + 1) for j in range(n + 1 - i)]
+    steps = np.array([(i, j, n - i - j) for i, j in places], dtype=float) / n
+    grid = low + (total - low.sum()) * steps
+    kept = np.all(grid <= high + PROPORTION_TOLERANCE, axis=1)
+    return grid[kept].round(9), [place for place, keep in zip(places, kept, strict=True) if keep]
+
+
 def _ternary_grid(spec: dict) -> tuple[np.ndarray, list[tuple[int, int]]]:
     """Return the blends of three components a triangle is drawn over, and each one's place ``(i, j)`` on its lattice.
 
@@ -6558,12 +6623,7 @@ def _ternary_grid(spec: dict) -> tuple[np.ndarray, list[tuple[int, int]]]:
     allow too.
     """
     low, high = _bounds(spec)
-    n = TERNARY_STEPS
-    places = [(i, j) for i in range(n + 1) for j in range(n + 1 - i)]
-    steps = np.array([(i, j, n - i - j) for i, j in places], dtype=float) / n
-    grid = low + (1.0 - low.sum()) * steps
-    kept = np.all(grid <= high + PROPORTION_TOLERANCE, axis=1)
-    return grid[kept].round(9), [place for place, keep in zip(places, kept, strict=True) if keep]
+    return _lattice(low, high, 1.0)
 
 
 def _cox_traces(names: list[str], out: dict, fitted: dict[str, float], true: dict[str, float] | None) -> dict:

@@ -308,6 +308,47 @@ def test_four_components_are_traced_along_their_cox_directions(api, plotly):
         assert trace["true"] is None
 
 
+def test_four_components_are_drawn_over_a_triangle_of_three_the_others_held_at_the_reference_blend(api, plotly):
+    design = make(api, "simplex lattice, degree 2", 4, n_replicates=2)
+    y = blended(proportions(design), TRUE_BLEND).tolist()
+    charts = api.ok("api_plots", {**held_of(design), "responses": y})
+    triangle = charts["ternary"]
+    # By default the three whose Cox traces move the fitted response most; here B moves it least, and is held.
+    span = {t["component"]: np.ptp(t["fitted"]) for t in charts["cox"]["traces"]}
+    assert min(span, key=span.get) == "B"
+    assert (triangle["components"], triangle["held"], triangle["chosen"]) == (["A", "C", "D"], {"B": 0.25}, False)
+    assert triangle["sum"] == pytest.approx(0.75), "the three share what B leaves: real proportions, not rescaled"
+    grid = pd.DataFrame({n: triangle["grid"][key] for n, key in zip("ACD", "abc", strict=True)})
+    np.testing.assert_allclose(grid.sum(axis=1), 0.75, atol=1e-9)
+    assert len(grid) == 41 * 42 // 2
+    np.testing.assert_allclose(triangle["grid"]["fitted"], blended(grid.assign(B=0.25), TRUE_BLEND), rtol=1e-5)
+    assert triangle["runs"]["y"] == [], "a run of four components is not on this triangle"
+    assert "cox" in charts, "the Cox traces stay beside it"
+
+
+def test_the_reader_picks_the_three_and_the_best_blend_holds_the_others(api, plotly):
+    design = make(api, "simplex lattice, degree 2", 4, n_replicates=2)
+    y = blended(proportions(design), TRUE_BLEND).tolist()
+    best = {"A": 0.4, "B": 0.1, "C": 0.2, "D": 0.3}
+    request = {**held_of(design), "responses": y, "best": best, "triangle": ["D", "B", "A"]}
+    triangle = api.ok("api_plots", request)["ternary"]
+    assert (triangle["components"], triangle["chosen"]) == (["D", "B", "A"], True), "in the order picked"
+    assert triangle["held"] == {"C": 0.2}
+    assert triangle["sum"] == pytest.approx(0.8)
+    for bad in (["A", "B"], ["A", "A", "B"], ["A", "B", "E"], "ABC"):
+        refusal = api.error("api_plots", {**request, "triangle": bad})
+        assert refusal == "Pick three different components of the study to draw the triangle over."
+
+
+def test_no_triangle_when_the_held_components_leave_the_three_nothing_to_share(api, plotly):
+    design = make(api, "simplex lattice, degree 2", 4, n_replicates=2)
+    y = blended(proportions(design), TRUE_BLEND).tolist()
+    request = {**held_of(design), "responses": y, "best": {"A": 0.0, "B": 0.0, "C": 0.0, "D": 1.0}}
+    charts = api.ok("api_plots", {**request, "triangle": ["A", "B", "C"]})
+    assert "ternary" not in charts
+    assert "cox" in charts
+
+
 # --------------------------------------------------------------------------- the workbook and renaming
 def test_a_mixture_comes_back_from_its_workbook_as_a_mixture(api):
     design = make(api, "extreme vertices, quadratic", 3)

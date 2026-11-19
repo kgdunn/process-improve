@@ -1559,6 +1559,30 @@ def test_the_cox_traces_code_moves_each_component_as_the_page_moves_it(api, node
         np.testing.assert_allclose(mine.y, theirs["fitted"], rtol=1e-5, err_msg=theirs["component"])
 
 
+@pytest.mark.slow
+@pytest.mark.parametrize("through", ["the reference blend", "the best blend"])
+def test_the_triangle_of_three_of_four_components_is_drawn_by_its_code_as_the_page_draws_it(
+    api, node, monkeypatch, through
+):
+    four = [{"name": name, "low": None, "high": None, "units": ""} for name in "ABCD"]
+    made = held_of(api.ok("api_make_design", {"design_type": "simplex_lattice", "factors": four}))
+    held = aimed(made, "maximize")
+    responses = api.ok("api_simulate", {**held, "seed": 5})["responses"]
+    request = {**held, "responses": responses}
+    analysis = api.ok("api_analyze_runs", request)
+    best = api.ok("api_best_settings", request)["coded"] if through == "the best blend" else None
+    ternary = api.ok("api_plots", {**request, "triangle": ["A", "C", "D"], **({"best": best} if best else {})})[
+        "ternary"
+    ]
+    about = {"ternary": ternary}
+    drawn = own_figure(node, monkeypatch, steps_of(held, responses, analysis), "ternary", held["spec"], about)
+    (surface,) = drawn.data  # no runs: a run of four components is not on this triangle
+    for corner in "abc":
+        np.testing.assert_allclose(surface[corner], ternary["grid"][corner], atol=1e-9, err_msg=corner)
+    np.testing.assert_allclose(surface.marker.color, ternary["grid"]["fitted"], rtol=1e-5)
+    assert drawn.layout.ternary.sum == pytest.approx(ternary["sum"], abs=1e-9)
+
+
 def test_a_figure_the_page_could_not_have_drawn_has_no_code(node):
     spec = {"response": "y", "factors": factors_named("T", "P")}
     asked = [

@@ -672,9 +672,12 @@ const OWN_FIGURES = {
       ...shown(`${across} (coded)`, `${up} (coded)`),
     ];
   },
-  ternary: (title, spec, { process }, values = "fitted") => {
-    const names = spec.factors.map((f) => f.name);
+  ternary: (title, spec, { process, ternary = null }, values = "fitted") => {
+    // Of four components or more, the triangle is of three (``ternary.components``), the others held (``ternary.held``).
+    const held = ternary?.held ?? null;
+    const names = held ? ternary.components : spec.factors.map((f) => f.name);
     const [a, b, c] = names.map(repr);
+    const bound = (side) => spec.factors.filter((f) => names.includes(f.name)).map((f) => f[side]);
     const model = values === "fitted";
     if (!model && !process) return null;
     return [
@@ -688,11 +691,18 @@ const OWN_FIGURES = {
         ? `# The figure "${title}": the fitted model's response over a grid of blends, and the runs.`
         : `# The figure "${title}": the process the results were simulated from, with no noise, over a grid of blends.`,
       "# The grid covers the blends the components' lower and upper proportions allow, in 40 steps a side.",
-      `low, high = np.array(${repr(spec.factors.map((f) => f.low))}), np.array(${repr(spec.factors.map((f) => f.high))})`,
+      ...(held
+        ? [
+            `held = ${repr(held)}  # the other components, held at the blend found`,
+            "share = 1 - sum(held.values())  # what the three on the triangle share",
+          ]
+        : ["share = 1"]),
+      `low, high = np.array(${repr(bound("low"))}), np.array(${repr(bound("high"))})`,
       "steps = 40",
       "lattice = np.array([(i, j, steps - i - j) for i in range(steps + 1) for j in range(steps + 1 - i)]) / steps",
-      `grid = pd.DataFrame(low + (1 - low.sum()) * lattice, columns=${repr(names)})`,
+      `grid = pd.DataFrame(low + (share - low.sum()) * lattice, columns=${repr(names)})`,
       "grid = grid[(grid <= high + 1e-9).all(axis=1)]",
+      ...(held ? ["grid = grid.assign(**held)"] : []),
       ...(model
         ? [
             "# A Scheffé model's response at a blend: each term's coefficient times the product of its components.",
@@ -700,20 +710,25 @@ const OWN_FIGURES = {
             `response = ${blended("grid", "fitted")}`,
           ]
         : [...knownProcess(process), "response = truth.mean(grid)"]),
-      "had = y.notna()  # the runs that have their result",
+      ...(held ? [] : ["had = y.notna()  # the runs that have their result"]),
       "figure = go.Figure(",
       "    [",
       "        go.Scatterternary(",
       `            a=grid[${a}], b=grid[${b}], c=grid[${c}], mode="markers", name=${repr(model ? "Fitted response" : "True response")},`,
       `            marker={"color": response, "colorscale": colorscale(${colourArgs()}), "size": 7, "colorbar": {"title": {"text": ${repr(axisWords(spec))}}}},`,
       "        ),",
-      "        go.Scatterternary(",
-      `            a=X[${a}][had], b=X[${b}][had], c=X[${c}][had], mode="markers", name="Runs",`,
-      '            marker={"color": "white", "size": 10, "line": {"color": "black", "width": 1.5}},',
-      "        ),",
+      ...(held
+        ? []
+        : [
+            "        go.Scatterternary(",
+            `            a=X[${a}][had], b=X[${b}][had], c=X[${c}][had], mode="markers", name="Runs",`,
+            '            marker={"color": "white", "size": 10, "line": {"color": "black", "width": 1.5}},',
+            "        ),",
+          ]),
       "    ]",
       ")",
-      `figure.update_layout(ternary={axis: {"title": {"text": name}} for axis, name in zip(("aaxis", "baxis", "caxis"), ${repr(names)})})`,
+      "axes = {axis: {\"title\": {\"text\": name}} for axis, name in zip((\"aaxis\", \"baxis\", \"caxis\"), " + `${repr(names)})}`,
+      "figure.update_layout(ternary={**axes, \"sum\": share})  # each point in the recipe's own proportions",
       "figure.show()",
     ];
   },

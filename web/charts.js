@@ -1067,7 +1067,8 @@ export function ternaryFigure(
         : []),
     ],
     layout: {
-      ternary: { sum: 1, bgcolor: "rgba(0,0,0,0)", aaxis: axis(a), baxis: axis(b), caxis: axis(c) },
+      // A triangle of three of four components or more sums to what the others leave (``ternary.sum``).
+      ternary: { sum: ternary.sum ?? 1, bgcolor: "rgba(0,0,0,0)", aaxis: axis(a), baxis: axis(b), caxis: axis(c) },
       margin: { l: 36, r: 36, t: 36, b: 36 },
       showlegend: false,
     },

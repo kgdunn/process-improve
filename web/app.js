@@ -611,6 +611,7 @@ const state = {
   practising: false, // the reader chose to practise with simulated results
   practiceRound: false, // the results on the page are a practice round's: simulated by one press in Design
   analysis: null,
+  triangles: {}, // for a response's column, the three components of four or more its triangle is drawn over
   contourPairs: {}, // for a response's column, the two factors the reader chose to draw its surface over: else the largest two
   moreCharts: false, // whether "More charts" is open
   setAside: {}, // for a response's column, the places on the run sheet of the runs its fit goes without
@@ -2307,6 +2308,7 @@ function showDesign(design, warnings = [], { save = true } = {}) {
   state.marks = noResults(resultNames(), design.rows.length);
   state.setAside = {};
   state.contourPairs = {};
+  state.triangles = {};
   state.curves = null;
   state.curve = { fit: null, problem: null, target: null }; // the fit of the curves before goes with them
   state.shown = resultNames()[0];
@@ -4079,6 +4081,7 @@ async function readUpload(file) {
   state.marks = joinResults(names, r.sources, r.more_sources);
   state.setAside = {};
   state.contourPairs = {};
+  state.triangles = {};
   state.curves = r.curves ?? null;
   state.shown = names[0];
   state.simulation = null;
@@ -5408,6 +5411,7 @@ async function drawCharts(request, mine, given = null) {
     const levels = state.analysis?.comparison;
     if (levels) figures.levels = () => levelsFigure(levels, comparisonWords());
     const limits = { shaded: plots.shaded, held: plots.held, factors: state.design.spec.factors, starred };
+    limits.blendHeld = plots.ternary?.held ?? null; // the components a triangle of four or more holds: its caption names them
     limits.chosen = Boolean(plots.contour_chosen);
     // The bands around the lines of each factor's effect, which its caption says how to read: none without error left.
     limits.banded = Boolean(figures.perturbation?.data.some((trace) => trace.meta === "interval"));
@@ -5423,6 +5427,7 @@ async function drawCharts(request, mine, given = null) {
       if (!figures[key]) continue;
       const card = captioned(key);
       if (key === "contour" && plots.axes?.length > 2) card.card.append(contourPicker(plots));
+      if (key === "ternary" && plots.ternary.held) card.card.append(trianglePicker(plots));
       charts.append(card.card);
       await draw(card.plot, figures[key], version, chartHeight(key), { python: python(key) });
       if (overtaken()) return;
@@ -5464,7 +5469,7 @@ function figureAlone(key, plots = null) {
     const margins = Boolean(lenth) && !coefficients.some((c) => c.ci_high !== null && c.ci_high !== undefined);
     return ownFigureCode(key, CHARTS.coefficients.title, spec, { lenth: margins, model: formula ?? model, complete });
   }
-  const about = { contour: plots?.plot_options?.contour, cox: plots?.cox, process: processOf(spec.response) };
+  const about = { contour: plots?.plot_options?.contour, cox: plots?.cox, ternary: plots?.ternary, process: processOf(spec.response) };
   return ownFigureCode(key, CHARTS[key].title, spec, about);
 }
 
@@ -5557,14 +5562,64 @@ function contourPicker(plots) {
   return row;
 }
 
+/**
+ * Three drop-downs under the triangle of a mixture of four components or more: the components it is drawn over. The
+ * others stay held at the blend the caption names. Picking one already shown swaps the two, as the surface's do.
+ */
+function trianglePicker(plots) {
+  const row = el("p", "hint contour-picker triangle-picker", "");
+  const names = state.design.spec.factors.map((f) => f.name);
+  const shown = plots.ternary.components;
+  const words = ["First", "Second", "Third"];
+  const selects = shown.map((name, at) => {
+    const select = el("select", "", "");
+    select.id = `triangle-component-${at + 1}`;
+    select.setAttribute("aria-label", `${words[at]} component the triangle is drawn over`);
+    for (const option of names) select.append(new Option(option, option));
+    select.value = name;
+    return select;
+  });
+  const redraw = (focus) => {
+    const request = analysisRequest();
+    drawCharts(state.best?.coded ? { ...request, best: state.best.coded } : request, ticket).then(() => $(focus)?.focus());
+  };
+  selects.forEach((select, at) => {
+    select.onchange = () => {
+      const other = selects.find((s, i) => i !== at && s.value === select.value);
+      if (other) other.value = shown[at]; // the two change places
+      state.triangles[state.shown] = selects.map((s) => s.value);
+      redraw(`#${select.id}`);
+    };
+  });
+  // The three boxes share one line at any width: a narrow card makes each box narrower, never a second line.
+  const boxes = el("span", "triangle-picker__boxes", "");
+  boxes.append(...selects);
+  row.append("Draw it over these three:", boxes);
+  if (plots.ternary.chosen) {
+    const back = el("button", "link", "Back to the three largest effects");
+    back.type = "button";
+    back.id = "triangle-largest";
+    back.onclick = () => {
+      delete state.triangles[state.shown];
+      redraw(`#${selects[0].id}`);
+    };
+    row.append(back);
+  }
+  return row;
+}
+
 async function libraryPlots(request, mine) {
   // The reader's choice of the surface's two factors, for the response shown, holds while the study has both; a
   // refusal forgets it.
   const names = state.design.spec.factors.map((f) => f.name);
   const shown = state.shown;
   const pair = state.contourPairs[shown]?.every((name) => names.includes(name)) ? state.contourPairs[shown] : null;
-  let reply = await call("api_plots", pair ? { ...request, contour_factors: pair } : request);
-  if (!reply.ok && pair && !reply.stopped) {
+  // The same for the three components of a mixture's triangle.
+  const three = state.triangles[shown]?.every((name) => names.includes(name)) ? state.triangles[shown] : null;
+  const asked = { ...request, ...(pair ? { contour_factors: pair } : {}), ...(three ? { triangle: three } : {}) };
+  let reply = await call("api_plots", asked);
+  if (!reply.ok && (pair || three) && !reply.stopped) {
+    delete state.triangles[shown];
     delete state.contourPairs[shown];
     reply = await call("api_plots", request);
   }
@@ -8186,6 +8241,7 @@ async function showBuiltExample() {
   state.marks = { [name]: example.simulation.responses.map(() => "simulated") };
   state.setAside = {};
   state.contourPairs = {};
+  state.triangles = {};
   state.plotlyJs = example.plots.plotly_js;
   renderRuns();
   renderTruth();
@@ -8786,6 +8842,7 @@ async function openCampaign(c, record, message, resume = false) {
   state.marks = joinResults(names, [...c.sources], structuredClone(c.more_sources ?? {}));
   state.setAside = structuredClone(c.set_aside ?? {});
   state.contourPairs = {};
+  state.triangles = {};
   state.curves = c.curves ? structuredClone(c.curves) : null;
   state.shown = names[0];
   state.models = { [names[0]]: c.model, ...(c.more_models ?? {}) };

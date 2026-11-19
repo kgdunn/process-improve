@@ -5,7 +5,7 @@ import { afterEach, describe, test } from "node:test";
 
 import { blendUnclearSaid, num, numPlain, unclearSaid, withUnit } from "../../../web/best.js";
 import { CURVE_LINES, levelAverage } from "../../../web/charts.js";
-import { CHARTS, fmt, levelValue, pval, severalSentence } from "../../../web/logic.js";
+import { CHARTS, fmt, heldWords, levelValue, pval, severalSentence } from "../../../web/logic.js";
 import {
   DECIMAL_MARKS,
   DEFAULT_SIGNIFICANCE,
@@ -110,5 +110,18 @@ describe("the significance level", () => {
     setDecimalMark("comma");
     assert.match(unclearSaid(), /every p-value is 0,01 or above/);
     setDecimalMark("period");
+  });
+});
+
+describe("the triangle of three of four components or more", () => {
+  afterEach(() => setDecimalMark("period"));
+
+  test("its caption names the components held and their shares, short and in the reader's mark", () => {
+    assert.equal(heldWords({ Wax: 0.25 }), "Wax held at 0.25");
+    assert.equal(heldWords({ Wax: 0.2, Salt: 0.0333333 }), "Wax at 0.2 and Salt at 0.0333 held");
+    assert.equal(heldWords({ A: 0.1, B: 0.2, C: 0.3 }), "A at 0.1, B at 0.2 and C at 0.3 held");
+    setDecimalMark("comma");
+    assert.match(CHARTS.ternary.caption(null, { blendHeld: { Wax: 0.25 } }), /with Wax held at 0,25; the other three share the rest/);
+    assert.match(CHARTS.ternary.caption(null, {}), /the white dots are the runs\.$/, "of three components, as before");
   });
 });
