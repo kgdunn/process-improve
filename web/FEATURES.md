@@ -723,6 +723,14 @@ Also:
     the fit. Each shows what the model predicts there, as a guide only. The app says which
     run is best so far and which to make next. One press takes them off again. The path
     stops before its first run past a limit on the settings or a factor's possible range.
+- **Runs from a model of every run.** When the results do not follow a smooth curve, a Gaussian
+  process of every run can say where to look next: where it expects the most to gain over the
+  best so far. Each run says why: it looks better, or little is known there.
+  - *Details:* For a goal of the largest or smallest result, numeric factors, and at least
+    three more results than factors. One press fits the model and lists 1, 2, 4 or 8 runs to
+    make before any result is read; another adds them to the run sheet as runs of the study.
+    The limits on the settings are kept. When the model expects less than 1% more, it says
+    to confirm the best settings instead.
 - **Every move has its price.** Each way to go on says how many runs it adds and what the
   study then holds: "8 more runs: 19 in this study". A campaign says how many runs it holds
   so far.

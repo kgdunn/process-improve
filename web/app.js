@@ -662,6 +662,7 @@ const state = {
   curve: { fit: null, problem: null, target: null }, // the curves' fit from api_functional, why there is none, a target
   scenarios: [], // the settings the reader kept from the what-if panel, each {name, settings}: the study's what_if
   next: null, // the next step, {design, key, offers, notes, recommendation, waiting}: what api_next_runs returned for it
+  suggested: null, // the runs a model of every run suggested, {design, n, result}: what api_suggest_runs returned
   widened: false, // the study was started with its ranges widened, nothing having stood out in the study before
   settings: {}, // the study's own settings, as the study keeps them (campaign.js studySettings): its colour map
   buildsOn: [], // the study this one was started from, as the study keeps it (its builds_on): the round before
@@ -7916,7 +7917,8 @@ function renderNext() {
   const called = next.recommendation;
   const best = state.best?.settings && !isMixture(design?.spec.design_type) ? state.best : null;
   const move = !called && Boolean(best) && movesOn(best);
-  const shown = called || next.waiting || move || next.offers.length || next.notes.length || pathRows(design ?? { columns: [], rows: [] }).length;
+  const rows = pathRows(design ?? { columns: [], rows: [] }).length;
+  const shown = called || next.waiting || move || next.offers.length || next.notes.length || rows || (design && suggestable(design));
   $("#next").hidden = !design || !state.analysis || !shown;
   $("#to-next").hidden = $("#next").hidden;
   $("#next-empty").hidden = !$("#next").hidden;
@@ -7927,7 +7929,82 @@ function renderNext() {
     ...pathPart(called?.path ?? null, called?.path_stopped),
     ...(move ? movedStudy(best) : []),
     ...(next.offers.length || next.notes.length ? addedRuns(next, Boolean(called)) : []),
+    ...suggestedPart(design),
   );
+}
+
+/** The most runs a model of every run is asked for at once (bootstrap.MAX_SUGGESTED), and the choices offered. */
+const SUGGESTED_COUNTS = [1, 2, 4, 8];
+
+/** Whether a model of every run can suggest runs: numeric factors, no mixture, and a goal of the largest or smallest. */
+function suggestable(design) {
+  const goal = design.spec.response_info?.goal;
+  return (goal === "maximize" || goal === "minimize") && !isMixture(design.spec.design_type) && !design.spec.factors.some(isCategorical);
+}
+
+/**
+ * Runs from a model of every run (bootstrap.suggest_runs): a Gaussian process of every run with a result, and the
+ * runs where it expects the most to gain over the best so far, each because it looks better or because little is
+ * known there. Asked for with a press, as the fit takes a moment; the runs then go to the run sheet with another.
+ */
+function suggestedPart(design) {
+  if (!design || !suggestable(design)) return [];
+  const part = el("div", "next__part next__suggested", "");
+  part.append(
+    el("h4", "", "Runs from a model of every run"),
+    said(
+      "hint",
+      "When the results do not follow a smooth curve, a model of every run (a Gaussian process) can say where to look next: where it expects the most to gain over the best so far.",
+    ),
+  );
+  const count = el("select", "", "");
+  count.id = "suggested-count";
+  count.append(...SUGGESTED_COUNTS.map((n) => Object.assign(el("option", "", String(n)), { value: String(n) })));
+  count.value = String(state.suggested?.design === design ? state.suggested.n : 4);
+  const label = el("label", "", "Runs to make before any result is read ");
+  label.append(count);
+  const ask = el("button", "button", "Suggest runs");
+  ask.type = "button";
+  ask.id = "suggest-runs";
+  ask.onclick = async () => {
+    const n = Number(count.value);
+    setStatus("Fitting a model of every run...", "busy");
+    const asking = statusTicket;
+    const reply = await call("api_suggest_runs", { ...analysisRequest(), n_runs: n });
+    if (dropped(state.design !== design, asking)) return;
+    if (!reply.ok) {
+      setStatus(reply.error, "error");
+      return;
+    }
+    state.suggested = { design, n, result: reply.result };
+    setStatus("Runs suggested: see Next.");
+    renderNext();
+  };
+  const actions = el("p", "actions", "");
+  actions.append(label, " ", ask);
+  part.append(actions);
+  const found = state.suggested?.design === design ? state.suggested.result : null;
+  if (!found) return [part];
+  const factors = design.spec.factors;
+  const info = design.spec.response_info ?? {};
+  const rows = found.runs.map((run, i) => [
+    i + 1,
+    ...factors.map((f) => stepSetting(f, run.settings[f.name])),
+    withUnit(Number(run.predicted.toPrecision(4)), info.units ?? ""),
+    run.why,
+  ]);
+  const add = el("button", "button", found.runs.length === 1 ? "Add this run" : `Add these ${found.runs.length} runs`);
+  add.type = "button";
+  add.id = "add-suggested";
+  add.onclick = () => addRuns("suggested", { n_runs: state.suggested.n });
+  const go = el("p", "actions", "");
+  go.append(add);
+  part.append(
+    table(["Run", ...factors.map((f) => f.name), "The model predicts", "Why here"], rows),
+    ...(found.stop ? [said("hint", found.stop)] : []),
+    go,
+  );
+  return [part];
 }
 
 let roundsTicket = 0;
@@ -8333,12 +8410,12 @@ function offerRuns(offer) {
  * ones, the runs added are simulated from the same processes, noise and seeds, and analysed with the rest; else the
  * reader makes them, in Run.
  */
-async function addRuns(kind) {
+async function addRuns(kind, more = {}) {
   const asked = state.design;
   if (!asked) return;
   setStatus("Adding the runs...", "busy");
   const adding = statusTicket;
-  const reply = await call("api_add_runs", { ...analysisRequest(), kind }); // the runs the results call for need them
+  const reply = await call("api_add_runs", { ...analysisRequest(), kind, ...more }); // the runs the results call for need them
   if (dropped(state.design !== asked, adding)) return; // another run sheet took its place meanwhile
   if (!reply.ok) {
     setStatus(reply.error, "error");

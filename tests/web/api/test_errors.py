@@ -1498,6 +1498,41 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _make(design_type="full_factorial", possible={"T": [None, 180]}),
         "Factor T: its range ends at 200, above its highest possible setting.",
     ),
+    # Runs from a model of every run (#1374): a goal of the largest or smallest, numeric factors, enough results.
+    "suggested runs: a goal of learning": (
+        "api_suggest_runs",
+        lambda ex: {
+            **ex["held"],
+            "spec": {**ex["held"]["spec"], "response_info": {**ex["held"]["spec"]["response_info"], "goal": "learn"}},
+            "responses": ex["simulated"]["responses"],
+        },
+        (
+            "Runs from a model of every run are suggested for a goal of making the response as large or as small as "
+            "it can be: choose that goal in Design."
+        ),
+    ),
+    "suggested runs: a categorical factor": (
+        "api_suggest_runs",
+        lambda _: {
+            "spec": {
+                "design_type": "given",
+                "factors": [{"name": "T", "low": 150, "high": 200}, {"name": "S", "low": "A", "high": "B"}],
+                "response": "y",
+                "response_info": {"goal": "maximize"},
+                "model": "main_effects",
+            },
+            "columns": ["Std order", "Run order", "T", "S", "y"],
+            "rows": [[1, 1, 150, "A", None], [2, 2, 200, "B", None]],
+            "responses": [1.0, 2.0],
+        },
+        "Runs from a model of every run are suggested for numeric factors only on this page.",
+    ),
+    "suggested runs: too many": ("api_suggest_runs", _runs(n_runs=9), "Ask for 1 to 8 runs."),
+    "suggested runs: too few results": (
+        "api_suggest_runs",
+        lambda ex: {**ex["held"], "responses": [*ex["simulated"]["responses"][:4], *[None] * 11]},
+        "A model of every run needs at least 6 runs with a result here; this study has 4.",
+    ),
     "given: no runs": (
         "api_make_design",
         _make(design_type="given", runs=[]),
