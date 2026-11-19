@@ -9302,7 +9302,7 @@ function takeSettings(settings) {
 
 /**
  * Draw the settings as the study has them. Each colour map is a choice on one line: its name, then its colours
- * from a low value to a high one as the charts draw them now. The chosen map's line ends in the switch that flips it.
+ * from a low value to a high one as the charts draw them now. The chosen map's line holds the switch that flips it.
  */
 function renderSettings() {
   const choices = Object.keys(COLOUR_MAPS).map((name) => {
@@ -9318,10 +9318,9 @@ function renderSettings() {
     swatch.style.background = `linear-gradient(to right, ${shownColours(name).join(", ")})`;
     swatch.setAttribute("role", "img");
     swatch.setAttribute("aria-label", `The colours of ${COLOUR_MAP_WORDS[name]}, from a low value to a high one`);
-    const scale = el("span", "settings__scale", ""); // one piece, so "Low" and "High" stay at the bar's ends
-    scale.append(el("span", "settings__end", "Low"), swatch, el("span", "settings__end", "High"));
-    row.append(label, scale);
-    if (choice.checked) row.append(flipSwitch());
+    // Every line has the same five places, so the bars line up: the chosen map's holds the switch, the others a gap.
+    const flip = choice.checked ? flipSwitch() : el("span", "settings__flip", "");
+    row.append(label, flip, el("span", "settings__end", "Low"), swatch, el("span", "settings__end", "High"));
     return row;
   });
   $("#colour-maps").replaceChildren(...choices);
@@ -9338,7 +9337,7 @@ function flipSwitch() {
   flip.checked = colourMapFlipped();
   const track = el("span", "switch__track", "");
   track.setAttribute("aria-hidden", "true");
-  label.append(flip, track, el("span", "switch__text", "Flip"));
+  label.append(el("span", "switch__text", "Flip"), flip, track);
   return label;
 }
 

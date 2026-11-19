@@ -82,7 +82,7 @@ def test_the_switch_on_the_chosen_map_s_line_flips_it_and_the_study_keeps_that(b
     line = page.locator("#colour-maps .settings__map", has=page.locator("input:checked"))
     assert line.locator(".settings__end").all_text_contents() == ["Low", "High"]
     assert line.locator(".settings__flip").text_content() == "Flip"
-    assert page.locator("#colour-maps .settings__flip").count() == 1, "on the chosen map's line only"
+    assert page.locator("#colour-maps label.settings__flip").count() == 1, "on the chosen map's line only"
     before = line.locator(".settings__swatch").evaluate("(bar) => bar.style.background")
     page.locator("#colour-map-flipped").check(force=True)  # the box is under its drawn switch
     page.wait_for_function(f"{CONTOUR}?.colorscale[0][1]?.toLowerCase() === '#011959'")
