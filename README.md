@@ -18,6 +18,7 @@ variable moved, and how sure am I?*
 [![codecov](https://codecov.io/gh/kgdunn/process-improve/branch/main/graph/badge.svg)](https://codecov.io/gh/kgdunn/process-improve)
 [![Docs](https://img.shields.io/badge/docs-kgdunn.github.io-blue.svg)](https://kgdunn.github.io/process-improve/)
 [![License](https://img.shields.io/pypi/l/process-improve.svg)](https://github.com/kgdunn/process-improve/blob/main/LICENSE)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24361808.svg)](https://doi.org/10.5281/zenodo.24361808)
 
 **[Try it in your browser](https://factori.al/)** ·
 [Documentation](https://kgdunn.github.io/process-improve/) ·
@@ -305,12 +306,14 @@ in the sidebar with ready-made BibTeX and APA entries:
   author  = {Dunn, Kevin G.},
   title   = {{process-improve: Multivariate Analysis for Process Improvement}},
   year    = {2026},
+  doi     = {10.5281/zenodo.24361808},
   url     = {https://github.com/kgdunn/process-improve}
 }
 ```
 
-Add the `version` field from `CITATION.cff` (or the release tag you installed) when citing a
-specific version.
+The DOI [10.5281/zenodo.24361808](https://doi.org/10.5281/zenodo.24361808) resolves to the
+latest release archived on Zenodo. To cite the version you used, add its `version` field and
+that version's own DOI, which the Zenodo record lists.
 
 ## License
 

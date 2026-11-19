@@ -12,6 +12,7 @@ authors:
     orcid: "https://orcid.org/0000-0002-0681-6794"
 repository-code: "https://github.com/kgdunn/process-improve"
 url: "https://kgdunn.github.io/process-improve/"
+doi: "10.5281/zenodo.24361808"
 license: MIT
 version: 2.6.5
 date-released: "2026-11-19"
