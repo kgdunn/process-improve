@@ -267,10 +267,15 @@ def test_the_footer_gives_the_time_of_the_version_in_the_reader_s_time_zone(cont
     page.goto(f"{site}?example=worked")
     first_paint_done(page)
     said = page.locator("footer #version").text_content()
-    assert re.fullmatch(r"Version 88ccccb, 1[34] November 2026, \d{2}:\d{2}\.", said), said
-    # The browser's own clock says which hour that is here: 22:05 in a browser at UTC.
-    here = page.evaluate("m => { const d = new Date(m); return [d.getHours(), d.getMinutes()]; }", moment)
-    assert said.endswith(f", {here[0]:02d}:{here[1]:02d}.")
+    # The browser says how it writes that day and which hour it is here: 22:05 in a browser at UTC.
+    day, hour, minute = page.evaluate(
+        """m => { const d = new Date(m);
+          const day = d.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+          return [day, d.getHours(), d.getMinutes()]; }""",
+        moment,
+    )
+    assert said == f"Version 88ccccb, {day}, {hour:02d}:{minute:02d}."
+    assert "2026" in day
 
 
 def test_a_page_that_was_not_built_shows_no_version(page):

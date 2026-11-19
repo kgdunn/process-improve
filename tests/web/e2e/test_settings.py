@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from tests.web.e2e._page import generate, practise, saved_studies, settled
@@ -99,3 +100,38 @@ def test_the_switch_on_the_chosen_map_s_line_flips_it_and_the_study_keeps_that(b
         page, lambda studies: bool(studies) and "colour_map_flipped" not in studies[0].get("settings", {})
     )
     assert kept[0]["settings"] == {"colour_map": "batlow"}
+
+
+def test_a_comma_as_the_decimal_mark_is_in_the_numbers_the_page_writes_and_the_study_keeps_it(blank_page):
+    page = blank_page
+    generate(page)
+    practise(page)
+    page.click("#go-learn")
+    page.click("#study-button")
+    page.click("#menu-settings")
+    assert page.input_value("#decimal-mark") == "period", "a period, whatever the browser's language"
+    assert page.locator("#decimal-mark option").all_text_contents() == ["Period: 1.5", "Comma: 1,5"]
+    page.select_option("#decimal-mark", "comma")
+    page.click("#settings-close")
+    page.wait_for_function("/R² = 0,\\d/.test(document.querySelector('#analysis').textContent)")
+    said = page.locator("#analysis").text_content()
+    equation = page.locator("#analysis p.equation").first.text_content()
+    assert re.search(r"= \d+,\d+ [+-] \d+,\d+·", equation), equation
+    assert not re.search(r"\d\.\d", equation), "no number of the equation keeps a period"
+    assert not re.search(r"R² = 0\.\d", said)
+    ticks = page.evaluate(f"{CONTOUR} && document.querySelector('figure[data-chart=contour] .plot').layout.separators")
+    assert ticks == ", ", "the charts' own numbers follow: a comma, and a space between thousands"
+    with_comma = {"colour_map": "batlow", "decimal_mark": "comma"}  # the settings as the dialog left them
+    kept = saved_studies(page, lambda studies: bool(studies) and studies[0].get("settings") == with_comma)
+    assert kept[0]["settings"] == with_comma
+    assert kept[0]["v"] == 12
+    assert 'model="' in page.locator("#py-analyse").text_content(), "the Python code is as it was"
+    assert not re.search(r"\d,\d", page.locator("#py-analyse code").first.text_content())
+
+    page.click("#study-button")
+    page.click("#menu-settings")
+    page.select_option("#decimal-mark", "period")
+    page.click("#settings-close")
+    page.wait_for_function("/R² = 0\\.\\d/.test(document.querySelector('#analysis').textContent)")
+    kept = saved_studies(page, lambda studies: bool(studies) and "decimal_mark" not in studies[0]["settings"])
+    assert kept[0]["settings"] == {"colour_map": "batlow"}, "a study that keeps the period holds no setting for it"

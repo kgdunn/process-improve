@@ -3,6 +3,8 @@
 // tests/web/page/test_parity.py holds the rules that mirror web/bootstrap.py to it.
 
 /** Spare runs an optimal design gets beyond its model's coefficients; mirrors bootstrap.SPARE_RUNS. */
+import { marked, pointed } from "./numbers.js";
+
 export const SPARE_RUNS = 4;
 
 /** Count the coefficients, intercept included, of each named model in k factors. */
@@ -169,11 +171,13 @@ export function dayWords(day) {
  * A moment in words, in the reader's own time zone and on a 24-hour clock, as the footer dates a version:
  * "13 November 2026, 16:42" for "2026-11-13T16:42:07+01:00" read in that zone; null for what is no moment.
  */
-export function momentWords(moment) {
+export function momentWords(moment, locale = undefined) {
   const at = new Date(typeof moment === "string" ? moment : Number.NaN);
   if (Number.isNaN(at.getTime())) return null;
+  // The date as the reader's browser writes dates (``locale`` is for the tests), and the time on a 24-hour clock.
+  const day = at.toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" });
   const two = (n) => String(n).padStart(2, "0");
-  return `${at.getDate()} ${MONTHS[at.getMonth()]} ${at.getFullYear()}, ${two(at.getHours())}:${two(at.getMinutes())}`;
+  return `${day}, ${two(at.getHours())}:${two(at.getMinutes())}`;
 }
 
 /**
@@ -206,7 +210,7 @@ export function correlationWords(found, shown = (term) => term) {
   }
   const said = pairs.slice(0, 3).map(({ a, b, r, both, blocks }) => {
     const [first, second] = [shown(a), blocks ? THE_BLOCKS : shown(b)];
-    const size = `(|r| = ${r > ONE_COLUMN ? "1" : r.toFixed(2)})`;
+    const size = `(|r| = ${r > ONE_COLUMN ? "1" : marked(r.toFixed(2))})`;
     if (both) {
       if (r > ONE_COLUMN) return `${first} and ${second} cannot be told apart over these runs ${size}: the model can hold one of them, not both.`;
       if (r >= inseparable) return `${first} and ${second} can hardly be told apart over these runs ${size}: with both in the model, neither is known precisely.`;
@@ -427,7 +431,7 @@ export function isLabel(text) {
 }
 
 /** A level as the form sends it: a label as its text, a blank box as null, and anything else as a number. */
-export const levelValue = (text) => (isLabel(text) ? String(text).trim() : numberOrNull(String(text ?? "")));
+export const levelValue = (text) => (isLabel(pointed(text)) ? String(text).trim() : numberOrNull(String(pointed(text) ?? "")));
 
 /**
  * Whether a factor is categorical: its type says so, as the brief and a study of several levels send it, or both its
@@ -1127,7 +1131,7 @@ export const listNames = (names) =>
   names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names.join("");
 
 /** A number to four significant figures, or nothing for a value the fit could not give. */
-export const fmt = (x) => (x === null || x === undefined ? "" : Number(x).toPrecision(4));
+export const fmt = (x) => (x === null || x === undefined ? "" : marked(Number(x).toPrecision(4)));
 
 const isNumber = (v) => typeof v === "number" && Number.isFinite(v);
 const isWhole = (v) => Math.abs(v - Math.round(v)) < 1e-9 * Math.max(1, Math.abs(v));
@@ -1172,13 +1176,13 @@ export function comparedRow(values, direction, ranked = values.map(() => true)) 
   const spread = Math.max(...scored) - low;
   const directed = spread > 0 && (direction === "higher" || direction === "lower");
   return printed.map((v, j) => ({
-    text: v === null ? "" : v.toFixed(decimals),
+    text: v === null ? "" : marked(v.toFixed(decimals)),
     good: v === null || !ranked[j] || !directed ? null : direction === "higher" ? (v - low) / spread : 1 - (v - low) / spread,
   }));
 }
 
 /** A p-value to four decimals, or "< 0.0001". */
-export const pval = (p) => (p === null || p === undefined ? "" : p < 0.0001 ? "< 0.0001" : Number(p).toFixed(4));
+export const pval = (p) => (p === null || p === undefined ? "" : marked(p < 0.0001 ? "< 0.0001" : Number(p).toFixed(4)));
 
 /**
  * A fit's coefficients in the order their table lists them: the smallest p-value first, so what the runs are surest of
@@ -1228,7 +1232,7 @@ export const TRANSFORM_WORDS = { log: "log", sqrt: "square root", inverse: "inve
  */
 export function boxCoxSentence(hint, label) {
   if (!hint) return null;
-  const two = (v) => String(Number(v.toPrecision(2)));
+  const two = (v) => marked(String(Number(v.toPrecision(2))));
   const [low, high] = hint.ci;
   const said = `Box-Cox's λ is ${two(hint.lambda)} (95% interval ${two(low)} to ${two(high)})`;
   if (hint.suggests) {
@@ -1315,7 +1319,7 @@ export function runSheetCsv(design, results) {
 }
 
 /** A number to three figures, as a finding says one: 7.9, 12.6, 1230. */
-const figures = (value, digits = 3) => String(Number(Number(value).toPrecision(digits)));
+const figures = (value, digits = 3) => marked(String(Number(Number(value).toPrecision(digits))));
 
 /** A share as a whole percentage; one that would round up to 100% and is not all of it as "more than 99%". */
 export const shareWords = (share) => (share >= 0.995 && share < 1 ? "more than 99%" : `${Math.round(share * 100)}%`);
@@ -1599,7 +1603,7 @@ export function comparisonSentence(comparison, { response, units = "", factorUni
   const d = comparison?.difference;
   const pooled = d?.tests.find((t) => t.test === (d.paired ? "paired" : "pooled"));
   if (!pooled || pooled.ci_low === null || pooled.ci_high === null) return null;
-  const num = (x) => String(Number(Number(x).toPrecision(4)));
+  const num = (x) => marked(String(Number(Number(x).toPrecision(4))));
   const after = (u) => (!u ? "" : u === "%" ? "%" : ` ${u}`); // no space before a percent sign
   const at = (level) => `${level}${after(factorUnits)}`;
   const size = `${num(Math.abs(d.estimate))}${after(units)}`;
@@ -1692,7 +1696,7 @@ export const SN_WORDS = { larger: "larger is better", smaller: "smaller is bette
  * factor his second step moves the mean with; and the runs left out. ``factorUnits`` gives each factor's units.
  */
 export function spreadSentences(spread, { response, units = "", factorUnits = {} }) {
-  const num = (x) => String(Number(Number(x).toPrecision(3)));
+  const num = (x) => marked(String(Number(Number(x).toPrecision(3))));
   const after = (u) => (!u ? "" : u === "%" ? "%" : ` ${u}`); // no space before a percent sign
   const at = (f, level) => `${f.name} at ${level}${after(factorUnits[f.name])}`;
   const lines = [];
@@ -2059,7 +2063,7 @@ export function shareText(share) {
   if (share < 0.001) return "less than 0.1%";
   if (share > 0.999 && share < 1) return "more than 99.9%";
   const digits = share < 0.01 || (share > 0.99 && share < 1) ? 1 : 0;
-  return `${evenPercent(100 * share, digits).toFixed(digits)}%`;
+  return `${marked(evenPercent(100 * share, digits).toFixed(digits))}%`;
 }
 
 /**
@@ -2095,7 +2099,7 @@ export function limitEffect(entry, probes) {
 }
 
 /** A value in a factor's units, as the panel writes it: four significant figures, and the units after. */
-const inUnits = (value, units) => `${Number(Number(value).toPrecision(4))}${units ? ` ${units}` : ""}`;
+const inUnits = (value, units) => `${marked(String(Number(Number(value).toPrecision(4))))}${units ? ` ${units}` : ""}`;
 
 /**
  * What all the limits leave of the factors' ranges, a sentence each, from api_limits' reply: the share

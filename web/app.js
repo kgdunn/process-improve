@@ -102,6 +102,7 @@ import {
   noGoalSentence,
   noIntervalSentence,
   num,
+  numPlain,
   overlayCaption,
   sensitivityCaption,
   settingWords,
@@ -380,6 +381,7 @@ import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { CONTEXT, DESIGN_CONTEXT, GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
 import { closeOnBackdrop } from "./dialogs.js";
+import { DECIMAL_MARKS, decimalMark, marked as inMark, markedEquation, setDecimalMark } from "./numbers.js"; // terms.js has a "marked" too
 import { installImport, openedWords } from "./import.js";
 import { pythonLine } from "./worker-rpc.js";
 import { installOffline } from "./offline.js";
@@ -825,7 +827,7 @@ function renderBadges() {
   const done = designed.length > 0 && designed.every(Boolean);
   badge("run", state.design ? runBadge(designed.map((ok) => (ok ? true : null))) : "", done ? "done" : "");
   const r2 = state.analysis?.summary?.r_squared;
-  badge("learn", r2 === null || r2 === undefined ? "" : `R² ${Number(r2).toFixed(2)}`);
+  badge("learn", r2 === null || r2 === undefined ? "" : `R² ${inMark(Number(r2).toFixed(2))}`);
 }
 
 /**
@@ -2378,7 +2380,7 @@ function renderPairs({ pairs }) {
   const body = table.createTBody();
   for (const { a, b, r, both, blocks } of pairs) {
     const row = body.insertRow();
-    row.append(el("td", "", prettyTerm(a)), el("td", "", blocks ? THE_BLOCKS : prettyTerm(b)), el("td", "num", r.toFixed(2)));
+    row.append(el("td", "", prettyTerm(a)), el("td", "", blocks ? THE_BLOCKS : prettyTerm(b)), el("td", "num", inMark(r.toFixed(2))));
     row.append(el("td", "", both ? "in the model too" : "left out of the model"));
   }
 }
@@ -3091,7 +3093,7 @@ function renderRuns() {
       const f = typed.get(col);
       const planned = d.planned?.[i]?.[f.name];
       const off = planned === undefined ? "" : ` off" title="Planned: ${escape(String(planned))}`;
-      const shown = escape(String(+Number(row[col]).toPrecision(6)));
+      const shown = escape(inMark(String(+Number(row[col]).toPrecision(6))));
       const label = `${escape(f.name)}, run ${i + 1}: ${shown}${planned === undefined ? "" : `, planned ${escape(String(planned))}`}. Change it to the setting the run was made at`;
       // A button until it is pressed, then a box in its place (editSetting): the sheet's boxes are its results.
       return `<button type="button" class="setting${off}" data-index="${i}" data-factor="${escape(f.name)}" aria-label="${label}">${shown}</button>`;
@@ -3567,8 +3569,8 @@ function renderTruth() {
   if (!shown.length) showTruth(false);
   if (!shown.length) return;
   const [first, ...more] = shown.map((name) => processOf(name));
-  $("#truth-equation").textContent = first.equation;
-  $("#truth-more").replaceChildren(...more.map((one) => el("p", "equation", one.equation)));
+  $("#truth-equation").textContent = markedEquation(first.equation);
+  $("#truth-more").replaceChildren(...more.map((one) => el("p", "equation", markedEquation(one.equation))));
   // A factor the process leaves out is still a factor of the design: say so, so a new factor visibly counts.
   const quiet = shown.flatMap((name) => {
     const left = processOf(name).inactive ?? [];
@@ -4279,7 +4281,7 @@ function renderAnalysis(reply) {
   // The model itself, for the reader who wants it: its equation, its fit, its tables and each run. One fold holds
   // them, closed until it is opened.
   const parts = [
-    el("p", "equation", r.equation),
+    el("p", "equation", markedEquation(r.equation)),
     said("hint", mixture ? "In proportions: each component's share of the blend." : scale),
     ...noteList(fitLines(r), "fit"),
     el("h3", "", "Coefficients"),
@@ -6339,7 +6341,7 @@ function renderGoals(b) {
     for (const name of ["low", "high", "importance", "shape"]) {
       const input = tr.querySelector(`[name="${name}"]`);
       if (input === document.activeElement && input.tagName === "INPUT") continue; // the reader is typing in it
-      input.value = name === "low" || name === "high" ? num(r[name]) : String(r[name]);
+      input.value = name === "low" || name === "high" ? numPlain(r[name]) : String(r[name]);
       input.removeAttribute("aria-invalid");
     }
   }
@@ -6726,7 +6728,7 @@ function showWhatIfSettings() {
     const value = state.whatIf.settings[row.dataset.factor];
     for (const input of row.querySelectorAll("input, select")) {
       if (input.name === "number" && input === document.activeElement) continue;
-      input.value = input.name === "number" ? num(value) : String(value);
+      input.value = input.name === "number" ? numPlain(value) : String(value);
     }
   }
 }
@@ -9226,7 +9228,7 @@ const lookOf = (t, col) => (t._looks?.[col] ? ` class="${t._looks[col]}"` : "");
 function fillBody(t, rows) {
   const cell = (row, v, c) => {
     const own = t._cell ? t._cell(row, c) : null;
-    return own ?? escape(typeof v === "number" ? +v.toPrecision(6) : (v ?? ""));
+    return own ?? escape(typeof v === "number" ? inMark(String(+v.toPrecision(6))) : (v ?? ""));
   };
   // A row that is a run says which, and is marked while its run is (markRows).
   const run = (row) => {
@@ -9298,6 +9300,7 @@ function newStudySettings() {
 function takeSettings(settings) {
   state.settings = settings;
   setColourMap(settings.colour_map, settings.colour_map_flipped === true);
+  setDecimalMark(settings.decimal_mark);
 }
 
 /**
@@ -9324,6 +9327,7 @@ function renderSettings() {
     return row;
   });
   $("#colour-maps").replaceChildren(...choices);
+  $("#decimal-mark").value = decimalMark();
   $("#settings-keep").checked = localStorage.getItem(SETTINGS_KEY) !== null;
 }
 
@@ -9348,6 +9352,10 @@ function flipSwitch() {
 function settingsChanged(event) {
   const chosen = document.querySelector('#colour-maps input[name="colour_map"]:checked')?.value;
   const settings = { ...state.settings, ...(chosen ? { colour_map: chosen } : {}) };
+  // A study that keeps the period holds no setting for it, as every study before the setting.
+  if ($("#decimal-mark").value in DECIMAL_MARKS && $("#decimal-mark").value !== "period") settings.decimal_mark = $("#decimal-mark").value;
+  else delete settings.decimal_mark;
+  const numbers = decimalMark();
   if (document.querySelector(FLIP)?.checked) settings.colour_map_flipped = true;
   else delete settings.colour_map_flipped;
   takeSettings(settings);
@@ -9359,10 +9367,19 @@ function settingsChanged(event) {
   }
   renderSettings(); // the colours beside each name, and the line the switch is on, follow the choice
   // The list is drawn anew, so the keyboard's place is put back on the control that was changed.
-  const again = event.target.id === "settings-keep" ? "#settings-keep" : event.target.type === "radio" ? '#colour-maps input[name="colour_map"]:checked' : FLIP;
+  const again = ["settings-keep", "decimal-mark"].includes(event.target.id) ? `#${event.target.id}` : event.target.type === "radio" ? '#colour-maps input[name="colour_map"]:checked' : FLIP;
   document.querySelector(again)?.focus();
+  if (decimalMark() !== numbers) rewriteNumbers();
   redrawAll();
   if (state.design) scheduleSave();
+}
+
+/** The decimal mark changed: what the page wrote with the old one is written again, from the study it holds. */
+function rewriteNumbers() {
+  if (!state.design) return;
+  renderDesign();
+  renderRuns();
+  if (anyResult(state.results)) analyseRuns();
 }
 
 $("#menu-settings").onclick = () => {
@@ -9670,7 +9687,7 @@ $("#balance-goals").addEventListener("input", goalChanged);
 $("#what-if-settings").addEventListener("input", whatIfChanged);
 $("#what-if-settings").addEventListener("change", (e) => {
   const row = e.target.closest("[data-factor]");
-  if (e.target.name === "number" && row && state.whatIf) e.target.value = num(state.whatIf.settings[row.dataset.factor]);
+  if (e.target.name === "number" && row && state.whatIf) e.target.value = numPlain(state.whatIf.settings[row.dataset.factor]);
 });
 // A profile is drawn to its dial's width, which the page knows once the panel is on show, and again when it changes.
 new ResizeObserver(() => {

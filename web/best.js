@@ -4,6 +4,8 @@
 // touches the document, so tests/web/js runs it under Node.
 
 /** The run sheet's column marking a confirmation run, and what it holds for one; mirrors bootstrap.CONFIRMATION and CONFIRMS. */
+import { marked } from "./numbers.js";
+
 export const CONFIRMATION = "Confirmation run";
 export const CONFIRMS = "yes";
 /** What that column holds for a run on the path of steepest ascent (or descent); mirrors bootstrap.ON_PATH. */
@@ -16,7 +18,10 @@ export const CONFIRMATION_RUNS = 3;
 export const NUDGE = 0.05;
 
 /** A number as a sentence gives it: four significant figures, with no trailing zeros. */
-export const num = (x) => String(Number(Number(x).toPrecision(4)));
+export const num = (x) => marked(String(Number(Number(x).toPrecision(4))));
+
+/** The same number for a box of type number, which takes a point whatever the reader's mark. */
+export const numPlain = (x) => String(Number(Number(x).toPrecision(4)));
 
 /** A quantity with its units: "200 degC", "68.25%" (no space before a percent sign), or the number alone. */
 export const withUnit = (x, units = "") => (!units ? num(x) : units === "%" ? `${num(x)}%` : `${num(x)} ${units}`);
@@ -117,7 +122,7 @@ export function answerWords(best, { label, units }, { blend = false } = {}) {
 }
 
 /** A leverage as the page writes it: two significant figures, enough to compare with the runs'. */
-const lev = (h) => String(Number(Number(h).toPrecision(2)));
+const lev = (h) => marked(String(Number(Number(h).toPrecision(2))));
 
 /**
  * The checks under Learn's answer: whether to rely on it, from what the analysis (``analysis``, as
@@ -422,7 +427,7 @@ export const BLEND_SENSITIVITY =
 export function weighingSentence(best) {
   const { decimals = null, adjusted = null } = best.rounding ?? {};
   if (decimals === null) return "The confirmation runs use the blend as the search found it.";
-  const each = `The confirmation runs weigh out each proportion to ${(10 ** -decimals).toFixed(decimals)}`;
+  const each = `The confirmation runs weigh out each proportion to ${marked((10 ** -decimals).toFixed(decimals))}`;
   return adjusted ? `${each}, and ${adjusted} takes what the rounding leaves, so the blend still sums to 1.` : `${each}; the blend still sums to 1.`;
 }
 
@@ -562,7 +567,7 @@ export const IMPORTANCES = [1, 2, 3, 4, 5];
 export const IMPORTANCE = 3;
 
 /** A desirability as the page writes it: two decimals, enough to compare one response's with another's. */
-export const dWords = (d) => Number(d).toFixed(2);
+export const dWords = (d) => marked(Number(d).toFixed(2));
 
 /** A response's goal as the balance's table says it: "Maximise", "Minimise", or "Target 63%". */
 export function goalWords(r) {
@@ -1196,7 +1201,7 @@ export function targetShare(found, { blend = false } = {}) {
     : "more than one setting does. These are the ones nearest the center of your ranges, where your runs are gathered.";
   return (
     `${many} of the ${found.tried.toLocaleString("en")} ${blend ? "blends" : "settings"} tried give ${theTargets(found)} to within ` +
-    `${Number((100 * found.near).toPrecision(2))}% of the range of ${one ? "the response's" : "each response's"} results: ${which}`
+    `${marked(String(Number((100 * found.near).toPrecision(2))))}% of the range of ${one ? "the response's" : "each response's"} results: ${which}`
   );
 }
 
@@ -1262,8 +1267,8 @@ export function targetCaption(overlay, factors = [], responses = []) {
 /** A share as the page writes it: "17%", "3.4%", "less than 0.1%". */
 export function shareWords(share) {
   const percent = 100 * share;
-  if (percent > 0 && percent < 0.1) return "less than 0.1%";
-  return `${percent >= 10 ? Math.round(percent) : Number(percent.toFixed(1))}%`;
+  if (percent > 0 && percent < 0.1) return `less than ${marked("0.1")}%`;
+  return `${percent >= 10 ? Math.round(percent) : marked(String(Number(percent.toFixed(1))))}%`;
 }
 
 /** "the window" for one response with a window, "every window" for more. */

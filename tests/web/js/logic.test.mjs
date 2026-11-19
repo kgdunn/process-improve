@@ -190,8 +190,12 @@ describe("the version of the app", () => {
 
   test("is dated to the minute in the reader's own time zone, on a 24-hour clock", () => {
     // Moments written from this machine's own clock, so the test holds in any time zone.
-    assert.equal(momentWords(new Date(2026, 10, 18, 7, 5, 59).toISOString()), "18 November 2026, 07:05");
-    assert.equal(momentWords(new Date(2026, 0, 5, 23, 40).toISOString()), "5 January 2026, 23:40");
+    assert.equal(momentWords(new Date(2026, 10, 18, 7, 5, 59).toISOString(), "en-GB"), "18 November 2026, 07:05");
+    assert.equal(momentWords(new Date(2026, 0, 5, 23, 40).toISOString(), "en-GB"), "5 January 2026, 23:40");
+    // The date is written as the reader's browser writes dates; the time stays on a 24-hour clock.
+    assert.equal(momentWords(new Date(2026, 10, 18, 19, 5).toISOString(), "en-US"), "November 18, 2026, 19:05");
+    assert.equal(momentWords(new Date(2026, 10, 18, 19, 5).toISOString(), "de-DE"), "18. November 2026, 19:05");
+    assert.match(momentWords(new Date(2026, 10, 18, 19, 5).toISOString()), /2026.*, 19:05$/, "and in this machine's own form");
     for (const not of [null, undefined, "", "soon", 1763000000000]) assert.equal(momentWords(not), null, String(not));
   });
 
