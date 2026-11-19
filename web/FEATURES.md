@@ -547,7 +547,11 @@ Nine charts come with the analysis. Eight more are one press away, under More ch
   surface's colour scale.
   ![](chart-pictures/true_contour.webp)
 - **Fitted response over the blends.** For a mixture of three components: the response at
-  every blend.
+  every blend. For four or more: over three of them you pick, at first the three that move
+  the response most, the others held at the best blend once there is one.
+  - *Details:* The three share what the held components leave, so the triangle reads in the
+    recipe's own proportions; its caption names what is held. Its runs are not drawn, since a
+    run is on that triangle only if it holds the others at the same shares.
   ![](chart-pictures/ternary.webp)
 - **True response over the blends.** For a mixture with simulated results.
   ![](chart-pictures/true_ternary.webp)

@@ -122,6 +122,20 @@ def test_four_components_are_traced_along_their_cox_directions(fresh_page):
     practise(page)
     page.click("#go-learn")
     assert "Fitted response along each Cox direction" in charts(page)
+    # Beside it, the triangle of the three that move the response most, the fourth held, and the reader's own three.
+    assert "Fitted response over the blends" in charts(page)
+    first = [page.input_value(f"#triangle-component-{i}") for i in (1, 2, 3)]
+    held = next(name for name in [b["name"] for b in BLEND] + ["Salt"] if name not in first)
+    caption = page.locator("figure[data-chart=ternary] figcaption").text_content()
+    assert f"{held} held at" in caption
+    assert "the other three share the rest" in caption
+    page.select_option("#triangle-component-1", held)
+    page.wait_for_function(f"document.querySelector('#triangle-component-1')?.value === {held!r}")
+    page.wait_for_selector("#triangle-largest")
+    assert held not in page.locator("figure[data-chart=ternary] figcaption").text_content().split(" held at")[0]
+    page.click("#triangle-largest")
+    page.wait_for_selector("#triangle-largest", state="detached")
+    assert [page.input_value(f"#triangle-component-{i}") for i in (1, 2, 3)] == first
 
 
 def test_bounds_choose_extreme_vertices_and_a_process_variable_is_refused(fresh_page):
