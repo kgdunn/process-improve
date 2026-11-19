@@ -643,8 +643,8 @@ Also:
   - *Details:* An .ipynb file.
 - **A report to hand over.** One page that needs nothing else: the question, the design, the
   results, the analysis with its charts, the best settings, the next step and the code.
-  - *Details:* An .html file. A stamp gives the versions, the seed, the SHA-256 of the
-    study's inputs and a link that opens the same study.
+  - *Details:* An .html file. A stamp gives the seed, a fingerprint of the study (its
+    SHA-256) and a link that opens the same study. The software versions are at its foot.
 - **A link to a study.** It carries the results or leaves them out. Whoever opens it has the
   same study, and the study in the link reaches no server.
   - *Details:* The study is packed after the `#`, which a browser sends to no server.

@@ -75,18 +75,18 @@ describe("the stamp", () => {
   });
 
   test("says how the run order came about: by the seed, or as given", () => {
-    assert.equal(orderWords(spec), `Drawn at random with seed ${RUN_ORDER_SEED}.`);
+    assert.equal(orderWords(spec), `In random order (seed ${RUN_ORDER_SEED}).`);
     assert.equal(orderWords({ design_type: "given", options: {} }), "As given.");
-    assert.match(orderWords({ design_type: "given", options: { grown: true } }), /then the runs added, drawn at random with seed 42/);
+    assert.match(orderWords({ design_type: "given", options: { grown: true } }), /then the runs added in random order \(seed 42\)/);
   });
 
   test("names the study's own seed, and how the runs added to it were drawn", () => {
     const seeded = { ...spec, options: { ...spec.options, random_state: 1792419802 } };
-    assert.equal(orderWords(seeded), "Drawn at random with seed 1792419802.");
+    assert.equal(orderWords(seeded), "In random order (seed 1792419802).");
     assert.equal(orderWords({ design_type: "given", options: { random_state: 1792419802 } }), "As given.");
     assert.equal(
       orderWords({ design_type: "given", options: { grown: true, random_state: 1792419802 } }),
-      "As the study had them, then each set of runs added, drawn at random with seed 1792419802 plus the number of runs before it.",
+      "As the study had them, then each set of runs added in random order (seed 1792419802 plus the number of runs before it).",
     );
   });
 
@@ -99,16 +99,16 @@ describe("the stamp", () => {
     const marks = { y: ["simulated", "simulated", "simulated", "simulated"] };
     assert.equal(
       resultWords(all, marks, simulation, 4),
-      "4 of 4 runs, simulated: A maximum inside the ranges, with noise 1 and seed 7.",
+      "4 of 4 runs, simulated for practice (A maximum inside the ranges, noise 1, seed 7).",
     );
     const mixed = { y: ["entered", "simulated", "entered", "simulated"] };
-    assert.match(resultWords(all, mixed, simulation, 4), /^4 of 4 runs, 2 entered and 2 simulated: A maximum/);
+    assert.match(resultWords(all, mixed, simulation, 4), /^4 of 4 runs, 2 entered and 2 simulated for practice \(A maximum/);
   });
 
   test("a run with any response's result counts, and is simulated if any of them is", () => {
     const results = { y: [1, null], z: [null, 2] };
     const marks = { y: ["entered", null], z: [null, "simulated"] };
-    assert.equal(resultWords(results, marks, null, 2), "2 of 2 runs, 1 entered and 1 simulated.");
+    assert.equal(resultWords(results, marks, null, 2), "2 of 2 runs, 1 entered and 1 simulated for practice.");
   });
 
   test("holds a row for each fact, and leaves out what the page does not know", () => {
@@ -128,16 +128,16 @@ describe("the stamp", () => {
     const rows = stampRows(facts);
     assert.deepEqual(
       rows.map(([label]) => label),
-      ["Made", "With", "On", "Run order", "Results", "Inputs, SHA-256", "Open it again"],
+      ["Made", "With", "On", "Run order", "Results", "Fingerprint (SHA-256)", "Open it again"],
     );
-    assert.equal(rows[1][1], "process-improve 1.4.0, in Factorial at https://factori.al/");
+    assert.equal(rows[1][1], "Factorial (process-improve 1.4.0) at https://factori.al/");
     assert.equal(rows.at(-1)[2], "https://factori.al/#c=xyz");
     const unknown = stampRows({ ...facts, version: null, runtime: null, sha: null, link: null });
     assert.deepEqual(
       unknown.map(([label]) => label),
       ["Made", "With", "Run order", "Results"],
     );
-    assert.equal(unknown[1][1], "process-improve, from its source, in Factorial at https://factori.al/");
+    assert.equal(unknown[1][1], "Factorial (process-improve, from its source) at https://factori.al/");
     const undesigned = stampRows({ ...facts, spec: null, results: {}, marks: {}, sha: null, link: null });
     assert.deepEqual(
       undesigned.map(([label]) => label),
@@ -195,7 +195,7 @@ describe("the study's tables", () => {
 describe("the report", () => {
   const stamp = [
     ["Made", "2026-10-17 21:04 UTC", null],
-    ["Inputs, SHA-256", "ab".repeat(32), null],
+    ["Fingerprint (SHA-256)", "ab".repeat(32), null],
     ["Open it again", "This study in Factorial, with its results", "https://factori.al/#c=a&b"],
   ];
   const page = report({ title: "Yield <study>", stamp, sections: [{ heading: "The brief", html: "<p>held</p>" }] });
@@ -211,8 +211,16 @@ describe("the report", () => {
     assert.match(page, /<th>Made<\/th><td>2026-10-17 21:04 UTC<\/td>/);
     assert.match(page, new RegExp(`<td class="digest">${"ab".repeat(32)}</td>`));
     assert.match(page, /<a href="https:\/\/factori.al\/#c=a&amp;b">This study in Factorial, with its results<\/a>/);
-    assert.match(page, /The SHA-256 is of the study as Factorial reads it from its link/);
-    assert.doesNotMatch(report({ title: "t", stamp: stamp.slice(0, 1), sections: [] }), /The SHA-256 is of/);
+    assert.match(page, /The fingerprint is made from this study: its brief, design, results and models\. Two reports/);
+    assert.doesNotMatch(report({ title: "t", stamp: stamp.slice(0, 1), sections: [] }), /The fingerprint is made/);
+  });
+
+  test("names the software versions at its foot, not in the stamp", () => {
+    const on = ["On", "Python 3.13.2 in Pyodide 314.0.7, with numpy 2.2.5", null];
+    const made = report({ title: "t", stamp: [...stamp, on], sections: [] });
+    assert.match(made, /<footer>[\s\S]*<p class="versions">Software versions: Python 3\.13\.2 in Pyodide 314\.0\.7, with numpy 2\.2\.5\.<\/p><\/footer>/);
+    assert.doesNotMatch(made, /<th>On<\/th>/);
+    assert.doesNotMatch(page, /Software versions/, "a report that does not know them says nothing of them");
   });
 
   test("puts each section under its heading, its HTML as given", () => {
