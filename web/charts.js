@@ -912,15 +912,23 @@ export const COLOUR_MAPS = {
 /** The map of a study that chose none; mirrors the library's DEFAULT_COLOUR_MAP. */
 export const DEFAULT_COLOUR_MAP = "batlow";
 
-/** What the Settings list calls each map, in a word or two. */
-export const COLOUR_MAP_WORDS = { batlow: "Batlow: blue to gold to pink", devon: "Devon: blue", lajolla: "La Jolla: brown to yellow", grayC: "Grey" };
+/** What the Settings list calls each map; its colours are drawn beside its name. */
+export const COLOUR_MAP_WORDS = { batlow: "Batlow", devon: "Devon", lajolla: "La Jolla", grayC: "Grey" };
 
 let chosenMap = DEFAULT_COLOUR_MAP;
+let flipped = false;
 
-/** Choose the map the charts are drawn in from here on: a study's own, or the default for a name the page lacks. */
-export function setColourMap(name) {
+/**
+ * Choose the map the charts are drawn in from here on: a study's own, or the default for a name the page lacks.
+ * ``flip`` draws it from its other end: a low value then stands out from the page, and a high one fades into it.
+ */
+export function setColourMap(name, flip = false) {
   chosenMap = Object.hasOwn(COLOUR_MAPS, name) ? name : DEFAULT_COLOUR_MAP;
+  flipped = flip === true;
 }
+
+/** Whether the charts are drawn with the map flipped. */
+export const colourMapFlipped = () => flipped;
 
 /** The map the charts are drawn in now. */
 export const colourMap = () => chosenMap;
@@ -945,7 +953,10 @@ export function lightness(hex) {
 export const isDark = (colours) => lightness(colours.fg) > 0.5;
 
 /** The ramp to draw in ``colours``: the chosen map, a low value fading into the page. */
-export const rampFor = (colours) => rampOf(chosenMap, isDark(colours));
+export const rampFor = (colours) => rampOf(chosenMap, isDark(colours) !== flipped);
+
+/** A map's colours from a low value to a high one, as the charts on the page draw it now: the Settings show them. */
+export const shownColours = (name) => rampOf(name, isDark(palette()) !== flipped).map(([, hex]) => hex);
 
 /** A run's marker on a surface: a white face and a dark edge, which read on its light and its dark blues alike. */
 const RUN_MARKER = { symbol: "circle", size: 10, color: "#ffffff", line: { width: 1.5, color: "#1a1a1a" } };

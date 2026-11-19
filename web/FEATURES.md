@@ -784,8 +784,9 @@ Also:
 - **Settings that travel with the study.** "Settings", under "Studies", chooses the colours
   the charts are drawn in: batlow, devon, la jolla or grey. The study keeps the choice, so
   its link and its file show others what you see.
-  - *Details:* A study's own settings always win. A tick keeps them for your new studies
-    too, in this browser. A study with settings is saved in study format 12. A workbook
+  - *Details:* Each map's colours are drawn from "Low" to "High", as the charts draw them,
+    and a switch flips the chosen map. A study's own settings always win. A tick keeps them
+    for your new studies too, in this browser. A study with settings is saved in study format 12. A workbook
     does not carry them, and the Python shown draws in batlow.
 - **Light, dark or the system's colours.** The choice is kept in the browser.
 - **The keyboard and a screen reader.** Every control can be reached and has a name.

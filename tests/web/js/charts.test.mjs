@@ -34,6 +34,7 @@ import {
   COLOUR_MAPS,
   DEFAULT_COLOUR_MAP,
   colourMap,
+  colourMapFlipped,
   rampOf,
   setColourMap,
   isDark,
@@ -605,6 +606,12 @@ describe("a surface's colours, on a light page and on a dark one", () => {
       assert.equal(colourMap(), "lajolla");
       assert.deepEqual(rampFor(DARK), rampOf("lajolla", true));
       assert.deepEqual(pageData([bands], LIGHT)[0].colorscale, rampOf("lajolla"), "a figure from Python follows it");
+      setColourMap("lajolla", true);
+      assert.equal(colourMapFlipped(), true);
+      assert.deepEqual(rampFor(LIGHT), rampOf("lajolla", true), "flipped, a low value is the map's dark end on a light page");
+      assert.deepEqual(rampFor(DARK), rampOf("lajolla"), "and its light end on a dark one");
+      setColourMap("lajolla", "yes");
+      assert.equal(colourMapFlipped(), false, "only true flips it");
       for (const not of ["plasma", undefined, null, "constructor"]) {
         setColourMap(not);
         assert.equal(colourMap(), DEFAULT_COLOUR_MAP, String(not));

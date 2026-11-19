@@ -33,8 +33,8 @@ def test_the_charts_are_drawn_in_batlow_until_another_map_is_chosen(page):
     assert lowest(page) == LOW["batlow"]
     page.click("#study-button")
     page.click("#menu-settings")
-    names = page.locator("#colour-maps label").all_text_contents()
-    assert names == ["Batlow: blue to gold to pink", "Devon: blue", "La Jolla: brown to yellow", "Grey"]
+    names = page.locator("#colour-maps .settings__choice").all_text_contents()
+    assert names == ["Batlow", "Devon", "La Jolla", "Grey"]
     assert page.is_checked('#colour-maps input[value="batlow"]')
     assert not page.is_checked("#settings-keep")
     for name in ("devon", "lajolla", "grayC"):
@@ -70,3 +70,32 @@ def test_settings_kept_for_new_studies_are_a_new_study_s(page):
     page.click("#menu-settings")
     assert page.is_checked('#colour-maps input[value="devon"]')
     assert page.is_checked("#settings-keep")
+
+
+def test_the_switch_on_the_chosen_map_s_line_flips_it_and_the_study_keeps_that(blank_page):
+    page = blank_page
+    generate(page)
+    practise(page)
+    page.click("#go-learn")
+    page.click("#study-button")
+    page.click("#menu-settings")
+    line = page.locator("#colour-maps .settings__map", has=page.locator("input:checked"))
+    assert line.locator(".settings__end").all_text_contents() == ["Low", "High"]
+    assert line.locator(".settings__flip").text_content() == "Flip"
+    assert page.locator("#colour-maps .settings__flip").count() == 1, "on the chosen map's line only"
+    before = line.locator(".settings__swatch").evaluate("(bar) => bar.style.background")
+    page.locator("#colour-map-flipped").check(force=True)  # the box is under its drawn switch
+    page.wait_for_function(f"{CONTOUR}?.colorscale[0][1]?.toLowerCase() === '#011959'")
+    after = page.locator("#colour-maps .settings__swatch").first.evaluate("(bar) => bar.style.background")
+    assert after != before, "the bar shows the colours from low to high as the charts now draw them"
+    assert page.evaluate("document.activeElement.id") == "colour-map-flipped", "the keyboard stays on the switch"
+    kept = saved_studies(
+        page, lambda studies: bool(studies) and studies[0].get("settings", {}).get("colour_map_flipped")
+    )
+    assert kept[0]["settings"] == {"colour_map": "batlow", "colour_map_flipped": True}
+    page.locator("#colour-map-flipped").uncheck(force=True)
+    page.wait_for_function(f"{CONTOUR}?.colorscale[0][1]?.toLowerCase() === '{LOW['batlow']}'")
+    kept = saved_studies(
+        page, lambda studies: bool(studies) and "colour_map_flipped" not in studies[0].get("settings", {})
+    )
+    assert kept[0]["settings"] == {"colour_map": "batlow"}

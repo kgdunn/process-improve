@@ -51,6 +51,8 @@ import {
   COLOUR_MAPS,
   COLOUR_MAP_WORDS,
   colourMap,
+  colourMapFlipped,
+  shownColours,
   setColourMap,
   ternaryFigure,
   ternaryRange,
@@ -9295,37 +9297,68 @@ function newStudySettings() {
 /** Put a study's settings in force: the page holds them, and the charts are drawn in its colour map from here on. */
 function takeSettings(settings) {
   state.settings = settings;
-  setColourMap(settings.colour_map);
+  setColourMap(settings.colour_map, settings.colour_map_flipped === true);
 }
 
-/** Draw the settings as the study has them: a choice for each colour map, its colours beside its name. */
+/**
+ * Draw the settings as the study has them. Each colour map is a choice on one line: its name, then its colours
+ * from a low value to a high one as the charts draw them now. The chosen map's line ends in the switch that flips it.
+ */
 function renderSettings() {
   const choices = Object.keys(COLOUR_MAPS).map((name) => {
-    const label = el("label", "settings__map", "");
+    const row = el("div", "settings__map", "");
+    const label = el("label", "settings__choice", "");
     const choice = document.createElement("input");
     choice.type = "radio";
     choice.name = "colour_map";
     choice.value = name;
     choice.checked = name === colourMap();
+    label.append(choice, el("span", "", COLOUR_MAP_WORDS[name]));
     const swatch = el("span", "settings__swatch", "");
-    swatch.style.background = `linear-gradient(to right, ${COLOUR_MAPS[name].join(", ")})`;
-    label.append(choice, el("span", "", COLOUR_MAP_WORDS[name]), swatch);
-    return label;
+    swatch.style.background = `linear-gradient(to right, ${shownColours(name).join(", ")})`;
+    swatch.setAttribute("role", "img");
+    swatch.setAttribute("aria-label", `The colours of ${COLOUR_MAP_WORDS[name]}, from a low value to a high one`);
+    const scale = el("span", "settings__scale", ""); // one piece, so "Low" and "High" stay at the bar's ends
+    scale.append(el("span", "settings__end", "Low"), swatch, el("span", "settings__end", "High"));
+    row.append(label, scale);
+    if (choice.checked) row.append(flipSwitch());
+    return row;
   });
   $("#colour-maps").replaceChildren(...choices);
   $("#settings-keep").checked = localStorage.getItem(SETTINGS_KEY) !== null;
 }
 
+/** The switch that draws the chosen map from its other end, at the end of that map's line. */
+function flipSwitch() {
+  const label = el("label", "switch settings__flip", "");
+  const flip = document.createElement("input");
+  flip.type = "checkbox";
+  flip.id = "colour-map-flipped";
+  flip.setAttribute("role", "switch");
+  flip.checked = colourMapFlipped();
+  const track = el("span", "switch__track", "");
+  track.setAttribute("aria-hidden", "true");
+  label.append(flip, track, el("span", "switch__text", "Flip"));
+  return label;
+}
+
 /** The reader changed a setting: the study takes it, the charts follow, and the study is saved with it. */
-function settingsChanged() {
+function settingsChanged(event) {
   const chosen = document.querySelector('#colour-maps input[name="colour_map"]:checked')?.value;
-  takeSettings({ ...state.settings, ...(chosen ? { colour_map: chosen } : {}) });
+  const settings = { ...state.settings, ...(chosen ? { colour_map: chosen } : {}) };
+  if ($("#colour-map-flipped")?.checked) settings.colour_map_flipped = true;
+  else delete settings.colour_map_flipped;
+  takeSettings(settings);
   try {
     if ($("#settings-keep").checked) localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings));
     else localStorage.removeItem(SETTINGS_KEY);
   } catch {
     /* storage refused: the settings hold for this study */
   }
+  renderSettings(); // the colours beside each name, and the line the switch is on, follow the choice
+  // The list is drawn anew, so the keyboard's place is put back on the control that was changed.
+  const again = event.target.id === "settings-keep" ? "#settings-keep" : event.target.type === "radio" ? '#colour-maps input[name="colour_map"]:checked' : "#colour-map-flipped";
+  document.querySelector(again)?.focus();
   redrawAll();
   if (state.design) scheduleSave();
 }
