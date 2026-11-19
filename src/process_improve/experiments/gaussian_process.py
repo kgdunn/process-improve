@@ -133,6 +133,35 @@ class GaussianProcessFit:
             found["std_error_new_run"] = np.sqrt(variance + self.sigma2 * self.noise_ratio)
         return pd.DataFrame(found, index=points.index)
 
+    def with_runs(self, points: pd.DataFrame, outputs: np.ndarray) -> GaussianProcessFit:
+        """Return the model with these runs added, its correlation parameters and noise ratio kept as estimated.
+
+        The constant mean and the process variance are worked out again at those parameters. A batch of runs to
+        make before any result is read takes each run chosen to give its prediction (the "kriging believer").
+
+        Parameters
+        ----------
+        points : pandas.DataFrame
+            The runs' inputs, a column per input, in its own units.
+        outputs : numpy.ndarray
+            Their outputs, one per run.
+
+        Returns
+        -------
+        GaussianProcessFit
+            The model of every run, the new ones among them.
+        """
+        x = np.vstack([self.runs, _matrix(points, self.inputs)])
+        y = np.concatenate([self._outputs, np.asarray(outputs, dtype=float)])
+        factor, mu, sigma2, criterion = _profile(self.theta, _squared_differences(x, x), y, self.noise_ratio)
+        weights = linalg.cho_solve((factor, True), y - mu)
+        return GaussianProcessFit(self.inputs, self.theta, mu, sigma2, criterion, weights, x, factor, self.noise_ratio)
+
+    @property
+    def _outputs(self) -> np.ndarray:
+        """The runs' outputs, from the weights: K w = y - mu, so y = K w + mu."""
+        return self._factor @ (self._factor.T @ self.weights) + self.mu
+
     def sensitivity(self, ranges: dict[str, tuple[float, float]] | None = None) -> pd.DataFrame:
         r"""Return each input's main-effect and total sensitivity index over the box of the inputs.
 

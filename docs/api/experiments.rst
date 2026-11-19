@@ -132,6 +132,10 @@ Designed Experiments
    :members:
    :show-inheritance:
 
+.. automodule:: process_improve.experiments.expected_improvement
+   :members:
+   :show-inheritance:
+
 .. automodule:: process_improve.experiments.across_blocks
    :members: fit_across_blocks, BlockedFit
 

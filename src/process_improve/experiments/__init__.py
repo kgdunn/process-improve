@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from process_improve.experiments.designs_omars_ilp import generate_omars
     from process_improve.experiments.designs_screening import defining_relation
     from process_improve.experiments.evaluate import evaluate_all, evaluate_design
+    from process_improve.experiments.expected_improvement import SuggestedRuns, suggest_next_runs
     from process_improve.experiments.factor import Constraint, DesignResult, Factor, Response, ResponseGoal
     from process_improve.experiments.functional import FunctionalFit, analyze_functional_experiment
     from process_improve.experiments.gaussian_process import GaussianProcessFit, fit_gaussian_process
@@ -114,6 +115,7 @@ _WHERE = {
     "designs_omars_ilp": ("generate_omars",),
     "designs_screening": ("defining_relation",),
     "evaluate": ("evaluate_all", "evaluate_design"),
+    "expected_improvement": ("suggest_next_runs", "SuggestedRuns"),
     "factor": ("Constraint", "DesignResult", "Factor", "Response", "ResponseGoal"),
     "functional": ("analyze_functional_experiment", "FunctionalFit"),
     "gaussian_process": ("fit_gaussian_process", "GaussianProcessFit"),
@@ -224,6 +226,7 @@ __all__ = [
     "OmarsTradeOffTableEntry",
     "Response",
     "ResponseGoal",
+    "SuggestedRuns",
     "TradeOffTableEntry",
     "TrueProcess",
     "allocate_runs",
@@ -291,6 +294,7 @@ __all__ = [
     "simulate_design_performance",
     "stationary_point_region",
     "steepest_path",
+    "suggest_next_runs",
     "summary",
     "supplement",
     "third_order_contrasts",
