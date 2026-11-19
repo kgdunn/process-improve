@@ -5567,7 +5567,7 @@ function contourPicker(plots) {
  * others stay held at the blend the caption names. Picking one already shown swaps the two, as the surface's do.
  */
 function trianglePicker(plots) {
-  const row = el("p", "hint contour-picker", "");
+  const row = el("p", "hint contour-picker triangle-picker", "");
   const names = state.design.spec.factors.map((f) => f.name);
   const shown = plots.ternary.components;
   const words = ["First", "Second", "Third"];
@@ -5591,7 +5591,10 @@ function trianglePicker(plots) {
       redraw(`#${select.id}`);
     };
   });
-  row.append("Draw it over ", selects[0], ", ", selects[1], " and ", selects[2]);
+  // The three boxes share one line at any width: a narrow card makes each box narrower, never a second line.
+  const boxes = el("span", "triangle-picker__boxes", "");
+  boxes.append(...selects);
+  row.append("Draw it over these three:", boxes);
   if (plots.ternary.chosen) {
     const back = el("button", "link", "Back to the three largest effects");
     back.type = "button";
@@ -5600,7 +5603,7 @@ function trianglePicker(plots) {
       delete state.triangles[state.shown];
       redraw(`#${selects[0].id}`);
     };
-    row.append(". ", back);
+    row.append(back);
   }
   return row;
 }

@@ -2374,6 +2374,8 @@ main.map section.map-how { margin: 6px 0 0; display: grid; gap: 10px; }
 .more-charts > .charts { margin-top: 8px; }
 .contour-picker { margin: 8px 0 0; }
 .contour-picker select { max-width: 9em; }
+.triangle-picker__boxes { display: flex; gap: 6px; margin: 4px 0; }
+.triangle-picker__boxes select { flex: 1 1 0; min-width: 0; max-width: 9em; }
 @media (pointer: coarse) {
   .more-charts > summary { min-height: 44px; display: flex; align-items: center; }
 }
