@@ -49,6 +49,16 @@ const bandArg = () => (ownLevel() ? `, level=${confidence()}` : "");
 const colourArgs = () =>
   [colourMap() === DEFAULT_COLOUR_MAP ? [] : [repr(colourMap())], colourMapFlipped() ? ["dark_page=True"] : []].flat().join(", ");
 
+/**
+ * What ``feasible_region`` is given of the responses' error correlation, after the code that leaves ``correlation`` and
+ * ``correlation_df``: with the seed of the draws its doubt is averaged over, as the page seeds them; nothing for
+ * independent errors (a ``seed`` of null or false).
+ */
+const correlatedArgs = (seed) =>
+  seed === null || seed === false || seed === undefined
+    ? ""
+    : `, residual_correlation=correlation, correlation_degrees_of_freedom=correlation_df, random_state=${seed}`;
+
 /** The same argument on a line of its own, for a call written over several lines. */
 const argLine = (arg, indent) => (arg ? [`${" ".repeat(indent)}${arg.slice(2)},`] : []);
 
@@ -1226,11 +1236,14 @@ function windowBlendCode(found, spec) {
     ...(correlated
       ? [
           "# The responses' errors on one run are taken as correlated as the residuals of their fits are, over the runs",
-          "# every fit used: two windows are then likelier to be met together, or missed together.",
+          "# every fit used: two windows are then likelier to be met together, or missed together. The correlation is",
+          "# an estimate, so the chance is averaged over the doubt in it: its degrees of freedom are those runs, less the",
+          "# terms of the largest model.",
           "correlation = pd.DataFrame(residuals).dropna().corr().to_numpy()",
+          `correlation_df = ${found.search.correlation_df}`,
         ]
       : []),
-    `judged = feasible_region(models, windows, tried${correlated ? ", residual_correlation=correlation" : ""})`,
+    `judged = feasible_region(models, windows, tried${correlatedArgs(correlated && found.search.seed)})`,
     'print(judged["feasible"].mean())  # the share of the blends at which every prediction is inside its window',
     ...(found.likely
       ? [
@@ -1327,11 +1340,14 @@ export function windowCode(found, spec) {
     ...(correlated
       ? [
           "# The responses' errors on one run are taken as correlated as the residuals of their fits are, over the runs",
-          "# every fit used: two windows are then likelier to be met together, or missed together.",
+          "# every fit used: two windows are then likelier to be met together, or missed together. The correlation is",
+          "# an estimate, so the chance is averaged over the doubt in it: its degrees of freedom are those runs, less the",
+          "# terms of the largest model.",
           "correlation = pd.DataFrame(residuals).dropna().corr().to_numpy()",
+          `correlation_df = ${found.search.correlation_df}`,
         ]
       : []),
-    `judged = feasible_region(models, windows, tried.assign(**{name: value for name, value in at.items() if name not in names})${correlated ? ", residual_correlation=correlation" : ""})`,
+    `judged = feasible_region(models, windows, tried.assign(**{name: value for name, value in at.items() if name not in names})${correlatedArgs(correlated && found.search.seed)})`,
     'print(judged["feasible"].mean())  # the share of the settings at which every prediction is inside its window',
     ...(found.likely
       ? [
@@ -1350,10 +1366,11 @@ export function windowCode(found, spec) {
  * The chart of a specification, after its code (windowCode), which leaves the ``models``, the ``windows`` and the
  * settings ``at``: the library's ``feasible_region`` over the page's grid of the two factors drawn (``overlay.x`` and
  * ``overlay.y``), the other columns where the what-if panel has them, shaded where every prediction is inside its
- * window, with a line for each chance the page draws when the chance can be given. ``correlated`` says the code
- * before left the ``correlation`` of the responses' errors, which the chance is then drawn with. Null without an overlay.
+ * window, with a line for each chance the page draws when the chance can be given. ``seed``, when the code before
+ * left the ``correlation`` of the responses' errors and its ``correlation_df``, is the seed of the draws of its doubt
+ * the chance is averaged over; null for independent errors. Null without an overlay.
  */
-export function windowOverlayCode(overlay, spec, correlated = false) {
+export function windowOverlayCode(overlay, spec, seed = null) {
   if (isMixture(spec) || !overlay) return null;
   const [low, high] = [Math.min(...overlay.chances), Math.max(...overlay.chances)];
   const lines = `{"coloring": "none", "start": ${low}, "end": ${high}, "size": ${high - low}, "showlabels": True}`;
@@ -1368,7 +1385,7 @@ export function windowOverlayCode(overlay, spec, correlated = false) {
     "across, up = np.meshgrid(axis, axis)",
     "over = pd.DataFrame({name: np.full(across.size, value) for name, value in at.items()})",
     "over[pair[0]], over[pair[1]] = across.ravel(), up.ravel()",
-    `drawn = feasible_region(models, windows, over${correlated ? ", residual_correlation=correlation" : ""})`,
+    `drawn = feasible_region(models, windows, over${correlatedArgs(seed)})`,
     "grid = lambda column: drawn[column].to_numpy(dtype=float).reshape(across.shape)",
     "figure = go.Figure(",
     "    [",

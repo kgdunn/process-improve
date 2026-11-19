@@ -9951,7 +9951,7 @@ def specification(request: dict) -> dict:
     models = _region_models(fits)
     correlation = _residual_correlation(fits)
     judge = lambda settings, at=point: feasible_region(  # noqa: E731
-        models, windows, _region_frame(fits, at, names, settings), residual_correlation=correlation
+        models, windows, _region_frame(fits, at, names, settings), **_correlated(correlation)
     )
     tried = judge(drawn)
     chance = tried["probability"].to_numpy()
@@ -9993,7 +9993,8 @@ def specification(request: dict) -> dict:
             "formulas": {n: fit.formula for n, fit in fits.items()},
             "windows": {n: list(ends) for n, ends in windows.items()},
             "at": _region_frame(fits, point, names, np.array([[point[n] for n in names]])).iloc[0].to_dict(),
-            "correlation": None if correlation is None else correlation.tolist(),
+            "correlation": None if correlation is None else correlation[0].tolist(),
+            "correlation_df": None if correlation is None else correlation[1],
             "drawn": SPECIFICATION_DRAWN,
             "seed": SPECIFICATION_SEED,
         },
@@ -10048,7 +10049,7 @@ def _blend_specification(request: dict, whole: dict) -> dict:
     models = _region_models(fits)
     correlation = _residual_correlation(fits)
     judge = lambda blends: feasible_region(  # noqa: E731
-        models, windows, pd.DataFrame(blends, columns=names), residual_correlation=correlation
+        models, windows, pd.DataFrame(blends, columns=names), **_correlated(correlation)
     )
     tried = judge(drawn)
     chance = tried["probability"].to_numpy()
@@ -10080,7 +10081,8 @@ def _blend_specification(request: dict, whole: dict) -> dict:
             "formulas": {n: fit.formula for n, fit in fits.items()},
             "windows": {n: list(ends) for n, ends in windows.items()},
             "at": {},
-            "correlation": None if correlation is None else correlation.tolist(),
+            "correlation": None if correlation is None else correlation[0].tolist(),
+            "correlation_df": None if correlation is None else correlation[1],
             "drawn": SPECIFICATION_DRAWN,
             "seed": SPECIFICATION_SEED,
         },
@@ -10125,21 +10127,39 @@ def _window_triangle(
     return {**picture, "chances": lines, "runs": runs}
 
 
-def _residual_correlation(fits: dict[str, _FittedModel]) -> np.ndarray | None:
-    """Return the correlation of the responses' residuals, in the order of ``fits``, or None for independent errors.
+def _residual_correlation(fits: dict[str, _FittedModel]) -> tuple[np.ndarray, int] | None:
+    """Return the correlation of the responses' residuals, in the order of ``fits``, and its degrees of freedom.
 
     Responses measured on the same run often miss their predictions together, and two windows are then likelier
     to be met together than their chances multiplied say. The correlation is that of the fits' residuals over
-    the runs every fit used. None with one response, with fewer than :data:`CORRELATED_FROM` such runs past the
-    terms of the largest model, or when a response's residuals do not vary: the errors are then independent.
+    the runs every fit used, and its degrees of freedom those runs less the terms of the largest model, so the
+    chance can carry the doubt in it. None, for independent errors, with one response, with fewer than
+    :data:`CORRELATED_FROM` such degrees of freedom, or when a response's residuals do not vary.
     """
     if len(fits) < 2:
         return None
     residuals = pd.concat({name: fit.residuals for name, fit in fits.items()}, axis=1).dropna()
-    if len(residuals) - max(len(fit.terms) for fit in fits.values()) < CORRELATED_FROM:
+    df = len(residuals) - max(len(fit.terms) for fit in fits.values())
+    if df < CORRELATED_FROM:
         return None
     correlation = residuals.corr().to_numpy()
-    return None if np.isnan(correlation).any() else correlation
+    return None if np.isnan(correlation).any() else (correlation, df)
+
+
+def _correlated(estimate: tuple[np.ndarray, int] | None) -> dict[str, Any]:
+    """Return what ``feasible_region`` is given of the responses' error correlation: nothing for independent errors.
+
+    The correlation is an estimate, so its degrees of freedom go with it, and the draws its doubt is averaged over
+    are seeded as the settings tried are, so the same study gives the same chances.
+    """
+    if estimate is None:
+        return {}
+    correlation, df = estimate
+    return {
+        "residual_correlation": correlation,
+        "correlation_degrees_of_freedom": df,
+        "random_state": SPECIFICATION_SEED,
+    }
 
 
 def _level_count(spec: dict) -> int:
