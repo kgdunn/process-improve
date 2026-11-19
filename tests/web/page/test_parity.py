@@ -718,6 +718,7 @@ def test_the_settings_kept_from_the_what_if_panel_are_held_as_bootstrap_holds_th
     """A study and its workbook keep as many, under names as long; the box for a name takes no more."""
     held = bootstrap.SCENARIOS_HELD
     assert javascript(node, source("campaign.js"), [("SCENARIOS_HELD", [])]) == [held]
+    assert javascript(node, source("campaign.js"), [("SETTINGS_HELD", [])]) == [bootstrap.SETTINGS_HELD]
     box = re.search(r'<input[^>]*id="what-if-keep-name"[^>]*>', source("index.html"))
     assert box, "the box the reader names the settings in"
     assert f'maxlength="{held["name"]}"' in box.group(0)

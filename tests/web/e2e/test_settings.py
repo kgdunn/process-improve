@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import base64
 import re
 from typing import Any
 
-from tests.web.e2e._page import generate, practise, saved_studies, settled
+from tests.web.e2e._page import generate, practise, reveal, saved_studies, settled
 
 #: The colour a contour chart gives its lowest value, on a light page, in each map: the map's light end.
 LOW = {"batlow": "#faccfa", "devon": "#eae8fb", "lajolla": "#fffecb", "grayC": "#dcdcdc"}
@@ -180,3 +181,24 @@ def test_a_stricter_significance_level_widens_the_intervals_and_is_named_across_
     assert page.evaluate(width) == usual
     kept = saved_studies(page, lambda studies: bool(studies) and "significance_level" not in studies[0]["settings"])
     assert kept[0]["v"] == 12, "a study judged at 0.05 holds no setting for it"
+
+
+def test_a_workbook_brings_its_study_s_settings_back(page, api, held, simulated, tmp_path):
+    settings = {"colour_map": "lajolla", "decimal_mark": "comma", "significance_level": 0.01}
+    book = api.ok("api_workbook", {**held, "responses": simulated["responses"], "settings": settings})
+    path = tmp_path / "study.xlsx"
+    path.write_bytes(base64.b64decode(book["xlsx_base64"]))
+    reveal(page, "#tab-real")
+    page.click("#tab-real")
+    page.set_input_files("#upload", path)
+    page.wait_for_function("window.__pi.count('api_read_workbook') === 1")
+    settled(page)
+    page.wait_for_function("document.querySelector('#analysis').textContent.includes('99% low')")
+    assert re.search(r"R² = 0,\d", page.locator("#analysis").text_content()), "the workbook's decimal mark"
+    kept = saved_studies(page, lambda studies: bool(studies) and studies[0].get("settings") == settings)
+    assert kept[0]["settings"] == settings
+    page.click("#study-button")
+    page.click("#menu-settings")
+    assert page.input_value("#significance-level") == "0.01"
+    assert page.input_value("#decimal-mark") == "comma"
+    assert page.locator('#colour-maps input[name="colour_map"]:checked').get_attribute("value") == "lajolla"

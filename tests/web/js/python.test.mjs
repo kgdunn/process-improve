@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { afterEach, describe, test } from "node:test";
 
 import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, figureCode, notebook, ownFigureCode, resultsCode } from "../../../web/python.js";
+import { setColourMap } from "../../../web/charts.js";
 import { DEFAULT_SIGNIFICANCE, setSignificance } from "../../../web/numbers.js";
 
 const FACTORS = [
@@ -387,5 +388,24 @@ describe("a study judged at a level of its own", () => {
     setSignificance(0.1);
     assert.match(analyseCode("quadratic"), /\n {4}significance_level=0\.1,\n\)/);
     assert.match(figureCode("Fitted response surface", surface, "T + P", true, { response: "y" }), /confidence_level=0\.9,/);
+  });
+});
+
+describe("a study's colour map", () => {
+  afterEach(() => setColourMap(undefined));
+  const blend = { response: "y", factors: ["A", "B", "C"].map((name) => ({ name, low: 0, high: 1 })) };
+  const scale = () => ownFigureCode("ternary", "The blends", blend).match(/"colorscale": (colorscale\([^)]*\))/)[1];
+
+  test("batlow as it comes is the library's own, so the code names no map", () => {
+    assert.equal(scale(), "colorscale()");
+  });
+
+  test("another map is named, and a flipped map is drawn from its other end", () => {
+    setColourMap("lajolla");
+    assert.equal(scale(), 'colorscale("lajolla")');
+    setColourMap("lajolla", true);
+    assert.equal(scale(), 'colorscale("lajolla", dark_page=True)');
+    setColourMap("batlow", true);
+    assert.equal(scale(), "colorscale(dark_page=True)");
   });
 });
