@@ -217,8 +217,8 @@ Also:
   factor, and the design sets it once for a group of runs, a whole plot, and not afresh for
   every run. The run sheet lists the runs one whole plot after another, and Learn judges
   each term against the spread it meets, so the factor does not look more certain than it is.
-  - *Details:* A split-plot design, for the three optimal designs, with no limits on the
-    settings and no blocks. Learn fits the spread from whole plot to whole plot and from run
+  - *Details:* A split-plot design, for the three optimal designs, with limits on the settings
+    if the study has any, and no blocks. Learn fits the spread from whole plot to whole plot and from run
     to run (REML) for the coefficients' errors and p-values. In place of the ANOVA table and
     the lack-of-fit test, which have one error, a table tests each term against its own
     spread, a factor of several levels as one term (Satterthwaite's degrees of freedom). The charts, the best settings and the predictions

@@ -332,9 +332,14 @@ class TestGenerateDesign:
         assert result.metadata["constraints_enforced"] is False
         assert "does not enforce constraints" in caplog.text
 
-    def test_hard_to_change_is_recorded_as_ignored(self) -> None:
-        result = generate_design([TEMP, DOSE], budget=8, constraints=[HEAT], hard_to_change=["T"])
-        assert result.metadata["hard_to_change_ignored"] == ["T"]
+    def test_a_hard_to_change_factor_makes_a_split_plot_design_inside_the_limits(self) -> None:
+        result = generate_design([TEMP, DOSE], budget=8, constraints=[HEAT], hard_to_change=["T"], random_state=0)
+        runs = result.design_actual
+        assert result.metadata["backend"] == "split_plot_exchange"
+        assert result.metadata["constraints_enforced"] is True
+        assert "hard_to_change_ignored" not in result.metadata
+        assert (3 * runs["T"] + 5 * runs["D"] <= 600 + 1e-9).all()
+        assert runs.groupby("WholePlot")["T"].nunique().max() == 1
 
 
 class TestErrors:
