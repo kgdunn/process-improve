@@ -5190,14 +5190,19 @@ _BOOKKEEPING = re.compile(r"(?i)^(run|runs|std|standard|order|run ?order|std ?or
 
 #: The columns each DOE program writes beside a design's factors and responses, to number and place its runs, as
 #: (headings that name the program, any set of them; the program's bookkeeping columns), each heading compared
-#: without case, spaces or marks. Minitab's CenterPt holds 0 and 1, so without this it is guessed a factor. A
-#: block column is kept: the block is a factor of the analysis.
+#: without case or marks, its words kept apart: Minitab writes "StdOrder" and Design-Expert "Std Order". Minitab's
+#: CenterPt and OptPoint hold 0 and 1, so without this they are guessed factors. A block column is kept: the block
+#: is a factor of the analysis. Sources: Minitab's "How Minitab stores design information in the worksheet" and
+#: Stat-Ease's "Design Layout Screen".
 _EXPORTERS = {
-    "Minitab": (({"stdorder", "runorder"},), {"stdorder", "runorder", "centerpt", "pttype"}),
-    "MODDE": (({"expno", "expname"}, {"expno", "inclexcl"}), {"expno", "expname", "runorder", "inclexcl"}),
+    "Minitab": (({"stdorder", "runorder"},), {"stdorder", "runorder", "centerpt", "pttype", "optpoint"}),
+    "MODDE": (({"exp no", "exp name"}, {"exp no", "inclexcl"}), {"exp no", "exp name", "run order", "inclexcl"}),
     "Design-Expert": (
-        ({"std", "run", "spacetype"}, {"std", "run", "buildtype"}),
-        {"std", "run", "spacetype", "buildtype"},
+        ({"std order", "run order"}, {"std", "run", "space type"}, {"std", "run", "build type"}),
+        {
+            *("std order", "run order", "std", "run", "design id"),
+            *("space point type", "build point type", "space type", "build type"),
+        },
     ),
     "JMP": (({"pattern"},), {"pattern"}),
 }
@@ -5341,7 +5346,7 @@ def _column(heading: str, values: list[float | str | None]) -> dict[str, Any]:
 
 def _exported_from(headings: list[str]) -> tuple[str | None, list[str]]:
     """Say which DOE program exported a table, from its headings, and which of them that program numbers runs with."""
-    plain = [re.sub(r"[^a-z0-9]", "", heading.lower()) for heading in headings]
+    plain = [" ".join(re.sub(r"[^a-z0-9 ]", "", heading.lower()).split()) for heading in headings]
     for program, (signs, bookkeeping) in _EXPORTERS.items():
         if any(sign <= set(plain) for sign in signs):
             return program, [heading for heading, key in zip(headings, plain, strict=True) if key in bookkeeping]

@@ -520,9 +520,9 @@ Also:
   together and what unplanned runs cannot show.
 - **Bring a design from JMP, Minitab, Design-Expert or MODDE.** Export it as .csv or .xlsx and
   open it here. The app knows each program by the columns it writes, says which program it was,
-  and leaves out the columns that only number and code the runs (Minitab's StdOrder, RunOrder
-  and CenterPt; JMP's Pattern; Design-Expert's Std, Run and Space Type; MODDE's Exp No, Exp
-  Name, Run Order and Incl/Excl). A block column is kept as a factor.
+  and leaves out the columns that only number and code the runs (Minitab's StdOrder, RunOrder,
+  CenterPt or PtType; JMP's Pattern; Design-Expert's Std Order, Run Order and point types;
+  MODDE's Exp No, Exp Name, Run Order and Incl/Excl). A block column is kept as a factor.
 - **Compare with the published answer.** A study opened from the catalog lists each number
   its source prints beside the app's own, and whether they agree.
 
