@@ -283,8 +283,8 @@ ENDS = """() => Object.fromEntries([...document.querySelectorAll('#charts figure
   return ramp ? [[card.dataset.chart, [ramp[0][1], ramp.at(-1)[1]].map((colour) => colour.toLowerCase())]] : [];
 }))"""
 
-#: The ends of the library's ramp, near white for low, and of the dark page's, as dark as the page for low.
-LIGHT_ENDS, DARK_ENDS = ["#eff6ff", "#1e3a8a"], ["#1a2436", "#bfdbfe"]
+#: The ends of the default map, batlow: its light end for low on a light page, and its dark end on a dark one.
+LIGHT_ENDS, DARK_ENDS = ["#faccfa", "#011959"], ["#011959", "#faccfa"]
 SURFACES = ["contour", "true_contour", "surface_3d", "prediction_variance"]
 
 

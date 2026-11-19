@@ -48,23 +48,49 @@ FACTOR_COLORS: list[str] = [
 # Contour / surface colour scales
 # ---------------------------------------------------------------------------
 
-#: Plotly-style continuous colour scale for contour and surface plots.
-SURFACE_COLORSCALE: list[list[float | str]] = [
-    [0.0, "#EFF6FF"],
-    [0.25, "#93C5FD"],
-    [0.5, "#3B82F6"],
-    [0.75, "#1D4ED8"],
-    [1.0, "#1E3A8A"],
-]
+#: The Scientific colour maps a surface is drawn in (Crameri, F., 2018, Scientific colour maps, Zenodo,
+#: doi:10.5281/zenodo.1243862; MIT licence, copyright (c) Fabio Crameri): nine colours each, sampled evenly along
+#: the map, dark for one end and light for the other. They are even to the eye, so a step in the colour is a step
+#: in the value, and a reader who does not tell red from green reads them, as does a print in grey. ``devon`` and
+#: ``grayC`` end in white, which a page is, so they are sampled along their first nine tenths.
+COLOUR_MAPS: dict[str, list[str]] = {
+    "batlow": ["#011959", "#114360", "#226061", "#4d734d", "#828231", "#c09036", "#f29d6d", "#fdb4b6", "#faccfa"],
+    "devon": ["#2c1a4c", "#293467", "#275186", "#376aae", "#6583d2", "#9b9ce8", "#bbb5f1", "#d2cef6", "#eae8fb"],
+    "lajolla": ["#191900", "#372411", "#67342a", "#a64644", "#d9604e", "#e58851", "#edae54", "#f7da74", "#fffecb"],
+    "grayC": ["#000000", "#232323", "#3d3d3d", "#565656", "#6e6e6e", "#848484", "#9c9c9c", "#b9b9b9", "#dcdcdc"],
+}
+
+#: The map a surface is drawn in unless another is asked for.
+DEFAULT_COLOUR_MAP = "batlow"
+
+
+def colorscale(name: str = DEFAULT_COLOUR_MAP, *, dark_page: bool = False) -> list[list[float | str]]:
+    """Return one of :data:`COLOUR_MAPS` as a Plotly colour scale, a low value fading into the page.
+
+    Parameters
+    ----------
+    name : str
+        A key of :data:`COLOUR_MAPS`.
+    dark_page : bool
+        Whether the figure is on a dark page. A low value is then the map's dark end; on a light page, the
+        default, it is the light end.
+
+    Returns
+    -------
+    list of [float, str]
+        The colour at each of nine evenly spaced fractions from 0 to 1.
+    """
+    if name not in COLOUR_MAPS:
+        raise ValueError(f"Unknown colour map {name!r}: choose one of {', '.join(COLOUR_MAPS)}.")
+    colours = COLOUR_MAPS[name] if dark_page else COLOUR_MAPS[name][::-1]
+    return [[i / (len(colours) - 1), colour] for i, colour in enumerate(colours)]
+
+
+#: Plotly-style continuous colour scale for contour and surface plots: batlow, light for low and dark for high.
+SURFACE_COLORSCALE: list[list[float | str]] = colorscale()
 
 #: ECharts-compatible colour stops (same hues as Plotly scale).
-ECHARTS_VISUAL_MAP_COLORS: list[str] = [
-    "#EFF6FF",
-    "#93C5FD",
-    "#3B82F6",
-    "#1D4ED8",
-    "#1E3A8A",
-]
+ECHARTS_VISUAL_MAP_COLORS: list[str] = [str(colour) for _, colour in SURFACE_COLORSCALE]
 
 # ---------------------------------------------------------------------------
 # Diagnostic plot colours

@@ -937,7 +937,7 @@ describe("a design that sets a factor once for a group of runs", () => {
     const read = checkCampaign({ ...split(), v: WHOLE_PLOT_FORMAT });
     assert.deepEqual(read.design.spec.options.hard_to_change, [split().design.spec.factors[0].name]);
     assert.equal(read.v, WHOLE_PLOT_FORMAT);
-    assert.equal(CAMPAIGN_VERSION, WHOLE_PLOT_FORMAT, "the page reads it");
+    assert.ok(CAMPAIGN_VERSION >= WHOLE_PLOT_FORMAT, "the page reads it");
   });
 
   test("a list that is not of names is refused", () => {
@@ -948,6 +948,36 @@ describe("a design that sets a factor once for a group of runs", () => {
     };
     assert.throws(bad("T"), /the factors that are hard to change/);
     assert.throws(bad([1]), /a factor that is hard to change/);
+  });
+});
+
+describe("a study's settings", () => {
+  test("a study keeps its settings, in a format of its own, and a study with none keeps its earlier format", async () => {
+    const { SETTINGS_FORMAT } = await import("../../../web/campaign.js");
+    const read = checkCampaign({ ...campaign(), v: SETTINGS_FORMAT, settings: { colour_map: "lajolla" } });
+    assert.deepEqual(read.settings, { colour_map: "lajolla" });
+    assert.equal(read.v, SETTINGS_FORMAT);
+    assert.equal(CAMPAIGN_VERSION, SETTINGS_FORMAT, "the page reads it");
+    for (const none of [undefined, null, {}]) {
+      const plain = checkCampaign({ ...campaign(), v: CAMPAIGN_VERSION, settings: none });
+      assert.equal(plain.settings, undefined);
+      assert.equal(plain.v, 1);
+    }
+  });
+
+  test("a setting this page does not know is kept as it came, so a later page's study opens and is saved whole", () => {
+    const later = { colour_map: "a map of a later page", decimal_comma: true, digits_shown: 4 };
+    assert.deepEqual(checkCampaign({ ...campaign(), v: CAMPAIGN_VERSION, settings: later }).settings, later);
+  });
+
+  test("settings that are not short values under plain names are refused", () => {
+    const with_ = (settings) => () => checkCampaign({ ...campaign(), v: CAMPAIGN_VERSION, settings });
+    assert.throws(with_(["lajolla"]), /its settings are not settings/);
+    assert.throws(with_({ "Colour Map": "lajolla" }), /has no name the page reads/);
+    assert.throws(with_({ __proto__x: 1 }), /has no name the page reads/);
+    assert.throws(with_({ colour_map: { name: "lajolla" } }), /its setting colour_map is not a value/);
+    assert.throws(with_({ colour_map: "x".repeat(65) }), /its setting colour_map is not a value/);
+    assert.throws(with_(Object.fromEntries(Array.from({ length: 33 }, (_, i) => [`s${"a".repeat(i + 1)}`, 1]))), /too many/);
   });
 });
 

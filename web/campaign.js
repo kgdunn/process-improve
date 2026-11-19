@@ -20,8 +20,11 @@
  * the way back to the plan.
  * Format 11 holds a design that sets a factor once for a group of runs (``options.hard_to_change``), whose list of
  * factors an earlier page refuses as no setting of a design.
+ * Format 12 holds the settings of a study (``settings``), such as the colour map its charts are drawn in. From this
+ * format on, a page keeps a setting it does not know and takes no notice of it, so a later setting that only changes
+ * how a study looks needs no format of its own. A setting that changes a number or a verdict still does.
  */
-export const CAMPAIGN_VERSION = 11;
+export const CAMPAIGN_VERSION = 12;
 
 /** The format of a study of one factor; a study of more factors keeps format 1. */
 export const ONE_FACTOR_FORMAT = 2;
@@ -53,6 +56,12 @@ export const PLANNED_FORMAT = 10;
 /** The format of a study whose design sets a factor once for a group of runs, a whole plot (``options.hard_to_change``). */
 export const WHOLE_PLOT_FORMAT = 11;
 
+/** The format of a study with settings of its own (``settings``); a study with none keeps an earlier format. */
+export const SETTINGS_FORMAT = 12;
+
+/** The most settings a study holds, known to this page or not. */
+export const SETTINGS_HELD = 32;
+
 /** The most factors a study of format 3 or earlier holds: a page of those formats refuses more. */
 export const FEW_FACTORS = 12;
 
@@ -66,6 +75,7 @@ export const CURVE_POINTS_HELD = 1000;
  */
 export function studyFormat(spec, study = {}) {
   const { what_if: kept = [], set_aside: setAside = {}, targets = {}, windows = {}, builds_on: builtOn = [], planned = {} } = study;
+  if (Object.keys(study.settings ?? {}).length) return SETTINGS_FORMAT;
   if (spec.options?.hard_to_change?.length) return WHOLE_PLOT_FORMAT;
   if (Object.keys(planned).length) return PLANNED_FORMAT;
   if (builtOn.length) return ROUNDS_FORMAT;
@@ -171,6 +181,24 @@ function options(value) {
     out[key] = v;
   }
   return out;
+}
+
+/**
+ * A study's settings, such as ``colour_map``: each a short text, a number, or true or false, under a name in small
+ * letters. A setting this page does not know is kept as it came and has no effect here, so a study from a later
+ * page opens, and is saved again with it. What a setting this page knows may hold is for the page to judge where
+ * it is used: a colour map it lacks is drawn as the default.
+ */
+export function studySettings(value) {
+  if (value === undefined || value === null) return {};
+  if (!isObject(value)) refuse("its settings are not settings");
+  const entries = Object.entries(value);
+  if (entries.length > SETTINGS_HELD) refuse("its settings are too many");
+  for (const [key, v] of entries) {
+    if (!/^[a-z][a-z_]{0,31}$/.test(key)) refuse(`its setting ${JSON.stringify(key).slice(0, 40)} has no name the page reads`);
+    if (!(isFiniteNumber(v) || isText(v, 64) || typeof v === "boolean")) refuse(`its setting ${key} is not a value`);
+  }
+  return Object.fromEntries(entries);
 }
 
 /**
@@ -600,8 +628,9 @@ export function checkCampaign(data) {
   const [targets, windows] = [typedTargets(data.targets, names), typedWindows(data.windows, names)];
   const built = checkBuiltOn(data.builds_on);
   const planned = plannedSettings(data.planned, s.factors, n);
+  const settings = studySettings(data.settings);
   const out = {
-    v: studyFormat(s, { what_if: kept, set_aside: aside, targets, windows, builds_on: built, planned }),
+    v: studyFormat(s, { what_if: kept, set_aside: aside, targets, windows, builds_on: built, planned, settings }),
     title: data.title === undefined ? "" : text(data.title, "its title", 200),
     design: {
       spec: s,
@@ -628,6 +657,7 @@ export function checkCampaign(data) {
   if (Object.keys(windows).length) out.windows = windows;
   if (built.length) out.builds_on = built;
   if (Object.keys(planned).length) out.planned = planned;
+  if (Object.keys(settings).length) out.settings = settings;
   if (s.curve) out.curves = curvesOf(data.curves, n, s.curve.argument.values.length);
   return out;
 }

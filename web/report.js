@@ -58,10 +58,10 @@ export function runtimeWords(runtime) {
  */
 export function orderWords(spec) {
   const seed = spec.options?.random_state;
-  if (spec.design_type !== GIVEN) return `Drawn at random with seed ${seed ?? RUN_ORDER_SEED}.`;
+  if (spec.design_type !== GIVEN) return `In random order (seed ${seed ?? RUN_ORDER_SEED}).`;
   if (!spec.options?.grown) return "As given.";
-  if (seed === undefined) return `As the study had them, then the runs added, drawn at random with seed ${RUN_ORDER_SEED}.`;
-  return `As the study had them, then each set of runs added, drawn at random with seed ${seed} plus the number of runs before it.`;
+  if (seed === undefined) return `As the study had them, then the runs added in random order (seed ${RUN_ORDER_SEED}).`;
+  return `As the study had them, then each set of runs added in random order (seed ${seed} plus the number of runs before it).`;
 }
 
 /**
@@ -76,11 +76,11 @@ export function resultWords(results, marks, simulation, runs) {
   if (!done.length) return "None yet.";
   const simulated = done.filter((i) => names.some((name) => given(name, i) && marks[name]?.[i] === "simulated")).length;
   const entered = done.length - simulated;
-  const from = simulation ? `: ${simulation.label}, with noise ${simulation.sigma} and seed ${simulation.seed}` : "";
+  const from = simulation ? ` (${simulation.label}, noise ${simulation.sigma}, seed ${simulation.seed})` : "";
   const count = `${done.length} of ${runs} runs`;
   if (!simulated) return `${count}, entered.`;
-  if (!entered) return `${count}, simulated${from}.`;
-  return `${count}, ${entered} entered and ${simulated} simulated${from}.`;
+  if (!entered) return `${count}, simulated for practice${from}.`;
+  return `${count}, ${entered} entered and ${simulated} simulated for practice${from}.`;
 }
 
 /**
@@ -90,14 +90,20 @@ export function resultWords(results, marks, simulation, runs) {
  * null, as the Feedback dialog may stamp one), a digest the browser would not compute, or a link for a study too large
  * to carry in one.
  */
+/** The stamp's row that holds the study's fingerprint: the SHA-256 of what the study is made of. */
+export const FINGERPRINT = "Fingerprint (SHA-256)";
+
+/** The stamp's row of the software the numbers were computed with, which the report prints at its foot. */
+export const SOFTWARE = "On";
+
 export function stampRows({ made, version, runtime, url, spec, runs, results, marks, simulation, sha, link }) {
   const rows = [
     ["Made", whenWords(made), null],
-    ["With", `${version ? `process-improve ${version}` : "process-improve, from its source"}, in Factorial at ${url}`, null],
-    ["On", runtimeWords(runtime), null],
+    ["With", `Factorial (${version ? `process-improve ${version}` : "process-improve, from its source"}) at ${url}`, null],
+    [SOFTWARE, runtimeWords(runtime), null],
     ["Run order", spec ? orderWords(spec) : "", null],
     ["Results", spec ? resultWords(results, marks, simulation, runs) : "", null],
-    ["Inputs, SHA-256", sha ?? "", null],
+    [FINGERPRINT, sha ?? "", null],
     ["Open it again", link ? "This study in Factorial, with its results" : "", link],
   ];
   return rows.filter(([, text]) => text);
@@ -231,18 +237,21 @@ footer { margin-top: 40px; color: var(--muted); font-size: 0.85rem; }
  * each section, {heading, html}, whose HTML is the caller's to have escaped.
  */
 export function report({ title, stamp, sections }) {
+  const software = stamp.find(([label]) => label === SOFTWARE)?.[1];
   const rows = stamp
+    .filter(([label]) => label !== SOFTWARE) // the versions are for the reader who checks the numbers: at the foot
     .map(([label, text, link]) => {
       const value = link ? `<a href="${escape(link)}">${escape(text)}</a>` : escape(text);
-      const digest = label.startsWith("Inputs") ? ' class="digest"' : "";
+      const digest = label === FINGERPRINT ? ' class="digest"' : "";
       return `<tr><th>${escape(label)}</th><td${digest}>${value}</td></tr>`;
     })
     .join("\n");
-  const digested = stamp.some(([label]) => label.startsWith("Inputs"));
+  const digested = stamp.some(([label]) => label === FINGERPRINT);
   const note = digested
-    ? '<p class="hint">The SHA-256 is of the study as Factorial reads it from its link: its brief, design, results ' +
-      "and models, written as JSON with every key sorted. Two reports with the same digest report the same study.</p>"
+    ? '<p class="hint">The fingerprint is made from this study: its brief, design, results and models. Two reports ' +
+      "with the same fingerprint are of the same study.</p>"
     : "";
+  const versions = software ? `\n<p class="versions">Software versions: ${escape(software)}.</p>` : "";
   const body = sections.map((s) => `<section>\n<h2>${escape(s.heading)}</h2>\n${s.html}\n</section>`).join("\n");
   return `<!doctype html>
 <html lang="en">
@@ -263,8 +272,8 @@ ${rows}
 ${note}
 </header>
 ${body}
-<footer>Made with Factorial, which runs process-improve in the browser. The numbers above can be computed again from
-the link in the stamp, or from the Python code, with the releases the stamp names.</footer>
+<footer><p>Made with Factorial, which runs process-improve in the browser. The numbers above can be computed again
+from the link at the top, or from the Python code.</p>${versions}</footer>
 </main>
 </body>
 </html>

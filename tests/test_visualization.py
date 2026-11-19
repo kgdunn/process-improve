@@ -31,7 +31,14 @@ from process_improve.experiments.visualization.plots.registry import (
 )
 from process_improve.experiments.visualization.plots.surfaces import _clip_line
 from process_improve.visualization.adapters import EChartsAdapter, PlotlyAdapter
-from process_improve.visualization.colors import CANNOT_RUN_FILL
+from process_improve.visualization.colors import (
+    CANNOT_RUN_FILL,
+    COLOUR_MAPS,
+    DEFAULT_COLOUR_MAP,
+    ECHARTS_VISUAL_MAP_COLORS,
+    SURFACE_COLORSCALE,
+    colorscale,
+)
 from process_improve.visualization.spec import ChartSpec, LayerSpec, PanelSpec
 from process_improve.visualization.types import DOEPlotType, MarkType
 
@@ -2843,3 +2850,25 @@ class TestThreeDimensionalPlotly:
         )
         figure = PlotlyAdapter().render(ChartSpec(panels=[PanelSpec(layers=[layer])]))
         assert figure["data"][0]["mode"] == "none"
+
+
+class TestColourMaps:
+    """The Scientific colour maps a surface is drawn in."""
+
+    @pytest.mark.parametrize("name", list(COLOUR_MAPS))
+    def test_a_map_is_nine_colours_and_low_fades_into_the_page(self, name: str) -> None:
+        light, dark = colorscale(name), colorscale(name, dark_page=True)
+        assert [at for at, _ in light] == [i / 8 for i in range(9)]
+        assert [colour for _, colour in dark] == COLOUR_MAPS[name]
+        assert [colour for _, colour in light] == COLOUR_MAPS[name][::-1]
+
+    def test_the_default_is_batlow_light_for_low(self) -> None:
+        assert DEFAULT_COLOUR_MAP == "batlow"
+        assert colorscale() == SURFACE_COLORSCALE
+        assert SURFACE_COLORSCALE[0] == [0.0, "#faccfa"]
+        assert SURFACE_COLORSCALE[-1] == [1.0, "#011959"]
+        assert [colour for _, colour in SURFACE_COLORSCALE] == ECHARTS_VISUAL_MAP_COLORS
+
+    def test_an_unknown_map_is_refused_with_the_maps_there_are(self) -> None:
+        with pytest.raises(ValueError, match="Unknown colour map 'jet': choose one of batlow, devon, lajolla, grayC"):
+            colorscale("jet")

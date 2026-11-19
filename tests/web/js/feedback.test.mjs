@@ -50,7 +50,7 @@ const CONTEXT_SENT = {
   tab: "Learn",
   model: "As designed",
   charts: ["Coefficients", "Response surface"],
-  stamp: ["Made: 2026-10-18 21:04 UTC", "Inputs, SHA-256: 5e2a"],
+  stamp: ["Made: 2026-10-18 21:04 UTC", "Fingerprint (SHA-256): 5e2a"],
   errors: ["api_analyze_runs: Python stopped with LinAlgError: Singular matrix"],
   browser: "Mozilla/5.0 (X11; Linux x86_64)",
   window: "1280 x 900",
@@ -229,7 +229,7 @@ describe("the context", () => {
       "Browser: Mozilla/5.0 (X11; Linux x86_64)",
       "Window: 1280 x 900",
       "Made: 2026-10-18 21:04 UTC",
-      "Inputs, SHA-256: 5e2a",
+      "Fingerprint (SHA-256): 5e2a",
       "Python error: api_analyze_runs: Python stopped with LinAlgError: Singular matrix",
       "Version: 9f3827d1c0ffee",
     ]);

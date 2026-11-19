@@ -55,6 +55,9 @@ Counts marked "(Nov 2026)" come from the build of 14 November 2026 and only grow
   model: the same results give the same words.
 - **17 charts.** Each opens large, saves as an image, and shows the Python that draws it. A
   run pointed at on one chart is marked on the others and in the run sheet.
+- **Charts that are accurate and good to look at.** Factorial aims for both. Surfaces and
+  maps are drawn in batlow, a Scientific colour map: a step in the colour is a step in the
+  value, and it reads in grey and without telling red from green. Settings offers three more.
 - **Nothing hidden.** Every step shows Python code that gives the same numbers. A study
   leaves as a workbook, a notebook, a report, a file or a link.
 - **Checked against print.** The design catalog opens more than 1,000 published designs and
@@ -614,6 +617,12 @@ Also:
 - Axes and titles are in your words and units. A long title wraps.
 - Every chart fits its card and is drawn again when its room changes.
 - Light and dark themes. On a dark page a surface starts as dark as the page, with no glare.
+- Colours that are even to the eye. Factorial aims for charts that are scientifically
+  accurate and good to look at, so surfaces and maps are drawn in batlow, a Scientific
+  colour map (Crameri, 2018). A step in the colour is a step in the value, with no band that
+  the eye takes for an edge. It reads in grey, and without telling red from green. The
+  pictures of the response surface on this page show it. Settings offers devon, la jolla and
+  grey as well, and flips any of them.
 - The numbers on a surface's lines have a halo, so they read on every band.
 - Lines differ by pattern as well as colour. A run's marker reads on every colour of a surface.
 - Each chart is one named picture to a screen reader, beside a table that holds its numbers.
@@ -640,8 +649,8 @@ Also:
   - *Details:* An .ipynb file.
 - **A report to hand over.** One page that needs nothing else: the question, the design, the
   results, the analysis with its charts, the best settings, the next step and the code.
-  - *Details:* An .html file. A stamp gives the versions, the seed, the SHA-256 of the
-    study's inputs and a link that opens the same study.
+  - *Details:* An .html file. A stamp gives the seed, a fingerprint of the study (its
+    SHA-256) and a link that opens the same study. The software versions are at its foot.
 - **A link to a study.** It carries the results or leaves them out. Whoever opens it has the
   same study, and the study in the link reaches no server.
   - *Details:* The study is packed after the `#`, which a browser sends to no server.
@@ -652,7 +661,8 @@ Also:
 - **Old studies keep opening.** A link or a file saved by an earlier version opens in a
   later one.
   - *Details:* An earlier version refuses a newer study in a sentence, and opens no part of
-    it.
+    it. From study format 12 on, a version keeps a setting it does not know and takes no
+    notice of it, so a later setting that only changes how a study looks opens in it.
 - **Share.** It hands a study to the device's share sheet where the browser has one.
 - **Examples by name.** The book's 19 examples and 3 published examples each open from a
   link.
@@ -777,6 +787,13 @@ Also:
     designs and the words over that list, Spare runs and Power. It opens in a tab of its own,
     so the study stays as it is. A finger, a mouse and the keyboard each reach it.
 - **A phone, a tablet or a desk.** The layout, the tables and the charts fit each.
+- **Settings that travel with the study.** "Settings", under "Studies", chooses the colours
+  the charts are drawn in: batlow, devon, la jolla or grey. The study keeps the choice, so
+  its link and its file show others what you see.
+  - *Details:* Each map's colours are drawn from "Low" to "High", as the charts draw them,
+    and a switch flips the chosen map. A study's own settings always win. A tick keeps them
+    for your new studies too, in this browser. A study with settings is saved in study format 12. A workbook
+    does not carry them, and the Python shown draws in batlow.
 - **Light, dark or the system's colours.** The choice is kept in the browser.
 - **The keyboard and a screen reader.** Every control can be reached and has a name.
   - *Details:* A link past the header, sortable headings, labelled controls, and text that

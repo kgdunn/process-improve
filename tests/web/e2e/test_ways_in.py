@@ -21,6 +21,7 @@ ENTRIES = [
     "Catalog of experimental designs",
     "Share or download this study",
     "View its report",
+    "Settings",
 ]
 
 
@@ -172,7 +173,9 @@ def test_the_keyboard_opens_the_menu_walks_it_and_leaves_it(fresh_page):
         page.keyboard.press("Tab")
         walked.append(page.evaluate("document.activeElement.id"))
     assert walked == ["new-study", "open-library", "show-example", "import-data", "catalog-link"]
-    page.keyboard.press("Tab")  # past the two that are off while there is no run sheet, and out of the list
+    page.keyboard.press("Tab")  # past the two that are off while there is no run sheet, to the settings
+    assert page.evaluate("document.activeElement.id") == "menu-settings"
+    page.keyboard.press("Tab")  # and out of the list
     assert page.is_hidden(MENU), "Tab out of the list closes it"
 
 

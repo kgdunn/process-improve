@@ -143,10 +143,10 @@ def test_the_header_s_button_sends_the_report_and_what_goes_with_it(page, relay,
     assert context["plotly_js"]
     assert "HeadlessChrome" in context["browser"]
     stamp = dict(row.split(": ", 1) for row in context["stamp"])
-    assert stamp["With"] == f"process-improve {first_paint['version']}, in Factorial at {site}"
-    assert stamp["Run order"] == "Drawn at random with seed 42."
-    assert stamp["Results"].startswith("15 of 15 runs, simulated: ")
-    assert re.fullmatch(r"[0-9a-f]{64}", stamp["Inputs, SHA-256"])
+    assert stamp["With"] == f"Factorial (process-improve {first_paint['version']}) at {site}"
+    assert stamp["Run order"] == "In random order (seed 42)."
+    assert stamp["Results"].startswith("15 of 15 runs, simulated for practice (")
+    assert re.fullmatch(r"[0-9a-f]{64}", stamp["Fingerprint (SHA-256)"])
     assert not any("#c=" in row for row in context["stamp"]), "the stamp's link would carry the study"
     assert context["errors"] == []
 

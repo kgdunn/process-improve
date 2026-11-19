@@ -48,6 +48,12 @@ import {
   shareContourScale,
   targetName,
   windowName,
+  COLOUR_MAPS,
+  COLOUR_MAP_WORDS,
+  colourMap,
+  colourMapFlipped,
+  shownColours,
+  setColourMap,
   ternaryFigure,
   ternaryRange,
   tradeOffFigure,
@@ -349,6 +355,7 @@ import {
   sameCampaign,
   shareable,
   studyFormat,
+  studySettings,
   timeAgo,
   unpackCampaign,
 } from "./campaign.js";
@@ -619,6 +626,7 @@ const state = {
   scenarios: [], // the settings the reader kept from the what-if panel, each {name, settings}: the study's what_if
   next: null, // the next step, {design, key, offers, notes, recommendation, waiting}: what api_next_runs returned for it
   widened: false, // the study was started with its ranges widened, nothing having stood out in the study before
+  settings: {}, // the study's own settings, as the study keeps them (campaign.js studySettings): its colour map
   buildsOn: [], // the study this one was started from, as the study keeps it (its builds_on): the round before
   goals: {}, // what the reader set of each response's goal in the balance, by its column: low, high, importance, shape
   comparison: null, // the designs that can learn the brief: what api_candidates returned, and the brief's key
@@ -8196,6 +8204,7 @@ async function runExample() {
   flushSave();
   studyTicket += 1;
   setForm(example.design);
+  takeSettings(newStudySettings()); // the example is the reader's to look at, in the colours they keep
   scenarios.choose(example.scenario);
   $("#sigma").value = example.sigma;
   setModel(example.model);
@@ -8244,6 +8253,7 @@ function newStudy() {
     widened: false,
     buildsOn: [],
   });
+  takeSettings(newStudySettings());
   draftSeed = null; // a new study, which takes a seed of its own
   clearTimeout(analysisTimer);
   setResponse({ response: "" }, { columns: false });
@@ -8422,7 +8432,14 @@ function currentCampaign() {
   const { spec, columns, rows, model, facts, outside_range: outside } = state.design;
   const [first, ...more] = resultNames();
   return {
-    v: studyFormat(spec, { what_if: state.scenarios, set_aside: keptAside(), ...keptAsked(), builds_on: state.buildsOn, planned: state.design.planned ?? {} }),
+    v: studyFormat(spec, {
+      what_if: state.scenarios,
+      set_aside: keptAside(),
+      ...keptAsked(),
+      builds_on: state.buildsOn,
+      planned: state.design.planned ?? {},
+      settings: state.settings,
+    }),
     title: state.campaign?.title ?? titleOf(spec),
     design: { spec, columns, rows, model, n_runs: rows.length, facts: facts ?? null, outside_range: outside ?? [] },
     ...sentResults(),
@@ -8437,6 +8454,7 @@ function currentCampaign() {
     ...(state.design.planned ? { planned: state.design.planned } : {}),
     ...keptAsked(),
     ...(state.buildsOn.length ? { builds_on: state.buildsOn } : {}),
+    ...(Object.keys(state.settings).length ? { settings: state.settings } : {}),
     ...sentCurves(),
   };
 }
@@ -8745,6 +8763,7 @@ async function openCampaign(c, record, message, resume = false) {
   state.window = { ...newWindow(), windows: structuredClone(c.windows ?? {}) };
   state.scenarios = structuredClone(c.what_if ?? []);
   state.buildsOn = structuredClone(c.builds_on ?? []);
+  takeSettings(structuredClone(c.settings ?? {})); // the study's own always win over the reader's
   clearBalance();
   clearWhatIf();
   clearTarget();
@@ -9262,6 +9281,97 @@ function listDesigns(chosen = $("#design-type").value) {
 }
 
 $("#design-type").addEventListener("change", () => listDesigns());
+
+// ---------------------------------------------------------------- a study's settings
+const SETTINGS_KEY = "factorial-settings";
+
+/** The settings a new study starts from: those the reader asked to keep for new studies, else none. */
+function newStudySettings() {
+  try {
+    return studySettings(JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}"));
+  } catch {
+    return {}; // none kept, storage refused, or what is kept is not settings: a new study starts from the defaults
+  }
+}
+
+/** Put a study's settings in force: the page holds them, and the charts are drawn in its colour map from here on. */
+function takeSettings(settings) {
+  state.settings = settings;
+  setColourMap(settings.colour_map, settings.colour_map_flipped === true);
+}
+
+/**
+ * Draw the settings as the study has them. Each colour map is a choice on one line: its name, then its colours
+ * from a low value to a high one as the charts draw them now. The chosen map's line holds the switch that flips it.
+ */
+function renderSettings() {
+  const choices = Object.keys(COLOUR_MAPS).map((name) => {
+    const row = el("div", "settings__map", "");
+    const label = el("label", "settings__choice", "");
+    const choice = document.createElement("input");
+    choice.type = "radio";
+    choice.name = "colour_map";
+    choice.value = name;
+    choice.checked = name === colourMap();
+    label.append(choice, el("span", "", COLOUR_MAP_WORDS[name]));
+    const swatch = el("span", "settings__swatch", "");
+    swatch.style.background = `linear-gradient(to right, ${shownColours(name).join(", ")})`;
+    swatch.setAttribute("role", "img");
+    swatch.setAttribute("aria-label", `The colours of ${COLOUR_MAP_WORDS[name]}, from a low value to a high one`);
+    // Every line has the same five places, so the bars line up: the chosen map's holds the switch, the others a gap.
+    const flip = choice.checked ? flipSwitch() : el("span", "settings__flip", "");
+    row.append(label, flip, el("span", "settings__end", "Low"), swatch, el("span", "settings__end", "High"));
+    return row;
+  });
+  $("#colour-maps").replaceChildren(...choices);
+  $("#settings-keep").checked = localStorage.getItem(SETTINGS_KEY) !== null;
+}
+
+/** Where the switch that flips the chosen map is: the list draws it anew with each change. */
+const FLIP = "#colour-maps .settings__flip input";
+
+/** The switch that draws the chosen map from its other end, at the end of that map's line. */
+function flipSwitch() {
+  const label = el("label", "switch settings__flip", "");
+  const flip = document.createElement("input");
+  flip.type = "checkbox";
+  flip.id = "colour-map-flipped";
+  flip.setAttribute("role", "switch");
+  flip.checked = colourMapFlipped();
+  const track = el("span", "switch__track", "");
+  track.setAttribute("aria-hidden", "true");
+  label.append(el("span", "switch__text", "Flip"), flip, track);
+  return label;
+}
+
+/** The reader changed a setting: the study takes it, the charts follow, and the study is saved with it. */
+function settingsChanged(event) {
+  const chosen = document.querySelector('#colour-maps input[name="colour_map"]:checked')?.value;
+  const settings = { ...state.settings, ...(chosen ? { colour_map: chosen } : {}) };
+  if (document.querySelector(FLIP)?.checked) settings.colour_map_flipped = true;
+  else delete settings.colour_map_flipped;
+  takeSettings(settings);
+  try {
+    if ($("#settings-keep").checked) localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings));
+    else localStorage.removeItem(SETTINGS_KEY);
+  } catch {
+    /* storage refused: the settings hold for this study */
+  }
+  renderSettings(); // the colours beside each name, and the line the switch is on, follow the choice
+  // The list is drawn anew, so the keyboard's place is put back on the control that was changed.
+  const again = event.target.id === "settings-keep" ? "#settings-keep" : event.target.type === "radio" ? '#colour-maps input[name="colour_map"]:checked' : FLIP;
+  document.querySelector(again)?.focus();
+  redrawAll();
+  if (state.design) scheduleSave();
+}
+
+$("#menu-settings").onclick = () => {
+  renderSettings();
+  $("#settings-dialog").showModal();
+};
+$("#settings-close").onclick = () => $("#settings-dialog").close();
+closeOnBackdrop($("#settings-dialog"));
+$("#settings-dialog").addEventListener("change", settingsChanged);
 
 // ---------------------------------------------------------------- colour mode
 const MODE_KEY = "factorial-mode";

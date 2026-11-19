@@ -34,9 +34,15 @@ def opened(page: Any, html: str) -> Any:  # noqa: ANN401
 
 
 def stamp(report: Any) -> dict[str, str]:  # noqa: ANN401
+    """Return the report's stamp by its rows' labels, with the software versions at its foot as ``On``."""
     return report.evaluate(
-        "() => Object.fromEntries([...document.querySelectorAll('table.stamp tr')]"
-        ".map((tr) => [tr.cells[0].textContent, tr.cells[1].textContent]))"
+        """() => {
+          const cells = (tr) => [tr.cells[0].textContent, tr.cells[1].textContent];
+          const rows = [...document.querySelectorAll('table.stamp tr')].map(cells);
+          const said = document.querySelector('footer .versions')?.textContent;
+          const foot = said?.match(/^Software versions: (.*)\\.$/)?.[1];
+          return Object.fromEntries(foot ? [...rows, ['On', foot]] : rows);
+        }"""
     )
 
 
@@ -69,12 +75,12 @@ def test_the_worked_example_s_report_holds_the_study_and_what_learn_makes_of_it(
         "The Python code",
     ]
     said = stamp(report)
-    assert said["With"].startswith("process-improve")
+    assert said["With"].startswith("Factorial (process-improve")
     assert said["On"].startswith(f"Python {platform.python_version()}, with numpy ")
-    assert said["Run order"] == "Drawn at random with seed 42."
+    assert said["Run order"] == "In random order (seed 42)."
     label, sigma, seed = (first_paint["simulation"][key] for key in ("label", "sigma", "seed"))
-    assert said["Results"] == f"15 of 15 runs, simulated: {label}, with noise {sigma:g} and seed {seed}."
-    assert len(said["Inputs, SHA-256"]) == 64
+    assert said["Results"] == f"15 of 15 runs, simulated for practice ({label}, noise {sigma:g}, seed {seed})."
+    assert len(said["Fingerprint (SHA-256)"]) == 64
 
     sheet = report.locator("section:nth-of-type(2) table")
     assert sheet.locator("tbody tr").count() == 15
@@ -116,7 +122,7 @@ def test_the_report_opens_in_a_tab_of_its_own_to_read(page):
 def test_the_digest_is_of_what_the_link_carries(page):
     _, html = download_report(page)
     report = opened(page, html)
-    digest = stamp(report)["Inputs, SHA-256"]
+    digest = stamp(report)["Fingerprint (SHA-256)"]
     link = report.get_attribute("table.stamp a", "href")
     assert link.startswith(page.url.split("?")[0] + "#c=")
     again = page.evaluate(
@@ -133,14 +139,14 @@ def test_the_digest_is_of_what_the_link_carries(page):
 def test_a_report_is_the_same_study_until_the_study_changes(page):
     _, first = download_report(page)
     _, second = download_report(page, "#learn-report-button")
-    digest = [stamp(opened(page, html))["Inputs, SHA-256"] for html in (first, second)]
+    digest = [stamp(opened(page, html))["Fingerprint (SHA-256)"] for html in (first, second)]
     assert digest[0] == digest[1], "Run's button and Learn's make the same report"
     reveal(page, "#design-table")
     box = page.locator("#design-table input[data-response]").first
     box.fill("99")
     box.press("Tab")
     _, changed = download_report(page)
-    assert stamp(opened(page, changed))["Inputs, SHA-256"] != digest[0], "a result changed is another study"
+    assert stamp(opened(page, changed))["Fingerprint (SHA-256)"] != digest[0], "a result changed is another study"
     assert stamp(opened(page, changed))["Results"].startswith("15 of 15 runs, 1 entered and 14 simulated")
 
 

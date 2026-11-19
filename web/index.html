@@ -111,6 +111,7 @@
           <li class="study__rule" role="separator"></li>
           <li><button type="button" id="menu-share">Share or download this study</button></li>
           <li><button type="button" id="menu-report">View its report</button></li>
+          <li><button type="button" id="menu-settings">Settings</button></li>
         </ul>
       </div>
       <!-- What leads away from the study, on a wide screen: the catalog, which the footer on every page links to
@@ -1091,6 +1092,22 @@
       <span>Drop a study file (.json) here, or click to choose it. A file of one study opens it; a file of several
         adds them all here.</span>
     </label>
+  </dialog>
+
+  <!-- A study's settings, kept with the study (campaign.js, format 12): its link and its file carry them. -->
+  <dialog id="settings-dialog" class="sheet settings" aria-labelledby="h-settings">
+    <div class="sheet__head">
+      <h2 id="h-settings">Settings</h2>
+      <button type="button" id="settings-close" class="link" aria-label="Close the settings">✕</button>
+    </div>
+    <p class="hint">These belong to this study: its link and its file carry them, so others see what you see.</p>
+    <fieldset class="settings__group">
+      <legend>Colours of the charts</legend>
+      <div id="colour-maps" class="settings__maps"></div>
+      <p class="hint">Each is even to the eye, and reads in grey and without red and green
+        (<a href="https://www.fabiocrameri.ch/colourmaps/" target="_blank" rel="noopener">Scientific colour maps</a>).</p>
+    </fieldset>
+    <label class="settings__keep"><input type="checkbox" id="settings-keep"> Use these for my new studies too</label>
   </dialog>
 
   <dialog id="compare-dialog" class="sheet" aria-labelledby="h-compare">
