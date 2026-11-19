@@ -94,6 +94,27 @@ def test_each_panel_s_code_runs_on_its_own_to_what_the_page_shows(api, node):
 
 
 @pytest.mark.slow
+def test_at_a_level_of_the_study_s_own_the_code_gives_the_page_s_intervals(api, node):
+    """The code names the level, so a reader who copies it gets the 99% intervals the page shows, not 95% ones."""
+    demo = api.ok("api_catalogue")["demo"]
+    held = held_of(api.ok("api_make_design", demo["design"]))
+    simulation = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 1})
+    request = {**held, "responses": simulation["responses"]}
+    usual, strict = (api.ok("api_analyze_runs", {**request, "significance_level": level}) for level in (0.05, 0.01))
+    # The page's module for its numbers holds the study's level, and python.js reads it there.
+    at_strict = source("python.js") + '\nimport { setSignificance } from "./numbers.js";\nsetSignificance(0.01);\n'
+    steps = [("designCode", [held["spec"]]), ("resultsCode", [held, simulation["responses"], simulation])]
+    codes = javascript(node, at_strict, [*steps, ("analyseCode", [strict["formula"], True])])
+    code = javascript(node, source("python.js"), [("cumulative", codes)])[0]
+    assert "significance_level=0.01" in code
+    shown = {c["term"]: c for c in run(code)["analysis"]["coefficients"]}
+    for c, at_usual in zip(strict["coefficients"], usual["coefficients"], strict=True):
+        assert shown[c["term"]]["ci_low"] == pytest.approx(c["ci_low"], abs=1e-9), c["term"]
+        assert shown[c["term"]]["ci_high"] == pytest.approx(c["ci_high"], abs=1e-9), c["term"]
+        assert c["ci_low"] < at_usual["ci_low"], "the interval at 0.01 is the wider"
+
+
+@pytest.mark.slow
 def test_runs_still_to_do_are_left_out_of_the_analysis_as_the_page_leaves_them_out(api, node):
     held = held_of(api.ok("api_make_design", {"design_type": "ccd", "factors": FACTORS}))
     simulation = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 2})

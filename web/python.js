@@ -2,6 +2,8 @@
 // step, written from the page's state. Each panel shows its step after the steps it builds on,
 // so the code copied from any one of them runs as it is, in a script or a notebook.
 
+import { DEFAULT_SIGNIFICANCE, confidencePercent, significance } from "./numbers.js";
+
 /**
  * A value as Python reads it back: a string in double quotes, True, False and None, a number as
  * the shortest text with its value, and a list or a dict with its items written the same way. A
@@ -26,6 +28,20 @@ const kwargs = (options) =>
 
 /** Whether a factor is categorical: it says so, or its two levels are labels, held as its low and high. */
 const labelled = (f) => f.type === "categorical" || typeof f.low === "string";
+
+/** The confidence of the study's intervals as Python writes it: 0.95, one minus its significance level. */
+const confidence = () => Number((1 - significance()).toFixed(2));
+
+/** Whether the study is judged at a level of its own: the code names a level only then, as the library's default is 0.05. */
+const ownLevel = () => significance() !== DEFAULT_SIGNIFICANCE;
+
+/** The study's level as one more argument of a library call, under the name that function has for it; nothing at 0.05. */
+const levelArg = () => (ownLevel() ? `, significance_level=${significance()}` : "");
+const confidenceArg = () => (ownLevel() ? `, confidence_level=${confidence()}` : "");
+const bandArg = () => (ownLevel() ? `, level=${confidence()}` : "");
+
+/** The same argument on a line of its own, for a call written over several lines. */
+const argLine = (arg, indent) => (arg ? [`${" ".repeat(indent)}${arg.slice(2)},`] : []);
 
 /** A categorical factor's levels, in their order: those it lists, or its two labels. */
 const levelsOf = (f) => f.levels ?? [f.low, f.high];
@@ -397,6 +413,7 @@ function splitPlotLines(spec, model, fitted) {
     "split_plot = analyze_experiment(",
     `    ${X}.assign(WholePlot=runs["WholePlot"]), ${y}, model=${repr(model)},`,
     '    analysis_type="split_plot", coding="actual", whole_plot="WholePlot",',
+    ...argLine(levelArg(), 4),
     ')["split_plot"]',
     'print(split_plot["coefficients"])',
     'print(split_plot["variance_components"])',
@@ -426,6 +443,7 @@ export function analyseCode(model, complete = true, spec = null, vifModel = null
     "analysis = analyze_experiment(",
     `    ${fitted}, model=${repr(model)}, analysis_type=["coefficients", "anova", "lack_of_fit"],`,
     '    coding="actual",  # the coefficients of X as it is, as the page shows them',
+    ...argLine(levelArg(), 4),
     ")",
     'print(analysis["coefficients"])',
     ...splitPlotLines(spec, model, fitted),
@@ -461,6 +479,7 @@ export function figureCode(title, options, model, complete = true, spec = null) 
     lenth
       ? `    ${X}, ${y}, model=${repr(model)}, analysis_type=["effects", "lenth_method"],`
       : `    ${X}, ${y}, model=${repr(model)}, analysis_type=["coefficients", "residual_diagnostics"], coding="actual",`,
+    ...argLine(levelArg(), 4),
     ")",
     "chart = visualize_doe(",
     ...Object.entries(options).map(([name, value]) => `    ${name}=${repr(value)},`),
@@ -468,6 +487,7 @@ export function figureCode(title, options, model, complete = true, spec = null) 
     `    design_data=${X}.assign(**{${response}: ${y}}).to_dict("records"),`,
     `    response_column=${response},`,
     '    backend="plotly",',
+    ...argLine(confidenceArg(), 4),
     ")",
     'figure = go.Figure(chart["plotly"])',
     "figure.show()",
@@ -510,7 +530,7 @@ const OWN_FIGURES = {
   coefficients: (title, spec) => [
     "import plotly.graph_objects as go",
     "",
-    `# The figure "${title}": each term's estimate with its 95% interval, from the analysis above. A fit that`,
+    `# The figure "${title}": each term's estimate with its ${confidencePercent()} interval, from the analysis above. A fit that`,
     "# uses every run has no interval. Sorted by size, the estimates are the page's Pareto plot.",
     'terms = [c for c in analysis["coefficients"] if c["term"] != "Intercept"]',
     'reach = lambda c, end: 0 if c.get(end) is None else abs(c[end] - c["coefficient"])  # none: no interval',
@@ -588,7 +608,7 @@ const OWN_FIGURES = {
       ? [
           "# The fit uses every run, so no coefficient has an interval: Lenth's margins of error judge their sizes.",
           "# They are on the effects' scale, and an effect is twice its coefficient.",
-          `lenth = analyze_experiment(${fittedTo(spec, complete)}, model=${repr(model)}, analysis_type="lenth_method")["lenth_method"]`,
+          `lenth = analyze_experiment(${fittedTo(spec, complete)}, model=${repr(model)}, analysis_type="lenth_method"${levelArg()})["lenth_method"]`,
           'figure.add_vline(x=lenth["ME"] / 2, line_dash="dash", annotation_text="ME")',
           'figure.add_vline(x=lenth["SME"] / 2, line_dash="dot", annotation_text="SME")',
         ]
@@ -755,7 +775,7 @@ export function correlationCode(factors) {
     '# The figure "Correlation map": how far each pair of terms moves together over the runs. 0: the runs tell the',
     "# two apart in full. +1 or -1: they cannot tell them apart at all. The sign says whether the two move the same",
     "# way or opposite ways.",
-    `compared = compare_designs({"runs": X[${repr(factors)}]})`,
+    `compared = compare_designs({"runs": X[${repr(factors)}]}${levelArg()})`,
     "correlations = list(compared.correlations.values())[0]  # of the one design compared: these runs",
     ...correlationMap,
   ].join("\n");
@@ -814,7 +834,7 @@ export function sensitivityCode(names, spec, model, complete = true) {
     "# 5% of its range from the best settings, which is 0.1 in coded units.",
     `names = ${repr(names)}`,
     "moved = pd.concat([at.assign(**{name: at[name] + step}) for name in names for step in (-0.1, 0.1)], ignore_index=True)",
-    `there = analyze_experiment(${fitted}, model=${repr(model)}, analysis_type="prediction", new_points=moved)["predictions"]`,
+    `there = analyze_experiment(${fitted}, model=${repr(model)}, analysis_type="prediction", new_points=moved${levelArg()})["predictions"]`,
     `here = ${back('prediction["predictions"][0]["predicted"]')}`,
     `change = [${back('p["predicted"]')} - here for p in there]  # lowered, then raised, for each factor in turn`,
     "figure = go.Figure(",
@@ -855,6 +875,7 @@ export function overlayCode(overlay, spec) {
     "    factors_to_plot=pair,",
     '    hold_values={name: at for name, at in balanced["optimal_coded"].items() if name not in pair},',
     '    backend="plotly",',
+    ...argLine(confidenceArg(), 4),
     ")",
     'figure = go.Figure(chart["plotly"])',
     "figure.show()",
@@ -975,7 +996,7 @@ export function targetCode(found, spec) {
     "models = {}",
     `for name, model in ${repr(formulas)}.items():`,
     "    done = runs[name].notna()",
-    `    fit = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="coefficients", coding="actual")`,
+    `    fit = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="coefficients", coding="actual"${levelArg()})`,
     `    models[name] = ${holds ? `held_at(fit["coefficients"], ${repr(held)})` : 'fit["coefficients"]'}`,
     "",
     "",
@@ -1046,7 +1067,7 @@ function targetBlendCode(found, spec) {
     "models = {}",
     `for name, model in ${repr(formulas)}.items():`,
     "    done = runs[name].notna()",
-    `    fit = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="coefficients", coding="actual")`,
+    `    fit = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="coefficients", coding="actual"${levelArg()})`,
     '    models[name] = fit["coefficients"]',
     "",
     "",
@@ -1161,7 +1182,7 @@ function windowBlendCode(found, spec) {
     ...(correlated ? ["residuals = {}  # each fit's, by its response, for how the responses' errors move together"] : []),
     `for name, model in ${repr(formulas)}.items():`,
     "    done = runs[name].notna()",
-    `    fit = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="coefficients", coding="actual")`,
+    `    fit = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="coefficients", coding="actual"${levelArg()})`,
     '    matrix = term_columns([c["term"] for c in fit["coefficients"]], X[done])',
     ...(correlated ? [`    residuals[name] = ${scale.on("runs[name][done]")} - matrix @ [c["coefficient"] for c in fit["coefficients"]]`] : []),
     "    models.append(",
@@ -1254,7 +1275,7 @@ export function windowCode(found, spec) {
     ...(correlated ? ["residuals = {}  # each fit's, by its response, for how the responses' errors move together"] : []),
     `for name, model in ${repr(formulas)}.items():`,
     "    done = runs[name].notna()",
-    `    fit = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="coefficients", coding="actual")`,
+    `    fit = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="coefficients", coding="actual"${levelArg()})`,
     '    matrix = term_columns([c["term"] for c in fit["coefficients"]], columns[done])',
     ...(correlated ? [`    residuals[name] = ${scale.on("runs[name][done]")} - matrix @ [c["coefficient"] for c in fit["coefficients"]]`] : []),
     "    models.append(",
@@ -1370,14 +1391,15 @@ export function curveCode(design, curves, fit, at) {
     "# The curves are reduced to a few scores, and each score is modelled against the factors, as a response is.",
     "fit = analyze_functional_experiment(",
     `    X[measured].reset_index(drop=True), curves[measured].reset_index(drop=True), model=${repr(fit.formula)},`,
+    ...argLine(levelArg(), 4),
     ")",
-    "# The curve at the what-if settings, in coded units as the columns of X, with its 95% band for the whole curve.",
+    `# The curve at the what-if settings, in coded units as the columns of X, with its ${confidencePercent()} band for the whole curve.`,
     `at = pd.DataFrame([${repr(only)}])`,
-    `predicted = fit.predict(at, n_bootstrap=${fit.replicates.length}, random_state=0)`,
+    `predicted = fit.predict(at, n_bootstrap=${fit.replicates.length}, random_state=0${bandArg()})`,
     "figure = go.Figure(",
     "    [",
     '        go.Scatter(x=points, y=predicted["simultaneous_high"].iloc[0], line_width=0, showlegend=False),',
-    '        go.Scatter(x=points, y=predicted["simultaneous_low"].iloc[0], line_width=0, fill="tonexty", name="95% band"),',
+    `        go.Scatter(x=points, y=predicted["simultaneous_low"].iloc[0], line_width=0, fill="tonexty", name="${confidencePercent()} band"),`,
     '        go.Scatter(x=points, y=predicted["curve"].iloc[0], name="Predicted"),',
     "    ]",
     ")",
@@ -1450,7 +1472,7 @@ function pairedCode(spec, complete) {
     `pairs = pd.DataFrame({"block": runs["Block"], "level": X[${name}], "y": y})${complete ? "" : "[done]"}`,
     'pairs = pairs.pivot(index="block", columns="level", values="y").dropna()  # a pair with a run to do waits',
     "differences = pairs[1] - pairs[-1]  # the high level's result less the low's, pair by pair",
-    "paired = ttest_paired(differences, conflevel=0.95)",
+    `paired = ttest_paired(differences, conflevel=${confidence()})`,
     `swapped = randomization_test(differences, max_arrangements=${most}, random_state=${seed})`,
     "moved = differences[differences != 0]  # a pair that does not differ has no sign, and drops out",
     "signed_ranks = moved.abs().rank() * np.sign(moved)",
@@ -1475,8 +1497,8 @@ function comparisonCode(spec, complete) {
     "from process_improve.univariate import randomization_test, rank_sum_test, ttest_independent",
     "",
     `low, high = y[${done}(X[${name}] == -1)], y[${done}(X[${name}] == 1)]`,
-    "pooled = ttest_independent(low, high, conflevel=0.95)  # one variance for both levels",
-    "welch = ttest_independent(low, high, conflevel=0.95, equal_var=False)  # each level's own variance",
+    `pooled = ttest_independent(low, high, conflevel=${confidence()})  # one variance for both levels`,
+    `welch = ttest_independent(low, high, conflevel=${confidence()}, equal_var=False)  # each level's own variance`,
     `shuffled = randomization_test(low, high, max_arrangements=${most}, random_state=${seed})`,
     `ranks = rank_sum_test(low, high, max_arrangements=${most})`,
     "print(pooled, welch, shuffled, ranks, sep=\"\\n\")",
@@ -1606,9 +1628,9 @@ export function bestCode(best, spec, model, complete = true) {
     ? `at = pd.DataFrame([{**best["optimal_coded"]${Object.keys(levels).length ? `, **${repr(levels)}` : ""}}])`
     : `at = pd.DataFrame([${repr({ ...point, ...levels })}])`;
   const prediction = [
-    "# The prediction there, with its 95% confidence interval for the mean and prediction interval for one new run.",
+    `# The prediction there, with its ${confidencePercent()} confidence interval for the mean and prediction interval for one new run.`,
     at,
-    `prediction = analyze_experiment(${fitted}, model=${repr(model)}, analysis_type="prediction", new_points=at)`,
+    `prediction = analyze_experiment(${fitted}, model=${repr(model)}, analysis_type="prediction", new_points=at${levelArg()})`,
     'print(prediction["predictions"][0])',
     ...(transform
       ? [
@@ -1642,6 +1664,7 @@ export function bestCode(best, spec, model, complete = true) {
     "    goals=[goal],",
     `    factor_ranges={${ranges}},`,
     ...(limits.length ? ["    region=DesignRegion(factors, constraints),  # inside the limits on the settings"] : []),
+    ...argLine(levelArg(), 4),
     ')["desirability"]',
     'print(best["optimal_actual"])  # the best settings, in the factors\' own units',
     `print(best["predicted_responses"][${repr(response)}])  # what the model predicts there`,
@@ -1675,14 +1698,15 @@ function blendCode(best, spec, model, complete) {
     "    ],",
     "    goals=[goal],",
     "    region=DesignRegion(factors),  # the blends: each component between its bounds, the proportions summing to 1",
+    ...argLine(levelArg(), 4),
     ')["desirability"]',
     'print(best["optimal_coded"])  # the best blend: each component\'s proportion',
     `print(best["predicted_responses"][${repr(response)}])  # what the model predicts there`,
     "",
-    "# The prediction there, with its 95% confidence interval for the mean and prediction interval for one new run.",
+    `# The prediction there, with its ${confidencePercent()} confidence interval for the mean and prediction interval for one new run.`,
     'at = pd.DataFrame([best["optimal_coded"]])',
     "prediction = analyze_experiment(",
-    `    ${fitted}, model=${repr(model)}, analysis_type="prediction", coding="actual", new_points=at`,
+    `    ${fitted}, model=${repr(model)}, analysis_type="prediction", coding="actual", new_points=at${levelArg()}`,
     ")",
     'print(prediction["predictions"][0])',
   ].join("\n");
@@ -1742,7 +1766,7 @@ export function compareCode(factors, designs, model, limits = []) {
     "designs = {",
     ...lines,
     "}",
-    `comparison = compare_designs(designs, model=${repr(model)}${limits.length ? ", region=DesignRegion(factors, constraints)" : ""})`,
+    `comparison = compare_designs(designs, model=${repr(model)}${limits.length ? ", region=DesignRegion(factors, constraints)" : ""}${levelArg()})`,
     "print(comparison.table.to_string())",
   ].join("\n");
 }
@@ -1865,7 +1889,7 @@ export function balanceCode(balance, spec) {
     "models = []",
     `for name, model in ${repr(formulas)}.items():`,
     "    done = runs[name].notna()",
-    `    fit = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="coefficients", coding="actual")`,
+    `    fit = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="coefficients", coding="actual"${levelArg()})`,
     `    coefficients = ${holds ? `held_at(fit["coefficients"], ${repr(held)})` : 'fit["coefficients"]'}`,
     `    models.append({"response_name": name, "coefficients": coefficients, "factor_names": ${repr(numeric.map((f) => f.name))}})`,
     "",
@@ -1879,6 +1903,7 @@ export function balanceCode(balance, spec) {
     "    models,",
     "    goals=goals,",
     ...searched,
+    ...argLine(levelArg(), 4),
     ')["desirability"]',
     mixture
       ? 'print(balanced["optimal_coded"])  # the balanced blend: each component\'s proportion'
@@ -1998,7 +2023,7 @@ export function mapCode(spec, name, formula, at, settings, pair, points) {
     `grid = pd.concat([at] * ${points * points}, ignore_index=True)`,
     `grid[${repr(pair[0])}] = np.tile(side, ${points})`,
     `grid[${repr(pair[1])}] = np.repeat(side, ${points})`,
-    `surface = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="prediction", new_points=grid)`,
+    `surface = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="prediction", new_points=grid${levelArg()})`,
     `z = np.array([float(${scale.back('p["predicted"]')}) for p in surface["predictions"]]).reshape(${points}, ${points})`,
     `fig = go.Figure(go.Contour(x=${side(first)}, y=${side(second)}, z=z, contours={"showlabels": True}))`,
     `fig.update_layout(xaxis_title=${repr(title(first))}, yaxis_title=${repr(title(second))})`,
@@ -2030,7 +2055,7 @@ export function whatIfCode(spec, formulas, at, settings, kept = [], profiled = n
     `kept = pd.DataFrame(${repr(kept.map((k) => only(k.at)))}, index=${repr(kept.map((k) => k.name))})`,
     `for name, model in ${repr(formulas)}.items():`,
     "    done = runs[name].notna()",
-    `    prediction = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="prediction", new_points=kept)`,
+    `    prediction = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="prediction", new_points=kept${levelArg()})`,
     '    for scenario, predicted in zip(kept.index, prediction["predictions"], strict=True):',
     scale.lines.length
       ? `        print(f"{name}, {scenario}:", {key: float(${scale.back("v")}) for key, v in predicted.items()})  # in its units`
@@ -2046,7 +2071,7 @@ export function whatIfCode(spec, formulas, at, settings, kept = [], profiled = n
     `for factor in ${repr(moved)}:`,
     `    along = pd.concat([at] * ${profiled?.points}, ignore_index=True)`,
     `    along[factor] = np.linspace(-1, 1, ${profiled?.points})`,
-    `    profile = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="prediction", new_points=along)`,
+    `    profile = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="prediction", new_points=along${levelArg()})`,
     `    print(f"Profile against {factor}:", [float(${scale.back('p["predicted"]')}) for p in profile["predictions"]])`,
   ];
   const profiles = profiled && formulas[profiled.name] && moved.length ? profileLines : [];
@@ -2059,13 +2084,13 @@ export function whatIfCode(spec, formulas, at, settings, kept = [], profiled = n
     ...indicatorLines(spec, models),
     `# The settings, ${words.join(", ")}, in coded units as the columns of X.`,
     `at = pd.DataFrame([${repr(only(at))}])`,
-    "# Each response's prediction there, from its own model fitted to the runs that have its result, with its 95%",
+    `# Each response's prediction there, from its own model fitted to the runs that have its result, with its ${confidencePercent()}`,
     "# confidence interval for the mean (ci_low to ci_high) and prediction interval for one new run (pi_low to pi_high).",
-    "# The 20 runs the panel draws are the 2.5%, 7.5%, ... 97.5% points of one new run there: pi_low is the least",
-    "# of them and pi_high the greatest.",
+    `# The ${Math.round(1 / significance())} runs the panel draws are equally likely runs there, from the ${50 * significance()}% point of one new run to the`,
+    `# ${100 - 50 * significance()}% point: pi_low is the least of them and pi_high the greatest.`,
     `for name, model in ${repr(formulas)}.items():`,
     "    done = runs[name].notna()",
-    `    prediction = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="prediction", new_points=at)`,
+    `    prediction = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="prediction", new_points=at${levelArg()})`,
     scale.lines.length
       ? `    print(name, {key: float(${scale.back("v")}) for key, v in prediction["predictions"][0].items()})  # in its units`
       : '    print(name, prediction["predictions"][0])',
