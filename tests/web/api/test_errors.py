@@ -169,6 +169,19 @@ HALF_FRACTION = {
     "rows": [[1, 1, -1, -1, 1, None], [2, 2, 1, -1, -1, None], [3, 3, -1, 1, -1, None], [4, 4, 1, 1, 1, None]],
 }
 
+#: Four runs in two whole plots, A set once for each, as the page holds a design with a factor that is hard to change.
+SPLIT_PLOT = {
+    "spec": {
+        "design_type": "d_optimal",
+        "factors": factors_named("A", "B"),
+        "response": "y",
+        "model": "main_effects",
+        "options": {"model_type": "main_effects", "budget": 4, "hard_to_change": ["A"]},
+    },
+    "columns": ["Std order", "Run order", "Whole plot", "A", "B", "y"],
+    "rows": [[1, 1, 1, -1, -1, None], [2, 2, 1, -1, 1, None], [3, 3, 2, 1, -1, None], [4, 4, 2, 1, 1, None]],
+}
+
 
 def _supplied(**change: object) -> Callable[[Example], dict]:
     """Build a request about the runs of a design with a categorical factor, changed."""
@@ -1680,6 +1693,43 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_correlations",
         _spec(factors=[*FACTORS[:2], {"name": "S", "type": "categorical", "levels": ["A", "B", "C"]}]),
         "This map is for factors with ranges or of two levels, not for one of three levels or more.",
+    ),
+    # Factors that are hard to change: a design that sets them once for a group of runs.
+    "hard to change: no factor of the study": (
+        "api_make_design",
+        lambda _: {"design_type": "d_optimal", "factors": FACTORS, "hard_to_change": ["Z"]},
+        "Each factor that is hard to change must be one of the study's factors.",
+    ),
+    "hard to change: with limits on the settings": (
+        "api_make_design",
+        lambda ex: {**_limited("d_optimal", "T + 25*P <= 265")(ex), "hard_to_change": ["T"]},
+        (
+            "A design that sets T once for a group of runs keeps no limits on the settings on this page yet: "
+            "remove the limits, or mark no factor as hard to change."
+        ),
+    ),
+    "hard to change: in blocks": (
+        "api_make_design",
+        lambda _: {"design_type": "d_optimal", "factors": FACTORS, "hard_to_change": ["T", "P"], "n_blocks": 2},
+        (
+            "A design that sets T and P once for a group of runs is not made in blocks on this page yet: "
+            "set the blocks to 1, or mark no factor as hard to change."
+        ),
+    ),
+    "hard to change: a run in no whole plot": (
+        "api_analyze_runs",
+        lambda _: {
+            **SPLIT_PLOT,
+            "rows": [[*row[:2], None if row[0] == 4 else row[2], *row[3:]] for row in SPLIT_PLOT["rows"]],
+            "responses": [1.0, 2.0, 3.0, 4.5],
+            "model": "main_effects",
+        },
+        "Each run needs a whole number in the Whole plot column.",
+    ),
+    "hard to change: runs added": (
+        "api_add_runs",
+        lambda _: {**SPLIT_PLOT, "kind": "replicate"},
+        "This design sets a factor once for each group of runs, and the runs Learn adds are made one by one.",
     ),
     "correlation map: more factors than the page models the interactions of": (
         "api_correlations",

@@ -96,6 +96,9 @@ function factorList(factors, threeLevels = false, name = "factors", mixture = fa
   return [`${name} = [${said}`, ...rows, "]"].join("\n");
 }
 
+/** The factors a design sets once for a group of runs, a whole plot; null for a design with none. */
+const wholePlots = (spec) => (spec?.options?.hard_to_change?.length ? spec.options.hard_to_change : null);
+
 /** A design's options as generate_design takes them, and whether its numeric factors are at three levels. */
 function libraryOptions(options) {
   const { n_levels: levels, ...rest } = options || {};
@@ -282,6 +285,8 @@ export function resultsCode(design, results, simulation = null) {
   const runs = [
     ...spec.factors.flatMap((f) => columnLines(f.name, settings(f))),
     ...(blocked ? columnLines("Block", rows.map((row) => row[at("Block")])) : []),
+    // A design with a factor that is hard to change: each run's whole plot, which its analysis needs.
+    ...(wholePlots(spec) && at("Whole plot") >= 0 ? columnLines("WholePlot", rows.map((row) => row[at("Whole plot")])) : []),
     ...(simulation ? [] : names.flatMap((name) => columnLines(name, values[name]))),
   ];
   const waiting = names.some((name) => values[name].includes(null));
@@ -377,6 +382,27 @@ function scaleLines(spec, names) {
  * is its column then. ``vifModel``, the terms fitted as a formula, is given when the page shows their
  * VIFs: the code then works them out from the same runs, as the page's VIF column has them.
  */
+/**
+ * The lines that judge each coefficient of a design with factors that are hard to change against the spread it
+ * meets, as the page does (bootstrap._split_plot): the split-plot fit, in place of the ordinary one's errors.
+ */
+function splitPlotLines(spec, model, fitted) {
+  const hard = wholePlots(spec);
+  if (!hard) return [];
+  const [X, y] = fitted.split(/, (.*)/s);
+  return [
+    "",
+    `# ${hard.join(" and ")} ${hard.length === 1 ? "was" : "were"} set once for each whole plot: each coefficient is judged against the spread it`,
+    "# meets, from whole plot to whole plot or from run to run inside one (the page's standard errors and p-values).",
+    "split_plot = analyze_experiment(",
+    `    ${X}.assign(WholePlot=runs["WholePlot"]), ${y}, model=${repr(model)},`,
+    '    analysis_type="split_plot", coding="actual", whole_plot="WholePlot",',
+    ')["split_plot"]',
+    'print(split_plot["coefficients"])',
+    'print(split_plot["variance_components"])',
+  ];
+}
+
 export function analyseCode(model, complete = true, spec = null, vifModel = null, { compared = false, control = null, spread = false } = {}) {
   const transform = transformOf(spec);
   const fitted = complete ? `X, ${onScale("y", transform)}` : `X[done], ${onScale("y[done]", transform)}`;
@@ -402,6 +428,7 @@ export function analyseCode(model, complete = true, spec = null, vifModel = null
     '    coding="actual",  # the coefficients of X as it is, as the page shows them',
     ")",
     'print(analysis["coefficients"])',
+    ...splitPlotLines(spec, model, fitted),
     ...vif,
     ...(compared ? comparedCode(spec, complete, control) : []),
     ...(spread ? spreadCode(spec) : []),

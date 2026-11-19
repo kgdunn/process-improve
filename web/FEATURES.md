@@ -204,6 +204,17 @@ Also:
     trade-offs and the settings tried in What if. Two levels that are never run together are
     typed, as `not (A == 'x' and B == 'y')`. A comparison of designs scores them over the
     whole ranges when a study has such a limit.
+- **A factor that is hard to change.** An oven's temperature, or a tank's fill: tick the
+  factor, and the design sets it once for a group of runs, a whole plot, and not afresh for
+  every run. The run sheet lists the runs one whole plot after another, and Learn judges
+  each term against the spread it meets, so the factor does not look more certain than it is.
+  - *Details:* A split-plot design, for the three optimal designs, with no limits on the
+    settings and no blocks. Learn fits the spread from whole plot to whole plot and from run
+    to run (REML) for the coefficients' errors and p-values, and shows no ANOVA table or
+    lack-of-fit test, which have one error. The charts, the best settings and the predictions
+    come from the ordinary fit. Learn adds no runs to such a design, and practice results
+    have no spread between whole plots. A study with such a factor is saved in study
+    format 11.
 - **Know what your runs can tell apart.** Before a run is made, the app names the effects that
   these runs cannot separate from each other.
   [Show me](https://factori.al/?book=bioreactor-half-fraction&show=correlation)
@@ -758,11 +769,11 @@ Also:
   No setting takes a part of the page away.
 - **Words explained where you meet them.** A term on the page has a dotted underline and
   opens its definition, in the book's words.
-  - *Details:* The glossary holds 78 terms. A definition opens on a hover, a press or the
+  - *Details:* The glossary holds 80 terms. A definition opens on a hover, a press or the
     keyboard.
 - **A definition leads to its idea.** Under most definitions, "See it in context" opens the
   concept map at that idea, with the ideas around it and the way into the book.
-  - *Details:* 61 of the 78 terms have the link, and so do a design's name in the list of
+  - *Details:* 63 of the 80 terms have the link, and so do a design's name in the list of
     designs and the words over that list, Spare runs and Power. It opens in a tab of its own,
     so the study stays as it is. A finger, a mouse and the keyboard each reach it.
 - **A phone, a tablet or a desk.** The layout, the tables and the charts fit each.
@@ -1016,10 +1027,6 @@ runs can estimate.
 
 The library also does what the app leaves out:
 
-- **Factors that are hard to change.** A design that sets such a factor once for a group of
-  runs, and the analysis that those runs need.
-  - *Details:* A split-plot design from `generate_design` with `hard_to_change`, analysed by
-    `analyze_experiment` with `analysis_type="split_plot"`, as a strip-plot design is.
 - **Results that are counts, or pass and fail.** A model made for such results. The app
   treats every result as a measured amount.
   - *Details:* A generalized linear model: `analysis_type="glm"`, for a Poisson, binomial or
