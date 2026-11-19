@@ -192,9 +192,8 @@ export const GLOSSARY = {
     "Each design's prediction variance over the factors' region, sorted: a point at f along the bottom means a " +
     "fraction f of the region is predicted at least this well.",
   "correlation-map":
-    "The correlation r between each pair of terms over the design's runs, from -1 to +1. At 0 the two can be " +
-    "estimated independently; at +1 or -1 they cannot be told apart at all. Red is for two terms that move the " +
-    "same way, and blue for two that move opposite ways.",
+    "The correlation r between each pair of terms over the runs, from -1 to +1: at 0 the two are estimated " +
+    "independently, at +1 or -1 they cannot be told apart. Red: they move the same way; blue: opposite ways.",
 
   // The best settings
   "confidence-interval":
