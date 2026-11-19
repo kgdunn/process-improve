@@ -350,7 +350,7 @@ def test_no_triangle_when_the_held_components_leave_the_three_nothing_to_share(a
 
 
 def test_an_overlay_of_four_components_has_no_triangle_without_a_blend_or_with_nothing_left_to_share(bootstrap):
-    spec = {"design_type": "simplex_lattice", "factors": components(*"ABCD")}
+    spec = {"design_type": "simplex_lattice", "factors": components(*"ABCD", **dict.fromkeys("ABCD", (0.0, 1.0)))}
     assert bootstrap._picture_blends(spec, None, None) is None, "no blend found to hold the others at"
     held_all = np.array([0.0, 0.0, 0.0, 1.0])
     assert bootstrap._picture_blends(spec, held_all, ["A", "B", "C"]) is None, "D leaves the three nothing"
