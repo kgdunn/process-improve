@@ -9327,6 +9327,9 @@ function renderSettings() {
   $("#settings-keep").checked = localStorage.getItem(SETTINGS_KEY) !== null;
 }
 
+/** Where the switch that flips the chosen map is: the list draws it anew with each change. */
+const FLIP = "#colour-maps .settings__flip input";
+
 /** The switch that draws the chosen map from its other end, at the end of that map's line. */
 function flipSwitch() {
   const label = el("label", "switch settings__flip", "");
@@ -9345,7 +9348,7 @@ function flipSwitch() {
 function settingsChanged(event) {
   const chosen = document.querySelector('#colour-maps input[name="colour_map"]:checked')?.value;
   const settings = { ...state.settings, ...(chosen ? { colour_map: chosen } : {}) };
-  if ($("#colour-map-flipped")?.checked) settings.colour_map_flipped = true;
+  if (document.querySelector(FLIP)?.checked) settings.colour_map_flipped = true;
   else delete settings.colour_map_flipped;
   takeSettings(settings);
   try {
@@ -9356,7 +9359,7 @@ function settingsChanged(event) {
   }
   renderSettings(); // the colours beside each name, and the line the switch is on, follow the choice
   // The list is drawn anew, so the keyboard's place is put back on the control that was changed.
-  const again = event.target.id === "settings-keep" ? "#settings-keep" : event.target.type === "radio" ? '#colour-maps input[name="colour_map"]:checked' : "#colour-map-flipped";
+  const again = event.target.id === "settings-keep" ? "#settings-keep" : event.target.type === "radio" ? '#colour-maps input[name="colour_map"]:checked' : FLIP;
   document.querySelector(again)?.focus();
   redrawAll();
   if (state.design) scheduleSave();

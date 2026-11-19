@@ -55,6 +55,9 @@ Counts marked "(Nov 2026)" come from the build of 14 November 2026 and only grow
   model: the same results give the same words.
 - **17 charts.** Each opens large, saves as an image, and shows the Python that draws it. A
   run pointed at on one chart is marked on the others and in the run sheet.
+- **Charts that are accurate and good to look at.** Factorial aims for both. Surfaces and
+  maps are drawn in batlow, a Scientific colour map: a step in the colour is a step in the
+  value, and it reads in grey and without telling red from green. Settings offers three more.
 - **Nothing hidden.** Every step shows Python code that gives the same numbers. A study
   leaves as a workbook, a notebook, a report, a file or a link.
 - **Checked against print.** The design catalog opens more than 1,000 published designs and
@@ -614,9 +617,12 @@ Also:
 - Axes and titles are in your words and units. A long title wraps.
 - Every chart fits its card and is drawn again when its room changes.
 - Light and dark themes. On a dark page a surface starts as dark as the page, with no glare.
-- Colours that are even to the eye. Surfaces and maps are drawn in batlow, a Scientific
-  colour map: it reads in grey, and without telling red from green. Settings offers three
-  more.
+- Colours that are even to the eye. Factorial aims for charts that are scientifically
+  accurate and good to look at, so surfaces and maps are drawn in batlow, a Scientific
+  colour map (Crameri, 2018). A step in the colour is a step in the value, with no band that
+  the eye takes for an edge. It reads in grey, and without telling red from green. The
+  pictures of the response surface on this page show it. Settings offers devon, la jolla and
+  grey as well, and flips any of them.
 - The numbers on a surface's lines have a halo, so they read on every band.
 - Lines differ by pattern as well as colour. A run's marker reads on every colour of a surface.
 - Each chart is one named picture to a screen reader, beside a table that holds its numbers.
