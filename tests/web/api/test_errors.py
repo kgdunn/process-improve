@@ -904,6 +904,21 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         lambda ex: {**ex["held"], "what_if": [{"name": "Hot", "settings": {"T": [200]}}]},
         "The page sent kept settings this page did not write.",
     ),
+    "a workbook's settings that are not settings": (
+        "api_workbook",
+        lambda ex: {**ex["held"], "settings": ["lajolla"]},
+        "The workbook's settings are not settings the page reads.",
+    ),
+    "a workbook's setting under no plain name": (
+        "api_workbook",
+        lambda ex: {**ex["held"], "settings": {"Colour Map": "lajolla"}},
+        "The workbook's setting 'Colour Map' is not a setting the page reads.",
+    ),
+    "a workbook judged at a level the page does not offer": (
+        "api_workbook",
+        lambda ex: {**ex["held"], "settings": {"significance_level": 0.02}},
+        "The workbook is judged at a significance level the page does not offer, 0.02.",
+    ),
     "a workbook's target for a response the study does not have": (
         "api_workbook",
         lambda ex: {**ex["held"], "targets": {"Not measured": 5}},

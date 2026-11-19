@@ -2,6 +2,7 @@
 // step, written from the page's state. Each panel shows its step after the steps it builds on,
 // so the code copied from any one of them runs as it is, in a script or a notebook.
 
+import { DEFAULT_COLOUR_MAP, colourMap, colourMapFlipped } from "./charts.js";
 import { DEFAULT_SIGNIFICANCE, confidencePercent, significance } from "./numbers.js";
 
 /**
@@ -39,6 +40,14 @@ const ownLevel = () => significance() !== DEFAULT_SIGNIFICANCE;
 const levelArg = () => (ownLevel() ? `, significance_level=${significance()}` : "");
 const confidenceArg = () => (ownLevel() ? `, confidence_level=${confidence()}` : "");
 const bandArg = () => (ownLevel() ? `, level=${confidence()}` : "");
+
+/**
+ * What the library's ``colorscale`` is called with for the study's colour map: nothing for batlow as it comes, the
+ * map's name for another, and ``dark_page=True`` for a map the study flips, which is the library's word for a
+ * map drawn from its other end.
+ */
+const colourArgs = () =>
+  [colourMap() === DEFAULT_COLOUR_MAP ? [] : [repr(colourMap())], colourMapFlipped() ? ["dark_page=True"] : []].flat().join(", ");
 
 /** The same argument on a line of its own, for a call written over several lines. */
 const argLine = (arg, indent) => (arg ? [`${" ".repeat(indent)}${arg.slice(2)},`] : []);
@@ -696,7 +705,7 @@ const OWN_FIGURES = {
       "    [",
       "        go.Scatterternary(",
       `            a=grid[${a}], b=grid[${b}], c=grid[${c}], mode="markers", name=${repr(model ? "Fitted response" : "True response")},`,
-      `            marker={"color": response, "colorscale": colorscale(), "size": 7, "colorbar": {"title": {"text": ${repr(axisWords(spec))}}}},`,
+      `            marker={"color": response, "colorscale": colorscale(${colourArgs()}), "size": 7, "colorbar": {"title": {"text": ${repr(axisWords(spec))}}}},`,
       "        ),",
       "        go.Scatterternary(",
       `            a=X[${a}][had], b=X[${b}][had], c=X[${c}][had], mode="markers", name="Runs",`,

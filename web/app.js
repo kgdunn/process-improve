@@ -3689,6 +3689,7 @@ async function downloadWorkbook() {
     ...(state.scenarios.length ? { what_if: state.scenarios } : {}),
     ...keptAsked(), // the targets and the windows typed in Learn, as the study's file keeps them
     ...(state.buildsOn.length ? { builds_on: state.buildsOn } : {}),
+    ...(Object.keys(state.settings).length ? { settings: state.settings } : {}),
     ...sentCurves(),
   });
   if (!reply.ok) {
@@ -4069,6 +4070,7 @@ async function readUpload(file) {
   $("#campaign-banner").hidden = true;
   flushSave();
   studyTicket += 1;
+  takeSettings(r.settings ?? newStudySettings()); // the workbook's own, which Python checked, else a new study's
   setForm(r.spec);
   state.design = { spec: r.spec, columns: r.columns, rows: r.rows, model: r.spec.model, facts: null };
   state.planKey = planKey();

@@ -5570,11 +5570,7 @@ def read_workbook(request: dict) -> dict:
     if len(names) > 1:
         reply["more_responses"] = {name: results[name][0] for name in names[1:]}
         reply["more_sources"] = {name: results[name][1] for name in names[1:]}
-    if stored.get("what_if"):
-        reply["what_if"] = _kept_settings(stored["what_if"])
-    reply |= _kept_asked(stored, names)
-    if stored.get("builds_on"):
-        reply["builds_on"] = _built_on(stored["builds_on"])
+    reply |= _kept_beside(stored) | _kept_asked(stored, names)
     if spec.get("curve") is not None:
         reply["curves"] = _curves_read(curve_sheet, spec["curve"], runs)
     return reply
@@ -5583,6 +5579,41 @@ def read_workbook(request: dict) -> dict:
 #: The most settings a study keeps from the what-if panel, and the most characters of the name each is kept under:
 #: as ``SCENARIOS_HELD`` in web/campaign.js holds them (tests/web/page/test_parity.py keeps the two in step).
 SCENARIOS_HELD = {"count": 20, "name": 80}
+
+
+def _kept_beside(held: dict) -> dict[str, Any]:
+    """Return what a study keeps beside its runs, each checked: what-if settings, the round before, its settings.
+
+    ``held`` is the page's request when a workbook is written and the workbook's stored specification when one is
+    read, so both ways keep the same things under the same names.
+    """
+    checks = {"what_if": _kept_settings, "builds_on": _built_on, "settings": _study_settings}
+    return {name: check(held[name]) for name, check in checks.items() if held.get(name)}
+
+
+#: The most settings a study holds, as ``SETTINGS_HELD`` in web/campaign.js, and what a setting is named.
+SETTINGS_HELD = 32
+_SETTING_NAME = re.compile(r"[a-z][a-z_]{0,31}")
+
+
+def _study_settings(value: object) -> dict[str, Any]:
+    """Check a study's settings, such as its colour map, as ``studySettings`` in web/campaign.js checks them.
+
+    Each is a short text, a number, or true or false, under a name in small letters. One this page does not
+    know is kept as it came, so a later page's workbook opens and is saved whole. The significance level is the
+    exception: it changes what the study finds, so one the page does not offer is refused.
+    """
+    if not isinstance(value, dict) or len(value) > SETTINGS_HELD:
+        raise ValueError("The workbook's settings are not settings the page reads.")
+    for name, held in value.items():
+        number = isinstance(held, (int, float)) and math.isfinite(held)
+        plain = number or (isinstance(held, str) and len(held) <= 64)  # true and false are numbers to Python
+        if not (isinstance(name, str) and _SETTING_NAME.fullmatch(name) and plain):
+            raise ValueError(f"The workbook's setting {str(name)[:40]!r} is not a setting the page reads.")
+    level = value.get("significance_level", DEFAULT_SIGNIFICANCE)
+    if isinstance(level, bool) or level not in SIGNIFICANCE_LEVELS:
+        raise ValueError(f"The workbook is judged at a significance level the page does not offer, {level!r}.")
+    return dict(value)
 
 
 def _kept_settings(value: object) -> list[dict[str, Any]]:
@@ -5701,11 +5732,7 @@ def workbook(request: dict) -> dict:
     simulated = request.get("simulated")
     if simulated:
         spec = {**spec, "simulated": {k: simulated.get(k) for k in ("scenario", "sigma", "seed")}}
-    if request.get("what_if"):
-        spec = {**spec, "what_if": _kept_settings(request["what_if"])}
-    spec = {**spec, **_kept_asked(request, [r["name"] for r in _responses(spec)])}
-    if request.get("builds_on"):
-        spec = {**spec, "builds_on": _built_on(request["builds_on"])}
+    spec = {**spec, **_kept_beside(request), **_kept_asked(request, [r["name"] for r in _responses(spec)])}
     curves = None
     if spec.get("curve") is not None:
         points = len(spec["curve"]["argument"]["values"])
