@@ -11,6 +11,85 @@ those changes.
 
 ## [Unreleased]
 
+## [2.6.5] - 2026-11-19
+
+### Added
+
+- **Factorial makes a design for a factor that is hard to change.** Tick a factor in the plan's settings, such as
+  an oven's temperature, and a D-, I- or A-optimal design sets it once for a group of runs, a whole plot (a
+  split-plot design). The run sheet gains a Whole plot column and lists the runs one whole plot after another. Learn
+  judges each coefficient against the spread it meets, from whole plot to whole plot or from run to run (REML), so
+  such a factor does not look more certain than it is; the Python the page shows does the same. Not yet with limits
+  on the settings or blocks, and Learn adds no runs to such a design. A study with such a factor is saved in study
+  format 11 (#1225).
+- **Factorial takes a limit that holds at one level of a categorical factor.** "Raw material A up to 1.5 %, raw
+  material B up to 2 %" is a limit built from five choices in Design, and the optimal designs keep each level's runs
+  inside its own limit. Ranges that do not overlap from level to level are two such limits. The limits panel, its
+  picture and its corners are shown for the levels the reader picks, and Learn keeps to the limit of the level it
+  chooses: the best settings, a target, a specification, the trade-offs and What if (#813).
+- **Factorial shows the Python for a mixture's target and specification.** The two sections showed none for a
+  mixture. The code draws the page's blends from the region the bounds allow (`DesignRegion.sample`), fits each
+  response's Scheffé model, and finds the page's blend for the targets, or judges the blends against the windows
+  with `feasible_region`, to the page's numbers (#1301).
+- **Factorial's optimal designs take a categorical factor, and limits on the settings stand beside one.** The D-,
+  I- and A-optimal designs are made for numeric factors and a categorical factor of 2 to 8 levels together: each run's
+  level is chosen with its settings. A limit on the numeric factors, such as `T + 25*P <= 250`, now holds at every
+  level, where before any limit beside a categorical factor was refused.
+
+### Changed
+
+- **Factorial: the reproduction page counts printed numbers, and says why the others differ.**
+  [Reproduced from the books](https://factori.al/catalog/reproduced/) opens on one bar of every printed number that
+  was worked again, and how many match. The others are a cascade of reasons, each with one number as an example and
+  "See another": the book rounds sooner, a misprint or slip in the book, another method, a multiple-choice option
+  that is wrong on purpose, a reason not known yet, and a method Factorial does not have yet. A row for each source
+  shows the share of its numbers that match, and opens onto its counts. The table of tiers, the table by source, the
+  tables of causes and the chart of the differences are gone; the cases and what the library lacks are behind "Search
+  every case".
+- **The package's page on PyPI sends "Try it in your browser" to https://factori.al/**, as the README does; it led to
+  the copy on GitHub Pages.
+- **Factorial names its catalog the same in the "Studies" menu as in the footer:** "Catalog of experimental designs".
+- **Factorial's design catalog shows the years as a strip in the filter panel.** The chart of designs by year, which
+  stood above the results, is a strip of bars 28 px high over the two "Years" boxes it fills. A design family's name
+  is followed by the year it was first published; the diamonds that marked those years, and the family colours of
+  the bars, are gone.
+- **Factorial's footer names its pages for what they hold.** "Catalog of experimental designs", "Validation &
+  technical accuracy" and "Experimental design concept map" replace the earlier names, and the link to how Factorial
+  works is under "Behind it" as "See behind the scenes: how Factorial works". The concept map's page is titled a
+  map, not a graph.
+- **The concept map's depth is three choices side by side.** Beginner, Intermediate and Adventurous are all in sight,
+  the one in force filled; the slider named one at a time. On a phone they have a line of their own, each a third
+  of it. The keyboard moves among them as among radio buttons.
+- **Factorial's concept map has keyboard shortcuts, and its zoom buttons are on the map.** `+` and `-` zoom, `f` fits
+  all the topics, `e` shows the link labels, the arrow keys move the map while the pointer or the focus is on it, and
+  `?` lists the keys. Zoom and fit sit on the map's corner on a wide screen and stay under it on a phone. "How this map
+  was made" is closed until it is opened, and the words of a term's card use the card's full width.
+- **Every page of factori.al has the same top line and the same footer.** The colour-mode switch was on the app and
+  the concept map only; the pages on how Factorial works, what it does, the design catalog and the textbooks'
+  answers now have it at the end of their top line, and a mode chosen on one page is the mode of the next. Each
+  page ends in one footer with the same links in the same order, the app's among them. The page of the
+  textbooks' answers (`catalog/reproduced/`), which only a door on the catalog led to, is in it.
+- **Factorial runs on Pyodide 314.0.8** (was 314.0.7), the latest release. The tests that run the app's Python in the
+  real Pyodide pass on it (#1316).
+- **Factorial's menu of studies is a button in the bar.** "Studies", beside "New study", opens the list that was on
+  the study's name, where readers did not think to look: your studies, the worked example, data you have, the
+  catalog, sharing and the report. The study's name is a plain heading on the page. On a phone the list spans the
+  screen under the bar, and "New study" is its plus. The bar's link to "How it works" gave its room to the button;
+  the footer of every page has it.
+- **Web app: the version at the foot of the page gives its time.** It reads
+  "Version 3a8a9d3, 18 November 2026, 16:42.", in your own time zone on a 24-hour clock, so two
+  builds of one day are told apart.
+
+### Fixed
+
+- **`feasible_region` reads a prior `sigma`.** A model from `analyze_experiment(..., sigma=...)` holds
+  `prior_sigma`; the chance of meeting a specification now scales a new run by it and reads the normal
+  distribution, where before it used the residual mean square and its degrees of freedom. A saturated fit with a
+  prior `sigma` now has a chance, where before it had none.
+- **Factorial's workbook keeps the targets and the specification limits.** A target or a specification limit typed
+  in Learn is saved in the workbook and comes back when the app reads the workbook, where before it had to be typed
+  again.
+
 ## [2.6.0] - 2026-11-18
 
 ### Added
@@ -13364,7 +13443,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v2.6.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v2.6.5...HEAD
+[2.6.5]: https://github.com/kgdunn/process-improve/compare/v2.6.0...v2.6.5
 [2.6.0]: https://github.com/kgdunn/process-improve/compare/v2.5.0...v2.6.0
 [2.5.0]: https://github.com/kgdunn/process-improve/compare/v2.4.0...v2.5.0
 [2.4.0]: https://github.com/kgdunn/process-improve/compare/v2.3.1...v2.4.0
