@@ -5569,9 +5569,9 @@ function contourPicker(plots) {
  * Three drop-downs under a triangle of a mixture of four components or more: the components it is drawn over, the
  * others held at the blend its caption names. Picking one already shown swaps the two, as the surface's do. ``shown``
  * holds the three drawn, ``chosen`` whether the reader picked them, and ``pick`` takes a new three, or null for the
- * page's own choice. ``id`` starts the boxes' ids, one picker to a chart.
+ * page's own choice. ``id`` starts the boxes' ids, one picker to a chart; ``backWords`` name the way back.
  */
-function trianglePicker(shown, chosen, pick, id = "triangle") {
+function trianglePicker(shown, chosen, pick, id = "triangle", backWords = "Back to the page's choice") {
   const row = el("p", "hint contour-picker triangle-picker", "");
   const names = state.design.spec.factors.map((f) => f.name);
   const words = ["First", "Second", "Third"];
@@ -5595,7 +5595,7 @@ function trianglePicker(shown, chosen, pick, id = "triangle") {
   boxes.append(...selects);
   row.append("Draw it over these three:", boxes);
   if (chosen) {
-    const back = el("button", "link", "Back to the page's choice");
+    const back = el("button", "link", backWords);
     back.type = "button";
     back.id = `${id}-largest`;
     back.onclick = () => pick(null, `#${selects[0].id}`);
@@ -5612,9 +5612,7 @@ function fittedTrianglePicker(plots) {
     const request = analysisRequest();
     drawCharts(state.best?.coded ? { ...request, best: state.best.coded } : request, ticket).then(() => $(focus)?.focus());
   };
-  const picker = trianglePicker(plots.ternary.components, plots.ternary.chosen, pick);
-  picker.querySelector("#triangle-largest")?.replaceChildren("Back to the three largest effects");
-  return picker;
+  return trianglePicker(plots.ternary.components, plots.ternary.chosen, pick, "triangle", "Back to the three largest effects");
 }
 
 /**
