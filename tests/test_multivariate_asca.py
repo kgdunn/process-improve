@@ -728,3 +728,11 @@ def test_asca_reads_an_array_as_columns_numbered_from_0_and_one_factor_alone() -
     alone = ASCA().fit(X, design[["A"]])
     assert alone.terms_ == ["A"]
     pd.testing.assert_frame_equal(alone.effect_matrices_["A"], from_frame.effect_matrices_["A"], rtol=0, atol=1e-12)
+
+
+def test_asca_names_a_contrast_level_the_factor_does_not_have() -> None:
+    """A contrast's level is checked against the fitted design, and the message names the levels it has."""
+    X, design, _ = _two_factor_design()
+    message = r"^C\(A, Sum\('nope'\)\) asks for the level 'nope', which column 'A' does not have: its levels are"
+    with pytest.raises(ValueError, match=message):
+        ASCA(n_components=2, model="C(A, Sum('nope'))").fit(X, design)
