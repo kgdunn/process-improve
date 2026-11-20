@@ -5382,6 +5382,8 @@ _EXPORTERS = {
 }
 
 #: Design-Expert heads each factor's column with its letter: "A:Temp", or "a:Temp" when the factor is hard to change.
+#: Seen in Design-Expert 12 (April 2020), whose exports head the run columns Std and Run, where Stat-Ease's current
+#: documentation names them Std Order and Run Order: both are read.
 _DESIGN_EXPERT_FACTOR = re.compile(r"^([A-Za-z]{1,2}):\s*(\S.*)$")
 
 #: The line Design-Expert writes in a workbook above the headings: "Factor 1", "Response 1".

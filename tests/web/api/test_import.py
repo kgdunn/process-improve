@@ -131,8 +131,8 @@ def test_a_design_exported_from_a_doe_program_is_known_and_its_bookkeeping_left_
     assert [roles(table)[h] for h in "TPY"] == ["factor", "factor", "response"]
 
 
-#: A split-plot I-optimal design as Design-Expert exports it: Temp is hard to change (its letter is lower case),
-#: and each group of runs shares one setting of it.
+#: A split-plot I-optimal design as Design-Expert 12 (April 2020) exports it: Temp is hard to change (its letter is
+#: lower case), and each group of runs shares one setting of it.
 DESIGN_EXPERT_RUNS = [
     (1, 9, -5, 2, 8), (1, 8, -5, -2, 6.52), (1, 7, -5, 0.52, 4), (2, 1, 0, -0.334001, 8), (2, 3, 0, -2, 4),
     (2, 2, 0, 2, 5.66), (3, 6, 0, 0.28, 5.84), (3, 4, 0, 0.24, 5.84), (3, 5, 0, -2, 8), (4, 13, 5, 0.5, 4),
