@@ -124,24 +124,22 @@ def _two_groups(seed: int) -> tuple[dict[str, pd.DataFrame], DataFrameDict]:
     return d_matrix, DataFrameDict({"F": f, "Z": {"Z": pd.DataFrame(z)}, "Y": {"Y": pd.DataFrame(y)}})
 
 
-def test_a_tpls_component_that_cycles_for_ever_is_reported() -> None:
+def test_a_tpls_component_that_cycles_is_damped_until_it_converges() -> None:
     """The TPLS loop can settle into two states that it alternates between for ever (#1163).
 
-    It is not a power iteration, as the NIPALS loop of PLS is, and nothing makes it converge. Here
-    the first component cycles, before any block is deflated. The model is the state of the pass
-    the loop stopped on, so one pass more gives other scores, and two passes more the same ones:
-    the fit warns, and records the component as not converged.
+    It is not a power iteration, as the NIPALS loop of PLS is. Here the first component cycles,
+    before any block is deflated: undamped, the model was the state of the pass the loop stopped
+    on, so one pass more allowed gave other scores. A component that stops at ``max_iter`` is run
+    again, damped, and converges, to the same model whatever ``max_iter``.
     """
     d_matrix, blocks = _two_groups(seed=110)
-    message = r"^TPLS NIPALS did not converge within max_iter=200 for component\(s\) \[1\]; results for those"
-    with pytest.warns(SpecificationWarning, match=message):
-        stopped = TPLS(n_components=1, d_matrix=d_matrix, max_iter=200).fit(blocks)
-    assert stopped.fitting_statistics["converged"] == [False]
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore", SpecificationWarning)
-        one_more, two_more = (TPLS(1, d_matrix=d_matrix, max_iter=n).fit(blocks) for n in (201, 202))
-    assert np.max(np.abs(one_more.t_scores_super - stopped.t_scores_super).to_numpy()) > 0.01
-    np.testing.assert_allclose(two_more.t_scores_super, stopped.t_scores_super, rtol=0, atol=1e-10)
+        warnings.simplefilter("error", SpecificationWarning)
+        fits = [TPLS(n_components=1, d_matrix=d_matrix, max_iter=n).fit(blocks) for n in (200, 201, 1000)]
+    assert [fit.fitting_statistics["converged"] for fit in fits] == [[True]] * 3
+    assert fits[0].fitting_statistics["iterations"][0] < 200
+    for fit in fits[1:]:
+        np.testing.assert_allclose(fit.t_scores_super, fits[0].t_scores_super, rtol=0, atol=0)
 
 
 def test_the_imputation_warning_of_pls_names_the_callers_line() -> None:

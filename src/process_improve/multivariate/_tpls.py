@@ -257,7 +257,10 @@ class TPLS(RegressorMixin, BaseEstimator):
 
     max_iter : int, optional
         The maximum number of iterations for the TPLS algorithm. Default is 500. A component
-        that has not converged by then is the state of its last pass, and the fit warns.
+        that has not converged by then is iterated again from its start, damped: each pass that
+        swings the super score to and fro halves how far later passes move it (#1163). If that
+        does not converge either, the component is the state of the first run's last pass, and
+        the fit warns.
 
     skip_f_matrix_preprocessing : bool, optional
         If True, the F (formula) matrices are used as-is, skipping the internal
@@ -311,6 +314,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         Per-component ``iterations``, ``convergance_tolerance``, ``milliseconds`` and
         ``converged`` lists. ``converged`` holds whether the component met ``tol`` within
         ``max_iter`` passes, as ``fitting_info_["converged"]`` does on MBPLS and MBPCA.
+        ``iterations`` counts the passes of the run kept, the damped one if it converged.
     preproc_ : dict
         Nested per-block per-group preprocessors, indexed as
         ``preproc_[block][group]`` where ``block`` is ``"D"``, ``"F"``,
@@ -1263,10 +1267,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         # zero (degenerate block / fully-deflated component) the bare
         # division produced NaN, the convergence test became permanently
         # False, and the loop ran to max_iter. SEC-21 (#270) sub-item 1.
-        delta_gap = float(
-            np.linalg.norm(starting_vector - revised_vector) / _nz(float(np.linalg.norm(starting_vector)))
-        )
-        return delta_gap < self.tol
+        return _relative_change(starting_vector, revised_vector) < self.tol
 
     @staticmethod
     def _regress_f_group_on_u(f_group: np.ndarray, u: np.ndarray, present: np.ndarray) -> np.ndarray:
@@ -1827,98 +1828,16 @@ class TPLS(RegressorMixin, BaseEstimator):
             check_variance_left("Y", next(iter(self.y_mats.values())), pc_a, y_size)
             milliseconds_start = time.time()
 
-            # Step 1: Start from the Y column with the largest sum of squares, as PLS does (#195). The first
-            # column can be constant, all zero after preprocessing, and then the iteration has nothing to follow (#954).
-            u_super_i = largest_ssq_column(next(iter(self.y_mats.values())))
-
-            # The first pass always runs. A test before it, against a previous u primed as u + 1, ended the
-            # loop before it began once tol was above about 0.7, and the fit failed for want of a score.
-            for n_iter in range(1, self.max_iter_ + 1):  # noqa: B007 - the statistics after the loop read it
-                u_prior = u_super_i  # rebound below, never changed in place
-                # Step 2. h_i = F_i' u / u'u. Regress the columns of F on u_i, and store the slope coeff in vectors h_i
-                h_i = self._zero_weight(
-                    {
-                        key: self._regress_f_group_on_u(df_f, u_super_i, self.not_na_f[key])
-                        for key, df_f in self.f_mats.items()
-                    }
-                )
-                # A NaN here makes every later step and the scores NaN, through numpy's warnings: refuse it now.
-                self._refuse_scores_that_are_not_finite(pc_a + 1, np.concatenate(list(h_i.values())))
-
-                # Step 3. s_i = D_i' h_i / h_i'h_i. Regress the rows of D_i on h_i, and store slope coeff in vectors s_i
-                s_i = self._zero_weight(
-                    {
-                        key: regress_a_space_on_b_row(df_d.T, h_i[key].T, self.not_na_d[key].T)
-                        for key, df_d in self.d_mats.items()
-                    }
-                )
-                # Step 4: combine the entries in s_i to form a joint `s` and normalize it to unit length.
-                joint_s_normalized = np.linalg.norm(np.concatenate(list(s_i.values())))
-                s_i = {key: s / joint_s_normalized for key, s in s_i.items()}
-
-                # Step 5: r_i = D_i s_i / s_i's_i. Regress columns of D_i on s_i, and store slope coefficients in r_i.
-                r_i = self._zero_weight(
-                    {
-                        key: regress_a_space_on_b_row(df_d, s_i[key].T, self.not_na_d[key])
-                        for key, df_d in self.d_mats.items()
-                    }
-                )
-
-                # Step 6: Combine the entries in r_i to form a joint r (which is the name of the method in the paper).
-                #         Horizontally concatenate all matrices in F_i to form a joint F matrix.
-                #         Regress rows of the joint F matrix onto the joint r vector. Store coeff in block scores, t_f
-                joint_r = np.concatenate(list(r_i.values()))
-                joint_f = np.concatenate(list(self.f_mats.values()), axis=1)
-                t_f = regress_a_space_on_b_row(joint_f, joint_r.T, pmap_f)
-
-                # If there is a Condition matrix (non-empty Z block)
-                if self.n_conditions > 0:
-                    # Step 7: w_i = Z_i' u / u'u. Regress the columns of Z on u_i, and store the slope coefficients
-                    #         in vectors w_i.
-                    w_i_z = {
-                        key: regress_a_space_on_b_row(df_z.T, u_super_i.T, self.not_na_z[key].T)
-                        for key, df_z in self.z_mats.items()
-                    }
-
-                    # Step 8: Normalize joint w to unit length. See MB-PLS by Westerhuis et al. 1998. This is normal.
-                    # Floor each per-block norm so a degenerate Z block doesn't yield NaN. SEC-21 (#270) sub-item 1.
-                    w_i_z = {key: w / _nz(float(np.linalg.norm(w))) for key, w in w_i_z.items()}
-
-                    # Step 9: regress rows of Z on w_i, and store slope coefficients in t_z. There is an error in the
-                    #        paper here, but in figure 4 it is clear what should be happening.
-                    t_zb = {
-                        key: regress_a_space_on_b_row(df_z, w_i_z[key].T, self.not_na_z[key])
-                        for key, df_z in self.z_mats.items()
-                    }
-                    t_z = np.hstack(list(t_zb.values()))
-
-                else:
-                    # Step 7: No Z block. Take an empty matrix across to the the superblock.
-                    w_i_z = {}
-                    t_z = np.zeros((t_f.shape[0], 0))  # empty matrix: in other words, no Z block
-
-                # Step 10: Combine t_z and t_f to form a joint t matrix.
-                t_combined = np.concatenate([t_z, t_f], axis=1)
-
-                # Step 11: Build an inner PLS model: using the t_combined as the X matrix, and the Y (quality space)
-                #          as the Y matrix.
-                # Every block score is present. A mask of float ones would weigh the cells as these booleans do.
-                complete = np.ones(t_combined.shape, dtype=bool)  # pragma: no mutate - float ones weigh the same
-                inner_pls = internal_pls_nipals_fit_one_pc(
-                    x_space=t_combined,
-                    y_space=np.array(next(iter(self.y_mats.values()))),
-                    x_present_map=complete,
-                    y_present_map=np.array(next(iter(self.not_na_y.values()))),
-                )
-                u_super_i = inner_pls["u_i"]  # steps 2 and 7 regress F and Z on it, and it is the convergence check
-                t_super_i = inner_pls["t_i"]
-                q_super_i = inner_pls["q_i"]
-                w_super_i = inner_pls["w_i"]
-                self._refuse_scores_that_are_not_finite(pc_a + 1, t_super_i)
-                # Read after the loop: the last pass allowed can converge too (#1080).
-                converged = self._has_converged(starting_vector=u_prior, revised_vector=u_super_i)
-                if converged:
-                    break
+            passes = self._iterate_component(pc_a + 1, pmap_f, damp=False)
+            if not passes["converged"]:
+                # The loop is not a power iteration: u can swing to and fro about the fixed point, or between two
+                # states for ever, as the super weight swings between the blocks with t_f's size, 1/|r|, once D is
+                # deflated (#1163). Run again, damped; a fit that converges undamped is left as it was.
+                damped = self._iterate_component(pc_a + 1, pmap_f, damp=True)
+                passes = damped if damped["converged"] else passes
+            n_iter, converged = passes["n_iter"], passes["converged"]
+            t_super_i, q_super_i, w_super_i = passes["t"], passes["q"], passes["w"]
+            r_i, s_i, w_i_z = passes["r"], passes["s"], passes["w_z"]
 
             logger.debug(
                 "TPLS: super-component %d %s in %d iterations",
@@ -1929,10 +1848,8 @@ class TPLS(RegressorMixin, BaseEstimator):
 
             # After convergance. Step 12: Now store information.
             # =================
-            # Floor ``||u_prior||`` -- see SEC-21 (#270) sub-item 1.
-            delta_gap = float(np.linalg.norm(u_prior - u_super_i) / _nz(float(np.linalg.norm(u_prior))))
             self.fitting_statistics["iterations"].append(n_iter)
-            self.fitting_statistics["convergance_tolerance"].append(delta_gap)
+            self.fitting_statistics["convergance_tolerance"].append(passes["gap"])
             self.fitting_statistics["milliseconds"].append((time.time() - milliseconds_start) * 1000)
             self.fitting_statistics["converged"].append(converged)
 
@@ -1951,11 +1868,138 @@ class TPLS(RegressorMixin, BaseEstimator):
         self._calculate_model_statistics_and_limits()
         self._warn_about_components_not_converged()
 
+    def _iterate_component(self, component: int, pmap_f: np.ndarray, *, damp: bool) -> dict:
+        """One component's passes, the paper's steps 2 to 11, until ``u`` converges or ``max_iter`` passes are made.
+
+        Undamped, each pass starts from the ``u`` the one before found. Damped, each pass that swings ``u``,
+        turning it less in two passes than in one, halves how far later passes move it (#1163).
+
+        Returns
+        -------
+        dict
+            ``n_iter``, ``converged``, ``gap`` (the last pass's change of ``u``, relative to its length),
+            and the last pass's ``t``, ``q`` and ``w`` (super score, Y loading and super weight), ``r``,
+            ``s`` and ``w_z``.
+        """
+        # Step 1: Start from the Y column with the largest sum of squares, as PLS does (#195). The first
+        # column can be constant, all zero after preprocessing, and then the iteration has nothing to follow (#954).
+        u_super_i = largest_ssq_column(next(iter(self.y_mats.values())))
+
+        # The first pass always runs. A test before it, against a previous u primed as u + 1, ended the
+        # loop before it began once tol was above about 0.7, and the fit failed for want of a score.
+        u_before, step = None, 1.0  # the u the pass before this one started from; how far a pass moves u
+        for n_iter in range(1, self.max_iter_ + 1):  # noqa: B007 - the statistics after the loop read it
+            u_prior = u_super_i  # rebound below, never changed in place
+            # Step 2. h_i = F_i' u / u'u. Regress the columns of F on u_i, and store the slope coeff in vectors h_i
+            h_i = self._zero_weight(
+                {
+                    key: self._regress_f_group_on_u(df_f, u_super_i, self.not_na_f[key])
+                    for key, df_f in self.f_mats.items()
+                }
+            )
+            # A NaN here makes every later step and the scores NaN, through numpy's warnings: refuse it now.
+            self._refuse_scores_that_are_not_finite(component, np.concatenate(list(h_i.values())))
+
+            # Step 3. s_i = D_i' h_i / h_i'h_i. Regress the rows of D_i on h_i, and store slope coeff in vectors s_i
+            s_i = self._zero_weight(
+                {
+                    key: regress_a_space_on_b_row(df_d.T, h_i[key].T, self.not_na_d[key].T)
+                    for key, df_d in self.d_mats.items()
+                }
+            )
+            # Step 4: combine the entries in s_i to form a joint `s` and normalize it to unit length.
+            joint_s_normalized = np.linalg.norm(np.concatenate(list(s_i.values())))
+            s_i = {key: s / joint_s_normalized for key, s in s_i.items()}
+
+            # Step 5: r_i = D_i s_i / s_i's_i. Regress columns of D_i on s_i, and store slope coefficients in r_i.
+            r_i = self._zero_weight(
+                {
+                    key: regress_a_space_on_b_row(df_d, s_i[key].T, self.not_na_d[key])
+                    for key, df_d in self.d_mats.items()
+                }
+            )
+
+            # Step 6: Combine the entries in r_i to form a joint r (which is the name of the method in the paper).
+            #         Horizontally concatenate all matrices in F_i to form a joint F matrix.
+            #         Regress rows of the joint F matrix onto the joint r vector. Store coeff in block scores, t_f
+            joint_r = np.concatenate(list(r_i.values()))
+            joint_f = np.concatenate(list(self.f_mats.values()), axis=1)
+            t_f = regress_a_space_on_b_row(joint_f, joint_r.T, pmap_f)
+
+            # If there is a Condition matrix (non-empty Z block)
+            if self.n_conditions > 0:
+                # Step 7: w_i = Z_i' u / u'u. Regress the columns of Z on u_i, and store the slope coefficients
+                #         in vectors w_i.
+                w_i_z = {
+                    key: regress_a_space_on_b_row(df_z.T, u_super_i.T, self.not_na_z[key].T)
+                    for key, df_z in self.z_mats.items()
+                }
+
+                # Step 8: Normalize joint w to unit length. See MB-PLS by Westerhuis et al. 1998. This is normal.
+                # Floor each per-block norm so a degenerate Z block doesn't yield NaN. SEC-21 (#270) sub-item 1.
+                w_i_z = {key: w / _nz(float(np.linalg.norm(w))) for key, w in w_i_z.items()}
+
+                # Step 9: regress rows of Z on w_i, and store slope coefficients in t_z. There is an error in the
+                #        paper here, but in figure 4 it is clear what should be happening.
+                t_zb = {
+                    key: regress_a_space_on_b_row(df_z, w_i_z[key].T, self.not_na_z[key])
+                    for key, df_z in self.z_mats.items()
+                }
+                t_z = np.hstack(list(t_zb.values()))
+
+            else:
+                # Step 7: No Z block. Take an empty matrix across to the the superblock.
+                w_i_z = {}
+                t_z = np.zeros((t_f.shape[0], 0))  # empty matrix: in other words, no Z block
+
+            # Step 10: Combine t_z and t_f to form a joint t matrix.
+            t_combined = np.concatenate([t_z, t_f], axis=1)
+
+            # Step 11: Build an inner PLS model: using the t_combined as the X matrix, and the Y (quality space)
+            #          as the Y matrix.
+            # Every block score is present. A mask of float ones would weigh the cells as these booleans do.
+            complete = np.ones(t_combined.shape, dtype=bool)  # pragma: no mutate - float ones weigh the same
+            inner_pls = internal_pls_nipals_fit_one_pc(
+                x_space=t_combined,
+                y_space=np.array(next(iter(self.y_mats.values()))),
+                x_present_map=complete,
+                y_present_map=np.array(next(iter(self.not_na_y.values()))),
+            )
+            u_next = inner_pls["u_i"]  # steps 2 and 7 regress F and Z on it, and it is the convergence check
+            t_super_i = inner_pls["t_i"]
+            q_super_i = inner_pls["q_i"]
+            w_super_i = inner_pls["w_i"]
+            self._refuse_scores_that_are_not_finite(component, t_super_i)
+            # Read after the loop: the last pass allowed can converge too (#1080).
+            converged = self._has_converged(starting_vector=u_prior, revised_vector=u_next)
+            if converged:
+                break
+            u_super_i = _step_towards(u_prior, u_next, step)
+            if damp and u_before is not None and 2 * _turn(u_before, u_super_i) < _turn(u_prior, u_super_i):
+                # Two passes turned u less than half as far as one: it swings. A shorter step keeps the fixed
+                # point and damps the swing; each swing found halves the step.
+                step /= 2
+                u_super_i = _step_towards(u_prior, u_next, step)
+            u_before = u_prior
+
+        return {
+            "n_iter": n_iter,
+            "converged": converged,
+            "gap": _relative_change(u_prior, u_next),  # u's size is floored, see SEC-21 (#270) sub-item 1
+            "t": t_super_i,
+            "q": q_super_i,
+            "w": w_super_i,
+            "r": r_i,
+            "s": s_i,
+            "w_z": w_i_z,
+        }
+
     def _warn_about_components_not_converged(self) -> None:
         """Warn about each component whose loop stopped at ``max_iter``, in the words of MBPLS and MBPCA.
 
-        The loop is not a power iteration, and it can alternate between two states for ever: the
-        component is then the state of the last pass, which differs from one platform to another (#1163).
+        The loop is not a power iteration, and it can alternate between two states for ever. A damped
+        second run converges on such a component (#1163); when it does not either, the component is the
+        state of the first run's last pass, which can differ from one platform to another.
         """
         failed = [a + 1 for a, converged in enumerate(self.fitting_statistics["converged"]) if not converged]
         if failed:
@@ -1977,6 +2021,39 @@ _TPLS_METRICS: dict[str, tuple[Callable[..., float], int]] = {
     "neg_mean_squared_error": (mean_squared_error, -1),
     "neg_root_mean_squared_error": (root_mean_squared_error, -1),
 }
+
+
+def _relative_change(before: np.ndarray, after: np.ndarray) -> float:
+    """``|after - before| / |before|``, with the norm floored so two zero vectors give 0, not NaN (#270)."""
+    return float(np.linalg.norm(before - after) / _nz(float(np.linalg.norm(before))))
+
+
+def _unit(vector: np.ndarray) -> np.ndarray:
+    """``vector`` at length 1 (a zero vector stays zero), flat."""
+    return vector.ravel() / _nz(float(np.linalg.norm(vector)))
+
+
+def _turn(before: np.ndarray, after: np.ndarray) -> float:
+    """How far ``u``'s direction turned, sign aside: the distance between the two at length 1, the same side up.
+
+    A pass reads only ``u``'s direction, and its size can jump from one pass to the next.
+    """
+    unit_before, unit_after = _unit(before), _unit(after)
+    return float(np.linalg.norm(np.copysign(1.0, unit_before @ unit_after) * unit_before - unit_after))
+
+
+def _step_towards(u_prior: np.ndarray, u_next: np.ndarray, step: float) -> np.ndarray:
+    """Move ``u`` a fraction ``step`` of the way to the pass's result, at the result's size: a damped pass (#1163).
+
+    A whole step is the result itself. A pass reads only the direction of ``u``, so a shorter one mixes the two
+    as directions, the first turned to the second's sign: mixed as they are, they could cancel, or the larger
+    one, up to 8 times the other's size, would decide. At a fixed point the two agree, whatever the step.
+    """
+    if step == 1:
+        return u_next
+    before, after = _unit(u_prior), _unit(u_next)
+    mixed = (1 - step) * np.copysign(1.0, before @ after) * before + step * after
+    return (mixed * float(np.linalg.norm(u_next)) / _nz(float(np.linalg.norm(mixed)))).reshape(u_next.shape)
 
 
 def _mean_over_groups(r2_per_column: dict[str, np.ndarray]) -> float:
