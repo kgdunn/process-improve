@@ -64,7 +64,7 @@ describe("the address a response is kept under", () => {
     for (const url of [SCOPE, `${SCOPE}?example=worked`, `${SCOPE}?example=worked#learn`, `${SCOPE}#plan`]) {
       assert.equal(worker.address({ mode: "navigate", url }), SCOPE, url);
     }
-    assert.equal(worker.address({ mode: "navigate", url: `${SCOPE}about.html?from=app` }), `${SCOPE}about.html`);
+    assert.equal(worker.address({ mode: "navigate", url: `${SCOPE}technical-details-how-factorial-works.html?from=app` }), `${SCOPE}technical-details-how-factorial-works.html`);
   });
 
   test("any other file is kept under the address it was asked by", () => {

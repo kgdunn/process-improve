@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-PAGES = ["about.html", "features.html", "catalog/", "catalog/reproduced/", "map/"]
+PAGES = ["technical-details-how-factorial-works.html", "features.html", "catalog/", "catalog/reproduced/", "map/"]
 LINKS = [
     "Factorial, the app",
     "What Factorial does",
@@ -37,7 +37,15 @@ def test_each_page_ends_in_the_same_footer_with_the_same_links_in_the_same_order
     assert links.all_text_contents() == LINKS
     hrefs = links.evaluate_all("(all) => all.map((one) => one.href)")
     assert hrefs[:6] == [
-        f"{site}{path}" for path in ("", "features.html", "catalog/", "catalog/reproduced/", "map/", "about.html")
+        f"{site}{path}"
+        for path in (
+            "",
+            "features.html",
+            "catalog/",
+            "catalog/reproduced/",
+            "map/",
+            "technical-details-how-factorial-works.html",
+        )
     ]
     assert page.locator(".site-foot").count() == 1
     assert page.locator("footer").count() == 1, "one footer, not the page's own and the shared one"
@@ -66,7 +74,7 @@ def test_each_page_has_the_colour_mode_switch_at_the_end_of_its_top_line(reprodu
 
 
 def test_the_mode_chosen_on_one_page_is_the_mode_of_the_next(reproduced_context, site):
-    page = opened(reproduced_context, site, "about.html")
+    page = opened(reproduced_context, site, "technical-details-how-factorial-works.html")
     page.click("#mode")
     chosen = page.evaluate("document.documentElement.dataset.theme")
     page.click('.site-foot a:has-text("Validation & technical accuracy")')

@@ -62,7 +62,8 @@ ROOT = Path(__file__).resolve().parent.parent
 WEB_SRC = ROOT / "web"
 APP_FILES = (
     "index.html",
-    "about.html",
+    "technical-details-how-factorial-works.html",
+    "about.html",  # the old address of the page above, which forwards to it
     "features.html",
     "features.js",
     "FEATURES.md",

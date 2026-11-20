@@ -191,12 +191,12 @@ describe("the features document itself, as the page shows it", () => {
     const links = [...html.matchAll(/href="([^"]+)"/g)].map(([, href]) => href);
     assert.ok(links.length > 8);
     const toTheApp = /^\.\/\?((example|book)=[a-z0-9-]+&amp;show=[a-z0-9-]+|request=[a-z_]+)$/;
-    for (const href of links) assert.match(href, new RegExp(`^(https://|#|about\\.html$|catalog/|map/$|mva/$)|${toTheApp.source}`), href);
+    for (const href of links) assert.match(href, new RegExp(`^(https://|#|technical-details-how-factorial-works\\.html$|catalog/|map/$|mva/$)|${toTheApp.source}`), href);
     assert.ok(links.filter((to) => to.includes("&amp;show=")).length >= 15, "the points that end with Show me");
     assert.ok(links.filter((to) => to.startsWith("./?request=")).length >= 5, "and the designs the app does not make yet");
     const sites = links.filter((to) => to.startsWith("https://")).map((to) => new URL(to.replaceAll("&amp;", "&")).hostname);
     assert.ok(!sites.includes("factori.al"), "a link to the app stays within this copy of it");
-    assert.ok(["about.html", "catalog/", "catalog/reproduced/", "map/", "mva/"].every((to) => links.includes(to)));
+    assert.ok(["technical-details-how-factorial-works.html", "catalog/", "catalog/reproduced/", "map/", "mva/"].every((to) => links.includes(to)));
     for (const href of links.filter((to) => to.startsWith("#"))) assert.ok(ids.includes(href.slice(1)), href);
   });
 
