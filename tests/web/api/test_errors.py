@@ -1498,7 +1498,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _make(design_type="full_factorial", possible={"T": [None, 180]}),
         "Factor T: its range ends at 200, above its highest possible setting.",
     ),
-    # Runs from a model of every run (#1374): a goal of the largest or smallest, numeric factors, enough results.
+    # Runs from a model of every run (#1374): a goal of the largest, the smallest or a target; numeric factors.
     "suggested runs: a goal of learning": (
         "api_suggest_runs",
         lambda ex: {
@@ -1508,7 +1508,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         },
         (
             "Runs from a model of every run are suggested for a goal of making the response as large or as small as "
-            "it can be: choose that goal in Design."
+            "it can be, or of bringing it to a target: choose that goal in Design."
         ),
     ),
     "suggested runs: a categorical factor": (

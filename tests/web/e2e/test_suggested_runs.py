@@ -29,3 +29,19 @@ def test_the_runs_suggested_are_listed_with_why_and_added_to_the_run_sheet(page)
     settled(page)
     assert page.locator("#design-table tbody tr").count() == before + 2
     assert calls(page, "api_add_runs")[-1]["payload"]["kind"] == "suggested"
+
+
+def test_a_target_is_a_goal_runs_are_suggested_for_once_it_is_typed(page):
+    reveal(page, "#response-goal")
+    page.select_option("#response-goal", "target")
+    settled(page)
+    reveal(page, "#next")
+    assert page.locator("#suggest-runs").count() == 0, "a target not yet typed is no goal to suggest runs for"
+    reveal(page, "#response-goal")
+    page.fill("#response-target", "60")
+    settled(page)
+    reveal(page, "#next")
+    page.click("#suggest-runs")
+    page.wait_for_selector(f"{PART} tbody tr")
+    sent = calls(page, "api_suggest_runs")[-1]["payload"]["spec"]["response_info"]
+    assert (sent["goal"], sent["target"]) == ("target", 60)

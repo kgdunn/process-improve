@@ -11761,12 +11761,12 @@ LITTLE_TO_GAIN = 0.01
 def suggest_runs(request: dict) -> dict:
     """Propose the next runs from a Gaussian process of every run with a result: where the most is expected to gain.
 
-    For a study whose goal is to make its first response as large or as small as it can be, of numeric factors and
-    no mixture. Every run with a result is a run of the model, the confirmation runs and the path's among them; a
-    failed run is left out. ``n_runs`` (1 to :data:`MAX_SUGGESTED`) are the runs to make before any result is read,
-    each chosen with the ones before it taken to give their prediction (``suggest_next_runs``). The limits on the
-    settings are kept. The draws are seeded by the study's seed and the number of its results, so the same results
-    suggest the same runs, as ``add_runs`` then adds them.
+    For a study whose goal is to make its first response as large or as small as it can be, or to bring it to a
+    target, of numeric factors and no mixture. Every run with a result is a run of the model, the confirmation runs
+    and the path's among them; a failed run is left out. ``n_runs`` (1 to :data:`MAX_SUGGESTED`) are the runs to make
+    before any result is read, each chosen with the ones before it taken to give their prediction
+    (``suggest_next_runs``). The limits on the settings are kept. The draws are seeded by the study's seed and the
+    number of its results, so the same results suggest the same runs, as ``add_runs`` then adds them.
 
     The reply holds ``runs``, each its ``settings`` in the factors' own units, to three significant figures of its
     range as a plant sets them (unrounded where rounding would break a limit), what the model ``predicted`` there,
@@ -11775,11 +11775,13 @@ def suggest_runs(request: dict) -> dict:
     """
     whole = _checked_spec(request.get("spec") or {})
     spec = _for_response(whole, request.get("response"))
-    goal = (spec.get("response_info") or {}).get("goal")
-    if goal not in ("maximize", "minimize"):
+    info = spec.get("response_info") or {}
+    goal = info.get("goal")
+    target = _number(info.get("target")) if goal == "target" else None
+    if goal not in ("maximize", "minimize", "target") or (goal == "target" and target is None):
         raise ValueError(
             "Runs from a model of every run are suggested for a goal of making the response as large or as small as "
-            "it can be: choose that goal in Design."
+            "it can be, or of bringing it to a target: choose that goal in Design."
         )
     if _mixture(spec) or any(_categorical(f) for f in spec["factors"]):
         raise ValueError("Runs from a model of every run are suggested for numeric factors only on this page.")
@@ -11801,24 +11803,30 @@ def suggest_runs(request: dict) -> dict:
         done,
         response,
         goal=goal,
+        target=target,
         region=_spec_region(spec),
         n_runs=asked,
         random_state=int(seed) + len(done),
     )
-    better = (lambda value: value > found.best) if goal == "maximize" else (lambda value: value < found.best)
+
+    def loss(value: float) -> float:
+        """How far a result is from the goal: the less, the better."""
+        return {"maximize": -value, "minimize": value}.get(goal, abs(value - (target or 0.0)))
+
     suggested = []
     for _, run in found.runs.iterrows():
         settings = {f["name"]: _plant_setting(f, float(run[f["name"]])) for f in spec["factors"]}
         if not _runnable(spec, _coded(pd.DataFrame([settings]), spec["factors"]).to_numpy(dtype=float)):
             settings = {name: float(run[name]) for name in names}  # rounded, it would break a limit
         predicted = float(run["predicted"])
+        nearer = loss(predicted) < loss(found.best)
         suggested.append(
             {
                 "settings": settings,
                 "predicted": predicted,
                 "std_error": float(run["std_error"]),
                 "expected_improvement": float(run["expected_improvement"]),
-                "why": "it looks better than the best so far" if better(predicted) else "little is known there",
+                "why": "it looks better than the best so far" if nearer else "little is known there",
             }
         )
     stop = (
