@@ -167,12 +167,12 @@ data sets of 80 blends, at the best number of components in {4, 6, 8} for that m
 | Method | Ideal mixing | Uneven usage | Hidden trait | Non-ideal mixing |
 |---|---:|---:|---:|---:|
 | *Standard TPLS (D deflated)* | | | | |
-| Ignore the material | 6.26 | 7.07 | 6.30 | 7.33 |
-| Nearest known material | 5.80 | 6.96 | 5.91 | 6.91 |
-| Zero-padded refit | 5.81 | 6.60 | 5.86 | 6.85 |
-| 1. Projection, autoscaled F | 5.57 | 6.57 | 5.75 | 6.81 |
-| 1. Projection, centred F | 6.20 | 6.18 | 6.33 | 7.19 |
-| 2. Pseudo-recipe | 5.65 | 6.61 | 5.71 | 6.71 |
+| Ignore the material | 6.27 | 7.14 | 6.30 | 7.29 |
+| Nearest known material | 5.83 | 7.03 | 5.90 | 6.86 |
+| Zero-padded refit | 5.82 | 6.61 | 5.84 | 6.85 |
+| 1. Projection, autoscaled F | 5.60 | 6.64 | 5.75 | 6.81 |
+| 1. Projection, centred F | 6.18 | 6.17 | 6.35 | 7.19 |
+| 2. Pseudo-recipe | 5.69 | 6.69 | 5.70 | 6.71 |
 | *Without the D deflation* | | | | |
 | 1. Projection, autoscaled F | 1.91 | 2.47 | 2.54 | 3.99 |
 | 1. Projection, centred F | 2.16 | 2.12 | 2.64 | 4.03 |
@@ -180,7 +180,7 @@ data sets of 80 blends, at the best number of components in {4, 6, 8} for that m
 | 3a. Mixing-rule PLS | **1.76** | **1.73** | 2.35 | 3.79 |
 | 3b. Mixing-rule PLS + moments | 3.08 | 2.92 | 3.48 | **3.51** |
 | 4. Hierarchical offsets | 1.83 | 1.96 | **2.15** | 3.77 |
-| *Reference: the material seen in training* | 1.85 | 1.61 | 2.28 | 3.60 |
+| *Reference: the material seen in training* | 1.86 | 1.61 | 2.29 | 3.60 |
 
 The reference is approach 1 (centred F, no D deflation) predicting each blend from all the other
 blends, so the material has been used in training. Scenarios: *ideal mixing*, properties explain
@@ -188,7 +188,7 @@ every material effect; *uneven usage*, some materials are used far more than oth
 trait*, part of each material's effect is invisible in D; *non-ideal mixing*, blends of
 dissimilar materials depart from the fraction-weighted average.
 
-* **The D deflation decides it.** On standard TPLS no method gets below 5.6 times the noise.
+* **The D deflation decides it.** On standard TPLS the best method is 5.6 times the noise.
   Without it, approaches 1, 2, 3a and 4 are between 1.7 and 2.9 in the first three scenarios.
 * **Approach 3a loses almost nothing to novelty.** It is within 8% of the reference in every
   scenario, and below it with ideal mixing: 3a is more accurate than approach 1 in every
