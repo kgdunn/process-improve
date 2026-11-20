@@ -176,6 +176,21 @@ def test_design_expert_s_workbook_opens_as_a_split_plot_design_still_to_run(api)
     assert design["spec"]["options"]["hard_to_change"] == ["Temp"]
 
 
+def test_design_expert_s_workbook_with_no_line_of_units_reads_its_first_run_as_a_run(api):
+    openpyxl = pytest.importorskip("openpyxl")
+    book = openpyxl.Workbook()
+    sheet = book.active
+    sheet.append([None, "Factor 1", "Factor 2", "Response 1"])
+    sheet.append(["Run", "A:Temp", "B:Pres", "yield"])
+    for run, (_, _, t, p, _) in enumerate(DESIGN_EXPERT_RUNS, 1):
+        sheet.append([run, t, p, 60 + t + p])
+    data = io.BytesIO()
+    book.save(data)
+    table = api.ok("api_read_table", {"xlsx_base64": base64.b64encode(data.getvalue()).decode()})
+    assert (table["n_rows"], table["rows"][0][0]) == (15, 1)
+    assert roles(table) == {"Run": "ignore", "A:Temp": "factor", "B:Pres": "factor", "yield": "response"}
+
+
 def test_a_table_no_doe_program_wrote_names_none(api):
     table = api.ok("api_read_table", {"text": DESIGNED})
     assert (table["exported_from"], table["set_aside"]) == (None, [])
