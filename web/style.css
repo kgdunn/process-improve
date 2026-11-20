@@ -547,6 +547,7 @@ button:disabled { opacity: 0.5; cursor: progress; }
   section { padding: 16px 12px; }
 }
 .scroll { overflow-x: auto; margin: 12px 0; }
+.possible-table input { width: 5em; }
 table.data { border-collapse: collapse; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
 table.data th, table.data td { border-bottom: 1px solid var(--line); padding: 4px 10px; text-align: right; }
 table.data th:first-child, table.data td:first-child { text-align: left; }

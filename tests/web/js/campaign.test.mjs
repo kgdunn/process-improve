@@ -997,14 +997,41 @@ describe("a study's settings", () => {
   });
 });
 
+describe("a factor's possible range", () => {
+  const ranged = (possible) => {
+    const made = campaign();
+    made.design.spec.possible = possible;
+    return made;
+  };
+  const numeric = () => campaign().design.spec.factors.find((f) => typeof f.low === "number").name;
+
+  test("a study keeps each factor's possible range, in a format of its own", async () => {
+    const { POSSIBLE_FORMAT } = await import("../../../web/campaign.js");
+    const possible = { [numeric()]: [0, null] };
+    assert.equal(studyFormat(ranged(possible).design.spec, {}), POSSIBLE_FORMAT);
+    const read = checkCampaign({ ...ranged(possible), v: POSSIBLE_FORMAT });
+    assert.deepEqual(read.design.spec.possible, possible);
+    assert.equal(CAMPAIGN_VERSION, POSSIBLE_FORMAT, "the page reads it");
+    const blank = checkCampaign({ ...ranged({ [numeric()]: [null, null] }), v: POSSIBLE_FORMAT });
+    assert.equal(blank.design.spec.possible, undefined, "a range of two blanks is none");
+  });
+
+  test("a possible range of no numeric factor, or not of two numbers or blanks, is refused", () => {
+    for (const possible of [{ Z: [0, 1] }, { [numeric()]: [0] }, { [numeric()]: ["a", 1] }, [0, 1]]) {
+      const read = () => checkCampaign({ ...ranged(possible), v: CAMPAIGN_VERSION });
+      assert.throws(read, /possible range/, JSON.stringify(possible));
+    }
+  });
+});
+
 describe("a study's trade-off chart", () => {
   test("a study keeps what its trade-off chart shows, in a format of its own", async () => {
     const { TRADE_FORMAT } = await import("../../../web/campaign.js");
     const trade = { across: "y", up: "y", colour: "(D)", limits: { y: [null, 21.5] }, levels: { Supplier: "B" }, chosen: { T: 160, Supplier: "B" } };
-    const read = checkCampaign({ ...campaign(), v: CAMPAIGN_VERSION, trade });
+    const read = checkCampaign({ ...campaign(), v: TRADE_FORMAT, trade });
     assert.deepEqual(read.trade, trade);
     assert.equal(read.v, TRADE_FORMAT);
-    assert.equal(CAMPAIGN_VERSION, TRADE_FORMAT, "the page reads it");
+    assert.ok(CAMPAIGN_VERSION >= TRADE_FORMAT, "the page reads it");
     assert.equal(checkCampaign({ ...campaign(), v: CAMPAIGN_VERSION }).trade, undefined, "a study with none keeps its format");
   });
 
