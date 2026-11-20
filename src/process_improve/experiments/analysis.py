@@ -41,7 +41,9 @@ from process_improve.experiments._analyses._shared import (
     _sums_of_squares,
     _without_blocks,
     average_fitted_variance,
+    has_bare_block,
     precision_note,
+    with_block_contrasts,
     with_prior_sigma,
 )
 from process_improve.experiments._analyses.aliasing import alias_chains_of, chain_reduced_fit
@@ -598,11 +600,14 @@ def _add_block_term(df: pd.DataFrame, formula: str, model: str) -> tuple[pd.Data
     Block-to-block differences left out of the model go into the residual and mask real
     effects (Montgomery, *Design and Analysis of Experiments*, chapter 7). The blocks
     enter as sum-coded contrast columns, ``Block1`` to ``Block{b-1}`` for ``b`` blocks
-    (numbered blocks in numeric order, the last block coded -1 in every column). An explicit formula gets
-    them only where it names ``Block`` as a term of its own, in that term's place, so the
-    blocks are a categorical factor there as in a named model, not a number. A Scheffe
-    mixture model, and an explicit formula that does not name ``Block``, are not changed;
-    a warning says the blocks are not modelled.
+    (numbered blocks in numeric order, the last block coded -1 in every column). In an explicit
+    formula the blocks are levels wherever ``Block`` stands (#1236): a term of its own becomes the
+    contrasts, put first, and in a product each bare ``Block`` is written as them
+    (:func:`with_block_contrasts`), so ``Block*A`` and ``Block + A + Block:A`` are one model and
+    ``Block:A`` is a difference in A's effect for each block but one, never the block's number
+    times A. ``C(Block)`` is levels already, and is left to patsy. A Scheffe mixture model, and an
+    explicit formula that does not name ``Block``, are not changed; a warning says the blocks are
+    not modelled.
 
     Returns
     -------
@@ -614,7 +619,7 @@ def _add_block_term(df: pd.DataFrame, formula: str, model: str) -> tuple[pd.Data
     response, rhs = formula.split(" ~ ", 1)
     if model in SCHEFFE_MODELS or model not in _NAMED_MODELS:
         terms = _top_level_terms(rhs)
-        if model in SCHEFFE_MODELS or BLOCK_COL not in terms:
+        if model in SCHEFFE_MODELS or not has_bare_block(rhs):
             if not _references(rhs, BLOCK_COL):
                 kind = "a Scheffe mixture model" if model in SCHEFFE_MODELS else "an explicit formula"
                 warnings.warn(
@@ -638,6 +643,7 @@ def _add_block_term(df: pd.DataFrame, formula: str, model: str) -> tuple[pd.Data
             name += "_"
         df[name] = np.where(df[BLOCK_COL] == level, 1.0, np.where(df[BLOCK_COL] == levels[-1], -1.0, 0.0))
         names.append(name)
+    rhs = with_block_contrasts(rhs, names)
     return df, f"{response} ~ {' + '.join([*names, *([rhs] if rhs else [])])}", tuple(names)
 
 

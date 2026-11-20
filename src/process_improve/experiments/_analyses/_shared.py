@@ -3,8 +3,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import numpy as np
+from patsy import ModelDesc, Term
 from statsmodels.regression.linear_model import OLSResults, RegressionResultsWrapper
+
+from process_improve.experiments.designs_utils import BLOCK_COL
 
 
 def _press(ols_result: RegressionResultsWrapper) -> float:
@@ -153,5 +158,36 @@ def has_error_variance(ols_result: RegressionResultsWrapper) -> bool:
 
 
 def is_block_term(label: str, block_names: tuple[str, ...] | list[str]) -> bool:
-    """Whether a term, or an alias chain led by one, is a block contrast."""
-    return any(label == name or label.startswith(f"{name} ") for name in block_names)
+    """Whether a term, or an alias chain led by one, is a block contrast, or one of its interactions (``Block1:A``)."""
+    return any(part in block_names for part in label.split(" ", 1)[0].split(":"))
+
+
+def _block_factor(term: Term) -> bool:
+    """Whether a patsy term has the block column itself among its factors: ``Block``, not ``Block1`` or ``C(Block)``."""
+    return any(factor.name() == BLOCK_COL for factor in term.factors)
+
+
+def has_bare_block(rhs: str) -> bool:
+    """Whether a formula's right-hand side names the block column in a term, outside ``C()`` and ``I()``."""
+    return any(_block_factor(term) for term in ModelDesc.from_formula(rhs).rhs_termlist)
+
+
+def with_block_contrasts(rhs: str, contrasts: Sequence[str]) -> str:
+    """Write each term that names ``Block`` with its contrast columns instead, ``(Block1 + Block2):A`` (#1236).
+
+    The blocks are levels wherever they stand: ``Block:A`` is then a difference in A's effect for each block but
+    one, and ``Block*A`` is ``Block + A + Block:A``, as patsy expands a product of factors. Left as the number of
+    the block, ``Block*A`` fitted a straight line across the blocks. The formula is expanded first, so a term holds
+    ``Block`` once and its contrasts never multiply each other. ``C(Block)`` is levels already, and is left as is.
+    """
+    terms = ModelDesc.from_formula(rhs).rhs_termlist
+    if not contrasts or not any(_block_factor(term) for term in terms):
+        return rhs
+    levels = f"({' + '.join(contrasts)})"
+    written = [
+        ":".join(levels if factor.name() == BLOCK_COL else factor.name() for factor in term.factors)
+        for term in terms
+        if term.factors
+    ]
+    intercept = any(not term.factors for term in terms)
+    return " + ".join([*([] if intercept else ["0"]), *written])

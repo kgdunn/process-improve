@@ -65,6 +65,7 @@ import pandas as pd
 import statsmodels.formula.api as smf
 from patsy import dmatrix
 
+from process_improve.experiments._analyses._shared import with_block_contrasts
 from process_improve.experiments._analyses.mixture import spans_constant
 from process_improve.experiments.designs_mixture_constrained import (
     SCHEFFE_DEGREE,
@@ -385,7 +386,9 @@ def _run_model_selection(
     if criterion not in _CRITERIA:
         raise ValueError(f"criterion must be one of {', '.join(_CRITERIA)}; got {criterion!r}.")
     searched, linear, terms, intercept = _candidates(design_df, factor_cols, model, formula)
-    fixed = [*linear, *blocks]
+    # A term of the formula that names Block, as Block:A, is scored and fitted with the blocks as levels (#1236).
+    contrasts = [block for block in blocks if block in design_df.columns]
+    fixed = [*linear, *(with_block_contrasts(block, contrasts) for block in blocks)]
     data = design_df[design_df[[response_col, *factor_cols]].notna().all(axis=1)]
     y = data[response_col].to_numpy(dtype=float)
     selected, value, direction = _search(_Scorer(data, y, terms, criterion, fixed, intercept=intercept))
