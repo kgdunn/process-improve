@@ -280,6 +280,9 @@ Also:
     has one of its own (a synergy and an antagonism).
 - **A whole curve as a result.** A response that is a curve at each run, such as a spectrum
   or a colour over time, pasted under the run sheet.
+  - *Details:* A predicted curve's bands rest on 200 bootstrap replicates, and on 1,000 at a
+    significance level of 0.01, so that ten replicates lie past the 99% quantile they are read
+    from. The refit then takes about twice as long.
 - **Runs added later join the run sheet.** They are a block of their own, and confirmation runs
   go at its end.
 - **A changed plan is flagged.** The run sheet is marked as out of date, with one button to
