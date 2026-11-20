@@ -9,6 +9,7 @@ leader to the chain, so exactly aliased terms are tested once, as in the effects
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from typing import Any
 
@@ -17,6 +18,8 @@ import pandas as pd
 import statsmodels.api as sm
 from scipy import stats
 from statsmodels.regression.linear_model import RegressionResultsWrapper
+
+from process_improve.experiments.designs_utils import BLOCK_COL
 
 from ._shared import has_error_variance, is_block_term
 from .aliasing import estimable_effects
@@ -27,24 +30,35 @@ _SATURATED_NOTE = (
 )
 
 
-def _block_row(ols_result: RegressionResultsWrapper, blocks: tuple[str, ...]) -> dict[str, Any]:
-    """One ANOVA row for all the block contrasts together, by the F-test that they are all zero."""
+def _block_rows(ols_result: RegressionResultsWrapper, blocks: tuple[str, ...]) -> list[dict[str, Any]]:
+    """One ANOVA row for each block term, by the F-test that all its columns are zero.
+
+    ``Block`` tests the shifts between the blocks; ``Block:A``, the differences in A's effect from block to
+    block (#1236). Each has one degree of freedom fewer than the number of blocks, times the term's others.
+    """
     names = [str(n) for n in ols_result.model.exog_names]
-    present = [name for name in blocks if name in names]
-    restrictions = np.zeros((len(present), len(names)))
-    for row, name in enumerate(present):
-        restrictions[row, names.index(name)] = 1.0
-    test = ols_result.f_test(restrictions)
-    f_value = float(np.squeeze(test.fvalue))
+    groups: dict[str, list[int]] = {}
+    for column, name in enumerate(names):
+        parts = name.split(":")
+        if any(part in blocks for part in parts):
+            source = ":".join(BLOCK_COL if part in blocks else part for part in parts)
+            groups.setdefault(re.sub(r"\[[^]]*\]", "", source), []).append(column)
     mse = float(ols_result.mse_resid)
-    return {
-        "source": "Block",
-        "df": len(present),
-        "sum_sq": f_value * len(present) * mse,
-        "mean_sq": f_value * mse,
-        "F": f_value,
-        "p_value": float(test.pvalue),
-    }
+    rows = []
+    for source, columns in groups.items():
+        test = ols_result.f_test(np.eye(len(names))[columns])
+        f_value = float(np.squeeze(test.fvalue))
+        rows.append(
+            {
+                "source": source,
+                "df": len(columns),
+                "sum_sq": f_value * len(columns) * mse,
+                "mean_sq": f_value * mse,
+                "F": f_value,
+                "p_value": float(test.pvalue),
+            }
+        )
+    return rows
 
 
 def _least_squares(columns: np.ndarray, y: np.ndarray) -> tuple[float, int]:
@@ -159,7 +173,8 @@ def _run_anova(
     the Type III (fully adjusted) test that the coefficient t-tests make; in a
     non-orthogonal one the two can differ, and the type used is reported under
     ``anova_type``. The ``blocks`` contrast columns are tested together, as one
-    ``"Block"`` row with one degree of freedom fewer than the number of blocks.
+    ``"Block"`` row with one degree of freedom fewer than the number of blocks, and so are
+    the columns of each interaction with them, as one ``"Block:A"`` row (:func:`_block_rows`).
 
     When the model matrix lacks full rank, as with a factor nested in another, the Type II
     rows are worked out on the rank each term adds (:func:`_type_ii_by_rank`), and
@@ -190,8 +205,7 @@ def _run_anova(
                 "p_value": (float(row["PR(>F)"]) if "PR(>F)" in row and pd.notna(row.get("PR(>F)")) else None),
             }
         )
-    if any(name in ols_result.model.exog_names for name in blocks):
-        records.insert(0, _block_row(ols_result, blocks))
+    records[:0] = _block_rows(ols_result, blocks)
     result = {"anova_table": records, "anova_type": "I" * anova_type if anova_type <= 3 else str(anova_type)}
     if notes:
         result["anova_note"] = " ".join(notes)
