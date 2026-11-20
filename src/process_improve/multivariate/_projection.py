@@ -375,7 +375,7 @@ def project_rows(  # noqa: PLR0913 - mirrors operator_for_pattern
             # An operator of NaN gives these rows NaN for everything that follows from their scores.
             op = Bunch(matrix=np.full((A, int(mask.sum())), np.nan), condition_number=np.inf)
             unestimated += len(row_ids)
-            estimable = False
+            estimable = False  # pragma: no mutate - NaN scores either way; see below
         if estimable:
             z_obs = x_scaled[np.ix_(np.asarray(row_ids), np.flatnonzero(mask))]
             t_hat = z_obs @ op.matrix.T
@@ -385,8 +385,8 @@ def project_rows(  # noqa: PLR0913 - mirrors operator_for_pattern
         else:
             # Set, not computed: a product with the NaN operator raises numpy's "invalid value" RuntimeWarning
             # under Apple's Accelerate BLAS (macOS), though not OpenBLAS, beside the warning counted below (#1212).
-            scores[row_ids] = np.nan
-            spe[row_ids] = np.nan
+            scores[row_ids] = np.nan  # pragma: no mutate - None in a float array is NaN
+            spe[row_ids] = np.nan  # pragma: no mutate - None in a float array is NaN
         condition[row_ids] = op.condition_number
         if guides is not None:
             guides[row_ids] = 0.0
