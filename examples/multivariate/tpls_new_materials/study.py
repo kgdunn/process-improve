@@ -144,16 +144,17 @@ def _pivot(values: pd.Series, index: str | list, columns: str, aggfunc: str = "m
 
 
 def require_convergence(model: TPLS, fit: str) -> None:
-    """Refuse a fit with a component that stopped at ``max_iter``.
+    """Refuse a fit with a component that did not converge within ``max_iter``.
 
-    TPLS keeps such a fit. On the simulated data of :func:`invariance_checks`,
-    with D deflated, the iteration for the third component alternates between two states for
-    ever, and the model is whichever state the last iteration lands on: that differs between
-    platforms (0.042 on Linux, 0.032 on macOS for the autoscaled split-a-lot check at 6 components).
+    TPLS keeps such a fit, and warns; its model is the state of the pass the loop stopped on. On the
+    simulated data of :func:`invariance_checks`, with D deflated, the third component's iteration
+    alternated between two states until TPLS learned to damp such a cycle (#1163), and the model
+    then differed between platforms (0.042 on Linux, 0.032 on macOS for the autoscaled split-a-lot
+    check at 6 components).
     """
-    iterations = model.fitting_statistics["iterations"]
-    if max(iterations) >= model.max_iter_:
-        msg = f"{fit}: a component stopped at max_iter={model.max_iter_} without converging ({iterations})"
+    if not all(model.fitting_statistics["converged"]):
+        iterations = model.fitting_statistics["iterations"]
+        msg = f"{fit}: a component did not converge within max_iter={model.max_iter_} ({iterations} iterations)"
         raise RuntimeError(msg)
 
 
@@ -164,8 +165,7 @@ def invariance_checks(data: dict, group: str, n_components: int = 2) -> pd.DataF
     2. Add to D a material of ``group`` that no blend uses, and predict the training blends again.
 
     Each entry is the largest change of any prediction; a model that passes shows 0. Every fit
-    must converge (:func:`require_convergence`); 2 components is the most at which the D-deflated
-    fits of the simulated data set do.
+    must converge (:func:`require_convergence`).
     """
     d, f_group = data["D"][group], data["F"][group]
     sd = next(iter(data["Y"].values())).std().to_numpy()

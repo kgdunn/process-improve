@@ -6233,6 +6233,15 @@ def _tpls_prepared(d_matrix: dict[str, pd.DataFrame], blocks: dict, skip_f: bool
 
 
 def _tpls_component(left: dict, seen: dict, stop: tuple[int, float]) -> dict:
+    """One component: its passes, and if they stop at ``max_iter``, its passes again damped, kept if they converge."""
+    undamped = _tpls_passes(left, seen, stop, damp=False)
+    if undamped["gap"] < stop[1]:
+        return undamped
+    damped = _tpls_passes(left, seen, stop, damp=True)
+    return damped if damped["gap"] < stop[1] else undamped
+
+
+def _tpls_passes(left: dict, seen: dict, stop: tuple[int, float], damp: bool) -> dict:
     """One component: from Y's column of largest sum of squares ``u``, the passes of the paper's steps 2 to 11.
 
     ``h = F'u / u'u``, ``s = D'h / h'h`` scaled to length 1 over all groups, ``r = Ds / s's``,
@@ -6241,10 +6250,12 @@ def _tpls_component(left: dict, seen: dict, stop: tuple[int, float]) -> dict:
     ``[t_Z1, t_Z2, ..., t_F]``, whose u is the next ``u``; every regression is over the observed
     cells. It stops once ``u`` moves by less than
     ``tol`` of its previous length, or after ``max_iter`` passes (``stop = (max_iter, tol)``).
+    Damped, a pass that turns ``u`` less in two passes than in one swings it: from then on each pass
+    moves ``u``'s direction only part of the way, half as far for each swing found (#1163).
     """
     groups, ((y_name, y),) = list(left["D"]), left["Y"].items()
     f_all, f_seen = np.hstack(list(left["F"].values())), np.hstack(list(seen["F"].values()))
-    u = _tpls_start(y)
+    u, before, step = _tpls_start(y), None, 1.0
     for passes in itertools.count(1):
         previous = u
         h = {group: _tpls_slopes(left["F"][group].T, u, seen["F"][group].T) for group in groups}
@@ -6256,11 +6267,38 @@ def _tpls_component(left: dict, seen: dict, stop: tuple[int, float]) -> dict:
         w_z = {name: _tpls_slopes(z.T, u, seen["Z"][name].T) for name, z in left["Z"].items()}
         w_z = {name: w / max(_TINY, float(np.linalg.norm(w))) for name, w in w_z.items()}
         t_z = [_tpls_slopes(z, w_z[name], seen["Z"][name]) for name, z in left["Z"].items()]
-        t, u, w_super, q = _tpls_inner_pls(np.column_stack([*t_z, t_f]), y, seen["Y"][y_name])
-        gap = np.linalg.norm(previous - u) / max(_TINY, float(np.linalg.norm(previous)))
+        t, result, w_super, q = _tpls_inner_pls(np.column_stack([*t_z, t_f]), y, seen["Y"][y_name])
+        gap = _tpls_moved(previous, result)
         if gap < stop[1] or passes >= stop[0]:
             return {"t": t, "w_super": w_super, "q": q, "r": r, "s": s, "w_z": w_z, "passes": passes, "gap": gap}
+        u = _tpls_part_way(previous, result, step)
+        if damp and before is not None and 2 * _tpls_turned(before, u) < _tpls_turned(previous, u):
+            step /= 2
+            u = _tpls_part_way(previous, result, step)
+        before = previous
     return {}  # never reached: itertools.count does not end
+
+
+def _tpls_moved(before: np.ndarray, after: np.ndarray) -> float:
+    """How far ``u`` moved, relative to its length before."""
+    return float(np.linalg.norm(before - after) / max(_TINY, float(np.linalg.norm(before))))
+
+
+def _tpls_turned(before: np.ndarray, after: np.ndarray) -> float:
+    """How far ``u``'s direction turned, sign aside."""
+    unit_before, unit_after = before / np.linalg.norm(before), after / np.linalg.norm(after)
+    side = 1.0 if float(unit_before @ unit_after) >= 0 else -1.0
+    return float(np.linalg.norm(side * unit_before - unit_after))
+
+
+def _tpls_part_way(before: np.ndarray, after: np.ndarray, step: float) -> np.ndarray:
+    """``u`` moved a fraction ``step`` of the way from ``before`` to ``after``, as directions, at ``after``'s length."""
+    if step == 1:
+        return after
+    unit_before, unit_after = before / np.linalg.norm(before), after / np.linalg.norm(after)
+    side = 1.0 if float(unit_before @ unit_after) >= 0 else -1.0
+    direction = (1 - step) * side * unit_before + step * unit_after
+    return direction / np.linalg.norm(direction) * np.linalg.norm(after)
 
 
 def _tpls_deflated(left: dict, seen: dict, component: dict) -> dict:

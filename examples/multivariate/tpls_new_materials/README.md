@@ -60,19 +60,21 @@ In-sample R2 with 8 components, mean of 6 simulated data sets of 80 blends (`fit
 |---|---:|---:|---:|---:|---:|
 | Group A only | 0.943 | 0.948 | 0.948 | 0.948 | 0.949 |
 | Group A + Z | 0.704 | 0.759 | 0.984 | 0.984 | 0.985 |
-| Groups A + B | 0.750 | 0.593 | 0.966 | 0.963 | 0.969 |
-| Groups A + B + Z | 0.770 | 0.728 | 0.969 | 0.977 | 0.988 |
+| Groups A + B | 0.746 | 0.593 | 0.966 | 0.963 | 0.969 |
+| Groups A + B + Z | 0.769 | 0.728 | 0.969 | 0.977 | 0.988 |
 
 With one group and no Z every variant reaches the truth. Add Z or a second group and the
 D-deflated models stop between 0.59 and 0.77, while the same model without the deflation keeps
 up with PLS on the mixture properties.
 
 The deflation also makes the TPLS fit fragile. In the simulated data set of the invariance
-checks, with D deflated, the iteration for the third component does not converge: it alternates
-between two states, and TPLS stops at its iteration limit. The model, and
-every prediction from it, is then whichever state the last iteration lands on, which differs
-between platforms. Without the deflation every component of that data set converges. The
-invariance checks therefore use 2 components, and refuse a fit that did not converge.
+checks, with D deflated, the iteration for the third component alternates between two states for
+ever: the F block's score grows as `1/|r|` where the deflated D is small, and the super weight
+swings between the blocks. The model was then whichever state the last iteration landed on,
+which differed between platforms. TPLS now iterates such a component again, damped, and it
+converges (#1163). Some fits of the full study still stop at the iteration limit after the
+damped run, and TPLS warns about them. The invariance checks use 2 components, and refuse a fit
+that did not converge.
 
 ## Why a new material can be predicted at all
 
@@ -167,12 +169,12 @@ data sets of 80 blends, at the best number of components in {4, 6, 8} for that m
 | Method | Ideal mixing | Uneven usage | Hidden trait | Non-ideal mixing |
 |---|---:|---:|---:|---:|
 | *Standard TPLS (D deflated)* | | | | |
-| Ignore the material | 6.26 | 7.07 | 6.30 | 7.33 |
-| Nearest known material | 5.80 | 6.96 | 5.91 | 6.91 |
-| Zero-padded refit | 5.81 | 6.60 | 5.86 | 6.85 |
-| 1. Projection, autoscaled F | 5.57 | 6.57 | 5.75 | 6.81 |
-| 1. Projection, centred F | 6.20 | 6.18 | 6.33 | 7.19 |
-| 2. Pseudo-recipe | 5.65 | 6.61 | 5.71 | 6.71 |
+| Ignore the material | 6.27 | 7.14 | 6.30 | 7.29 |
+| Nearest known material | 5.83 | 7.03 | 5.90 | 6.86 |
+| Zero-padded refit | 5.82 | 6.61 | 5.84 | 6.85 |
+| 1. Projection, autoscaled F | 5.60 | 6.64 | 5.75 | 6.81 |
+| 1. Projection, centred F | 6.18 | 6.17 | 6.35 | 7.19 |
+| 2. Pseudo-recipe | 5.69 | 6.69 | 5.70 | 6.71 |
 | *Without the D deflation* | | | | |
 | 1. Projection, autoscaled F | 1.91 | 2.47 | 2.54 | 3.99 |
 | 1. Projection, centred F | 2.16 | 2.12 | 2.64 | 4.03 |
@@ -180,7 +182,7 @@ data sets of 80 blends, at the best number of components in {4, 6, 8} for that m
 | 3a. Mixing-rule PLS | **1.76** | **1.73** | 2.35 | 3.79 |
 | 3b. Mixing-rule PLS + moments | 3.08 | 2.92 | 3.48 | **3.51** |
 | 4. Hierarchical offsets | 1.83 | 1.96 | **2.15** | 3.77 |
-| *Reference: the material seen in training* | 1.85 | 1.61 | 2.28 | 3.60 |
+| *Reference: the material seen in training* | 1.86 | 1.61 | 2.29 | 3.60 |
 
 The reference is approach 1 (centred F, no D deflation) predicting each blend from all the other
 blends, so the material has been used in training. Scenarios: *ideal mixing*, properties explain
@@ -188,7 +190,7 @@ every material effect; *uneven usage*, some materials are used far more than oth
 trait*, part of each material's effect is invisible in D; *non-ideal mixing*, blends of
 dissimilar materials depart from the fraction-weighted average.
 
-* **The D deflation decides it.** On standard TPLS no method gets below 5.6 times the noise.
+* **The D deflation decides it.** On standard TPLS the best method is 5.6 times the noise.
   Without it, approaches 1, 2, 3a and 4 are between 1.7 and 2.9 in the first three scenarios.
 * **Approach 3a loses almost nothing to novelty.** It is within 8% of the reference in every
   scenario, and below it with ideal mixing: 3a is more accurate than approach 1 in every
@@ -210,16 +212,17 @@ per material. The error is on the new material's other blends.
 | Method | 1 blend | 2 blends | 3 blends |
 |---|---:|---:|---:|
 | 4. Zero-shot, nothing measured | 2.15 | 2.15 | 2.15 |
-| 5. Update the new material's offset | **1.77** | **1.53** | **1.47** |
-| Refit approach 4 with the measured blends | 2.86 | 2.00 | 1.83 |
-| Refit the default TPLS with the measured blends | 10.51 | 7.18 | 6.97 |
+| 5. Update the new material's offset | **1.77** | **1.53** | 1.47 |
+| Refit approach 4 with the measured blends | 2.18 | **1.53** | **1.43** |
+| Refit the default TPLS with the measured blends | 17.53 | 7.63 | 6.51 |
 
-One measured blend cuts the error by 18%, two by 29%. Refitting is worse than updating, and
-with one blend worse than not measuring at all: a refit re-estimates every parameter from data
-that say little about most of them, while the update changes only what the new blends inform,
-which is the logic of product transfer. Refitting the default TPLS is the worst of all, because
-autoscaling turns the one non-zero entry of the new material's F column into a value eight
-standard deviations from its mean.
+One measured blend cuts the error by 18%, two by 29%. With one blend, refitting approach 4 is
+worse than updating, and worse than not measuring at all (2.18 against 2.15): a refit
+re-estimates every parameter from data that say little about most of them, while the update
+changes only what the new blends inform, which is the logic of product transfer. With two blends
+the two are level, and with three the refit is ahead (1.43 against 1.47). Refitting the default
+TPLS is the worst of all, because autoscaling turns the one non-zero entry of the new material's
+F column into a value eight standard deviations from its mean.
 
 ### Is the new material inside what the model has seen?
 
