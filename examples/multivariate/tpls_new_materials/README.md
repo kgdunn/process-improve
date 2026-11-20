@@ -60,8 +60,8 @@ In-sample R2 with 8 components, mean of 6 simulated data sets of 80 blends (`fit
 |---|---:|---:|---:|---:|---:|
 | Group A only | 0.943 | 0.948 | 0.948 | 0.948 | 0.949 |
 | Group A + Z | 0.704 | 0.759 | 0.984 | 0.984 | 0.985 |
-| Groups A + B | 0.750 | 0.593 | 0.966 | 0.963 | 0.969 |
-| Groups A + B + Z | 0.770 | 0.728 | 0.969 | 0.977 | 0.988 |
+| Groups A + B | 0.746 | 0.593 | 0.966 | 0.963 | 0.969 |
+| Groups A + B + Z | 0.769 | 0.728 | 0.969 | 0.977 | 0.988 |
 
 With one group and no Z every variant reaches the truth. Add Z or a second group and the
 D-deflated models stop between 0.59 and 0.77, while the same model without the deflation keeps
