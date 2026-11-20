@@ -13,6 +13,7 @@ import pytest
 from process_improve.experiments import Factor, fit_gaussian_process, suggest_next_runs
 from process_improve.experiments import expected_improvement as ei
 from process_improve.experiments.region import DesignRegion
+from process_improve.tool_spec import execute_tool_call
 
 FACTORS = [Factor(name="x1", low=-5.0, high=10.0), Factor(name="x2", low=0.0, high=15.0)]
 REGION = DesignRegion(FACTORS, ["x1 + x2 <= 18"])
@@ -123,3 +124,41 @@ def test_what_it_cannot_work_with_is_refused_in_a_sentence(change, refusal):
     asked = {"factors": FACTORS, "runs": first_runs(8, seed=1), "response": "y", **change}
     with pytest.raises(ValueError, match=refusal):
         suggest_next_runs(**asked)
+
+
+# --------------------------------------------------------------------------- the tool an agent calls
+def _tool_input(**change: object) -> dict:
+    """Return the tool's input for twelve of Branin's runs, the factors as an agent gives them."""
+    runs = first_runs(12, seed=6).round(4)
+    factors = [{"name": f.name, "low": f.low, "high": f.high} for f in FACTORS]
+    return {"factors": factors, "runs": runs.to_dict("records"), "response_column": "y", "goal": "minimize", **change}
+
+
+def test_the_tool_proposes_a_batch_inside_the_limit_with_why_each_run_is_there():
+    found = execute_tool_call("suggest_next_runs", _tool_input(n_runs=3, constraints=["x1 + x2 <= 18"]))
+    assert inside(pd.DataFrame(found["runs"]))
+    assert len(found["runs"]) == 3
+    assert set(found["runs"][0]) == {"x1", "x2", "predicted", "std_error", "expected_improvement"}
+    assert set(found["theta"]) == {"x1", "x2"}
+    assert found["little_to_gain"] is (found["improvement_ratio"] < 0.01)
+
+
+def test_the_tool_says_when_little_is_left_to_gain():
+    """Hundredths to gain on a response near 1000: confirmation runs at the best settings are the next step."""
+    near = pd.DataFrame(_tool_input()["runs"]).assign(y=lambda d: 1000 + 0.01 * d["x1"]).to_dict("records")
+    found = execute_tool_call("suggest_next_runs", _tool_input(runs=near, noise=False))
+    assert found["improvement_ratio"] < 0.01
+    assert found["little_to_gain"] is True
+
+
+@pytest.mark.parametrize(
+    ("change", "refusal"),
+    [
+        ({"runs": [{"x1": 0.0, "x2": 0.0, "y": float(i)} for i in range(201)]}, "the model takes at most 200"),
+        ({"factors": [{"name": "c", "type": "categorical", "levels": ["a", "b"]}]}, "takes one or more numeric"),
+        ({"constraints": ["x1 + x2 <= -100"]}, "the constraints may leave no feasible settings"),
+    ],
+    ids=["too-many-runs", "categorical", "no-room"],
+)
+def test_the_tool_answers_what_it_cannot_do_in_a_sentence(change, refusal):
+    assert refusal in execute_tool_call("suggest_next_runs", _tool_input(**change))["error"]

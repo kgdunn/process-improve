@@ -43,6 +43,7 @@ from process_improve.experiments._tools.recommend_next_step import recommend_nex
 from process_improve.experiments._tools.run_sheet import read_run_sheet_tool, write_run_sheet_tool
 from process_improve.experiments._tools.simulate_design_performance import simulate_design_performance_tool
 from process_improve.experiments._tools.compare_designs import compare_designs_tool
+from process_improve.experiments._tools.suggest_next_runs import suggest_next_runs_tool
 
 __all__ = [
     "analyze_experiment_tool",
@@ -61,6 +62,7 @@ __all__ = [
     "recommend_strategy_tool",
     "search_design_catalog_tool",
     "simulate_design_performance_tool",
+    "suggest_next_runs_tool",
     "trade_off_table_tool",
     "visualize_doe_tool",
     "write_run_sheet_tool",
