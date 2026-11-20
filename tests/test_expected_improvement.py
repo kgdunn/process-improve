@@ -11,6 +11,7 @@ import pandas as pd
 import pytest
 
 from process_improve.experiments import Factor, fit_gaussian_process, suggest_next_runs
+from process_improve.experiments import expected_improvement as ei
 from process_improve.experiments.region import DesignRegion
 
 FACTORS = [Factor(name="x1", low=-5.0, high=10.0), Factor(name="x2", low=0.0, high=15.0)]
@@ -92,6 +93,21 @@ def test_a_believed_run_joins_the_model_with_its_parameters_kept():
     assert len(grown.runs) == len(runs) + 1
     assert grown.predict(point)["predicted"].iloc[0] == pytest.approx(1.5, abs=1e-6), "it passes through the run"
     np.testing.assert_allclose(grown.predict(runs[["x1", "x2"]])["predicted"], runs["y"], atol=1e-6)
+
+
+def test_where_the_region_allows_no_setting_near_the_best_the_first_draw_s_best_stands(monkeypatch):
+    """Each round searches near the best among the settings the region allows; where it allows none, nothing moves."""
+    runs = first_runs(10, seed=5)
+    fit = fit_gaussian_process(runs, "y", ["x1", "x2"])
+    region = DesignRegion(FACTORS, ["x1 + x2 <= 18"])
+    drawn = region.sample(64, np.random.default_rng(0))
+    monkeypatch.setattr(region, "sample", lambda n, rng: drawn)  # noqa: ARG005 - the region's own signature
+    monkeypatch.setattr(region, "feasible", lambda coded: np.zeros(len(coded), dtype=bool))
+    best = float(runs["y"].min())
+    setting, gain = ei._best_setting(fit, FACTORS, region, best, 1.0, np.random.default_rng(1))
+    gains = ei._expected_improvement(fit, ei._actual(drawn, FACTORS), best, 1.0)
+    assert gain == pytest.approx(gains.max())
+    pd.testing.assert_frame_equal(setting, ei._actual(drawn[[int(np.argmax(gains))]], FACTORS))
 
 
 @pytest.mark.parametrize(
