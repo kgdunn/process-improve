@@ -17,6 +17,7 @@ import statsmodels.formula.api as smf
 from scipy import stats
 
 from process_improve.experiments import Factor, TrueProcess, generate_design
+from process_improve.experiments._analyses._shared import with_block_contrasts
 from process_improve.experiments._analyses.box_cox import _recommendation, box_cox_transform
 from process_improve.experiments._analyses.diagnostics import _in_run_order
 from process_improve.experiments._analyses.lack_of_fit import _run_lack_of_fit
@@ -2239,6 +2240,57 @@ class TestBlocks:
         lof = _run_lack_of_fit(fit, df, "y", factor_cols=["A"])["lack_of_fit"]
         assert set(lof) == {"error"}
         assert "pure-error sum of squares" in lof["error"]
+
+    @staticmethod
+    def _three_blocks(slopes: tuple[float, float, float] = (3.0, 3.0, 3.0)) -> tuple[pd.DataFrame, pd.Series]:
+        """Return a 2^3 in each of three blocks that shift the response by 0, 5 and 1, with A's slope in each."""
+        runs = pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=3)) * 3, columns=list("ABD"))
+        runs["Block"] = [1] * 8 + [2] * 8 + [3] * 8
+        slope = runs.Block.map(dict(zip((1, 2, 3), slopes, strict=True)))
+        shift = runs.Block.map({1: 0.0, 2: 5.0, 3: 1.0})
+        noise = np.random.default_rng(0).normal(0, 0.3, 24)
+        return runs, pd.Series(20 + slope * runs.A - 2 * runs.D + shift + noise, name="y")
+
+    @pytest.mark.parametrize(
+        "model", ["y ~ Block*A + B + D", "y ~ Block + A + Block:A + B + D", "y ~ (Block + A)**2 + B + D"]
+    )
+    def test_the_blocks_are_levels_wherever_the_formula_names_them(self, model: str) -> None:
+        """``Block*A`` fitted the block's number, a line across three blocks; now it is ``C(Block)*A`` (#1236)."""
+        runs, y = self._three_blocks()
+        found = analyze_experiment(runs, y, model=model, analysis_type=["coefficients", "anova", "significance"])
+        reference = smf.ols("y ~ C(Block, Sum) * A + B + D", data=runs.assign(y=y)).fit()
+        assert found["model_summary"]["r_squared_adj"] == pytest.approx(reference.rsquared_adj)
+        rows = {r["source"]: r for r in found["anova_table"]}
+        assert (rows["Block"]["df"], rows["Block:A"]["df"]) == (2, 2), "one row for each, with the blocks' two df"
+        assert rows["Block:A"]["p_value"] == pytest.approx(
+            float(reference.f_test("C(Block, Sum)[S.1]:A = C(Block, Sum)[S.2]:A = 0").pvalue)
+        )
+        assert set(found["significant_terms"]) == {"A", "D"}, "a block term is design, not a finding"
+
+    def test_a_slope_that_differs_between_blocks_is_found_and_predicted_in_its_block(self) -> None:
+        runs, y = self._three_blocks(slopes=(5.0, 1.0, 3.0))
+        new = pd.DataFrame([{"A": 1.0, "B": 0.0, "D": 0.0, "Block": 2}])
+        found = analyze_experiment(runs, y, model="y ~ Block*A + B + D", analysis_type="prediction", new_points=new)
+        reference = smf.ols("y ~ C(Block, Sum) * A + B + D", data=runs.assign(y=y)).fit()
+        assert found["predictions"][0]["predicted"] == pytest.approx(float(reference.predict(new).iloc[0]))
+        anova = {r["source"]: r for r in analyze_experiment(runs, y, model="y ~ Block*A + B + D")["anova_table"]}
+        assert anova["Block:A"]["p_value"] < 1e-6
+
+    def test_model_selection_scores_a_block_term_as_its_refit_does(self) -> None:
+        """The formula it returns gave 0.72 on a refit where it reported 0.9975 (#1236): they now agree."""
+        runs, y = self._three_blocks(slopes=(5.0, 1.0, 3.0))
+        ms = analyze_experiment(runs, y, model="y ~ Block*A + B + D", analysis_type="model_selection")
+        selected = ms["model_selection"]
+        assert selected["selected_formula"] == "y ~ Block + Block:A + A + D"
+        again = analyze_experiment(runs, y, model=selected["selected_formula"], analysis_type="coefficients")
+        assert again["model_summary"]["r_squared_adj"] == pytest.approx(selected["r_squared_adj"])
+
+    def test_c_block_is_left_to_patsy_and_a_block_inside_i_is_a_number(self) -> None:
+        runs, y = self._three_blocks()
+        named = analyze_experiment(runs, y, model="y ~ C(Block) + A + B + D", analysis_type="anova")["anova_table"]
+        assert {r["source"]: r["df"] for r in named}["C(Block)"] == 2
+        assert with_block_contrasts("I(Block * 2) + A", ["Block1", "Block2"]) == "I(Block * 2) + A"
+        assert with_block_contrasts("0 + Block:A", ["Block1", "Block2"]) == "0 + (Block1 + Block2):A"
 
 
 class TestTransformedResponse:

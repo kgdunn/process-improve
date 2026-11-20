@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from tests.web.e2e._page import calls, generate, reveal, saved_studies, set_factors, settled
+from tests.web.e2e._page import calls, candidates_done, generate, reveal, saved_studies, set_factors, settled
 
 FACTORS = [
     {"name": "T", "low": 150, "high": 200, "units": "degC"},
@@ -48,3 +48,17 @@ def test_a_possible_range_is_kept_by_the_design_and_the_study_and_runs_past_it_a
     kept = saved_studies(page, lambda studies: any(s["design"]["spec"].get("possible") for s in studies))
     assert kept[0]["design"]["spec"]["possible"] == {"P": [0.7, None]}
     assert kept[0]["v"] == 15
+
+
+def test_a_possible_range_stays_when_a_design_is_picked_after_it_and_the_design_is_made_with_it(blank_page):
+    # The comparison's designs are made without the possible ranges: picking one, as the page does itself when its
+    # comparison ends after the reader typed a range, once cleared the range and kept the design made without it.
+    page = blank_page
+    opened(page, FACTORS)
+    candidates_done(page)
+    bound(page, "Lowest possible", "P").fill("0.7")
+    bound(page, "Lowest possible", "P").press("Tab")
+    page.locator("#candidates tbody tr").first.click()
+    assert bound(page, "Lowest possible", "P").input_value() == "0.7"
+    generate(page)
+    assert calls(page, "api_make_design")[-1]["payload"]["possible"] == {"P": [0.7, None]}
