@@ -86,6 +86,15 @@ export function marked(text, words) {
   return parts;
 }
 
+/**
+ * Whether the copy kept for use without a network holds the concept map, looked up once as the page loads. Without a
+ * network and without it, "See it in context" would lead to "This page needs a network", so it is left out (#1263).
+ */
+let mapInCopy = false;
+Promise.all([MAP, new URL("graph.json", MAP)].map((href) => globalThis.caches?.match(href)))
+  .then((found) => (mapInCopy = found.every(Boolean)))
+  .catch(() => {});
+
 const definitionOf = (word) => (word.dataset.term ? glossary[word.dataset.term] : word.dataset.definition) ?? "";
 const conceptOf = (word) => word.dataset.concept ?? context[word.dataset.term] ?? null;
 
@@ -149,7 +158,7 @@ function show(word, how, control = null) {
     home.append(tip);
   }
   const concept = conceptOf(word);
-  tip.replaceChildren(text, ...(concept ? [inContext(word, concept)] : []));
+  tip.replaceChildren(text, ...(concept && (navigator.onLine || mapInCopy) ? [inContext(word, concept)] : []));
   tip.setAttribute("role", concept ? "group" : "tooltip"); // a tooltip holds nothing a reader can go into
   tip.dataset.how = how;
   if (!tip.matches(":popover-open")) tip.showPopover();

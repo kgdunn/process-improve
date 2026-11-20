@@ -1618,6 +1618,23 @@ def test_the_coefficients_code_draws_each_estimate_with_its_interval(api, node, 
 
 
 @pytest.mark.slow
+def test_the_coefficients_code_marks_each_estimate_s_true_value_for_simulated_results(api, node, monkeypatch):
+    """With results simulated from a known process, the code draws the true values the page marks (#1242)."""
+    demo = api.ok("api_catalogue")["demo"]
+    held = held_of(api.ok("api_make_design", demo["design"]))
+    simulation = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 1})
+    responses = simulation["responses"]
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses, "truth": simulation["truth"]})
+    about = {"process": simulation, "model": analysis["formula"], "complete": True}
+    steps = steps_of(held, responses, analysis)
+    truth, estimates = own_figure(node, monkeypatch, steps, "coefficients", held["spec"], about).data
+    shown = [c for c in analysis["coefficients"] if c["term"] != "Intercept"]
+    assert (truth.name, list(truth.y)) == ("True value", [c["term"] for c in shown]), "under the estimates"
+    np.testing.assert_allclose(truth.x, [c["true_value"] for c in shown], atol=1e-8)
+    np.testing.assert_allclose(estimates.x, [c["coefficient"] for c in shown])
+
+
+@pytest.mark.slow
 def test_the_coefficients_code_draws_a_fit_that_uses_every_run_with_no_interval(api, node, monkeypatch):
     spec = {"design_type": "plackett_burman", "factors": factors_named(*"ABCDEFG"), "n_center_points": 0}
     held = held_of(api.ok("api_make_design", spec))
@@ -1684,6 +1701,22 @@ def test_a_mixture_s_triangles_are_drawn_by_their_code_over_the_page_s_blends(ap
             np.testing.assert_allclose(surface[corner], ternary["grid"][corner], atol=1e-9, err_msg=f"{key} {corner}")
             np.testing.assert_allclose(runs[corner], ternary["runs"][corner], atol=1e-12)
         np.testing.assert_allclose(surface.marker.color, ternary["grid"][values], rtol=1e-5, err_msg=key)
+
+
+@pytest.mark.slow
+def test_a_mixture_s_triangle_code_stars_the_best_blend_as_the_page_does(api, node, monkeypatch):
+    """The fitted triangle's code puts a star at the best blend, where the page draws its own (#1242)."""
+    made = held_of(api.ok("api_make_design", {**MIXTURES[1], "factors": components(MIXTURES[1]["design_type"])}))
+    held = aimed(made, "maximize")
+    responses = api.ok("api_simulate", {**held, "seed": 5})["responses"]
+    request = {**held, "responses": responses}
+    analysis = api.ok("api_analyze_runs", request)
+    best = api.ok("api_best_settings", request)["coded"]
+    steps = steps_of(held, responses, analysis)
+    star = own_figure(node, monkeypatch, steps, "ternary", held["spec"], {"best": best}).data[-1]
+    assert (star.name, star.marker.symbol) == ("Best blend", "star")
+    for corner, factor in zip("abc", held["spec"]["factors"], strict=True):
+        assert star[corner][0] == pytest.approx(best[factor["name"]])
 
 
 @pytest.mark.slow

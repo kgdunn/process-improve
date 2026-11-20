@@ -209,6 +209,16 @@ def test_confirmation_runs_added_while_practising_are_simulated_and_judged(page,
     assert page.is_visible("#add-confirmation")
 
 
+def test_confirmation_runs_python_could_not_simulate_are_left_to_enter(page):
+    """A refused simulation is not reported as one: the runs are added, and their results asked for (#1169)."""
+    page.evaluate("window.__pi.fake('api_simulate', {ok: false, error: 'refused'})")
+    reveal(page, "#best")
+    page.click("#add-confirmation")
+    settled(page)
+    assert status(page)[0] == "3 confirmation runs added at the end of the run sheet: enter their results in Run."
+    assert len(confirmation_rows(page)) == 3
+
+
 def test_confirmation_runs_simulated_for_a_study_left_meanwhile_stay_out_of_the_new_one(page):
     """A new study, started while the confirmation runs are simulated, drops them, and says nothing of them."""
     page.evaluate("window.__pi.hold('api_simulate')")

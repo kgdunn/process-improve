@@ -244,6 +244,21 @@ def test_the_keyboard_opens_the_definition_of_the_box_it_reaches_and_a_screen_re
     assert page.locator(TIP).count() == 0
 
 
+def test_without_a_network_a_definition_leads_nowhere_the_copy_cannot_open(fresh_page, context):
+    """Offline, with no concept map in the copy, a definition has no "See it in context" (#1263).
+
+    The link would open "This page needs a network". The definition itself is shown as before.
+    """
+    page = fresh_page
+    context.set_offline(True)
+    try:
+        press_and_hold(page, '#aim-card .term[data-term="interaction"]')
+        assert page.locator(TIP).is_visible()
+        assert page.locator(MORE).count() == 0
+    finally:
+        context.set_offline(False)
+
+
 @pytest.mark.parametrize("context_options", [PHONE])
 def test_a_definition_leads_to_its_word_s_term_in_the_concept_map_in_a_tab_of_its_own(fresh_page, context):
     page = fresh_page

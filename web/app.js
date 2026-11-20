@@ -3788,6 +3788,8 @@ async function downloadWorkbook() {
   // Each response's model, unless it is the one the design was made for, is kept in the workbook, so the results are
   // analysed the same way when it comes back.
   const models = Object.fromEntries(more.map((name) => [name, asked(modelOf(name))]).filter(([, model]) => model));
+  // Named before Python answers: a new study started meanwhile has no run sheet to name it by (#1169).
+  const name = `${state.design.spec.design_type}-${runCount()}-runs.xlsx`;
   const reply = await call("api_workbook", {
     ...held(),
     ...sentResults(),
@@ -3806,7 +3808,7 @@ async function downloadWorkbook() {
   }
   const bytes = Uint8Array.from(atob(reply.result.xlsx_base64), (c) => c.charCodeAt(0));
   const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-  download(blob, `${state.design.spec.design_type}-${runCount()}-runs.xlsx`);
+  download(blob, name);
 }
 
 /** The run sheet with its results as a CSV file, for any spreadsheet or program: made here, without Python. */
@@ -3837,8 +3839,10 @@ const vifTerms = (analysis) => (showsVif(analysis.coefficients) ? fittedFormula(
  */
 async function eachAnalysis() {
   if (!several()) return null;
+  const study = studyTicket;
   const out = [];
   for (const name of resultNames()) {
+    if (study !== studyTicket) return null; // another study took the page: its responses are not these
     if (!state.results[name].some((v) => v !== null)) continue;
     if (name === state.shown && state.analysis) {
       const model = state.analysis.formula ?? state.analysis.model;
@@ -3867,7 +3871,10 @@ async function eachAnalysis() {
  */
 async function downloadNotebook() {
   if (!state.design) return;
+  const study = studyTicket;
   const analyses = await eachAnalysis();
+  // A notebook of one study's design with another's analyses would run to neither (#1169).
+  if (study !== studyTicket) return;
   const book = notebook({
     title: state.campaign?.title ?? titleOf(state.design.spec),
     design: state.design,
@@ -5596,7 +5603,16 @@ function figureAlone(key, plots = null) {
     const margins = Boolean(lenth) && !coefficients.some((c) => c.ci_high !== null && c.ci_high !== undefined);
     return ownFigureCode(key, CHARTS.coefficients.title, spec, { lenth: margins, model: formula ?? model, complete });
   }
-  const about = { contour: plots?.plot_options?.contour, cox: plots?.cox, ternary: plots?.ternary, process: processOf(spec.response) };
+  const about = {
+    contour: plots?.plot_options?.contour,
+    cox: plots?.cox,
+    ternary: plots?.ternary,
+    process: processOf(spec.response),
+    model: formula ?? model,
+    complete,
+    // The best blend the triangle stars, as drawCharts finds it.
+    best: plots?.held_best && blendStudy() && state.best?.settings ? state.best.coded : null,
+  };
   return ownFigureCode(key, CHARTS[key].title, spec, about);
 }
 
@@ -6064,9 +6080,9 @@ async function addConfirmationRuns(at = state.best?.confirm_at, where = "the bes
   curvesFor(added);
   renderRuns();
   renderStudyBar();
-  const practice = Boolean(state.simulation) && someSimulated();
   const design = state.design;
-  if (practice) await simulateFrom(before);
+  // Said to be simulated only when they were: Python may refuse (#1169)
+  const practice = Boolean(state.simulation) && someSimulated() && (await simulateFrom(before));
   if (state.design !== design) return; // another run sheet took its place meanwhile
   showResultsCode();
   scheduleSave();
@@ -8300,9 +8316,9 @@ async function addPathRuns(path) {
   curvesFor(path.length);
   renderRuns();
   renderStudyBar();
-  const practice = Boolean(state.simulation) && someSimulated();
   const design = state.design;
-  if (practice) await simulateFrom(before);
+  // Said to be simulated only when they were: Python may refuse (#1169)
+  const practice = Boolean(state.simulation) && someSimulated() && (await simulateFrom(before));
   if (state.design !== design) return; // another run sheet took its place meanwhile
   showResultsCode();
   scheduleSave();
@@ -9939,6 +9955,10 @@ $("#trade-off-table").addEventListener("click", (e) => {
 });
 $("#n_levels").onchange = markStale;
 for (const id of ["#n_center_points", "#n_replicates", "#n_blocks"]) $(id).addEventListener("input", markStale);
+// An option the reader sets is theirs, as a design they name is: the page's own pick from a comparison that ends later
+// would put the option back (#1355).
+const PLAN_OPTIONS = ["#n_center_points", "#alpha", "#alpha_value", "#resolution", "#n_levels", "#budget", "#n_replicates", "#n_blocks", "#model_type", "#lattice_degree", "#mixture_model"];
+for (const id of PLAN_OPTIONS) $(id).addEventListener("input", () => (designChosen = true));
 for (const id of ["#design-type", "#n_center_points", "#n_replicates"]) $(id).addEventListener("input", markLevelRuns);
 $("#generate").onclick = async () => {
   // While practising, the new runs are simulated from the same process, noise and seed, so the true process

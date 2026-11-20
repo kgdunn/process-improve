@@ -560,13 +560,39 @@ const knownProcess = (one) => [
 ];
 
 /**
+ * Each estimate's true value, as the coefficients' figure marks it for simulated results with a diamond under the
+ * estimate: what the same model, fitted to the same runs, gives on the known process's results without noise (#1242).
+ */
+const trueValueLines = (process, model, complete) => {
+  const X = complete ? "X" : "X[done]";
+  return [
+    "# Each estimate's true value: the same model fitted to the same runs, on the process's results without noise.",
+    ...knownProcess(process),
+    `noiseless = pd.Series(np.asarray(truth.mean(${X})), index=${X}.index, name=y.name)`,
+    `fitted = analyze_experiment(${X}, noiseless, model=${repr(model)}, analysis_type="coefficients", coding="actual")`,
+    'true_value = {c["term"]: c["coefficient"] for c in fitted["coefficients"]}',
+    "figure.add_trace(",
+    "    go.Scatter(",
+    '        x=[true_value.get(c["term"], 0) for c in terms],',
+    '        y=[c["term"] for c in terms],',
+    '        mode="markers",',
+    '        name="True value",',
+    '        marker={"symbol": "diamond", "size": 12, "color": "white", "line": {"color": "black", "width": 1.5}},',
+    "    )",
+    ")",
+    "figure.data = figure.data[::-1]  # the true values under the estimates, as the page draws them",
+  ];
+};
+
+/**
  * The page's own figures, which the library has no plot for: each a function of the figure's title, the study's
  * specification and what the page drew it from, giving the lines that draw it with Plotly. Each builds on step 2's
  * ``runs``, ``X`` and ``y`` and on step 3's ``analysis``, and holds the numbers the page's figure holds.
  */
 const OWN_FIGURES = {
-  coefficients: (title, spec) => [
+  coefficients: (title, spec, { process = null, model = null, complete = true } = {}) => [
     "import plotly.graph_objects as go",
+    ...(process && model ? ["import numpy as np", "import pandas as pd", "from process_improve.experiments import TrueProcess, analyze_experiment"] : []),
     "",
     `# The figure "${title}": each term's estimate with its ${confidencePercent()} interval, from the analysis above. A fit that`,
     "# uses every run has no interval. Sorted by size, the estimates are the page's Pareto plot.",
@@ -586,6 +612,7 @@ const OWN_FIGURES = {
     "        },",
     "    )",
     ")",
+    ...(process && model ? trueValueLines(process, model, complete) : []),
     'figure.update_yaxes(autorange="reversed")  # the first term at the top, as the page lists them',
     ...shown(`Coefficient: ${axisWords(spec)}${transformOf(spec) ? ", on the scale the model is fitted on" : ""}`, "Term"),
   ],
@@ -701,7 +728,7 @@ const OWN_FIGURES = {
       ...shown(`${across} (coded)`, `${up} (coded)`),
     ];
   },
-  ternary: (title, spec, { process, ternary = null }, values = "fitted") => {
+  ternary: (title, spec, { process, ternary = null, best = null }, values = "fitted") => {
     // Of four components or more, the triangle is of three (``ternary.components``), the others held (``ternary.held``).
     const held = ternary?.held ?? null;
     const names = held ? ternary.components : spec.factors.map((f) => f.name);
@@ -740,6 +767,7 @@ const OWN_FIGURES = {
           ]
         : [...knownProcess(process), "response = truth.mean(grid)"]),
       ...(held ? [] : ["had = y.notna()  # the runs that have their result"]),
+      ...(model && best ? [`best = ${repr(Object.fromEntries(names.map((name) => [name, best[name]])))}  # the best blend, starred as on the page`] : []),
       "figure = go.Figure(",
       "    [",
       "        go.Scatterternary(",
@@ -754,6 +782,14 @@ const OWN_FIGURES = {
             '            marker={"color": "white", "size": 10, "line": {"color": "black", "width": 1.5}},',
             "        ),",
           ]),
+      ...(model && best
+        ? [
+            "        go.Scatterternary(",
+            `            a=[best[${a}]], b=[best[${b}]], c=[best[${c}]], mode="markers", name="Best blend",`,
+            '            marker={"symbol": "star", "size": 18, "color": "white", "line": {"color": "#1a1a1a", "width": 1.5}},',
+            "        ),",
+          ]
+        : []),
       "    ]",
       ")",
       "axes = {axis: {\"title\": {\"text\": name}} for axis, name in zip((\"aaxis\", \"baxis\", \"caxis\"), " + `${repr(names)})}`,

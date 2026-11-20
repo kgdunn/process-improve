@@ -419,3 +419,25 @@ def test_a_design_made_for_the_brief_keeps_the_response_as_the_reader_named_it(b
     assert page.locator("#design-table thead th button.sort").last.text_content() == "Tensile strength"
     practise(page)
     assert page.text_content("#truth-equation").startswith("Tensile strength = ")
+
+
+def test_an_option_the_reader_sets_while_the_designs_are_compared_is_kept(fresh_page):
+    """A comparison that ends after the reader set an option leaves that option as the reader set it (#1355).
+
+    Until the reader names a design, the page picks one from its comparison and puts that design's options in the
+    form. It put back an option the reader had set while the comparison ran: a run sheet asked for with 2
+    replicates was made with 1.
+    """
+    page = fresh_page
+    page.evaluate("window.__pi.hold('api_candidates')")
+    set_factors(page, FACTORS)
+    page.wait_for_function("window.__pi.queue.some((reply) => reply.fn === 'api_candidates')")
+    reveal(page, "#n_replicates")
+    page.fill("#n_replicates", "2")
+    page.evaluate("window.__pi.release('api_candidates')")
+    candidates_done(page)
+    assert page.input_value("#n_replicates") == "2"
+    runs = page.locator("#design-type").evaluate("select => select.value")
+    generate(page)
+    made = calls(page, "api_make_design")[-1]["payload"]
+    assert (made["design_type"], made["n_replicates"]) == (runs, 2)
