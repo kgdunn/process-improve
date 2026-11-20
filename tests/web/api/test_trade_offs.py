@@ -95,6 +95,13 @@ def test_a_categorical_factor_is_held_at_the_balanced_settings_level(api):
     assert set(found["candidates"]["settings"]) == {"T", "P"}, "the factors with ranges are the ones tried"
     t = (np.asarray(found["candidates"]["settings"]["T"]) - 175) / 25
     np.testing.assert_allclose(found["candidates"]["responses"]["Yield"], 63 + t, rtol=1e-4)
+    assert found["held_columns"] == {"S": 1.0, "S_I1": 0.0, "S_I2": 1.0}, "the columns the models are held at"
+    # The page draws the chart at the other level: the same settings tried, the yield of supplier A, 3 lower.
+    other = api.ok("api_trade_offs", {**request, "at": {**balance["coded"], "S": -1.0}})
+    assert other["held"] == [{"name": "S", "value": "A"}]
+    assert other["held_columns"]["S"] == -1.0
+    assert other["candidates"]["settings"] == found["candidates"]["settings"]
+    np.testing.assert_allclose(other["candidates"]["responses"]["Yield"], 60 + t, rtol=1e-4)
 
 
 def test_other_settings_nearly_as_good_are_listed_far_from_the_balanced_ones(api):

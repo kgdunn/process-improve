@@ -922,7 +922,9 @@ export function overlayCode(overlay, spec) {
  * bootstrap.trade_offs drew them with), each response's prediction at each, those that meet the limits the reader
  * typed (``view.limits``, each response's two ends, null for one left open), and the best trade-off among them between
  * the responses on the two axes (``view.across`` and ``view.up``), each compared by its goal (``balance.responses``).
- * The points are coloured by ``view.colour`` when it is a response's column. Null for a mixture.
+ * The points are coloured by ``view.colour`` when it is a response's column. ``view.held``, when the chart is drawn at
+ * other levels than the balanced settings', holds the columns the models are then held at, over the ``fitted`` models the
+ * balance's code keeps; the star is left out. Null for a mixture.
  */
 export function tradeOffCode(view, balance, spec) {
   if (isMixture(spec)) return null;
@@ -941,6 +943,35 @@ export function tradeOffCode(view, balance, spec) {
   ]);
   const tint = view.colour in balance.search.formulas ? `, "color": kept[${repr(view.colour)}], "showscale": True` : "";
   const [across, up] = [repr(view.across), repr(view.up)];
+  // shortcut: a blocked study's block contrasts are built inside the library, so its code draws no paler points;
+  // write the contrasts out here once a blocked study's trade-offs are asked for in code.
+  const blocked = Object.keys(balance.search?.held ?? {}).some((name) => /^Block\d+_*$/.test(name));
+  const heldHere = view.held ?? balance.search?.held ?? {};
+  const far = blocked
+    ? []
+    : [
+        "",
+        "",
+        "def column(term, at):",
+        "    # A term's column at each row of at: 1 for the intercept, else the product of its parts.",
+        '    part = lambda name: at[name[2:-6]] ** 2 if name.startswith("I(") else at[name]',
+        '    one = np.ones(len(at)) if term == "Intercept" else np.prod([np.asarray(part(n), dtype=float) for n in term.split(":")], axis=0)',
+        "    return np.broadcast_to(one, len(at))",
+        "",
+        "",
+        "def leverage(fit, at):",
+        "    # How far each row of at lies from the runs the model was fitted to: x' (X'X)^-1 x, on the model's own terms.",
+        '    rows = np.column_stack([column(c["term"], at) for c in fit["coefficients"]])',
+        '    return np.einsum("ij,jk,ik->i", rows, np.asarray(fit["unscaled_covariance"], dtype=float), rows)',
+        "",
+        "",
+        "# A paler point is further from the runs than any run lies, on some response's model: there the models guess.",
+        `at = tried.assign(**${repr(heldHere)})  # the other columns as the chart holds them`,
+        "far = np.zeros(len(tried), dtype=bool)",
+        "for name, fit in analyses.items():",
+        "    done = runs[name].notna()",
+        "    far |= leverage(fit, at) > leverage(fit, X[done]).max() * (1 + 1e-9) + 1e-12",
+      ];
   return [
     "import numpy as np",
     "import pandas as pd",
@@ -965,22 +996,35 @@ export function tradeOffCode(view, balance, spec) {
     '    return sum(c["coefficient"] * product(c["term"]) for c in coefficients)',
     "",
     "",
+    ...(view.held
+      ? [
+          "# The chart is drawn at other levels than the balanced settings': each model is held at them instead.",
+          `models = [{**model, "coefficients": held_at(fitted[model["response_name"]], ${repr(view.held)})} for model in models]`,
+        ]
+      : []),
     "cloud, star = pd.DataFrame(index=tried.index), {}",
     "for model in models:",
     '    name = model["response_name"]',
     `    cloud[name] = ${scale.back('predicted(model["coefficients"], tried)')}`,
-    `    star[name] = ${scale.back('balanced["predicted_responses"][name]')}  # at the balanced settings`,
+    ...(view.held ? [] : [`    star[name] = ${scale.back('balanced["predicted_responses"][name]')}  # at the balanced settings`]),
     ends.length ? `kept = cloud[${ends.join(" & ")}]  # the settings that meet your limits` : "kept = cloud",
     `# The best trade-off between ${view.across} and ${view.up}: the settings tried that no other betters on both.`,
     "# Each response is compared by how far it falls short of its goal: the smaller, the better.",
     `shortfall = pd.DataFrame({"across": ${short(view.across)}, "up": ${short(view.up)}}).sort_values(["across", "up"])`,
     'front = shortfall[shortfall["up"] < shortfall["up"].cummin().shift(fill_value=np.inf)].index',
     `line = kept.loc[front].sort_values(${across})  # joined from left to right, as the page draws it`,
+    ...far,
+    `made = runs[[${across}, ${up}]].dropna()  # the runs made that have both results, each by its place in the run order`,
+    `near, guessed = (kept, kept.iloc[:0]) if ${blocked ? "True" : "False"} else (kept[~far[kept.index]], kept[far[kept.index]])`,
     "figure = go.Figure(",
     "    [",
-    `        go.Scatter(x=kept[${across}], y=kept[${up}], mode="markers", name="Settings tried", marker={"size": 5, "opacity": 0.5${tint}}),`,
+    `        go.Scatter(x=guessed[${across}], y=guessed[${up}], mode="markers", name="Tried, far from your runs", marker={"size": 5, "opacity": 0.2}),`,
+    `        go.Scatter(x=near[${across}], y=near[${up}], mode="markers", name="Settings tried", marker={"size": 5, "opacity": 0.6${tint.replace(/kept\[/g, "near[")}}),`,
     `        go.Scatter(x=line[${across}], y=line[${up}], mode="lines", name="Best trade-off"),`,
-    `        go.Scatter(x=[star[${across}]], y=[star[${up}]], mode="markers", name="Balanced settings", marker={"symbol": "star", "size": 16}),`,
+    `        go.Scatter(x=made[${across}], y=made[${up}], mode="markers+text", text=[str(i + 1) for i in made.index], textposition="top center", name="Runs you made"),`,
+    ...(view.held
+      ? []
+      : [`        go.Scatter(x=[star[${across}]], y=[star[${up}]], mode="markers", name="Balanced settings", marker={"symbol": "star", "size": 16}),`]),
     "    ]",
     ")",
     ...shown(axisOf(goalOf(view.across)), axisOf(goalOf(view.up))),
@@ -1926,11 +1970,14 @@ export function balanceCode(balance, spec) {
   return [
     ...imports,
     ...(holds ? [heldComment(held, spec.factors), ...HELD_AT] : []),
+    ...indicatorLines(spec, Object.values(formulas).join(" + ")),
     `# Each response with a goal, fitted with its own ${mixture ? "Scheffé model" : "model"} to the runs that have its result.`,
-    "models = []",
+    `models, analyses${holds ? ", fitted" : ""} = [], {}${holds ? ", {}" : ""}`,
     `for name, model in ${repr(formulas)}.items():`,
     "    done = runs[name].notna()",
     `    fit = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="coefficients", coding="actual"${levelArg()})`,
+    ...(holds ? ['    fitted[name] = fit["coefficients"]  # as fitted, before the levels are held'] : []),
+    "    analyses[name] = fit  # with its unscaled covariance, for how far a setting lies from the runs",
     `    coefficients = ${holds ? `held_at(fit["coefficients"], ${repr(held)})` : 'fit["coefficients"]'}`,
     `    models.append({"response_name": name, "coefficients": coefficients, "factor_names": ${repr(numeric.map((f) => f.name))}})`,
     "",

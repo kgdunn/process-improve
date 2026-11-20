@@ -356,6 +356,7 @@ import {
   sameCampaign,
   shareable,
   studyFormat,
+  OVERALL_D,
   studySettings,
   timeAgo,
   unpackCampaign,
@@ -596,7 +597,36 @@ function toast(text, state = "ok") {
 
 // ---------------------------------------------------------------- state
 /** The trade-offs' view of a study just opened: nothing tried, picked, limited or chosen yet. */
-const newTrade = () => ({ tried: null, across: null, up: null, colour: "", limits: {}, chosen: null });
+const newTrade = () => ({ tried: null, across: null, up: null, colour: "", limits: {}, chosen: null, levels: {}, choose: null });
+
+/**
+ * What a study keeps of its trade-off chart (campaign.js tradeKept): the axes, the colour, the limits typed, the
+ * levels drawn at and the settings chosen. Nothing before the chart is drawn, so a study with none keeps its format.
+ */
+function keptTrade() {
+  const { tried, across, up, colour, limits, levels, chosen } = state.trade;
+  if (!tried) return {};
+  const typed = Object.entries(limits).filter(([, ends]) => ends.some((v) => v !== null));
+  return {
+    across,
+    up,
+    ...(colour ? { colour } : {}),
+    ...(typed.length ? { limits: Object.fromEntries(typed) } : {}),
+    ...(Object.keys(levels ?? {}).length ? { levels } : {}),
+    ...(chosen ? { chosen: chosen.settings } : {}),
+  };
+}
+
+/** The trade-off chart as a study opened keeps it: drawn again when its balance is, the choice found among the settings tried. */
+const tradeOpened = (kept = {}) => ({
+  ...newTrade(),
+  across: kept.across ?? null,
+  up: kept.up ?? null,
+  colour: kept.colour ?? "",
+  limits: structuredClone(kept.limits ?? {}),
+  levels: structuredClone(kept.levels ?? {}),
+  choose: kept.chosen ?? null,
+});
 
 const state = {
   phase: "plan", // the phase on show: "plan", "run" or "learn"
@@ -3898,6 +3928,8 @@ async function closingSections() {
   const sections = [];
   if (!$("#balance").hidden && state.balance) {
     const html = [reportCopy($("#balance-out")), chartsHtml(await chartsWithin($("#balance")))];
+    // The settings chosen on the trade-off chart, under it, as Learn says them.
+    if (state.trade.chosen && !$("#trade-offs").hidden) html.push(reportCopy($("#trade-chosen")));
     sections.push({ heading: $("#h-balance").textContent, html: html.join("\n") });
   }
   if (!$("#what-if").hidden && !$("#what-if-kept").hidden) {
@@ -5992,10 +6024,8 @@ function clearBalance() {
 // ---------------------------------------------------------------- the trade-offs between the responses
 let tradeTicket = 0;
 let tradeTimer = null;
-/** What the list of what colours the points calls the overall desirability: no response's column, which is a name. */
-const OVERALL_D = "(D)";
 
-/** Take the trade-offs away: there is no balance to draw them at, or the study is a mixture's. */
+/** Take the trade-offs away: there is no balance to draw them at, or no factor with a range to try. */
 function clearTradeOffs() {
   tradeTicket += 1;
   clearTimeout(tradeTimer);
@@ -6014,12 +6044,19 @@ const factorUnits = () => Object.fromEntries(state.design.spec.factors.map((f) =
  */
 async function findTradeOffs() {
   const b = state.balance;
-  if (!b || blendStudy() || !b.settings.some((s) => s.kind !== "categorical")) {
+  // A mixture's are drawn over its blends; a study of factors needs one with a range to try settings along.
+  if (!b || (!blendStudy() && !b.settings.some((s) => s.kind !== "categorical"))) {
     clearTradeOffs();
     return;
   }
   const mine = ++tradeTicket;
-  const reply = await call("api_trade_offs", { ...balanceAsked(), at: b.coded });
+  // Each categorical factor at the level the reader drew the chart at, else at the balanced settings' level.
+  const levels = Object.fromEntries(
+    tradeFactors()
+      .filter((f) => f.kind === "categorical" && state.trade.levels?.[f.name] !== undefined)
+      .map((f) => [f.name, codedLevel(f, state.trade.levels[f.name])]),
+  );
+  const reply = await call("api_trade_offs", { ...balanceAsked(), at: { ...b.coded, ...levels } });
   if (mine !== tradeTicket || state.balance !== b) return;
   if (!reply.ok) {
     clearTradeOffs(); // the balance stands without them
@@ -6034,9 +6071,33 @@ async function findTradeOffs() {
   // The settings chosen stay chosen while the models say the same of the settings tried, as after confirmation runs.
   const before = state.trade.tried?.candidates.d;
   const same = before?.length === reply.result.candidates.d.length && before.every((d, i) => d === reply.result.candidates.d[i]);
-  state.trade = { tried: reply.result, across, up, colour, limits, chosen: same ? state.trade.chosen : null };
+  state.trade = { ...state.trade, tried: reply.result, across, up, colour, limits, chosen: same ? state.trade.chosen : null };
   renderTradeOffs();
+  const choose = state.trade.choose;
+  if (choose) {
+    // The choice a study kept: the settings tried are drawn as they were, so it is found among them, or the others.
+    state.trade = { ...state.trade, choose: null };
+    const { candidates, held, alternatives } = reply.result;
+    const levelsMatch = held.every((h) => choose[h.name] === undefined || choose[h.name] === h.value);
+    const at = (settings) => Object.entries(settings).every(([name, v]) => choose[name] === v);
+    const place = candidates.d.findIndex((_, i) => at(Object.fromEntries(Object.entries(candidates.settings).map(([name, values]) => [name, values[i]]))));
+    const other = alternatives.findIndex((a) => at(a.settings));
+    if (levelsMatch && place >= 0) chooseCandidate(place);
+    else if (levelsMatch && other >= 0) chooseAlternative(other);
+  }
 }
+
+/** A categorical factor's level, coded as the models take it: its levels spread evenly from -1 to +1. */
+function codedLevel(f, level) {
+  const levels = f.levels ?? [f.low, f.high];
+  return -1 + (2 * levels.indexOf(level)) / (levels.length - 1);
+}
+
+/** Whether the chart is drawn at the balanced settings' levels: only then is the balance's star on it. */
+const atBalancedLevels = () => state.trade.tried.held.every((h) => balancedLevel(h.name) === h.value);
+
+/** The level the balance found for a categorical factor. */
+const balancedLevel = (name) => state.balance.settings.find((s) => s.name === name)?.value;
 
 /** The study's factors with each one's kind, as the what-if panel has them, or else as the brief does. */
 const tradeFactors = () =>
@@ -6054,8 +6115,8 @@ function renderTradeOffs() {
   const drawn = tried.candidates.d.length;
   const held = tried.held.map((h) => `${h.name} at ${h.value}`).join(", ");
   $("#trade-about").textContent =
-    `Each point is one of ${drawn.toLocaleString("en")} settings tried on the models${held ? `, with ${held}` : ""}, drawn evenly ` +
-    "from the ranges the limits allow. The line is the best one response can be for each value of the other. A paler " +
+    `Each point is one of ${drawn.toLocaleString("en")} ${blendStudy() ? "blends" : "settings"} tried on the models${held ? `, with ${held}` : ""}, drawn evenly ` +
+    `from the ${blendStudy() ? "blends the bounds" : "ranges the limits"} allow. The line is the best one response can be for each value of the other. A paler ` +
     "point is further from your runs than any run lies: there the models guess. Press a point to choose its settings.";
   const options = (chosen, list) =>
     list.map(([value, text]) => `<option value="${escape(value)}"${value === chosen ? " selected" : ""}>${escape(text)}</option>`).join("");
@@ -6063,6 +6124,22 @@ function renderTradeOffs() {
   $("#trade-across").innerHTML = options(across, named);
   $("#trade-up").innerHTML = options(up, named);
   $("#trade-colour").innerHTML = options(colour, [["", "Nothing"], ...named, [OVERALL_D, "Overall desirability, D"]]);
+  // A box for each categorical factor: the chart is drawn at the level it holds, the balanced one at first.
+  const byName = Object.fromEntries(tradeFactors().map((f) => [f.name, f]));
+  $("#trade-levels").replaceChildren(
+    ...tried.held.map((h) => {
+      const f = byName[h.name];
+      const select = el("select", "trade-level", "");
+      select.dataset.factor = h.name;
+      for (const level of f.levels ?? [f.low, f.high]) {
+        const balancedHere = level === balancedLevel(h.name);
+        select.append(new Option(balancedHere ? `${level} (balanced)` : String(level), level, false, level === h.value));
+      }
+      const label = el("label", "", `${h.name} at `);
+      label.append(select);
+      return label;
+    }),
+  );
   const t = $("#trade-limits");
   const key = JSON.stringify(named);
   if (t.dataset.key !== key) {
@@ -6119,7 +6196,7 @@ function tradeDrawn() {
     return Number.isFinite(x) && Number.isFinite(y) ? [{ run: runOrderOf(place), across: x, up: y }] : [];
   });
   const nearly = tried.alternatives.map((a) => ({ across: a.responses[across], up: a.responses[up] }));
-  const star = { across: goalAcross.predicted, up: goalUp.predicted };
+  const star = atBalancedLevels() ? { across: goalAcross.predicted, up: goalUp.predicted } : null;
   return { across: goalAcross, up: goalUp, tried: points, front, colour: tint, runs, balanced: star, chosen: chosen && chosenPoint(chosen), nearly, met: at.length };
 }
 
@@ -6151,12 +6228,15 @@ async function drawTradeChart() {
       ? `${view.met.toLocaleString("en")} of the ${tried.toLocaleString("en")} settings tried meet your limits.`
       : "None of the settings tried meets every limit: loosen one.";
   card.hidden = false;
-  card.querySelector("figcaption").textContent =
-    "The star is the balanced settings. Settings on the line cannot be bettered on one response without giving up some of the other.";
+  const levelled = state.trade.tried.held.map((h) => `${h.name} at ${h.value}`).join(", ");
+  card.querySelector("figcaption").textContent = atBalancedLevels()
+    ? "The star is the balanced settings. Settings on the line cannot be bettered on one response without giving up some of the other."
+    : `Drawn with ${levelled}: the balanced settings are at another level, so no star. Settings on the line cannot be bettered on one response without giving up some of the other.`;
   const plot = card.querySelector(".plot");
   const python = figureAfter("balance", () => {
     const { tried, across, up, colour, limits } = state.trade;
-    return tradeOffCode({ asked: tried.asked, across, up, colour, limits }, state.balance, state.design.spec);
+    const view = { asked: tried.asked, across, up, colour, limits, held: atBalancedLevels() ? null : tried.held_columns };
+    return tradeOffCode(view, state.balance, state.design.spec);
   });
   try {
     await draw(plot, () => tradeOffFigure(view), state.plotlyJs, 440, { python });
@@ -6174,13 +6254,24 @@ async function drawTradeChart() {
 }
 
 /** The reader picked what the chart shows: another response on an axis, or what the points are coloured by. */
-function tradeViewChanged() {
+function tradeViewChanged(event) {
   if (!state.trade.tried) return;
+  if (event?.target?.classList.contains("trade-level")) {
+    // Another level: the settings tried are drawn at it, so Python is asked again; the keyboard stays on the box.
+    state.trade = { ...state.trade, levels: { ...state.trade.levels, [event.target.dataset.factor]: event.target.value } };
+    const factor = event.target.dataset.factor;
+    findTradeOffs().then(() => {
+      document.querySelector(`#trade-levels select[data-factor="${CSS.escape(factor)}"]`)?.focus();
+      scheduleSave();
+    });
+    return;
+  }
   let [across, up] = [$("#trade-across").value, $("#trade-up").value];
   // The two axes show two responses: choosing one axis's response for the other swaps them.
   if (across === up) [across, up] = across === state.trade.across ? [state.trade.up, up] : [across, state.trade.across];
   state.trade = { ...state.trade, across, up, colour: $("#trade-colour").value };
   renderTradeOffs();
+  scheduleSave(); // the study keeps what its chart shows
 }
 
 /** The reader typed a limit on a response: the chart keeps the settings that meet it, a moment after the last key. */
@@ -6190,7 +6281,10 @@ function tradeLimitTyped(e) {
   const ends = ["low", "high"].map((end) => numberOrNull(tr.querySelector(`[name="${end}"]`).value));
   state.trade = { ...state.trade, limits: { ...state.trade.limits, [tr.dataset.response]: ends } };
   clearTimeout(tradeTimer);
-  tradeTimer = setTimeout(drawTradeChart, 300);
+  tradeTimer = setTimeout(() => {
+    drawTradeChart();
+    scheduleSave(); // and the limits typed
+  }, 300);
 }
 
 /** Choose one of the settings tried, by its place among them: its settings, and each response's prediction there. */
@@ -6215,6 +6309,7 @@ function chooseSettings(chosen) {
   }
   renderTradeChosen();
   drawTradeChart();
+  if (state.design) scheduleSave(); // the study keeps the choice
 }
 
 /** Say the settings chosen and each response there, with what to do with them; nothing when none is chosen. */
@@ -6292,9 +6387,13 @@ function renderTradeNearly() {
 /** "Choose" was pressed beside settings nearly as good: they become the reader's choice. */
 function tradeNearlyPressed(e) {
   const i = e.target.closest("button[data-nearly]")?.dataset.nearly;
-  if (i === undefined) return;
+  if (i !== undefined) chooseAlternative(Number(i));
+}
+
+/** Choose one of the settings nearly as good as the balanced ones, by its place among them. */
+function chooseAlternative(i) {
   const { alternatives, held } = state.trade.tried;
-  const a = alternatives[Number(i)];
+  const a = alternatives[i];
   const settings = { ...a.settings, ...Object.fromEntries(held.map((h) => [h.name, h.value])) };
   chooseSettings({ settings, responses: a.responses, d: a.composite, far: false });
 }
@@ -8556,6 +8655,7 @@ function currentCampaign() {
       builds_on: state.buildsOn,
       planned: state.design.planned ?? {},
       settings: state.settings,
+      trade: keptTrade(),
     }),
     title: state.campaign?.title ?? titleOf(spec),
     design: { spec, columns, rows, model, n_runs: rows.length, facts: facts ?? null, outside_range: outside ?? [] },
@@ -8572,6 +8672,7 @@ function currentCampaign() {
     ...keptAsked(),
     ...(state.buildsOn.length ? { builds_on: state.buildsOn } : {}),
     ...(Object.keys(state.settings).length ? { settings: state.settings } : {}),
+    ...(Object.keys(keptTrade()).length ? { trade: keptTrade() } : {}),
     ...sentCurves(),
   };
 }
@@ -8877,7 +8978,7 @@ async function openCampaign(c, record, message, resume = false) {
   state.shown = names[0];
   state.models = { [names[0]]: c.model, ...(c.more_models ?? {}) };
   state.goals = structuredClone(c.goals ?? {});
-  state.trade = newTrade();
+  state.trade = tradeOpened(c.trade);
   state.target = { ...newTarget(), targets: structuredClone(c.targets ?? {}) };
   state.window = { ...newWindow(), windows: structuredClone(c.windows ?? {}) };
   state.scenarios = structuredClone(c.what_if ?? []);
@@ -9827,7 +9928,7 @@ $("#balance-reset").onclick = () => {
   scheduleSave();
   rebalance();
 };
-for (const id of ["#trade-across", "#trade-up", "#trade-colour"]) $(id).addEventListener("change", tradeViewChanged);
+for (const id of ["#trade-across", "#trade-up", "#trade-colour", "#trade-levels"]) $(id).addEventListener("change", tradeViewChanged);
 $("#trade-limits").addEventListener("input", tradeLimitTyped);
 $("#trade-chosen").addEventListener("click", tradeChosenPressed);
 $("#trade-nearly").addEventListener("click", tradeNearlyPressed);
