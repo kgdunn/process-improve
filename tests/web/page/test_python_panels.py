@@ -1618,6 +1618,23 @@ def test_the_coefficients_code_draws_each_estimate_with_its_interval(api, node, 
 
 
 @pytest.mark.slow
+def test_the_coefficients_code_marks_each_estimate_s_true_value_for_simulated_results(api, node, monkeypatch):
+    """With results simulated from a known process, the code draws the true values the page marks (#1242)."""
+    demo = api.ok("api_catalogue")["demo"]
+    held = held_of(api.ok("api_make_design", demo["design"]))
+    simulation = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 1})
+    responses = simulation["responses"]
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses, "truth": simulation["truth"]})
+    about = {"process": simulation, "model": analysis["formula"], "complete": True}
+    steps = steps_of(held, responses, analysis)
+    truth, estimates = own_figure(node, monkeypatch, steps, "coefficients", held["spec"], about).data
+    shown = [c for c in analysis["coefficients"] if c["term"] != "Intercept"]
+    assert (truth.name, list(truth.y)) == ("True value", [c["term"] for c in shown]), "under the estimates"
+    np.testing.assert_allclose(truth.x, [c["true_value"] for c in shown], atol=1e-8)
+    np.testing.assert_allclose(estimates.x, [c["coefficient"] for c in shown])
+
+
+@pytest.mark.slow
 def test_the_coefficients_code_draws_a_fit_that_uses_every_run_with_no_interval(api, node, monkeypatch):
     spec = {"design_type": "plackett_burman", "factors": factors_named(*"ABCDEFG"), "n_center_points": 0}
     held = held_of(api.ok("api_make_design", spec))

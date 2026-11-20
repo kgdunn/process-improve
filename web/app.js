@@ -5603,7 +5603,14 @@ function figureAlone(key, plots = null) {
     const margins = Boolean(lenth) && !coefficients.some((c) => c.ci_high !== null && c.ci_high !== undefined);
     return ownFigureCode(key, CHARTS.coefficients.title, spec, { lenth: margins, model: formula ?? model, complete });
   }
-  const about = { contour: plots?.plot_options?.contour, cox: plots?.cox, ternary: plots?.ternary, process: processOf(spec.response) };
+  const about = {
+    contour: plots?.plot_options?.contour,
+    cox: plots?.cox,
+    ternary: plots?.ternary,
+    process: processOf(spec.response),
+    model: formula ?? model,
+    complete,
+  };
   return ownFigureCode(key, CHARTS[key].title, spec, about);
 }
 
