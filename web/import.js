@@ -57,7 +57,7 @@ export function importProblems(columns) {
     if (said) problems.push(said.replace("two factors cannot share a name", "two columns of the study cannot share a name"));
   });
   for (const column of responses) {
-    if (column.kind !== "number") problems.push(`${column.heading} holds labels, and a response is a number.`);
+    if (column.kind === "text") problems.push(`${column.heading} holds labels, and a response is a number.`);
   }
   for (const column of factors.filter(takesRange)) {
     const typed = (value) => (value === null || value === undefined || value === "" ? NaN : Number(value)); // a blank is no number

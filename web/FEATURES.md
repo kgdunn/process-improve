@@ -542,6 +542,11 @@ Also:
   CenterPt or PtType; JMP's Pattern; Design-Expert's Std Order, Run Order and point types;
   MODDE's Exp No, Exp Name, Run Order and Incl/Excl). A column headed Block is kept as the runs'
   blocks.
+  - *Details:* Design-Expert marks each factor with its letter ("A:Temp"), so every lettered
+    column is a factor, named without its letter, and the rest are responses. Its workbook's
+    lines of "Factor 1" above the headings and of units below them are read as such. Its Group
+    column is the whole plot of a split-plot design. A design exported before it was run opens
+    with its responses still to measure.
 - **A split-plot experiment run elsewhere.** Mark the column that says which group of runs
   shared one setting of a factor that is hard to change, such as a batch of pulp split into
   samples, as the whole plot, and any column of replicates or days as the block. Learn then
