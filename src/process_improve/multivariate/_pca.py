@@ -150,7 +150,7 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915
     ekf_max_iter: int,
     ekf_tol: float,
     scale_inside_folds: bool,
-    random_state: int | None,
+    random_state: int | np.random.Generator | None,
 ) -> _EkfPress:
     """Element-wise k-fold (ekf) PCA cross-validation.
 
@@ -201,7 +201,7 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915
         the prior behaviour: the caller is responsible for scaling, the
         in-loop column-mean drifts with the EM imputation, and PRESS is in
         the units of whatever matrix was passed.
-    random_state : int or None
+    random_state : int, numpy.random.Generator or None
         Seed for the element-fold permutation, for reproducibility across
         repeats.
 
@@ -474,7 +474,7 @@ def _pca_ckf_press(
     max_components: int,
     *,
     n_folds: int,
-    random_state: int | None,
+    random_state: int | np.random.Generator | None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float, np.ndarray]:
     """Column-wise k-fold (ckf) PCA cross-validation (#374).
 
@@ -514,7 +514,7 @@ def _pca_ckf_press(
     n_folds : int
         Number of column groups. Capped at the number of columns, since a group cannot be
         empty; ``n_folds == n_features`` is leave-one-variable-out.
-    random_state : int or None
+    random_state : int, numpy.random.Generator or None
         Seed for the column permutation that forms the groups.
 
     Returns
@@ -694,7 +694,7 @@ def _eastment_krzanowski_press(
     max_components: int,
     *,
     n_folds: int,
-    random_state: int | None,
+    random_state: int | np.random.Generator | None,
 ) -> tuple[np.ndarray, np.ndarray, float, np.ndarray]:
     r"""Cross-validated prediction error by the two-model scheme of Eastment and Krzanowski.
 
@@ -732,7 +732,7 @@ def _eastment_krzanowski_press(
         Largest component count to evaluate.
     n_folds : int
         Number of row groups, and of column groups.
-    random_state : int or None
+    random_state : int, numpy.random.Generator or None
         Seed for the row and column permutations.
 
     Returns
@@ -1710,7 +1710,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         quantile: float = 0.95,
         surrogate: typing.Literal["normal", "permutation"] = "normal",
         scale: bool = True,
-        random_state: int | None = None,
+        random_state: int | np.random.Generator | None = None,
     ) -> Bunch:
         """Horn (1965) parallel analysis component-count estimate.
 
@@ -1752,8 +1752,8 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             unit-variance scaled, parallel analysis defaults to autoscaling
             here so wildly different column scales do not dominate the null
             comparison.
-        random_state : int, optional
-            Seed for the null-matrix simulations.
+        random_state : int, numpy.random.Generator or None, optional
+            Seed or generator for the null-matrix simulations.
 
         Returns
         -------
@@ -1843,7 +1843,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         scale_inside_folds: bool = True,
         ekf_max_iter: int = 50,
         ekf_tol: float = 1e-6,
-        random_state: int | None = None,
+        random_state: int | np.random.Generator | None = None,
         return_consensus: bool = False,
     ) -> Bunch:
         """Select the number of PCA components via cross-validation.
@@ -1965,8 +1965,8 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             per-component NIPALS loop, which ``PCA(tol=..., max_iter=...)``
             governs (#588). Their old names ``n_iter`` and ``tol`` were removed
             in 2.0.
-        random_state : int, optional
-            Seed for the ekf element-fold permutation.
+        random_state : int, numpy.random.Generator or None, optional
+            Seed or generator for the ekf element-fold permutation.
         return_consensus : bool, default False
             When ``True``, also cross-check the CV recommendation against
             two cheap alternative selectors: Minka's PPCA MLE

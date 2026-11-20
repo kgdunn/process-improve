@@ -327,7 +327,12 @@ class FoldsByClass(int):
 
 
 def _shuffled_folds(
-    n_splits: int, X: pd.DataFrame, Y: pd.DataFrame, *, n_repeats: int = 1, random_state: int | None = None
+    n_splits: int,
+    X: pd.DataFrame,
+    Y: pd.DataFrame,
+    *,
+    n_repeats: int = 1,
+    random_state: int | np.random.Generator | None = None,
 ) -> list[tuple[np.ndarray, np.ndarray]]:
     """Return the folds an integer ``cv`` stands for: the rows shuffled into ``n_splits`` folds, ``n_repeats`` times.
 

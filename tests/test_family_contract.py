@@ -60,7 +60,9 @@ from process_improve.multivariate.methods import (
     DataFrameDict,
     NotEnoughVarianceError,
     Resampler,
+    check_predictive_signal,
     compare_cv_criteria,
+    count_discoveries_under_null,
     pseudo_validation_set,
     randomization_test_mbpls,
 )
@@ -1051,6 +1053,16 @@ def _random_state_calls() -> dict[str, Callable[[Seed], object]]:
             X, y, max_components=2, cv=3, n_permutations=9, n_cv_permutations=4, random_state=seed
         ),
         "pseudo_validation_set": lambda seed: pseudo_validation_set(X, y, n_components=2, cv=3, random_state=seed),
+        "check_predictive_signal": lambda seed: check_predictive_signal(
+            X, pd.DataFrame(y), n_components=1, n_perm=4, random_state=seed
+        ),
+        "count_discoveries_under_null": lambda seed: count_discoveries_under_null(
+            lambda x, response: [c for c in x if abs(np.corrcoef(x[c], response.iloc[:, 0])[0, 1]) > 0.3],
+            X,
+            pd.DataFrame(y),
+            n_perm=9,
+            random_state=seed,
+        ),
     }
     for estimator, response in ((PLS, y), (PRM, y), (PLSDA, labels)):
         calls |= _cross_validation_calls(estimator, X, response)
@@ -1058,9 +1070,7 @@ def _random_state_calls() -> dict[str, Callable[[Seed], object]]:
 
 
 #: Public callables that name their seed otherwise today, with the issue.
-RANDOM_STATE_GAPS: dict[str, str] = dict.fromkeys(
-    ("check_predictive_signal", "count_discoveries_under_null"), "#1149 aspect 13: named seed, and an int only"
-)
+RANDOM_STATE_GAPS: dict[str, str] = {}
 
 
 def _numbers(result: object) -> list[np.ndarray]:
@@ -1129,9 +1139,7 @@ def test_a_seed_is_named_random_state() -> None:
 
 
 #: Callables whose signature, and docstring, say ``random_state`` is an int, though they take a Generator too.
-RANDOM_STATE_ANNOTATION_GAPS: dict[str, str] = dict.fromkeys(
-    ("PCA.parallel_analysis", "PCA.select_n_components"), "#1149 aspect 13: annotated int | None"
-)
+RANDOM_STATE_ANNOTATION_GAPS: dict[str, str] = {}
 
 
 def test_the_signature_says_random_state_takes_a_generator() -> None:
