@@ -43,9 +43,9 @@ if TYPE_CHECKING:
 #: What a study can aim for.
 GOALS = ("maximize", "minimize")
 
-#: The most runs one call proposes, and the fewest settings it draws from the region to choose among.
+#: The most runs one call proposes, and the settings it draws from the region to choose each among.
 MAX_RUNS = 50
-MIN_CANDIDATES = 100
+N_CANDIDATES = 4000
 
 #: Rounds of the local search around the best setting drawn, the settings each draws, and the first round's
 #: half-width in coded units; each round halves it.
@@ -88,7 +88,6 @@ def suggest_next_runs(  # noqa: PLR0913 - the study, its goal, where to look and
     region: DesignRegion | None = None,
     n_runs: int = 1,
     noise: bool = True,
-    n_candidates: int = 4000,
     random_state: int | np.random.Generator | None = 42,
 ) -> SuggestedRuns:
     """Propose the next runs: where the expected improvement over the best result so far is largest.
@@ -111,9 +110,6 @@ def suggest_next_runs(  # noqa: PLR0913 - the study, its goal, where to look and
     noise : bool
         Fit the model with a noise term, as a physical experiment's runs need; False for a
         computer experiment, which gives the same output at the same inputs.
-    n_candidates : int
-        Settings drawn from the region to choose each run among, before a local search around
-        the best of them.
     random_state : int, numpy.random.Generator or None
         Seeds the draws and the model's fit.
 
@@ -126,8 +122,8 @@ def suggest_next_runs(  # noqa: PLR0913 - the study, its goal, where to look and
     ------
     ValueError
         If a factor is not numeric, the goal is not one of :data:`GOALS`, a factor or the
-        response is not a column of ``runs``, ``n_runs`` or ``n_candidates`` is out of range, or
-        the model cannot be fitted (see :func:`fit_gaussian_process`).
+        response is not a column of ``runs``, ``n_runs`` is out of range, or the model cannot be
+        fitted (see :func:`fit_gaussian_process`).
 
     Examples
     --------
@@ -140,7 +136,7 @@ def suggest_next_runs(  # noqa: PLR0913 - the study, its goal, where to look and
     >>> 0.3 < found.runs["x"].iloc[0] < 0.7  # the maximum of sin(3x) is at 0.52
     True
     """
-    _check(factors, runs, response, goal, n_runs, n_candidates)
+    _check(factors, runs, response, goal, n_runs)
     names = [f.name for f in factors]
     rng = check_random_state(random_state)
     seed = int(rng.integers(2**31))
@@ -153,7 +149,7 @@ def suggest_next_runs(  # noqa: PLR0913 - the study, its goal, where to look and
     scale = abs(best) or float(np.ptp(runs[response].to_numpy(dtype=float)))
     chosen, model, target = [], fit, sign * best
     for _ in range(n_runs):
-        setting, gain = _best_setting(model, factors, region, target, sign, n_candidates, rng)
+        setting, gain = _best_setting(model, factors, region, target, sign, rng)
         predicted = model.predict(setting)
         chosen.append(setting.assign(**predicted[["predicted", "std_error"]], expected_improvement=gain))
         # The kriging believer: the run is taken to give its prediction, which joins the runs and may be the new
@@ -165,7 +161,7 @@ def suggest_next_runs(  # noqa: PLR0913 - the study, its goal, where to look and
     return SuggestedRuns(proposed, best, ratio, fit)
 
 
-def _check(factors: list[Factor], runs: pd.DataFrame, response: str, goal: str, n_runs: int, n_candidates: int) -> None:
+def _check(factors: list[Factor], runs: pd.DataFrame, response: str, goal: str, n_runs: int) -> None:
     """Refuse what :func:`suggest_next_runs` cannot work with, each in a sentence."""
     if any(f.type != FactorType.continuous for f in factors) or not factors:
         msg = "suggest_next_runs takes one or more numeric factors; a categorical factor or a blend is not taken yet."
@@ -179,9 +175,6 @@ def _check(factors: list[Factor], runs: pd.DataFrame, response: str, goal: str, 
         raise ValueError(msg)
     if not (isinstance(n_runs, int) and 1 <= n_runs <= MAX_RUNS):
         msg = f"n_runs={n_runs!r}: propose 1 to {MAX_RUNS} runs."
-        raise ValueError(msg)
-    if not (isinstance(n_candidates, int) and n_candidates >= MIN_CANDIDATES):
-        msg = f"n_candidates={n_candidates!r}: draw at least {MIN_CANDIDATES} settings to choose among."
         raise ValueError(msg)
 
 
@@ -208,7 +201,6 @@ def _best_setting(
     region: DesignRegion,
     best: float,
     sign: float,
-    n_candidates: int,
     rng: np.random.Generator,
 ) -> tuple[pd.DataFrame, float]:
     """Return the setting of largest expected improvement, as one row in the factors' units, and that improvement.
@@ -216,7 +208,7 @@ def _best_setting(
     Settings are drawn from the region, and the best is then searched around: each round draws settings in a
     box about it, half as wide as the round before, and keeps those the region allows.
     """
-    coded = region.sample(n_candidates, rng)
+    coded = region.sample(N_CANDIDATES, rng)
     gains = _expected_improvement(fit, _actual(coded, factors), best, sign)
     at, gain = coded[int(np.argmax(gains))], float(np.max(gains))
     width = _POLISH_WIDTH

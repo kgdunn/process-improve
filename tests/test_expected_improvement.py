@@ -101,7 +101,6 @@ def test_a_believed_run_joins_the_model_with_its_parameters_kept():
         ({"goal": "target"}, "goal='target' is not one of"),
         ({"response": "z"}, "The runs have no column 'z'"),
         ({"n_runs": 0}, "propose 1 to 50 runs"),
-        ({"n_candidates": 10}, "draw at least 100 settings"),
     ],
 )
 def test_what_it_cannot_work_with_is_refused_in_a_sentence(change, refusal):

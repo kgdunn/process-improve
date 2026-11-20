@@ -847,6 +847,14 @@ READS: dict[str, list[str]] = {
     "next runs waiting": [
         "waiting: str",
     ],
+    "runs suggested": [
+        "runs[].settings.T: number",
+        "runs[].settings.P: number",
+        "runs[].settings.F: number",
+        "runs[].predicted: number",
+        "runs[].why: str",
+        "stop: str?",
+    ],
     "runs added": [
         "added: int",
         "n_runs: int",
@@ -1068,6 +1076,7 @@ ENTRY_POINTS = {
     "next runs called for": "api_next_runs",
     "next runs confirmed at": "api_next_runs",
     "next runs waiting": "api_next_runs",
+    "runs suggested": "api_suggest_runs",
     "runs added": "api_add_runs",
     "limits": "api_limits",
     "limits with a problem": "api_limits",
@@ -1439,6 +1448,7 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "next runs called for": lambda: analysed,
         "next runs confirmed at": lambda: aimed_at(api, worked_example, 60),
         "next runs waiting": lambda: {**analysed, "responses": [None, *analysed["responses"][1:]]},
+        "runs suggested": lambda: {**analysed, "n_runs": 2},
         "limits": lambda: {"factors": FACTORS, "constraints": LIMITS},
         "limits with a problem": lambda: {"factors": FACTORS, "constraints": [{"expression": "T + Z <= 3"}]},
         "limits proposed": lambda: {
