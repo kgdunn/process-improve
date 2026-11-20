@@ -95,6 +95,46 @@ def test_sample_weight_half_zero_equals_fit_on_remaining_half() -> None:
         )
 
 
+def test_sample_weight_half_zero_judges_rows_as_the_fit_on_the_remaining_half() -> None:
+    """The scores' spread and the limits are the surviving rows' too, however far out the dropped rows are (#1149).
+
+    Taken over every row, the dropped rows, 50 times further out here, made the score variances 100
+    times larger, every kept row's T² near 0, and the SPE limit 50 times higher.
+    """
+    X, Y = _latent_xy(40, 5, 2, seed=3)
+    Xs, Ys = MCUVScaler().fit_transform(X), MCUVScaler().fit_transform(Y)
+    w = np.ones(len(X))
+    w[::4] = 0.0
+    Xs.iloc[::4] *= 50
+    kept = w > 0
+    weighted = PLS(n_components=2).fit(Xs, Ys, sample_weight=w)
+    subset = PLS(n_components=2).fit(Xs[kept], Ys[kept])
+
+    np.testing.assert_allclose(weighted.explained_variance_, subset.explained_variance_, rtol=1e-9)
+    np.testing.assert_allclose(weighted.hotellings_t2_[kept], subset.hotellings_t2_, rtol=1e-9)
+    for judged_rows in ("fitted", "new"):
+        assert weighted.hotellings_t2_limit(judged_rows=judged_rows) == pytest.approx(
+            subset.hotellings_t2_limit(judged_rows=judged_rows), rel=1e-12
+        )
+    assert weighted.spe_limit() == pytest.approx(subset.spe_limit(), rel=1e-9)
+    np.testing.assert_allclose(weighted.score_limit(), subset.score_limit(), rtol=1e-9)
+    np.testing.assert_allclose(
+        weighted.ellipse_coordinates(1, 2, judged_rows="fitted"),
+        subset.ellipse_coordinates(1, 2, judged_rows="fitted"),
+        rtol=1e-9,
+    )
+
+
+def test_sample_weights_count_relative_to_each_other() -> None:
+    """Weights scaled together give the same scores' spread and limits: only their ratios matter (#1149)."""
+    X, Y = _latent_xy(30, 4, 2, seed=5)
+    w = np.random.default_rng(5).uniform(0.2, 1.0, size=len(X))
+    one, other = (PLS(n_components=2).fit(X, Y, sample_weight=w * factor) for factor in (1.0, 1e-6))
+    np.testing.assert_allclose(other.explained_variance_, one.explained_variance_, rtol=1e-9)
+    assert other.hotellings_t2_limit(judged_rows="new") == pytest.approx(one.hotellings_t2_limit(judged_rows="new"))
+    assert other.spe_limit() == pytest.approx(one.spe_limit())
+
+
 def test_sample_weight_recovers_true_beta_under_heteroscedastic_noise() -> None:
     """Optimal weights down-weight noisy rows: beta is closer to the low-noise-only fit than the unweighted fit."""
     # Comparison is against an "oracle" beta fit on the clean half of the

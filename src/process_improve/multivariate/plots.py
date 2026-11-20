@@ -12,6 +12,7 @@ import pandas as pd
 from pydantic import BaseModel, field_validator
 from sklearn.base import BaseEstimator
 
+from ._common import fitted_rows
 from ._diagnostics import meda as _meda
 from ._diagnostics import omeda as _omeda
 from ._limits import JudgedRows, hotellings_t2_limit, spe_calculation
@@ -862,7 +863,7 @@ def t2_plot(  # noqa: C901
         lambda: hotellings_t2_limit(
             conf_level=setdict["conf_level"],
             n_components=int(n_components),
-            n_rows=model.hotellings_t2_.shape[0],
+            n_rows=fitted_rows(model, model.hotellings_t2_.shape[0]),  # a weighted fit's, by weight (#1149)
             judged_rows=judged_rows,
         ),
     )

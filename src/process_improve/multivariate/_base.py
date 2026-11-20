@@ -28,7 +28,7 @@ import pandas as pd
 from sklearn.base import BaseEstimator
 from sklearn.utils import Bunch
 
-from ._common import _model_method
+from ._common import _model_method, fitted_rows
 from ._diagnostics import (
     eigenvalue_summary as _eigenvalue_summary,
 )
@@ -200,7 +200,7 @@ class _HotellingsT2LimitMixin:
         return _hotellings_t2_limit(
             conf_level=conf_level,
             n_components=self.n_components_,
-            n_rows=self.n_samples_,
+            n_rows=fitted_rows(self, self.n_samples_),  # a weighted fit's rows count by their weights (#1149)
             judged_rows=judged_rows,
         )
 
@@ -308,6 +308,6 @@ class _LatentVariableModel(_RenameGetattrMixin, _HotellingsT2LimitMixin, BaseEst
             n_points=n_points,
             n_components=self.n_components_,
             scaling_factor_for_scores=self.scaling_factor_for_scores_,
-            n_rows=self.n_samples_,
+            n_rows=fitted_rows(self, self.n_samples_),
             judged_rows=judged_rows,
         )

@@ -115,6 +115,80 @@ def components_with_spread(score_sd: np.ndarray) -> np.ndarray:
     return score_sd > epsqrt * float(np.fmax.reduce(score_sd))
 
 
+def _column_exponents(values: np.ndarray) -> np.ndarray:
+    """Return the exponent of the power of two just above each column's largest absolute value (1 when empty).
+
+    Dividing a column by it brings the column within (-1, 1), where neither a sum nor a square overflows,
+    and it is exact: a power of two changes only a float's exponent (#1070, #1149).
+    """
+    largest = np.fmax.reduce(np.abs(values), axis=0)  # fmax skips NaN, and an all-NaN column, without a warning
+    _, exponent = np.frexp(np.where(np.isfinite(largest) & (largest > 0), largest, 1.0))
+    return exponent
+
+
+def column_mean(values: np.ndarray | pd.DataFrame) -> np.ndarray:
+    """Return the mean of each column, missing values skipped, in any units.
+
+    A column of values near the largest float has a sum beyond it, so ``numpy.nanmean`` gave
+    ``inf``, which became a centre of 0 without a word (#1149). Each column is divided first by the
+    power of two just above its largest absolute value, and the mean multiplied back; a column whose
+    sum did not overflow gives the same mean, bit for bit.
+
+    Parameters
+    ----------
+    values : np.ndarray or pd.DataFrame of shape (n_samples, n_features)
+        The data, with NaN where a value is missing.
+
+    Returns
+    -------
+    np.ndarray of shape (n_features,)
+        The means, NaN for a column with no observed value.
+    """
+    values = np.asarray(values, dtype=float)
+    exponent = _column_exponents(values)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)  # a column with no observed value: NaN, which is the answer
+        mean = np.nanmean(np.ldexp(values, -exponent), axis=0)
+    return np.ldexp(mean, exponent)
+
+
+def effective_rows(weights: np.ndarray) -> float:
+    """Return Kish's effective number of rows, ``(sum w)**2 / sum(w**2)``: the number of ones for 0/1 weights.
+
+    A weighted fit judges its rows against the rows it used, each counted as its weight against the
+    others, whatever the weights' scale. A row of weight 0 is left out, as from the fit (#1149).
+    """
+    used = weights[weights > 0]
+    return float(used.sum() ** 2 / (used @ used))
+
+
+def weighted_variance(values: np.ndarray, weights: np.ndarray, *, about_zero: bool = False) -> np.ndarray:
+    """Return each column's variance over the rows of positive weight, in their weights (#1149).
+
+    With weights of 0 or 1 it is the ``ddof=1`` variance of the rows of weight 1, as an unweighted
+    fit to those rows has it; ``about_zero`` takes the mean square about 0, as a score's variance
+    is. The weights are relative: scaled together, they give the same variance.
+    """
+    used = weights > 0
+    weight, kept = weights[used], np.asarray(values, dtype=float)[used]
+    centre = 0.0 if about_zero else (weight @ kept) / weight.sum()
+    n_rows = effective_rows(weights)
+    return (weight @ (kept - centre) ** 2) / weight.sum() * n_rows / (n_rows - 1)
+
+
+def score_variances(scores: np.ndarray, weights: np.ndarray | None) -> np.ndarray:
+    """Return each score's variance, ``t't / (N - 1)``, or a weighted fit's over the rows it used (#1149)."""
+    if weights is None:
+        return np.diag(scores.T @ scores) / (scores.shape[0] - 1)
+    return weighted_variance(scores, weights, about_zero=True)
+
+
+def fitted_rows(model: object, n_rows: int) -> float:
+    """Return the rows a model's limits are judged against: ``n_rows``, or a weighted fit's effective number."""
+    weights = getattr(model, "_row_weights", None)
+    return n_rows if weights is None else effective_rows(weights)
+
+
 def column_sd(values: np.ndarray | pd.DataFrame) -> np.ndarray:
     """Return the sample standard deviation (``ddof=1``) of each column, missing values skipped, in any units.
 
@@ -137,8 +211,7 @@ def column_sd(values: np.ndarray | pd.DataFrame) -> np.ndarray:
         the largest float is inf, with numpy's overflow warning, as ``numpy.nanstd`` gives it.
     """
     values = np.asarray(values, dtype=float)
-    largest = np.fmax.reduce(np.abs(values), axis=0)  # fmax skips NaN, and an all-NaN column, without a warning
-    _, exponent = np.frexp(np.where(np.isfinite(largest) & (largest > 0), largest, 1.0))
+    exponent = _column_exponents(values)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)  # fewer than two observed values: NaN, which is the answer
         spread = np.nanstd(np.ldexp(values, -exponent), axis=0, ddof=1)

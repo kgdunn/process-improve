@@ -2,7 +2,8 @@
 
 Each estimator is fitted to real data in units of 1, and to the same data in other units: 1e9 times
 smaller or larger, and, where the arithmetic would otherwise overflow or underflow on squaring a
-value, 1e150 times larger or 1e160 times smaller. The fits must agree: scores, predictions and SPE in
+value, 1e150 times larger or 1e160 times smaller; where a column's sum would overflow, 1e303 times
+larger. The fits must agree: scores, predictions and SPE in
 proportion to the units where the model works in the units it is given, and equal where it scales;
 Hotelling's T², contribution bars and component counts equal. A floor in data units, such as
 1.5e-8, read data in small units as having no spread and gave other numbers, with no warning.
@@ -19,7 +20,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from process_improve.multivariate._common import column_sd
+from process_improve.multivariate._common import column_mean, column_sd
 from process_improve.multivariate._prm import _spreads
 from process_improve.multivariate._robust import l1_median, row_norms
 from process_improve.multivariate.methods import (
@@ -38,7 +39,8 @@ DATA = Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "mul
 LDPE = pd.read_csv(DATA / "LDPE" / "LDPE.csv", index_col=0)
 #: The fourteen process variables, centred, so a model that does not scale sees them in their units.
 X = LDPE.iloc[:, :14] - LDPE.iloc[:, :14].mean()
-#: The five quality variables; Mw reaches 1.7e5, which is where 1e150 overflows a square.
+#: The five quality variables; Mw reaches 1.7e5, which is where 1e150 overflows a square, and in units of
+#: 1e303 its sum over the 54 runs passes the largest float, though no value does.
 Y = LDPE.iloc[:, 14:]
 BLOCKS = {
     "zone1": X.iloc[:, [0, 1, 2, 5, 7, 9, 11]],
@@ -66,6 +68,24 @@ def _pca_scaled(units: float) -> Outputs:
     """Autoscale, then fit, as usual: nothing depends on the units."""
     model = PCA(n_components=4).fit(MCUVScaler().fit_transform(X * units))
     return {"scores": model.scores_.to_numpy(), "T2": model.hotellings_t2_.to_numpy()}
+
+
+def _pca_scaled_y(units: float) -> Outputs:
+    """Autoscale the quality data, whose column sums pass the largest float in large units, then fit (#1149)."""
+    model = PCA(n_components=2).fit(MCUVScaler().fit_transform(Y * units))
+    return {"scores": model.scores_.to_numpy(), "T2": model.hotellings_t2_.to_numpy()}
+
+
+def _pls_large_y(units: float) -> Outputs:
+    """PLS with only Y in the units: its centre is the mean of a column whose sum passes the largest float."""
+    model = PLS(n_components=3).fit(X, Y * units)
+    return {"scores": model.scores_.to_numpy(), "predictions": model.predict(X).to_numpy() / units}
+
+
+def _mbpls_large_y(units: float) -> Outputs:
+    """MBPLS with only Y in the units, as for PLS."""
+    model = MBPLS(n_components=3).fit(BLOCKS, Y * units)
+    return {"scores": model.super_scores_.to_numpy(), "predictions": model.predict(BLOCKS).to_numpy() / units}
 
 
 def _pca_count(units: float) -> Outputs:
@@ -136,14 +156,17 @@ def _tpls(units: float) -> Outputs:
 CASES: dict[str, tuple[Callable[[float], Outputs], tuple[float, ...]]] = {
     "PCA": (_pca, (1e-9, 1e9)),
     "PCA on autoscaled data": (_pca_scaled, (1e-9, 1e9, 1e150, 1e-160)),
+    "PCA on autoscaled quality data": (_pca_scaled_y, (1e303,)),
     "PCA.select_n_components": (_pca_count, (1e-9, 1e9)),
     "PLS": (lambda units: _pls(units, scale=True), (1e-9, 1e9, 1e150, 1e-160)),
+    "PLS, Y in large units": (_pls_large_y, (1e303,)),
     "PLS(scale=False)": (lambda units: _pls(units, scale=False), (1e-9, 1e9)),
     "PRM": (lambda units: _prm(units, scale=True), (1e-9, 1e9, 1e150, 1e-160)),
     "PRM(scale=False)": (lambda units: _prm(units, scale=False), (1e-9, 1e9)),
     "MBPCA": (_mbpca, (1e-9, 1e9, 1e150, 1e-160)),
     "MBPLS": (_mbpls, (1e-9, 1e9, 1e150, 1e-160)),
-    "TPLS": (_tpls, (1e-9, 1e9, 1e150, 1e-160)),
+    "MBPLS, Y in large units": (_mbpls_large_y, (1e303,)),
+    "TPLS": (_tpls, (1e-9, 1e9, 1e150, 1e-160, 1e303)),
 }
 
 
@@ -170,8 +193,7 @@ def test_the_same_data_in_other_units_give_the_same_model(case: str, units: floa
 
 
 @pytest.mark.dataset
-# PLS's fit statistics (score sds, R², T²) take every row, unweighted, and the far row's squares overflow there.
-@pytest.mark.filterwarnings("ignore:overflow encountered:RuntimeWarning", "ignore:invalid value:RuntimeWarning")
+@pytest.mark.filterwarnings("error")  # the far row is judged in PRM's weights, so no square overflows (#1149)
 @pytest.mark.parametrize("scale", [True, False], ids=["scaled", "unscaled"])
 @pytest.mark.parametrize("block", ["X", "Y", "both"])
 def test_a_prm_row_whose_squares_overflow_gets_a_weight_of_zero(block: str, scale: bool) -> None:
@@ -262,6 +284,26 @@ def test_column_spreads_reach_the_largest_float() -> None:
     np.testing.assert_array_equal(far.transform(frame * 2.0**1023), near.transform(frame))
     with pytest.warns(RuntimeWarning, match="overflow"):
         np.testing.assert_array_equal(column_sd(np.array([[LARGEST], [-LARGEST]])), [np.inf])
+
+
+def test_column_means_reach_the_largest_float() -> None:
+    """A column whose sum passes the largest float has its mean, and MCUVScaler centres it there (#1149).
+
+    numpy's mean was inf, and MCUVScaler took an inf centre for 0, without a word: the column was then
+    scaled about the wrong point. Where no sum overflows, the mean is numpy's, bit for bit.
+    """
+    frame = pd.DataFrame({"a": [5.0, 6.0, 4.5, 5.25], "b": [-3.0, -2.75, -3.5, np.nan]})  # well away from 0
+    units = 2.0**1020  # each value below the largest float; the sum of column a above it
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        near, far = MCUVScaler().fit(frame), MCUVScaler().fit(frame * units)
+        means = column_mean(np.array([[LARGEST, 1.0, np.nan], [LARGEST, 3.0, np.nan]]))
+    np.testing.assert_array_equal(means[:2], [LARGEST, 2.0])
+    assert np.isnan(means[2])
+    np.testing.assert_array_equal(far.center_, near.center_ * units)
+    np.testing.assert_array_equal(far.transform(frame * units), near.transform(frame))
+    ordinary = np.random.default_rng(0).normal(size=(50, 4)) * [1e-3, 1.0, 1e3, 1e9]
+    np.testing.assert_array_equal(column_mean(ordinary), np.nanmean(ordinary, axis=0))
 
 
 def test_row_lengths_are_exact_and_finite_where_squares_overflow() -> None:

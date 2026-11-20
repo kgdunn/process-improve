@@ -16,7 +16,7 @@ import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import _check_feature_names_in, check_is_fitted, validate_data
 
-from ._common import DataMatrix, SpecificationWarning, _reject_sparse, column_sd, user_stacklevel
+from ._common import DataMatrix, SpecificationWarning, _reject_sparse, column_mean, column_sd, user_stacklevel
 
 
 class MCUVScaler(TransformerMixin, BaseEstimator):
@@ -103,7 +103,7 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
             # RuntimeWarnings here; both cases are handled explicitly below,
             # so the warnings are noise for the caller. Nothing else here warns.
             warnings.simplefilter("ignore")
-            center = np.nanmean(X_arr, axis=0)
+            center = column_mean(X_arr)  # nanmean without overflow: near 1e308 a column's sum is inf (#1149)
             scale = column_sd(X_arr)  # nanstd without overflow or underflow, in any units (#1070)
             highest = np.nanmax(X_arr, axis=0)
             constant = highest == np.nanmin(X_arr, axis=0)
@@ -382,8 +382,8 @@ def _column_moments(X: DataMatrix) -> tuple[np.ndarray, np.ndarray]:
         # All-NaN and single-observation columns raise numpy RuntimeWarnings;
         # both are filtered out by the callers below. Nothing else here warns.
         warnings.simplefilter("ignore")
-        means = np.nanmean(values, axis=0)
-        sds = np.nanstd(values, axis=0, ddof=1)
+        means = column_mean(values)  # in any units, as MCUVScaler's (#1070, #1149)
+        sds = column_sd(values)
     return means, sds
 
 
