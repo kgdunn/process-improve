@@ -283,12 +283,15 @@ Workflows in `.github/workflows/`:
 
 - **run-tests.yml**: `lint` (`ruff check .` and `ruff format --check .`, two
   independent gates), `typecheck` (blocking `mypy src/process_improve`), `web-app`
-  (builds the browser app and runs its Chromium, Pyodide and Node.js tests), `test`
+  (builds the browser app and runs its Chromium, Pyodide and Node.js tests), `web-app-webkit`
+  (the browser tests of the forms, the run sheet and the layout in WebKit, Safari's engine, run in
+  Playwright's image), `test`
   (the full suite without coverage, over Python 3.11-3.13; the 3.11 rows install
   the lowest release of each dependency that `pyproject.toml` allows, and the 3.12 rows run
   with `PYTHONOPTIMIZE=1` to catch load-bearing asserts (plain `python -O` would not reach
   the xdist workers); a pull request runs
-  ubuntu at 3.11 and 3.12 and windows and macos at 3.13, and pushes to main, the nightly
+  ubuntu at 3.11 and 3.12 and windows and macos at 3.13 (the macOS rows are advisory on a pull
+  request: `continue-on-error`, as GitHub's macOS runner was often lost), and pushes to main, the nightly
   schedule and manual runs add windows and macos at 3.11; ubuntu/3.13 is the `coverage` job
   instead), `coverage`
   (the full suite on ubuntu/3.13 with coverage, in duration-balanced shards via
