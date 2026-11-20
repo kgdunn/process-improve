@@ -67,6 +67,7 @@ describe("a table of the reader's own", () => {
     assert.deepEqual(importProblems([temp, { ...catalyst, role: "response" }]), ["Catalyst holds labels, and a response is a number."]);
     assert.deepEqual(importProblems([{ ...temp, low: 200, high: 150 }, yieldOf]), ["Temp: the low value must be below the high value."]);
     assert.deepEqual(importProblems([{ ...temp, low: null }, yieldOf]), ["Temp: the low value must be below the high value."]);
+    assert.deepEqual(importProblems([temp, { ...yieldOf, kind: "empty" }]), [], "a design not yet run has no results");
   });
 
   test("one column at most is the block, and one the whole plot; neither needs a name", () => {

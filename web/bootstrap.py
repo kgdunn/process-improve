@@ -5381,6 +5381,14 @@ _EXPORTERS = {
     "JMP": (({"pattern"},), {"pattern"}),
 }
 
+#: Design-Expert heads each factor's column with its letter: "A:Temp", or "a:Temp" when the factor is hard to change.
+#: Seen in Design-Expert 12 (April 2020), whose exports head the run columns Std and Run, where Stat-Ease's current
+#: documentation names them Std Order and Run Order: both are read.
+_DESIGN_EXPERT_FACTOR = re.compile(r"^([A-Za-z]{1,2}):\s*(\S.*)$")
+
+#: The line Design-Expert writes in a workbook above the headings: "Factor 1", "Response 1".
+_DESIGN_EXPERT_ABOVE = re.compile(r"(?i)^(factor|response) \d+$")
+
 #: A heading that ends in its units: "Temp (degC)" or "Yield [%]".
 _WITH_UNITS = re.compile(r"^(.*?)\s*[\(\[]\s*([^\)\]]{1,32})\s*[\)\]]\s*$")
 
@@ -5477,8 +5485,9 @@ def _table_of(request: dict) -> tuple[list[str], list[list[float | str | None]],
     if len(cells) < 3:
         raise ValueError("The table needs a line of headings and at least two runs below it.")
     width = max(len(row) for row in cells)
-    cells = [[*row, *[None] * (width - len(row))] for row in cells]
-    keep = [j for j in range(width) if any(row[j] is not None for row in cells[1:])]
+    cells = _headed_cells([[*row, *[None] * (width - len(row))] for row in cells])
+    # A column with a heading and no values is kept: a design exported before it was run has empty responses.
+    keep = [j for j in range(width) if any(row[j] is not None for row in cells)]
     if len(keep) > MAX_TABLE_COLUMNS:
         raise ValueError(f"The table has {len(keep)} columns; this page reads {MAX_TABLE_COLUMNS} at most.")
     if len(cells) - 1 > MAX_GIVEN_RUNS:
@@ -5489,6 +5498,24 @@ def _table_of(request: dict) -> tuple[list[str], list[list[float | str | None]],
         twice = sorted({h for h in headings if headings.count(h) > 1})
         raise ValueError(f"Two columns share the heading {_listed(twice)}: give each column its own.")
     return headings, [[row[j] for j in keep] for row in cells[1:]], sheets, sheet
+
+
+def _headed_cells(cells: list[list[float | str | None]]) -> list[list[float | str | None]]:
+    """Make the three lines Design-Expert writes at the top of a workbook into one line of headings.
+
+    Above the headings it writes "Factor 1" or "Response 1", and below them each one's units; a heading takes its
+    units in brackets ("yield [%D]"), as :func:`_column` reads them. Any other table is as it was.
+    """
+    above = [value for value in cells[0] if value is not None]
+    if len(cells) < 5 or not above or not all(isinstance(v, str) and _DESIGN_EXPERT_ABOVE.match(v) for v in above):
+        return cells
+    names, units = cells[1], cells[2]
+    if any(isinstance(value, float) for value in units):  # the first run, not a line of units
+        return cells[1:]
+    return [
+        [f"{n} [{u}]" if n is not None and u is not None else n for n, u in zip(names, units, strict=True)],
+        *cells[3:],
+    ]
 
 
 def _plain_number(heading: str) -> str:
@@ -5521,10 +5548,31 @@ def _column(heading: str, values: list[float | str | None]) -> dict[str, Any]:
 def _exported_from(headings: list[str]) -> tuple[str | None, list[str]]:
     """Say which DOE program exported a table, from its headings, and which of them that program numbers runs with."""
     plain = [" ".join(re.sub(r"[^a-z0-9 ]", "", heading.lower()).split()) for heading in headings]
+    lettered = "run" in plain and any(_DESIGN_EXPERT_FACTOR.match(heading) for heading in headings)
     for program, (signs, bookkeeping) in _EXPORTERS.items():
-        if any(sign <= set(plain) for sign in signs):
+        if any(sign <= set(plain) for sign in signs) or (lettered and program == "Design-Expert"):
             return program, [heading for heading, key in zip(headings, plain, strict=True) if key in bookkeeping]
     return None, []
+
+
+def _design_expert_roles(columns: list[dict[str, Any]], aside: frozenset[str]) -> None:
+    """Say what each column of a Design-Expert export is, as Design-Expert marks it, in place of a guess.
+
+    A heading with a factor's letter ("a:Temp") is that factor, named without its letter. Group numbers the
+    whole plots of a split-plot design. Any other column of numbers, or an empty one not yet measured, that is
+    neither bookkeeping nor the block is a response. A table without the letters keeps the guesses.
+    """
+    if not any(_DESIGN_EXPERT_FACTOR.match(c["label"]) for c in columns):
+        return
+    for c in columns:
+        lettered = _DESIGN_EXPERT_FACTOR.match(c["label"])
+        if lettered:
+            c["label"], c["name"] = lettered[2], suggest_identifier(lettered[2])
+            c["role"] = "factor" if c["settings"] > 1 else "ignore"
+        elif c["label"].lower() == "group" and c["settings"] > 1:
+            c["role"] = "whole_plot"
+        elif c["heading"] not in aside and c["role"] != "block" and c["kind"] in ("number", "empty"):
+            c["role"] = "response"
 
 
 def _guess_roles(columns: list[dict[str, Any]], aside: frozenset[str] = frozenset()) -> None:
@@ -5583,6 +5631,8 @@ def read_table(request: dict) -> dict:
     columns = [_column(heading, [row[j] for row in rows]) for j, heading in enumerate(headings)]
     program, aside = _exported_from(headings)
     _guess_roles(columns, frozenset(aside))
+    if program == "Design-Expert":
+        _design_expert_roles(columns, frozenset(aside))
     return {
         "columns": columns,
         "rows": rows,

@@ -131,6 +131,66 @@ def test_a_design_exported_from_a_doe_program_is_known_and_its_bookkeeping_left_
     assert [roles(table)[h] for h in "TPY"] == ["factor", "factor", "response"]
 
 
+#: A split-plot I-optimal design as Design-Expert 12 (April 2020) exports it: Temp is hard to change (its letter is
+#: lower case), and each group of runs shares one setting of it.
+DESIGN_EXPERT_RUNS = [
+    (1, 9, -5, 2, 8), (1, 8, -5, -2, 6.52), (1, 7, -5, 0.52, 4), (2, 1, 0, -0.334001, 8), (2, 3, 0, -2, 4),
+    (2, 2, 0, 2, 5.66), (3, 6, 0, 0.28, 5.84), (3, 4, 0, 0.24, 5.84), (3, 5, 0, -2, 8), (4, 13, 5, 0.5, 4),
+    (4, 14, 5, 2, 8), (4, 15, 5, -2, 6.54), (5, 11, 0, 2, 4), (5, 12, 0, -0.16, 6.26), (5, 10, 0, -0.144052, 6.26),
+]  # fmt: skip
+
+
+def test_design_expert_s_text_export_is_known_by_its_lettered_factors(api):
+    text = "Std\tRun\tBlock\ta:Temp\tB:Pres\tC:Flow\n" + "".join(
+        f"{std}\t{run}\tBlock 1\t{t}\t{p}\t{f}\n" for run, (_, std, t, p, f) in enumerate(DESIGN_EXPERT_RUNS, 1)
+    )
+    table = api.ok("api_read_table", {"text": text})
+    assert (table["exported_from"], table["set_aside"]) == ("Design-Expert", ["Std", "Run"])
+    assert roles(table) == {
+        "Std": "ignore",
+        "Run": "ignore",
+        "Block": "ignore",
+        **dict.fromkeys(["a:Temp", "B:Pres", "C:Flow"], "factor"),
+    }, "a factor set at many levels is still a factor"
+    assert [c["name"] for c in table["columns"][3:]] == ["Temp", "Pres", "Flow"]
+
+
+def test_design_expert_s_workbook_opens_as_a_split_plot_design_still_to_run(api):
+    openpyxl = pytest.importorskip("openpyxl")
+    book = openpyxl.Workbook()
+    sheet = book.active
+    sheet.append([None, None, "Factor 1", "Factor 2", "Factor 3", "Response 1"])
+    sheet.append(["Group", "Run", "a:Temp", "B:Pres", "C:Flow", "yield"])
+    sheet.append([None, None, None, None, None, "%D"])
+    for run, (group, _, t, p, f) in enumerate(DESIGN_EXPERT_RUNS, 1):
+        sheet.append([group, run, t, p, f, None])
+    data = io.BytesIO()
+    book.save(data)
+    table = api.ok("api_read_table", {"xlsx_base64": base64.b64encode(data.getvalue()).decode()})
+    assert table["n_rows"] == 15
+    assert roles(table) == {"Group": "whole_plot", "Run": "ignore", "a:Temp": "factor", "B:Pres": "factor",
+                            "C:Flow": "factor", "yield [%D]": "response"}  # fmt: skip
+    assert (table["columns"][-1]["units"], table["columns"][-1]["kind"]) == ("%D", "empty")
+    design = study(api, table)["campaign"]["design"]
+    assert design["n_runs"] == 15
+    assert design["spec"]["options"]["hard_to_change"] == ["Temp"]
+
+
+def test_design_expert_s_workbook_with_no_line_of_units_reads_its_first_run_as_a_run(api):
+    openpyxl = pytest.importorskip("openpyxl")
+    book = openpyxl.Workbook()
+    sheet = book.active
+    sheet.append([None, "Factor 1", "Factor 2", "Response 1"])
+    sheet.append(["Run", "A:Temp", "B:Pres", "yield"])
+    for run, (_, _, t, p, _) in enumerate(DESIGN_EXPERT_RUNS, 1):
+        sheet.append([run, t, p, 60 + t + p])
+    data = io.BytesIO()
+    book.save(data)
+    table = api.ok("api_read_table", {"xlsx_base64": base64.b64encode(data.getvalue()).decode()})
+    assert (table["n_rows"], table["rows"][0][0]) == (15, 1)
+    assert roles(table) == {"Run": "ignore", "A:Temp": "factor", "B:Pres": "factor", "yield": "response"}
+
+
 def test_a_table_no_doe_program_wrote_names_none(api):
     table = api.ok("api_read_table", {"text": DESIGNED})
     assert (table["exported_from"], table["set_aside"]) == (None, [])
