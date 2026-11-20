@@ -1788,7 +1788,7 @@ def make_design(spec: dict) -> dict:
 
     kwargs = _design_options(spec, design_type)
     if kwargs.get("hard_to_change"):
-        _check_hard_to_change(kwargs, limits)
+        _check_hard_to_change(kwargs)
     made, asked = _library_arguments(factors, kwargs)
     # The limits are passed apart from the options, which hold one design's settings, as the comparison reuses them.
     result = generate_design(made, design_type=design_type, **asked, **({"constraints": expressions} if limits else {}))
@@ -2608,14 +2608,9 @@ def _hard_to_change(spec: dict, allowed: list[str]) -> dict[str, list[str]]:
     return {"hard_to_change": hard} if hard else {}
 
 
-def _check_hard_to_change(kwargs: dict[str, Any], limits: list[dict]) -> None:
-    """Refuse what a design with a factor that is hard to change cannot have: the library's search takes neither."""
+def _check_hard_to_change(kwargs: dict[str, Any]) -> None:
+    """Refuse what a design with a factor that is hard to change cannot have: the library's search takes no blocks."""
     hard = _listed(kwargs["hard_to_change"])
-    if limits:
-        raise ValueError(
-            f"A design that sets {hard} once for a group of runs keeps no limits on the settings on this page yet: "
-            "remove the limits, or mark no factor as hard to change."
-        )
     if kwargs.get("n_blocks", 1) > 1:
         raise ValueError(
             f"A design that sets {hard} once for a group of runs is not made in blocks on this page yet: "

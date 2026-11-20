@@ -48,6 +48,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from process_improve.experiments.factor import Factor
+    from process_improve.experiments.region import DesignRegion
 
 #: The criteria the search optimises.
 CRITERIA = ("d_optimal", "a_optimal", "i_optimal")
@@ -91,6 +92,11 @@ class SplitPlotOptions:
         :math:`\eta`, the whole-plot variance over the run-to-run variance.
     n_starts : int
         Random starts; the best design of them is kept.
+    region : DesignRegion or None
+        The limits on the settings every run keeps to, a limit on some levels of a categorical
+        factor among them; None for the whole box. The search starts from runs inside them and
+        takes no exchange that leaves them, so a design's runs lie on the grid of levels inside the
+        limits, not on the limits' own corners.
     """
 
     criterion: str = "d_optimal"
@@ -98,6 +104,7 @@ class SplitPlotOptions:
     n_whole_plots: int = 4
     variance_ratio: float = 0.5
     n_starts: int = 10
+    region: DesignRegion | None = None
 
 
 @dataclass(frozen=True)
@@ -175,10 +182,11 @@ def split_plot_design(
         _whole_plots(n_runs, options.n_whole_plots), tuple(j for j, f in enumerate(factors) if f.name in hard_names)
     )
     rng = check_random_state(random_state)
+    feasible = _feasibility(model, factors, options.region)
     best_levels, best_score = None, np.inf
     for _ in range(options.n_starts):
-        start = _estimable_start(model, lambda: _random_start(model, layout, rng))
-        levels, score = _climb(model, start, layout, options, rng)
+        start = _estimable_start(model, lambda: _feasible_start(model, layout, rng, feasible))
+        levels, score = _climb(model, start, layout, options, rng, feasible)
         if score < best_score:
             best_levels, best_score = levels, score
     assert best_levels is not None  # n_starts >= 1, checked above
@@ -198,6 +206,7 @@ def split_plot_design(
         "n_whole_plots": options.n_whole_plots,
         "whole_plot_variance_ratio": options.variance_ratio,
         "n_starts": options.n_starts,
+        **({"constraints_enforced": True} if feasible is not None else {}),
         **_criterion_value(information, model.moments, options.criterion),
     }
     return _settings(model, best_levels, factors), meta
@@ -282,6 +291,56 @@ def _random_start(model: _Model, layout: _Layout, rng: np.random.Generator) -> n
     return levels
 
 
+def _feasibility(
+    model: _Model, factors: list[Factor], region: DesignRegion | None
+) -> Callable[[np.ndarray], np.ndarray] | None:
+    """Return the test of runs given as level indices (any leading shape) against the limits; None without any."""
+    if region is None or not region.constraints:
+        return None
+    numeric = [j for j, f in enumerate(factors) if f.type != FactorType.categorical]
+    labelled = [j for j, f in enumerate(factors) if f.type == FactorType.categorical]
+    values = [np.asarray(column, dtype=object if j in labelled else float) for j, column in enumerate(model.settings)]
+
+    def feasible(levels: np.ndarray) -> np.ndarray:
+        flat = levels.reshape(-1, levels.shape[-1])
+        coded = np.column_stack([values[j][flat[:, j]] for j in numeric]) if numeric else np.zeros((len(flat), 0))
+        labels = {factors[j].name: values[j][flat[:, j]] for j in labelled} or None
+        return region.feasible(coded, labels=labels).reshape(levels.shape[:-1])
+
+    return feasible
+
+
+def _feasible_start(
+    model: _Model, layout: _Layout, rng: np.random.Generator, feasible: Callable[[np.ndarray], np.ndarray] | None
+) -> np.ndarray:
+    """Return random levels, as :func:`_random_start` draws them, with every run inside the limits.
+
+    Each whole plot's hard-to-change levels are drawn, then each of its runs' other levels until the run is
+    inside; a whole plot whose runs cannot all be is drawn again.
+    """
+    levels = _random_start(model, layout, rng)
+    if feasible is None:
+        return levels
+    n_levels = [len(table) for table in model.tables]
+    easy = [j for j in range(len(n_levels)) if j not in layout.hard]
+    for w in range(layout.whole_plot.max() + 1):
+        rows = np.flatnonzero(layout.whole_plot == w)
+        for _ in range(_START_DRAWS):
+            for j in layout.hard:
+                levels[rows, j] = rng.integers(n_levels[j])
+            for r in rows:
+                for _ in range(_START_DRAWS):
+                    if feasible(levels[r])[()]:
+                        break
+                    levels[r, easy] = [rng.integers(n_levels[j]) for j in easy]
+            if feasible(levels[rows]).all():
+                break
+        else:
+            msg = "No whole plot of runs inside the limits on the settings was found; check that the limits leave room."
+            raise ValueError(msg)
+    return levels
+
+
 def _estimable_start(model: _Model, draw: Callable[[], np.ndarray]) -> np.ndarray:
     """Return a start from ``draw``, drawn again up to ``_START_DRAWS`` times until it estimates the model.
 
@@ -327,9 +386,17 @@ def _scores(information: np.ndarray, criterion: str, moments: np.ndarray, ridge:
 
 
 def _climb(
-    model: _Model, levels: np.ndarray, layout: _Layout, options: SplitPlotOptions, rng: np.random.Generator
+    model: _Model,
+    levels: np.ndarray,
+    layout: _Layout,
+    options: SplitPlotOptions,
+    rng: np.random.Generator,
+    feasible: Callable[[np.ndarray], np.ndarray] | None = None,
 ) -> tuple[np.ndarray, float]:
-    """Exchange coordinates from a start until a pass improves nothing; return the levels and their criterion."""
+    """Exchange coordinates from a start until a pass improves nothing; return the levels and their criterion.
+
+    With limits (``feasible``), an exchange that puts a run of the whole plot outside them is not taken.
+    """
     plots = [np.flatnonzero(layout.whole_plot == w) for w in range(layout.whole_plot.max() + 1)]
     shrinks = [options.variance_ratio / (1.0 + len(rows) * options.variance_ratio) for rows in plots]
     terms = [_plot_terms(model.rows(levels[rows]), s) for rows, s in zip(plots, shrinks, strict=True)]
@@ -349,6 +416,8 @@ def _climb(
             options_here[:, runs, j] = np.arange(len(model.tables[j]))[:, None]
             candidates = _plot_terms(model.rows(options_here), shrinks[w])
             scores = _scores(information - terms[w] + candidates, options.criterion, model.moments, ridge)
+            if feasible is not None:
+                scores = np.where(feasible(options_here).all(axis=1), scores, np.inf)
             best = int(np.argmin(scores))
             if scores[best] < score - _IMPROVEMENT * max(1.0, abs(score)):
                 levels[plots[w]] = options_here[best]

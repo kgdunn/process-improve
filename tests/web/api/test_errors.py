@@ -1802,14 +1802,6 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         lambda _: {"design_type": "d_optimal", "factors": FACTORS, "hard_to_change": ["Z"]},
         "Each factor that is hard to change must be one of the study's factors.",
     ),
-    "hard to change: with limits on the settings": (
-        "api_make_design",
-        lambda ex: {**_limited("d_optimal", "T + 25*P <= 265")(ex), "hard_to_change": ["T"]},
-        (
-            "A design that sets T once for a group of runs keeps no limits on the settings on this page yet: "
-            "remove the limits, or mark no factor as hard to change."
-        ),
-    ),
     "hard to change: in blocks": (
         "api_make_design",
         lambda _: {"design_type": "d_optimal", "factors": FACTORS, "hard_to_change": ["T", "P"], "n_blocks": 2},
