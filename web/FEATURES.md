@@ -839,7 +839,8 @@ Also:
   concept map at that idea, with the ideas around it and the way into the book.
   - *Details:* 63 of the 80 terms have the link, and so do a design's name in the list of
     designs and the words over that list, Spare runs and Power. It opens in a tab of its own,
-    so the study stays as it is. A finger, a mouse and the keyboard each reach it.
+    so the study stays as it is. A finger, a mouse and the keyboard each reach it. Without a
+    network it is left out, unless the copy kept for use offline holds the map.
 - **A phone, a tablet or a desk.** The layout, the tables and the charts fit each.
 - **Settings that travel with the study.** "Settings", under "Studies", chooses the colours
   the charts are drawn in (batlow, devon, la jolla or grey), the decimal mark, a period

@@ -105,7 +105,8 @@ def test_a_study_by_hand_from_the_brief_to_the_best_settings_shared_and_opened_a
     saved_studies(page, lambda saved: len(saved) == 1 and all(r is not None for r in saved[0]["responses"]))
     again = context.new_page()
     again.goto(site)
-    again.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
+    # The study comes back from the browser's storage after the page's first call to Python: wait for its runs.
+    again.wait_for_function(f"document.querySelectorAll('#design-table tbody tr').length === {len(kept)}")
     settled(again)
     assert run_sheet(again) == kept
 

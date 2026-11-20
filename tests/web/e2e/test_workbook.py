@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 
 from tests.web._support import FACTORS, factors_named, fill_workbook, quadratic, workbook_of
-from tests.web.e2e._page import choose, factor_table, reveal, run_sheet, settled, status
+from tests.web.e2e._page import choose, factor_table, reveal, run_sheet, settled, status, study_menu
 
 
 def upload(page, path) -> None:
@@ -21,6 +21,18 @@ def upload(page, path) -> None:
     reveal(page, "#tab-real")
     page.click("#tab-real")
     page.set_input_files("#upload", path)
+
+
+def test_a_workbook_asked_for_before_a_new_study_is_still_handed_over(page):
+    """The workbook is named by the run sheet it holds, not by the page when Python answers (#1169)."""
+    page.evaluate("window.__pi.hold('api_workbook')")
+    reveal(page, "#download")
+    page.click("#download")
+    page.wait_for_function("window.__pi.queue.some((reply) => reply.fn === 'api_workbook')")
+    study_menu(page, "#new-study")
+    with page.expect_download() as download:
+        page.evaluate("window.__pi.release('api_workbook')")
+    assert download.value.suggested_filename == "box_behnken-15-runs.xlsx"
 
 
 def test_the_downloaded_workbook_holds_the_page_s_runs_and_results(page, first_paint):
