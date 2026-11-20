@@ -17,6 +17,7 @@ Covers, for both estimators:
 from __future__ import annotations
 
 import pathlib
+import pickle
 
 import numpy as np
 import pandas as pd
@@ -1076,8 +1077,23 @@ def test_a_history_kept_before_the_count_was_stored_numbers_on_from_it(
     model = AdaptivePCA(n_components=2).fit(X.iloc[:90])
     model.partial_fit(X.iloc[90:92].set_axis([7, "x"]))
     del model._next_label
+    model = pickle.loads(pickle.dumps(model))  # noqa: S301 - a model this test pickled
     model.update(X.iloc[92].to_numpy())
     assert list(model.spe_.index) == [7, "x", 8]
+    # One with no history yet numbers its first row 0
+    fresh = AdaptivePCA(n_components=2).fit(X.iloc[:90])
+    del fresh._next_label
+    fresh = pickle.loads(pickle.dumps(fresh))  # noqa: S301 - a model this test pickled
+    fresh.update(X.iloc[92].to_numpy())
+    assert list(fresh.spe_.index) == [0]
+
+
+@pytest.mark.parametrize("cls", [AdaptivePCA, AdaptivePLS])
+def test_no_component_is_refused_by_name(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame], cls: type) -> None:
+    """n_components=0 is refused by the family's count check, which names it (#1071)."""
+    X, Y = synthetic_pls_data
+    with pytest.raises(ValueError, match=r"^n_components must be >= 1; got 0\.$"):
+        cls(n_components=0).fit(X) if cls is AdaptivePCA else cls(n_components=0).fit(X, Y)
 
 
 @pytest.mark.parametrize("cls", [AdaptivePCA, AdaptivePLS])
