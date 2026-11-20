@@ -571,6 +571,26 @@ def best_panel(node: str, held: dict, responses: list, replies: tuple[dict, dict
     )
 
 
+def test_at_a_level_of_the_study_s_own_the_best_settings_code_gives_the_page_s_intervals(api, node, worked_example):
+    """At 0.01 the page shows 99% intervals at the best settings; the code it shows names the level and gives them."""
+    held = aimed(worked_example["held"], "maximize")
+    simulation = worked_example["simulated"]
+    request = {**held, "responses": simulation["responses"], "significance_level": 0.01}
+    analysis, best = api.ok("api_analyze_runs", request), api.ok("api_best_settings", request)
+    assert best["level"] == pytest.approx(0.99)
+    at_strict = source("python.js") + '\nimport { setSignificance } from "./numbers.js";\nsetSignificance(0.01);\n'
+    steps = [
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, simulation["responses"], simulation]),
+        ("analyseCode", [analysis["formula"], True]),
+        ("bestCode", [best, held["spec"], analysis["formula"], True]),
+    ]
+    code = javascript(node, source("python.js"), [("cumulative", javascript(node, at_strict, steps))])[0]
+    namespace = run(code)
+    assert_same_fit(namespace, analysis)
+    assert_same_best(namespace, best, held["spec"])
+
+
 @pytest.mark.parametrize(("goal", "target"), [("maximize", None), ("minimize", None), ("target", 60.0)])
 def test_the_best_settings_code_finds_the_page_s_best_settings(api, node, worked_example, goal, target):
     held = aimed(worked_example["held"], goal, target)
@@ -1486,6 +1506,34 @@ def test_the_half_normal_plot_s_code_judges_the_effects_by_lenth_s_margins_as_th
     assert_same_figure(drawn, json.loads(plots["figures"]["half_normal"]), "half_normal", values=("x", "y"))
     margins = {shape["y0"] for shape in drawn.layout.shapes}
     assert margins == {shape["y0"] for shape in json.loads(plots["figures"]["half_normal"])["layout"]["shapes"]}
+
+
+def test_at_a_level_of_the_study_s_own_the_half_normal_plot_s_code_draws_the_page_s_margins(api, node, monkeypatch):
+    """Lenth's margins move with the level: at 0.01 the code names it and draws the page's wider margins."""
+    go = pytest.importorskip("plotly.graph_objects", reason="the page installs plotly for its first chart")
+    monkeypatch.setattr(go.Figure, "show", lambda *_, **__: None)  # a reader's own window, which a test has none of
+    spec = {"design_type": "plackett_burman", "factors": factors_named(*"ABCDEFG"), "n_center_points": 0}
+    held = held_of(api.ok("api_make_design", spec))
+    responses = api.ok("api_simulate", {**held, "scenario": "main_effects", "seed": 1})["responses"]
+    request = {**held, "responses": responses, "significance_level": 0.01}
+    analysis = api.ok("api_analyze_runs", request)
+    figure = {level: api.ok("api_plots", {**request, "significance_level": level}) for level in (0.05, 0.01)}
+    options = figure[0.01]["plot_options"]["half_normal"]
+    steps = [
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, responses]),
+        ("analyseCode", [analysis["formula"], True]),
+        ("figureCode", ["A figure", options, analysis["formula"], True, held["spec"]]),
+    ]
+    at_strict = source("python.js") + '\nimport { setSignificance } from "./numbers.js";\nsetSignificance(0.01);\n'
+    code = javascript(node, source("python.js"), [("cumulative", javascript(node, at_strict, steps))])[0]
+    drawn = run(code)["figure"]
+    margins = {
+        level: {s["y0"] for s in json.loads(f["figures"]["half_normal"])["layout"]["shapes"]}
+        for level, f in figure.items()
+    }
+    assert {shape["y0"] for shape in drawn.layout.shapes} == margins[0.01]
+    assert max(margins[0.01]) > max(margins[0.05]), "the margins at 0.01 are the wider"
 
 
 @pytest.mark.slow
