@@ -235,6 +235,10 @@ def test_the_rest_of_the_family_takes_judged_rows() -> None:
     pls = PLS(n_components=2).fit(x, y)
     assert pls.hotellings_t2_limit(judged_rows="fitted") == pytest.approx(beta_limit_by_hand(0.95, 2, 30))
     assert pls.detect_outliers(judged_rows="fitted") is not None
+    with pytest.warns(FutureWarning) as caught:  # the records carry the warning's text, as PCA's do
+        records = pls.detect_outliers(conf_level=0.8)
+    assert records
+    assert {record["hotellings_t2_limit_note"] for record in records} == {str(caught[0].message)}
     x_fit, _ = pls.ellipse_coordinates(1, 2, judged_rows="fitted")
     assert x_fit[0] == pytest.approx(np.sqrt(beta_limit_by_hand(0.95, 2, 30)) * pls.scaling_factor_for_scores_.iloc[0])
 
