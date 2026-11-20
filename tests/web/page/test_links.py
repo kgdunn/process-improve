@@ -17,7 +17,12 @@ import pytest
 
 from tests.web._support import source
 
-PAGES = ("index.html", "about.html", "catalog/index.html", "catalog/reproduced/index.html")
+PAGES = (
+    "index.html",
+    "technical-details-how-factorial-works.html",
+    "catalog/index.html",
+    "catalog/reproduced/index.html",
+)
 LINK_OUT = re.compile(r'<a href="https?://[^"]*"[^>]*>')
 OWN_TAB = re.compile(r'target="(?!_self"|_top"|_parent")[^"]+"')
 BOOK_TAB = 'target="pid-book" rel="opener"'

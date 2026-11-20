@@ -898,7 +898,7 @@ Also:
   its points.
   - *Details:* It is drawn from the document the app is described from, which a test holds to
     the app.
-- **[How Factorial works](about.html).** What runs where, what is sent and what is not, and how
+- **[How Factorial works](technical-details-how-factorial-works.html).** What runs where, what is sent and what is not, and how
   to run a copy of your own.
   - *Details:* The About page: what runs where, what reaches a server, the versions loaded,
     and how to build and serve the app yourself.

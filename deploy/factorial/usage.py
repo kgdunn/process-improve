@@ -62,7 +62,7 @@ PAGES = {
     "Map": {"/map/", "/map/index.html"},
     "Catalog": set(),
     "Multivariate": {"/mva/", "/mva/index.html"},
-    "About": {"/about.html"},
+    "About": {"/technical-details-how-factorial-works.html", "/about.html"},
     "Features": {"/features.html"},
     "Other": set(),
 }

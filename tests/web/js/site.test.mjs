@@ -18,6 +18,6 @@ describe("one footer on every page", () => {
   });
   test("every page of the site is in it, the textbooks' answers among them", () => {
     const paths = SITE_LINKS.flatMap((group) => group.links).map(([path]) => path).filter((path) => !path.startsWith("https:"));
-    assert.deepEqual(paths, ["./", "features.html", "catalog/", "catalog/reproduced/", "map/", "about.html"]);
+    assert.deepEqual(paths, ["./", "features.html", "catalog/", "catalog/reproduced/", "map/", "technical-details-how-factorial-works.html"]);
   });
 });
