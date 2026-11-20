@@ -13,6 +13,10 @@ factori.al {
 	encode zstd gzip
 	file_server
 
+	# How Factorial works moved from /about.html, on 20 November 2026: a permanent redirect keeps the links
+	# shared before it, and tells a search engine the page's address is the new one.
+	redir /about.html /technical-details-how-factorial-works.html{?query} permanent
+
 	# Feedback: the one request that carries anything of a reader's, sent only when they press Send in the
 	# app's Feedback dialog. Caddy holds the whole body, at most 4 MB, before it passes it on, and tells the
 	# relay (feedback_relay.py) the reader's address in X-Real-IP, by which the relay counts reports. The

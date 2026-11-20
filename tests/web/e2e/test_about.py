@@ -15,7 +15,7 @@ from tests.web._support import WEB
 def test_the_footer_opens_it_with_the_versions_this_copy_loads(page, plotly_js):
     runtime = json.loads((WEB / "runtime.json").read_text(encoding="utf-8"))
     page.click("footer >> text=how Factorial works")
-    page.wait_for_url("**/about.html")
+    page.wait_for_url("**/technical-details-how-factorial-works.html")
     page.wait_for_function("document.querySelector('#stack-pyodide').textContent.startsWith('Pyodide ')")
     assert page.text_content("#stack-pyodide") == f"Pyodide {runtime['pyodide']}"
     assert page.text_content("#stack-packages") == ", ".join([*runtime["packages"], *runtime["fitting"]])
@@ -31,7 +31,7 @@ def test_the_footer_opens_it_with_the_versions_this_copy_loads(page, plotly_js):
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
 def test_it_reads_on_a_phone_without_scrolling_sideways(context, site):
     page = context.new_page()
-    page.goto(f"{site}about.html")
+    page.goto(f"{site}technical-details-how-factorial-works.html")
     wider = page.evaluate(
         """() => [...document.querySelectorAll('body *')]
              .filter((e) => e.getBoundingClientRect().right > document.documentElement.clientWidth + 1)
@@ -52,7 +52,7 @@ def test_it_reads_on_a_phone_without_scrolling_sideways(context, site):
 
 def test_each_part_shows_its_answer_and_opens_its_fold_on_a_press_or_from_the_keyboard(context, site):
     page = context.new_page()
-    page.goto(f"{site}about.html")
+    page.goto(f"{site}technical-details-how-factorial-works.html")
     folds = page.locator("details.fold")
     assert folds.count() >= 8
     assert folds.evaluate_all("(folds) => folds.every((fold) => !fold.open)"), "the page opens on its answers alone"

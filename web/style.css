@@ -1477,7 +1477,7 @@ dialog.library { width: min(760px, 100vw - 32px); font-size: 0.92rem; }
 .share .hint { margin: 6px 0 0; }
 
 
-/* How Factorial works (about.html): a page of prose, in a column a reader's eye can follow, with a
+/* How Factorial works (technical-details-how-factorial-works.html): a page of prose, in a column a reader's eye can follow, with a
    drawing of what runs where that stacks on a phone. */
 main.about { max-width: 780px; }
 .about h1 { margin: 8px 0 12px; font-size: 2rem; }
@@ -1488,7 +1488,7 @@ main.about { max-width: 780px; }
 .about code { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 0.9em; }
 .about__back { margin: 0; }
 .about__back a { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; font-weight: 600; }
-/* What only some readers ask, under an answer in plain words (about.html): a fold that says what it holds. */
+/* What only some readers ask, under an answer in plain words (technical-details-how-factorial-works.html): a fold that says what it holds. */
 details.fold { margin: 10px 0 0; border: 1px solid var(--line); border-radius: var(--corner); background: var(--panel); }
 details.fold > summary { padding: 10px 14px; border-radius: var(--corner); font-size: 0.95rem; font-weight: 600; color: var(--accent);
   cursor: pointer; }

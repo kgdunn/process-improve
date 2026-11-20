@@ -1,4 +1,4 @@
-"""How Factorial works (``web/about.html``): what it tells a reader must stay true of the code it describes.
+"""How Factorial works (``web/technical-details-how-factorial-works.html``): what it says must stay true of the code.
 
 The page says what reaches the server, where to read the code and how to build and serve the app.
 Each of those is checked here against the file it describes, so a change to the server's
@@ -22,7 +22,7 @@ REPOSITORY = "https://github.com/kgdunn/process-improve/"
 
 
 def about() -> str:
-    return " ".join(source("about.html").split())
+    return " ".join(source("technical-details-how-factorial-works.html").split())
 
 
 def source_of(path: str) -> str:
@@ -86,14 +86,35 @@ def test_the_answers_have_none_of_the_words_kept_for_the_folds():
         assert word.lower() in shown.lower(), f"{word}: said in a fold, for a reader who asks"
 
 
+PAGE = "technical-details-how-factorial-works.html"
+
+
 def test_the_app_s_footer_links_to_it():
-    assert '<li><a href="about.html">See behind the scenes: how Factorial works</a></li>' in " ".join(
-        source("index.html").split()
-    )
+    link = f'<li><a href="{PAGE}">See behind the scenes: how Factorial works</a></li>'
+    assert link in " ".join(source("index.html").split())
+
+
+def test_its_old_address_forwards_to_it_with_the_link_s_query_and_place():
+    """Links shared before the page was renamed, on 20 November 2026, still reach it, and search engines move on."""
+    old = " ".join(source("about.html").split())
+    assert f'<link rel="canonical" href="https://factori.al/{PAGE}">' in old
+    assert '<meta name="robots" content="noindex">' in old
+    assert f'<meta http-equiv="refresh" content="0; url={PAGE}">' in old
+    assert f'location.replace("{PAGE}" + location.search + location.hash)' in old
+    caddy = source_of("deploy/factorial/factorial.caddy")
+    assert f"redir /about.html /{PAGE}{{?query}} permanent" in caddy, "a 301 on the server, keeping ?ref="
+
+
+def test_a_shared_link_to_it_names_it_with_its_own_address():
+    assert f'<link rel="canonical" href="https://factori.al/{PAGE}">' in about()
+    assert f'<meta property="og:url" content="https://factori.al/{PAGE}">' in about()
 
 
 def test_every_link_into_the_repository_names_a_path_that_exists():
-    paths = re.findall(rf'href="{re.escape(REPOSITORY)}(?:tree|blob)/main/([^"]+)"', source("about.html"))
+    paths = re.findall(
+        rf'href="{re.escape(REPOSITORY)}(?:tree|blob)/main/([^"]+)"',
+        source("technical-details-how-factorial-works.html"),
+    )
     assert len(paths) >= 5, "the links to the code a reader would audit"
     for path in paths:
         assert (ROOT / path).exists(), path
@@ -149,7 +170,7 @@ def test_what_it_says_of_feedback_is_what_the_dialog_and_the_relay_do():
 
 
 def test_the_build_it_prints_is_the_build_script_s():
-    text = source("about.html")
+    text = source("technical-details-how-factorial-works.html")
     command = re.search(r"uv run python (scripts/build_web_app\.py) (.+)\n", text)
     assert command
     assert (ROOT / command.group(1)).is_file()
@@ -180,7 +201,7 @@ def test_the_addresses_it_says_to_change_for_a_closed_network_are_in_the_files_i
 def test_it_writes_no_version_into_the_page():
     """The versions come from the files the app loads, so the page cannot fall behind them."""
     runtime = json.loads((WEB / "runtime.json").read_text(encoding="utf-8"))
-    text = source("about.html")
+    text = source("technical-details-how-factorial-works.html")
     assert runtime["pyodide"] not in text
     for pinned in runtime["micropip"]:
         assert pinned.split("==")[1] not in text, pinned

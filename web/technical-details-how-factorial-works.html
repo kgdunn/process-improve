@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How Factorial works: the technical details</title>
+  <meta name="description" content="How Factorial works, in plain words: it runs in your browser tab, your studies stay on your device, and nothing is sent unless you send it. With the details for those who check: what a server sees, the code, and how to run a copy of your own.">
+  <link rel="canonical" href="https://factori.al/technical-details-how-factorial-works.html">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#f5f6f4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#141517" media="(prefers-color-scheme: dark)">
+  <script>
+    /* The colour mode chosen in the app (index.html), put on the page before it is drawn. */
+    try {
+      const mode = localStorage.getItem("factorial-mode");
+      if (mode === "light" || mode === "dark") document.documentElement.dataset.theme = mode;
+    } catch {
+      /* storage refused: the system's mode */
+    }
+  </script>
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="process-improve">
+  <meta property="og:title" content="How Factorial works: the technical details">
+  <meta property="og:description" content="It runs in your browser tab, your studies stay on your device, and nothing is sent unless you send it. What a server sees, the code, and how to run a copy of your own.">
+  <meta property="og:url" content="https://factori.al/technical-details-how-factorial-works.html">
+  <meta property="og:image" content="https://factori.al/og-card.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Factorial: a two-level factorial in three factors, drawn as a cube seen down its diagonal with its centre run, beside the words: design, run and learn from your experiments.">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="about">
+  <p class="about__back"><a href="./"><img src="favicon.svg" alt="" width="28" height="28"> Back to Factorial</a></p>
+  <h1>How Factorial works</h1>
+  <p class="lede">Factorial does all of its work in your browser. Your factors, results and analyses stay on your
+    device, unless you choose to send them with Feedback.</p>
+
+  <!-- Each part answers a question a reader asks, in plain words. What only some readers ask (the names of the
+       files, the formats, what a server writes down) is under the answer, in a fold: tests/web/page/test_about.py
+       holds what the folds say to the code they describe, and keeps their words out of the answers. -->
+  <h2 id="h-short" class="feat-step">In short</h2>
+  <ul class="feat-cards" aria-labelledby="h-short">
+    <li><strong>It runs on your device.</strong> Your browser fetches the app once, and then does every calculation
+      itself.</li>
+    <li><strong>Your studies stay in this browser.</strong> They are saved as you work. A study file keeps a copy
+      elsewhere.</li>
+    <li><strong>Nothing is sent unless you send it.</strong> Feedback is the one thing that leaves, when you press
+      Send.</li>
+    <li><strong>It works with no network.</strong> After a first visit, the page opens from a copy kept here.</li>
+    <li><strong>Anyone can check it.</strong> The code is open, and this page says where to look.</li>
+    <li><strong>You can run a copy of your own.</strong> Any web server can serve it.</li>
+  </ul>
+
+  <section aria-labelledby="h-where">
+    <h2 id="h-where">Where does the work happen?</h2>
+    <p>In your browser tab. When you open Factorial, your browser downloads the app and a copy of Python. From then on
+      the two work together on your device: the page shows the form, the run sheet, the tables and the charts, and
+      Python does the statistics. No calculation is done on a server.</p>
+    <figure class="flow" aria-label="The app and Python come from three sites into your browser tab, where the page and Python run, and your studies are kept.">
+      <div class="flow__sources">
+        <div class="flow__box"><strong>factori.al</strong><span>the app</span></div>
+        <div class="flow__box"><strong>jsDelivr</strong><span>Python, and what draws the charts</span></div>
+        <div class="flow__box"><strong>PyPI</strong><span>two more parts of Python</span></div>
+      </div>
+      <p class="flow__arrow" aria-hidden="true">downloaded into</p>
+      <div class="flow__tab">
+        <p class="flow__label">Your browser tab</p>
+        <div class="flow__inside">
+          <div class="flow__box"><strong>The page</strong><span>the form, the tables and the charts</span></div>
+          <p class="flow__arrow flow__arrow--side" aria-hidden="true">asks</p>
+          <div class="flow__box"><strong>Python</strong><span>the statistics, by process-improve</span></div>
+        </div>
+        <div class="flow__box flow__box--store"><strong>This browser's storage</strong><span>your studies and a draft
+          of the one you are writing</span></div>
+      </div>
+    </figure>
+    <details class="fold">
+      <summary>The details: which part does what</summary>
+      <ul>
+      <li><strong>The page draws what you see.</strong> <code>index.html</code> and its JavaScript modules draw the
+          form, the run sheet, the tables and the charts, and hold the study you are working on.</li>
+      <li><strong>A Web Worker runs Python.</strong> <a href="https://pyodide.org" target="_blank" rel="noopener">Pyodide</a> is CPython compiled to
+        WebAssembly; in a worker, a long computation leaves the page free to scroll and type in. The page sends it
+        each request as JSON, and <code>web/bootstrap.py</code> answers with the same process-improve functions you
+        would call in Python: <code>generate_design</code>, <code>compare_designs</code>, <code>TrueProcess</code>
+        and <code>analyze_experiment</code>. A study of one factor also compares its levels with the package's
+        tests: <code>one_way_sample_size</code> sizes it; <code>ttest_independent</code>, <code>ttest_paired</code>,
+        <code>randomization_test</code> and <code>rank_sum_test</code> compare two levels; and
+        <code>studentized_range_value</code> (Tukey's intervals), <code>dunnett_value</code>,
+        <code>bartlett_test</code> and <code>kruskal_wallis_test</code> compare three or more.</li>
+      <li><strong>The charts are process-improve's own.</strong> They are its Plotly figures, drawn in the page with
+          <a href="https://plotly.com/javascript/" target="_blank" rel="noopener">Plotly.js</a>.</li>
+        <li><strong>What comes from where.</strong> factori.al sends the app's files and the process-improve wheel;
+          jsDelivr sends Pyodide, its Python packages and Plotly.js; PyPI sends openpyxl and plotly.</li>
+      </ul>
+    </details>
+  </section>
+
+  <section aria-labelledby="h-kept">
+    <h2 id="h-kept">Where are my studies kept?</h2>
+    <p>In this browser, on this device. Every study is saved as you work, and so is one you have only begun to
+      describe. They are in no account and on no server, so they do not follow you to another browser or another
+      computer.</p>
+    <p>Clearing this site's data in the browser deletes them. To keep a copy, or to take your studies elsewhere,
+      download <a href="#h-file">the study file</a>.</p>
+    <details class="fold">
+      <summary>The details: where in the browser</summary>
+      <ul>
+        <li><strong>Your studies are saved as you work.</strong> Every one of them is kept in this browser's
+          IndexedDB, and a brief not yet made into a run sheet is kept in its local storage.</li>
+      <li><strong>The workbook and the notebook are written in the tab.</strong> The <code>.xlsx</code> and the
+          <code>.ipynb</code> are saved by your browser, as any download is.</li>
+      </ul>
+    </details>
+  </section>
+
+  <section aria-labelledby="h-offline">
+    <h2 id="h-offline">Can I use it with no network?</h2>
+    <p>Yes, after a first visit. Your browser keeps a copy of Factorial and of Python, and the page opens from that
+      copy when there is no network.</p>
+    <p>The foot of the app says what the copy holds and how much room it takes on this device. The copy has the
+      charts and the workbooks in it, a download of about 12 MB, and a button removes the copy. A browser set to
+      save data is not sent those 12 MB unasked: there, a second button adds them.</p>
+    <details class="fold">
+      <summary>The details: how the copy is kept</summary>
+      <p>The copy is served by a
+        <a href="https://developer.mozilla.org/docs/Web/API/Service_Worker_API" target="_blank" rel="noopener">service
+        worker</a> (<code>web/sw.js</code>): the page's own files, Python and its packages. What the foot of the page
+        says of the copy is read from the copy itself. With a network, the page's own files always come from
+        factori.al, so the copy is never shown in place of a newer page.</p>
+    </details>
+  </section>
+
+  <section aria-labelledby="h-file">
+    <h2 id="h-file">How do I share a study, or move it?</h2>
+    <p>There are three ways, and each leaves the study in your hands:</p>
+    <ul>
+      <li><strong>A link.</strong> It holds the whole study, and it goes only where you paste it.</li>
+      <li><strong>A file.</strong> The Download all button, under Your studies, saves every study as one file, and
+        the Share button beside a study sends that study alone, as a file of its own (it reads Download in a
+        browser that cannot share a file). Drop the file on Your studies, in any
+        browser: a file of one study opens it on the page, and a file of several adds them all. A study already kept
+        in that browser is not saved twice, and none is overwritten.</li>
+      <li><strong>A workbook or a notebook.</strong> One is for a spreadsheet and one for Python, and your browser
+        saves each as it does any download.</li>
+    </ul>
+    <details class="fold">
+      <summary>The details: the link, and the file's format</summary>
+      <p><strong>A link holds the study itself.</strong> It is there compressed, after the <code>#</code>. A browser
+        does not send that part of an address to any server: the link travels only where you paste it.</p>
+      <p>The file is plain JSON, readable without Factorial (<code>web/study-file.js</code> writes and reads it):</p>
+      <pre><code>{
+  "format": "factorial-studies",
+  "version": 1,
+  "exported": "2026-10-21T08:30:00.000Z",
+  "app": { "name": "Factorial", "url": "https://factori.al/", "process_improve": "1.4.0" },
+  "studies": [
+    { "id": "8f1c…", "created": "…", "updated": "…", "sha256": "ab12…",
+      "study": { "v": 1, "title": "…", "design": { … }, "responses": [ … ], … } }
+  ]
+}</code></pre>
+      <p>A study is whole: its brief, its design and run sheet, each response's results and where each came from, the
+      process they were simulated from, the models, and the settings kept from the what-if panel, each under its name,
+      as <code>"what_if": [{ "name": "Cooler, more pressure", "settings": { "T": 175, "P": 2.5 } }]</code>. Their
+      predictions are not kept: Learn works them out from the models and the results each time, so they follow a
+      result that changes. A target or a window typed in Learn is kept the same way, as
+      <code>"targets": { "Yield": 62 }</code> and <code>"windows": { "Yield": [60, null] }</code>, and the settings
+      it gives are found again. The file is built to grow with Factorial:</p>
+      <ul>
+      <li><strong>New things are new keys.</strong> A reader skips a key it does not know, at any level, so a later
+        Factorial adds what it needs beside what is there: a response measured as a curve, or a model inverted to find
+        the settings for a target.</li>
+      <li><strong>Each study names its format.</strong> It is <code>"v"</code>, and it goes up when a study holds something an
+        earlier Factorial could not keep. That Factorial then refuses the study, and says so, rather than open part of
+        it; the other studies in the file open. A study of one factor is format 2, a study with a categorical factor
+        that lists its levels (three or more, or two that read as numbers) is format 3, a study of more than 12
+        factors is format 4, a study with settings kept from the what-if panel is format 5, one that reads a curve on
+        each run is format 6, one with a run set aside from a fit is format 7, and one with a target or a window
+        typed in Learn is format 8; any other study keeps
+        format 1, so an earlier Factorial still opens it. The file's own <code>"version"</code> goes up only for a
+        change an earlier Factorial would misread.</li>
+      <li><strong>A study keeps its <code>"id"</code>.</strong> It keeps it through files and copies, so a later study can name the
+        one it builds on: a design that follows another and its model, with factors added or dropped.</li>
+      <li><strong>Each study carries the SHA-256 of its contents.</strong> A study changed by hand is so told apart
+          from one as Factorial saved it. It still opens, and Factorial says so.</li>
+      </ul>
+    </details>
+  </section>
+
+  <section aria-labelledby="h-servers">
+    <h2 id="h-servers">What does a server see?</h2>
+    <p>Very little, and nothing of your work.</p>
+    <ul>
+      <li><strong>factori.al sends the app.</strong> It keeps no accounts, sets no cookies and follows nobody. It
+        counts how often each page is opened, and cannot tell who opened it.</li>
+      <li><strong>Two public sites send Python.</strong> They send it the first time and after a new version. They
+        see an ordinary download, and nothing of your study.</li>
+      <li><strong>Feedback goes only when you send it.</strong> Before you press Send, the form lists everything it
+        will send. Your study is in it only if you tick the box.</li>
+    </ul>
+    <details class="fold">
+      <summary>The details: what is written down, and for how long</summary>
+      <ul>
+        <li><strong>factori.al sends the app's files.</strong> It has no database, no accounts, no cookies and no
+        tracking script. Its web server writes one line per request, as web servers do: the time, the file asked for,
+        the result, the browser's name (its <code>User-Agent</code>) and the page that linked here. A link someone
+        posted may name the place it was posted, as <code>?ref=newsletter</code>: a word for the place, not for you. Your address is
+        cut to its network before the line is written (the first 24 bits of an IPv4 address, the first 48 of an IPv6
+        one), and the lines are kept for 366 days, to count visits. Each day's counts are kept for longer: how many
+        times each page was opened, by about how many readers, with nothing of yours in them.</li>
+        <li><strong>jsDelivr and PyPI send Python and its packages.</strong> They send them the first time and after a
+          new version; your browser keeps them. They see an ordinary download, as for any web page that uses them, and nothing of
+        your study.</li>
+        <li><strong>Feedback reaches factori.al only when you press Send.</strong> It holds what the Feedback dialog
+          lists under "What will be sent": the topic, your message, your email address if you give one, a
+        screenshot of the tab unless you untick it, your study only if you tick it, and the page's build, versions, tab
+        and last Python errors. The site's relay emails it to the maintainer's mailbox through the email provider that
+        sends the site's mail, and keeps nothing of it, in a file or in its log. The dialog then shows the report's
+        reference, such as FB-7K3Q2M. If you give an address, the relay also sends it a receipt: the reference, the
+        topic and the day, and nothing you wrote. An address gets at most one receipt a day; to count them, the relay
+        holds a keyed hash of each address, in memory only, for a day. A copy of Factorial at another address sends
+        nothing itself.
+        <a href="https://github.com/kgdunn/process-improve/blob/main/deploy/factorial/feedback_relay.py" target="_blank" rel="noopener">Read the code</a>.</li>
+      </ul>
+    </details>
+  </section>
+
+  <section aria-labelledby="h-stack">
+    <h2 id="h-stack">What is this copy built with?</h2>
+    <p>Python, some of its best-known scientific packages, and process-improve, the package that does Factorial's
+      statistics. The versions are read from this copy itself, so the list cannot fall behind it.</p>
+    <details class="fold">
+      <summary>The versions this copy loads</summary>
+      <p>Read from the files it loads them by:
+        <a href="runtime.json"><code>runtime.json</code></a> and <a href="wheels/manifest.json"><code>wheels/manifest.json</code></a>.</p>
+      <table class="data stack" id="stack">
+      <tbody>
+        <tr><th scope="row">process-improve</th><td id="stack-process-improve">the wheel built with this copy</td></tr>
+        <tr><th scope="row">Python, in WebAssembly</th><td id="stack-pyodide">Pyodide</td></tr>
+        <tr><th scope="row">From the Pyodide release</th><td id="stack-packages">numpy, pandas, scipy, statsmodels and more</td></tr>
+        <tr><th scope="row">From PyPI</th><td id="stack-pypi">openpyxl and plotly</td></tr>
+        <tr><th scope="row">Charts</th><td id="stack-plotly-js">Plotly.js</td></tr>
+      </tbody>
+      </table>
+    </details>
+  </section>
+
+  <section aria-labelledby="h-code">
+    <h2 id="h-code">Can I check what it does?</h2>
+    <p>Yes. All of the code is open for anyone to read, and free to use, at
+      <a href="https://github.com/kgdunn/process-improve" target="_blank" rel="noopener">github.com/kgdunn/process-improve</a>.</p>
+    <details class="fold">
+      <summary>The details: where to look in the code</summary>
+      <p>It is open source under the MIT license<span id="stack-commit"></span>. To check what it does with your
+        data, these are the places to read:</p>
+      <ul>
+        <li><a href="https://github.com/kgdunn/process-improve/tree/main/web" target="_blank" rel="noopener"><code>web/</code></a>: the page,
+        <code>worker.js</code> and <code>python-boot.js</code>, which start Python, and <code>offline.js</code> and
+        <code>sw.js</code>, which make and serve the copy for use without a network;</li>
+        <li><a href="https://github.com/kgdunn/process-improve/blob/main/web/bootstrap.py" target="_blank" rel="noopener"><code>web/bootstrap.py</code></a>:
+        every call the page makes into Python;</li>
+        <li><a href="https://github.com/kgdunn/process-improve/blob/main/scripts/build_web_app.py" target="_blank" rel="noopener"><code>scripts/build_web_app.py</code></a>:
+        how this site is built from the repository;</li>
+        <li><a href="https://github.com/kgdunn/process-improve/tree/main/deploy/factorial" target="_blank" rel="noopener"><code>deploy/factorial/</code></a>:
+        the server at factori.al, its configuration and what it logs, and the relay that emails a report sent with
+        Feedback;</li>
+        <li><a href="https://github.com/kgdunn/process-improve/tree/main/tests/web" target="_blank" rel="noopener"><code>tests/web/</code></a>: the
+        tests that check the page, in a real browser and under Pyodide, on every change.</li>
+      </ul>
+    </details>
+  </section>
+
+  <section aria-labelledby="h-yours">
+    <h2 id="h-yours">Can I run a copy of my own?</h2>
+    <p>Yes. Factorial is a folder of plain files, so any web server can serve it, an internal one included. It needs
+      nothing else: no database and no accounts.</p>
+    <details class="fold">
+      <summary>The details: how to build it and serve it</summary>
+      <p>To build the folder from the code and serve it on your own machine (with
+        <a href="https://docs.astral.sh/uv/" target="_blank" rel="noopener">uv</a> installed):</p>
+      <pre><code>git clone https://github.com/kgdunn/process-improve
+cd process-improve
+uv sync --all-extras
+uv run python scripts/build_web_app.py --out site --serve</code></pre>
+      <p>then open <code>http://localhost:8000</code>. The <code>site</code> folder can be copied to any web server:
+      nginx, Apache, Caddy, an internal server or GitHub Pages. It has to be served over HTTP, as Python's files are
+      fetched by the worker, so opening <code>index.html</code> from a disk does not work.
+      <a href="https://github.com/kgdunn/process-improve/tree/main/deploy/factorial" target="_blank" rel="noopener"><code>deploy/factorial/</code></a>
+      holds the setup that serves factori.al, with deploys and roll-backs, as a worked example.</p>
+      <p>On a network without access to the internet, the browser has to fetch Pyodide, the PyPI packages and
+      Plotly.js from inside it as well: copy them to a server there, and change their addresses in
+      <code>web/python-boot.js</code> (Pyodide), <code>web/charts.js</code> (Plotly.js) and the built
+      <code>wheels/manifest.json</code> (the PyPI packages, under <code>on_demand</code>). The copy for use without a
+      network reads the first two addresses from <code>web/offline.js</code> and <code>web/sw.js</code>.</p>
+    </details>
+  </section>
+
+  <p class="hint">OMARS® is a registered trademark of KU Leuven Research &amp; Development. Factorial uses the name only for
+    the class of designs defined by Núñez Ares and Goos (2020), and is not affiliated with, or endorsed by,
+    KU Leuven, Minitab or Effex.</p>
+</main>
+<script type="module">
+  // Fill in the versions this copy loads, from the two files the app reads them from.
+  const read = async (path) => {
+    try {
+      const res = await fetch(path, { cache: "no-store" });
+      return res.ok ? await res.json() : null;
+    } catch {
+      return null;
+    }
+  };
+  const put = (id, text) => {
+    if (text) document.getElementById(id).textContent = text;
+  };
+  const [runtime, built] = await Promise.all([read("runtime.json"), read("wheels/manifest.json")]);
+  if (runtime) {
+    put("stack-pyodide", `Pyodide ${runtime.pyodide}`);
+    put("stack-packages", [...runtime.packages, ...runtime.fitting].join(", "));
+    put("stack-pypi", [...runtime.micropip, ...(built?.plotly ? [`plotly==${built.plotly}`] : ["plotly"])].join(", "));
+  }
+  const wheel = built?.wheel?.match(/process_improve-([^-]+)-/)?.[1];
+  put("stack-process-improve", wheel && `process-improve ${wheel}`);
+  put("stack-plotly-js", built?.plotly_js && `Plotly.js ${built.plotly_js}`);
+  if (built?.commit) {
+    const commit = document.getElementById("stack-commit");
+    const link = document.createElement("a");
+    link.href = `https://github.com/kgdunn/process-improve/commit/${built.commit}`;
+    link.textContent = built.commit.slice(0, 7);
+    commit.append("; this copy was built from commit ", link);
+  }
+</script>
+<!-- The colour-mode switch and the footer every page shares (site.js). -->
+<script src="site.js" type="module"></script>
+</body>
+</html>

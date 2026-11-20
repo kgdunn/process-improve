@@ -19,7 +19,7 @@ export const SITE_LINKS = [
   {
     head: "Behind it",
     links: [
-      ["about.html", "See behind the scenes: how Factorial works"],
+      ["technical-details-how-factorial-works.html", "See behind the scenes: how Factorial works"],
       ["https://github.com/kgdunn/process-improve", "process-improve, the Python package"],
       ["https://learnche.org/pid", "Process Improvement using Data, the book"],
     ],

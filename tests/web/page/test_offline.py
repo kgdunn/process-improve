@@ -137,7 +137,7 @@ def test_the_copy_holds_the_small_pages_the_footer_leads_to():
         return set(re.findall(r'"([\w./-]+)"', re.search(line, source("offline.js")).group()))
 
     kept, opening = named(r"const linked = .*"), named(r"const opening = .*")
-    pages = ("features.html", "about.html")
+    pages = ("features.html", "technical-details-how-factorial-works.html")
     asks = re.compile(r'(?:src=|from |fetch\(|read\()"(?:\./)?([\w./-]+)"')
     asked = {file for page in pages for file in asks.findall(source(page))}
     assert {"features.js", "FEATURES.md", "favicon.svg", "runtime.json", "wheels/manifest.json"} <= asked

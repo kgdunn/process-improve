@@ -40,6 +40,7 @@ BUILD_SCRIPT = ROOT / "scripts" / "build_web_app.py"
 #: ``tests/web``. ``page/test_build.py`` checks that the list is complete.
 APP_SOURCES = (
     "index.html",
+    "technical-details-how-factorial-works.html",
     "about.html",
     "features.html",
     "features.js",

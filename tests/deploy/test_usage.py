@@ -85,7 +85,9 @@ def test_each_page_of_the_site_is_counted_under_its_own_name():
         logged("/catalog/books/montgomery.html"),
         logged("/catalog/index.json"),
         logged("/mva/"),
-        logged("/about.html"),
+        logged("/about.html"),  # the page's old address, served before the server redirects it
+        logged("/about.html", status=301),  # redirected to the page's new address, which is counted
+        logged("/technical-details-how-factorial-works.html"),
         logged("/features.html"),
         logged("/features.html", status=304),
         logged("/FEATURES.md"),  # the document the page reads, not a page
@@ -93,9 +95,9 @@ def test_each_page_of_the_site_is_counted_under_its_own_name():
         logged("/style.css"),
         logged("/no-such-page/", status=404),
     )
-    assert seen.pages == {"Map": 2, "Catalog": 3, "Multivariate": 1, "About": 1, "Features": 2, "Other": 1}
+    assert seen.pages == {"Map": 2, "Catalog": 3, "Multivariate": 1, "About": 2, "Features": 2, "Other": 1}
     assert seen.counts() == {
-        "Home": 0, "Map": 2, "Catalog": 3, "Multivariate": 1, "About": 1, "Features": 2, "Other": 1,
+        "Home": 0, "Map": 2, "Catalog": 3, "Multivariate": 1, "About": 2, "Features": 2, "Other": 1,
         "Readers": 1, "Python": 0, "Previews": 0,
     }  # fmt: skip
     assert tuple(seen.counts()) == usage.COLUMNS, "in the order of the report's columns"

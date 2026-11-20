@@ -103,7 +103,9 @@ def test_the_page_opens_and_works_without_a_network_once_its_copy_is_kept(chromi
         listed = context.new_page()  # what Factorial does: a page of the app, and the document it reads, from the copy
         listed.goto(f"{app_url}features.html")
         listed.wait_for_selector("#features h2")
-        listed.goto(f"{app_url}about.html")  # how Factorial works, which reads the versions from files the copy holds
+        listed.goto(
+            f"{app_url}technical-details-how-factorial-works.html"
+        )  # how Factorial works, which reads the versions from files the copy holds
         listed.wait_for_function("document.querySelector('#stack-pyodide').textContent.startsWith('Pyodide ')")
         answer = listed.goto(f"{app_url}catalog/")  # a page no visit has opened: the worker says it is not in the copy
         assert answer.status == 503
@@ -182,7 +184,9 @@ def test_a_build_made_without_the_worker_retires_it_in_a_browser_that_has_it(chr
             a_copy_is_kept(page)
 
             worker.write_text((app / "sw-retire.js").read_text(encoding="utf-8"), encoding="utf-8")
-            page.goto(f"{url}about.html")  # a page of the app that runs none of its code
+            page.goto(
+                f"{url}technical-details-how-factorial-works.html"
+            )  # a page of the app that runs none of its code
             assert until(page, REGISTERED, wanted=False) is False, "the retiring worker unregistered"
             assert until(page, COPIES, wanted=[]) == [], "and deleted the copies"
 
