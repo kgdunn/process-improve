@@ -269,6 +269,9 @@ def test_the_tool_fits_predicts_and_ranks_the_inputs_as_the_function_does():
     )
     shares = {row["input"]: row["main_effect"] for row in found["sensitivity"]}
     assert shares["x"] > shares["z"], "the sine in x moves the output more than the small slope in z"
+    without = execute_tool_call("fit_gaussian_process", {**asked, "predict_at": None})
+    assert "predictions" not in without, "no settings asked for, none predicted"
+    assert without["theta"] == pytest.approx(found["theta"])
 
 
 @pytest.mark.parametrize(
