@@ -310,6 +310,16 @@ class _AdaptiveModel(_LatentVariableModel):
             raise ValueError(f"{name} must lie in [0, 1]; got values outside that range.")
         return arr
 
+    def __setstate__(self, state: dict) -> None:
+        """Restore a pickled model; one pickled before #1144 kept no label count, so it is read off its labels."""
+        if "_hist_index" in state and "_next_label" not in state:
+            labels = state["_hist_index"]
+            state = {
+                **state,
+                "_next_label": max((int(old) + 1 for old in labels if pd.api.types.is_integer(old)), default=0),
+            }
+        super().__setstate__(state)
+
     def _init_history(self) -> None:
         """Allocate the empty per-observation history containers."""
         self._hist_scores: list[np.ndarray] = []
@@ -411,7 +421,10 @@ class _AdaptiveModel(_LatentVariableModel):
             new_xx = new_xx * (self._norm_xx0 / norm_xx)
         self._last_injection = f_x
         denom = float(np.linalg.norm(prev_xx))
-        self._last_kernel_norm = float(np.linalg.norm(new_xx - prev_xx)) / denom if denom > 0 else 0.0
+        # pragma below: an X'X of exactly 0 is out of reach, as the step forgetting all of it leaves rounding (1e-33)
+        self._last_kernel_norm = (
+            float(np.linalg.norm(new_xx - prev_xx)) / denom if denom > 0 else 0.0  # pragma: no mutate - see above
+        )
         self.XtX_ = new_xx
 
     def _record(self, scores: np.ndarray, t2: float, spe: float, updated: bool, label: object) -> float:
@@ -426,14 +439,10 @@ class _AdaptiveModel(_LatentVariableModel):
         number of rows recorded when that is larger, so the count goes on across calls (#1082)
         and repeats no label, whatever labels came between (#1144).
         """
-        next_label = getattr(self, "_next_label", None)
-        if next_label is None:  # a model pickled before #1144 kept no count: read it off its labels
-            next_label = max((int(old) + 1 for old in self._hist_index if pd.api.types.is_integer(old)), default=0)
         if label is None:
-            label = max(next_label, len(self._hist_index))
+            label = max(self._next_label, len(self._hist_index))
         if pd.api.types.is_integer(label):
-            next_label = max(next_label, int(label) + 1)
-        self._next_label = next_label
+            self._next_label = max(self._next_label, int(label) + 1)
         distance = self._distance()
         self._hist_scores.append(scores)
         self._hist_t2.append(t2)
@@ -504,8 +513,8 @@ class _AdaptiveModel(_LatentVariableModel):
 
         The contribution functions read new rows through this, so they take the data :meth:`transform`
         takes (#1125). They pass a frame, whose columns are matched to the fit as PCA and PLS match them.
+        They check that the model is fitted first.
         """
-        check_is_fitted(self, "mx_")
         labels, rows = _as_rows(_align_to_fit_features(X, self._feature_names))
         return pd.DataFrame(self._scaled(rows), index=labels, columns=self._feature_names)
 
@@ -823,7 +832,8 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         self._scaler = MCUVScaler().fit(X_df)  # refuses fewer than two rows
         # A column with nothing observed is left out, with a warning, as across the family (#1098)
         self._unobserved_columns = unobserved_columns(X_df, "X")
-        check_x_varies([X_df], explains_y=False)  # as PCA refuses it (#1144): no row is told from another
+        # As PCA refuses it (#1144): no row is told from another. None for False reads the same.
+        check_x_varies([X_df], explains_y=False)  # pragma: no mutate - see above
         self.mx_ = self._scaler.center_.to_numpy().copy()
         self.sx_ = self._scaler.scale_.to_numpy().copy()
         self._mx0 = self.mx_.copy()  # frozen training centre / scale for the drift diagnostics

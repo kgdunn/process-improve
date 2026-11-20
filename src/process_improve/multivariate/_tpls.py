@@ -529,15 +529,6 @@ class TPLS(RegressorMixin, BaseEstimator):
                 spe,
             )
 
-        def preproc(key: str, block: str, group: str, cols: list[str]) -> np.ndarray:
-            return (
-                self.preproc_[block][group][key]
-                .reindex(cols)
-                .to_numpy(
-                    dtype=float  # pragma: no mutate - float64 already
-                )
-            )
-
         return Probe(
             names=names, y_names=tuple(n for g in self.quality_names for n in self.quality_names[g]),
             groups={g: tuple(self.material_names[g]) for g in self.material_names},
@@ -546,8 +537,9 @@ class TPLS(RegressorMixin, BaseEstimator):
             score_sd=_t2_score_sd(self.scaling_factor_for_scores.to_numpy()),
             t2_limit=float(self.hotellings_t2_limit(conf_level, judged_rows="new")),  # an input is a new row
             y_scale=np.concatenate([finite_or(self.preproc_["Y"][g]["scale"], 1.0) for g in self.quality_names]),
-            centre=np.concatenate([np.nan_to_num(preproc("center", b, g, c)) for b, g, c in columns]),
-            spread=np.concatenate([finite_or(preproc("scale", b, g, c), 1.0) for b, g, c in columns]),
+            # In the inputs' order already: F is put in D's order before its centre and scale are learned.
+            centre=np.concatenate([np.nan_to_num(self.preproc_[b][g]["center"]) for b, g, _ in columns]),
+            spread=np.concatenate([finite_or(self.preproc_[b][g]["scale"], 1.0) for b, g, _ in columns]),
             diagnose=diagnose,
         )  # fmt: skip
 
@@ -1168,11 +1160,12 @@ class TPLS(RegressorMixin, BaseEstimator):
         # A block of blends needs two of them, as across the family: one would be taken for no variance (#1149)
         for key in X["Y"]:
             self._validate_df(X["Y"][key], f'Y["{key}"]', min_rows=2)
+        # Z and F need no count of their own: every block holds the Y block's rows (DataFrameDict).
         for key in X["Z"]:
-            self._validate_df(X["Z"][key], f'Z["{key}"]', min_rows=2)
+            self._validate_df(X["Z"][key], f'Z["{key}"]')
         for key in self.d_matrix:
             self._validate_df(self.d_matrix[key], f'd_matrix["{key}"]')
-            self._validate_df(X["F"][key], f'F["{key}"]', min_rows=2)
+            self._validate_df(X["F"][key], f'F["{key}"]')
 
     def _learn_center_and_scaling_parameters(self, y: pd.DataFrame, label: str) -> tuple[pd.Series, pd.Series]:
         """

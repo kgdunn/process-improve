@@ -504,7 +504,7 @@ class PLSDA(ClassifierMixin, PLS):
         """Confusion matrix as a labelled frame: rows true, columns predicted."""
         counts = np.zeros((self.n_classes_, self.n_classes_), dtype=int)
         position = {klass: index for index, klass in enumerate(self.classes_)}
-        for actual, guess in zip(truth, predicted, strict=True):
+        for actual, guess in zip(truth, predicted, strict=True):  # pragma: no mutate - predict gives one per row
             counts[position[actual], position[guess]] += 1
         return pd.DataFrame(
             counts,
