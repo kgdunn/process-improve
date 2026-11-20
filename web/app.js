@@ -9939,6 +9939,10 @@ $("#trade-off-table").addEventListener("click", (e) => {
 });
 $("#n_levels").onchange = markStale;
 for (const id of ["#n_center_points", "#n_replicates", "#n_blocks"]) $(id).addEventListener("input", markStale);
+// An option the reader sets is theirs, as a design they name is: the page's own pick from a comparison that ends later
+// would put the option back (#1355).
+const PLAN_OPTIONS = ["#n_center_points", "#alpha", "#alpha_value", "#resolution", "#n_levels", "#budget", "#n_replicates", "#n_blocks", "#model_type", "#lattice_degree", "#mixture_model"];
+for (const id of PLAN_OPTIONS) $(id).addEventListener("input", () => (designChosen = true));
 for (const id of ["#design-type", "#n_center_points", "#n_replicates"]) $(id).addEventListener("input", markLevelRuns);
 $("#generate").onclick = async () => {
   // While practising, the new runs are simulated from the same process, noise and seed, so the true process
