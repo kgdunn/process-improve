@@ -185,6 +185,7 @@ calling, rather than guessing at field names.
 | `analyze_experiment` | ANOVA, effects, diagnostics, Lenth, Box-Cox, confirmation |
 | `analyze_omars` | The staged analysis of a definitive screening (DSD) or OMARS design; returns a model formula to fit and optimise |
 | `recommend_next_step` | "What do I run next?" After every round: confirm, axial runs, fold-over, the path of steepest ascent, or stop, with the runs in real units |
+| `suggest_next_runs` | "Where do I run next?" when no quadratic fits, for a computer experiment, or for runs made one at a time: the runs (1 to 50) where a Gaussian process of every run expects the most improvement, inside the limits; `little_to_gain` says when to confirm instead |
 | `fit_linear_model` | Explicit model formula when you need control |
 | `augment_design` | Add runs: fold-over, axial points, replicates, de-aliasing |
 | `optimize_responses` | Multi-response desirability optimisation |

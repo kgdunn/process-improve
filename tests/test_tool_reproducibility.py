@@ -208,6 +208,12 @@ SAMPLE_INPUTS: dict[str, dict[str, Any] | Callable[[], dict[str, Any]]] = {
         "n_simulations": 5,
     },
     "compare_designs": {"designs": {"3^2": _THREE_LEVELS, "2^2": _THREE_LEVELS[::2]}, "model": "main_effects"},
+    "suggest_next_runs": {
+        "factors": _FACTORS,
+        "runs": [{"A": a, "B": b, "y": 50 - (a - 6.3) ** 2 - (b - 3.7) ** 2} for a in (0, 5, 10) for b in (0, 5, 10)],
+        "response_column": "y",
+        "n_runs": 2,
+    },
     # simulation: reveal_simulator reads the hidden model from the host context the test sets up
     "reveal_simulator": {"sim_id": "sim"},
     "simulate_batch_campaign": {"n_batches": 5},
