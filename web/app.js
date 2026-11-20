@@ -2176,10 +2176,6 @@ function planKey() {
       .filter((tr) => !blankRow(tr))
       .map((tr) => tr.dataset.hard === "1")
       .join(),
-    // By place too: each numeric factor's lowest and highest possible settings, as typed.
-    possible: possibleRows()
-      .map((tr) => `${bound(tr.dataset.lowest) ?? ""}:${bound(tr.dataset.highest) ?? ""}`)
-      .join(),
     model_type: $("#model_type").value,
     lattice_degree: $("#lattice_degree").value,
     mixture_model: $("#mixture_model").value,
@@ -2187,7 +2183,9 @@ function planKey() {
   const taken = option.dataset.options.split(" ").map((key) => [key, values[key]]);
   const factors = readFactors();
   const levels = factors.map((f) => (isCategorical(f) ? levelsOf(f) : [f.low, f.high]));
-  return JSON.stringify([option.value, levels, Object.fromEntries(taken), limitsKey(factors.map((f) => f.name))]);
+  // Every design but a mixture is made with the possible ranges, so they are in no design's options: by place too.
+  const possible = possibleRows().map((tr) => `${bound(tr.dataset.lowest) ?? ""}:${bound(tr.dataset.highest) ?? ""}`);
+  return JSON.stringify([option.value, levels, Object.fromEntries(taken), limitsKey(factors.map((f) => f.name)), possible]);
 }
 
 /** How many results on the run sheet the reader entered: typed, pasted or uploaded, not simulated for practice. */
@@ -2873,8 +2871,13 @@ function pickDesign(designType, { byReader = true } = {}) {
   const item = state.comparison?.made?.find((m) => m.design_type === designType);
   if (!item) return;
   if (byReader) designChosen = true;
+  // The comparison's designs are made from the brief alone, without the ticks and possible ranges typed meanwhile:
+  // those stay, and the design is kept under the plan it was made for, so making the run sheet makes it again.
+  const [hard, possible] = [hardNames(), possibleRanges()];
   setDesignForm(item.design.spec);
   state.picked = { key: planKey(), design: item.design, warnings: item.warnings ?? [] };
+  setHard(hard);
+  setPossible(possible);
   markPicked();
   markStale();
   renderStudyBar();
