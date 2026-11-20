@@ -2922,10 +2922,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             resamples = [(np.delete(np.arange(N), i), np.array([i])) for i in range(N)]
             desc = "Jackknife (LOO)"
         else:
+            check_whole("cv", cv)  # 5.5 or "5" was read as 5 folds without a word; refused as across the family (#1114)
             method = "kfold"
             seed = sklearn_random_state(random_state)  # KFold refuses a Generator (#1128)
-            resamples = list(_shuffled_folds(cv if isinstance(cv, int) else int(cv), X, Y, random_state=seed))
-            desc = f"{int(cv)}-Fold CV"
+            resamples = list(_shuffled_folds(typing.cast("int", cv), X, Y, random_state=seed))
+            desc = f"{cv}-Fold CV"
 
         # --- Collect beta coefficients (and out-of-fold predictions for CV) ---
         beta_collection: list[np.ndarray] = []
