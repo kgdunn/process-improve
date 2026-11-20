@@ -68,11 +68,13 @@ D-deflated models stop between 0.59 and 0.77, while the same model without the d
 up with PLS on the mixture properties.
 
 The deflation also makes the TPLS fit fragile. In the simulated data set of the invariance
-checks, with D deflated, the iteration for the third component does not converge: it alternates
-between two states, and TPLS stops at its iteration limit. The model, and
-every prediction from it, is then whichever state the last iteration lands on, which differs
-between platforms. Without the deflation every component of that data set converges. The
-invariance checks therefore use 2 components, and refuse a fit that did not converge.
+checks, with D deflated, the iteration for the third component alternates between two states for
+ever: the F block's score grows as `1/|r|` where the deflated D is small, and the super weight
+swings between the blocks. The model was then whichever state the last iteration landed on,
+which differed between platforms. TPLS now iterates such a component again, damped, and it
+converges (#1163). In the full study 24 D-deflated fits still stop at the iteration limit after
+the damped run, and TPLS warns about each. The invariance checks use 2 components, and refuse a
+fit that did not converge.
 
 ## Why a new material can be predicted at all
 
@@ -210,16 +212,17 @@ per material. The error is on the new material's other blends.
 | Method | 1 blend | 2 blends | 3 blends |
 |---|---:|---:|---:|
 | 4. Zero-shot, nothing measured | 2.15 | 2.15 | 2.15 |
-| 5. Update the new material's offset | **1.77** | **1.53** | **1.47** |
-| Refit approach 4 with the measured blends | 2.86 | 2.00 | 1.83 |
-| Refit the default TPLS with the measured blends | 10.51 | 7.18 | 6.97 |
+| 5. Update the new material's offset | **1.77** | **1.53** | 1.47 |
+| Refit approach 4 with the measured blends | 2.18 | **1.53** | **1.43** |
+| Refit the default TPLS with the measured blends | 17.53 | 7.63 | 6.51 |
 
-One measured blend cuts the error by 18%, two by 29%. Refitting is worse than updating, and
-with one blend worse than not measuring at all: a refit re-estimates every parameter from data
-that say little about most of them, while the update changes only what the new blends inform,
-which is the logic of product transfer. Refitting the default TPLS is the worst of all, because
-autoscaling turns the one non-zero entry of the new material's F column into a value eight
-standard deviations from its mean.
+One measured blend cuts the error by 18%, two by 29%. With one blend, refitting approach 4 is
+worse than updating, and worse than not measuring at all (2.18 against 2.15): a refit
+re-estimates every parameter from data that say little about most of them, while the update
+changes only what the new blends inform, which is the logic of product transfer. With two blends
+the two are level, and with three the refit is ahead (1.43 against 1.47). Refitting the default
+TPLS is the worst of all, because autoscaling turns the one non-zero entry of the new material's
+F column into a value eight standard deviations from its mean.
 
 ### Is the new material inside what the model has seen?
 
