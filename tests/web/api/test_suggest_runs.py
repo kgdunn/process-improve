@@ -74,3 +74,16 @@ def test_a_categorical_factor_is_refused(api):
     spec = {**made["spec"], "response_info": {**(made["spec"].get("response_info") or {}), "goal": "maximize"}}
     request = {**held_of(made), "spec": spec, "responses": [float(i) for i in range(len(made["rows"]))]}
     assert "numeric factors only" in api.error("api_suggest_runs", request)
+
+
+def test_a_run_rounding_would_take_past_a_limit_keeps_its_setting_unrounded(
+    api, bootstrap, held, simulated, monkeypatch
+):
+    """Rounded as a plant sets it, a run on a limit's edge can land outside it: such a run keeps its setting."""
+    asked = {"factors": held["spec"]["factors"], "constraints": [{"expression": "T + 25*P <= 260"}]}
+    spec = {**held["spec"], "constraints": api.ok("api_limits", asked)["constraints"]}
+    monkeypatch.setattr(bootstrap, "_plant_setting", lambda factor, _value: 10 * factor["high"])  # far past the limit
+    found = suggested(api, {**held, "spec": spec}, simulated, n_runs=1)
+    settings = found["runs"][0]["settings"]
+    assert settings["T"] + 25 * settings["P"] <= 260 + 1e-6
+    assert settings["T"] != 10 * 200, "the setting the model chose, not the rounded one"
