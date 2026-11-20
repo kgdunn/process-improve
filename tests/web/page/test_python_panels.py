@@ -19,6 +19,7 @@ import re
 import numpy as np
 import pytest
 
+from process_improve.visualization.colors import colorscale
 from tests.web._support import (
     ALL_DESIGNS,
     FACTORS,
@@ -1510,6 +1511,29 @@ def test_a_figure_s_code_for_a_study_with_limits_draws_the_surface_over_every_se
     np.testing.assert_allclose(
         np.asarray(drawn.data[0].z, dtype=float), np.asarray(shown[0]["z"], dtype=float), atol=1e-9
     )
+
+
+def test_a_surface_s_code_draws_it_in_the_study_s_colour_map(api, node, monkeypatch):
+    """The library draws a surface in batlow, the page in the study's map: the code it shows redraws it so (#1381)."""
+    go = pytest.importorskip("plotly.graph_objects", reason="the page installs plotly for its first chart")
+    monkeypatch.setattr(go.Figure, "show", lambda *_, **__: None)  # a reader's own window, which a test has none of
+    held = held_of(api.ok("api_make_design", {"design_type": "ccd", "alpha": "face_centered", "factors": FACTORS}))
+    responses = [float(i % 5) + 0.1 * i for i in range(len(held["rows"]))]
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    options = api.ok("api_plots", {**held, "responses": responses})["plot_options"]["contour"]
+    steps = [
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, responses]),
+        ("analyseCode", [analysis["formula"], True]),
+        ("figureCode", ["A figure", options, analysis["formula"], True, held["spec"]]),
+    ]
+    chosen = source("python.js") + '\nexport { setColourMap } from "./charts.js";\n'
+    _, *codes = javascript(node, chosen, [("setColourMap", ["devon"]), *steps])
+    figure = run(javascript(node, source("python.js"), [("cumulative", codes)])[0])["figure"]
+    surfaces = [trace for trace in figure.data if "colorscale" in trace and trace.colorscale]
+    assert surfaces, "the figure of the fitted response draws one"
+    for trace in surfaces:
+        assert [list(stop) for stop in trace.colorscale] == colorscale("devon")
 
 
 # --------------------------------------------------------------------------- the page's own figures
