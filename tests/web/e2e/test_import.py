@@ -5,6 +5,7 @@ The study is one of runs as given, so Run lists the table's runs with their resu
 
 from __future__ import annotations
 
+from tests.web.api.test_import_whole_plots import paper_table
 from tests.web.e2e._page import calls, settled, study_menu
 
 DESIGNED = "Temp (degC),Pressure (bar),Catalyst,Yield (%)\n" + "".join(
@@ -110,3 +111,19 @@ def test_a_csv_file_is_read_as_a_pasted_table_is(fresh_page):
     page.wait_for_function("!document.querySelector('#import-columns').hidden")
     assert page.input_value("#import-title") == "march trials", "the file's name names the study"
     assert page.locator("#import-rows tr").count() == 4
+
+
+def test_a_split_plot_experiment_run_elsewhere_has_each_term_tested_against_its_own_spread(fresh_page):
+    """Montgomery's paper (Section 14.4), its replicates the blocks and its batches of pulp the whole plots."""
+    page = fresh_page
+    paste(page, paper_table())
+    assert column(page, "Block").locator("select").input_value() == "block"
+    assert column(page, "Whole plot").locator("select").input_value() == "whole_plot"
+    assert column(page, "Whole plot").locator("input").first.is_hidden(), "a whole plot needs no name"
+    page.click("#import-open")
+    page.wait_for_function("document.querySelector('#workspace').dataset.phase === 'learn'")
+    settled(page)
+    heading = page.get_by_role("heading", name="Each term, tested against the spread it meets")
+    rows = heading.locator("xpath=following-sibling::*[1]").locator("tbody tr")
+    method = rows.filter(has_text="Method").first.locator("td").all_text_contents()
+    assert method == ["Method", "2", "4", "7.078", "0.0485", "Whole plots"]  # Table 14.19: 7.0781, 0.0485

@@ -1838,6 +1838,7 @@ def _given_design(spec: dict) -> dict:
     responses = _checked_responses(spec, factors, blank="y")
     limits = _checked_constraints(spec.get("constraints"), factors)
     blocks = _given_blocks(spec.get("blocks"), len(rows))
+    plots, hard = _given_whole_plots(spec.get("whole_plots"), runs, blocks)
     stored: dict[str, Any] = {
         "version": SPEC_VERSION,
         "design_type": GIVEN,
@@ -1846,6 +1847,7 @@ def _given_design(spec: dict) -> dict:
         "options": {
             **({"n_blocks": len(set(blocks))} if blocks else {}),
             **({"random_state": int(spec["random_state"])} if "random_state" in spec else {}),
+            **({"hard_to_change": hard} if hard else {}),
         },
         **_stored_responses(responses),
         **_aimed(spec),
@@ -1854,6 +1856,8 @@ def _given_design(spec: dict) -> dict:
     coded = _coded(runs, stored["factors"]).to_numpy(dtype=float)
     kinds = ["categorical" if f.type == "categorical" else "numeric" for f in factors]
     stored["model"] = _largest_model(coded, kinds, blocks)
+    if plots:
+        runs.insert(0, WHOLE_PLOT, plots)
     if blocks:
         runs.insert(0, BLOCK, blocks)
     runs.insert(0, "Run order", range(1, len(runs) + 1))
@@ -1872,6 +1876,7 @@ def _given_design(spec: dict) -> dict:
         *([_relation_sentence(relation, words)] if relation else []),
         said,
         *([_blocks_sentence(coded, blocks, stored)] if blocks else []),
+        *([_whole_plots_sentence(hard, len(set(plots)))] if plots else []),
     ]
     if limits:
         notes.append(_given_limits_sentence(factors, limits, coded))
@@ -1969,6 +1974,36 @@ def _given_blocks(raw: object, n_runs: int) -> list[int]:
             "Each run is in a block of its own, so the blocks leave nothing to compare: give the runs in fewer blocks."
         )
     return blocks if len(set(blocks)) > 1 else []
+
+
+def _given_whole_plots(raw: object, runs: pd.DataFrame, blocks: list[int]) -> tuple[list[int], list[str]]:
+    """Read the whole plot of each run as given, and find the factors that are hard to change; none without.
+
+    A whole plot is a group of runs made at one setting of the factors that are hard to change, a batch of pulp
+    split into samples for the temperatures: those factors are the ones that keep one setting inside every
+    whole plot. A whole plot lies inside one block, and the plots must group the runs, neither one run apiece
+    nor all in one.
+    """
+    if raw is None:
+        return [], []
+    if not isinstance(raw, list) or len(raw) != len(runs):
+        raise ValueError("The runs as given need one whole plot for each run, or none at all.")
+    plots = [_number(p) for p in raw]
+    if not all(p is not None and p >= 1 and p == int(p) for p in plots):
+        raise ValueError("Each run's whole plot must be a whole number from 1.")
+    plots = [int(p) for p in plots]  # type: ignore[arg-type]
+    if not 1 < len(set(plots)) < len(plots):
+        raise ValueError("The whole plots must group the runs: two or more of them, and fewer than one for each run.")
+    if blocks and any(len({b for b, p in zip(blocks, plots, strict=True) if p == plot}) > 1 for plot in set(plots)):
+        raise ValueError("A whole plot lies in two blocks: each whole plot is a group of runs inside one block.")
+    settled = runs.astype(str).groupby(plots).nunique().max() == 1
+    hard = [name for name in runs.columns if settled[name]]
+    if not hard:
+        raise ValueError(
+            "No factor keeps one setting inside every whole plot, so these groups are not whole plots: a factor "
+            "that is hard to change is set once for each of them."
+        )
+    return plots, hard
 
 
 def _mixture_design(spec: dict) -> dict:
@@ -3206,14 +3241,59 @@ def _judged(data: pd.DataFrame, fit: dict, runs: pd.DataFrame, spec: dict) -> tu
     hard = spec.get("options", {}).get("hard_to_change")
     if not hard:
         return fit["out"], fit, {}
-    split = _split_plot(data, fit, runs[WHOLE_PLOT], hard)
+    split = _split_plot(data, fit, runs[WHOLE_PLOT], hard, spec)
     notes = [*fit["notes"], split["note"]]
     if split["told"] is None:
         return fit["out"], {**fit, "notes": notes}, {}
-    return {**fit["out"], **split["out"]}, {**fit, "notes": notes, "lenth": None}, {"split_plot": split["told"]}
+    told = {**split["told"], "tests": _split_tests(data, fit, runs, spec)}
+    return {**fit["out"], **split["out"]}, {**fit, "notes": notes, "lenth": None}, {"split_plot": told}
 
 
-def _split_plot(data: pd.DataFrame, fit: dict, plots: pd.Series, hard: list[str]) -> dict[str, Any]:
+def _split_tests(data: pd.DataFrame, fit: dict, runs: pd.DataFrame, spec: dict) -> list[dict[str, Any]] | None:
+    """Test each source of a split-plot fit, a factor of several levels as one, against the spread it meets.
+
+    A source set once for each whole plot is tested against the spread from whole plot to whole plot, on the
+    whole plots' degrees of freedom, and the others against the spread from run to run (Satterthwaite's degrees
+    of freedom, as the library gives them). The fit names a factor of several levels by its contrasts, one
+    column each, so the library is asked again with that factor's labels in their place, which it tests as one
+    term. ``data`` holds the coded runs with a result and those results, ``runs`` the same runs of the run sheet.
+
+    shortcut: none for a model with a nested factor, whose indicators have no factor of their own to stand for
+    them; group its indicators by their source if such a design is ever made hard to change.
+    """
+    terms = [t.strip() for t in fit["formula"].split("+")]
+    if any(INDICATOR_JOIN in term for term in terms):
+        return None
+    frame = data.copy()
+    for f in spec["factors"]:
+        if _several(f):
+            frame = frame.drop(columns=_contrast_names(f)).assign(**{f["name"]: runs[f["name"]].astype(str).to_numpy()})
+    names = [f["name"] for f in spec["factors"]]
+    sources = dict.fromkeys(_source_of(t, spec) for t in terms if t != BLOCK and not _block_contrast(t, names))
+    with _listening():
+        found = doe.analyze_experiment(
+            frame.assign(WholePlot=pd.to_numeric(runs[WHOLE_PLOT]).astype(int).to_numpy()),
+            model=" + ".join([*([BLOCK] if BLOCK in terms else []), *sources]),
+            analysis_type="split_plot",
+            coding="actual",
+            whole_plot="WholePlot",
+            response_column=str(data.columns[-1]),
+            significance_level=significance(),
+        )["split_plot"]
+    return [
+        {
+            "source": "Blocks" if t["source"] == BLOCK else _level_words(_pretty(t["source"]), spec),
+            "df": int(t["df"]),
+            "df_error": float(t["df_denominator"]),
+            "F": float(t["F"]),
+            "p_value": float(t["p_value"]),
+            "against": "whole plots" if t["stratum"] == "whole_plot" else "runs",
+        }
+        for t in found["tests"]
+    ]
+
+
+def _split_plot(data: pd.DataFrame, fit: dict, plots: pd.Series, hard: list[str], spec: dict) -> dict[str, Any]:
     """Judge each coefficient of a design with factors that are hard to change against the spread it meets.
 
     Such a factor is set once for a whole plot, a group of runs, so its coefficient moves with the spread from
@@ -3267,7 +3347,14 @@ def _split_plot(data: pd.DataFrame, fit: dict, plots: pd.Series, hard: list[str]
     # the app does not offer, and the feature list is checked against this file for it.
     components = found["variance_" + "components"]
     between, within = math.sqrt(max(components["whole_plot"], 0.0)), math.sqrt(components["residual"])
-    whole = [_pretty(c["term"]) for c in coefficients if c.get("stratum") == "whole_plot" and c["term"] != "Intercept"]
+    names = [f["name"] for f in spec["factors"]]
+    whole = list(  # by source, one name for a factor of several levels, and no block (the note says the blocks apart)
+        dict.fromkeys(
+            _pretty(_source_of(c["term"], spec))
+            for c in coefficients
+            if c.get("stratum") == "whole_plot" and c["term"] != "Intercept" and not _block_contrast(c["term"], names)
+        )
+    )
     note = (
         f"{_listed(hard)} {verb} set once for each of the {found['n_whole_plots']} whole plots. The results differ "
         f"from whole plot to whole plot by a standard deviation of {between:.3g}, and from run to run inside one by "
@@ -5185,13 +5272,22 @@ FEW_SETTINGS = 5
 #: Cells a spreadsheet or a logger writes for "no value".
 _BLANK_CELLS = {"", "na", "n/a", "nan", "null", "none", "-", "--", "?"}
 
+#: What a column of a table can be in a study: a factor, a response, the runs' block or their whole plot, or neither.
+TABLE_ROLES = ("factor", "response", "block", "whole_plot", "ignore")
+
+#: Headings of columns that group the runs, in blocks or in whole plots (a split-plot design), by the role each guesses.
+_GROUPING = {
+    "block": re.compile(r"(?i)^blocks?$"),
+    "whole_plot": re.compile(r"(?i)^(whole[ _-]?plots?|wholeplots?)$"),
+}
+
 #: Headings of columns that number or date the runs: no factor and no response.
 _BOOKKEEPING = re.compile(r"(?i)^(run|runs|std|standard|order|run ?order|std ?order|id|index|no\.?|#|obs\w*|date)$")
 
 #: The columns each DOE program writes beside a design's factors and responses, to number and place its runs, as
 #: (headings that name the program, any set of them; the program's bookkeeping columns), each heading compared
 #: without case, spaces or marks. Minitab's CenterPt holds 0 and 1, so without this it is guessed a factor. A
-#: block column is kept: the block is a factor of the analysis.
+#: block column is kept, as the runs' blocks.
 _EXPORTERS = {
     "Minitab": (({"stdorder", "runorder"},), {"stdorder", "runorder", "centerpt", "pttype"}),
     "MODDE": (({"expno", "expname"}, {"expno", "inclexcl"}), {"expno", "expname", "runorder", "inclexcl"}),
@@ -5371,6 +5467,8 @@ def _guess_roles(columns: list[dict[str, Any]], aside: frozenset[str] = frozense
     for c in columns:
         if idle(c):
             c["role"] = "ignore"
+        elif grouping := next((role for role, heading in _GROUPING.items() if heading.match(c["label"])), None):
+            c["role"] = grouping
         elif c["kind"] == "text":
             c["role"] = "factor" if c["settings"] <= MAX_LEVELS else "ignore"
         elif c["settings"] <= FEW_SETTINGS:
@@ -5421,7 +5519,7 @@ def _sent_table(request: dict) -> tuple[list[dict], list[list]]:
         or not isinstance(rows, list)
         or not 0 < len(columns) <= MAX_TABLE_COLUMNS
         or not 1 < len(rows) <= MAX_GIVEN_RUNS
-        or not all(isinstance(c, dict) and c.get("role") in ("factor", "response", "ignore") for c in columns)
+        or not all(isinstance(c, dict) and c.get("role") in TABLE_ROLES for c in columns)
         or not all(isinstance(row, list) and len(row) == len(columns) for row in rows)
         or not all(value is None or isinstance(value, (int, float, str)) for row in rows for value in row)
     ):
@@ -5497,7 +5595,11 @@ def import_study(request: dict) -> dict:
     measured = [c for c in columns if c["role"] == "response"]
     if not chosen or not measured:
         raise ValueError("A study needs at least one factor and one response: choose which columns they are.")
-    kept = [i for i, row in enumerate(rows) if all(row[at[id(c)]] is not None for c in chosen)]
+    grouping = {role: [c for c in columns if c["role"] == role] for role in ("block", "whole_plot")}
+    if any(len(found) > 1 for found in grouping.values()):
+        raise ValueError("Choose one column at most as the block, and one at most as the whole plot.")
+    needed = [*chosen, *grouping["block"], *grouping["whole_plot"]]
+    kept = [i for i, row in enumerate(rows) if all(row[at[id(c)]] is not None for c in needed)]
     if len(kept) < 2:
         raise ValueError("Fewer than two runs have a setting for every factor: leave out a factor with blanks.")
     factors = [_imported_factor(c, [rows[i][at[id(c)]] for i in kept]) for c in chosen]
@@ -5522,6 +5624,11 @@ def import_study(request: dict) -> dict:
             ]
             for i in kept
         ],
+        **{
+            ("blocks" if role == "block" else "whole_plots"): _numbered([rows[i][at[id(c)]] for i in kept])
+            for role, found in grouping.items()
+            for c in found
+        },
     }
     design = _given_design(spec)
     stored = design["spec"]
@@ -5568,6 +5675,12 @@ def import_study(request: dict) -> dict:
 def _level_label(value: float | str | None) -> str:
     """Write a categorical factor's setting as its level's label: a number as a spreadsheet shows it."""
     return f"{value:g}" if isinstance(value, float) else str(value)
+
+
+def _numbered(labels: list) -> list[int]:
+    """Give each group of a column a number from 1, in the order they first appear: its blocks or whole plots."""
+    order: dict[str, int] = {}
+    return [order.setdefault(_level_label(label), len(order) + 1) for label in labels]
 
 
 def read_workbook(request: dict) -> dict:
