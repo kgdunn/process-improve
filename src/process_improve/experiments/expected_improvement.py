@@ -13,7 +13,10 @@ over the best result so far is largest:
 
 for a minimum sought, with :math:`\hat y` the prediction, :math:`s` its standard error and :math:`b`
 the best so far. A setting is proposed because it looks good (a low :math:`\hat y`), or because
-little is known there (a large :math:`s`). With a noise term, the best so far is the best predicted
+little is known there (a large :math:`s`). For a target :math:`t` the improvement is in the distance
+from it, :math:`d` being the smallest so far: :math:`\operatorname{E}[\max(d - |Y - t|, 0)]` for
+:math:`Y` normal with that mean and standard error, worked exactly over the band from :math:`t - d`
+to :math:`t + d`. With a noise term, the best so far is the best predicted
 mean at the runs made, not the best single result, which may be a lucky one.
 
 The settings come from the region, :class:`~process_improve.experiments.region.DesignRegion`, so a
@@ -40,8 +43,8 @@ from process_improve.experiments.region import DesignRegion
 if TYPE_CHECKING:
     from process_improve.experiments.factor import Factor
 
-#: What a study can aim for.
-GOALS = ("maximize", "minimize")
+#: What a study can aim for: a target takes its value as ``target``.
+GOALS = ("maximize", "minimize", "target")
 
 #: The most runs one call proposes, and the settings it draws from the region to choose each among.
 MAX_RUNS = 50
@@ -64,11 +67,12 @@ class SuggestedRuns:
         One row per run, in the order to make them: each factor in its own units, the
         ``predicted`` output there, its ``std_error`` and the ``expected_improvement``.
     best : float
-        The best so far that each run is to improve on.
+        The best so far that each run is to improve on: for a target, the output closest to it.
     improvement_ratio : float
         The first run's expected improvement over the size of the best so far (over the range
-        of the outputs when the best is 0). Jones, Schonlau and Welch stop when it is below 1%:
-        then confirmation runs at the best setting are the next step.
+        of the outputs when the best is 0); for a target, over the best's distance from it.
+        Jones, Schonlau and Welch stop when it is below 1%: then confirmation runs at the best
+        setting are the next step.
     fit : GaussianProcessFit
         The model of every run so far.
     """
@@ -85,6 +89,7 @@ def suggest_next_runs(  # noqa: PLR0913 - the study, its goal, where to look and
     response: str,
     *,
     goal: str = "maximize",
+    target: float | None = None,
     region: DesignRegion | None = None,
     n_runs: int = 1,
     noise: bool = True,
@@ -101,7 +106,9 @@ def suggest_next_runs(  # noqa: PLR0913 - the study, its goal, where to look and
     response : str
         The output's column.
     goal : str
-        ``"maximize"`` or ``"minimize"``.
+        ``"maximize"``, ``"minimize"`` or ``"target"``.
+    target : float or None
+        The value to reach, for ``goal="target"`` only.
     region : DesignRegion or None
         Where a run may be made: the factors' box with any limits on the settings. The box
         of the factors by default.
@@ -121,7 +128,8 @@ def suggest_next_runs(  # noqa: PLR0913 - the study, its goal, where to look and
     Raises
     ------
     ValueError
-        If a factor is not numeric, the goal is not one of :data:`GOALS`, a factor or the
+        If a factor is not numeric, the goal is not one of :data:`GOALS` or a target goal has no
+        finite ``target`` (or another goal has one), a factor or the
         response is not a column of ``runs``, ``n_runs`` is out of range, or the model cannot be
         fitted (see :func:`fit_gaussian_process`).
 
@@ -136,38 +144,44 @@ def suggest_next_runs(  # noqa: PLR0913 - the study, its goal, where to look and
     >>> 0.3 < found.runs["x"].iloc[0] < 0.7  # the maximum of sin(3x) is at 0.52
     True
     """
-    _check(factors, runs, response, goal, n_runs)
+    _check(factors, runs, response, goal, n_runs, target)
     names = [f.name for f in factors]
     rng = check_random_state(random_state)
     seed = int(rng.integers(2**31))
     region = region or DesignRegion(factors)
     fit = fit_gaussian_process(runs[[*names, response]], response, names, noise=noise, random_state=seed)
-    sign = 1.0 if goal == "minimize" else -1.0  # the expected improvement is worked for a minimum
+    aim = _Aim(goal, target)
     made = runs[names]
-    at_runs = fit.predict(made)["predicted"] if noise else runs[response]
-    best = float(sign * np.min(sign * at_runs.to_numpy(dtype=float)))
-    scale = abs(best) or float(np.ptp(runs[response].to_numpy(dtype=float)))
-    chosen, model, target = [], fit, sign * best
+    at_runs = (fit.predict(made)["predicted"] if noise else runs[response]).to_numpy(dtype=float)
+    best = float(at_runs[int(np.argmin(aim.loss(at_runs)))])
+    scale = float(aim.loss(np.array([best]))[0]) if goal == "target" else abs(best)
+    scale = scale or float(np.ptp(runs[response].to_numpy(dtype=float)))
+    chosen, model, least = [], fit, float(aim.loss(np.array([best]))[0])
     for _ in range(n_runs):
-        setting, gain = _best_setting(model, factors, region, target, sign, rng)
+        setting, gain = _best_setting(model, factors, region, least, aim, rng)
         predicted = model.predict(setting)
         chosen.append(setting.assign(**predicted[["predicted", "std_error"]], expected_improvement=gain))
         # The kriging believer: the run is taken to give its prediction, which joins the runs and may be the new
         # best, and the next run is chosen with it; so no two runs of a batch go to one place.
         model = model.with_runs(setting, predicted["predicted"].to_numpy())
-        target = min(target, sign * float(predicted["predicted"].iloc[0]))
+        least = min(least, float(aim.loss(predicted["predicted"].to_numpy(dtype=float))[0]))
     proposed = pd.concat(chosen, ignore_index=True)
     ratio = float(proposed["expected_improvement"].iloc[0] / scale) if scale > 0 else 0.0
     return SuggestedRuns(proposed, best, ratio, fit)
 
 
-def _check(factors: list[Factor], runs: pd.DataFrame, response: str, goal: str, n_runs: int) -> None:
+def _check(
+    factors: list[Factor], runs: pd.DataFrame, response: str, goal: str, n_runs: int, target: float | None
+) -> None:
     """Refuse what :func:`suggest_next_runs` cannot work with, each in a sentence."""
     if any(f.type != FactorType.continuous for f in factors) or not factors:
         msg = "suggest_next_runs takes one or more numeric factors; a categorical factor or a blend is not taken yet."
         raise ValueError(msg)
     if goal not in GOALS:
         msg = f"goal={goal!r} is not one of {list(GOALS)}."
+        raise ValueError(msg)
+    if (goal == "target") != (target is not None) or (target is not None and not np.isfinite(target)):
+        msg = f"goal={goal!r} with target={target!r}: give a finite target with goal='target', and none otherwise."
         raise ValueError(msg)
     missing = [name for name in [*(f.name for f in factors), response] if name not in runs.columns]
     if missing:
@@ -178,14 +192,44 @@ def _check(factors: list[Factor], runs: pd.DataFrame, response: str, goal: str, 
         raise ValueError(msg)
 
 
-def _expected_improvement(fit: GaussianProcessFit, points: pd.DataFrame, best: float, sign: float) -> np.ndarray:
-    """Return the expected amount by which a run at each point improves on ``best``, on the scale of a minimum."""
+@dataclass(frozen=True)
+class _Aim:
+    """What a run is judged by: its loss, the smaller the better, and the expected improvement in it."""
+
+    goal: str
+    target: float | None = None
+
+    def loss(self, outputs: np.ndarray) -> np.ndarray:
+        """Return each output's loss: itself for a minimum, its negative for a maximum, its distance from a target."""
+        if self.goal == "target":
+            return np.abs(outputs - self._at)
+        return outputs if self.goal == "minimize" else -outputs
+
+    @property
+    def _at(self) -> float:
+        """The target, which _check has made sure a target goal has."""
+        return 0.0 if self.target is None else self.target
+
+    def improvement(self, mean: np.ndarray, spread: np.ndarray, least: float) -> np.ndarray:
+        """Return the expected amount by which an output, normal with ``mean`` and ``spread``, lowers ``least``."""
+        cdf, pdf = stats.norm.cdf, stats.norm.pdf
+        with np.errstate(divide="ignore", invalid="ignore"):
+            if self.goal != "target":
+                z = (least - self.loss(mean)) / spread
+                gain = (least - self.loss(mean)) * cdf(z) + spread * pdf(z)
+            else:
+                # E[max(least - |Y - t|, 0)]: the band from t - least to t + least, each half a linear integral
+                t = self._at
+                low, aim, high = (((at - mean) / spread) for at in (t - least, t, t + least))
+                gain = (mean - t + least) * (cdf(aim) - cdf(low)) + spread * (pdf(low) - pdf(aim))
+                gain += (t + least - mean) * (cdf(high) - cdf(aim)) - spread * (pdf(aim) - pdf(high))
+        return np.where(spread > 0, np.clip(np.nan_to_num(gain), 0.0, None), 0.0)
+
+
+def _expected_improvement(fit: GaussianProcessFit, points: pd.DataFrame, least: float, aim: _Aim) -> np.ndarray:
+    """Return the expected amount by which a run at each point lowers ``least``, the smallest loss so far."""
     found = fit.predict(points)
-    mean, spread = sign * found["predicted"].to_numpy(), found["std_error"].to_numpy()
-    with np.errstate(divide="ignore", invalid="ignore"):
-        z = np.where(spread > 0, (best - mean) / spread, 0.0)
-    gain = (best - mean) * stats.norm.cdf(z) + spread * stats.norm.pdf(z)
-    return np.where(spread > 0, np.clip(gain, 0.0, None), 0.0)
+    return aim.improvement(found["predicted"].to_numpy(), found["std_error"].to_numpy(), least)
 
 
 def _actual(coded: np.ndarray, factors: list[Factor]) -> pd.DataFrame:
@@ -199,8 +243,8 @@ def _best_setting(
     fit: GaussianProcessFit,
     factors: list[Factor],
     region: DesignRegion,
-    best: float,
-    sign: float,
+    least: float,
+    aim: _Aim,
     rng: np.random.Generator,
 ) -> tuple[pd.DataFrame, float]:
     """Return the setting of largest expected improvement, as one row in the factors' units, and that improvement.
@@ -209,14 +253,14 @@ def _best_setting(
     box about it, half as wide as the round before, and keeps those the region allows.
     """
     coded = region.sample(N_CANDIDATES, rng)
-    gains = _expected_improvement(fit, _actual(coded, factors), best, sign)
+    gains = _expected_improvement(fit, _actual(coded, factors), least, aim)
     at, gain = coded[int(np.argmax(gains))], float(np.max(gains))
     width = _POLISH_WIDTH
     for _ in range(_POLISH_ROUNDS):
         near = np.clip(at + rng.uniform(-width, width, (_POLISH_DRAWS, len(at))), -1.0, 1.0)
         near = near[region.feasible(near)]
         if len(near):
-            gains = _expected_improvement(fit, _actual(near, factors), best, sign)
+            gains = _expected_improvement(fit, _actual(near, factors), least, aim)
             if gains.max() > gain:
                 at, gain = near[int(np.argmax(gains))], float(gains.max())
         width /= 2.0

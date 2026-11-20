@@ -7955,10 +7955,11 @@ function renderNext() {
 /** The most runs a model of every run is asked for at once (bootstrap.MAX_SUGGESTED), and the choices offered. */
 const SUGGESTED_COUNTS = [1, 2, 4, 8];
 
-/** Whether a model of every run can suggest runs: numeric factors, no mixture, and a goal of the largest or smallest. */
+/** Whether a model of every run can suggest runs: numeric factors, no mixture, and a goal of the largest, the smallest or a target. */
 function suggestable(design) {
-  const goal = design.spec.response_info?.goal;
-  return (goal === "maximize" || goal === "minimize") && !isMixture(design.spec.design_type) && !design.spec.factors.some(isCategorical);
+  const { goal, target } = design.spec.response_info ?? {};
+  const aimed = goal === "maximize" || goal === "minimize" || (goal === "target" && Number.isFinite(target));
+  return aimed && !isMixture(design.spec.design_type) && !design.spec.factors.some(isCategorical);
 }
 
 /**

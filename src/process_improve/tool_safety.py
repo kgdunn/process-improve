@@ -443,6 +443,14 @@ def _start_worker(pool: Executor, tool_name: str, timeout: float) -> None:
     """
     try:
         _submit(pool, _worker_ready).result(timeout=_WORKER_STARTUP_TIMEOUT_S)
+    except BrokenProcessPool as exc:
+        # The memory cap is applied at the end of the start-up, so a worker that dies here did not hit it.
+        raise ToolSafetyError(
+            f"Tool {tool_name!r} did not run: its worker process died while starting, before the memory limit "
+            "applies. With the 'spawn' start method (macOS, Windows), a likely cause is a main script that starts "
+            'the call without an `if __name__ == "__main__":` guard.',
+            details={"tool_name": tool_name, "stage": "startup"},
+        ) from exc
     except FuturesTimeoutError as exc:
         raise ToolTimeoutError(
             f"Tool {tool_name!r} did not run: its worker process took more than {_WORKER_STARTUP_TIMEOUT_S:g}s "

@@ -29,3 +29,25 @@ def test_the_runs_suggested_are_listed_with_why_and_added_to_the_run_sheet(page)
     settled(page)
     assert page.locator("#design-table tbody tr").count() == before + 2
     assert calls(page, "api_add_runs")[-1]["payload"]["kind"] == "suggested"
+
+
+def set_goal(page, goal: str, target: object = None) -> None:
+    """Choose the response's goal in the brief, and wait for the analysis it asks for to be on the page."""
+    before = page.evaluate("window.__pi.count('api_best_settings')")
+    reveal(page, "#response-goal")
+    page.select_option("#response-goal", goal)
+    if target is not None:
+        page.fill("#response-target", str(target))
+    page.wait_for_function(f"window.__pi.count('api_best_settings') > {before}")
+    settled(page)
+    reveal(page, "#next")
+
+
+def test_a_target_is_a_goal_runs_are_suggested_for_once_it_is_typed(page):
+    set_goal(page, "target")
+    assert not page.is_visible("#suggest-runs"), "a target not yet typed is no goal to suggest runs for"
+    set_goal(page, "target", 60)
+    page.click("#suggest-runs")
+    page.wait_for_selector(f"{PART} tbody tr")
+    sent = calls(page, "api_suggest_runs")[-1]["payload"]["spec"]["response_info"]
+    assert (sent["goal"], sent["target"]) == ("target", 60)
