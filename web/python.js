@@ -49,6 +49,9 @@ const bandArg = () => (ownLevel() ? `, level=${confidence()}` : "");
 const colourArgs = () =>
   [colourMap() === DEFAULT_COLOUR_MAP ? [] : [repr(colourMap())], colourMapFlipped() ? ["dark_page=True"] : []].flat().join(", ");
 
+/** The library's figures that draw a surface, in its own colour map (batlow), which the page redraws in the study's. */
+const SURFACE_PLOTS = new Set(["contour", "surface_3d", "prediction_variance"]);
+
 /**
  * What ``feasible_region`` is given of the responses' error correlation, after the code that leaves ``correlation`` and
  * ``correlation_df``: with the seed of the draws its doubt is averaged over, as the page seeds them; nothing for
@@ -491,9 +494,11 @@ export function figureCode(title, options, model, complete = true, spec = null) 
   const y = onScale(complete ? "y" : "y[done]", transform);
   const response = repr(spec?.response ?? "y");
   const lenth = options.plot_type === "half_normal";
+  const recolour = SURFACE_PLOTS.has(options.plot_type) && colourArgs() !== "";
   return [
     "import plotly.graph_objects as go",
     "from process_improve.experiments import analyze_experiment, visualize_doe",
+    ...(recolour ? ["from process_improve.visualization.colors import colorscale"] : []),
     "",
     `# The figure "${title}", as the library draws it: under its own titles, with each factor in`,
     "# coded units, from -1 at its low setting to +1 at its high. The page puts the axes in your own units.",
@@ -514,6 +519,15 @@ export function figureCode(title, options, model, complete = true, spec = null) 
     ...argLine(confidenceArg(), 4),
     ")",
     'figure = go.Figure(chart["plotly"])',
+    ...(recolour
+      ? [
+          "# The library draws a surface in batlow, its own colour map; the page redraws it in the study's.",
+          "batlow = [tuple(stop) for stop in colorscale()]",
+          "for trace in figure.data:",
+          '    if "colorscale" in trace and list(trace.colorscale or []) == batlow:',
+          `        trace.colorscale = colorscale(${colourArgs()})`,
+        ]
+      : []),
     "figure.show()",
   ].join("\n");
 }
