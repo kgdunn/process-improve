@@ -215,7 +215,7 @@ def check_at_least_one(name: str, value: float | None) -> None:
         raise ValueError(f"{name} must be >= 1; got {value}.")
 
 
-def check_whole(name: str, value: float | None) -> None:
+def check_whole(name: str, value: object) -> None:
     """Refuse a count that is not a whole number; ``None`` passes (#1114).
 
     A count of 2.5 was read as 2, without a word, or failed in a slice with a ``TypeError``.
@@ -226,8 +226,8 @@ def check_whole(name: str, value: float | None) -> None:
     ----------
     name : str
         The parameter's name, used in the error message.
-    value : int or None
-        The value to check.
+    value : object
+        The value to check: any type, as a caller may be handed a string or a float.
 
     Raises
     ------

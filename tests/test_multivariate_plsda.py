@@ -1078,8 +1078,8 @@ def test_plsda_cross_validation_runs_pls_on_the_class_indicators() -> None:
 
     nesting = {"max_components": 2, "n_inner_repeats": 1, "random_state": 0}
     pd.testing.assert_series_equal(
-        PLSDA.nested_cv(X, y, inner_cv=3, **nesting).q2y,
-        PLS.nested_cv(X, indicators, outer_cv=FoldsByClass(5), inner_cv=FoldsByClass(3), **nesting).q2y,
+        PLSDA.nested_cv(X, y, **nesting).q2y,  # five inner folds, as PLS has by default
+        PLS.nested_cv(X, indicators, outer_cv=FoldsByClass(5), inner_cv=FoldsByClass(5), **nesting).q2y,
     )
 
     resampling = {"random_state": 0, "show_progress": False}
@@ -1089,6 +1089,9 @@ def test_plsda_cross_validation_runs_pls_on_the_class_indicators() -> None:
         PLS(n_components=2).fit(X, indicators).cross_validate(X, indicators, cv=FoldsByClass(3), **resampling)
     )
     pd.testing.assert_frame_equal(resampled.beta_mean, expected_resampling.beta_mean)
+    # A splitter is used as it is given
+    given = classifier.cross_validate(X, y, cv=FoldsByClass(3), **resampling)
+    pd.testing.assert_frame_equal(given.beta_mean, expected_resampling.beta_mean)
     pd.testing.assert_series_equal(resampled.q_squared, expected_resampling.q_squared)
     # This model's own PLS settings reach the fit: one component, not PLS's two above.
     one = PLSDA(n_components=1).cross_validate(X, y, cv=3, **resampling)

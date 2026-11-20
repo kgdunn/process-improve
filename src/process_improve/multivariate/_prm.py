@@ -96,7 +96,7 @@ def _robust_scaler(
     *,
     scale: bool,
     centre: Callable[[np.ndarray], np.ndarray],
-    unit: float = 1.0,
+    unit: float = 1.0,  # pragma: no mutate - only Y takes it, and a column's median is the same in any unit
 ) -> MCUVScaler:
     """Return a scaler centred robustly, once, on the rows the prior keeps.
 
@@ -405,11 +405,13 @@ class PRM(PLS):
         self._y_units = np.where(y_spreads > 0, y_spreads, 1.0)
         self._robust_scalers = (
             _robust_scaler(X_df, active, scale=self.scale, unit=x_unit, centre=l1_median),
-            _robust_scaler(Y_df, active, scale=self.scale, unit=1.0, centre=_column_medians),
+            _robust_scaler(Y_df, active, scale=self.scale, centre=_column_medians),
         )
         x_centred = self._robust_scalers[0].transform(X_df).to_numpy() / x_unit
-        y_centred = (Y_df.to_numpy() - self._robust_scalers[1].center_.to_numpy()) / self._y_units
-        weights = _leverage_weights(x_centred, active, self.cutoff) * _residual_weights(y_centred, active, self.cutoff)
+        # Y need not be centred first: _residual_weights centres it at its median
+        weights = _leverage_weights(x_centred, active, self.cutoff) * _residual_weights(
+            Y_df.to_numpy() / self._y_units, active, self.cutoff
+        )
 
         self.weights_converged_ = False
         regression_norm = np.inf

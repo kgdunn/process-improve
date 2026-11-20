@@ -825,7 +825,7 @@ def _monitoring_criteria(model: Any, folds: list[_Fold], conf_level: float, alph
     pv_scores, squared_spe = pv_scores[judged], squared_spe[judged]
     N = int(judged.sum())
     # A column every model leaves out, having no observed value, is not one a complete row would have.
-    n_used = int(np.sum(~np.broadcast_to(getattr(model, "_unobserved_columns", False), (model.n_features_in_,))))
+    n_used = int(np.sum(~np.broadcast_to(model._unobserved_columns, (model.n_features_in_,))))
     n_observed = np.empty(judged.size)
     for fold in folds:
         n_observed[fold.test] = (~np.isnan(fold.x_test)).sum(axis=1)
@@ -903,7 +903,7 @@ def _recommendations(table: pd.DataFrame, predictive: Bunch, settings: _CompareS
 
 
 def _compare_cv_criteria(
-    estimator: Callable[..., Any],
+    estimator: Any,  # noqa: ANN401 - PLS or a subclass, not imported: _pls imports this module
     X: DataMatrix,
     Y: DataMatrix | pd.Series,
     settings: _CompareSettings,
@@ -928,7 +928,7 @@ def _compare_cv_criteria(
 
     if int(settings.n_cv_permutations) > 0:
         shape = (int(settings.n_cv_permutations), A)
-        if getattr(estimator, "_null_by_kernel_pls", True):
+        if estimator._null_by_kernel_pls:
             observed, null = _score_correlation_null(X_df.to_numpy(), y_values, splits, shape, rng_null)
         else:  # the permutations drawn as _score_correlation_null draws them
             orders = [rng_null.permutation(len(y_values)) for _ in range(shape[0])]

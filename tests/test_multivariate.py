@@ -5314,6 +5314,25 @@ def test_pls_cross_validate_kfold() -> None:
     assert cv_result.y_hat_cv.shape == (N, 1)
     assert cv_result.q_squared is not None
     assert cv_result.q_squared.values[0] > 0
+    # numpy's integer is a count of folds too; a count that is not whole is refused, as across the family (#1114)
+    numpy_count = pls.cross_validate(X_s, Y_s, cv=np.int64(5), random_state=42, show_progress=False)
+    pd.testing.assert_series_equal(numpy_count.q_squared, cv_result.q_squared)
+    for count in (5.5, 5.0, "5"):
+        with pytest.raises(ValueError, match=rf"^cv must be a whole number; got {count}\.$"):
+            pls.cross_validate(X_s, Y_s, cv=count, show_progress=False)
+
+
+def test_pls_cross_validate_reads_a_nullable_x_as_its_float_copy() -> None:
+    """An X of pandas' nullable floats, with a missing cell, is cross-validated as the same X in float64."""
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(rng.normal(size=(20, 4)), columns=list("abcd"))
+    Y = pd.DataFrame({"y": X.to_numpy() @ [1.0, 2.0, 0.0, 0.0] + rng.normal(size=20) * 0.1})
+    X.iloc[3, 1] = np.nan
+    nullable = X.astype("Float64")
+    settings = {"cv": 5, "random_state": 0, "show_progress": False}
+    expected = PLS(n_components=2).fit(X, Y).cross_validate(X, Y, **settings)
+    result = PLS(n_components=2).fit(nullable, Y).cross_validate(nullable, Y, **settings)
+    pd.testing.assert_series_equal(result.q_squared, expected.q_squared)
 
 
 def test_pls_cross_validate_bootstrap() -> None:
