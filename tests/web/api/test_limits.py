@@ -526,3 +526,25 @@ def test_a_proposal_that_is_not_one_straight_limit_is_never_offered(api, bootstr
     assert api.error("api_limits", {"factors": FACTORS, "constraints": [], "marked": [7]}) == (
         "Python stopped with RuntimeError: The limit proposed, 'T * P <= 500', is not a straight limit with one bound."
     )
+
+
+def test_a_curved_limit_s_picture_is_drawn_where_the_region_samples_its_corners(api, bootstrap):
+    """Past 16 factors the region's shadow is a mask of cells, not a polygon: the picture tests the settings against
+    it (#1284). The page's own limit is 14 factors, so the check on it is lifted here.
+    """
+    factors = [{"name": f"x{i}", "low": -1, "high": 1} for i in range(17)]
+    limits = [{"expression": "x0 + x1 <= 1.5"}, {"expression": "x2 * x3 <= 0.8"}]
+    held, bootstrap.MAX_LIMITED_FACTORS = bootstrap.MAX_LIMITED_FACTORS, 40
+    try:
+        found = api.ok("api_limits", {"factors": factors, "constraints": limits})
+    finally:
+        bootstrap.MAX_LIMITED_FACTORS = held
+    traced = [p for p in found["picture"]["pairs"] if p["trace"] is not None]
+    assert traced, "the pair the curved limit names is traced"
+    assert all(p["shadow"]["kind"] == "mask" for p in found["picture"]["pairs"])
+
+
+def test_fourteen_factors_take_limits(api):
+    factors = [{"name": f"x{i}", "low": -1, "high": 1} for i in range(14)]
+    found = api.ok("api_limits", {"factors": factors, "constraints": [{"expression": "x0 + x1 <= 1.5"}]})
+    assert found["constraints"][0]["expression"] == "x0 + x1 <= 1.5"
