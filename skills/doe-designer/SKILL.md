@@ -186,6 +186,9 @@ calling, rather than guessing at field names.
 | `analyze_omars` | The staged analysis of a definitive screening (DSD) or OMARS design; returns a model formula to fit and optimise |
 | `recommend_next_step` | "What do I run next?" After every round: confirm, axial runs, fold-over, the path of steepest ascent, or stop, with the runs in real units |
 | `suggest_next_runs` | "Where do I run next?" when no quadratic fits, for a computer experiment, or for runs made one at a time: the runs (1 to 50) where a Gaussian process of every run expects the most improvement, inside the limits; `little_to_gain` says when to confirm instead |
+| `fit_gaussian_process` | A model of a computer experiment (passes through every run), or with `noise` of runs no quadratic fits: each input's correlation parameter and its share of the variance (`sensitivity`), and predictions with standard errors |
+| `variance_components` | "How much of the spread comes from the batch, the operator, the test?" REML variance components of random factors, crossed or nested, with intervals and each fixed term's test |
+| `multistratum_anova` | Runs made in groups of several sizes (split-plot, strip-plot, blocks): each term tested against its own stratum's error; without a response, the skeleton's degrees of freedom, to judge a design before it is run |
 | `fit_linear_model` | Explicit model formula when you need control |
 | `augment_design` | Add runs: fold-over, axial points, replicates, de-aliasing |
 | `optimize_responses` | Multi-response desirability optimisation |

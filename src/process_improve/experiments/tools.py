@@ -44,6 +44,9 @@ from process_improve.experiments._tools.run_sheet import read_run_sheet_tool, wr
 from process_improve.experiments._tools.simulate_design_performance import simulate_design_performance_tool
 from process_improve.experiments._tools.compare_designs import compare_designs_tool
 from process_improve.experiments._tools.suggest_next_runs import suggest_next_runs_tool
+from process_improve.experiments._tools.fit_gaussian_process import fit_gaussian_process_tool
+from process_improve.experiments._tools.variance_components import variance_components_tool
+from process_improve.experiments._tools.multistratum_anova import multistratum_anova_tool
 
 __all__ = [
     "analyze_experiment_tool",
@@ -53,9 +56,11 @@ __all__ = [
     "create_factorial_design",
     "doe_knowledge_tool",
     "evaluate_design_tool",
+    "fit_gaussian_process_tool",
     "fit_linear_model",
     "generate_design_tool",
     "get_experiments_tool_specs",
+    "multistratum_anova_tool",
     "optimize_responses_tool",
     "read_run_sheet_tool",
     "recommend_next_step_tool",
@@ -64,6 +69,7 @@ __all__ = [
     "simulate_design_performance_tool",
     "suggest_next_runs_tool",
     "trade_off_table_tool",
+    "variance_components_tool",
     "visualize_doe_tool",
     "write_run_sheet_tool",
 ]

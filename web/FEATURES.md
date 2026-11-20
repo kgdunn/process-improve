@@ -1118,10 +1118,11 @@ The library also does what the app leaves out:
   - *Details:* Mixture components and process factors given to `generate_design` together.
 - **Sources of variation.** How much of the spread in a result comes from the batch, the
   operator or the measurement.
-  - *Details:* `variance_components`, and `multistratum_anova` for runs made in groups.
+  - *Details:* `variance_components`, and `multistratum_anova` for runs made in groups; each is
+    a tool for the MCP server too.
 - **Experiments on a computer model.** A fit that passes through every run, for a simulation
   that gives the same answer each time.
-  - *Details:* A Gaussian process: `fit_gaussian_process`.
+  - *Details:* A Gaussian process: `fit_gaussian_process`, a tool for the MCP server too.
 
 ### What it does not do
 

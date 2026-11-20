@@ -15,6 +15,7 @@ import pytest
 
 from process_improve.experiments import multistratum_anova, reference_catalogue
 from process_improve.experiments.multistratum import error_terms
+from process_improve.tool_spec import execute_tool_call
 
 
 def _crossed(names: str | list[str]) -> pd.DataFrame:
@@ -116,3 +117,28 @@ def test_an_incomplete_block_design_estimates_treatments_in_two_strata():
 def test_a_missing_column_is_refused():
     with pytest.raises(ValueError, match="no column 'plot'"):
         multistratum_anova(_crossed("AB"), "A * B", "plot")
+
+
+# --------------------------------------------------------------------------- the tool an agent calls
+def test_the_tool_gives_the_skeleton_and_the_tests_through_the_server_s_path():
+    """``multistratum_anova`` as an agent calls it: Montgomery's Table 14.18 and, without a response, its skeleton."""
+    runs = _montgomery("montgomery-tensile-strength-split-plot")
+    asked = {"data": runs.to_dict("records"), "model": "method * temperature", "strata": "replicate/method"}
+    skeleton = execute_tool_call("multistratum_anova", asked)
+    assert skeleton["df"]["replicate:method"] == {"method": 2, "Residual": 4}
+    assert skeleton["df"]["Within"] == {"temperature": 3, "method:temperature": 6, "Residual": 18}
+    tested = execute_tool_call("multistratum_anova", {**asked, "response_column": "strength"})
+    row = next(r for r in tested["table"] if (r["stratum"], r["term"]) == ("replicate:method", "method"))
+    assert row["f"] == pytest.approx(64.1944 / 9.0694, abs=5e-4)
+
+
+def test_the_tool_refuses_a_column_the_runs_do_not_have_in_a_sentence():
+    asked = {"data": _crossed("AB").to_dict("records"), "model": "A * B", "strata": "rep/plot"}
+    assert execute_tool_call("multistratum_anova", asked)["error"] in {
+        f"The runs have no column {c!r}." for c in ("rep", "plot")
+    }
+
+
+def test_the_tool_refuses_more_runs_than_it_takes():
+    asked = {"data": [{"A": 0, "B": 0}] * 2001, "model": "A * B", "strata": "A"}
+    assert "the tool takes at most 2000" in execute_tool_call("multistratum_anova", asked)["error"]

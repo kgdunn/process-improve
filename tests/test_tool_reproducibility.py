@@ -214,6 +214,27 @@ SAMPLE_INPUTS: dict[str, dict[str, Any] | Callable[[], dict[str, Any]]] = {
         "response_column": "y",
         "n_runs": 2,
     },
+    "fit_gaussian_process": {
+        "data": [{"A": a, "B": b, "y": 50 - (a - 6.3) ** 2 - (b - 3.7) ** 2} for a in (0, 5, 10) for b in (0, 5, 10)],
+        "response_column": "y",
+        "predict_at": [{"A": 6.0, "B": 4.0}],
+    },
+    "variance_components": {
+        "data": [{"batch": f"B{b}", "y": 10.0 + b + 0.1 * ((b * 3 + r) % 4)} for b in range(4) for r in range(3)],
+        "formula": "y ~ 1",
+        "random": ["batch"],
+    },
+    "multistratum_anova": {
+        "data": [
+            {"rep": r, "M": m, "T": t, "y": r + 2 * m + t + 0.1 * ((r + m + t) % 3)}
+            for r in (1, 2)
+            for m in (0, 1)
+            for t in (0, 1)
+        ],
+        "model": "M * T",
+        "strata": "rep/M",
+        "response_column": "y",
+    },
     # simulation: reveal_simulator reads the hidden model from the host context the test sets up
     "reveal_simulator": {"sim_id": "sim"},
     "simulate_batch_campaign": {"n_batches": 5},

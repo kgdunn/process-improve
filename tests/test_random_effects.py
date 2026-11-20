@@ -19,6 +19,7 @@ from process_improve.experiments import (
     reference_catalogue,
     variance_components,
 )
+from process_improve.tool_spec import execute_tool_call
 
 
 def _runs(name: str) -> pd.DataFrame:
@@ -191,3 +192,27 @@ def test_the_intraclass_correlation_interval_of_a_one_way_random_model():
     assert 0 < found["icc_low"] < found["icc_high"] < 1
     assert found["error_low"] == pytest.approx(12 * 1.90 / 23.3367, abs=5e-4)
     assert np.isfinite(found["ratio_high"])
+
+
+# --------------------------------------------------------------------------- the tool an agent calls
+def test_the_tool_gives_the_library_s_components_through_the_server_s_path(gauge):
+    """``variance_components`` as an agent on the MCP server calls it: the same numbers as the function (#1267)."""
+    asked = {"formula": "y ~ 1", "random": ["part", "operator", "part:operator"], "bounded": False}
+    found = execute_tool_call("variance_components", {"data": gauge.to_dict("records"), **asked})
+    direct = variance_components(gauge, asked["formula"], random=asked["random"], bounded=False)
+    assert found["components"] == pytest.approx(direct["components"])
+    assert found["percent"] == pytest.approx(direct["percent"])
+
+
+@pytest.mark.parametrize(
+    ("change", "refusal"),
+    [
+        ({"random": ["lot"]}, "The random terms name columns the data do not have: ['lot']."),
+        ({"data": [{"part": 1, "operator": 1, "y": 1.0}] * 2001}, "the tool takes at most 2000"),
+        ({"formula": "y ~ __import__('os')"}, "formula"),
+    ],
+    ids=["no-such-column", "too-many-rows", "unsafe-formula"],
+)
+def test_the_tool_answers_what_it_cannot_do_in_a_sentence(gauge, change, refusal):
+    asked = {"data": gauge.to_dict("records"), "formula": "y ~ 1", "random": ["part"], **change}
+    assert refusal in execute_tool_call("variance_components", asked)["error"]
