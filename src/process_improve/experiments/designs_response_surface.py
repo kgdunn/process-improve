@@ -46,7 +46,9 @@ def dispatch_ccd(  # noqa: PLR0913
     alpha : str, float, or None
         Axial distance: ``"rotatable"`` (``F ** 0.25`` for ``F`` cube runs),
         ``"face_centered"`` (1), ``"inscribed"`` (axial runs at +/-1, the cube
-        shrunk inside a rotatable design), ``"orthogonal"`` (the default: the
+        shrunk inside a rotatable design), ``"spherical"`` (``k ** 0.5`` for ``k``
+        factors, the distance of the cube's corners, so every run but the centre
+        runs lies on one sphere), ``"orthogonal"`` (the default: the
         distance that makes the quadratic columns mutually orthogonal, see
         :func:`orthogonal_alpha`), or a positive number used as the distance
         itself. Any other value raises ``ValueError``.
@@ -83,7 +85,8 @@ def dispatch_ccd(  # noqa: PLR0913
         shrunk, the axial runs sit at +/-1 and the cube at +/-1/alpha); ``face``, the
         geometry (``"circumscribed"``, ``"faced"`` or ``"inscribed"``); and
         ``alpha_rule``, how alpha was chosen (``"orthogonal"``, ``"rotatable"``,
-        ``"face_centered"``, ``"inscribed"``, ``"orthogonal_blocks"`` or ``"user"``);
+        ``"face_centered"``, ``"inscribed"``, ``"spherical"``, ``"orthogonal_blocks"``
+        or ``"user"``);
         and ``axial_portion``, which rows are the axial runs and their centre runs.
 
     Raises
@@ -130,7 +133,9 @@ def _full_ccd(k: int, n_center_points: int, alpha: str | float | None, n_replica
     """Build a CCD on the full 2^k cube, with *alpha* as :func:`dispatch_ccd` takes it."""
     kind = _axial_kind(alpha)
     rule = _ALPHA_NAMES[kind][0] if isinstance(kind, str) else "user"
-    if kind == "orthogonal":
+    if kind == "spherical":
+        kind = float(np.sqrt(k))
+    elif kind == "orthogonal":
         r = n_replicates
         kind = orthogonal_alpha(r * 2**k, r * (2**k + 2 * k) + n_center_points, n_axial_replicates=r)
 
@@ -297,11 +302,12 @@ _ALPHA_NAMES = {
     "inscribed": ("inscribed", "cci"),
     "rotatable": ("rotatable", "r"),
     "orthogonal": ("orthogonal", "o"),
+    "spherical": ("spherical",),
 }
 
 
 def _axial_kind(alpha: str | float | None) -> str | float:
-    """Resolve ``alpha`` to ``"faced"``, ``"inscribed"``, ``"rotatable"``, ``"orthogonal"`` or a positive number.
+    """Resolve ``alpha`` to a key of ``_ALPHA_NAMES`` or a positive number.
 
     Raises
     ------
@@ -339,7 +345,7 @@ def _resolve_fractional_axial_distance(
     ----------
     alpha : str, float, or None
         ``"face_centered"`` (alpha = 1), ``"rotatable"``
-        (alpha = n_cube_runs ** 0.25), ``"orthogonal"`` / None
+        (alpha = n_cube_runs ** 0.25), ``"spherical"`` (alpha = k ** 0.5), ``"orthogonal"`` / None
         (:func:`orthogonal_alpha`), or a numeric value used directly.
     n_cube_runs : int
         Number of runs in the (fractional) cube portion.
@@ -363,10 +369,12 @@ def _resolve_fractional_axial_distance(
         return 1.0, "face_centered"
     if kind == "rotatable":
         return float(n_cube_runs**0.25), "rotatable"
+    if kind == "spherical":
+        return float(np.sqrt(k)), "spherical"
     if kind == "inscribed":
         raise ValueError(
             "alpha='inscribed' is not supported with cube='fractional'; "
-            "use 'face_centered', 'rotatable', 'orthogonal', or a numeric alpha."
+            "use 'face_centered', 'rotatable', 'spherical', 'orthogonal', or a numeric alpha."
         )
 
     r = n_replicates
