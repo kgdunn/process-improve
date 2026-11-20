@@ -85,6 +85,11 @@ BUDGET: dict[str, int] = {
     # ellipse judges, which picks the law of its T2 limit. Every function and method that
     # makes that choice takes the same keyword, so the warning of the coming default can be
     # silenced at any call; the function's other seven arguments are its public signature.
+    # 52: #1374 adds `suggest_next_runs`, the public entry point that proposes the next runs
+    # from a Gaussian process of every run. Its eight arguments are the study (the factors,
+    # its runs and the response) and five keyword-only settings, each a separate input, as
+    # `recommend_next_step`'s are: the goal, the region, how many runs, whether the runs
+    # scatter (the noise term) and the seed. Its private helpers stay under every threshold.
     # 50: `max-args` is now 7 in pyproject.toml, not ruff's default of 5, so the 37
     # functions of six or seven arguments no longer breach, and their PLR0913 suppressions
     # went with them. The history below counted against the default of 5.
@@ -127,7 +132,7 @@ BUDGET: dict[str, int] = {
     # `select_n_components`' own. The width stops there: the function forms forward
     # `**kwargs`, and the implementation takes a settings dataclass, so the
     # signature is written once.
-    "PLR0913": 51,
+    "PLR0913": 52,
     # 26: TPLS.diagnose went under PLR0915, in #1028 (scores and deflation written over
     # arrays) and in #981 (each Z group scored on its own) alike.
     # 27: #1027 scored PLS.nested_cv's outer folds through the helper

@@ -25,6 +25,11 @@ The prediction at :math:`x` is :math:`\hat\mu + r(x)^T w` with weights :math:`w 
 which passes through every run, and its variance is
 :math:`\hat\sigma^2 [1 - r^T R^{-1} r + (1 - 1^T R^{-1} r)^2 / (1^T R^{-1} 1)]`.
 
+A physical experiment's runs scatter: two runs at one setting give two results. With ``noise=True``
+the model adds a noise term, :math:`R + g I`, where :math:`g` is the noise variance over the process
+variance, estimated with :math:`\theta` (a nugget). The prediction then smooths the runs rather than
+passing through them, and a new run's variance is the prediction's plus :math:`\hat\sigma^2 g`.
+
 The sensitivity indices split the variance of the prediction over the box of the inputs into the
 share each input explains alone (the main effect) and the share it is part of with the others
 (the total effect), as Sobol's indices do. For this correlation the integrals over the box
@@ -58,6 +63,9 @@ _THETA_BOUNDS = (1e-3, 1e5)
 #: Added to the diagonal of R, as a share of it, so that the Cholesky factor exists at small theta.
 _JITTER = 1e-10
 
+#: The search looks for the noise ratio g, the noise variance over the process variance, between these.
+_NOISE_BOUNDS = (1e-8, 1e2)
+
 #: Gauss-Legendre nodes per panel of the sensitivity integrals; a panel is one correlation length wide at most.
 _NODES = 20
 
@@ -82,6 +90,9 @@ class GaussianProcessFit:
         :math:`R^{-1}(y - 1\hat\mu)`, one per run: the prediction is :math:`\hat\mu + r(x)^T w`.
     runs : numpy.ndarray
         The inputs of the runs, one row each.
+    noise_ratio : float
+        :math:`g`, the noise variance over the process variance: 0 for the interpolating model,
+        estimated with ``noise=True``. The noise variance is ``sigma2 * noise_ratio``.
     """
 
     inputs: tuple[str, ...]
@@ -91,7 +102,8 @@ class GaussianProcessFit:
     minus_two_log_likelihood: float
     weights: np.ndarray = field(repr=False)
     runs: np.ndarray = field(repr=False)
-    _factor: np.ndarray = field(repr=False)  # the Cholesky factor of R
+    _factor: np.ndarray = field(repr=False)  # the Cholesky factor of R + g I
+    noise_ratio: float = 0.0
 
     def predict(self, points: pd.DataFrame) -> pd.DataFrame:
         """Predict at new points, with the standard error of each prediction.
@@ -104,8 +116,10 @@ class GaussianProcessFit:
         Returns
         -------
         pandas.DataFrame
-            ``predicted`` and ``std_error``, one row per point; at a run the prediction is the
-            run's output and the standard error is 0.
+            ``predicted`` and ``std_error``, the standard error of the mean output there, one row
+            per point. For the interpolating model the prediction at a run is the run's output and
+            its standard error is 0. A model with a noise term adds ``std_error_new_run``, the
+            standard error of one new run there, which takes the noise in too.
         """
         r = _correlation(_matrix(points, self.inputs), self.runs, self.theta)  # (m, n)
         ones = np.ones(len(self.runs))
@@ -114,9 +128,39 @@ class GaussianProcessFit:
         explained = np.einsum("nm,nm->m", r.T, r_inv_r)
         correction = (1.0 - ones @ r_inv_r) ** 2 / float(ones @ r_inv_1)
         variance = np.clip(self.sigma2 * (1.0 - explained + correction), 0.0, None)
-        return pd.DataFrame(
-            {"predicted": self.mu + r @ self.weights, "std_error": np.sqrt(variance)}, index=points.index
-        )
+        found = {"predicted": self.mu + r @ self.weights, "std_error": np.sqrt(variance)}
+        if self.noise_ratio > 0:
+            found["std_error_new_run"] = np.sqrt(variance + self.sigma2 * self.noise_ratio)
+        return pd.DataFrame(found, index=points.index)
+
+    def with_runs(self, points: pd.DataFrame, outputs: np.ndarray) -> GaussianProcessFit:
+        """Return the model with these runs added, its correlation parameters and noise ratio kept as estimated.
+
+        The constant mean and the process variance are worked out again at those parameters. A batch of runs to
+        make before any result is read takes each run chosen to give its prediction (the "kriging believer").
+
+        Parameters
+        ----------
+        points : pandas.DataFrame
+            The runs' inputs, a column per input, in its own units.
+        outputs : numpy.ndarray
+            Their outputs, one per run.
+
+        Returns
+        -------
+        GaussianProcessFit
+            The model of every run, the new ones among them.
+        """
+        x = np.vstack([self.runs, _matrix(points, self.inputs)])
+        y = np.concatenate([self._outputs, np.asarray(outputs, dtype=float)])
+        factor, mu, sigma2, criterion = _profile(self.theta, _squared_differences(x, x), y, self.noise_ratio)
+        weights = linalg.cho_solve((factor, True), y - mu)
+        return GaussianProcessFit(self.inputs, self.theta, mu, sigma2, criterion, weights, x, factor, self.noise_ratio)
+
+    @property
+    def _outputs(self) -> np.ndarray:
+        """The runs' outputs, from the weights: K w = y - mu, so y = K w + mu."""
+        return self._factor @ (self._factor.T @ self.weights) + self.mu
 
     def sensitivity(self, ranges: dict[str, tuple[float, float]] | None = None) -> pd.DataFrame:
         r"""Return each input's main-effect and total sensitivity index over the box of the inputs.
@@ -189,6 +233,7 @@ def fit_gaussian_process(
     response: str,
     inputs: Sequence[str] | None = None,
     *,
+    noise: bool = False,
     random_state: int | np.random.Generator | None = 0,
 ) -> GaussianProcessFit:
     r"""Fit a Gaussian process (ordinary kriging) model by maximum likelihood.
@@ -196,11 +241,15 @@ def fit_gaussian_process(
     Parameters
     ----------
     data : pandas.DataFrame
-        The runs of a computer experiment: the inputs, in their own units, and the output.
+        The runs: the inputs, in their own units, and the output.
     response : str
         The output's column.
     inputs : sequence of str or None
         The input columns; every other column by default.
+    noise : bool
+        Add a noise term, estimated with the other parameters, for runs whose output scatters,
+        as a physical experiment's does; runs may then repeat a setting. False, the default, fits
+        the interpolating model of a computer experiment, which passes through every run.
     random_state : int, numpy.random.Generator or None
         Seeds the random starts of the likelihood search.
 
@@ -213,8 +262,8 @@ def fit_gaussian_process(
     ------
     ValueError
         If there are fewer than three runs, a value is missing or not finite, an input or the
-        output does not vary, or two runs share their inputs (the model passes through every
-        run, so it cannot take two outputs at one setting).
+        output does not vary, or, without ``noise``, two runs share their inputs (the model passes
+        through every run, so it cannot take two outputs at one setting).
 
     Examples
     --------
@@ -229,27 +278,34 @@ def fit_gaussian_process(
     0.932 against sin(1.2) = 0.932
     """
     names = tuple(inputs) if inputs is not None else tuple(c for c in data.columns if c != response)
-    x, y = _checked(data, response, names)
+    x, y = _checked(data, response, names, repeats=noise)
     squared = _squared_differences(x, x)
     spans = np.ptp(x, axis=0)
     lows, highs = np.log(_THETA_BOUNDS[0] / spans**2), np.log(_THETA_BOUNDS[1] / spans**2)
+    if noise:  # the noise ratio's logarithm is searched with theta's, as its last parameter
+        lows, highs = np.append(lows, np.log(_NOISE_BOUNDS[0])), np.append(highs, np.log(_NOISE_BOUNDS[1]))
     rng = check_random_state(random_state)
     starts = [(lows + highs) / 2.0, *(rng.uniform(lows, highs) for _ in range(_N_STARTS))]
     bounds = list(zip(lows, highs, strict=True))
     # Many small dense factorisations: waking a BLAS thread pool for each costs more than the arithmetic.
     with threadpool_limits(limits=1, user_api="blas"):
         searches = [
-            optimize.minimize(_criterion, start, args=(squared, y), jac=True, method="L-BFGS-B", bounds=bounds)
+            optimize.minimize(_criterion, start, args=(squared, y, noise), jac=True, method="L-BFGS-B", bounds=bounds)
             for start in starts
         ]
-    theta = np.exp(min(searches, key=lambda found: found.fun).x)
-    factor, mu, sigma2, criterion = _profile(theta, squared, y)
+    found = np.exp(min(searches, key=lambda search: search.fun).x)
+    theta, ratio = (found[:-1], float(found[-1])) if noise else (found, 0.0)
+    factor, mu, sigma2, criterion = _profile(theta, squared, y, ratio)
     weights = linalg.cho_solve((factor, True), y - mu)
-    return GaussianProcessFit(names, theta, mu, sigma2, criterion, weights, x, factor)
+    return GaussianProcessFit(names, theta, mu, sigma2, criterion, weights, x, factor, ratio)
 
 
-def _checked(data: pd.DataFrame, response: str, names: tuple[str, ...]) -> tuple[np.ndarray, np.ndarray]:
-    """Return the inputs and the output as arrays, refusing data the model cannot interpolate."""
+def _checked(
+    data: pd.DataFrame, response: str, names: tuple[str, ...], *, repeats: bool = False
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return the inputs and the output as arrays, refusing data the model cannot fit; ``repeats`` allows runs at one
+    setting, as a model with a noise term takes them.
+    """
     x, y = _matrix(data, names), data[response].to_numpy(dtype=float)
     if len(y) < 3 or not names or not (np.isfinite(x).all() and np.isfinite(y).all()):
         msg = "A Gaussian process needs at least three runs and an input, with every value a finite number."
@@ -261,7 +317,7 @@ def _checked(data: pd.DataFrame, response: str, names: tuple[str, ...]) -> tuple
     if np.ptp(y) == 0:
         msg = f"The output {response!r} is the same in every run; there is nothing to model."
         raise ValueError(msg)
-    if len(np.unique(x, axis=0)) < len(x):
+    if not repeats and len(np.unique(x, axis=0)) < len(x):
         msg = "Two runs share their inputs; a model that passes through every run cannot take two outputs there."
         raise ValueError(msg)
     return x, y
@@ -285,10 +341,12 @@ def _correlation(a: np.ndarray, b: np.ndarray, theta: np.ndarray) -> np.ndarray:
     return np.exp(-_squared_differences(a, b) @ theta)
 
 
-def _profile(theta: np.ndarray, squared: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, float, float, float]:
-    """Return the Cholesky factor of R, the estimates of mu and sigma^2, and -2 log L, at ``theta``."""
+def _profile(
+    theta: np.ndarray, squared: np.ndarray, y: np.ndarray, ratio: float = 0.0
+) -> tuple[np.ndarray, float, float, float]:
+    """Return the Cholesky factor of R + g I, the estimates of mu and sigma^2, and -2 log L, at ``theta`` and g."""
     n = len(y)
-    factor = linalg.cholesky(np.exp(-squared @ theta) + _JITTER * np.eye(n), lower=True)
+    factor = linalg.cholesky(np.exp(-squared @ theta) + (ratio + _JITTER) * np.eye(n), lower=True)
     ones = np.ones(n)
     r_inv_1 = linalg.cho_solve((factor, True), ones)
     mu = float(r_inv_1 @ y / (ones @ r_inv_1))
@@ -298,18 +356,19 @@ def _profile(theta: np.ndarray, squared: np.ndarray, y: np.ndarray) -> tuple[np.
     return factor, mu, sigma2, n * np.log(2.0 * np.pi * sigma2) + log_det + n
 
 
-def _criterion(log_theta: np.ndarray, squared: np.ndarray, y: np.ndarray) -> tuple[float, np.ndarray]:
-    """Return -2 log L at theta = exp(log_theta), and its gradient in log theta.
+def _criterion(logs: np.ndarray, squared: np.ndarray, y: np.ndarray, noise: bool) -> tuple[float, np.ndarray]:
+    """Return -2 log L at theta = exp(logs), and its gradient in log theta; with ``noise``, the last is log g.
 
-    With mu and sigma^2 at their estimates, d(-2 log L) = tr(R^-1 dR) - w' dR w / sigma^2, and
-    dR / d(log theta_k) = -theta_k (x_ik - x_jk)^2 R_ij.
+    With K = R + g I, and mu and sigma^2 at their estimates, d(-2 log L) = tr(K^-1 dK) - w' dK w / sigma^2,
+    where dK / d(log theta_k) = -theta_k (x_ik - x_jk)^2 R_ij and dK / d(log g) = g I.
     """
-    theta = np.exp(log_theta)
-    factor, mu, sigma2, value = _profile(theta, squared, y)
-    r_inv = linalg.cho_solve((factor, True), np.eye(len(y)))
-    weights = r_inv @ (y - mu)
-    middle = (r_inv - np.outer(weights, weights) / sigma2) * np.exp(-squared @ theta)
-    return value, -theta * np.einsum("ij,ijk->k", middle, squared)
+    theta, ratio = (np.exp(logs[:-1]), float(np.exp(logs[-1]))) if noise else (np.exp(logs), 0.0)
+    factor, mu, sigma2, value = _profile(theta, squared, y, ratio)
+    k_inv = linalg.cho_solve((factor, True), np.eye(len(y)))
+    weights = k_inv @ (y - mu)
+    middle = k_inv - np.outer(weights, weights) / sigma2
+    gradient = -theta * np.einsum("ij,ijk->k", middle * np.exp(-squared @ theta), squared)
+    return value, np.append(gradient, ratio * np.trace(middle)) if noise else gradient
 
 
 def _box(
