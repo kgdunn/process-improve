@@ -1384,7 +1384,20 @@ def _no_optimum(region: DesignRegion | None, limits: list[dict[str, Any]]) -> Ex
             "No setting in the search region holds every 'in_range' response within its limits; widen "
             "search_bounds or the limits."
         )
-    return RuntimeError("optimization produced no result" if region is None else "no start converged inside the region")
+    if region is None:
+        return RuntimeError("optimization produced no result")
+    # A counted factor with no minimum counts as used at any amount above 0, so under "at least n" the best setting
+    # can hold a trace of it that the search approaches and never reaches (#1259).
+    floored = {f.name for f in region.factors if f.min_when_used is not None}
+    traces = [name for rule in region.counts for name in rule.names if name not in floored]
+    if traces:
+        return RuntimeError(
+            f"no start converged inside the region. {sorted(set(traces))} are counted by a count_nonzero limit "
+            "and have no min_when_used, so any amount above 0 counts as used, and the best setting can be one with "
+            "a trace of one of them, which a search approaches and never reaches. Give each a min_when_used, the "
+            "least amount at which it is used."
+        )
+    return RuntimeError("no start converged inside the region")
 
 
 #: An alternative's composite desirability is at least this share of the best's.
