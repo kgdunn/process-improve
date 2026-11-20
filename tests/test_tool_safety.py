@@ -558,6 +558,18 @@ class TestSafeExecuteToolCall:
             assert not worker.is_alive(), "a worker that did not start in time is still alive"
             assert worker.exitcode, "and it was ended, not left to finish"
 
+    def test_a_worker_that_dies_while_starting_is_not_blamed_on_the_memory_cap(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The memory cap is applied once a worker has started, so a death before that names the start-up (#1130)."""
+        from process_improve import tool_safety as ts
+
+        monkeypatch.setattr(ts, "_pool_initializer", os._exit)  # the worker exits with the memory cap as its code
+        with pytest.raises(ToolSafetyError, match="died while starting, before the memory limit applies") as exc_info:
+            safe_execute_tool_call("repeated_median", {"x": [1.0, 2.0, 3.0], "y": [2.0, 4.1, 5.9]}, memory_mb=1)
+        assert exc_info.type is ToolSafetyError, "not ToolMemoryExceededError"
+        assert exc_info.value.details == {"tool_name": "repeated_median", "stage": "startup"}
+
     @_skip_if_not_linux
     @pytest.mark.skipif(sys.platform == "win32", reason="RLIMIT_AS is POSIX-only")
     def test_memory_cap_kills_runaway_worker(self) -> None:

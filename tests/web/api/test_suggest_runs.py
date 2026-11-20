@@ -1,7 +1,7 @@
 """Runs from a model of every run: ``api_suggest_runs``, and ``api_add_runs`` with the kind ``suggested`` (#1374).
 
 A Gaussian process of every run with a result proposes where the most is expected to gain over the best so far. The
-worked example's goal is to make the yield as large as it can be.
+worked example's goal is to make the yield as large as it can be; a target is a goal too.
 """
 
 from __future__ import annotations
@@ -45,10 +45,24 @@ def test_the_runs_suggested_are_added_as_they_were_shown(api, held, simulated):
     assert grown["spec"]["design_type"] == "given"
 
 
+def test_a_target_is_a_goal_and_its_best_is_nearest_it(api, held, simulated):
+    """A goal of a target: the best so far is the prediction at a run nearest it, and a run looks better nearer it."""
+    results = [r for r in simulated["responses"] if r is not None]
+    target = sorted(results)[len(results) // 2]  # a result in the middle: neither the largest nor the smallest
+    info = {**held["spec"]["response_info"], "goal": "target", "target": target}
+    found = suggested(api, {**held, "spec": {**held["spec"], "response_info": info}}, simulated, n_runs=2)
+    largest = suggested(api, held, simulated, n_runs=1)["best"]
+    assert abs(found["best"] - target) < simulated["sigma"] < abs(largest - target)
+    for run in found["runs"]:
+        nearer = abs(run["predicted"] - target) < abs(found["best"] - target)
+        assert run["why"] == ("it looks better than the best so far" if nearer else "little is known there")
+
+
 @pytest.mark.parametrize(
     ("change", "refusal"),
     [
         ({"goal": "learn"}, "for a goal of making the response as large or as small"),
+        ({"goal": "target"}, "or of bringing it to a target"),
         ({"n_runs": 9}, "Ask for 1 to 8 runs."),
         ({"n_runs": True}, "Ask for 1 to 8 runs."),
     ],

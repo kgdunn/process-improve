@@ -105,8 +105,8 @@ def test_where_the_region_allows_no_setting_near_the_best_the_first_draw_s_best_
     monkeypatch.setattr(region, "sample", lambda n, rng: drawn)  # noqa: ARG005 - the region's own signature
     monkeypatch.setattr(region, "feasible", lambda coded: np.zeros(len(coded), dtype=bool))
     best = float(runs["y"].min())
-    setting, gain = ei._best_setting(fit, FACTORS, region, best, 1.0, np.random.default_rng(1))
-    gains = ei._expected_improvement(fit, ei._actual(drawn, FACTORS), best, 1.0)
+    setting, gain = ei._best_setting(fit, FACTORS, region, best, ei._Aim("minimize"), np.random.default_rng(1))
+    gains = ei._expected_improvement(fit, ei._actual(drawn, FACTORS), best, ei._Aim("minimize"))
     assert gain == pytest.approx(gains.max())
     pd.testing.assert_frame_equal(setting, ei._actual(drawn[[int(np.argmax(gains))]], FACTORS))
 
@@ -115,7 +115,10 @@ def test_where_the_region_allows_no_setting_near_the_best_the_first_draw_s_best_
     ("change", "refusal"),
     [
         ({"factors": [Factor(name="c", type="categorical", levels=["a", "b"])]}, "takes one or more numeric factors"),
-        ({"goal": "target"}, "goal='target' is not one of"),
+        ({"goal": "middle"}, "goal='middle' is not one of"),
+        ({"goal": "target"}, "goal='target' with target=None: give a finite target"),
+        ({"goal": "maximize", "target": 5.0}, "goal='maximize' with target=5.0"),
+        ({"goal": "target", "target": float("inf")}, "goal='target' with target=inf"),
         ({"response": "z"}, "The runs have no column 'z'"),
         ({"n_runs": 0}, "propose 1 to 50 runs"),
     ],
@@ -124,6 +127,24 @@ def test_what_it_cannot_work_with_is_refused_in_a_sentence(change, refusal):
     asked = {"factors": FACTORS, "runs": first_runs(8, seed=1), "response": "y", **change}
     with pytest.raises(ValueError, match=refusal):
         suggest_next_runs(**asked)
+
+
+@pytest.mark.parametrize(("mean", "spread", "least", "target"), [(4.0, 1.5, 2.0, 5.0), (9.0, 0.5, 1.0, 5.0)])
+def test_the_expected_improvement_towards_a_target_is_the_average_of_the_closer_draws(mean, spread, least, target):
+    """E[max(d - |Y - t|, 0)], worked over the band, is what a million normal draws average to (#1374)."""
+    worked = ei._Aim("target", target).improvement(np.array([mean]), np.array([spread]), least)[0]
+    draws = np.random.default_rng(0).normal(mean, spread, 1_000_000)
+    assert worked == pytest.approx(np.maximum(least - np.abs(draws - target), 0.0).mean(), abs=2e-3)
+
+
+def test_a_target_is_sought_between_runs_that_miss_it_on_either_side():
+    """Runs of y = x at 0, 2, 8 and 10 miss a target of 5: the next run goes between them, near x = 5 (#1374)."""
+    factors = [Factor(name="x", low=0.0, high=10.0)]
+    runs = pd.DataFrame({"x": [0.0, 2.0, 8.0, 10.0]}).assign(y=lambda d: d["x"])
+    found = suggest_next_runs(factors, runs, "y", goal="target", target=5.0, noise=False)
+    assert 3.0 < found.runs["x"].iloc[0] < 7.0
+    assert found.best == pytest.approx(2.0), "the first output closest to the target, 3 away (8 is as close)"
+    assert found.improvement_ratio == pytest.approx(found.runs["expected_improvement"].iloc[0] / 3.0)
 
 
 # --------------------------------------------------------------------------- the tool an agent calls
@@ -162,3 +183,11 @@ def test_the_tool_says_when_little_is_left_to_gain():
 )
 def test_the_tool_answers_what_it_cannot_do_in_a_sentence(change, refusal):
     assert refusal in execute_tool_call("suggest_next_runs", _tool_input(**change))["error"]
+
+
+def test_the_tool_seeks_a_target_and_refuses_one_without_its_value():
+    """goal='target' takes its value as `target`; without one the tool answers with the refusal (#1374)."""
+    found = execute_tool_call("suggest_next_runs", _tool_input(goal="target", target=20.0))
+    assert inside(pd.DataFrame(found["runs"]))
+    refused = execute_tool_call("suggest_next_runs", _tool_input(goal="target"))
+    assert refused["error"].startswith("goal='target' with target=None")

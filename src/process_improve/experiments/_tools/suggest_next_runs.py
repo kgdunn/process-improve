@@ -40,9 +40,10 @@ class SuggestNextRunsInput(BaseModel):
         ),
     )
     response_column: str = Field(..., description="Name of the response in runs.")
-    goal: Literal["maximize", "minimize"] = Field(
-        "maximize", description="Whether a larger or a smaller response is better."
+    goal: Literal["maximize", "minimize", "target"] = Field(
+        "maximize", description="Whether a larger or a smaller response is better, or one closer to `target`."
     )
+    target: float | None = Field(None, description="The response to reach, with goal 'target' only.")
     constraints: list[str] | None = Field(
         None,
         description='Limits on the settings in actual units, as for generate_design, e.g. ["T + 25*P <= 250"].',
@@ -71,7 +72,8 @@ class SuggestNextRunsInput(BaseModel):
         "quadratic fits, a computer experiment, and runs made one at a time or in small batches; for a designed "
         "experiment in rounds, recommend_next_step decides the next design. Returns 'runs' (each factor in its "
         "own units, with the 'predicted' response, its 'std_error' and the 'expected_improvement'), 'best' (the "
-        "best so far: the best predicted response at the runs made, with noise), 'improvement_ratio' and "
+        "best so far: the best predicted response at the runs made, with noise; for a target, the one closest to "
+        "it), 'improvement_ratio' and "
         "'little_to_gain' (true below 1%: then make confirmation runs at the best settings instead), and the "
         "model's 'theta' and 'noise_ratio'. The loop: make the runs, append them with their results to runs, "
         "and call again. Every run keeps the factors' ranges and the constraints."
@@ -85,6 +87,9 @@ class SuggestNextRunsInput(BaseModel):
 
     # "Four runs for tomorrow, keeping T + 25*P <= 250"
         -> ``suggest_next_runs(..., n_runs=4, constraints=["T + 25*P <= 250"])``
+
+    # "Where next, to bring the viscosity to 1200?"
+        -> ``suggest_next_runs(..., response_column="Viscosity", goal="target", target=1200)``
     """,
     category="experiments",
 )
@@ -103,6 +108,7 @@ def suggest_next_runs_tool(spec: SuggestNextRunsInput) -> dict[str, Any]:
             pd.DataFrame(spec.runs),
             spec.response_column,
             goal=spec.goal,
+            target=spec.target,
             region=DesignRegion(factors, spec.constraints) if spec.constraints else None,
             n_runs=spec.n_runs,
             noise=spec.noise,

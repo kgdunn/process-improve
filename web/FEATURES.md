@@ -734,8 +734,9 @@ Also:
 - **Runs from a model of every run.** When the results do not follow a smooth curve, a Gaussian
   process of every run can say where to look next: where it expects the most to gain over the
   best so far. Each run says why: it looks better, or little is known there.
-  - *Details:* For a goal of the largest or smallest result, numeric factors, and at least
-    three more results than factors. One press fits the model and lists 1, 2, 4 or 8 runs to
+  - *Details:* For a goal of the largest or smallest result, or of a target once it is typed,
+    numeric factors, and at least three more results than factors. For a target, the best so far
+    is the one nearest it. One press fits the model and lists 1, 2, 4 or 8 runs to
     make before any result is read; another adds them to the run sheet as runs of the study.
     The limits on the settings are kept. When the model expects less than 1% more, it says
     to confirm the best settings instead.

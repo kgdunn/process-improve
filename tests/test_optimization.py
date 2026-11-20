@@ -1106,6 +1106,19 @@ class TestNoConvergedStart:
         with pytest.raises(RuntimeError, match=f"^{message}$"):
             optimize_responses([model], goals=goals, method="desirability", region=region)
 
+    def test_a_counted_factor_with_no_minimum_is_named_when_no_start_converges(self) -> None:
+        """A trace of a counted factor counts as used, so the search can end with none; the error says how (#1259)."""
+        names = ["A", "B", "C"]
+        region = DesignRegion([Factor(name=n, low=0.0, high=10.0) for n in names], ["count_nonzero(A, B, C) >= 2"])
+        terms = {"Intercept": 0.0, "A": 1.0, "B": -1.0, "C": -1.0}
+        coefficients = [{"term": term, "coefficient": value} for term, value in terms.items()]
+        model = {"response_name": "y", "factor_names": names, "coefficients": coefficients}
+        goals = [{"response": "y", "goal": "maximize", "low": -3.0, "high": 3.0}]
+        message = r"^no start converged inside the region\. \['A', 'B', 'C'\] are counted by a count_nonzero limit"
+        with pytest.raises(RuntimeError, match=message) as raised:
+            optimize_responses([model], goals=goals, region=region)
+        assert str(raised.value).endswith("Give each a min_when_used, the least amount at which it is used.")
+
 
 class TestResponseImportanceNaming:
     """The importances are ``response_importance``; the old name, which said 'weights', is gone."""
