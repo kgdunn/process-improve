@@ -19,6 +19,7 @@ from scipy import special
 
 from process_improve.experiments import GaussianProcessFit, fit_gaussian_process, gaussian_process
 from process_improve.experiments.reference_catalogue import reference_experiments
+from process_improve.tool_spec import execute_tool_call
 
 PRINTED_THETA = np.array([65.40254, 3603.2483])
 
@@ -252,3 +253,32 @@ def test_the_example_in_the_docstring_prints_what_it_shows():
     result = doctest.testmod(gaussian_process, report=False)
     assert result.attempted > 0
     assert result.failed == 0
+
+
+# --------------------------------------------------------------------------- the tool an agent calls
+def test_the_tool_fits_predicts_and_ranks_the_inputs_as_the_function_does():
+    """``fit_gaussian_process`` as an agent on the MCP server calls it (#1267)."""
+    runs = pd.DataFrame({"x": np.linspace(0, 1, 6), "z": [0.3, 0.9, 0.1, 0.6, 0.8, 0.2]})
+    runs = runs.assign(y=np.sin(3 * runs["x"]) + 0.1 * runs["z"])
+    asked = {"data": runs.to_dict("records"), "response_column": "y", "predict_at": [{"x": 0.4, "z": 0.5}]}
+    found = execute_tool_call("fit_gaussian_process", asked)
+    fit = fit_gaussian_process(runs, "y")
+    assert found["theta"] == pytest.approx(dict(zip(fit.inputs, fit.theta, strict=True)))
+    assert found["predictions"][0]["predicted"] == pytest.approx(
+        fit.predict(pd.DataFrame([{"x": 0.4, "z": 0.5}]))["predicted"].iloc[0]
+    )
+    shares = {row["input"]: row["main_effect"] for row in found["sensitivity"]}
+    assert shares["x"] > shares["z"], "the sine in x moves the output more than the small slope in z"
+
+
+@pytest.mark.parametrize(
+    ("change", "refusal"),
+    [
+        ({"data": [{"x": float(i), "y": float(i % 7)} for i in range(201)]}, "the model takes at most 200"),
+        ({"data": [{"x": 0.0, "y": 1.0}, {"x": 0.0, "y": 2.0}, {"x": 1.0, "y": 3.0}]}, "Two runs share their inputs"),
+    ],
+    ids=["too-many-runs", "repeated-setting"],
+)
+def test_the_tool_answers_what_it_cannot_do_in_a_sentence(change, refusal):
+    asked = {"data": [{"x": 0.0, "y": 0.0}], "response_column": "y", **change}
+    assert refusal in execute_tool_call("fit_gaussian_process", asked)["error"]
