@@ -11867,12 +11867,10 @@ def _setting(factor: dict, coded: float) -> float | str:
 
 def _runnable(spec: dict, new: np.ndarray) -> bool:
     """Say whether runs, coded, meet every limit on the settings and stay in each factor's possible range."""
-    if not len(new):
-        return True
-    if spec.get("possible") and _impossible(spec, _actual_runs(spec, new)):
+    if spec.get("possible") and len(new) and _impossible(spec, _actual_runs(spec, new)):
         return False
     region = _spec_region(spec)
-    if region is None:
+    if region is None or not len(new):
         return True
     names = [f["name"] for f in spec["factors"]]
     labels = {}  # each run's level of the categorical factors, for a limit that holds at some of them
