@@ -193,8 +193,7 @@ def test_the_same_data_in_other_units_give_the_same_model(case: str, units: floa
 
 
 @pytest.mark.dataset
-# PLS's fit statistics (score sds, R², T²) take every row, unweighted, and the far row's squares overflow there.
-@pytest.mark.filterwarnings("ignore:overflow encountered:RuntimeWarning", "ignore:invalid value:RuntimeWarning")
+@pytest.mark.filterwarnings("error")  # the far row is judged in PRM's weights, so no square overflows (#1149)
 @pytest.mark.parametrize("scale", [True, False], ids=["scaled", "unscaled"])
 @pytest.mark.parametrize("block", ["X", "Y", "both"])
 def test_a_prm_row_whose_squares_overflow_gets_a_weight_of_zero(block: str, scale: bool) -> None:

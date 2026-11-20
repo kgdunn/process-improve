@@ -59,6 +59,7 @@ from ._common import (
     largest_ssq_column,
     refuse_empty_block,
     resolve_loop_settings,
+    score_variances,
     unobserved_columns,
     user_stacklevel,
     y_is_exhausted,
@@ -85,6 +86,7 @@ from ._optimal_inversion import inversion_sensitivity as _inversion_sensitivity
 from ._optimal_inversion import optimal_inversion as _optimal_inversion
 from ._preprocessing import MCUVScaler, _back_to_units, _uncentred_columns, _warn_scaling_traps
 from ._projection import coerce_observed_mask, operator_for_pattern, project_rows
+from ._robust import row_norms
 from .plots import (
     coefficient_plot as _coefficient_plot,
 )
@@ -1129,8 +1131,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         self.predictions_ = self._in_y_units(pd.DataFrame(T @ C.T, index=Y.index, columns=Y.columns))
         self.direct_weights_ = pd.DataFrame(direct_weights, index=X.columns, columns=component_names)
         self.beta_coefficients_ = pd.DataFrame(beta_coefficients, index=X.columns, columns=Y.columns)
+        # A weighted fit, PRM's too, judges its scores over the rows it used, in their weights, as its R² is
+        # measured: sample_weight=[1, 1, 0, 0, 1] is the fit to rows 0, 1 and 4 (#1149). Over every row, one
+        # outlier set aside at 1e10 made every other row's T² 0, and its SPE took the SPE limit 50 times up.
         # fit refuses fewer than two rows (ensure_min_samples=2), so N - 1 is at least 1.
-        self.explained_variance_ = np.diag(T.T @ T) / (N - 1)
+        self._row_weights = sample_weight
+        self.explained_variance_ = score_variances(T, sample_weight)
         # The training residual block, kept for the trimmed-score-regression
         # estimator in ``project`` / ``projection_matrix``: TSR regresses on
         # the covariance of the observed columns, which is the model plane
@@ -1149,9 +1155,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # contributes 0/0 to T²; _t2_score_sd leaves it out, as PCA does, rather
         # than dividing by ~zero and poisoning T² with inf/NaN.
         score_sd = _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())
-        self.hotellings_t2_ = pd.DataFrame(
-            np.cumsum((T / score_sd) ** 2, axis=1), index=X.index, columns=component_names
-        )
+        with np.errstate(over="ignore"):  # a row a weighted fit set aside at 1e160 has a T² past the largest float: inf
+            t2 = np.cumsum((T / score_sd) ** 2, axis=1)
+        self.hotellings_t2_ = pd.DataFrame(t2, index=X.index, columns=component_names)
 
         # What is left of X and of Y after the first a components, for a = 1..A. Every
         # sum skips a missing cell. R2Y is 1 - SSE/SST, the convention of the X side:
@@ -1170,7 +1176,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         for a in range(1, A + 1):
             x_left = X_values - T[:, :a] @ P[:, :a].T
             y_left = Y_values - T[:, :a] @ C[:, :a].T
-            spe.append(np.sqrt(ssq(x_left, axis=1)))
+            # Exact where a row's squares overflow, as a row a weighted fit set aside at 1e160 has them (#1149).
+            spe.append(row_norms(np.nan_to_num(x_left)))  # a missing cell adds nothing, as nansum skips it
             r2x.append(1 - ssq(root * x_left, axis=0) / np.where(x_total > 0, x_total, np.nan))
             r2y.append(1 - ssq(root * y_left, axis=0) / np.where(y_total > 0, y_total, np.nan))
             r2_cumulative.append(1 - ssq(root * y_left) / np.sum(y_total))
@@ -1409,7 +1416,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # and collapses every SPE to 0. A row with a missing cell has its SPE over the cells it has.
         x_hat = scores.to_numpy() @ self._x_loadings.T
         residuals = X.to_numpy() - x_hat
-        spe = np.sqrt(np.power(residuals, 2).sum(axis=1))
+        # Exact where a far row's squares overflow (#1149); NaN for a row with a missing cell until it is estimated.
+        spe = np.where(np.isnan(residuals).any(axis=1), np.nan, row_norms(np.nan_to_num(residuals)))
         spe[rows] = estimates.spe
         spe_values = pd.Series(spe, index=X.index, name="SPE")
 

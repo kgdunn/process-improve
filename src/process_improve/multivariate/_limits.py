@@ -22,7 +22,7 @@ from sklearn.base import BaseEstimator
 from sklearn.utils.validation import check_is_fitted
 
 from ..univariate.metrics import _check_probability
-from ._common import epsqrt, user_stacklevel
+from ._common import epsqrt, fitted_rows, user_stacklevel, weighted_variance
 
 #: The rows a Hotelling's T² limit can judge (#978): the rows the model was fitted to, or new rows.
 JudgedRows = Literal["fitted", "new"]
@@ -40,7 +40,7 @@ def _judged_rows(judged_rows: JudgedRows | None) -> JudgedRows:
     return judged_rows
 
 
-def _t2_limit(conf_level: float, n_components: int, n_rows: int, judged_rows: JudgedRows) -> float:
+def _t2_limit(conf_level: float, n_components: int, n_rows: float, judged_rows: JudgedRows) -> float:
     """Return the T² limit for validated arguments; see :func:`hotellings_t2_limit`."""
     if n_components == 0:
         # With no components T2 is zero for every observation, and so is its limit: the
@@ -65,7 +65,7 @@ def _t2_limit(conf_level: float, n_components: int, n_rows: int, judged_rows: Ju
     return bound * beta_dist.isf(1 - conf_level, n_components / 2, (n_rows - n_components - 1) / 2)
 
 
-def judged_rows_note(conf_level: float, n_components: int, n_rows: int, judged_rows: JudgedRows | None) -> str | None:
+def judged_rows_note(conf_level: float, n_components: int, n_rows: float, judged_rows: JudgedRows | None) -> str | None:
     """Return the text of the warning that ``judged_rows=None`` gives, or ``None`` when it gives none (#978).
 
     A call warns only when its number changes in 3.0: when ``judged_rows`` is ``None`` and the
@@ -95,7 +95,7 @@ def judged_rows_note(conf_level: float, n_components: int, n_rows: int, judged_r
 def hotellings_t2_limit(
     conf_level: float = 0.95,
     n_components: int = 0,
-    n_rows: int = 0,
+    n_rows: float = 0,
     *,
     judged_rows: JudgedRows | None = None,
 ) -> float:
@@ -120,8 +120,9 @@ def hotellings_t2_limit(
         Fractional confidence limit, less that 1.00; by default 0.95
     n_components : int
         Number of components in the fitted multivariate model.
-    n_rows : int
-        Number of rows (observations) used to fit the model. Must be > 0.
+    n_rows : int or float
+        Number of rows (observations) used to fit the model. Must be > 0. For a weighted fit it
+        is the effective number of rows, which need not be whole (#1149).
     judged_rows : {"fitted", "new"} or None, optional
         Which rows the limit judges: ``"fitted"``, the rows the model was fitted to (the values
         in ``hotellings_t2_``, the points of a score plot); or ``"new"``, rows it was not fitted
@@ -200,10 +201,11 @@ def spe_limit(model: BaseEstimator, conf_level: float = 0.95) -> float:
     return spe_calculation(
         spe_values=model.spe_.iloc[:, model.n_components_ - 1],
         conf_level=conf_level,
+        weights=getattr(model, "_row_weights", None),  # a weighted fit's, over the rows it used (#1149)
     )
 
 
-def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
+def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95, weights: np.ndarray | None = None) -> float:
     """Return a limit for SPE (squared prediction error) at the given level of confidence.
 
     Parameters
@@ -212,6 +214,10 @@ def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
         The SPE values from the last component in the multivariate model.
     conf_level : float, optional
         The confidence level, by default 0.95, i.e. the 95% confidence level.
+    weights : np.ndarray or None, optional
+        The row weights of a weighted fit, ``PLS(sample_weight=...)`` or ``PRM``: the mean and
+        the variance of the squared SPE are then taken over the rows of positive weight, in their
+        weights, so weights of 0 and 1 give the limit of the fit to the rows of weight 1 (#1149).
 
     Returns
     -------
@@ -245,8 +251,15 @@ def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
     # The limit is for the squares (i.e. the sum of the squared errors)
     # I.e. `spe_values` are square-rooted outside this function, so undo that.
     values = spe_values**2
-    center_spe = float(values.mean())
-    variance_spe = float(values.var(ddof=1))
+    if weights is None:
+        center_spe = float(values.mean())
+        variance_spe = float(values.var(ddof=1))
+    else:
+        values = np.asarray(values, dtype=float)
+        weights = np.where(np.isnan(values), 0.0, weights)  # a row with nothing observed has no SPE, nor weight
+        used = weights > 0
+        center_spe = float(weights[used] @ values[used] / weights[used].sum())
+        variance_spe = float(weighted_variance(values, weights))
     # A perfect-fit training set (A == K) or all-equal SPE values produces
     # ``variance_spe == 0`` or ``center_spe == 0``, which would divide by
     # zero below and yield NaN limits silently. Return the centre as the
@@ -316,8 +329,9 @@ def score_limit(model: BaseEstimator, conf_level: float = 0.95) -> np.ndarray:
     check_is_fitted(model, "scores_")  # pragma: no mutate - None checks the same fitted state
 
     scores = np.asarray(model.scores_, dtype=float)  # pragma: no mutate - the scores are already float
-    std_per_component = scores.std(axis=0, ddof=1)
-    critical_value = t_dist.ppf(1 - (1 - conf_level) / 2, scores.shape[0] - 1)
+    weights = getattr(model, "_row_weights", None)  # a weighted fit's, over the rows it used (#1149)
+    std_per_component = scores.std(axis=0, ddof=1) if weights is None else np.sqrt(weighted_variance(scores, weights))
+    critical_value = t_dist.ppf(1 - (1 - conf_level) / 2, fitted_rows(model, scores.shape[0]) - 1)
     return critical_value * std_per_component
 
 
@@ -328,7 +342,7 @@ def ellipse_coordinates(  # noqa: PLR0913 - judged_rows, the rows the ellipse ju
     n_points: int = 100,
     n_components: int = 0,
     scaling_factor_for_scores: pd.Series | None = None,
-    n_rows: int = 0,
+    n_rows: float = 0,
     *,
     judged_rows: JudgedRows | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -362,9 +376,10 @@ def ellipse_coordinates(  # noqa: PLR0913 - judged_rows, the rows the ellipse ju
         Required, although the signature defaults to ``None``; omitting it raises
         :class:`TypeError`.
         Used to scale the ellipse axes.
-    n_rows : int
+    n_rows : int or float
         Number of rows `N` in the data used to fit the model. Required to compute the
-        Hotelling's T^2 limit for 2 components; must be strictly positive.
+        Hotelling's T^2 limit for 2 components; must be strictly positive. For a weighted
+        fit it is the effective number of rows, which need not be whole (#1149).
     judged_rows : {"fitted", "new"} or None, optional
         Which rows the ellipse judges, as in :func:`hotellings_t2_limit`: ``"fitted"`` for the
         scores of the rows the model was fitted to, the points of a score plot, or ``"new"`` for
