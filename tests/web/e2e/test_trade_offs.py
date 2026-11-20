@@ -13,9 +13,23 @@ from typing import Any
 
 import pytest
 
-from tests.web.e2e._page import last_reply, practise, reveal, run_sheet, settled
+from tests.web._support import FACTORS
+from tests.web.e2e._page import (
+    candidates_done,
+    generate,
+    headers,
+    last_reply,
+    name_response,
+    practise,
+    reveal,
+    run_sheet,
+    saved_studies,
+    set_factors,
+    settled,
+)
 from tests.web.e2e.test_rename import rename
-from tests.web.e2e.test_responses import three_responses
+from tests.web.e2e.test_report import download_report, opened
+from tests.web.e2e.test_responses import add_response, three_responses
 
 PLOT = "document.querySelector('#trade-chart .plot')"
 TRIED = f"{PLOT}.data.filter((trace) => trace.meta === 'tried')"
@@ -111,29 +125,32 @@ def test_a_point_pressed_is_chosen_and_the_what_if_panel_moves_to_its_settings(t
     assert "Settings chosen" not in names(page)
 
 
-def test_other_settings_nearly_as_good_are_listed_each_with_a_button_that_chooses_it(traded):
-    """The practice study has one best, so Python's reply is given an alternative: the page lists it and chooses it."""
-    page = traded
-    assert page.locator("#trade-nearly table").count() == 0, "the balance has one best"
-    tried = last_reply(page, "api_trade_offs")["result"]
-    balance = last_reply(page, "api_balance")["result"]
-    other = {
-        "settings": {name: values[7] for name, values in tried["candidates"]["settings"].items()},
-        "responses": {name: values[7] for name, values in tried["candidates"]["responses"].items()},
-        "d": dict.fromkeys(tried["candidates"]["responses"], 0.9),
-        "composite": 0.97 * balance["composite"],
-    }
-    page.evaluate(
-        "(reply) => window.__pi.fake('api_trade_offs', reply)",
-        {"ok": True, "result": {**tried, "alternatives": [other]}},
-    )
+def test_other_settings_nearly_as_good_are_listed_each_with_a_button_that_chooses_it(fresh_page):
+    """A yield high where T and P are both high or both low, and a cost that hardly moves: two bests, as typed."""
+    page = fresh_page
+    name_response(page, "Yield", "%", goal="maximize")
+    add_response(page, "Cost", "$/kg", "minimize", None)
+    set_factors(page, FACTORS[:2])
+    candidates_done(page)
+    generate(page, design_type="full_factorial")
+    columns = headers(page)
+    for i, row in enumerate(run_sheet(page)):
+        at = dict(zip(columns, row, strict=False))
+        t, p = (float(at["T"]) - 175) / 25, float(at["P"]) - 2
+        page.fill(f'#design-table input[data-response="Yield"][data-index="{i}"]', f"{60 + 5 * t * p:g}")
+        page.fill(f'#design-table input[data-response="Cost"][data-index="{i}"]', f"{20 + 0.2 * t + 0.2 * p:g}")
+    settled(page)
+    reveal(page, "#balance")
     before = page.evaluate("window.__pi.count('api_trade_offs')")
-    page.fill('#balance-goals tr[data-response="Cost"] [name="high"]', "70")
+    page.fill('#balance-goals tr[data-response="Cost"] [name="high"]', "30")
     page.wait_for_function(f"window.__pi.count('api_trade_offs') > {before}")
     page.wait_for_selector("#trade-nearly table")
+    settled(page)
+    (other,) = last_reply(page, "api_trade_offs")["result"]["alternatives"]
+    assert other["settings"] == pytest.approx({"T": 200.0, "P": 3.0}, abs=1e-3), "the corner across the range"
     assert "Nearly as good" in names(page)
     row = page.locator("#trade-nearly tbody tr")
-    assert row.locator("td").first.text_content().startswith("T = ")
+    assert row.locator("td").first.text_content().startswith("T = 200")
     row.get_by_role("button", name="Choose the settings of row 1").click()
     page.wait_for_selector("#trade-chosen table")
     assert page.text_content("#trade-chosen .lead") == f"Settings chosen: {row.locator('td').first.text_content()}."
@@ -151,3 +168,70 @@ def test_the_settings_chosen_go_when_a_factor_is_renamed(traded):
     assert page.locator("#trade-chosen table").count() == 0
     assert "Settings chosen" not in names(page)
     assert "Temperature" in last_reply(page, "api_trade_offs")["result"]["candidates"]["settings"]
+
+
+def test_a_categorical_factor_s_level_is_picked_and_the_chart_is_drawn_at_it(fresh_page):
+    """The chart is drawn at the balanced level at first; another level is tried on the models there, with no star."""
+    page = fresh_page
+    name_response(page, "Yield", "%", goal="maximize")
+    add_response(page, "Cost", "$/kg", "minimize", None)
+    set_factors(page, [*FACTORS[:2], {"name": "Supplier", "low": "A", "high": "B"}])
+    candidates_done(page)
+    generate(page, design_type="full_factorial")
+    practise(page)
+    reveal(page, "#balance")
+    page.wait_for_selector("#trade-chart .js-plotly-plot")
+    settled(page)
+    first = last_reply(page, "api_trade_offs")["result"]
+    box = page.locator("#trade-levels select")
+    assert box.count() == 1
+    balanced = first["held"][0]["value"]
+    other = "A" if balanced == "B" else "B"
+    assert box.input_value() == balanced
+    assert f"{balanced} (balanced)" in box.locator("option").all_text_contents()
+    assert "Balanced settings" in names(page)
+    asked = page.evaluate("window.__pi.count('api_trade_offs')")
+    box.select_option(other)
+    page.wait_for_function(f"window.__pi.count('api_trade_offs') > {asked}")
+    settled(page)
+    again = last_reply(page, "api_trade_offs")["result"]
+    assert again["held"] == [{"name": "Supplier", "value": other}]
+    assert "Balanced settings" not in names(page), "the balanced settings are at the other level"
+    assert page.text_content("#trade-chart figcaption").startswith(f"Drawn with Supplier at {other}")
+    assert f"with Supplier at {other}" in page.text_content("#trade-about")
+    assert page.locator("#trade-levels select").input_value() == other
+
+
+def test_the_chart_s_axes_colour_limits_and_choice_are_kept_with_the_study(traded):
+    page = traded
+    page.select_option("#trade-colour", "Cost")
+    before = page.evaluate(POINTS)
+    page.fill('#trade-limits tr[data-response="Purity"] [name="low"]', "62")
+    page.wait_for_function(f"{POINTS} < {before}")
+    page.evaluate(f"{PLOT}.emit('plotly_click', {{ points: [{{ data: {{ meta: 'tried' }}, customdata: 7 }}] }})")
+    page.wait_for_selector("#trade-chosen table")
+    chosen = page.text_content("#trade-chosen .lead")
+    kept = saved_studies(page, lambda studies: bool(studies) and "chosen" in studies[0].get("trade", {}))
+    assert kept[0]["v"] == 14
+    assert kept[0]["trade"]["limits"] == {"Purity": [62, None]}
+    assert kept[0]["trade"]["colour"] == "Cost"
+
+    page.reload()
+    page.wait_for_selector("#trade-chart .js-plotly-plot")
+    settled(page)
+    page.wait_for_selector("#trade-chosen table")
+    assert page.input_value("#trade-colour") == "Cost"
+    assert page.input_value('#trade-limits tr[data-response="Purity"] [name="low"]') == "62"
+    assert page.text_content("#trade-chosen .lead") == chosen, "the same settings, found again among those tried"
+
+
+def test_the_report_holds_the_trade_off_chart_and_the_settings_chosen(traded):
+    page = traded
+    page.evaluate(f"{PLOT}.emit('plotly_click', {{ points: [{{ data: {{ meta: 'tried' }}, customdata: 7 }}] }})")
+    page.wait_for_selector("#trade-chosen table")
+    chosen = page.text_content("#trade-chosen .lead")
+    _, html = download_report(page)
+    report = opened(page, html)
+    text = report.text_content("body")
+    assert "What one response costs another" in text
+    assert chosen in text, "and the settings chosen on it"

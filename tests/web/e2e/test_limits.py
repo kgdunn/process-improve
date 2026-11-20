@@ -94,13 +94,13 @@ def test_a_limit_that_cannot_be_read_says_why_and_holds_the_brief_back(blank_pag
     assert page.text_content("#candidates") == message
 
 
-def test_with_limits_a_study_has_up_to_eight_factors_and_the_page_says_so(fresh_page):
-    """An optimal design takes nine factors, so it is the limits, not the design, that hold the brief back."""
+def test_with_limits_a_study_has_up_to_fourteen_factors_and_the_page_says_so(fresh_page):
+    """An optimal design takes fifteen factors, so it is the limits, not the design, that hold the brief back."""
     page = fresh_page
-    set_factors(page, factors_named(*"ABCDEFGHI"))
+    set_factors(page, factors_named(*"ABCDEFGHIJKLMNO"))
     candidates_done(page)
     type_limit(page, "A + B <= 1")
-    message = "With limits on the settings, the page makes designs in up to 8 factors; you have 9."
+    message = "With limits on the settings, the page makes designs in up to 14 factors; you have 15."
     page.wait_for_function("(said) => document.querySelector('#candidates').textContent === said", arg=message)
     choose(page, design_type="d_optimal")
     assert not page.locator("#design-type option:checked").is_disabled()

@@ -4,7 +4,7 @@
 // touches the document, so tests/web/js runs it under Node.
 
 /** The run sheet's column marking a confirmation run, and what it holds for one; mirrors bootstrap.CONFIRMATION and CONFIRMS. */
-import { confidencePercent, marked, significance } from "./numbers.js";
+import { confidencePercent, heldWords, marked, significance } from "./numbers.js";
 
 export const CONFIRMATION = "Confirmation run";
 export const CONFIRMS = "yes";
@@ -691,7 +691,7 @@ export function blendOverlayCaption(overlay, responses = []) {
   const missed = (labels, said) => (labels.length ? ` No line for ${listed(labels)}: ${labels.length === 1 ? "it is" : "they are"} ${said}.` : "");
   const narrow = everywhere.length ? " Narrow a range in the table to draw its boundary." : "";
   return (
-    `${TRIANGLE} Shaded where every response is ` +
+    `${triangleWords(overlay)} Shaded where every response is ` +
     "acceptable; each line is a response's acceptable boundary; the star marks the balanced blend." +
     missed(everywhere, "acceptable at every blend drawn") +
     narrow +
@@ -699,12 +699,21 @@ export function blendOverlayCaption(overlay, responses = []) {
   );
 }
 
-/** What a mixture's triangle is, as the caption of each chart drawn over it starts. */
-const TRIANGLE = "Each corner is a pure component and each point a blend the bounds allow.";
+/**
+ * What a mixture's triangle is, as the caption of each chart drawn over it starts. Of four components or more it is of
+ * three, the others held (``overlay.held``, each name with its share) at the blend the chart is drawn through.
+ */
+const triangleWords = (overlay) =>
+  overlay.held && !Array.isArray(overlay.held)
+    ? `Each point is a blend with ${heldWords(overlay.held)}; the other three share the rest, and each corner is where one of them takes all of it.`
+    : "Each corner is a pure component and each point a blend the bounds allow.";
 
-/** Why a mixture of four components or more has no overlay of the acceptable ranges. */
+/**
+ * Why a mixture of four components or more has no triangle here: it is drawn over three, the others held at the blend
+ * found, and there is no such blend, or the others leave the three nothing to share.
+ */
 export const NO_BLEND_OVERLAY =
-  "With four components or more the blends fill a solid, which no picture of a triangle holds, so no overlay is drawn.";
+  "With four components or more the triangle is drawn through the blend found, with three of them on it; here there is no such blend, or the others leave the three nothing, so none is drawn.";
 
 /**
  * The responses whose acceptable boundary misses the settings the overlay draws, by what that means: acceptable at
@@ -1246,9 +1255,9 @@ export function targetCaption(overlay, factors = [], responses = []) {
   const blend = overlay.kind === "ternary"; // a mixture's chart is over the triangle of its three components
   const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
   const at = (h) => (typeof h.value === "string" ? `${h.name} at ${h.value}` : `${h.name} at ${withUnit(h.value, units[h.name])}`);
-  const held = overlay.held ?? [];
+  const held = blend ? [] : (overlay.held ?? []); // a triangle's held components are in its own words
   const others = held.length ? `, with ${listed(held.map(at))}, as at the settings found` : "";
-  const where = blend ? TRIANGLE : `Drawn over ${overlay.x} and ${overlay.y}${others}.`;
+  const where = blend ? triangleWords(overlay) : `Drawn over ${overlay.x} and ${overlay.y}${others}.`;
   const one = blend ? "blend" : "setting";
   const lines =
     overlay.responses.length === 1
@@ -1320,7 +1329,7 @@ export function windowChance(found, { blend = false } = {}) {
   const all = found.responses.length === 1 ? "its window" : "every window";
   const [one, many] = blend ? ["blend", "blends"] : ["setting", "settings"];
   // Said when it is so: with too few runs to estimate it, the responses' errors are taken as independent.
-  const together = found.search?.correlation ? " The responses' errors are taken as correlated as the residuals of their fits are." : "";
+  const together = found.search?.correlation ? " The responses' errors are taken as correlated as the residuals of their fits are, and the doubt in that correlation is counted." : "";
   if (!found.likely) return `No runs are left to estimate the noise, so the chance that a new run meets ${all} cannot be given.`;
   const [low, high] = Object.keys(found.likely).map(Number).sort((a, b) => a - b);
   const at = (chance) => found.likely[String(chance)];
@@ -1356,7 +1365,7 @@ export function windowCaption(overlay, factors = []) {
   const blend = overlay.kind === "ternary"; // a mixture's chart is over the triangle of its three components
   const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
   const at = (h) => (typeof h.value === "string" ? `${h.name} at ${h.value}` : `${h.name} at ${withUnit(h.value, units[h.name])}`);
-  const held = overlay.held ?? [];
+  const held = blend ? [] : (overlay.held ?? []); // a triangle's held components are in its own words
   const others = held.length ? `, with ${listed(held.map(at))}, as What if has ${held.length === 1 ? "it" : "them"}` : "";
   // The triangle has each chance as a line of its own; the chart over two factors, the chances and their surface.
   const drawn = (line) => line.a.some((v) => v !== null); // a chance no blend reaches has no line
@@ -1365,9 +1374,12 @@ export function windowCaption(overlay, factors = []) {
     ? ` Inside the line of ${Math.round(100 * Math.max(...chances))}%, a new run meets every window at least that often: the fit's doubt and the noise are counted.`
     : "";
   const grey = overlay.runnable ? " Grey: settings outside your limits." : "";
-  const star = blend ? (overlay.at ? " The star marks the blend at which a new run is surest to meet them, and the dots your runs." : " The dots are your runs.") : " The star marks the settings What if holds, and the dots your runs.";
+  // A triangle of three of four components or more draws no runs: one is on it only if it holds the others alike.
+  const dots = overlay.runs?.length ? ", and the dots your runs" : "";
+  const surest = overlay.at ? ` The star marks the blend at which a new run is surest to meet them${dots}.` : dots ? " The dots are your runs." : "";
+  const star = blend ? surest : " The star marks the settings What if holds, and the dots your runs.";
   return (
-    `${blend ? TRIANGLE : `Drawn over ${overlay.x} and ${overlay.y}${others}.`} Shaded where every response is predicted inside its window; each ` +
+    `${blend ? triangleWords(overlay) : `Drawn over ${overlay.x} and ${overlay.y}${others}.`} Shaded where every response is predicted inside its window; each ` +
     `coloured line is the end of a response's window.${chance}${star}${grey}`
   );
 }

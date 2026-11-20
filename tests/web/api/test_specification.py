@@ -71,6 +71,7 @@ def test_the_share_and_the_region_are_those_of_the_known_surface(api):
         "windows": {"Cost": [19.31, 21.69]},
         "at": {"T": 0.0, "P": 0.0},
         "correlation": None,
+        "correlation_df": None,
         "drawn": 20_000,
         "seed": 1,
     }

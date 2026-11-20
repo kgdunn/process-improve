@@ -142,3 +142,13 @@ def test_learn_offers_no_runs_to_add(api, design):
     (note,) = offered["notes"]
     assert note.startswith("This design sets a factor once for each group of runs")
     assert note.endswith("so it offers none here.")
+
+
+def test_a_design_with_limits_on_the_settings_keeps_them_and_its_whole_plots(api):
+    """The library's search starts inside the limits and takes no exchange that leaves them."""
+    limits = [{"expression": "T + 25*P <= 225"}]
+    made = api.ok("api_make_design", {**PLAN, "hard_to_change": ["T"], "constraints": limits})
+    runs = run_sheet(made)
+    assert (runs["T"] + 25 * runs["P"] <= 225 + 1e-9).all()
+    assert runs.groupby("Whole plot")["T"].nunique().max() == 1
+    assert made["spec"]["constraints"][0]["expression"] == "T + 25 * P <= 225"

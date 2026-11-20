@@ -356,6 +356,7 @@ import {
   sameCampaign,
   shareable,
   studyFormat,
+  OVERALL_D,
   studySettings,
   timeAgo,
   unpackCampaign,
@@ -596,7 +597,36 @@ function toast(text, state = "ok") {
 
 // ---------------------------------------------------------------- state
 /** The trade-offs' view of a study just opened: nothing tried, picked, limited or chosen yet. */
-const newTrade = () => ({ tried: null, across: null, up: null, colour: "", limits: {}, chosen: null });
+const newTrade = () => ({ tried: null, across: null, up: null, colour: "", limits: {}, chosen: null, levels: {}, choose: null });
+
+/**
+ * What a study keeps of its trade-off chart (campaign.js tradeKept): the axes, the colour, the limits typed, the
+ * levels drawn at and the settings chosen. Nothing before the chart is drawn, so a study with none keeps its format.
+ */
+function keptTrade() {
+  const { tried, across, up, colour, limits, levels, chosen } = state.trade;
+  if (!tried) return {};
+  const typed = Object.entries(limits).filter(([, ends]) => ends.some((v) => v !== null));
+  return {
+    across,
+    up,
+    ...(colour ? { colour } : {}),
+    ...(typed.length ? { limits: Object.fromEntries(typed) } : {}),
+    ...(Object.keys(levels ?? {}).length ? { levels } : {}),
+    ...(chosen ? { chosen: chosen.settings } : {}),
+  };
+}
+
+/** The trade-off chart as a study opened keeps it: drawn again when its balance is, the choice found among the settings tried. */
+const tradeOpened = (kept = {}) => ({
+  ...newTrade(),
+  across: kept.across ?? null,
+  up: kept.up ?? null,
+  colour: kept.colour ?? "",
+  limits: structuredClone(kept.limits ?? {}),
+  levels: structuredClone(kept.levels ?? {}),
+  choose: kept.chosen ?? null,
+});
 
 const state = {
   phase: "plan", // the phase on show: "plan", "run" or "learn"
@@ -612,6 +642,7 @@ const state = {
   practiceRound: false, // the results on the page are a practice round's: simulated by one press in Design
   analysis: null,
   triangles: {}, // for a response's column, the three components of four or more its triangle is drawn over
+  overlayTriangle: null, // the three the balance, a target and a specification are drawn over: else the largest shares
   contourPairs: {}, // for a response's column, the two factors the reader chose to draw its surface over: else the largest two
   moreCharts: false, // whether "More charts" is open
   setAside: {}, // for a response's column, the places on the run sheet of the runs its fit goes without
@@ -631,6 +662,7 @@ const state = {
   curve: { fit: null, problem: null, target: null }, // the curves' fit from api_functional, why there is none, a target
   scenarios: [], // the settings the reader kept from the what-if panel, each {name, settings}: the study's what_if
   next: null, // the next step, {design, key, offers, notes, recommendation, waiting}: what api_next_runs returned for it
+  suggested: null, // the runs a model of every run suggested, {design, n, result}: what api_suggest_runs returned
   widened: false, // the study was started with its ranges widened, nothing having stood out in the study before
   settings: {}, // the study's own settings, as the study keeps them (campaign.js studySettings): its colour map
   buildsOn: [], // the study this one was started from, as the study keeps it (its builds_on): the round before
@@ -1374,6 +1406,7 @@ function showComponents() {
   $("#h-high").textContent = mixture ? "Upper" : "High";
   for (const tr of factorRows()) showType(tr, typeOf(tr));
   $("#limits-mixture").hidden = !mixture;
+  $("#possible").hidden = mixture; // a component's bounds are its lower and upper proportions
 }
 
 /**
@@ -1493,6 +1526,67 @@ function renderHard() {
   $("#hard-factors").replaceChildren(...ticks);
 }
 
+/** The numeric factor rows: those a possible range is typed for. */
+const possibleRows = () => factorRows().filter((tr) => !blankRow(tr) && typeOf(tr) === NUMERIC);
+
+/** A bound typed for a factor's possible range: a number, or null for a blank or anything else. */
+const bound = (text) => (text?.trim() && Number.isFinite(Number(text)) ? Number(text) : null);
+
+/** Each numeric factor's possible range, by its name, as the design is asked for it: a blank bound is null. */
+function possibleRanges() {
+  const ranges = possibleRows()
+    .map((tr) => [box(tr, "name").value.trim(), [bound(tr.dataset.lowest), bound(tr.dataset.highest)]])
+    .filter(([, bounds]) => bounds.some((b) => b !== null));
+  return Object.fromEntries(ranges);
+}
+
+/** Give the factors of these names these possible ranges, and the others none: a stored design's. */
+function setPossible(ranges) {
+  for (const tr of factorRows()) {
+    const [lowest, highest] = ranges[box(tr, "name").value.trim()] ?? [null, null];
+    tr.dataset.lowest = lowest ?? "";
+    tr.dataset.highest = highest ?? "";
+  }
+  if (Object.keys(ranges).length) $("#possible").open = true;
+  renderPossible();
+}
+
+/** Draw a line for each numeric factor, with its lowest and highest possible settings, each kept on its row. */
+function renderPossible() {
+  const lines = possibleRows().map((tr) => {
+    const name = box(tr, "name").value.trim();
+    const units = box(tr, "units").value.trim();
+    const cell = (key, words) => {
+      const input = el("input", "", "");
+      input.type = "text";
+      input.inputMode = "decimal";
+      input.size = 6;
+      input.value = tr.dataset[key] ?? "";
+      input.setAttribute("aria-label", `${words} setting of ${name}`);
+      input.addEventListener("change", () => {
+        tr.dataset[key] = input.value.trim();
+        renderPossibleCount();
+        markStale();
+      });
+      const td = el("td", "", "");
+      td.append(input, units ? ` ${units}` : "");
+      return td;
+    };
+    const row = el("tr", "", "");
+    row.append(el("th", "", name), cell("lowest", "Lowest possible"), cell("highest", "Highest possible"));
+    return row;
+  });
+  $("#possible-rows").replaceChildren(...lines);
+  renderPossibleCount();
+}
+
+/** The badge on the possible ranges: how many factors have one. */
+function renderPossibleCount() {
+  const n = Object.keys(possibleRanges()).length;
+  $("#possible-count").textContent = String(n);
+  $("#possible-count").hidden = n === 0;
+}
+
 /**
  * The run sheet's columns besides its factors, which a factor renamed on it cannot take: its results
  * and its blocks. None while the factors differ from the run sheet's by more than their labels: a run
@@ -1545,6 +1639,7 @@ function limitsFollow(tr) {
   if (before && before !== after) renameInLimits({ [before]: after });
   tr.dataset.name = after;
   renderHard();
+  renderPossible();
 }
 
 /**
@@ -1720,6 +1815,7 @@ function setDesignForm(spec) {
   $("#n_replicates").value = options.n_replicates ?? 1;
   $("#n_blocks").value = options.n_blocks ?? 1;
   setHard(options.hard_to_change ?? []);
+  setPossible(spec.possible ?? {});
   $("#n_levels").value = String(options.n_levels ?? 2); // a Taguchi array at two levels stores none
   if (isMixture(spec.design_type)) {
     // A mixture design stores the Scheffé model it is built for: a lattice's degree, or what extreme vertices are for.
@@ -1800,6 +1896,7 @@ function takeStep(step) {
 function refreshDesign() {
   renderLadder();
   renderHard();
+  renderPossible();
   const k = factorCount();
   const full = factorRows().length >= MAX_FACTORS; // the add buttons stop at the most factors a study has, and say so
   for (const id of ["#add-factor", "#add-categorical"]) $(id).disabled = full;
@@ -2079,6 +2176,10 @@ function planKey() {
       .filter((tr) => !blankRow(tr))
       .map((tr) => tr.dataset.hard === "1")
       .join(),
+    // By place too: each numeric factor's lowest and highest possible settings, as typed.
+    possible: possibleRows()
+      .map((tr) => `${bound(tr.dataset.lowest) ?? ""}:${bound(tr.dataset.highest) ?? ""}`)
+      .join(),
     model_type: $("#model_type").value,
     lattice_degree: $("#lattice_degree").value,
     mixture_model: $("#mixture_model").value,
@@ -2213,6 +2314,7 @@ async function generate({ randomState } = {}) {
     n_replicates: Number($("#n_replicates").value),
     n_blocks: Number($("#n_blocks").value),
     hard_to_change: hardNames(),
+    possible: mixturePlanned() ? {} : possibleRanges(),
     resolution: Number($("#resolution").value),
     n_levels: Number($("#n_levels").value),
     budget: Number($("#budget").value),
@@ -2309,6 +2411,7 @@ function showDesign(design, warnings = [], { save = true } = {}) {
   state.setAside = {};
   state.contourPairs = {};
   state.triangles = {};
+  state.overlayTriangle = null;
   state.curves = null;
   state.curve = { fit: null, problem: null, target: null }; // the fit of the curves before goes with them
   state.shown = resultNames()[0];
@@ -3896,6 +3999,8 @@ async function closingSections() {
   const sections = [];
   if (!$("#balance").hidden && state.balance) {
     const html = [reportCopy($("#balance-out")), chartsHtml(await chartsWithin($("#balance")))];
+    // The settings chosen on the trade-off chart, under it, as Learn says them.
+    if (state.trade.chosen && !$("#trade-offs").hidden) html.push(reportCopy($("#trade-chosen")));
     sections.push({ heading: $("#h-balance").textContent, html: html.join("\n") });
   }
   if (!$("#what-if").hidden && !$("#what-if-kept").hidden) {
@@ -4082,6 +4187,7 @@ async function readUpload(file) {
   state.setAside = {};
   state.contourPairs = {};
   state.triangles = {};
+  state.overlayTriangle = null;
   state.curves = r.curves ?? null;
   state.shown = names[0];
   state.simulation = null;
@@ -4347,6 +4453,24 @@ function renderAnalysis(reply) {
         ["Source", "df", "Sum of squares", "F", "p-value"],
         r.anova.map((a) => [a.source, a.df, fmt(a.sum_sq), fmt(a.F), pval(a.p_value)]),
         { df: "df", "Sum of squares": "sum-of-squares", F: "f-value", "p-value": "p-value" },
+      ),
+    );
+  }
+  const tests = r.split_plot?.tests;
+  if (tests?.length) {
+    // Satterthwaite's degrees of freedom: a whole number where the design is balanced, one decimal where not.
+    const errorDf = (v) => (Math.abs(v - Math.round(v)) < 0.05 ? String(Math.round(v)) : inMark(v.toFixed(1)));
+    // A design with whole plots has no ANOVA table, which has one error: each term is tested against its own spread.
+    parts.push(
+      el("h3", "", "Each term, tested against the spread it meets"),
+      table(
+        ["Source", "df", "Error df", "F", "p-value", "Tested against"],
+        tests.map((t) => [t.source, t.df, errorDf(t.df_error), fmt(t.F), pval(t.p_value), t.against === "whole plots" ? "Whole plots" : "Runs"]),
+        { df: "df", F: "f-value", "p-value": "p-value", "Tested against": "whole-plot" },
+      ),
+      said(
+        "hint",
+        "A term set once for each whole plot is tested against the spread from whole plot to whole plot, and the others against the spread from run to run.",
       ),
     );
   }
@@ -5427,7 +5551,7 @@ async function drawCharts(request, mine, given = null) {
       if (!figures[key]) continue;
       const card = captioned(key);
       if (key === "contour" && plots.axes?.length > 2) card.card.append(contourPicker(plots));
-      if (key === "ternary" && plots.ternary.held) card.card.append(trianglePicker(plots));
+      if (key === "ternary" && plots.ternary.held) card.card.append(fittedTrianglePicker(plots));
       charts.append(card.card);
       await draw(card.plot, figures[key], version, chartHeight(key), { python: python(key) });
       if (overtaken()) return;
@@ -5563,50 +5687,72 @@ function contourPicker(plots) {
 }
 
 /**
- * Three drop-downs under the triangle of a mixture of four components or more: the components it is drawn over. The
- * others stay held at the blend the caption names. Picking one already shown swaps the two, as the surface's do.
+ * Three drop-downs under a triangle of a mixture of four components or more: the components it is drawn over, the
+ * others held at the blend its caption names. Picking one already shown swaps the two, as the surface's do. ``shown``
+ * holds the three drawn, ``chosen`` whether the reader picked them, and ``pick`` takes a new three, or null for the
+ * page's own choice. ``id`` starts the boxes' ids, one picker to a chart; ``backWords`` name the way back.
  */
-function trianglePicker(plots) {
+function trianglePicker(shown, chosen, pick, id = "triangle", backWords = "Back to the page's choice") {
   const row = el("p", "hint contour-picker triangle-picker", "");
   const names = state.design.spec.factors.map((f) => f.name);
-  const shown = plots.ternary.components;
   const words = ["First", "Second", "Third"];
   const selects = shown.map((name, at) => {
     const select = el("select", "", "");
-    select.id = `triangle-component-${at + 1}`;
+    select.id = `${id}-component-${at + 1}`;
     select.setAttribute("aria-label", `${words[at]} component the triangle is drawn over`);
     for (const option of names) select.append(new Option(option, option));
     select.value = name;
     return select;
   });
-  const redraw = (focus) => {
-    const request = analysisRequest();
-    drawCharts(state.best?.coded ? { ...request, best: state.best.coded } : request, ticket).then(() => $(focus)?.focus());
-  };
   selects.forEach((select, at) => {
     select.onchange = () => {
       const other = selects.find((s, i) => i !== at && s.value === select.value);
       if (other) other.value = shown[at]; // the two change places
-      state.triangles[state.shown] = selects.map((s) => s.value);
-      redraw(`#${select.id}`);
+      pick(selects.map((s) => s.value), `#${select.id}`);
     };
   });
   // The three boxes share one line at any width: a narrow card makes each box narrower, never a second line.
   const boxes = el("span", "triangle-picker__boxes", "");
   boxes.append(...selects);
   row.append("Draw it over these three:", boxes);
-  if (plots.ternary.chosen) {
-    const back = el("button", "link", "Back to the three largest effects");
+  if (chosen) {
+    const back = el("button", "link", backWords);
     back.type = "button";
-    back.id = "triangle-largest";
-    back.onclick = () => {
-      delete state.triangles[state.shown];
-      redraw(`#${selects[0].id}`);
-    };
+    back.id = `${id}-largest`;
+    back.onclick = () => pick(null, `#${selects[0].id}`);
     row.append(back);
   }
   return row;
 }
+
+/** The picker of the fitted response's triangle: its three are kept for the response shown, and the charts redrawn. */
+function fittedTrianglePicker(plots) {
+  const pick = (three, focus) => {
+    if (three) state.triangles[state.shown] = three;
+    else delete state.triangles[state.shown];
+    const request = analysisRequest();
+    drawCharts(state.best?.coded ? { ...request, best: state.best.coded } : request, ticket).then(() => $(focus)?.focus());
+  };
+  return trianglePicker(plots.ternary.components, plots.ternary.chosen, pick, "triangle", "Back to the three largest effects");
+}
+
+/**
+ * Under the triangle of the balance, a target or a specification: one picker, whose three every one of those charts
+ * is drawn over, since each holds the others at its own blend. A pick finds each that is on the page again.
+ */
+function overlayTrianglePicker(card, overlay, id) {
+  card.querySelector(".triangle-picker")?.remove();
+  if (!overlay.held || Array.isArray(overlay.held)) return;
+  const pick = async (three, focus) => {
+    state.overlayTriangle = three;
+    await Promise.all([state.balance && findBalance(), state.target.found && findSettings(), state.window.found && findWindow()]);
+    $(focus)?.focus();
+  };
+  card.querySelector("figcaption").after(trianglePicker(overlay.components, state.overlayTriangle !== null, pick, id));
+}
+
+/** The three components the overlays of a mixture of four or more are drawn over, as a request carries them. */
+const overlayAsked = () => (state.overlayTriangle ? { triangle: state.overlayTriangle } : {});
 
 async function libraryPlots(request, mine) {
   // The reader's choice of the surface's two factors, for the response shown, holds while the study has both; a
@@ -5967,10 +6113,8 @@ function clearBalance() {
 // ---------------------------------------------------------------- the trade-offs between the responses
 let tradeTicket = 0;
 let tradeTimer = null;
-/** What the list of what colours the points calls the overall desirability: no response's column, which is a name. */
-const OVERALL_D = "(D)";
 
-/** Take the trade-offs away: there is no balance to draw them at, or the study is a mixture's. */
+/** Take the trade-offs away: there is no balance to draw them at, or no factor with a range to try. */
 function clearTradeOffs() {
   tradeTicket += 1;
   clearTimeout(tradeTimer);
@@ -5989,12 +6133,19 @@ const factorUnits = () => Object.fromEntries(state.design.spec.factors.map((f) =
  */
 async function findTradeOffs() {
   const b = state.balance;
-  if (!b || blendStudy() || !b.settings.some((s) => s.kind !== "categorical")) {
+  // A mixture's are drawn over its blends; a study of factors needs one with a range to try settings along.
+  if (!b || (!blendStudy() && !b.settings.some((s) => s.kind !== "categorical"))) {
     clearTradeOffs();
     return;
   }
   const mine = ++tradeTicket;
-  const reply = await call("api_trade_offs", { ...balanceAsked(), at: b.coded });
+  // Each categorical factor at the level the reader drew the chart at, else at the balanced settings' level.
+  const levels = Object.fromEntries(
+    tradeFactors()
+      .filter((f) => f.kind === "categorical" && state.trade.levels?.[f.name] !== undefined)
+      .map((f) => [f.name, codedLevel(f, state.trade.levels[f.name])]),
+  );
+  const reply = await call("api_trade_offs", { ...balanceAsked(), at: { ...b.coded, ...levels } });
   if (mine !== tradeTicket || state.balance !== b) return;
   if (!reply.ok) {
     clearTradeOffs(); // the balance stands without them
@@ -6009,9 +6160,33 @@ async function findTradeOffs() {
   // The settings chosen stay chosen while the models say the same of the settings tried, as after confirmation runs.
   const before = state.trade.tried?.candidates.d;
   const same = before?.length === reply.result.candidates.d.length && before.every((d, i) => d === reply.result.candidates.d[i]);
-  state.trade = { tried: reply.result, across, up, colour, limits, chosen: same ? state.trade.chosen : null };
+  state.trade = { ...state.trade, tried: reply.result, across, up, colour, limits, chosen: same ? state.trade.chosen : null };
   renderTradeOffs();
+  const choose = state.trade.choose;
+  if (choose) {
+    // The choice a study kept: the settings tried are drawn as they were, so it is found among them, or the others.
+    state.trade = { ...state.trade, choose: null };
+    const { candidates, held, alternatives } = reply.result;
+    const levelsMatch = held.every((h) => choose[h.name] === undefined || choose[h.name] === h.value);
+    const at = (settings) => Object.entries(settings).every(([name, v]) => choose[name] === v);
+    const place = candidates.d.findIndex((_, i) => at(Object.fromEntries(Object.entries(candidates.settings).map(([name, values]) => [name, values[i]]))));
+    const other = alternatives.findIndex((a) => at(a.settings));
+    if (levelsMatch && place >= 0) chooseCandidate(place);
+    else if (levelsMatch && other >= 0) chooseAlternative(other);
+  }
 }
+
+/** A categorical factor's level, coded as the models take it: its levels spread evenly from -1 to +1. */
+function codedLevel(f, level) {
+  const levels = f.levels ?? [f.low, f.high];
+  return -1 + (2 * levels.indexOf(level)) / (levels.length - 1);
+}
+
+/** Whether the chart is drawn at the balanced settings' levels: only then is the balance's star on it. */
+const atBalancedLevels = () => state.trade.tried.held.every((h) => balancedLevel(h.name) === h.value);
+
+/** The level the balance found for a categorical factor. */
+const balancedLevel = (name) => state.balance.settings.find((s) => s.name === name)?.value;
 
 /** The study's factors with each one's kind, as the what-if panel has them, or else as the brief does. */
 const tradeFactors = () =>
@@ -6029,8 +6204,8 @@ function renderTradeOffs() {
   const drawn = tried.candidates.d.length;
   const held = tried.held.map((h) => `${h.name} at ${h.value}`).join(", ");
   $("#trade-about").textContent =
-    `Each point is one of ${drawn.toLocaleString("en")} settings tried on the models${held ? `, with ${held}` : ""}, drawn evenly ` +
-    "from the ranges the limits allow. The line is the best one response can be for each value of the other. A paler " +
+    `Each point is one of ${drawn.toLocaleString("en")} ${blendStudy() ? "blends" : "settings"} tried on the models${held ? `, with ${held}` : ""}, drawn evenly ` +
+    `from the ${blendStudy() ? "blends the bounds" : "ranges the limits"} allow. The line is the best one response can be for each value of the other. A paler ` +
     "point is further from your runs than any run lies: there the models guess. Press a point to choose its settings.";
   const options = (chosen, list) =>
     list.map(([value, text]) => `<option value="${escape(value)}"${value === chosen ? " selected" : ""}>${escape(text)}</option>`).join("");
@@ -6038,6 +6213,22 @@ function renderTradeOffs() {
   $("#trade-across").innerHTML = options(across, named);
   $("#trade-up").innerHTML = options(up, named);
   $("#trade-colour").innerHTML = options(colour, [["", "Nothing"], ...named, [OVERALL_D, "Overall desirability, D"]]);
+  // A box for each categorical factor: the chart is drawn at the level it holds, the balanced one at first.
+  const byName = Object.fromEntries(tradeFactors().map((f) => [f.name, f]));
+  $("#trade-levels").replaceChildren(
+    ...tried.held.map((h) => {
+      const f = byName[h.name];
+      const select = el("select", "trade-level", "");
+      select.dataset.factor = h.name;
+      for (const level of f.levels ?? [f.low, f.high]) {
+        const balancedHere = level === balancedLevel(h.name);
+        select.append(new Option(balancedHere ? `${level} (balanced)` : String(level), level, false, level === h.value));
+      }
+      const label = el("label", "", `${h.name} at `);
+      label.append(select);
+      return label;
+    }),
+  );
   const t = $("#trade-limits");
   const key = JSON.stringify(named);
   if (t.dataset.key !== key) {
@@ -6094,7 +6285,7 @@ function tradeDrawn() {
     return Number.isFinite(x) && Number.isFinite(y) ? [{ run: runOrderOf(place), across: x, up: y }] : [];
   });
   const nearly = tried.alternatives.map((a) => ({ across: a.responses[across], up: a.responses[up] }));
-  const star = { across: goalAcross.predicted, up: goalUp.predicted };
+  const star = atBalancedLevels() ? { across: goalAcross.predicted, up: goalUp.predicted } : null;
   return { across: goalAcross, up: goalUp, tried: points, front, colour: tint, runs, balanced: star, chosen: chosen && chosenPoint(chosen), nearly, met: at.length };
 }
 
@@ -6126,12 +6317,15 @@ async function drawTradeChart() {
       ? `${view.met.toLocaleString("en")} of the ${tried.toLocaleString("en")} settings tried meet your limits.`
       : "None of the settings tried meets every limit: loosen one.";
   card.hidden = false;
-  card.querySelector("figcaption").textContent =
-    "The star is the balanced settings. Settings on the line cannot be bettered on one response without giving up some of the other.";
+  const levelled = state.trade.tried.held.map((h) => `${h.name} at ${h.value}`).join(", ");
+  card.querySelector("figcaption").textContent = atBalancedLevels()
+    ? "The star is the balanced settings. Settings on the line cannot be bettered on one response without giving up some of the other."
+    : `Drawn with ${levelled}: the balanced settings are at another level, so no star. Settings on the line cannot be bettered on one response without giving up some of the other.`;
   const plot = card.querySelector(".plot");
   const python = figureAfter("balance", () => {
     const { tried, across, up, colour, limits } = state.trade;
-    return tradeOffCode({ asked: tried.asked, across, up, colour, limits }, state.balance, state.design.spec);
+    const view = { asked: tried.asked, across, up, colour, limits, held: atBalancedLevels() ? null : tried.held_columns };
+    return tradeOffCode(view, state.balance, state.design.spec);
   });
   try {
     await draw(plot, () => tradeOffFigure(view), state.plotlyJs, 440, { python });
@@ -6149,13 +6343,24 @@ async function drawTradeChart() {
 }
 
 /** The reader picked what the chart shows: another response on an axis, or what the points are coloured by. */
-function tradeViewChanged() {
+function tradeViewChanged(event) {
   if (!state.trade.tried) return;
+  if (event?.target?.classList.contains("trade-level")) {
+    // Another level: the settings tried are drawn at it, so Python is asked again; the keyboard stays on the box.
+    state.trade = { ...state.trade, levels: { ...state.trade.levels, [event.target.dataset.factor]: event.target.value } };
+    const factor = event.target.dataset.factor;
+    findTradeOffs().then(() => {
+      document.querySelector(`#trade-levels select[data-factor="${CSS.escape(factor)}"]`)?.focus();
+      scheduleSave();
+    });
+    return;
+  }
   let [across, up] = [$("#trade-across").value, $("#trade-up").value];
   // The two axes show two responses: choosing one axis's response for the other swaps them.
   if (across === up) [across, up] = across === state.trade.across ? [state.trade.up, up] : [across, state.trade.across];
   state.trade = { ...state.trade, across, up, colour: $("#trade-colour").value };
   renderTradeOffs();
+  scheduleSave(); // the study keeps what its chart shows
 }
 
 /** The reader typed a limit on a response: the chart keeps the settings that meet it, a moment after the last key. */
@@ -6165,7 +6370,10 @@ function tradeLimitTyped(e) {
   const ends = ["low", "high"].map((end) => numberOrNull(tr.querySelector(`[name="${end}"]`).value));
   state.trade = { ...state.trade, limits: { ...state.trade.limits, [tr.dataset.response]: ends } };
   clearTimeout(tradeTimer);
-  tradeTimer = setTimeout(drawTradeChart, 300);
+  tradeTimer = setTimeout(() => {
+    drawTradeChart();
+    scheduleSave(); // and the limits typed
+  }, 300);
 }
 
 /** Choose one of the settings tried, by its place among them: its settings, and each response's prediction there. */
@@ -6190,6 +6398,7 @@ function chooseSettings(chosen) {
   }
   renderTradeChosen();
   drawTradeChart();
+  if (state.design) scheduleSave(); // the study keeps the choice
 }
 
 /** Say the settings chosen and each response there, with what to do with them; nothing when none is chosen. */
@@ -6267,9 +6476,13 @@ function renderTradeNearly() {
 /** "Choose" was pressed beside settings nearly as good: they become the reader's choice. */
 function tradeNearlyPressed(e) {
   const i = e.target.closest("button[data-nearly]")?.dataset.nearly;
-  if (i === undefined) return;
+  if (i !== undefined) chooseAlternative(Number(i));
+}
+
+/** Choose one of the settings nearly as good as the balanced ones, by its place among them. */
+function chooseAlternative(i) {
   const { alternatives, held } = state.trade.tried;
-  const a = alternatives[Number(i)];
+  const a = alternatives[i];
   const settings = { ...a.settings, ...Object.fromEntries(held.map((h) => [h.name, h.value])) };
   chooseSettings({ settings, responses: a.responses, d: a.composite, far: false });
 }
@@ -6304,7 +6517,7 @@ async function findBalance() {
 }
 
 /** What the balance is asked with: the study, its results, each response's model and what the reader set of its goal. */
-const balanceAsked = () => ({ ...held(), ...splitResults(resultNames(), fitted()), models: modelsByName(), goals: sentGoals() });
+const balanceAsked = () => ({ ...held(), ...splitResults(resultNames(), fitted()), models: modelsByName(), goals: sentGoals(), ...overlayAsked() });
 
 /** Find the balance again after the reader changed a goal, and then the trade-offs, which are drawn at it. */
 async function rebalance() {
@@ -6492,6 +6705,7 @@ async function drawBalanceChart() {
   card.querySelector("figcaption").textContent = triangle
     ? blendOverlayCaption(b.overlay, b.responses)
     : overlayCaption(b.overlay, state.design.spec.factors, b.responses);
+  overlayTrianglePicker(card, b.overlay, "balance-triangle");
   const python = figureAfter("balance", () => overlayCode(b.overlay, state.design.spec));
   try {
     await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height, { python });
@@ -7290,7 +7504,7 @@ async function findSettings() {
   clearTimeout(targetTimer);
   const { targets, pair } = state.target;
   const mine = ++targetTicket;
-  const reply = Object.keys(targets).length ? await call("api_target_settings", { ...fitsAsked(), targets, ...(pair ? { pair } : {}) }) : null;
+  const reply = Object.keys(targets).length ? await call("api_target_settings", { ...fitsAsked(), ...overlayAsked(), targets, ...(pair ? { pair } : {}) }) : null;
   if (mine !== targetTicket) return;
   $("#target-problems").textContent = reply && !reply.ok ? reply.error : "";
   $("#target-problems").hidden = !reply || reply.ok;
@@ -7377,6 +7591,7 @@ async function drawTargetChart() {
       : overlayFigure(overlay, found.responses, axes, undefined, { star: FOUND, named: targetName });
   card.hidden = false;
   card.querySelector("figcaption").textContent = targetCaption(overlay, state.design.spec.factors, found.responses);
+  overlayTrianglePicker(card, overlay, "target-triangle");
   const python = figureAfter("target", () => targetOverlayCode(overlay, state.design.spec));
   try {
     await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height, { python });
@@ -7578,7 +7793,7 @@ async function findWindow() {
   const mine = ++windowTicket;
   $("#window-clear").hidden = !Object.keys(windows).length;
   // The chart holds its other factors, and every categorical factor, where the what-if panel has them.
-  const asked = { ...fitsAsked(), windows, at: state.whatIf?.settings, ...(pair ? { pair } : {}) };
+  const asked = { ...fitsAsked(), ...overlayAsked(), windows, at: state.whatIf?.settings, ...(pair ? { pair } : {}) };
   const reply = Object.keys(windows).length && (state.whatIf || blendStudy()) ? await call("api_specification", asked) : null;
   if (mine !== windowTicket) return;
   $("#window-problems").textContent = reply && !reply.ok ? reply.error : "";
@@ -7640,7 +7855,8 @@ async function drawWindowChart() {
       : overlayFigure(overlay, found.responses, axes, undefined, { shaded: IN_WINDOWS, star: WHAT_IF_SETTINGS, named: windowName });
   card.hidden = false;
   card.querySelector("figcaption").textContent = windowCaption(overlay, state.design.spec.factors);
-  const python = figureAfter("window", () => windowOverlayCode(overlay, state.design.spec, Boolean(found.search.correlation)));
+  overlayTrianglePicker(card, overlay, "window-triangle");
+  const python = figureAfter("window", () => windowOverlayCode(overlay, state.design.spec, found.search.correlation ? found.search.seed : null));
   try {
     await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height, { python });
   } catch {
@@ -7701,7 +7917,8 @@ function renderNext() {
   const called = next.recommendation;
   const best = state.best?.settings && !isMixture(design?.spec.design_type) ? state.best : null;
   const move = !called && Boolean(best) && movesOn(best);
-  const shown = called || next.waiting || move || next.offers.length || next.notes.length || pathRows(design ?? { columns: [], rows: [] }).length;
+  const rows = pathRows(design ?? { columns: [], rows: [] }).length;
+  const shown = called || next.waiting || move || next.offers.length || next.notes.length || rows || (design && suggestable(design));
   $("#next").hidden = !design || !state.analysis || !shown;
   $("#to-next").hidden = $("#next").hidden;
   $("#next-empty").hidden = !$("#next").hidden;
@@ -7709,10 +7926,85 @@ function renderNext() {
   if ($("#next").hidden) return;
   $("#next-out").replaceChildren(
     ...(called ? calledFor(called) : next.waiting ? [said("hint", next.waiting)] : []),
-    ...pathPart(called?.path ?? null),
+    ...pathPart(called?.path ?? null, called?.path_stopped),
     ...(move ? movedStudy(best) : []),
     ...(next.offers.length || next.notes.length ? addedRuns(next, Boolean(called)) : []),
+    ...suggestedPart(design),
   );
+}
+
+/** The most runs a model of every run is asked for at once (bootstrap.MAX_SUGGESTED), and the choices offered. */
+const SUGGESTED_COUNTS = [1, 2, 4, 8];
+
+/** Whether a model of every run can suggest runs: numeric factors, no mixture, and a goal of the largest or smallest. */
+function suggestable(design) {
+  const goal = design.spec.response_info?.goal;
+  return (goal === "maximize" || goal === "minimize") && !isMixture(design.spec.design_type) && !design.spec.factors.some(isCategorical);
+}
+
+/**
+ * Runs from a model of every run (bootstrap.suggest_runs): a Gaussian process of every run with a result, and the
+ * runs where it expects the most to gain over the best so far, each because it looks better or because little is
+ * known there. Asked for with a press, as the fit takes a moment; the runs then go to the run sheet with another.
+ */
+function suggestedPart(design) {
+  if (!design || !suggestable(design)) return [];
+  const part = el("div", "next__part next__suggested", "");
+  part.append(
+    el("h4", "", "Runs from a model of every run"),
+    said(
+      "hint",
+      "When the results do not follow a smooth curve, a model of every run (a Gaussian process) can say where to look next: where it expects the most to gain over the best so far.",
+    ),
+  );
+  const count = el("select", "", "");
+  count.id = "suggested-count";
+  count.append(...SUGGESTED_COUNTS.map((n) => Object.assign(el("option", "", String(n)), { value: String(n) })));
+  count.value = String(state.suggested?.design === design ? state.suggested.n : 4);
+  const label = el("label", "", "Runs to make before any result is read ");
+  label.append(count);
+  const ask = el("button", "button", "Suggest runs");
+  ask.type = "button";
+  ask.id = "suggest-runs";
+  ask.onclick = async () => {
+    const n = Number(count.value);
+    setStatus("Fitting a model of every run...", "busy");
+    const asking = statusTicket;
+    const reply = await call("api_suggest_runs", { ...analysisRequest(), n_runs: n });
+    if (dropped(state.design !== design, asking)) return;
+    if (!reply.ok) {
+      setStatus(reply.error, "error");
+      return;
+    }
+    state.suggested = { design, n, result: reply.result };
+    setStatus("Runs suggested: see Next.");
+    renderNext();
+  };
+  const actions = el("p", "actions", "");
+  actions.append(label, " ", ask);
+  part.append(actions);
+  const found = state.suggested?.design === design ? state.suggested.result : null;
+  if (!found) return [part];
+  const factors = design.spec.factors;
+  const info = design.spec.response_info ?? {};
+  const rows = found.runs.map((run, i) => [
+    i + 1,
+    ...factors.map((f) => stepSetting(f, run.settings[f.name])),
+    withUnit(Number(run.predicted.toPrecision(4)), info.units ?? ""),
+    run.why,
+  ]);
+  const add = el("button", "button", found.runs.length === 1 ? "Add this run" : `Add these ${found.runs.length} runs`);
+  add.type = "button";
+  add.id = "add-suggested";
+  add.onclick = () => addRuns("suggested", { n_runs: state.suggested.n });
+  const go = el("p", "actions", "");
+  go.append(add);
+  part.append(
+    table(["Run", ...factors.map((f) => f.name), "The model predicts", "Why here"], rows),
+    ...(found.stop ? [said("hint", found.stop)] : []),
+    go,
+  );
+  return [part];
 }
 
 let roundsTicket = 0;
@@ -7862,9 +8154,11 @@ function roundBest(record) {
 /** A setting as the next step's table writes it: a number with its units, or a categorical factor's level. */
 /**
  * Whether a setting on the path is one the page can tell may be impossible: below zero, for a factor whose whole
- * range is zero or more, as a pressure or a flow is. The page knows no other bound of a factor (#1322).
+ * range is zero or more, as a pressure or a flow is, and has no possible range typed: with one, the path stops before
+ * any setting past it.
  */
-const belowZero = (f, value) => typeof value === "number" && value < 0 && typeof f.low === "number" && f.low >= 0;
+const belowZero = (f, value) =>
+  typeof value === "number" && value < 0 && typeof f.low === "number" && f.low >= 0 && !state.design.spec.possible?.[f.name];
 
 const stepSetting = (f, value) => (typeof value === "string" ? value : withUnit(value, f.units ?? ""));
 
@@ -7910,7 +8204,7 @@ function calledFor(step) {
  * path stands (campaign.js pathVerdict) and the new study centred on the best of them. They are made in the path's
  * order, and the path is left at the first run that does worse than the run before it.
  */
-function pathPart(path) {
+function pathPart(path, stopped = false) {
   const design = state.design;
   const factors = design.spec.factors;
   const at = pathRows(design);
@@ -7935,6 +8229,9 @@ function pathPart(path) {
     said("hint", "The path does not know your process: before you make a run, check that its settings are possible and safe."),
     ...(predicted ? [said("hint", "Past the ranges the model is a guide only: its predictions say where to look, not what you will find.")] : []),
     table(headings, rows),
+    ...(stopped && !at.length
+      ? [said("hint", "The path stops here: its next run would leave a factor's possible range, or break a limit on the settings.")]
+      : []),
     ...(settings.some((run) => factors.some((f) => belowZero(f, run[f.name])))
       ? warningList(['A setting marked "below zero" may not be possible: stop the path before it.'])
       : []),
@@ -8113,12 +8410,12 @@ function offerRuns(offer) {
  * ones, the runs added are simulated from the same processes, noise and seeds, and analysed with the rest; else the
  * reader makes them, in Run.
  */
-async function addRuns(kind) {
+async function addRuns(kind, more = {}) {
   const asked = state.design;
   if (!asked) return;
   setStatus("Adding the runs...", "busy");
   const adding = statusTicket;
-  const reply = await call("api_add_runs", { ...analysisRequest(), kind }); // the runs the results call for need them
+  const reply = await call("api_add_runs", { ...analysisRequest(), kind, ...more }); // the runs the results call for need them
   if (dropped(state.design !== asked, adding)) return; // another run sheet took its place meanwhile
   if (!reply.ok) {
     setStatus(reply.error, "error");
@@ -8242,6 +8539,7 @@ async function showBuiltExample() {
   state.setAside = {};
   state.contourPairs = {};
   state.triangles = {};
+  state.overlayTriangle = null;
   state.plotlyJs = example.plots.plotly_js;
   renderRuns();
   renderTruth();
@@ -8527,6 +8825,7 @@ function currentCampaign() {
       builds_on: state.buildsOn,
       planned: state.design.planned ?? {},
       settings: state.settings,
+      trade: keptTrade(),
     }),
     title: state.campaign?.title ?? titleOf(spec),
     design: { spec, columns, rows, model, n_runs: rows.length, facts: facts ?? null, outside_range: outside ?? [] },
@@ -8543,6 +8842,7 @@ function currentCampaign() {
     ...keptAsked(),
     ...(state.buildsOn.length ? { builds_on: state.buildsOn } : {}),
     ...(Object.keys(state.settings).length ? { settings: state.settings } : {}),
+    ...(Object.keys(keptTrade()).length ? { trade: keptTrade() } : {}),
     ...sentCurves(),
   };
 }
@@ -8843,11 +9143,12 @@ async function openCampaign(c, record, message, resume = false) {
   state.setAside = structuredClone(c.set_aside ?? {});
   state.contourPairs = {};
   state.triangles = {};
+  state.overlayTriangle = null;
   state.curves = c.curves ? structuredClone(c.curves) : null;
   state.shown = names[0];
   state.models = { [names[0]]: c.model, ...(c.more_models ?? {}) };
   state.goals = structuredClone(c.goals ?? {});
-  state.trade = newTrade();
+  state.trade = tradeOpened(c.trade);
   state.target = { ...newTarget(), targets: structuredClone(c.targets ?? {}) };
   state.window = { ...newWindow(), windows: structuredClone(c.windows ?? {}) };
   state.scenarios = structuredClone(c.what_if ?? []);
@@ -9797,7 +10098,7 @@ $("#balance-reset").onclick = () => {
   scheduleSave();
   rebalance();
 };
-for (const id of ["#trade-across", "#trade-up", "#trade-colour"]) $(id).addEventListener("change", tradeViewChanged);
+for (const id of ["#trade-across", "#trade-up", "#trade-colour", "#trade-levels"]) $(id).addEventListener("change", tradeViewChanged);
 $("#trade-limits").addEventListener("input", tradeLimitTyped);
 $("#trade-chosen").addEventListener("click", tradeChosenPressed);
 $("#trade-nearly").addEventListener("click", tradeNearlyPressed);

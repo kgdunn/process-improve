@@ -1185,6 +1185,19 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
             "leave it out, or make its column numbers."
         ),
     ),
+    "a table with two columns as the whole plot": (
+        "api_import_study",
+        lambda _: {
+            "columns": [
+                {"role": "factor", "name": "A"},
+                {"role": "whole_plot"},
+                {"role": "whole_plot"},
+                {"role": "response", "name": "y"},
+            ],
+            "rows": [[1, 1, 1, 2], [1, 1, 1, 4], [2, 2, 2, 5], [2, 2, 2, 6]],
+        },
+        "Choose one column at most as the block, and one at most as the whole plot.",
+    ),
     "a response of text": (
         "api_import_study",
         lambda _: {
@@ -1402,8 +1415,8 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     ),
     "limits in more factors than an optimal design takes": (
         "api_limits",
-        _typed("X0 + X1 <= 1", factors=factors_named(*(f"X{i}" for i in range(9)))),
-        "With limits on the settings, the page makes designs in up to 8 factors; you have 9.",
+        _typed("X0 + X1 <= 1", factors=factors_named(*(f"X{i}" for i in range(15)))),
+        "With limits on the settings, the page makes designs in up to 14 factors; you have 15.",
     ),
     "a limit on one factor alone": (
         "api_make_design",
@@ -1459,6 +1472,67 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "The page sent a slice of the settings this page did not write.",
     ),
     # Runs as given, which the design catalog opens: they must fit the factors.
+    # A factor's possible range: the lowest and highest settings the process can take (#1322).
+    "possible range: not ranges": (
+        "api_make_design",
+        _make(design_type="full_factorial", possible=[0, 1]),
+        "The page sent possible ranges this page did not write.",
+    ),
+    "possible range: of no numeric factor": (
+        "api_make_design",
+        _make(design_type="full_factorial", possible={"Z": [0, 1]}),
+        "Only a numeric factor of the study has a possible range, and Z is none.",
+    ),
+    "possible range: a word for a bound": (
+        "api_make_design",
+        _make(design_type="full_factorial", possible={"P": ["low", None]}),
+        "Factor P: its lowest and highest possible settings are numbers, or blank.",
+    ),
+    "possible range: above the factor's low": (
+        "api_make_design",
+        _make(design_type="full_factorial", possible={"P": [1.5, None]}),
+        "Factor P: its range starts at 1, below its lowest possible setting.",
+    ),
+    "possible range: below the factor's high": (
+        "api_make_design",
+        _make(design_type="full_factorial", possible={"T": [None, 180]}),
+        "Factor T: its range ends at 200, above its highest possible setting.",
+    ),
+    # Runs from a model of every run (#1374): a goal of the largest or smallest, numeric factors, enough results.
+    "suggested runs: a goal of learning": (
+        "api_suggest_runs",
+        lambda ex: {
+            **ex["held"],
+            "spec": {**ex["held"]["spec"], "response_info": {**ex["held"]["spec"]["response_info"], "goal": "learn"}},
+            "responses": ex["simulated"]["responses"],
+        },
+        (
+            "Runs from a model of every run are suggested for a goal of making the response as large or as small as "
+            "it can be: choose that goal in Design."
+        ),
+    ),
+    "suggested runs: a categorical factor": (
+        "api_suggest_runs",
+        lambda _: {
+            "spec": {
+                "design_type": "given",
+                "factors": [{"name": "T", "low": 150, "high": 200}, {"name": "S", "low": "A", "high": "B"}],
+                "response": "y",
+                "response_info": {"goal": "maximize"},
+                "model": "main_effects",
+            },
+            "columns": ["Std order", "Run order", "T", "S", "y"],
+            "rows": [[1, 1, 150, "A", None], [2, 2, 200, "B", None]],
+            "responses": [1.0, 2.0],
+        },
+        "Runs from a model of every run are suggested for numeric factors only on this page.",
+    ),
+    "suggested runs: too many": ("api_suggest_runs", _runs(n_runs=9), "Ask for 1 to 8 runs."),
+    "suggested runs: too few results": (
+        "api_suggest_runs",
+        lambda ex: {**ex["held"], "responses": [*ex["simulated"]["responses"][:4], *[None] * 11]},
+        "A model of every run needs at least 6 runs with a result here; this study has 4.",
+    ),
     "given: no runs": (
         "api_make_design",
         _make(design_type="given", runs=[]),
@@ -1502,6 +1576,43 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_make_design",
         _make(design_type="given", runs=[[150, 1, 10]] * 66, blocks=[b for b in range(1, 34) for _ in (0, 1)]),
         "Runs as given come in at most 32 blocks on this page.",
+    ),
+    "given: a whole plot short": (
+        "api_make_design",
+        _make(design_type="given", runs=[[150, 1, 10], [200, 3, 20]], whole_plots=[1]),
+        "The runs as given need one whole plot for each run, or none at all.",
+    ),
+    "given: a whole plot that is no whole number": (
+        "api_make_design",
+        _make(design_type="given", runs=[[150, 1, 10], [200, 3, 20]], whole_plots=[1, 1.5]),
+        "Each run's whole plot must be a whole number from 1.",
+    ),
+    "given: a whole plot for each run": (
+        "api_make_design",
+        _make(design_type="given", runs=[[150, 1, 10], [200, 3, 20], [150, 3, 10]], whole_plots=[1, 2, 3]),
+        "The whole plots must group the runs: two or more of them, and fewer than one for each run.",
+    ),
+    "given: a whole plot across two blocks": (
+        "api_make_design",
+        _make(
+            design_type="given",
+            runs=[[150, 1, 10], [150, 3, 20], [200, 1, 10], [200, 3, 20]],
+            blocks=[1, 2, 1, 2],
+            whole_plots=[1, 1, 2, 2],
+        ),
+        "A whole plot lies in two blocks: each whole plot is a group of runs inside one block.",
+    ),
+    "given: whole plots with no factor set once for each": (
+        "api_make_design",
+        _make(
+            design_type="given",
+            runs=[[150, 1, 10], [200, 3, 20], [150, 3, 10], [200, 1, 20]],
+            whole_plots=[1, 1, 2, 2],
+        ),
+        (
+            "No factor keeps one setting inside every whole plot, so these groups are not whole plots: a factor "
+            "that is hard to change is set once for each of them."
+        ),
     ),
     "given: a block for each run": (
         "api_make_design",
@@ -1725,14 +1836,6 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_make_design",
         lambda _: {"design_type": "d_optimal", "factors": FACTORS, "hard_to_change": ["Z"]},
         "Each factor that is hard to change must be one of the study's factors.",
-    ),
-    "hard to change: with limits on the settings": (
-        "api_make_design",
-        lambda ex: {**_limited("d_optimal", "T + 25*P <= 265")(ex), "hard_to_change": ["T"]},
-        (
-            "A design that sets T once for a group of runs keeps no limits on the settings on this page yet: "
-            "remove the limits, or mark no factor as hard to change."
-        ),
     ),
     "hard to change: in blocks": (
         "api_make_design",

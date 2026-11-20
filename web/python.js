@@ -49,6 +49,19 @@ const bandArg = () => (ownLevel() ? `, level=${confidence()}` : "");
 const colourArgs = () =>
   [colourMap() === DEFAULT_COLOUR_MAP ? [] : [repr(colourMap())], colourMapFlipped() ? ["dark_page=True"] : []].flat().join(", ");
 
+/** The library's figures that draw a surface, in its own colour map (batlow), which the page redraws in the study's. */
+const SURFACE_PLOTS = new Set(["contour", "surface_3d", "prediction_variance"]);
+
+/**
+ * What ``feasible_region`` is given of the responses' error correlation, after the code that leaves ``correlation`` and
+ * ``correlation_df``: with the seed of the draws its doubt is averaged over, as the page seeds them; nothing for
+ * independent errors (a ``seed`` of null or false).
+ */
+const correlatedArgs = (seed) =>
+  seed === null || seed === false || seed === undefined
+    ? ""
+    : `, residual_correlation=correlation, correlation_degrees_of_freedom=correlation_df, random_state=${seed}`;
+
 /** The same argument on a line of its own, for a call written over several lines. */
 const argLine = (arg, indent) => (arg ? [`${" ".repeat(indent)}${arg.slice(2)},`] : []);
 
@@ -426,6 +439,11 @@ function splitPlotLines(spec, model, fitted) {
     ')["split_plot"]',
     'print(split_plot["coefficients"])',
     'print(split_plot["variance_components"])',
+    // shortcut: the fit names a factor of several levels by its contrasts, so the code tests each contrast where the
+    // page tests them together (bootstrap._split_tests); write the factor's labels in X if that is ever asked for.
+    spec.factors.some(isSeveral)
+      ? 'print(split_plot["tests"])  # each term\'s F test; the page tests a factor of several levels\' contrasts together'
+      : 'print(split_plot["tests"])  # each term\'s F test, against the spread it meets (the page\'s table of tests)',
   ];
 }
 
@@ -476,9 +494,11 @@ export function figureCode(title, options, model, complete = true, spec = null) 
   const y = onScale(complete ? "y" : "y[done]", transform);
   const response = repr(spec?.response ?? "y");
   const lenth = options.plot_type === "half_normal";
+  const recolour = SURFACE_PLOTS.has(options.plot_type) && colourArgs() !== "";
   return [
     "import plotly.graph_objects as go",
     "from process_improve.experiments import analyze_experiment, visualize_doe",
+    ...(recolour ? ["from process_improve.visualization.colors import colorscale"] : []),
     "",
     `# The figure "${title}", as the library draws it: under its own titles, with each factor in`,
     "# coded units, from -1 at its low setting to +1 at its high. The page puts the axes in your own units.",
@@ -499,6 +519,15 @@ export function figureCode(title, options, model, complete = true, spec = null) 
     ...argLine(confidenceArg(), 4),
     ")",
     'figure = go.Figure(chart["plotly"])',
+    ...(recolour
+      ? [
+          "# The library draws a surface in batlow, its own colour map; the page redraws it in the study's.",
+          "batlow = [tuple(stop) for stop in colorscale()]",
+          "for trace in figure.data:",
+          '    if "colorscale" in trace and list(trace.colorscale or []) == batlow:',
+          `        trace.colorscale = colorscale(${colourArgs()})`,
+        ]
+      : []),
     "figure.show()",
   ].join("\n");
 }
@@ -912,7 +941,9 @@ export function overlayCode(overlay, spec) {
  * bootstrap.trade_offs drew them with), each response's prediction at each, those that meet the limits the reader
  * typed (``view.limits``, each response's two ends, null for one left open), and the best trade-off among them between
  * the responses on the two axes (``view.across`` and ``view.up``), each compared by its goal (``balance.responses``).
- * The points are coloured by ``view.colour`` when it is a response's column. Null for a mixture.
+ * The points are coloured by ``view.colour`` when it is a response's column. ``view.held``, when the chart is drawn at
+ * other levels than the balanced settings', holds the columns the models are then held at, over the ``fitted`` models the
+ * balance's code keeps; the star is left out. Null for a mixture.
  */
 export function tradeOffCode(view, balance, spec) {
   if (isMixture(spec)) return null;
@@ -931,6 +962,35 @@ export function tradeOffCode(view, balance, spec) {
   ]);
   const tint = view.colour in balance.search.formulas ? `, "color": kept[${repr(view.colour)}], "showscale": True` : "";
   const [across, up] = [repr(view.across), repr(view.up)];
+  // shortcut: a blocked study's block contrasts are built inside the library, so its code draws no paler points;
+  // write the contrasts out here once a blocked study's trade-offs are asked for in code.
+  const blocked = Object.keys(balance.search?.held ?? {}).some((name) => /^Block\d+_*$/.test(name));
+  const heldHere = view.held ?? balance.search?.held ?? {};
+  const far = blocked
+    ? []
+    : [
+        "",
+        "",
+        "def column(term, at):",
+        "    # A term's column at each row of at: 1 for the intercept, else the product of its parts.",
+        '    part = lambda name: at[name[2:-6]] ** 2 if name.startswith("I(") else at[name]',
+        '    one = np.ones(len(at)) if term == "Intercept" else np.prod([np.asarray(part(n), dtype=float) for n in term.split(":")], axis=0)',
+        "    return np.broadcast_to(one, len(at))",
+        "",
+        "",
+        "def leverage(fit, at):",
+        "    # How far each row of at lies from the runs the model was fitted to: x' (X'X)^-1 x, on the model's own terms.",
+        '    rows = np.column_stack([column(c["term"], at) for c in fit["coefficients"]])',
+        '    return np.einsum("ij,jk,ik->i", rows, np.asarray(fit["unscaled_covariance"], dtype=float), rows)',
+        "",
+        "",
+        "# A paler point is further from the runs than any run lies, on some response's model: there the models guess.",
+        `at = tried.assign(**${repr(heldHere)})  # the other columns as the chart holds them`,
+        "far = np.zeros(len(tried), dtype=bool)",
+        "for name, fit in analyses.items():",
+        "    done = runs[name].notna()",
+        "    far |= leverage(fit, at) > leverage(fit, X[done]).max() * (1 + 1e-9) + 1e-12",
+      ];
   return [
     "import numpy as np",
     "import pandas as pd",
@@ -955,22 +1015,35 @@ export function tradeOffCode(view, balance, spec) {
     '    return sum(c["coefficient"] * product(c["term"]) for c in coefficients)',
     "",
     "",
+    ...(view.held
+      ? [
+          "# The chart is drawn at other levels than the balanced settings': each model is held at them instead.",
+          `models = [{**model, "coefficients": held_at(fitted[model["response_name"]], ${repr(view.held)})} for model in models]`,
+        ]
+      : []),
     "cloud, star = pd.DataFrame(index=tried.index), {}",
     "for model in models:",
     '    name = model["response_name"]',
     `    cloud[name] = ${scale.back('predicted(model["coefficients"], tried)')}`,
-    `    star[name] = ${scale.back('balanced["predicted_responses"][name]')}  # at the balanced settings`,
+    ...(view.held ? [] : [`    star[name] = ${scale.back('balanced["predicted_responses"][name]')}  # at the balanced settings`]),
     ends.length ? `kept = cloud[${ends.join(" & ")}]  # the settings that meet your limits` : "kept = cloud",
     `# The best trade-off between ${view.across} and ${view.up}: the settings tried that no other betters on both.`,
     "# Each response is compared by how far it falls short of its goal: the smaller, the better.",
     `shortfall = pd.DataFrame({"across": ${short(view.across)}, "up": ${short(view.up)}}).sort_values(["across", "up"])`,
     'front = shortfall[shortfall["up"] < shortfall["up"].cummin().shift(fill_value=np.inf)].index',
     `line = kept.loc[front].sort_values(${across})  # joined from left to right, as the page draws it`,
+    ...far,
+    `made = runs[[${across}, ${up}]].dropna()  # the runs made that have both results, each by its place in the run order`,
+    `near, guessed = (kept, kept.iloc[:0]) if ${blocked ? "True" : "False"} else (kept[~far[kept.index]], kept[far[kept.index]])`,
     "figure = go.Figure(",
     "    [",
-    `        go.Scatter(x=kept[${across}], y=kept[${up}], mode="markers", name="Settings tried", marker={"size": 5, "opacity": 0.5${tint}}),`,
+    `        go.Scatter(x=guessed[${across}], y=guessed[${up}], mode="markers", name="Tried, far from your runs", marker={"size": 5, "opacity": 0.2}),`,
+    `        go.Scatter(x=near[${across}], y=near[${up}], mode="markers", name="Settings tried", marker={"size": 5, "opacity": 0.6${tint.replace(/kept\[/g, "near[")}}),`,
     `        go.Scatter(x=line[${across}], y=line[${up}], mode="lines", name="Best trade-off"),`,
-    `        go.Scatter(x=[star[${across}]], y=[star[${up}]], mode="markers", name="Balanced settings", marker={"symbol": "star", "size": 16}),`,
+    `        go.Scatter(x=made[${across}], y=made[${up}], mode="markers+text", text=[str(i + 1) for i in made.index], textposition="top center", name="Runs you made"),`,
+    ...(view.held
+      ? []
+      : [`        go.Scatter(x=[star[${across}]], y=[star[${up}]], mode="markers", name="Balanced settings", marker={"symbol": "star", "size": 16}),`]),
     "    ]",
     ")",
     ...shown(axisOf(goalOf(view.across)), axisOf(goalOf(view.up))),
@@ -1226,11 +1299,14 @@ function windowBlendCode(found, spec) {
     ...(correlated
       ? [
           "# The responses' errors on one run are taken as correlated as the residuals of their fits are, over the runs",
-          "# every fit used: two windows are then likelier to be met together, or missed together.",
+          "# every fit used: two windows are then likelier to be met together, or missed together. The correlation is",
+          "# an estimate, so the chance is averaged over the doubt in it: its degrees of freedom are those runs, less the",
+          "# terms of the largest model.",
           "correlation = pd.DataFrame(residuals).dropna().corr().to_numpy()",
+          `correlation_df = ${found.search.correlation_df}`,
         ]
       : []),
-    `judged = feasible_region(models, windows, tried${correlated ? ", residual_correlation=correlation" : ""})`,
+    `judged = feasible_region(models, windows, tried${correlatedArgs(correlated && found.search.seed)})`,
     'print(judged["feasible"].mean())  # the share of the blends at which every prediction is inside its window',
     ...(found.likely
       ? [
@@ -1327,11 +1403,14 @@ export function windowCode(found, spec) {
     ...(correlated
       ? [
           "# The responses' errors on one run are taken as correlated as the residuals of their fits are, over the runs",
-          "# every fit used: two windows are then likelier to be met together, or missed together.",
+          "# every fit used: two windows are then likelier to be met together, or missed together. The correlation is",
+          "# an estimate, so the chance is averaged over the doubt in it: its degrees of freedom are those runs, less the",
+          "# terms of the largest model.",
           "correlation = pd.DataFrame(residuals).dropna().corr().to_numpy()",
+          `correlation_df = ${found.search.correlation_df}`,
         ]
       : []),
-    `judged = feasible_region(models, windows, tried.assign(**{name: value for name, value in at.items() if name not in names})${correlated ? ", residual_correlation=correlation" : ""})`,
+    `judged = feasible_region(models, windows, tried.assign(**{name: value for name, value in at.items() if name not in names})${correlatedArgs(correlated && found.search.seed)})`,
     'print(judged["feasible"].mean())  # the share of the settings at which every prediction is inside its window',
     ...(found.likely
       ? [
@@ -1350,10 +1429,11 @@ export function windowCode(found, spec) {
  * The chart of a specification, after its code (windowCode), which leaves the ``models``, the ``windows`` and the
  * settings ``at``: the library's ``feasible_region`` over the page's grid of the two factors drawn (``overlay.x`` and
  * ``overlay.y``), the other columns where the what-if panel has them, shaded where every prediction is inside its
- * window, with a line for each chance the page draws when the chance can be given. ``correlated`` says the code
- * before left the ``correlation`` of the responses' errors, which the chance is then drawn with. Null without an overlay.
+ * window, with a line for each chance the page draws when the chance can be given. ``seed``, when the code before
+ * left the ``correlation`` of the responses' errors and its ``correlation_df``, is the seed of the draws of its doubt
+ * the chance is averaged over; null for independent errors. Null without an overlay.
  */
-export function windowOverlayCode(overlay, spec, correlated = false) {
+export function windowOverlayCode(overlay, spec, seed = null) {
   if (isMixture(spec) || !overlay) return null;
   const [low, high] = [Math.min(...overlay.chances), Math.max(...overlay.chances)];
   const lines = `{"coloring": "none", "start": ${low}, "end": ${high}, "size": ${high - low}, "showlabels": True}`;
@@ -1368,7 +1448,7 @@ export function windowOverlayCode(overlay, spec, correlated = false) {
     "across, up = np.meshgrid(axis, axis)",
     "over = pd.DataFrame({name: np.full(across.size, value) for name, value in at.items()})",
     "over[pair[0]], over[pair[1]] = across.ravel(), up.ravel()",
-    `drawn = feasible_region(models, windows, over${correlated ? ", residual_correlation=correlation" : ""})`,
+    `drawn = feasible_region(models, windows, over${correlatedArgs(seed)})`,
     "grid = lambda column: drawn[column].to_numpy(dtype=float).reshape(across.shape)",
     "figure = go.Figure(",
     "    [",
@@ -1909,11 +1989,14 @@ export function balanceCode(balance, spec) {
   return [
     ...imports,
     ...(holds ? [heldComment(held, spec.factors), ...HELD_AT] : []),
+    ...indicatorLines(spec, Object.values(formulas).join(" + ")),
     `# Each response with a goal, fitted with its own ${mixture ? "Scheffé model" : "model"} to the runs that have its result.`,
-    "models = []",
+    `models, analyses${holds ? ", fitted" : ""} = [], {}${holds ? ", {}" : ""}`,
     `for name, model in ${repr(formulas)}.items():`,
     "    done = runs[name].notna()",
     `    fit = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="coefficients", coding="actual"${levelArg()})`,
+    ...(holds ? ['    fitted[name] = fit["coefficients"]  # as fitted, before the levels are held'] : []),
+    "    analyses[name] = fit  # with its unscaled covariance, for how far a setting lies from the runs",
     `    coefficients = ${holds ? `held_at(fit["coefficients"], ${repr(held)})` : 'fit["coefficients"]'}`,
     `    models.append({"response_name": name, "coefficients": coefficients, "factor_names": ${repr(numeric.map((f) => f.name))}})`,
     "",

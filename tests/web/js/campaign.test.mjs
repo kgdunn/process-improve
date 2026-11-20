@@ -986,7 +986,7 @@ describe("a study's settings", () => {
     assert.equal(strict.settings.significance_level, 0.01);
     assert.equal(strict.v, SIGNIFICANCE_FORMAT);
     assert.ok(SIGNIFICANCE_FORMAT > SETTINGS_FORMAT, "the page of format 12 reads formats 1 to 12, so it refuses this one");
-    assert.equal(CAMPAIGN_VERSION, SIGNIFICANCE_FORMAT, "the page reads it");
+    assert.ok(CAMPAIGN_VERSION >= SIGNIFICANCE_FORMAT, "the page reads it");
   });
 
   test("a level this page does not offer is refused, and never judged at another", () => {
@@ -994,6 +994,57 @@ describe("a study's settings", () => {
       const read = () => checkCampaign({ ...campaign(), v: CAMPAIGN_VERSION, settings: { significance_level: level } });
       assert.throws(read, /a significance level this page does not offer/);
     }
+  });
+});
+
+describe("a factor's possible range", () => {
+  const ranged = (possible) => {
+    const made = campaign();
+    made.design.spec.possible = possible;
+    return made;
+  };
+  const numeric = () => campaign().design.spec.factors.find((f) => typeof f.low === "number").name;
+
+  test("a study keeps each factor's possible range, in a format of its own", async () => {
+    const { POSSIBLE_FORMAT } = await import("../../../web/campaign.js");
+    const possible = { [numeric()]: [0, null] };
+    assert.equal(studyFormat(ranged(possible).design.spec, {}), POSSIBLE_FORMAT);
+    const read = checkCampaign({ ...ranged(possible), v: POSSIBLE_FORMAT });
+    assert.deepEqual(read.design.spec.possible, possible);
+    assert.equal(CAMPAIGN_VERSION, POSSIBLE_FORMAT, "the page reads it");
+    const blank = checkCampaign({ ...ranged({ [numeric()]: [null, null] }), v: POSSIBLE_FORMAT });
+    assert.equal(blank.design.spec.possible, undefined, "a range of two blanks is none");
+  });
+
+  test("a possible range of no numeric factor, or not of two numbers or blanks, is refused", () => {
+    for (const possible of [{ Z: [0, 1] }, { [numeric()]: [0] }, { [numeric()]: ["a", 1] }, [0, 1]]) {
+      const read = () => checkCampaign({ ...ranged(possible), v: CAMPAIGN_VERSION });
+      assert.throws(read, /possible range/, JSON.stringify(possible));
+    }
+  });
+});
+
+describe("a study's trade-off chart", () => {
+  test("a study keeps what its trade-off chart shows, in a format of its own", async () => {
+    const { TRADE_FORMAT } = await import("../../../web/campaign.js");
+    const trade = { across: "y", up: "y", colour: "(D)", limits: { y: [null, 21.5] }, levels: { Supplier: "B" }, chosen: { T: 160, Supplier: "B" } };
+    const read = checkCampaign({ ...campaign(), v: TRADE_FORMAT, trade });
+    assert.deepEqual(read.trade, trade);
+    assert.equal(read.v, TRADE_FORMAT);
+    assert.ok(CAMPAIGN_VERSION >= TRADE_FORMAT, "the page reads it");
+    assert.equal(checkCampaign({ ...campaign(), v: CAMPAIGN_VERSION }).trade, undefined, "a study with none keeps its format");
+  });
+
+  test("a trade-off chart that is not one of the study's is refused", () => {
+    const read = (trade) => () => checkCampaign({ ...campaign(), v: CAMPAIGN_VERSION, trade });
+    assert.throws(read("y"), /its trade-off chart is not described/);
+    assert.throws(read({ across: "Not measured" }), /across axis is no response it measures/);
+    assert.throws(read({ colour: "Not measured" }), /coloured by no response it measures/);
+    assert.throws(read({ limits: { y: [1] } }), /the trade-off limit of y is not its two ends/);
+    assert.throws(read({ levels: { T: "A" } }), /drawn at no level of T/);
+    assert.throws(read({ levels: { Supplier: "C" } }), /drawn at no level of Supplier/);
+    assert.throws(read({ chosen: { T: "hot" } }), /choice sets "T" to no value it takes/);
+    assert.throws(read({ chosen: { Nothing: 1 } }), /choice sets "Nothing" to no value it takes/);
   });
 });
 

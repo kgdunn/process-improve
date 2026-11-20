@@ -190,6 +190,12 @@ Also:
   - *Details:* Nine measures of each design (precision of the coefficients and of the
     predictions, correlation between terms, power), fraction-of-design-space curves on one
     chart, and a correlation map of each design.
+- **What each factor can be set to.** A pressure cannot go below zero, nor a share past 100.
+  Type a factor's lowest or highest possible setting under the factors, and the path of
+  steepest ascent stops before it, and the next study's ranges stay inside it.
+  - *Details:* Optional, for each numeric factor; the study's range lies inside it. A design
+    whose runs pass it, as a rotatable design's axial runs can, names those runs. A study
+    with a possible range is saved in study format 15.
 - **Settings that cannot be run.** Say which combinations are out of bounds, such as a high
   pressure at a high temperature, and the app plans around them. It says what each limit
   rules out and how much of the ranges is left, and draws the settings that can be run.
@@ -211,10 +217,11 @@ Also:
   factor, and the design sets it once for a group of runs, a whole plot, and not afresh for
   every run. The run sheet lists the runs one whole plot after another, and Learn judges
   each term against the spread it meets, so the factor does not look more certain than it is.
-  - *Details:* A split-plot design, for the three optimal designs, with no limits on the
-    settings and no blocks. Learn fits the spread from whole plot to whole plot and from run
-    to run (REML) for the coefficients' errors and p-values, and shows no ANOVA table or
-    lack-of-fit test, which have one error. The charts, the best settings and the predictions
+  - *Details:* A split-plot design, for the three optimal designs, with limits on the settings
+    if the study has any, and no blocks. Learn fits the spread from whole plot to whole plot and from run
+    to run (REML) for the coefficients' errors and p-values. In place of the ANOVA table and
+    the lack-of-fit test, which have one error, a table tests each term against its own
+    spread, a factor of several levels as one term (Satterthwaite's degrees of freedom). The charts, the best settings and the predictions
     come from the ordinary fit. Learn adds no runs to such a design, and practice results
     have no spread between whole plots. A study with such a factor is saved in study
     format 11.
@@ -419,17 +426,22 @@ Also:
   best together. You set each response's acceptable range and its importance, and a picture
   shows where every response is acceptable.
   - *Details:* The settings of the best overall desirability, with each response's
-    acceptable range, importance and shape to edit.
+    acceptable range, importance and shape to edit. For a mixture of four components or more
+    the picture is over three of them, the others held at the balanced blend.
 - **What one goal costs another.** A chart puts one response against another, with thousands
   of settings tried on the models: you see how much of one must be given up for the other.
   Colour the points by a third response, type a limit on any response to keep only the
   settings that meet it, and press a point to choose its settings.
   - *Details:* 2,000 settings drawn evenly from the ranges the limits allow, each categorical
-    factor at the balanced settings' level. A line joins the settings no other betters on
+    factor at the balanced settings' level, or at another level you pick above the chart, which
+    then has no star for the balanced settings. A line joins the settings no other betters on
     both responses; a paler point is further from the runs than any run lies, by its leverage.
     Settings chosen move the what-if panel there and can be tested with confirmation runs.
     Other bests of the search within 5% of the balanced settings' overall desirability are
-    listed. The chart shows its Python.
+    listed. A mixture's chart is of 2,000 blends drawn evenly from those its bounds allow.
+    The chart shows its Python, but a mixture's. The study keeps the chart's axes, colour, limits,
+    levels and the settings chosen, in study format 14, and the report holds the chart and
+    the settings chosen.
 - **What if.** A dial for each factor: a picture of the response against that factor, with
   the others where you set them, over a slider and a box for its value. Drag on a picture,
   move the slider or type a value, and each response's prediction follows at once. Settings
@@ -481,7 +493,8 @@ Also:
     For a mixture the answer is a blend: 20,000 blends drawn evenly from those the bounds
     allow, the one nearest their middle that gives the targets, each component's proportion
     with where it lies between its bounds, and the blend weighed out for confirmation runs.
-    Three components are drawn over their triangle. A mixture has no factor to solve for
+    Three components are drawn over their triangle; four or more over three of them, the
+    others held at the blend found. A mixture has no factor to solve for
     alone. Its section shows its Python.
 - **Settings that meet a specification.** Type the window a response must fall in, or the
   windows of several, either end or both. The app says what share of the settings the models
@@ -492,7 +505,8 @@ Also:
     predictive distribution inside it, Student's t about the prediction by the standard
     error of a new observation. With several windows the chances are joined with the
     correlation of the fits' residuals, since responses measured on one run often miss
-    together, when the runs leave five or more past the largest model's terms; with fewer
+    together, when the runs leave five or more past the largest model's terms, and the
+    doubt in that correlation, from so few runs, is averaged over; with fewer
     they are multiplied, as for independent errors. The app gives the share of
     the settings at which that chance is 50% or more and 90% or more, and the settings at
     which it is highest, which go to the what-if panel or get confirmation runs. A chart
@@ -505,7 +519,8 @@ Also:
     Python. The windows typed are kept with the study, as the targets are, and the report
     holds what they gave and the chart. For a mixture the share and the chances are of the
     blends the bounds allow, and the surest blend is given, with confirmation runs at it.
-    Three components are drawn over their triangle: the blends that meet the windows shaded,
+    Three components are drawn over their triangle, four or more over three of them with the
+    others held at the surest blend: the blends that meet the windows shaded,
     a line for each chance reached, and a star at the surest blend. Its section shows its
     Python: the blends are drawn from the region the bounds allow.
 - **Check the answer.** One button adds three confirmation runs at the settings found, and the
@@ -522,7 +537,19 @@ Also:
   open it here. The app knows each program by the columns it writes, says which program it was,
   and leaves out the columns that only number and code the runs (Minitab's StdOrder, RunOrder,
   CenterPt or PtType; JMP's Pattern; Design-Expert's Std Order, Run Order and point types;
-  MODDE's Exp No, Exp Name, Run Order and Incl/Excl). A block column is kept as a factor.
+  MODDE's Exp No, Exp Name, Run Order and Incl/Excl). A column headed Block is kept as the runs'
+  blocks.
+- **A split-plot experiment run elsewhere.** Mark the column that says which group of runs
+  shared one setting of a factor that is hard to change, such as a batch of pulp split into
+  samples, as the whole plot, and any column of replicates or days as the block. Learn then
+  tests each term against the spread it meets, as JMP and the textbooks do.
+  - *Details:* The factors that keep one setting inside every whole plot are taken as hard to
+    change. A whole plot lies inside one block. Columns headed Block or Whole plot are guessed
+    so. The study is saved in study format 11, as a design the app makes with whole plots.
+    Eleven split-plot designs of the catalog open the same way, each with its whole plots and
+    blocks as the source prints them: Montgomery's tensile strength of paper gives Table 14.19.
+    A split-split-plot design, and a strip-plot design, whose runs share two kinds of plot, do
+    not open.
 - **Compare with the published answer.** A study opened from the catalog lists each number
   its source prints beside the app's own, and whether they agree.
 
@@ -699,7 +726,16 @@ Also:
   press then starts a new study centred on the best run.
   - *Details:* The runs join the end of the run sheet in the path's order and never enter
     the fit. Each shows what the model predicts there, as a guide only. The app says which
-    run is best so far and which to make next. One press takes them off again.
+    run is best so far and which to make next. One press takes them off again. The path
+    stops before its first run past a limit on the settings or a factor's possible range.
+- **Runs from a model of every run.** When the results do not follow a smooth curve, a Gaussian
+  process of every run can say where to look next: where it expects the most to gain over the
+  best so far. Each run says why: it looks better, or little is known there.
+  - *Details:* For a goal of the largest or smallest result, numeric factors, and at least
+    three more results than factors. One press fits the model and lists 1, 2, 4 or 8 runs to
+    make before any result is read; another adds them to the run sheet as runs of the study.
+    The limits on the settings are kept. When the model expects less than 1% more, it says
+    to confirm the best settings instead.
 - **Every move has its price.** Each way to go on says how many runs it adds and what the
   study then holds: "8 more runs: 19 in this study". A campaign says how many runs it holds
   so far.
@@ -813,7 +849,7 @@ Also:
     the notes a design carries keep the period. Dates are written as your browser writes
     them. A study with settings is saved in study format 12. A workbook
     carries them too. The Python shown names the study's colour map where the code draws one
-    itself; a figure the library draws is in batlow.
+    itself, and redraws in it the surface of a figure the library draws in batlow.
     The significance level is 0.05 unless you change it, and the confidence of
     every interval is one minus it: 99%, 95% or 90%. Every test, every interval, Lenth's
     margins and a design's power follow it, the page's words name it ("99% interval"), and
@@ -1009,7 +1045,7 @@ What a careful reader, or an organisation, asks before using a tool.
 | Responses in a study | 5 |
 | Levels of a categorical factor | 8 |
 | Limits on the settings | 8 |
-| Factors in a study with limits on the settings | 8 |
+| Factors in a study with limits on the settings | 14 |
 | Blocks in a design the app makes | 8 |
 | Blocks in runs as given | 32 |
 | Replicates of each run | 10 |
@@ -1092,9 +1128,8 @@ The app does not have these, so do not describe it as having them.
 
 - Accounts, sign-in, shared workspaces, or a record of who changed what. There is no server
   to hold them.
-- Split-plot designs for hard-to-change factors, and supersaturated designs
-  ([#1225](https://github.com/kgdunn/process-improve/issues/1225)). The library makes both:
-  see [More in the Python library](#more-in-the-python-library).
+- Supersaturated designs ([#1225](https://github.com/kgdunn/process-improve/issues/1225)).
+  The library makes them: see [More in the Python library](#more-in-the-python-library).
 - An assistant that turns a typed description into a brief
   ([#1224](https://github.com/kgdunn/process-improve/issues/1224)).
 - A guided plan for a whole campaign of studies

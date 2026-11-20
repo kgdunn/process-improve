@@ -19,6 +19,7 @@ import re
 import numpy as np
 import pytest
 
+from process_improve.visualization.colors import colorscale
 from tests.web._support import (
     ALL_DESIGNS,
     FACTORS,
@@ -243,10 +244,14 @@ def test_the_python_shown_reproduces_a_design_with_a_factor_that_is_hard_to_chan
         ("resultsCode", [held, simulation["responses"], simulation]),
         ("analyseCode", [analysis["formula"], True, held["spec"]]),
     )
-    shown = {c["term"]: c for c in run(code)["split_plot"]["coefficients"]}
+    found = run(code)["split_plot"]
+    shown = {c["term"]: c for c in found["coefficients"]}
     for c in analysis["coefficients"]:
         for key in ("coefficient", "std_error", "p_value"):
             assert shown[c["term"]][key] == pytest.approx(c[key], abs=1e-9), (c["term"], key)
+    tested = {t["source"]: t for t in found["tests"]}
+    for t in analysis["split_plot"]["tests"]:  # the page's table of tests, term by term
+        assert (tested[t["source"]]["F"], tested[t["source"]]["p_value"]) == pytest.approx((t["F"], t["p_value"]))
     names = [f["name"] for f in held["spec"]["factors"]]
     made = run(panel(node, design))["result"].design_actual
     assert made[names].to_numpy().tolist() == run_sheet(held)[names].to_numpy().tolist(), (
@@ -883,6 +888,76 @@ def test_the_balance_code_holds_a_categorical_factor_and_keeps_to_the_limits(api
 
 
 @pytest.mark.slow
+def test_the_balance_code_fits_a_factor_nested_in_another_as_the_page_does(api, node):
+    """S + P + S:T for Yield, T's effect within each level of S: the code adds S's indicators to X, as the page does."""
+    levels = {"name": "S", "type": "categorical", "levels": ["a", "b", "c"], "units": ""}
+    spec = {
+        "design_type": "full_factorial",
+        "factors": [*FACTORS[:2], levels],
+        "responses": THREE[:2],
+        "n_center_points": 0,
+        "n_replicates": 2,
+    }
+    held = held_of(api.ok("api_make_design", spec))
+    sheet = run_sheet(held)
+    x = coded(sheet, FACTORS[:2])
+    slope = sheet["S"].map({"a": 1.0, "b": 3.0, "c": 5.0})
+    yields = (60 + slope * x["T"] + 2 * x["P"] + np.arange(len(sheet)) % 4 * 0.1).tolist()
+    costs = (20 + 2 * x["T"] + x["P"] + np.arange(len(sheet)) % 3 * 0.1).tolist()
+    models = {"Yield": {"terms": [["S"], ["P"], ["S", "T"]]}, "Cost": "main_effects"}
+    request = {**held, "responses": yields, "more_responses": {"Cost": costs}, "models": models}
+    balance = api.ok("api_balance", request)
+    tried = api.ok("api_trade_offs", {**request, "at": balance["coded"]})
+    view = {"asked": tried["asked"], "across": "Yield", "up": "Cost", "colour": None, "limits": {}}
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, {"Yield": yields, "Cost": costs}]),
+        ("balanceCode", [balance, held["spec"]]),
+    )
+    assert 'X["S_I1"] = (runs["S"] == "a").astype(float)' in code
+    assert_same_balance(run(code), balance, ["T", "P"])
+    # The trade-off chart's code follows the balance's, and now runs on its fits too.
+    steps = [("designCode", [held["spec"]]), ("resultsCode", [held, {"Yield": yields, "Cost": costs}])]
+    charted = panel(
+        node, *steps, ("balanceCode", [balance, held["spec"]]), ("tradeOffCode", [view, balance, held["spec"]])
+    )
+    with contextlib.redirect_stdout(io.StringIO()):
+        cloud = run(charted.replace("figure.show()", ""))["cloud"]
+    for name, shown in tried["candidates"]["responses"].items():
+        np.testing.assert_allclose(cloud[name], shown, rtol=1e-5)
+
+
+@pytest.mark.slow
+def test_the_trade_off_chart_s_code_draws_the_chart_at_another_level_as_the_page_does(api, node):
+    """The chart at supplier A while the balance is at B: the code holds each fitted model at A, and draws no star."""
+    factors = [*FACTORS[:2], {"name": "S", "low": "A", "high": "B", "units": ""}]
+    spec = {"design_type": "full_factorial", "factors": factors, "responses": THREE[:2], "n_center_points": 3}
+    held = held_of(api.ok("api_make_design", spec))
+    x = coded(run_sheet(held), factors)
+    yields = (60 + 4 * x["T"] - 2 * x["P"] + 3 * x["S"] + x["T"] * x["P"]).tolist()
+    costs = (20 + 2 * x["T"] + x["P"] + 0.5 * x["S"]).tolist()
+    request = {**held, "responses": yields, "more_responses": {"Cost": costs}, "models": {"Yield": "interactions"}}
+    balance = api.ok("api_balance", request)
+    tried = api.ok("api_trade_offs", {**request, "at": {**balance["coded"], "S": -1.0}})
+    assert tried["held"] == [{"name": "S", "value": "A"}]
+    view = {"asked": tried["asked"], "across": "Yield", "up": "Cost", "colour": None, "limits": {}}
+    steps = [("designCode", [held["spec"]]), ("resultsCode", [held, {"Yield": yields, "Cost": costs}])]
+    view_at = {**view, "held": tried["held_columns"]}
+    code = panel(
+        node, *steps, ("balanceCode", [balance, held["spec"]]), ("tradeOffCode", [view_at, balance, held["spec"]])
+    )
+    assert "star[" not in code.split("cloud, star")[1].split("figure = go.Figure(")[0], "no star at another level"
+    with contextlib.redirect_stdout(io.StringIO()):
+        namespace = run(code.replace("figure.show()", ""))
+    for name, shown in tried["candidates"]["responses"].items():
+        np.testing.assert_allclose(namespace["cloud"][name], shown, rtol=1e-5)
+    names = [trace.name for trace in namespace["figure"].data]
+    assert "Balanced settings" not in names, "no star at another level"
+    np.testing.assert_array_equal(namespace["far"], np.asarray(tried["candidates"]["far"], dtype=bool))
+
+
+@pytest.mark.slow
 def test_the_balance_code_finds_the_page_s_balanced_blend(api, node):
     """A mixture's two responses are balanced over its blends, each with its own Scheffé model."""
     responses = [{"name": "Hardness", "goal": "maximize"}, {"name": "Cost", "goal": "minimize"}]
@@ -1438,6 +1513,29 @@ def test_a_figure_s_code_for_a_study_with_limits_draws_the_surface_over_every_se
     )
 
 
+def test_a_surface_s_code_draws_it_in_the_study_s_colour_map(api, node, monkeypatch):
+    """The library draws a surface in batlow, the page in the study's map: the code it shows redraws it so (#1381)."""
+    go = pytest.importorskip("plotly.graph_objects", reason="the page installs plotly for its first chart")
+    monkeypatch.setattr(go.Figure, "show", lambda *_, **__: None)  # a reader's own window, which a test has none of
+    held = held_of(api.ok("api_make_design", {"design_type": "ccd", "alpha": "face_centered", "factors": FACTORS}))
+    responses = [float(i % 5) + 0.1 * i for i in range(len(held["rows"]))]
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    options = api.ok("api_plots", {**held, "responses": responses})["plot_options"]["contour"]
+    steps = [
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, responses]),
+        ("analyseCode", [analysis["formula"], True]),
+        ("figureCode", ["A figure", options, analysis["formula"], True, held["spec"]]),
+    ]
+    chosen = source("python.js") + '\nexport { setColourMap } from "./charts.js";\n'
+    _, *codes = javascript(node, chosen, [("setColourMap", ["devon"]), *steps])
+    figure = run(javascript(node, source("python.js"), [("cumulative", codes)])[0])["figure"]
+    surfaces = [trace for trace in figure.data if "colorscale" in trace and trace.colorscale]
+    assert surfaces, "the figure of the fitted response draws one"
+    for trace in surfaces:
+        assert [list(stop) for stop in trace.colorscale] == colorscale("devon")
+
+
 # --------------------------------------------------------------------------- the page's own figures
 def own_figure(node, monkeypatch, steps: tuple, key: str, spec: dict, about: dict | None = None):
     """Return the figure that the code of one of the page's own figures draws, run after the steps it builds on."""
@@ -1858,8 +1956,13 @@ def test_the_trade_off_chart_s_code_tries_the_page_s_settings_and_draws_its_line
     across = [-v for v in candidates["responses"]["Yield"]]
     front = javascript(node, source("best.js"), [("frontier", [across, candidates["responses"]["Cost"], meets])])[0]
     assert namespace["front"].tolist() == front
-    cloud, line, star = namespace["figure"].data
-    assert len(cloud.x) == sum(meets)
+    far = np.asarray(candidates["far"], dtype=bool)
+    assert far.any(), "some settings tried lie beyond the runs"
+    np.testing.assert_array_equal(namespace["far"], far)
+    guessed, cloud, line, made, star = namespace["figure"].data
+    assert len(cloud.x) + len(guessed.x) == sum(meets)
+    assert len(guessed.x) == sum(met and f for met, f in zip(meets, far, strict=True))
+    assert len(made.x) == len(held["rows"]), "every run made has both results"
     np.testing.assert_allclose(line.x, np.sort(np.asarray(candidates["responses"]["Yield"])[front]), rtol=1e-5)
     assert (np.diff(line.x) >= 0).all(), "joined from left to right"
     by = {r["name"]: r["predicted"] for r in balance["responses"]}
@@ -2076,11 +2179,14 @@ def test_the_specification_s_code_judges_the_page_s_settings_and_draws_its_chart
         ("designCode", [held["spec"]]),
         ("resultsCode", [held, by_name(simulation), simulation]),
         ("windowCode", [found, held["spec"]]),
-        ("windowOverlayCode", [overlay, held["spec"], True]),
+        ("windowOverlayCode", [overlay, held["spec"], found["search"]["seed"]]),
     )
     namespace = drawn_by(monkeypatch, code)
     assert_same_specification(namespace, found)
     np.testing.assert_allclose(namespace["correlation"], correlation, atol=1e-9)
+    assert namespace["correlation_df"] == found["search"]["correlation_df"] >= 5, (
+        "and the doubt in it, as the page has it"
+    )
     shaded, chance, star = namespace["figure"].data
     np.testing.assert_allclose(np.asarray(chance.z, dtype=float), overlay["probability"], atol=2e-6)
     assert (chance.contours.start, chance.contours.end) == (0.5, 0.9)

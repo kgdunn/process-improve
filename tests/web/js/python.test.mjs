@@ -408,4 +408,17 @@ describe("a study's colour map", () => {
     setColourMap("batlow", true);
     assert.equal(scale(), "colorscale(dark_page=True)");
   });
+
+  test("a surface the library draws in batlow is redrawn in the study's map, as the page draws it", () => {
+    const surface = { plot_type: "contour", factors_to_plot: ["T", "P"] };
+    const recoloured = /^ {8}trace\.colorscale = colorscale\("devon"\)$/m;
+    assert.doesNotMatch(figureCode("Fitted", surface, "T + P", true, { response: "y" }), /colorscale/, "batlow as it comes");
+    setColourMap("devon");
+    const code = figureCode("Fitted", surface, "T + P", true, { response: "y" });
+    assert.match(code, /^from process_improve\.visualization\.colors import colorscale$/m);
+    assert.match(code, /^batlow = \[tuple\(stop\) for stop in colorscale\(\)\]\nfor trace in figure\.data:\n/m);
+    assert.match(code, /^ {4}if "colorscale" in trace and list\(trace\.colorscale or \[\]\) == batlow:\n {8}trace\.colorscale = colorscale\("devon"\)\nfigure\.show\(\)$/m);
+    assert.match(figureCode("A surface", { plot_type: "surface_3d" }, "T + P", true, { response: "y" }), recoloured);
+    assert.doesNotMatch(figureCode("Residuals", { plot_type: "residuals_vs_fitted" }, "T + P"), /colorscale/, "no surface");
+  });
 });

@@ -794,6 +794,8 @@ def test_one_factor_s_runs_and_study_format_are_held_as_bootstrap_and_the_build_
         "WHOLE_PLOT_FORMAT",
         "SETTINGS_FORMAT",
         "SIGNIFICANCE_FORMAT",
+        "TRADE_FORMAT",
+        "POSSIBLE_FORMAT",
     ]
     names = ["CAMPAIGN_VERSION", *each, "FEW_FACTORS"]
     formats = javascript(node, source("campaign.js"), [(name, []) for name in names])
@@ -802,6 +804,9 @@ def test_one_factor_s_runs_and_study_format_are_held_as_bootstrap_and_the_build_
     assert build_script.study_format({"factors": [{"name": "S"}, {"name": "T"}]}) == 1
     lot = {"name": "Lot", "type": "categorical", "levels": ["1", "2", "3"]}
     assert build_script.study_format({"factors": [{"name": "S"}, lot]}) == build_script.LEVELS_FORMAT
+    split = {"factors": [{"name": "S"}, lot], "options": {"hard_to_change": ["Lot"]}}
+    assert build_script.study_format(split) == build_script.WHOLE_PLOT_FORMAT, "a split-plot study of the catalog"
+    assert javascript(node, source("campaign.js"), [("studyFormat", [split])]) == [build_script.WHOLE_PLOT_FORMAT]
     for k in (12, 13, 24, 40):
         factors = [{"name": f"X{i}"} for i in range(k)]
         expected = build_script.MANY_FACTORS_FORMAT if k > build_script.FEW_FACTORS else 1

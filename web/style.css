@@ -378,6 +378,7 @@ button.term:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 .trade-view { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 8px 0; }
 .trade-view label { display: inline-flex; align-items: center; gap: 6px; font-size: 0.9rem; }
 .trade-view select { width: auto; max-width: 14em; }
+.trade-levels { display: contents; }
 .trade-limits input { width: 6.5em; }
 table.trade-limits td, table.trade-limits th { white-space: nowrap; padding-right: 14px; } /* over table.data th's none */
 .trade-limits th:nth-child(2), .trade-limits td:nth-child(2) { text-align: left; } /* the box, under its heading */
@@ -546,6 +547,7 @@ button:disabled { opacity: 0.5; cursor: progress; }
   section { padding: 16px 12px; }
 }
 .scroll { overflow-x: auto; margin: 12px 0; }
+.possible-table input { width: 5em; }
 table.data { border-collapse: collapse; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
 table.data th, table.data td { border-bottom: 1px solid var(--line); padding: 4px 10px; text-align: right; }
 table.data th:first-child, table.data td:first-child { text-align: left; }

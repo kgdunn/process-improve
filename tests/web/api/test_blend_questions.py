@@ -117,17 +117,27 @@ def test_the_target_s_chart_is_drawn_over_the_triangle_with_the_line_of_the_targ
     assert sorted(map(tuple, overlay["runs"])) == sorted(map(tuple, blends_of(held).drop_duplicates().to_numpy()))
 
 
-def test_four_components_have_a_blend_for_a_target_and_no_triangle(api):
+def test_four_components_have_a_blend_for_a_target_and_a_triangle_of_three_through_it(api):
     held = lattice(api, q=4)
     blends = blends_of(held)
     y = 20 + 10 * blends["A"] - 5 * blends["D"] + 8 * blends["A"] * blends["B"]
     found = api.ok("api_target_settings", {**held, "responses": y.tolist(), "targets": {"y": 24.0}})
     assert found["reached"]
-    assert found["overlay"] is None
     assert sum(s["value"] for s in found["settings"]) == pytest.approx(1.0, abs=1e-9)
-    judged = api.ok("api_specification", {**held, "responses": y.tolist(), "windows": {"y": [24.0, None]}})
-    assert judged["overlay"] is None
+    at = {s["name"]: s["value"] for s in found["settings"]}
+    overlay = found["overlay"]
+    assert set(overlay["held"]) == set(at) - set(overlay["components"])
+    assert overlay["at"] == pytest.approx([at[n] for n in overlay["components"]])
+    assert overlay["responses"][0]["levels"] == [24.0]
+    sent = {**held, "responses": y.tolist(), "windows": {"y": [24.0, None]}, "triangle": ["A", "B", "D"]}
+    judged = api.ok("api_specification", sent)
     assert 0 < judged["share"] < 1
+    picture = judged["overlay"]
+    assert (picture["components"], set(picture["held"])) == (["A", "B", "D"], {"C"}), "through the surest blend"
+    surest = judged["surest"]["coded"]
+    assert picture["held"]["C"] == pytest.approx(surest["C"])
+    assert picture["runs"] == [], "a run is not on a triangle of three of four components"
+    assert all(len(line["a"]) == len(line["b"]) for line in picture["chances"])
 
 
 # --------------------------------------------------------------------------- the blends that meet a specification

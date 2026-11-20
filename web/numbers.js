@@ -54,3 +54,9 @@ export const significance = () => level;
 
 /** The confidence of every interval, one minus the significance level, as the page writes it: "95%". */
 export const confidencePercent = () => `${Math.round((1 - level) * 100)}%`;
+
+/** The components a triangle holds, in words: "D held at 0.25", "C at 0.2 and D at 0.1 held". */
+export function heldWords(held) {
+  const parts = Object.entries(held).map(([name, share]) => `${name} at ${marked(String(Number(Number(share).toPrecision(3))))}`);
+  return parts.length === 1 ? `${parts[0].replace(" at ", " held at ")}` : `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)} held`;
+}

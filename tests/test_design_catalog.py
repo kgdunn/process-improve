@@ -298,6 +298,66 @@ def test_a_block_of_several_columns_is_each_combination_of_their_values():
     assert (record["blocks"], record["n_blocks"]) == (["I / 1", "I / 2", "II / 1", "II / 2"], 4)
 
 
+def test_a_whole_plot_is_each_run_s_combination_of_the_columns_the_entry_names():
+    """A method within a replicate: each batch of pulp is a whole plot, and the method stays a factor."""
+    rows = [[r, m, t, 30.0] for r in ("1", "2") for m in ("1", "2") for t in ("200", "225")]
+    entry = {
+        "name": "pulp",
+        "design": {"type": "split-plot design", "blocks": "replicate", "whole_plots": ["replicate", "method"]},
+        "factors": [
+            {"name": "replicate", "type": "categorical", "levels": ["1", "2"]},
+            {"name": "method", "type": "categorical", "levels": ["1", "2"]},
+            {"name": "temperature", "type": "categorical", "levels": ["200", "225"]},
+        ],
+        "runs": {"columns": ["replicate", "method", "temperature", "strength"], "rows": rows},
+    }
+    record = design_catalog._published_record(entry, _SOURCE)
+    assert [f["name"] for f in record["factors"]] == ["method", "temperature"]
+    assert record["whole_plots"] == ["1 / 1", "1 / 1", "1 / 2", "1 / 2", "2 / 1", "2 / 1", "2 / 2", "2 / 2"]
+    assert record["split_plot"]
+
+
+def test_a_column_called_whole_plot_is_each_run_s_whole_plot_unless_the_entry_names_none():
+    rows = [[1, -1, -1], [1, -1, 1], [2, 1, -1], [2, 1, 1]]
+    entry = {
+        "name": "etch",
+        "design": {"type": "2^2 factorial"},
+        "factors": [{"name": n, "low": -1, "high": 1, "type": "numeric"} for n in ("A", "D")],
+        "runs": {"columns": ["whole_plot", "A", "D"], "rows": rows},
+    }
+    record = design_catalog._published_record(entry, _SOURCE)
+    assert (record["whole_plots"], record["split_plot"]) == ([1, 1, 2, 2], True), "named for what it is"
+    assert design_catalog._whole_plots({**entry, "design": {"whole_plots": []}}) is None
+    assert design_catalog._whole_plots({**entry, "design": {"whole_plots": "plot"}}) is None, "no such column"
+
+
+@pytest.mark.parametrize(
+    ("text", "split"),
+    [
+        ("both halves: the eight runs of the 2^3, split by the sign of ABC", False),
+        ("the 2^3 split by x1x2x3 into two blocks", False),
+        ("a split-plot design", True),
+        ("split-split-plot design", True),
+        ("two-way split plot (strip-plot) design", True),
+        ("8 whole plots of 2 subplots", True),
+    ],
+)
+def test_a_design_is_split_plot_when_its_text_names_the_plots_not_where_it_says_split(text, split):
+    """Montgomery's two halves of a 2^3 were refused as split-plot designs for the word "split" alone."""
+    entry = {"name": "halves", "design": {"type": "2^3 factorial", "details": text}, "factors": []}
+    assert design_catalog._published_record(entry, _SOURCE)["split_plot"] is split
+
+
+@pytest.mark.dataset
+def test_every_whole_plot_column_an_entry_names_is_in_its_run_table():
+    entries = [e for e in (*reference_experiments(), *reference_designs()) if "whole_plots" in e["design"]]
+    assert len(entries) >= 9
+    for entry in entries:
+        plots = entry["design"]["whole_plots"]
+        assert set([plots] if isinstance(plots, str) else plots) <= set(entry["runs"]["columns"]), entry["name"]
+        assert len(design_catalog._whole_plots(entry)) == len(entry["runs"]["rows"]), entry["name"]
+
+
 def test_an_entry_can_say_it_is_run_in_no_blocks_whatever_its_text_says():
     """Montgomery's smelting algorithms, analysed as one factor: only a later problem calls the runs blocks."""
     entry = {

@@ -165,6 +165,36 @@ def test_generate_design_builds_a_split_plot_design_without_pyoptex(monkeypatch)
     assert result.design["WholePlot"].is_monotonic_increasing
 
 
+# --------------------------------------------------------------------------- inside limits on the settings
+def test_every_run_and_every_exchange_keeps_to_the_limits(monkeypatch):
+    """A limit on the numeric factors and one on a level: each run keeps both, the oven still set once per plot."""
+    from process_improve.experiments import designs_optimal
+
+    monkeypatch.setattr(designs_optimal, "_PYOPTEX_AVAILABLE", False)
+    factors = [*continuous("TP"), Factor(name="Oven", type="categorical", levels=["old", "new"])]
+    limits = ["T + P <= 1", "not (Oven == 'new' and T > 0)"]
+    result = generate_design(
+        factors, design_type="d_optimal", budget=16, hard_to_change=["Oven"], constraints=limits, random_state=2
+    )
+    runs = result.design
+    assert result.metadata["backend"] == "split_plot_exchange"
+    assert result.metadata["constraints_enforced"] is True
+    assert (runs["T"] + runs["P"] <= 1 + 1e-9).all()
+    assert not ((runs["Oven"] == "new") & (runs["T"] > 0)).any()
+    assert runs.groupby("WholePlot")["Oven"].nunique().max() == 1
+    assert set(runs["Oven"]) == {"old", "new"}, "both ovens are used"
+
+
+def test_limits_that_leave_no_run_are_refused(monkeypatch):
+    from process_improve.experiments import designs_optimal
+
+    monkeypatch.setattr(designs_optimal, "_PYOPTEX_AVAILABLE", False)
+    with pytest.raises(ValueError, match="No whole plot of runs inside the limits"):
+        generate_design(
+            continuous("TP"), design_type="d_optimal", budget=8, hard_to_change=["T"], constraints=["T + P >= 2.5"]
+        )
+
+
 @pytest.mark.parametrize(
     ("asked", "reason"),
     [

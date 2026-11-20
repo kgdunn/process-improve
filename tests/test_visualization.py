@@ -2878,3 +2878,10 @@ class TestColourMaps:
     def test_an_unknown_map_is_refused_with_the_maps_there_are(self) -> None:
         with pytest.raises(ValueError, match="Unknown colour map 'jet': choose one of batlow, devon, lajolla, grayC"):
             colorscale("jet")
+
+
+def test_grey_on_a_dark_page_starts_at_the_page_s_own_grey():
+    """A low value fades into a dark page (#141517), not into black, which is darker than the page."""
+    low = colorscale("grayC", dark_page=True)[0][1]
+    assert abs(int(str(low)[1:3], 16) - 0x14) <= 2
+    assert colorscale("grayC")[0][1] == "#dcdcdc", "on a light page the light end is kept"

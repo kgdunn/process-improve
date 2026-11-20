@@ -3,7 +3,7 @@
 // tests/web/page/test_parity.py holds the rules that mirror web/bootstrap.py to it.
 
 /** Spare runs an optimal design gets beyond its model's coefficients; mirrors bootstrap.SPARE_RUNS. */
-import { confidencePercent, marked, pointed, significance } from "./numbers.js";
+import { confidencePercent, heldWords, marked, pointed, significance } from "./numbers.js";
 
 export const SPARE_RUNS = 4;
 
@@ -1131,6 +1131,7 @@ export const listNames = (names) =>
   names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names.join("");
 
 /** A number to four significant figures, or nothing for a value the fit could not give. */
+export { heldWords }; // the triangle's caption words, kept beside the decimal mark they write with
 export const fmt = (x) => (x === null || x === undefined ? "" : marked(Number(x).toPrecision(4)));
 
 const isNumber = (v) => typeof v === "number" && Number.isFinite(v);
@@ -1424,12 +1425,6 @@ export function simplerWords(found, fmt) {
   );
 }
 
-
-/** The components a triangle holds, in words: "D held at 0.25", "C at 0.2 and D at 0.1 held". */
-export function heldWords(held) {
-  const parts = Object.entries(held).map(([name, share]) => `${name} at ${marked(String(Number(Number(share).toPrecision(3))))}`);
-  return parts.length === 1 ? `${parts[0].replace(" at ", " held at ")}` : `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)} held`;
-}
 
 /** How the caption of a response surface says which two factors it is drawn over. */
 export const pairWords = (chosen) => (chosen ? "the two factors you chose" : "the two factors with the largest main effects");

@@ -57,6 +57,11 @@ CASES = {
         WORDS,
     ),
     "a rotatable CCD, outside its ranges": ({"design_type": "ccd", "alpha": "rotatable"}, FACTORS, WORDS),
+    "a rotatable CCD whose axial runs pass the pressure's possible range": (
+        {"design_type": "ccd", "alpha": "rotatable", "possible": {"P": [0.5, None]}},
+        FACTORS,
+        WORDS,
+    ),
     "a categorical factor": (
         {"design_type": "full_factorial"},
         [*FACTORS[:2], {"name": "Supplier", "low": "old", "high": "new", "units": ""}],
@@ -107,7 +112,8 @@ def test_renaming_a_design_gives_what_making_it_under_the_new_names_gives(api, c
     request, factors, names = case
     before = api.ok("api_make_design", {**request, "factors": factors})
     hard = {key: [names.get(n, n) for n in request[key]] for key in ("hard_to_change",) if key in request}
-    after = api.ok("api_make_design", {**request, **hard, "factors": named(factors, names)})
+    possible = {key: {names.get(n, n): b for n, b in request[key].items()} for key in ("possible",) if key in request}
+    after = api.ok("api_make_design", {**request, **hard, **possible, "factors": named(factors, names)})
     assert after["rows"] == before["rows"], "the library makes a design from its factors' places, not their names"
 
     renamed = api.ok("api_relabel", {"design": sent(before), "factors": after["spec"]["factors"]})
@@ -125,6 +131,7 @@ NAMING = {
     " is confounded with the blocks": "a blocked full factorial",
     " are confounded with the blocks": "a blocked fraction, two of its factors swapped",
     " hard to change, so the runs are made in ": "a D-optimal design with a factor that is hard to change",
+    " past what it can be, ": "a rotatable CCD whose axial runs pass the pressure's possible range",
     "The runs compare ": "one factor, with center runs",
     "The runs set ": "one factor's runs as given, at several settings",
 }

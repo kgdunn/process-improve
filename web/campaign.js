@@ -25,8 +25,12 @@ import { SIGNIFICANCE_LEVELS } from "./numbers.js";
  * Format 12 holds the settings of a study (``settings``), such as the colour map its charts are drawn in. From this
  * format on, a page keeps a setting it does not know and takes no notice of it, so a later setting that only changes
  * how a study looks needs no format of its own. A setting that changes a number or a verdict still does.
+ * Format 13 holds a significance level of a study's own, which an earlier page would judge at 0.05.
+ * Format 14 holds what the study's trade-off chart shows (``trade``), which an earlier page would drop.
+ * Format 15 holds a factor's possible range (``possible`` in the design), past which no run can be made: an earlier
+ * page would drop it and offer such runs.
  */
-export const CAMPAIGN_VERSION = 13;
+export const CAMPAIGN_VERSION = 15;
 
 /** The format of a study of one factor; a study of more factors keeps format 1. */
 export const ONE_FACTOR_FORMAT = 2;
@@ -67,6 +71,15 @@ export const SETTINGS_FORMAT = 12;
  */
 export const SIGNIFICANCE_FORMAT = 13;
 
+/** The format of a study that keeps what its trade-off chart shows (``trade``): its axes, limits, levels and choice. */
+export const TRADE_FORMAT = 14;
+
+/** The format of a study whose factors have a possible range (``possible``): settings past it cannot be made. */
+export const POSSIBLE_FORMAT = 15;
+
+/** What a study's trade-off chart colours its points by when it is the overall desirability, as app.js names it. */
+export const OVERALL_D = "(D)";
+
 /** The most settings a study holds, known to this page or not. */
 export const SETTINGS_HELD = 32;
 
@@ -79,10 +92,12 @@ export const CURVE_POINTS_HELD = 1000;
 /**
  * The lowest format that holds a study of this specification, which the study is saved in. ``study`` holds what it
  * keeps besides its runs and results, under the study's own keys: ``what_if``, ``set_aside``, ``targets``, ``windows``,
- * ``builds_on`` and ``planned``.
+ * ``builds_on``, ``planned``, ``settings`` and ``trade``.
  */
 export function studyFormat(spec, study = {}) {
   const { what_if: kept = [], set_aside: setAside = {}, targets = {}, windows = {}, builds_on: builtOn = [], planned = {} } = study;
+  if (Object.keys(spec.possible ?? {}).length) return POSSIBLE_FORMAT;
+  if (Object.keys(study.trade ?? {}).length) return TRADE_FORMAT;
   if (study.settings?.significance_level !== undefined) return SIGNIFICANCE_FORMAT;
   if (Object.keys(study.settings ?? {}).length) return SETTINGS_FORMAT;
   if (spec.options?.hard_to_change?.length) return WHOLE_PLOT_FORMAT;
@@ -488,6 +503,28 @@ function spec(value) {
     if (Object.keys(kept).length) out.analysis_transforms = kept;
   }
   if (value.curve !== undefined && value.curve !== null) out.curve = curveOf(value.curve);
+  if (value.possible !== undefined && value.possible !== null) {
+    const kept = possibleOf(value.possible, factors);
+    if (Object.keys(kept).length) out.possible = kept;
+  }
+  return out;
+}
+
+/**
+ * Each numeric factor's possible range, by its name: the lowest and highest settings the process can take, either
+ * null. Python checks that the factor's range lies inside it.
+ */
+function possibleOf(value, factors) {
+  if (!isObject(value)) refuse("its possible ranges are not ranges");
+  const numeric = new Set(factors.filter((f) => !f.levels && typeof f.low === "number").map((f) => f.name));
+  const out = {};
+  for (const [name, bounds] of Object.entries(value)) {
+    if (!numeric.has(name)) refuse(`a possible range is for ${JSON.stringify(name).slice(0, 40)}, which is no numeric factor`);
+    if (!Array.isArray(bounds) || bounds.length !== 2 || !bounds.every((b) => b === null || isFiniteNumber(b))) {
+      refuse(`the possible range of ${name} is not two numbers or blanks`);
+    }
+    if (bounds.some((b) => b !== null)) out[name] = [...bounds];
+  }
   return out;
 }
 
@@ -641,8 +678,9 @@ export function checkCampaign(data) {
   const built = checkBuiltOn(data.builds_on);
   const planned = plannedSettings(data.planned, s.factors, n);
   const settings = studySettings(data.settings);
+  const trade = tradeKept(data.trade, names, s.factors);
   const out = {
-    v: studyFormat(s, { what_if: kept, set_aside: aside, targets, windows, builds_on: built, planned, settings }),
+    v: studyFormat(s, { what_if: kept, set_aside: aside, targets, windows, builds_on: built, planned, settings, trade }),
     title: data.title === undefined ? "" : text(data.title, "its title", 200),
     design: {
       spec: s,
@@ -670,6 +708,7 @@ export function checkCampaign(data) {
   if (built.length) out.builds_on = built;
   if (Object.keys(planned).length) out.planned = planned;
   if (Object.keys(settings).length) out.settings = settings;
+  if (Object.keys(trade).length) out.trade = trade;
   if (s.curve) out.curves = curvesOf(data.curves, n, s.curve.argument.values.length);
   return out;
 }
@@ -731,6 +770,52 @@ function setAside(data, names, n) {
 }
 
 /** What a study keeps by its responses' columns, as pairs: refused when it names a response the study does not measure. */
+/**
+ * What a study's trade-off chart shows, as Learn left it: the responses on its axes (``across``, ``up``), what colours
+ * its points (``colour``: a response, or the overall desirability), each response's limits (``limits``, its two ends,
+ * null for one open), the level each categorical factor is drawn at (``levels``), and the settings chosen
+ * (``chosen``, by factor). The settings tried are not kept: Learn draws them again, and finds the choice among them.
+ */
+function tradeKept(value, names, factors) {
+  if (value === undefined || value === null) return {};
+  if (!isObject(value)) refuse("its trade-off chart is not described");
+  const out = {};
+  for (const axis of ["across", "up"]) {
+    if (value[axis] === undefined) continue;
+    if (!names.includes(value[axis])) refuse(`its trade-off chart's ${axis} axis is no response it measures`);
+    out[axis] = value[axis];
+  }
+  if (value.colour !== undefined) {
+    if (value.colour !== OVERALL_D && !names.includes(value.colour)) refuse("its trade-off chart is coloured by no response it measures");
+    out.colour = value.colour;
+  }
+  const end = (v) => v === null || isFiniteNumber(v);
+  const limits = byResponse(value.limits, names, "its trade-off chart's limits").map(([name, ends]) =>
+    Array.isArray(ends) && ends.length === 2 && ends.every(end) ? [name, [...ends]] : refuse(`the trade-off limit of ${name} is not its two ends`),
+  );
+  if (limits.length) out.limits = Object.fromEntries(limits);
+  const byName = Object.fromEntries(factors.map((f) => [f.name, f]));
+  const levelsOf = (f) => f.levels ?? [f.low, f.high];
+  const categorical = (f) => f && (f.type === "categorical" || typeof f.low === "string");
+  if (value.levels !== undefined) {
+    if (!isObject(value.levels)) refuse("its trade-off chart's levels are not listed by factor");
+    for (const [name, level] of Object.entries(value.levels)) {
+      if (!categorical(byName[name]) || !levelsOf(byName[name]).includes(level)) refuse(`its trade-off chart is drawn at no level of ${name}`);
+    }
+    if (Object.keys(value.levels).length) out.levels = { ...value.levels };
+  }
+  if (value.chosen !== undefined) {
+    if (!isObject(value.chosen)) refuse("its trade-off chart's choice is not settings");
+    for (const [name, v] of Object.entries(value.chosen)) {
+      const f = byName[name];
+      const fits = f && (categorical(f) ? levelsOf(f).includes(v) : isFiniteNumber(v));
+      if (!fits) refuse(`its trade-off chart's choice sets ${JSON.stringify(name).slice(0, 40)} to no value it takes`);
+    }
+    out.chosen = { ...value.chosen };
+  }
+  return out;
+}
+
 function byResponse(value, names, what) {
   if (value === undefined || value === null) return [];
   if (!isObject(value)) refuse(`${what} are not listed by response`);

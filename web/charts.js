@@ -911,7 +911,7 @@ export const COLOUR_MAPS = {
   batlow: ["#011959", "#114360", "#226061", "#4d734d", "#828231", "#c09036", "#f29d6d", "#fdb4b6", "#faccfa"],
   devon: ["#2c1a4c", "#293467", "#275186", "#376aae", "#6583d2", "#9b9ce8", "#bbb5f1", "#d2cef6", "#eae8fb"],
   lajolla: ["#191900", "#372411", "#67342a", "#a64644", "#d9604e", "#e58851", "#edae54", "#f7da74", "#fffecb"],
-  grayC: ["#000000", "#232323", "#3d3d3d", "#565656", "#6e6e6e", "#848484", "#9c9c9c", "#b9b9b9", "#dcdcdc"],
+  grayC: ["#131313", "#2f2f2f", "#474747", "#5e5e5e", "#747474", "#898989", "#a0a0a0", "#bbbbbb", "#dcdcdc"],
 };
 
 /** The map of a study that chose none; mirrors the library's DEFAULT_COLOUR_MAP. */
@@ -1667,7 +1667,7 @@ export function blendOverlayFigure(overlay, responses, colours = palette(), { sh
   return {
     data,
     layout: {
-      ternary: { sum: 1, bgcolor: "rgba(0,0,0,0)", aaxis: axis(a), baxis: axis(b), caxis: axis(c) },
+      ternary: { sum: overlay.sum ?? 1, bgcolor: "rgba(0,0,0,0)", aaxis: axis(a), baxis: axis(b), caxis: axis(c) },
       legend: { ...LEGEND_ABOVE, y: 1.09 }, // clear of the name of the component at the top corner
       showlegend: true,
       margin: { l: 36, r: 36, t: 48, b: 36 },
@@ -1764,7 +1764,7 @@ export function tradeOffFigure({ across, up, tried, front, colour = null, runs =
     });
   }
   if (nearly.length) data.push(point(TRADE_MARKS.nearly, nearly, { ...BEST_MARKER, size: 13, symbol: "star-open", color: colours.fg }));
-  data.push(point(BALANCED, [balanced], BEST_MARKER));
+  if (balanced) data.push(point(BALANCED, [balanced], BEST_MARKER)); // none when the chart is at other levels
   if (chosen) {
     const marker = { ...TRUE_MARKER, color: colours.accent };
     data.push(point(TRADE_MARKS.chosen, [chosen], marker, { error_x: spread(chosen.spread?.across), error_y: spread(chosen.spread?.up) }));

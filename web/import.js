@@ -11,6 +11,8 @@ import { MAX_RESPONSES, nameProblem } from "./logic.js";
 export const ROLES = [
   ["factor", "A factor"],
   ["response", "A response"],
+  ["block", "The block"],
+  ["whole_plot", "The whole plot"],
   ["ignore", "Leave it out"],
 ];
 
@@ -45,6 +47,9 @@ export function importProblems(columns) {
   if (!factors.length) problems.push("Choose at least one column as a factor.");
   if (!responses.length) problems.push("Choose at least one column as a response.");
   if (responses.length > MAX_RESPONSES) problems.push(`A study measures at most ${MAX_RESPONSES} responses; ${responses.length} are chosen.`);
+  for (const [role, words] of [["block", "the block"], ["whole_plot", "the whole plot"]]) {
+    if (columns.filter((c) => c.role === role).length > 1) problems.push(`Choose one column at most as ${words}.`);
+  }
   const used = [...factors, ...responses];
   used.forEach((column, at) => {
     const others = used.filter((_, other) => other !== at).map((c) => String(c.name ?? "").trim());
@@ -139,7 +144,7 @@ export function installImport({ call, open }) {
     const high = field("high", "High value", { type: "number", step: "any" });
     const range = make("span", { className: "import-range" }, low, " to ", high);
     const show = () => {
-      const used = column.role !== "ignore";
+      const used = column.role === "factor" || column.role === "response"; // a block or a whole plot needs no name
       name.hidden = !used;
       units.hidden = !used || column.kind !== "number";
       range.hidden = !takesRange(column);

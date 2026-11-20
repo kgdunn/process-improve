@@ -201988,6 +201988,8 @@
    ],
    "design": {
     "type": "split-plot design",
+    "blocks": "replicate",
+    "whole_plots": ["replicate", "method"],
     "details": "3 methods in the whole plots (9 batches of pulp), 4 temperatures in the subplots, 3 replicates",
     "n_runs": 36,
     "treatment_factors": 2
@@ -207717,6 +207719,8 @@
    ],
    "design": {
     "type": "split-plot design",
+    "blocks": "shift",
+    "whole_plots": ["shift", "temperature"],
     "details": "24 runs",
     "n_runs": 24,
     "treatment_factors": 3
@@ -207944,6 +207948,7 @@
    ],
    "design": {
     "type": "split-plot design",
+    "whole_plots": ["day", "mix"],
     "details": "36 runs",
     "n_runs": 36,
     "treatment_factors": 3
@@ -209371,6 +209376,7 @@
    ],
    "design": {
     "type": "split-plot 2^5 factorial",
+    "whole_plots": ["A", "B", "C", "D"],
     "details": "32 runs",
     "n_runs": 32,
     "treatment_factors": 5
@@ -278248,6 +278254,7 @@
    "responses": [],
    "design": {
     "type": "split-plot 2^4 factorial",
+    "whole_plots": ["block", "whole_plot"],
     "details": "4 whole plots of 4 subplots in each of 2 replicates (blocks)",
     "n_runs": 32,
     "treatment_factors": 4
