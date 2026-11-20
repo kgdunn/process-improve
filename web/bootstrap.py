@@ -608,9 +608,12 @@ MAX_CURVE_POINTS = 1000
 #: The most points the page draws a predicted curve at: a curve measured at more is drawn at this many, evenly
 #: spaced, which keeps the bootstrap's maps the page predicts from small.
 CURVE_DRAWN = 61
-#: The bootstrap replicates a curve's bands are worked from: few enough for Pyodide to refit in a few seconds,
-#: enough for the 95% quantile of each replicate's largest departure, which the simultaneous band rests on.
+#: The fewest bootstrap replicates a curve's bands are worked from: few enough for Pyodide to refit in a few
+#: seconds, enough for the 95% quantile of each replicate's largest departure, which the simultaneous band rests on.
 CURVE_REPLICATES = 200
+#: The replicates that lie past the quantile the band rests on: ten past the 95% quantile is 200 replicates; past
+#: the 99% quantile, 1,000, which takes about twice as long natively and makes a reply five times the size.
+CURVE_TAIL = 10
 #: The significant figures the maps are sent with: the bands need no more, and the reply is a third the size.
 CURVE_FIGURES = 6
 #: The column that carries each run's place on the run sheet through to the runs fitted, so its curve follows it.
@@ -842,6 +845,11 @@ DEFAULT_SIGNIFICANCE = 0.05
 
 #: The level of the call that is running. Every request carries its study's level, so no call sees another's.
 _CALL = {"significance": DEFAULT_SIGNIFICANCE}
+
+
+def curve_replicates() -> int:
+    """Return the bootstrap replicates a curve's bands are worked from at the study's level (:data:`CURVE_TAIL`)."""
+    return max(CURVE_REPLICATES, round(CURVE_TAIL / significance()))
 
 
 def significance() -> float:
@@ -11226,9 +11234,10 @@ def functional(request: dict) -> dict:
     :func:`predictors` sends them), and a curve is predicted for the average block.
 
     The curve at settings whose model row is ``x`` is ``mean + x @ map``; ``replicates`` hold the same for
-    each of :data:`CURVE_REPLICATES` wild-bootstrap replicates (:meth:`~process_improve.experiments.
-    FunctionalFit.curve_maps`), which the page turns into bands (``curveAt`` in ``web/best.js``) as
-    :meth:`~process_improve.experiments.FunctionalFit.predict` does, with ``t`` and ``widening``. A curve read
+    each wild-bootstrap replicate, 1,000 at the 0.01 level and else 200 (:func:`curve_replicates`;
+    :meth:`~process_improve.experiments.FunctionalFit.curve_maps`), which the page turns into bands
+    (``curveAt`` in ``web/best.js``) as :meth:`~process_improve.experiments.FunctionalFit.predict` does,
+    with ``t`` and ``widening``. A curve read
     at more than :data:`CURVE_DRAWN` points is drawn at that many, evenly spaced (``points``).
 
     ``target``, one value per point or a blank, asks for the settings whose predicted curve comes closest
@@ -11263,7 +11272,7 @@ def functional(request: dict) -> dict:
             coded, curves, model=fit["formula"], significance_level=significance()
         )
         drawn = grid if grid.size <= CURVE_DRAWN else np.linspace(grid[0], grid[-1], CURVE_DRAWN)
-        maps = result.curve_maps(grid=drawn, n_bootstrap=CURVE_REPLICATES, random_state=0)
+        maps = result.curve_maps(grid=drawn, n_bootstrap=curve_replicates(), random_state=0)
     kept = [i for i, term in enumerate(maps["terms"]) if not _block_contrast(term, columns)]
     t = float(stats.t.ppf(0.5 + confidence_level() / 2, max(maps["df_residual"], 1)))
     reply = {

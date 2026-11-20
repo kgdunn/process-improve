@@ -138,3 +138,22 @@ def test_the_page_draws_the_curve_and_both_its_bands_as_the_library_predicts_the
     assert drawn["pointwise"][0] == pytest.approx(bands["pointwise_low"].iloc[0].tolist(), rel=1e-4)
     assert drawn["simultaneous"][1] == pytest.approx(bands["simultaneous_high"].iloc[0].tolist(), rel=1e-4)
     assert drawn["critical"] == pytest.approx(bands["critical_value"].iloc[0], rel=1e-4)
+
+
+@pytest.mark.slow
+def test_at_the_0_01_level_the_99_percent_band_rests_on_1000_replicates_as_the_library_s_does(api, held, node):
+    """The 99% quantile of 200 replicates is about their second largest; 1,000 leave ten past it (#1381)."""
+    request = {**with_curves(held), "significance_level": 0.01}
+    reply = api.ok("api_functional", request)
+    assert (len(reply["replicates"]), reply["level"]) == (1000, 0.99)
+    assert len(api.ok("api_functional", with_curves(held))["replicates"]) == 200, "at 0.05, as before"
+    module = source("best.js")
+    (columns,) = javascript(node, module, [("columnsAt", [reply["factors"], {"T": 185.0, "P": 1.4, "F": 12.0}])])
+    (drawn,) = javascript(node, module, [("curveAt", [reply, columns])])
+    design = coded(run_sheet(held), held["spec"]["factors"])
+    curves = pd.DataFrame(request["curves"], columns=TIME)
+    fit = analyze_functional_experiment(design, curves, model=reply["formula"], significance_level=0.01)
+    point = pd.DataFrame([{name: columns[name] for name in ("T", "P", "F")}])
+    bands = fit.predict(point, n_bootstrap=1000, random_state=0, level=0.99)
+    assert drawn["simultaneous"][1] == pytest.approx(bands["simultaneous_high"].iloc[0].tolist(), rel=1e-4)
+    assert drawn["critical"] == pytest.approx(bands["critical_value"].iloc[0], rel=1e-4)
