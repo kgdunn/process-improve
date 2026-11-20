@@ -1080,6 +1080,10 @@ def test_a_history_kept_before_the_count_was_stored_numbers_on_from_it(
     model = pickle.loads(pickle.dumps(model))  # noqa: S301 - a model this test pickled
     model.update(X.iloc[92].to_numpy())
     assert list(model.spe_.index) == [7, "x", 8]
+    # One pickled with its count keeps it
+    kept = pickle.loads(pickle.dumps(model))  # noqa: S301 - a model this test pickled
+    kept.update(X.iloc[93].to_numpy())
+    assert list(kept.spe_.index) == [7, "x", 8, 9]
     # One with no history yet numbers its first row 0
     fresh = AdaptivePCA(n_components=2).fit(X.iloc[:90])
     del fresh._next_label
