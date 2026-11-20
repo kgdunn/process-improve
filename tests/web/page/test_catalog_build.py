@@ -13,7 +13,12 @@ from pathlib import Path
 import pytest
 
 from process_improve.experiments import design_catalog
-from process_improve.experiments.reference_catalogue import DISAGREEMENT_CAUSES, UNCHECKED_CAUSES
+from process_improve.experiments.reference_catalogue import (
+    DISAGREEMENT_CAUSES,
+    UNCHECKED_CAUSES,
+    reference_experiments,
+    reference_sources,
+)
 from tests.web._support import (
     BOOK_DESIGN,
     CATALOG_SAMPLE,
@@ -312,7 +317,7 @@ def test_a_design_with_runs_the_page_makes_otherwise_opens_as_printed(build_scri
             {"blocked": True, "blocks": [1, 2, 3, 4, 5, 6, 7, 8]},
             "each run is in a block of its own, so the blocks leave nothing to compare",
         ),
-        ({"split_plot": True}, "the page opens designs without whole plots"),
+        ({"split_plot": True}, "the source runs the design in whole plots, but does not say which runs share one"),
         ({"coded_runs": None}, "the source prints no complete table of runs"),
         ({"n_mixture": 3}, "the page makes mixtures of its own, but takes no mixture's runs as given"),
         ({"coded_runs": [[0.0, -1.0, 0.0]]}, "a run sets a categorical factor between two of its levels"),
@@ -363,13 +368,39 @@ def test_a_published_design_with_other_runs_than_the_page_s_does_not_open(build_
     assert reason.startswith("the page's design differs from the source's: its run 1")
 
 
-def test_a_blocked_design_is_not_made_by_the_page(build_script, few):
-    """The page makes its blocked designs with blocks of its own, so the source's runs open as given instead."""
+@pytest.mark.parametrize(
+    ("change", "reason"),
+    [
+        ({"blocked": True}, "the page makes its designs in blocks of its own"),
+        ({"split_plot": True}, "the page makes its designs in whole plots of its own"),
+    ],
+)
+def test_a_blocked_or_split_plot_design_is_not_made_by_the_page(build_script, few, change, reason):
+    """The page makes its blocks and whole plots its own way, so the source's runs open as given instead."""
     record = next(r for r in few if r["id"] == "bhh-pilot-plant-2-3")
     with no_bytecode():
-        campaign, reason, tried = build_script.published_campaign({**record, "blocked": True})
+        campaign, why, tried = build_script.published_campaign({**record, **change})
     assert (campaign, tried) == (None, False)
-    assert reason == "the page makes its designs in blocks of its own"
+    assert why == reason
+
+
+@pytest.mark.dataset
+def test_a_split_plot_design_opens_with_its_blocks_and_whole_plots_as_its_source_prints_them(build_script, api):
+    """Montgomery's tensile strength of paper opens from the catalog as a split-plot study: Learn gives Table 14.19."""
+    entry = next(e for e in reference_experiments() if e["name"] == "montgomery-tensile-strength-split-plot")
+    record = design_catalog._published_record(entry, reference_sources()[entry["source"]])
+    with no_bytecode():
+        campaign, reason = build_script.given_campaign(record)
+    assert reason == ""
+    design = campaign["design"]
+    assert design["spec"]["options"] == {"n_blocks": 3, "hard_to_change": ["method"]}
+    sheet = run_sheet(design)
+    assert sheet["Whole plot"].nunique() == 9, "a batch of pulp for each method in each replicate"
+    asked = {"spec": design["spec"], "columns": design["columns"], "rows": design["rows"]}
+    fit = api.ok("api_analyze_runs", {**asked, "model": campaign["model"], "responses": campaign["responses"]})
+    tests = {t["source"]: t for t in fit["split_plot"]["tests"]}
+    assert tests["method"]["F"] == pytest.approx(7.0781, abs=5e-5), "Table 14.19"
+    assert tests["method·temperature"]["p_value"] == pytest.approx(0.0271, abs=5e-5)
 
 
 @pytest.mark.slow

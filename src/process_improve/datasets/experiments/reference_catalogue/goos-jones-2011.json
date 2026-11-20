@@ -20066,6 +20066,7 @@
    ],
    "design": {
     "type": "I-optimal split-plot design",
+    "whole_plots": "setting",
     "details": "ten settings of the two ride heights (the 3^2 factorial and its centre once more), five runs of yaw angle and grille tape coverage in each, I-optimal for the full quadratic model with the whole-plot and run variances equal",
     "n_runs": 50,
     "treatment_factors": 4
@@ -43484,6 +43485,7 @@
    "responses": [],
    "design": {
     "type": "split-plot design",
+    "whole_plots": "setting",
     "details": "the 2^2 factorial with a centre point in the ride heights, each of its five settings used for two whole plots, and in each whole plot the 2^2 in yaw and grille with a centre point",
     "n_runs": 50,
     "treatment_factors": 4
@@ -43668,6 +43670,7 @@
    "responses": [],
    "design": {
     "type": "split-plot design",
+    "whole_plots": "setting",
     "details": "the 3^2 factorial in the ride heights with its centre twice; at each corner the 2^2 in yaw and grille with its centre, at each edge the four axial points with the centre, and the centre five times in the two centre whole plots",
     "n_runs": 50,
     "treatment_factors": 4
@@ -44370,6 +44373,7 @@
    "responses": [],
    "design": {
     "type": "split-plot design",
+    "whole_plots": "plot",
     "details": "a 2^4 in 16 runs, the hard-to-change factor w constant within each of eight whole plots of two runs",
     "n_runs": 16,
     "treatment_factors": 4

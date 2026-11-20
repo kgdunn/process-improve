@@ -545,6 +545,10 @@ Also:
   - *Details:* The factors that keep one setting inside every whole plot are taken as hard to
     change. A whole plot lies inside one block. Columns headed Block or Whole plot are guessed
     so. The study is saved in study format 11, as a design the app makes with whole plots.
+    Eleven split-plot designs of the catalog open the same way, each with its whole plots and
+    blocks as the source prints them: Montgomery's tensile strength of paper gives Table 14.19.
+    A split-split-plot design, and a strip-plot design, whose runs share two kinds of plot, do
+    not open.
 - **Compare with the published answer.** A study opened from the catalog lists each number
   its source prints beside the app's own, and whether they agree.
 

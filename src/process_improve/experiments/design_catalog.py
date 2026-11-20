@@ -725,15 +725,30 @@ def _blocks(entry: dict[str, Any], text: str, columns: list[str] | None) -> tupl
     if (entry.get("design") or {}).get("blocks") is False:
         return False, None
     if columns:
-        runs = entry["runs"]
-        at = [[str(c) for c in runs["columns"]].index(c) for c in columns]
-        if len(at) == 1:
-            return True, [row[at[0]] for row in runs["rows"]]
-        together = [
-            None if any(row[i] is None for i in at) else " / ".join(str(row[i]) for i in at) for row in runs["rows"]
-        ]
-        return True, together
+        return True, _values(entry["runs"], columns)
     return bool(re.search(r"\bblock", _NOT_BLOCKED.sub(" ", text), flags=re.IGNORECASE)), None
+
+
+def _values(runs: dict[str, Any], columns: list[str]) -> list[Any]:
+    """Return each run's value of these columns as printed: several written together, such as ``I / 1``."""
+    at = [[str(c) for c in runs["columns"]].index(c) for c in columns]
+    if len(at) == 1:
+        return [row[at[0]] for row in runs["rows"]]
+    return [None if any(row[i] is None for i in at) else " / ".join(str(row[i]) for i in at) for row in runs["rows"]]
+
+
+def _whole_plots(entry: dict[str, Any]) -> list[Any] | None:
+    """Return each run's whole plot as printed, or None when the run table does not say.
+
+    A whole plot is a group of runs made at one setting of the factors that are hard to change. The entry names
+    its column with ``design["whole_plots"]``, or a list of them when a whole plot is each combination of their
+    values, such as a pulp method within a replicate; without it, a column called whole plot is taken.
+    """
+    columns = [str(c) for c in (entry.get("runs") or {}).get("columns", [])]
+    found = next((c for c in columns if re.fullmatch(r"whole[ _]plots?", c, flags=re.IGNORECASE)), None)
+    named = (entry.get("design") or {}).get("whole_plots", found)
+    names = [str(named)] if isinstance(named, str) else [str(c) for c in named or []]
+    return _values(entry["runs"], names) if names and all(c in columns for c in names) else None
 
 
 def _arrangements(entry: dict[str, Any]) -> list[dict[str, Any]]:
@@ -864,6 +879,7 @@ def _published_record(entry: dict[str, Any], source: dict[str, Any]) -> dict[str
         responses = {name: values for name, values in responses.items() if len(values) == len(coded)}
     blocked, blocks = _blocks(entry, text, columns)
     n_blocks = len({str(b) for b in blocks if b is not None}) if blocks else None
+    whole_plots = _whole_plots(entry)
     record: dict[str, Any] = {
         "id": entry["name"],
         "title": entry.get("title", entry["name"]),
@@ -881,7 +897,11 @@ def _published_record(entry: dict[str, Any], source: dict[str, Any]) -> dict[str
         "blocked": blocked,
         "n_blocks": n_blocks,
         "blocks": blocks,
-        "split_plot": family == "split_plot" or bool(re.search(r"split|whole.plot", text, flags=re.IGNORECASE)),
+        # A split-plot design is named so; "split" alone is also prose, as in "the runs split by the sign of ABC".
+        "split_plot": family == "split_plot"
+        or bool(whole_plots)
+        or bool(re.search(r"(split|strip|whole)[- ]plot", text, flags=re.IGNORECASE)),
+        "whole_plots": whole_plots,
         "has_responses": bool(responses),
         "n_responses": len(entry.get("responses") or []),
         "factors": [
@@ -1060,6 +1080,7 @@ def _generated_record(spec: dict[str, Any]) -> dict[str, Any]:
         "n_blocks": None,
         "blocks": None,
         "split_plot": False,
+        "whole_plots": None,
         "has_responses": False,
         "n_responses": 0,
         "factors": [{"name": n, "low": -1 if kinds[0] != "mixture" else 0, "high": 1, "type": kinds[0]} for n in names],
