@@ -911,7 +911,7 @@ export const COLOUR_MAPS = {
   batlow: ["#011959", "#114360", "#226061", "#4d734d", "#828231", "#c09036", "#f29d6d", "#fdb4b6", "#faccfa"],
   devon: ["#2c1a4c", "#293467", "#275186", "#376aae", "#6583d2", "#9b9ce8", "#bbb5f1", "#d2cef6", "#eae8fb"],
   lajolla: ["#191900", "#372411", "#67342a", "#a64644", "#d9604e", "#e58851", "#edae54", "#f7da74", "#fffecb"],
-  grayC: ["#000000", "#232323", "#3d3d3d", "#565656", "#6e6e6e", "#848484", "#9c9c9c", "#b9b9b9", "#dcdcdc"],
+  grayC: ["#131313", "#2f2f2f", "#474747", "#5e5e5e", "#747474", "#898989", "#a0a0a0", "#bbbbbb", "#dcdcdc"],
 };
 
 /** The map of a study that chose none; mirrors the library's DEFAULT_COLOUR_MAP. */

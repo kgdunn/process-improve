@@ -1415,8 +1415,8 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     ),
     "limits in more factors than an optimal design takes": (
         "api_limits",
-        _typed("X0 + X1 <= 1", factors=factors_named(*(f"X{i}" for i in range(9)))),
-        "With limits on the settings, the page makes designs in up to 8 factors; you have 9.",
+        _typed("X0 + X1 <= 1", factors=factors_named(*(f"X{i}" for i in range(15)))),
+        "With limits on the settings, the page makes designs in up to 14 factors; you have 15.",
     ),
     "a limit on one factor alone": (
         "api_make_design",

@@ -1040,7 +1040,7 @@ What a careful reader, or an organisation, asks before using a tool.
 | Responses in a study | 5 |
 | Levels of a categorical factor | 8 |
 | Limits on the settings | 8 |
-| Factors in a study with limits on the settings | 8 |
+| Factors in a study with limits on the settings | 14 |
 | Blocks in a design the app makes | 8 |
 | Blocks in runs as given | 32 |
 | Replicates of each run | 10 |

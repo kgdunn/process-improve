@@ -516,9 +516,11 @@ LIMIT_FUNCTIONS = ("abs", "sqrt", "exp", "log", "log10")
 #: The most numeric factors whose corners the page lists for marking: 2**8 = 256 settings, and the centre.
 PROBE_FACTORS = 8
 
-#: The most factors of a study with limits on the settings: those whose corners the page lists for marking. The
-#: picture of the settings that can be run is not drawn past 15 factors, where the region's corners are sampled.
-MAX_LIMITED_FACTORS = PROBE_FACTORS
+#: The most factors of a study with limits on the settings. The region lists its corners exactly up to 16 factors
+#: (2**16 corners), which takes about a second at 14 natively and nine at 16, and samples them past that; so 14,
+#: where checking the limits and drawing their picture stays near a second. Past PROBE_FACTORS the corners are not
+#: listed for marking, and the panel says so.
+MAX_LIMITED_FACTORS = 14
 
 #: The share of a factor's range the limits must take off one end before the page says the range is narrower.
 NARROWED = 0.005
@@ -8045,7 +8047,7 @@ def _picture(
         trace = None
         if curved and len(on_pair) == len(curved):
             # The curved limits name no other factor, so the shadow is the straight limits' shadow cut by them.
-            inside = _inside_polygon(straight.shadow(x, y)["points"], ends[x], ends[y])
+            inside = _inside_shadow(straight.shadow(x, y), ends[x], ends[y])
             meets = _runnable_at(within, numeric, x, y)
             trace = _trace(lambda u, v, inside=inside, meets=meets: inside(u, v) & meets(u, v), numeric, x, y)
         curves = _curves(alone, on_pair, lambda own, x=x, y=y: _trace(_runnable_at(own, numeric, x, y), numeric, x, y))
@@ -8164,6 +8166,24 @@ def _runnable_at(
         return region.feasible(points).reshape(u.shape)
 
     return runnable
+
+
+def _inside_shadow(shadow: dict, fx: Factor, fy: Factor) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
+    """Return the test of settings of two factors, in coded units, against a region's shadow on them.
+
+    The shadow is a polygon (see :func:`_inside_polygon`), or, past the factors whose corners the region lists
+    exactly, a mask of cells: a setting is inside when the cell it falls in holds an allowed point.
+    """
+    if shadow["kind"] == "polygon":
+        return _inside_polygon(shadow["points"], fx, fy)
+    cells = np.asarray(shadow["z"], dtype=bool)
+
+    def inside(u: np.ndarray, v: np.ndarray) -> np.ndarray:
+        column = np.clip(np.floor((u + 1.0) / 2.0 * cells.shape[1]), 0, cells.shape[1] - 1).astype(int)
+        row = np.clip(np.floor((v + 1.0) / 2.0 * cells.shape[0]), 0, cells.shape[0] - 1).astype(int)
+        return cells[row, column]
+
+    return inside
 
 
 def _inside_polygon(
