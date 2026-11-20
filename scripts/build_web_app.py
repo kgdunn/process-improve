@@ -496,7 +496,7 @@ ROUNDS_FORMAT = 9
 #: ``web/campaign.js``). No example the build makes has one.
 PLANNED_FORMAT = 10
 #: The format of a study whose design sets a factor once for a group of runs (``WHOLE_PLOT_FORMAT`` in
-#: ``web/campaign.js``). No example the build makes has one.
+#: ``web/campaign.js``): a split-plot study of the catalog, opened with its whole plots.
 WHOLE_PLOT_FORMAT = 11
 #: The format of a study with settings of its own, such as its colour map (``SETTINGS_FORMAT`` in
 #: ``web/campaign.js``). No example the build makes has any.
@@ -516,6 +516,8 @@ FEW_FACTORS = 12
 
 def study_format(spec: dict[str, Any]) -> int:
     """Return the lowest campaign format that holds a study of this specification (``studyFormat`` in campaign.js)."""
+    if (spec.get("options") or {}).get("hard_to_change"):
+        return WHOLE_PLOT_FORMAT
     if len(spec["factors"]) > FEW_FACTORS:
         return MANY_FACTORS_FORMAT
     if any("levels" in f for f in spec["factors"]):
@@ -838,8 +840,8 @@ def _example_of(record: dict[str, Any]) -> dict[str, Any] | str:
     design_type, factors, runs = record["design_type"], record["factors"], record["coded_runs"]
     info = designs[design_type]
     if record["split_plot"] or record["blocked"]:
-        whole_plots = "the page opens designs without whole plots"
-        return whole_plots if record["split_plot"] else "the page makes its designs in blocks of its own"
+        made = "whole plots" if record["split_plot"] else "blocks"
+        return f"the page makes its designs in {made} of its own"
     if not runs or any(v is None for row in runs for v in row):
         return "the source prints no complete table of runs"
     if not info["min_factors"] <= len(factors) <= info["max_factors"]:
@@ -952,12 +954,12 @@ def _not_given(record: dict[str, Any]) -> str:
     bootstrap = load_bootstrap()
     info, most = bootstrap.GIVEN_INFO, bootstrap.MAX_GIVEN_RUNS
     runs, factors, blocks = record["coded_runs"], record["factors"], record.get("blocks") or []
+    plots = record.get("whole_plots") or []
     low, high = info["min_factors"], info["max_factors"]
     complete = bool(runs) and all(v is not None for row in runs for v in row)
     reasons = (
         (lambda: record["kind"] == "facts", "the source prints facts about designs here, not the runs of one"),
         (lambda: record["kind"] == "sample", "nothing is varied: the runs measure one sample, with no factor to set"),
-        (lambda: record["split_plot"], "the page opens designs without whole plots"),
         (
             lambda: record["blocked"] and (not blocks or None in blocks),
             "the source runs the design in blocks, but does not print each run's block",
@@ -971,6 +973,10 @@ def _not_given(record: dict[str, Any]) -> str:
             "each run is in a block of its own, so the blocks leave nothing to compare",
         ),
         (lambda: not complete, "the source prints no complete table of runs"),
+        (
+            lambda: record["split_plot"] and (not plots or None in plots),
+            "the source runs the design in whole plots, but does not say which runs share one",
+        ),
         (lambda: record["n_mixture"], "the page makes mixtures of its own, but takes no mixture's runs as given"),
         (lambda: not low <= len(factors) <= high, f"the page opens designs of {low} to {high} factors"),
         (lambda: len(runs) > most, f"the page holds at most {most} runs"),
@@ -984,7 +990,7 @@ def given_campaign(record: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
 
     It opens a design the page does not make, or makes differently, with the runs as the source prints
     them, or as the library made them: in their order, in the factors' own units, with the source's
-    results, and in the source's blocks. The page takes runs without whole plots, of 1 to ``MAX_FACTORS`` numeric
+    results, and in the source's blocks and whole plots. The page takes runs of 1 to ``MAX_FACTORS`` numeric
     or categorical factors (40, in ``web/bootstrap.py``).
     """
     if why := _not_given(record):
@@ -1000,6 +1006,7 @@ def given_campaign(record: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
         "response": response,
         "runs": rows,
         **({"blocks": _block_numbers(record["blocks"])} if record.get("blocks") else {}),
+        **({"whole_plots": _block_numbers(record["whole_plots"])} if record.get("whole_plots") else {}),
     }
     design = caller(f"the catalog's design {record['id']!r}")("api_make_design", asked)
     values = record["response_values"].get(response) or [None] * len(rows)
