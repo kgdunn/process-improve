@@ -18765,10 +18765,18 @@
       "source_kind": "table",
       "quote": "98,644 = 98,304 + 228 + 112"
      },
-     "check": {
-      "manual": "the crude sum of squares and the correction for the average, which the library's sums about the mean leave out; 228 and 112 are checked",
-      "cause": "library_gap"
-     }
+     "check": [
+      {
+       "kind": "ss_total_uncorrected",
+       "model": "diet",
+       "printed": "98,644"
+      },
+      {
+       "kind": "ss_mean",
+       "model": "diet",
+       "printed": "98,304"
+      }
+     ]
     },
     {
      "what": "ss",
@@ -19530,10 +19538,18 @@
       "source_kind": "exercise",
       "quote": "Exercise 6.4. Calculate SA and S for the data in Exercise 6.1. Answer: 612, 946."
      },
-     "check": {
-      "manual": "the correction for the average and the crude sum of squares, which no check computes (they reproduce)",
-      "cause": "check_gap"
-     }
+     "check": [
+      {
+       "kind": "ss_mean",
+       "model": "treatment",
+       "printed": "612"
+      },
+      {
+       "kind": "ss_total_uncorrected",
+       "model": "treatment",
+       "printed": "946"
+      }
+     ]
     },
     {
      "what": "anova_f",
@@ -20039,10 +20055,18 @@
       "source_kind": "table",
       "quote": "S = 89² + 84² + ... + 88² = 148,480; SA = 86² + ... = 147,920"
      },
-     "check": {
-      "manual": "the crude sum of squares and the correction for the average, which the library's sums about the mean leave out",
-      "cause": "library_gap"
-     }
+     "check": [
+      {
+       "kind": "ss_total_uncorrected",
+       "model": "blend + treatment",
+       "printed": "148,480"
+      },
+      {
+       "kind": "ss_mean",
+       "model": "blend + treatment",
+       "printed": "147,920"
+      }
+     ]
     },
     {
      "what": "anova_mean_sq",
@@ -20878,10 +20902,18 @@
       "source_kind": "exercise",
       "quote": "(a) SA = 2400, ... S = 3778"
      },
-     "check": {
-      "manual": "the correction for the average and the crude sum of squares, which no check computes (they reproduce)",
-      "cause": "check_gap"
-     }
+     "check": [
+      {
+       "kind": "ss_mean",
+       "model": "block + treatment",
+       "printed": "2400"
+      },
+      {
+       "kind": "ss_total_uncorrected",
+       "model": "block + treatment",
+       "printed": "3778"
+      }
+     ]
     }
    ]
   },
@@ -21280,10 +21312,18 @@
       "source_kind": "exercise",
       "quote": "(b) SA = 588, ... S = 590.46"
      },
-     "check": {
-      "manual": "the correction for the average and the crude sum of squares, which no check computes (they reproduce)",
-      "cause": "check_gap"
-     }
+     "check": [
+      {
+       "kind": "ss_mean",
+       "model": "block + treatment",
+       "printed": "588"
+      },
+      {
+       "kind": "ss_total_uncorrected",
+       "model": "block + treatment",
+       "printed": "590.46"
+      }
+     ]
     }
    ]
   },
@@ -23373,10 +23413,18 @@
       "source_kind": "table",
       "quote": "sum of squares 6696 = 6400 + 216 + 24 + 40 + 16"
      },
-     "check": {
-      "manual": "the crude sum of squares and the correction for the average, which the library's sums about the mean leave out",
-      "cause": "library_gap"
-     }
+     "check": [
+      {
+       "kind": "ss_total_uncorrected",
+       "model": "driver + car + additive",
+       "printed": "6696"
+      },
+      {
+       "kind": "ss_mean",
+       "model": "driver + car + additive",
+       "printed": "6400"
+      }
+     ]
     }
    ]
   },
@@ -25829,10 +25877,18 @@
       "source_kind": "table",
       "quote": "grand average 17,210.3788 1 ... total 17,621.5617 36"
      },
-     "check": {
-      "manual": "the crude sum of squares and the correction for the average, which the library's sums about the mean leave out",
-      "cause": "library_gap"
-     }
+     "check": [
+      {
+       "kind": "ss_total_uncorrected",
+       "model": "doff + spinneret + ratio",
+       "printed": "17,621.5617"
+      },
+      {
+       "kind": "ss_mean",
+       "model": "doff + spinneret + ratio",
+       "printed": "17,210.3788"
+      }
+     ]
     },
     {
      "what": "anova_sum_sq",
@@ -27251,10 +27307,18 @@
       "source_kind": "table",
       "quote": "average 1 2,358,249.03 ... total 32 2,384,713.00"
      },
-     "check": {
-      "manual": "the crude sum of squares and the correction for the average, which the library's sums about the mean leave out",
-      "cause": "library_gap"
-     }
+     "check": [
+      {
+       "kind": "ss_total_uncorrected",
+       "model": "run + position + paper + holder + treatment",
+       "printed": "2,384,713.00"
+      },
+      {
+       "kind": "ss_mean",
+       "model": "run + position + paper + holder + treatment",
+       "printed": "2,358,249.03"
+      }
+     ]
     }
    ]
   },
@@ -27709,10 +27773,20 @@
       "source_kind": "table",
       "quote": "total 3,974,162.00; average SA = 3,347,897.28"
      },
-     "check": {
-      "manual": "the crude sum of squares and the correction for the average, which the library's sums about the mean leave out",
-      "cause": "library_gap"
-     }
+     "check": [
+      {
+       "kind": "ss_total_uncorrected",
+       "model": "run + position + treatment",
+       "printed": "3,974,162.00"
+      },
+      {
+       "kind": "ss_mean",
+       "model": "run + position + treatment",
+       "printed": "3,347,897.28",
+       "disagreement": "9682²/28 is 3,347,897.286; the book cuts it to 3,347,897.28",
+       "cause": "source_rounding"
+      }
+     ]
     },
     {
      "what": "scale",
@@ -28558,8 +28632,8 @@
       "quote": "total 25,018"
      },
      "check": {
-      "manual": "the crude sum of squares, Σy², which the library's sums about the mean leave out (it reproduces)",
-      "cause": "library_gap"
+      "kind": "ss_total_uncorrected",
+      "model": "laboratory"
      }
     }
    ]
@@ -47125,10 +47199,18 @@
       "source_kind": "table",
       "quote": "Table 14.3 ... Σy² = 8901.31 Σŷ² = 8836.64"
      },
-     "check": {
-      "manual": "crude sums of squares of the data and fitted values; the model's is checked in Table 14.4",
-      "cause": "not_a_result"
-     }
+     "check": [
+      {
+       "kind": "ss_total_uncorrected",
+       "model": "x - 1",
+       "printed": "8901.31"
+      },
+      {
+       "kind": "ss_regression_uncorrected",
+       "model": "x - 1",
+       "printed": "8836.64"
+      }
+     ]
     },
     {
      "what": "ss",
@@ -47316,8 +47398,8 @@
       "quote": "total ST = 8901.31 9"
      },
      "check": {
-      "manual": "the crude total, Σy², which the library's sums do not report",
-      "cause": "library_gap"
+      "kind": "ss_total_uncorrected",
+      "model": "x - 1"
      }
     },
     {
@@ -47897,10 +47979,18 @@
       "source_kind": "table",
       "quote": "Table 14.6 ... sum of squares = 266.59 267.92 1.33"
      },
-     "check": {
-      "manual": "crude sums of squares of the fitted values and data, which the library's sums do not report",
-      "cause": "library_gap"
-     }
+     "check": [
+      {
+       "kind": "ss_regression_uncorrected",
+       "model": "x1 + x2 - 1",
+       "printed": "266.59"
+      },
+      {
+       "kind": "ss_total_uncorrected",
+       "model": "x1 + x2 - 1",
+       "printed": "267.92"
+      }
+     ]
     },
     {
      "what": "ss_residual",
@@ -48753,10 +48843,23 @@
       "source_kind": "prose",
       "quote": "the sum of squares for the mean Nȳ² = 67,404.1 ... 67,428.6 - 67,404.1 = 24.5 ... total ST = 68,115.0"
      },
-     "check": {
-      "manual": "crude sums of squares, about zero, which the library's sums about the mean do not report",
-      "cause": "library_gap"
-     }
+     "check": [
+      {
+       "kind": "ss_mean",
+       "model": "x",
+       "printed": "67,404.1"
+      },
+      {
+       "kind": "ss_regression_uncorrected",
+       "model": "x",
+       "printed": "67,428.6"
+      },
+      {
+       "kind": "ss_total_uncorrected",
+       "model": "x",
+       "printed": "68,115.0"
+      }
+     ]
     },
     {
      "what": "anova_sum_sq",
@@ -52268,10 +52371,18 @@
       "source_kind": "table",
       "quote": "Table 17A.2 ... average 43,040.8 1 ... total 45,149.0 60"
      },
-     "check": {
-      "manual": "the correction for the average and the crude total, which the library's sums about the mean do not report",
-      "cause": "library_gap"
-     }
+     "check": [
+      {
+       "kind": "ss_mean",
+       "model": "batch",
+       "printed": "43,040.8"
+      },
+      {
+       "kind": "ss_total_uncorrected",
+       "model": "batch",
+       "printed": "45,149.0"
+      }
+     ]
     },
     {
      "what": "variance_component",

@@ -23391,8 +23391,8 @@
       "quote": "η0 9 699·1 77·68 (1) 54,304·53"
      },
      "check": {
-      "manual": "the correction for the mean, n times the mean squared (699.1²/9); the library's sums of squares are about the mean",
-      "cause": "library_gap"
+      "kind": "ss_mean",
+      "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)"
      }
     },
     {
@@ -23405,8 +23405,8 @@
       "quote": "Total .. (9) 54,383·01"
      },
      "check": {
-      "manual": "the uncorrected total, Σy²; the library's total is about the mean (78.48 = 78.06 + 0.42)",
-      "cause": "library_gap"
+      "kind": "ss_total_uncorrected",
+      "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)"
      }
     },
     {

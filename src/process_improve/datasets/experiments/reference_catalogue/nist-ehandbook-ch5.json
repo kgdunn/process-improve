@@ -25498,8 +25498,8 @@
       "quote": "MEAN 51418.2 1 51418.2"
      },
      "check": {
-      "manual": "N times the squared mean, 13 x 62.8908^2, which no check computes",
-      "cause": "check_gap"
+      "kind": "ss_mean",
+      "model": "x1 + x2"
      }
     },
     {
@@ -25513,8 +25513,8 @@
       "quote": "TOTAL 53533.0 13"
      },
      "check": {
-      "manual": "the sum of the squared yields, uncorrected for the mean, which no check computes",
-      "cause": "check_gap"
+      "kind": "ss_total_uncorrected",
+      "model": "x1 + x2"
      }
     },
     {
