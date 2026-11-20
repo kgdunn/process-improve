@@ -72,9 +72,9 @@ checks, with D deflated, the iteration for the third component alternates betwee
 ever: the F block's score grows as `1/|r|` where the deflated D is small, and the super weight
 swings between the blocks. The model was then whichever state the last iteration landed on,
 which differed between platforms. TPLS now iterates such a component again, damped, and it
-converges (#1163). In the full study 24 D-deflated fits still stop at the iteration limit after
-the damped run, and TPLS warns about each. The invariance checks use 2 components, and refuse a
-fit that did not converge.
+converges (#1163). Some fits of the full study still stop at the iteration limit after the
+damped run, and TPLS warns about them. The invariance checks use 2 components, and refuse a fit
+that did not converge.
 
 ## Why a new material can be predicted at all
 
