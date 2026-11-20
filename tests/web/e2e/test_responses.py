@@ -29,6 +29,7 @@ from tests.web.e2e._page import (
     set_factors,
     settled,
     status,
+    study_menu,
 )
 from tests.web.e2e.test_layout import overflowing
 from tests.web.e2e.test_workbook import upload
@@ -390,3 +391,24 @@ def test_three_responses_fit_a_phone_without_sideways_scrolling(fresh_page):
     pick(page, "Purity")  # a response chosen on a phone: its charts are drawn in the width there is
     page.wait_for_function("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
     assert overflowing(page) == []
+
+
+def test_a_notebook_asked_for_before_a_new_study_is_dropped(fresh_page):
+    """A notebook of several responses, asked for and overtaken by a new study, is not written from the two (#1169).
+
+    It analyses each response in turn. A new study started meanwhile left it reading the new study's responses: it
+    failed part way, or mixed the two studies.
+    """
+    page = fresh_page
+    three_responses(page)
+    practise(page)
+    page.evaluate("window.__pi.hold('api_analyze_runs')")
+    reveal(page, "#notebook")
+    downloads = []
+    page.on("download", lambda download: downloads.append(download))  # noqa: PLW0108 - Playwright takes no builtin
+    page.click("#notebook")
+    page.wait_for_function("window.__pi.queue.some((reply) => reply.fn === 'api_analyze_runs')")
+    study_menu(page, "#new-study")
+    page.evaluate("window.__pi.release('api_analyze_runs')")
+    settled(page)
+    assert downloads == []
