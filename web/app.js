@@ -5610,6 +5610,8 @@ function figureAlone(key, plots = null) {
     process: processOf(spec.response),
     model: formula ?? model,
     complete,
+    // The best blend the triangle stars, as drawCharts finds it.
+    best: plots?.held_best && blendStudy() && state.best?.settings ? state.best.coded : null,
   };
   return ownFigureCode(key, CHARTS[key].title, spec, about);
 }

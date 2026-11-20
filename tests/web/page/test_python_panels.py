@@ -1704,6 +1704,22 @@ def test_a_mixture_s_triangles_are_drawn_by_their_code_over_the_page_s_blends(ap
 
 
 @pytest.mark.slow
+def test_a_mixture_s_triangle_code_stars_the_best_blend_as_the_page_does(api, node, monkeypatch):
+    """The fitted triangle's code puts a star at the best blend, where the page draws its own (#1242)."""
+    made = held_of(api.ok("api_make_design", {**MIXTURES[1], "factors": components(MIXTURES[1]["design_type"])}))
+    held = aimed(made, "maximize")
+    responses = api.ok("api_simulate", {**held, "seed": 5})["responses"]
+    request = {**held, "responses": responses}
+    analysis = api.ok("api_analyze_runs", request)
+    best = api.ok("api_best_settings", request)["coded"]
+    steps = steps_of(held, responses, analysis)
+    star = own_figure(node, monkeypatch, steps, "ternary", held["spec"], {"best": best}).data[-1]
+    assert (star.name, star.marker.symbol) == ("Best blend", "star")
+    for corner, factor in zip("abc", held["spec"]["factors"], strict=True):
+        assert star[corner][0] == pytest.approx(best[factor["name"]])
+
+
+@pytest.mark.slow
 @pytest.mark.parametrize("through", ["the reference blend", "the best blend"])
 def test_the_cox_traces_code_moves_each_component_as_the_page_moves_it(api, node, monkeypatch, through):
     four = [{"name": name, "low": None, "high": None, "units": ""} for name in "ABCD"]

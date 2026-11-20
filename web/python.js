@@ -728,7 +728,7 @@ const OWN_FIGURES = {
       ...shown(`${across} (coded)`, `${up} (coded)`),
     ];
   },
-  ternary: (title, spec, { process, ternary = null }, values = "fitted") => {
+  ternary: (title, spec, { process, ternary = null, best = null }, values = "fitted") => {
     // Of four components or more, the triangle is of three (``ternary.components``), the others held (``ternary.held``).
     const held = ternary?.held ?? null;
     const names = held ? ternary.components : spec.factors.map((f) => f.name);
@@ -767,6 +767,7 @@ const OWN_FIGURES = {
           ]
         : [...knownProcess(process), "response = truth.mean(grid)"]),
       ...(held ? [] : ["had = y.notna()  # the runs that have their result"]),
+      ...(model && best ? [`best = ${repr(Object.fromEntries(names.map((name) => [name, best[name]])))}  # the best blend, starred as on the page`] : []),
       "figure = go.Figure(",
       "    [",
       "        go.Scatterternary(",
@@ -781,6 +782,14 @@ const OWN_FIGURES = {
             '            marker={"color": "white", "size": 10, "line": {"color": "black", "width": 1.5}},',
             "        ),",
           ]),
+      ...(model && best
+        ? [
+            "        go.Scatterternary(",
+            `            a=[best[${a}]], b=[best[${b}]], c=[best[${c}]], mode="markers", name="Best blend",`,
+            '            marker={"symbol": "star", "size": 18, "color": "white", "line": {"color": "#1a1a1a", "width": 1.5}},',
+            "        ),",
+          ]
+        : []),
       "    ]",
       ")",
       "axes = {axis: {\"title\": {\"text\": name}} for axis, name in zip((\"aaxis\", \"baxis\", \"caxis\"), " + `${repr(names)})}`,
