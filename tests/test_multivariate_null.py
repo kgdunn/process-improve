@@ -73,7 +73,7 @@ class TestPermutationQ2:
     @pytest.mark.slow
     def test_signal_beats_the_null_and_noise_does_not(self) -> None:
         x, y = _blocks()
-        table = check_predictive_signal(x, y, _cv_predict(), n_perm=99, seed=0).set_index("attribute")
+        table = check_predictive_signal(x, y, _cv_predict(), n_perm=99, random_state=0).set_index("attribute")
         assert table.loc["real", "q2_observed"] > 0.5
         assert table.loc["real", "p_value"] <= 0.02
         assert table.loc["noise", "p_value"] > 0.10
@@ -82,20 +82,20 @@ class TestPermutationQ2:
     def test_the_null_mean_sits_below_zero(self) -> None:
         """A shuffled response predicts worse than the mean, so Q2 is negative."""
         x, y = _blocks()
-        table = check_predictive_signal(x, y, _cv_predict(), n_perm=99, seed=0).set_index("attribute")
+        table = check_predictive_signal(x, y, _cv_predict(), n_perm=99, random_state=0).set_index("attribute")
         assert table.loc["real", "q2_null_mean"] < 0
         assert table.loc["real", "q2_observed"] > table.loc["real", "q2_null_p95"]
 
     @pytest.mark.slow
     def test_p_value_can_never_be_zero(self) -> None:
         x, y = _blocks(noise=0.01)
-        table = check_predictive_signal(x, y, _cv_predict(), n_perm=49, seed=0).set_index("attribute")
+        table = check_predictive_signal(x, y, _cv_predict(), n_perm=49, random_state=0).set_index("attribute")
         assert table.loc["real", "p_value"] > 0
         assert table.loc["real", "p_value"] == pytest.approx(1 / 50)
 
     def test_columns_are_as_documented(self) -> None:
         x, y = _blocks()
-        table = check_predictive_signal(x, y, _cv_predict(), n_perm=9, seed=0)
+        table = check_predictive_signal(x, y, _cv_predict(), n_perm=9, random_state=0)
         assert list(table.columns) == [
             "attribute",
             "q2_observed",
@@ -116,7 +116,7 @@ class TestPermutationQ2:
 
         x = pd.DataFrame({"a": np.arange(8.0)})
         y = pd.DataFrame({"u": np.arange(8.0), "v": np.arange(8.0) * 3})
-        check_predictive_signal(x, y, recorder, n_perm=5, seed=0)
+        check_predictive_signal(x, y, recorder, n_perm=5, random_state=0)
         for frame in seen[1:]:
             # v == 3 * u in every row of every permutation: the pairing survived.
             assert np.allclose(frame["v"].to_numpy(), 3 * frame["u"].to_numpy())
@@ -124,15 +124,15 @@ class TestPermutationQ2:
     @pytest.mark.slow
     def test_seed_makes_the_answer_reproducible(self) -> None:
         x, y = _blocks()
-        first = check_predictive_signal(x, y, _cv_predict(), n_perm=19, seed=3)
-        second = check_predictive_signal(x, y, _cv_predict(), n_perm=19, seed=3)
+        first = check_predictive_signal(x, y, _cv_predict(), n_perm=19, random_state=3)
+        second = check_predictive_signal(x, y, _cv_predict(), n_perm=19, random_state=3)
         pd.testing.assert_frame_equal(first, second)
 
     @pytest.mark.slow
     def test_a_different_seed_moves_the_null(self) -> None:
         x, y = _blocks()
-        first = check_predictive_signal(x, y, _cv_predict(), n_perm=19, seed=1)
-        second = check_predictive_signal(x, y, _cv_predict(), n_perm=19, seed=2)
+        first = check_predictive_signal(x, y, _cv_predict(), n_perm=19, random_state=1)
+        second = check_predictive_signal(x, y, _cv_predict(), n_perm=19, random_state=2)
         assert first["q2_null_mean"].iloc[0] != second["q2_null_mean"].iloc[0]
 
     def test_a_one_dimensional_return_is_accepted(self) -> None:
@@ -168,7 +168,7 @@ class TestPipelineNull:
 
     def test_a_real_relationship_gives_a_low_null_to_observed_ratio(self) -> None:
         x, y = _blocks(n_products=40, noise=0.2)
-        result = count_discoveries_under_null(self._selector(), x, y[["real"]], n_perm=100, seed=0)
+        result = count_discoveries_under_null(self._selector(), x, y[["real"]], n_perm=100, random_state=0)
         assert result["observed"] >= 1
         assert result["null_to_observed_ratio"] < 0.2
 
@@ -188,7 +188,7 @@ class TestPipelineNull:
                 x,
                 pd.DataFrame({"noise": np.random.default_rng(100 + draw).normal(size=15)}),
                 n_perm=100,
-                seed=0,
+                random_state=0,
             )
             for draw in range(7)
         ]
@@ -205,12 +205,12 @@ class TestPipelineNull:
 
     def test_a_real_relationship_puts_the_count_beyond_the_null(self) -> None:
         x, y = _blocks(n_products=40, noise=0.2)
-        result = count_discoveries_under_null(self._selector(), x, y[["real"]], n_perm=100, seed=0)
+        result = count_discoveries_under_null(self._selector(), x, y[["real"]], n_perm=100, random_state=0)
         assert result["observed"] > result["null_p95"]
 
     def test_keys_are_as_documented(self) -> None:
         x, y = _blocks(n_products=20)
-        result = count_discoveries_under_null(self._selector(), x, y[["real"]], n_perm=10, seed=0)
+        result = count_discoveries_under_null(self._selector(), x, y[["real"]], n_perm=10, random_state=0)
         assert set(result) == {
             "observed",
             "null_mean",
@@ -223,7 +223,7 @@ class TestPipelineNull:
 
     def test_selecting_nothing_gives_nan_rather_than_a_divide_by_zero(self) -> None:
         x, y = _blocks(n_products=20)
-        result = count_discoveries_under_null(lambda _x, _y: [], x, y[["real"]], n_perm=5, seed=0)
+        result = count_discoveries_under_null(lambda _x, _y: [], x, y[["real"]], n_perm=5, random_state=0)
         assert result["observed"] == 0
         assert np.isnan(result["null_to_observed_ratio"])
 
@@ -236,13 +236,13 @@ class TestPipelineNull:
             return ["c0"] if counter["n"] % 2 else ["c1"]
 
         with pytest.warns(SpecificationWarning, match="different names on two identical calls"):
-            count_discoveries_under_null(flaky, x, y, n_perm=3, seed=0)
+            count_discoveries_under_null(flaky, x, y, n_perm=3, random_state=0)
 
     def test_a_deterministic_selector_does_not_warn(self) -> None:
         x, y = _blocks(n_products=12, n_features=3)
         with warnings.catch_warnings():
             warnings.simplefilter("error", SpecificationWarning)
-            count_discoveries_under_null(self._selector(), x, y, n_perm=3, seed=0)
+            count_discoveries_under_null(self._selector(), x, y, n_perm=3, random_state=0)
 
     def test_the_selector_is_re_run_end_to_end_per_permutation(self) -> None:
         """Response-independent steps are not hoisted: that would be an assumption."""
@@ -253,7 +253,7 @@ class TestPipelineNull:
             return ["c0"]
 
         x, y = _blocks(n_products=10, n_features=2)
-        count_discoveries_under_null(counting, x, y, n_perm=7, seed=0)
+        count_discoveries_under_null(counting, x, y, n_perm=7, random_state=0)
         # One observed call, one determinism check, seven permutations.
         assert sum(calls) == 9
 
@@ -360,7 +360,7 @@ class TestDefaultFitPredict:
     @pytest.mark.slow
     def test_the_default_separates_signal_from_noise(self) -> None:
         x, y = _blocks(n_products=20, n_features=5, noise=0.3)
-        table = check_predictive_signal(x, y, n_perm=49, seed=0).set_index("attribute")
+        table = check_predictive_signal(x, y, n_perm=49, random_state=0).set_index("attribute")
         assert table.loc["real", "q2_observed"] > 0.5
         assert table.loc["real", "p_value"] <= 0.05
         # The noise column must not look predictable: a negative Q-squared means
@@ -371,8 +371,8 @@ class TestDefaultFitPredict:
     @pytest.mark.slow
     def test_the_default_matches_an_explicit_equivalent_callable(self) -> None:
         x, y = _blocks(n_products=16, n_features=4)
-        default = check_predictive_signal(x, y, n_perm=19, seed=0)
-        explicit = check_predictive_signal(x, y, _loo_fit_predict(2), n_perm=19, seed=0)
+        default = check_predictive_signal(x, y, n_perm=19, random_state=0)
+        explicit = check_predictive_signal(x, y, _loo_fit_predict(2), n_perm=19, random_state=0)
         pd.testing.assert_frame_equal(default, explicit)
 
     @pytest.mark.slow
@@ -385,14 +385,16 @@ class TestDefaultFitPredict:
         than a quietly inflated one.
         """
         x, y = _blocks(n_products=16, n_features=4)
-        raw = check_predictive_signal(x, y, n_perm=9, seed=0)
-        scaled = check_predictive_signal(MCUVScaler().fit_transform(x), MCUVScaler().fit_transform(y), n_perm=9, seed=0)
+        raw = check_predictive_signal(x, y, n_perm=9, random_state=0)
+        scaled = check_predictive_signal(
+            MCUVScaler().fit_transform(x), MCUVScaler().fit_transform(y), n_perm=9, random_state=0
+        )
         np.testing.assert_allclose(raw["q2_observed"].to_numpy(), scaled["q2_observed"].to_numpy(), atol=1e-8)
 
     def test_n_components_is_capped_at_what_the_block_supports(self) -> None:
         """A silly component count must not raise; it is clamped to the block."""
         x, y = _blocks(n_products=8, n_features=2)
-        table = check_predictive_signal(x, y, n_components=99, n_perm=3, seed=0)
+        table = check_predictive_signal(x, y, n_components=99, n_perm=3, random_state=0)
         assert len(table) == y.shape[1]
         assert table["q2_observed"].notna().all()
 
@@ -413,7 +415,7 @@ class TestRemovedAliases:
     def test_empirical_fdr_is_no_longer_returned(self) -> None:
         """``null_to_observed_ratio`` is the one key for the ratio."""
         x, y = _blocks(n_products=12, n_features=3)
-        result = count_discoveries_under_null(lambda _x, _y: ["c0"], x, y, n_perm=5, seed=0)
+        result = count_discoveries_under_null(lambda _x, _y: ["c0"], x, y, n_perm=5, random_state=0)
         assert "empirical_fdr" not in result
 
     def test_an_unrelated_missing_attribute_still_raises_plainly(self) -> None:
@@ -552,8 +554,8 @@ class TestPermutationQ2ByHand:
 
         default_order, table = shuffles()
         assert table["n_permutations"].iloc[0] == 500
-        assert default_order == shuffles(n_perm=500, seed=0)[0]
-        assert default_order != shuffles(n_perm=500, seed=1)[0]
+        assert default_order == shuffles(n_perm=500, random_state=0)[0]
+        assert default_order != shuffles(n_perm=500, random_state=1)[0]
 
     def test_a_non_frame_is_refused_in_full(self) -> None:
         with pytest.raises(TypeError, match=r"^x and y must both be pandas DataFrames, one row per product\.$"):
@@ -662,11 +664,15 @@ class TestPipelineNullByHand:
         assert len(default) == 500
         np.testing.assert_array_equal(
             default,
-            count_discoveries_under_null(first_response, _EIGHT, _ZERO_TO_SEVEN, n_perm=500, seed=0)["null_counts"],
+            count_discoveries_under_null(first_response, _EIGHT, _ZERO_TO_SEVEN, n_perm=500, random_state=0)[
+                "null_counts"
+            ],
         )
         assert not np.array_equal(
             default,
-            count_discoveries_under_null(first_response, _EIGHT, _ZERO_TO_SEVEN, n_perm=500, seed=1)["null_counts"],
+            count_discoveries_under_null(first_response, _EIGHT, _ZERO_TO_SEVEN, n_perm=500, random_state=1)[
+                "null_counts"
+            ],
         )
 
     def test_a_nondeterministic_selector_warns_in_full_and_from_the_caller(self) -> None:

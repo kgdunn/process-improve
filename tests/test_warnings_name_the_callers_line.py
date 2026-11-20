@@ -58,6 +58,7 @@ from process_improve.multivariate.methods import (
     AdaptivePLS,
     DataFrameDict,
     NotEnoughVarianceError,
+    check_predictive_signal,
     count_discoveries_under_null,
     hotellings_t2_limit,
     randomization_test_mbpls,
@@ -387,6 +388,14 @@ CASES: dict[str, tuple[Callable[[], object], str]] = {
             seed=0,
         ),
         r"randomization_test_mbpls\(seed=\.\.\.\) is deprecated",
+    ),
+    "check_predictive_signal: its seed is deprecated": (
+        lambda: check_predictive_signal(X, Y, n_components=1, n_perm=2, seed=0),
+        r"check_predictive_signal\(seed=\.\.\.\) is deprecated since 2\.7\.0",
+    ),
+    "count_discoveries_under_null: its seed is deprecated": (
+        lambda: count_discoveries_under_null(lambda _x, _y: ["a"], X, Y, n_perm=2, seed=0),
+        r"count_discoveries_under_null\(seed=\.\.\.\) is deprecated since 2\.7\.0",
     ),
     "TPLS: a column with no variance": (
         lambda: TPLS(n_components=1, d_matrix=_t_shaped(constant_f_column=True)[0]).fit(

@@ -46,6 +46,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import hypergeom
 
+from .._random import check_random_state
 from ._common import SpecificationWarning, user_stacklevel
 from ._pls import PLS
 
@@ -126,13 +127,30 @@ def _loo_fit_predict(n_components: int) -> Callable:
     return fit_predict
 
 
+def _permutation_generator(
+    random_state: int | np.random.Generator | None, seed: int | None, name: str
+) -> np.random.Generator:
+    """Resolve ``random_state``, or ``seed``, its former name, with the policy's warning (#1149)."""
+    if seed is None:
+        return check_random_state(random_state)
+    warnings.warn(
+        f"process_improve.multivariate.methods.{name}(seed=...) is deprecated since 2.7.0 and will be removed in 3.0; "
+        "use random_state=... instead.",
+        DeprecationWarning,
+        stacklevel=user_stacklevel(),
+    )
+    return check_random_state(seed)
+
+
 def check_predictive_signal(
     x: pd.DataFrame,
     y: pd.DataFrame,
     fit_predict: Callable | None = None,
     n_components: int = 2,
     n_perm: int = 500,
-    seed: int = 0,
+    random_state: int | np.random.Generator | None = 0,
+    *,
+    seed: int | None = None,
 ) -> pd.DataFrame:
     """Test whether the predictors carry signal, against a shuffled response.
 
@@ -176,8 +194,11 @@ def check_predictive_signal(
         ``fit_predict`` is supplied. Capped at what the block supports.
     n_perm : int, default 500
         Number of permutations. See the note on the p-value floor below.
-    seed : int, default 0
-        Seed for the permutation order, so a reported p-value can be reproduced.
+    random_state : int, numpy.random.Generator or None, default 0
+        Seed or generator for the permutation order, so a reported p-value can be
+        reproduced. ``None`` draws a fresh one each call.
+    seed : int, optional
+        The former name of ``random_state``: deprecated since 2.7.0 and removed in 3.0.
 
     Returns
     -------
@@ -261,7 +282,7 @@ def check_predictive_signal(
 
     observed = _q2_per_column(y, _as_predictions(fit_predict(x, y), y))
 
-    rng = np.random.default_rng(seed)
+    rng = _permutation_generator(random_state, seed, "check_predictive_signal")
     null = np.full((int(n_perm), y.shape[1]), np.nan)
     for index in range(int(n_perm)):
         y_perm = _permute_rows(y, rng)
@@ -299,7 +320,9 @@ def count_discoveries_under_null(
     x: pd.DataFrame,
     y: pd.DataFrame,
     n_perm: int = 500,
-    seed: int = 0,
+    random_state: int | np.random.Generator | None = 0,
+    *,
+    seed: int | None = None,
 ) -> dict:
     """Count how many of these findings shuffling alone would have produced.
 
@@ -332,8 +355,10 @@ def count_discoveries_under_null(
         product keeps its full response vector.
     n_perm : int, default 500
         Number of permutations.
-    seed : int, default 0
-        Seed for the permutation order.
+    random_state : int, numpy.random.Generator or None, default 0
+        Seed or generator for the permutation order. ``None`` draws a fresh one each call.
+    seed : int, optional
+        The former name of ``random_state``: deprecated since 2.7.0 and removed in 3.0.
 
     Returns
     -------
@@ -400,7 +425,7 @@ def count_discoveries_under_null(
             stacklevel=user_stacklevel(),
         )
 
-    rng = np.random.default_rng(seed)
+    rng = _permutation_generator(random_state, seed, "count_discoveries_under_null")
     counts = np.empty(int(n_perm))
     for index in range(int(n_perm)):
         y_perm = _permute_rows(y, rng)
