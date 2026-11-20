@@ -11716,6 +11716,108 @@ def _inside_possible(spec: dict, name: str, low: float, high: float, *, keep_wid
     return low, high
 
 
+#: What ``add_runs`` calls the runs a model of every run suggests (:func:`suggest_runs`), and the most at once.
+SUGGESTED = "suggested"
+MAX_SUGGESTED = 8
+
+#: The share of the best result so far below which the expected improvement says there is little left to gain.
+LITTLE_TO_GAIN = 0.01
+
+
+def suggest_runs(request: dict) -> dict:
+    """Propose the next runs from a Gaussian process of every run with a result: where the most is expected to gain.
+
+    For a study whose goal is to make its first response as large or as small as it can be, of numeric factors and
+    no mixture. Every run with a result is a run of the model, the confirmation runs and the path's among them; a
+    failed run is left out. ``n_runs`` (1 to :data:`MAX_SUGGESTED`) are the runs to make before any result is read,
+    each chosen with the ones before it taken to give their prediction (``suggest_next_runs``). The limits on the
+    settings are kept. The draws are seeded by the study's seed and the number of its results, so the same results
+    suggest the same runs, as ``add_runs`` then adds them.
+
+    The reply holds ``runs``, each its ``settings`` in the factors' own units, to three significant figures of its
+    range as a plant sets them (unrounded where rounding would break a limit), what the model ``predicted`` there,
+    its ``std_error``, the ``expected_improvement`` and ``why``, in words; the ``best`` so far; the
+    ``improvement_ratio``; and ``stop``, a sentence when the model expects little more to gain, else None.
+    """
+    whole = _checked_spec(request.get("spec") or {})
+    spec = _for_response(whole, request.get("response"))
+    goal = (spec.get("response_info") or {}).get("goal")
+    if goal not in ("maximize", "minimize"):
+        raise ValueError(
+            "Runs from a model of every run are suggested for a goal of making the response as large or as small as "
+            "it can be: choose that goal in Design."
+        )
+    if _mixture(spec) or any(_categorical(f) for f in spec["factors"]):
+        raise ValueError("Runs from a model of every run are suggested for numeric factors only on this page.")
+    asked = request.get("n_runs", 1)
+    if not (isinstance(asked, int) and not isinstance(asked, bool) and 1 <= asked <= MAX_SUGGESTED):
+        raise ValueError(f"Ask for 1 to {MAX_SUGGESTED} runs.")
+    runs = _runs_frame(request, whole)
+    response, names = spec["response"], [f["name"] for f in spec["factors"]]
+    runs = runs.loc[~_failed(runs)].assign(**{response: pd.to_numeric(runs[response], errors="coerce")})
+    done = runs.loc[runs[response].notna(), [*names, response]].astype(float).reset_index(drop=True)
+    if len(done) < (fewest := len(names) + 3):
+        raise ValueError(
+            f"A model of every run needs at least {fewest} runs with a result here; this study has {len(done)}."
+        )
+    factors = _factors(spec)
+    seed = (spec.get("options") or {}).get("random_state", RUN_ORDER_SEED)
+    found = doe.suggest_next_runs(
+        factors,
+        done,
+        response,
+        goal=goal,
+        region=_spec_region(spec),
+        n_runs=asked,
+        random_state=int(seed) + len(done),
+    )
+    better = (lambda value: value > found.best) if goal == "maximize" else (lambda value: value < found.best)
+    suggested = []
+    for _, run in found.runs.iterrows():
+        settings = {f["name"]: _plant_setting(f, float(run[f["name"]])) for f in spec["factors"]}
+        if not _runnable(spec, _coded(pd.DataFrame([settings]), spec["factors"]).to_numpy(dtype=float)):
+            settings = {name: float(run[name]) for name in names}  # rounded, it would break a limit
+        predicted = float(run["predicted"])
+        suggested.append(
+            {
+                "settings": settings,
+                "predicted": predicted,
+                "std_error": float(run["std_error"]),
+                "expected_improvement": float(run["expected_improvement"]),
+                "why": "it looks better than the best so far" if better(predicted) else "little is known there",
+            }
+        )
+    stop = (
+        "The model expects little more to gain: confirm the best settings so far with runs made there."
+        if found.improvement_ratio < LITTLE_TO_GAIN
+        else None
+    )
+    return {"runs": suggested, "best": found.best, "improvement_ratio": found.improvement_ratio, "stop": stop}
+
+
+def _plant_setting(factor: dict, value: float) -> float:
+    """Round a numeric setting as a plant sets it: to three significant figures of the factor's range."""
+    decimals = 2 - math.floor(math.log10(factor["high"] - factor["low"]))
+    return round(value, decimals) + 0.0
+
+
+def _suggested_made(request: dict, spec: dict, design: pd.DataFrame) -> dict[str, Any]:
+    """Make the runs :func:`suggest_runs` suggests, as :func:`_extension` makes an extension's, for the run sheet."""
+    suggested = suggest_runs(request)["runs"]
+    kinds = ["numeric"] * len(spec["factors"])
+    new = _coded(pd.DataFrame([run["settings"] for run in suggested]), spec["factors"]).to_numpy(dtype=float)
+    before = _coded(design, spec["factors"]).to_numpy(dtype=float)
+    return {
+        "kind": SUGGESTED,
+        "new": new,
+        "label": f"Add these {len(new)} runs",
+        "why": "Where a model of every run expects the most to gain.",
+        "said": "Runs {first} to {last} are where a model of every run expected the most to gain.",
+        "model": _largest_model(np.vstack([before, new]), kinds),
+        "blocked": False,
+    }
+
+
 #: What Learn says of a mixture, to which it offers to add no runs.
 #: Why a design with factors that are hard to change is offered no runs to add.
 WHOLE_PLOT_EXTENSIONS = (
@@ -11738,7 +11840,7 @@ def add_runs(request: dict) -> dict:
     returns it, with ``added``, the number of runs added.
     """
     kind = request.get("kind")
-    if kind not in EXTENSIONS and kind != RECOMMENDED:
+    if kind not in EXTENSIONS and kind not in (RECOMMENDED, SUGGESTED):
         raise ValueError(f"Unknown way to add runs {kind!r}.")
     spec, runs, design = _study_runs(request)
     made = _made_for(request, spec, design, kind)
@@ -11817,6 +11919,8 @@ def _made_for(request: dict, spec: dict, design: pd.DataFrame, kind: str) -> dic
         if made is None:
             raise ValueError("The results call for no runs to add to this study: see what the next step says.")
         name = "The runs the results call for"
+    elif kind == SUGGESTED:
+        made, name = _suggested_made(request, spec, design), "The runs a model of every run suggests"
     else:
         made = _extension(spec, design, kind)
         if made is None:
@@ -12171,6 +12275,11 @@ def api_specification(payload: str) -> str:
 def api_next_runs(payload: str) -> str:
     """JSON wrapper around :func:`next_runs`."""
     return _reply(next_runs, payload)
+
+
+def api_suggest_runs(payload: str) -> str:
+    """JSON wrapper around :func:`suggest_runs`."""
+    return _reply(suggest_runs, payload)
 
 
 def api_add_runs(payload: str) -> str:
