@@ -62,6 +62,12 @@ def test_a_design_keeps_its_possible_ranges_and_notes_the_runs_past_them(api):
     assert not any(" past what it can be, " in n for n in face["facts"]["notes"]), "a face-centred design stays inside"
 
 
+def test_a_highest_possible_setting_is_noted_as_at_most(api):
+    asked = {"design_type": "ccd", "alpha": "rotatable", "factors": FACTORS, "possible": {"T": [None, 210]}}
+    notes = api.ok("api_make_design", asked)["facts"]["notes"]
+    assert any(" T past what it can be, at most 210 degC." in n for n in notes), "the high axial run of T, at 217 degC"
+
+
 def test_a_blank_possible_range_is_none(api):
     made = api.ok(
         "api_make_design", {"design_type": "full_factorial", "factors": FACTORS, "possible": {"P": [None, None]}}
