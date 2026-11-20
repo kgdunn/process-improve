@@ -115,6 +115,43 @@ def components_with_spread(score_sd: np.ndarray) -> np.ndarray:
     return score_sd > epsqrt * float(np.fmax.reduce(score_sd))
 
 
+def _column_exponents(values: np.ndarray) -> np.ndarray:
+    """Return the exponent of the power of two just above each column's largest absolute value (1 when empty).
+
+    Dividing a column by it brings the column within (-1, 1), where neither a sum nor a square overflows,
+    and it is exact: a power of two changes only a float's exponent (#1070, #1149).
+    """
+    largest = np.fmax.reduce(np.abs(values), axis=0)  # fmax skips NaN, and an all-NaN column, without a warning
+    _, exponent = np.frexp(np.where(np.isfinite(largest) & (largest > 0), largest, 1.0))
+    return exponent
+
+
+def column_mean(values: np.ndarray | pd.DataFrame) -> np.ndarray:
+    """Return the mean of each column, missing values skipped, in any units.
+
+    A column of values near the largest float has a sum beyond it, so ``numpy.nanmean`` gave
+    ``inf``, which became a centre of 0 without a word (#1149). Each column is divided first by the
+    power of two just above its largest absolute value, and the mean multiplied back; a column whose
+    sum did not overflow gives the same mean, bit for bit.
+
+    Parameters
+    ----------
+    values : np.ndarray or pd.DataFrame of shape (n_samples, n_features)
+        The data, with NaN where a value is missing.
+
+    Returns
+    -------
+    np.ndarray of shape (n_features,)
+        The means, NaN for a column with no observed value.
+    """
+    values = np.asarray(values, dtype=float)
+    exponent = _column_exponents(values)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)  # a column with no observed value: NaN, which is the answer
+        mean = np.nanmean(np.ldexp(values, -exponent), axis=0)
+    return np.ldexp(mean, exponent)
+
+
 def column_sd(values: np.ndarray | pd.DataFrame) -> np.ndarray:
     """Return the sample standard deviation (``ddof=1``) of each column, missing values skipped, in any units.
 
@@ -137,8 +174,7 @@ def column_sd(values: np.ndarray | pd.DataFrame) -> np.ndarray:
         the largest float is inf, with numpy's overflow warning, as ``numpy.nanstd`` gives it.
     """
     values = np.asarray(values, dtype=float)
-    largest = np.fmax.reduce(np.abs(values), axis=0)  # fmax skips NaN, and an all-NaN column, without a warning
-    _, exponent = np.frexp(np.where(np.isfinite(largest) & (largest > 0), largest, 1.0))
+    exponent = _column_exponents(values)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)  # fewer than two observed values: NaN, which is the answer
         spread = np.nanstd(np.ldexp(values, -exponent), axis=0, ddof=1)

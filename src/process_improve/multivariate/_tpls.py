@@ -41,6 +41,7 @@ from ._common import (
     check_at_least_one,
     check_variance_left,
     check_y_varies,
+    column_mean,
     column_sd,
     components_to_fit,
     constant_columns,
@@ -1203,7 +1204,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         # pandas 2 hands a reduction the caller's own column labels, so a name given to them after
         # the fit renamed the centre and scale too; pandas 3 does not, and both keep a copy now.
         y = _own_axes(y)
-        centering = y.mean()
+        centering = pd.Series(column_mean(y), index=y.columns)  # pandas' mean was inf near 1e308 (#1149)
         # ddof=1, as pandas' std, and in any units: pandas' std was inf near 1e160 and 0 near 1e-160 (#1070)
         scaling = pd.Series(column_sd(y), index=y.columns)
         # An all-NaN column has a NaN mean, so it ends up excluded exactly as a constant one does;
