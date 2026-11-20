@@ -766,6 +766,9 @@ def test_gaps_fit_takes_are_taken(where: str) -> None:
     assert np.isfinite(result.press).all()
     assert np.isfinite(result.table["pv_spe_alarm_rate"]).all()
     assert pv.local_spe.isna().to_numpy().tolist() == [where == "x_row" and i == 3 for i in range(30)]
+    if where == "x_column":  # a held-out row is complete without the column: its limits are those of X without it
+        without = compare_cv_criteria(X.drop(columns="x2"), Y, random_state=0)
+        np.testing.assert_allclose(result.spe_limits.to_numpy(), without.spe_limits.to_numpy(), rtol=1e-10, atol=1e-12)
 
 
 def test_pseudo_validation_set_rejects_bad_arguments() -> None:
