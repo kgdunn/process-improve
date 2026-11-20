@@ -101,7 +101,6 @@ from ._preprocessing import MCUVScaler, _back_to_units, _warn_scaling_traps
 
 if typing.TYPE_CHECKING:
     from ._common import DataMatrix
-    from ._pls import PLS
 
 # The public entry points are ``PLS.compare_cv_criteria`` / ``PLS.pseudo_validation_set``
 # and the module-level functions of the same names in ``_pls``. This module takes the
@@ -904,7 +903,7 @@ def _recommendations(table: pd.DataFrame, predictive: Bunch, settings: _CompareS
 
 
 def _compare_cv_criteria(
-    estimator: type[PLS],
+    estimator: Any,  # noqa: ANN401 - PLS or a subclass, not imported: _pls imports this module
     X: DataMatrix,
     Y: DataMatrix | pd.Series,
     settings: _CompareSettings,
