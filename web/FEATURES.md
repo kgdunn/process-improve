@@ -535,9 +535,10 @@ Also:
   together and what unplanned runs cannot show.
 - **Bring a design from JMP, Minitab, Design-Expert or MODDE.** Export it as .csv or .xlsx and
   open it here. The app knows each program by the columns it writes, says which program it was,
-  and leaves out the columns that only number and code the runs (Minitab's StdOrder, RunOrder
-  and CenterPt; JMP's Pattern; Design-Expert's Std, Run and Space Type; MODDE's Exp No, Exp
-  Name, Run Order and Incl/Excl). A column headed Block is kept as the runs' blocks.
+  and leaves out the columns that only number and code the runs (Minitab's StdOrder, RunOrder,
+  CenterPt or PtType; JMP's Pattern; Design-Expert's Std Order, Run Order and point types;
+  MODDE's Exp No, Exp Name, Run Order and Incl/Excl). A column headed Block is kept as the runs'
+  blocks.
 - **A split-plot experiment run elsewhere.** Mark the column that says which group of runs
   shared one setting of a factor that is hard to change, such as a batch of pulp split into
   samples, as the whole plot, and any column of replicates or days as the block. Learn then

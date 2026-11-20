@@ -99,6 +99,18 @@ def exported(head: str, rows: list[str]) -> str:
         ),
         ("JMP", "Pattern", ["--", "+-", "-+", "++", "00", "00"], ["Pattern"]),
         (
+            "Minitab",
+            "StdOrder,RunOrder,PtType,Blocks,OptPoint",
+            [f"{i},{7 - i},{-1 if i > 4 else 1},1,{i % 2}" for i in range(1, 7)],
+            ["StdOrder", "RunOrder", "PtType", "OptPoint"],
+        ),
+        (
+            "Design-Expert",
+            "Std Order,Run Order,Space Point Type",
+            [f"{i},{7 - i},{'Center' if i > 4 else 'Factorial'}" for i in range(1, 7)],
+            ["Std Order", "Run Order", "Space Point Type"],
+        ),
+        (
             "Design-Expert",
             "Std,Run,Space Type",
             [f"{i},{7 - i},{'Center' if i > 4 else 'Factorial'}" for i in range(1, 7)],
