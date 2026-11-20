@@ -107,3 +107,9 @@ def test_a_study_without_whole_plots_still_has_its_analysis_of_variance(api):
     reply = analysed(api, opened(api, paper_table(whole_plot="Batch"), Batch="ignore"))
     assert "split_plot" not in reply
     assert [a["source"] for a in reply["anova"]][:4] == ["Block", "Method", "Temperature", "Method·Temperature"]
+
+
+def test_a_model_with_a_nested_factor_has_no_table_of_tests(bootstrap):
+    """A nested factor's indicators have no factor of their own to stand for them, so no term is tested as a whole."""
+    fit = {"formula": "T + Supplier_I1:Batch + Supplier_I2:Batch"}
+    assert bootstrap._split_tests(None, fit, None, {"factors": []}) is None
