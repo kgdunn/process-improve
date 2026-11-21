@@ -312,7 +312,9 @@ class _AdaptiveModel(_LatentVariableModel):
 
     def __setstate__(self, state: dict) -> None:
         """Restore a pickled model; one pickled before #1144 kept no label count, so it is read off its labels."""
-        if "_hist_index" in state and "_next_label" not in state:
+        if "_hist_index" in state and (
+            "_next_label" not in state  # pragma: no mutate - the count kept and the one its labels give number alike
+        ):
             labels = state["_hist_index"]
             state = {
                 **state,
@@ -377,7 +379,12 @@ class _AdaptiveModel(_LatentVariableModel):
 
         A model pickled before then left none out.
         """
-        return np.where(getattr(self, "_unobserved_columns", False), fill, values)
+        left_out = getattr(
+            self,
+            "_unobserved_columns",
+            False,  # pragma: no mutate - np.where reads a condition of None as False
+        )
+        return np.where(left_out, fill, values)
 
     def _scaled(
         self, rows: np.ndarray, centre: np.ndarray | None = None, scale: np.ndarray | None = None
