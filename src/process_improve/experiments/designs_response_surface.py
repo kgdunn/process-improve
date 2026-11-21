@@ -335,6 +335,55 @@ def blocking_alpha(
     return float(np.sqrt(f * (2 * n_factors * s + n_center_axial) / (2 * s * (f + n_center_cube))))
 
 
+def blocking_center_points(
+    alpha: float, n_cube_runs: int, n_center_cube: int, n_factors: int, n_axial_replicates: int = 1
+) -> float:
+    """Return the centre runs in the axial block at which a CCD's blocks are orthogonal for a chosen axial distance.
+
+    The inverse of :func:`blocking_alpha`: ``c_a = 2 s alpha**2 (F + c_c) / F - 2 k s`` for ``F`` cube runs and
+    ``c_c`` centre runs in the cube blocks, ``k`` factors whose ``2k`` axial points are each run ``s`` times. It
+    is real: a whole, non-negative number of runs is one the design can have at that alpha, and a negative one
+    says that no number of axial-block centre runs blocks it orthogonally (Box and Draper 2007, Section 15.3 and
+    Exercise 15.8). With ``s`` replicates of the star run as ``s`` blocks, each holds ``c_a / s`` of them.
+
+    Parameters
+    ----------
+    alpha : float
+        The axial distance in coded units, positive.
+    n_cube_runs : int
+        Runs in the cube portion, replicates included.
+    n_center_cube : int
+        Centre runs in the cube blocks.
+    n_factors : int
+        Number of factors ``k``.
+    n_axial_replicates : int
+        How many times each axial point is run.
+
+    Returns
+    -------
+    float
+        The centre runs in the axial block or blocks, all together.
+
+    Raises
+    ------
+    ValueError
+        If *alpha* is not positive.
+
+    Examples
+    --------
+    Box and Draper's Exercise 15.8: three factors, the cube in two blocks of four with two centre runs each, the
+    star run twice at the rotatable alpha 2**0.5. The star blocks need no centre run:
+
+    >>> blocking_center_points(2**0.5, 8, 4, 3, n_axial_replicates=2)
+    0.0
+    """
+    if not alpha > 0:
+        msg = f"alpha must be positive; got {alpha}."
+        raise ValueError(msg)
+    f, s = n_cube_runs, n_axial_replicates
+    return float(round(2 * s * alpha**2 * (f + n_center_cube) / f - 2 * n_factors * s, 12))
+
+
 def all_bias_distance(
     n_factors: int, n_cube_runs: int, n_center_points: int, region: str = "spherical", expand: float = 1.0
 ) -> float:
