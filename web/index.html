@@ -240,10 +240,20 @@
              that the page takes them; the curves are pasted under the run sheet (app.js renderCurves). -->
         <details id="response-curve" class="known">
           <summary>My measured response is a curve <span class="hint">(a spectrum, or a value over time)</span></summary>
-          <p class="hint">Factorial takes a curve from each run. Choose the design as for any response; once the run
-            sheet is made, paste each run's curve under it, in "Each run gives a curve". Learn then predicts the whole
-            curve at any settings, with its bands, and finds the settings whose curve comes closest to a target curve.
-            It does not take curves for a mixture's blends.</p>
+          <div class="curve-explain">
+            <p class="hint">Paste one curve per run under the run sheet. Learn then predicts the whole curve at any
+              setting, with its band. Not for a mixture's blends.</p>
+          <svg viewBox="0 0 240 92" role="img" aria-label="Two runs' curves, measured as points at a low and a high setting, and the curve predicted between them at a new setting, with its band.">
+            <path class="axes" d="M26,4V80H232"/>
+            <path class="band" d="M26,76 L36,67 L46,60 L56,54.4 L66,50.1 L76,46.6 L86,43.9 L96,41.8 L106,40.1 L117,38.8 L127,37.8 L137,37 L147,36.3 L157,35.8 L167,35.4 L177,35.1 L187,34.9 L197,34.7 L207,34.6 L217,34.5 L228,34.3"/>
+            <path class="predicted" d="M26,76 L36,67 L46,60 L56,54.4 L66,50.1 L76,46.6 L86,43.9 L96,41.8 L106,40.1 L117,38.8 L127,37.8 L137,37 L147,36.3 L157,35.8 L167,35.4 L177,35.1 L187,34.9 L197,34.7 L207,34.6 L217,34.5 L228,34.3"/>
+            <g class="measured"><circle cx="26" cy="76" r="2"/><circle cx="54.9" cy="44" r="2"/><circle cx="83.7" cy="26" r="2"/><circle cx="112.6" cy="19" r="2"/><circle cx="141.4" cy="13.5" r="2"/><circle cx="170.3" cy="12.6" r="2"/><circle cx="199.1" cy="10.5" r="2"/><circle cx="228" cy="11" r="2"/><circle cx="54.9" cy="65.4" r="2"/><circle cx="83.7" cy="61.8" r="2"/><circle cx="112.6" cy="58" r="2"/><circle cx="141.4" cy="57.8" r="2"/><circle cx="170.3" cy="56" r="2"/><circle cx="199.1" cy="56.8" r="2"/><circle cx="228" cy="55.8" r="2"/></g>
+            <text x="232" y="7" text-anchor="end">a run at a high setting</text>
+            <text x="232" y="69" text-anchor="end">a run at a low setting</text>
+            <text class="predicted-label" x="232" y="25" text-anchor="end">predicted at any setting</text>
+            <text x="232" y="91" text-anchor="end">along the curve: time, wavelength</text>
+          </svg>
+          </div>
         </details>
       </section>
 

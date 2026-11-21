@@ -924,6 +924,17 @@ label.inline { display: flex; flex-direction: column; gap: 4px; font-size: 0.9re
 .with-unit { display: inline-flex; align-items: center; gap: 6px; }
 .with-unit .unit { color: var(--muted); font-size: 0.9rem; }
 .known { margin: 6px 0 0; }
+/* "My measured response is a curve": what the page does with curves, in words beside a picture of it (#1420). */
+.curve-explain { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: center; margin-top: 4px; }
+.curve-explain p { margin: 0; }
+.curve-explain svg { display: block; width: 100%; height: auto; max-height: 6.8em; }
+.curve-explain .axes { fill: none; stroke: var(--line); }
+.curve-explain .band { fill: none; stroke: var(--accent); stroke-width: 9; stroke-linecap: round; stroke-linejoin: round; opacity: 0.18; }
+.curve-explain .predicted { fill: none; stroke: var(--accent); stroke-width: 2; }
+.curve-explain .measured circle { fill: var(--muted); }
+.curve-explain text { font-size: 9px; fill: var(--muted); }
+.curve-explain .predicted-label { fill: var(--accent); }
+@media (max-width: 480px) { .curve-explain { grid-template-columns: 1fr; } }
 .known .row > label { flex: 1 1 9rem; }
 
 /* The limits on the settings: one card each, its number (as the picture numbers its boundary), its text in a box
