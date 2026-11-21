@@ -531,13 +531,17 @@ def _canonical_analysis(
         can have, and which the form leaves out (#971 K2). It is not Box and Draper's B canonical
         form, which is centred on the stationary point (below).
 
+        ``rotated_form`` is Box and Draper's A canonical form (Eq. 10.3.9), the
+        axes rotated about the design centre: y = b0 + sum of theta_i X_i + sum of
+        lambda_i X_i^2, with X_i = v_i'x. It holds the ``linear`` slope theta_i =
+        v_i'b along every axis, in the order of ``eigenvalues``, and the
+        ``stationary_point``, X_iS = -theta_i / (2 lambda_i) on each axis, ``None``
+        along a flat one. It exists with or without a stationary point.
+
         When the surface has a stationary point x_s, ``canonical_axes`` gives
         each canonical variable W_i = v_i'(x - x_s) as its ``constant``,
         -v_i'x_s, and ``coefficients``: Box and Draper's B canonical form is
-        y = y_s + sum of lambda_i W_i^2. Their A canonical form, the axes
-        rotated about the design centre with a slope theta_i = v_i'b along
-        each, y = b0 + sum of theta_i X_i + sum of lambda_i X_i^2, is not
-        returned.
+        y = y_s + sum of lambda_i W_i^2.
     """
     b0, b, B = _extract_b_and_B(coefficients, factor_names)
 
@@ -560,6 +564,7 @@ def _canonical_analysis(
         "canonical_form_description": desc_parts,
         "factor_names": factor_names,
         "ridge_form": _ridge_form((b0, b, B), eigenvalues, eigenvectors, factor_names, shape.flat),
+        "rotated_form": _rotated_form(b, eigenvalues, eigenvectors, shape.flat),
     }
     if not shape.drifts:  # a stationary point exists: the B canonical form's axes are centred on it
         curved = ~shape.flat
@@ -576,6 +581,17 @@ def _canonical_analysis(
     if note := _nearly_flat_note(eigenvalues, shape):
         result["classification_note"] = note
     return result
+
+
+def _rotated_form(b: np.ndarray, eigenvalues: np.ndarray, eigenvectors: np.ndarray, flat: np.ndarray) -> dict[str, Any]:
+    """Return Box and Draper's A canonical form (Eq. 10.3.9): the slope along each axis, and where it stops changing."""
+    slopes = eigenvectors.T @ b
+    return {
+        "linear": [float(s) for s in slopes],
+        "stationary_point": [
+            None if is_flat else float(-s / (2 * ev)) for s, ev, is_flat in zip(slopes, eigenvalues, flat, strict=True)
+        ],
+    }
 
 
 def _ridge_form(
