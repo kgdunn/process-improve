@@ -124,6 +124,8 @@ def test_opls_contributions_split_the_scores_transform_gives_new_rows(raw: tuple
     new = X.iloc[:4] * 1.1
     scores = model.transform(new)["t_predictive"]
     np.testing.assert_allclose(model.score_contributions(new).sum(axis=1), scores, rtol=1e-9)
+    for contributions in (model.t2_contributions(new), model.spe_contributions(new)):  # labelled as X is
+        assert (list(contributions.index), list(contributions.columns)) == (list(new.index), list("abcde"))
     shift = model.group_contributions(new, group=new.index[:2], reference=new.index[2:]).sum()
     assert shift == pytest.approx(scores.iloc[:2].mean() - scores.iloc[2:].mean(), rel=1e-9)
     gappy = new.copy()
