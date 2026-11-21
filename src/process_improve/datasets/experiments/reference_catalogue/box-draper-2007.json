@@ -74209,8 +74209,16 @@
       "quote": "U = 0.50 + 0.45 + 0.40 = 1.35"
      },
      "check": {
-      "manual": "arithmetic on the bounds, which no check computes",
-      "cause": "check_gap"
+      "kind": "library_value",
+      "function": "u_simplex_check",
+      "args": [
+       [
+        0.5,
+        0.45,
+        0.4
+       ]
+      ],
+      "key": "upper_sum"
      }
     },
     {
@@ -74223,8 +74231,17 @@
       "quote": "U − Umin = 0.95 < 1"
      },
      "check": {
-      "manual": "arithmetic on the bounds, which no check computes; the library has no test of the U-simplex condition U - Umin <= 1 and no U-pseudocomponents",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "u_simplex_check",
+      "args": [
+       [
+        0.5,
+        0.45,
+        0.4
+       ]
+      ],
+      "key": "upper_sum_less_smallest",
+      "printed": "0.95"
      }
     },
     {
@@ -74236,10 +74253,25 @@
       "source_kind": "caption",
       "quote": "Upper bounds that define a restricted region that is a complete (but inverted) U-simplex within"
      },
-     "check": {
-      "manual": "the library's mixture_candidates finds the three vertices of (17.3.1), (0.50, 0.45, 0.05), (0.50, 0.10, 0.40) and (0.15, 0.45, 0.40) (verified); no check kind builds a constrained mixture region or calls the library's mixture_candidates",
-      "cause": "check_gap"
-     }
+     "check": [
+      {
+       "kind": "library_value",
+       "function": "u_simplex_check",
+       "args": [
+        [
+         0.5,
+         0.45,
+         0.4
+        ]
+       ],
+       "key": "inside",
+       "printed": "1"
+      },
+      {
+       "manual": "the library's mixture_candidates finds the three vertices of (17.3.1), (0.50, 0.45, 0.05), (0.50, 0.10, 0.40) and (0.15, 0.45, 0.40) (verified); no check kind builds a constrained mixture region or calls the library's mixture_candidates",
+       "cause": "check_gap"
+      }
+     ]
     },
     {
      "what": "U-pseudocomponents",
@@ -74251,8 +74283,8 @@
       "quote": "z1 = (0.50 − x1)/0.35, z2 = (0.45 − x2)/0.35, z3 = (0.40 − x3)/0.35"
      },
      "check": {
-      "manual": "the U-pseudocomponent transformation (Ui - xi)/(U - 1); the library has L-pseudocomponents only (to_pseudocomponents), no U-pseudocomponents",
-      "cause": "library_gap"
+      "manual": "the U-pseudocomponent transformation (Ui - xi)/(U - 1), a formula, which to_pseudocomponents(..., upper=...) evaluates; its denominator U - 1 follows from U, checked above",
+      "cause": "not_a_result"
      }
     }
    ],
@@ -74318,8 +74350,16 @@
       "quote": "U = 0.55 + 0.50 + 0.52 = 1.57"
      },
      "check": {
-      "manual": "arithmetic on the bounds, which no check computes",
-      "cause": "check_gap"
+      "kind": "library_value",
+      "function": "u_simplex_check",
+      "args": [
+       [
+        0.55,
+        0.5,
+        0.52
+       ]
+      ],
+      "key": "upper_sum"
      }
     },
     {
@@ -74332,8 +74372,17 @@
       "quote": "U − Umin = 1.07 > 1"
      },
      "check": {
-      "manual": "arithmetic on the bounds, which no check computes; the library has no test of the U-simplex condition U - Umin <= 1 and no U-pseudocomponents",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "u_simplex_check",
+      "args": [
+       [
+        0.55,
+        0.5,
+        0.52
+       ]
+      ],
+      "key": "upper_sum_less_smallest",
+      "printed": "1.07"
      }
     },
     {
@@ -74345,10 +74394,25 @@
       "source_kind": "caption",
       "quote": "a complete (but inverted) U-simplex, parts of which lie outside the mixture simplex"
      },
-     "check": {
-      "manual": "the U-simplex vertices of (17.3.1) each have one negative proportion; the library's mixture_candidates finds the six vertices of the part inside the simplex, a hexagon (verified); no check kind builds a constrained mixture region or calls the library's mixture_candidates",
-      "cause": "check_gap"
-     }
+     "check": [
+      {
+       "kind": "library_value",
+       "function": "u_simplex_check",
+       "args": [
+        [
+         0.55,
+         0.5,
+         0.52
+        ]
+       ],
+       "key": "inside",
+       "printed": "0"
+      },
+      {
+       "manual": "the U-simplex vertices of (17.3.1) each have one negative proportion; the library's mixture_candidates finds the six vertices of the part inside the simplex, a hexagon (verified); no check kind builds a constrained mixture region or calls the library's mixture_candidates",
+       "cause": "check_gap"
+      }
+     ]
     }
    ]
   },
