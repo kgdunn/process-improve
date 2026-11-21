@@ -218,7 +218,7 @@
         </table>
         <p id="response-problems" class="hint error" role="status" hidden></p>
         <p class="add-factors" id="more-responses">
-          <button type="button" id="add-response" class="link">+ Add <span class="term" data-term="response">response</span></button>
+          <button type="button" id="add-response" class="link">+ Add another <span class="term" data-term="response">response</span></button>
           <span id="responses-full" class="hint" hidden>A study measures at most 5 responses.</span>
         </p>
         <p id="first-sizes" class="hint" hidden>The first response sizes the design, so the page asks what you know of it.</p>
@@ -236,6 +236,15 @@
             </label>
           </div>
         </details>
+        <!-- Said where the response is named, so a reader whose runs give curves knows before the design is made
+             that the page takes them; the curves are pasted under the run sheet (app.js renderCurves). -->
+        <details id="response-curve" class="known">
+          <summary>My measured response is a curve <span class="hint">(a spectrum, or a value over time)</span></summary>
+          <p class="hint">Factorial takes a curve from each run. Choose the design as for any response; once the run
+            sheet is made, paste each run's curve under it, in "Each run gives a curve". Learn then predicts the whole
+            curve at any settings, with its bands, and finds the settings whose curve comes closest to a target curve.
+            It does not take curves for a mixture's blends.</p>
+        </details>
       </section>
 
       <section id="factors-card" class="card" aria-labelledby="h-factors">
@@ -246,8 +255,8 @@
         </table>
         <p id="factor-problems" class="hint error" role="status" hidden></p>
         <p class="add-factors">
-          <button type="button" id="add-factor" class="link">+ Add <span class="term" data-term="factor">factor</span></button>
-          <button type="button" id="add-categorical" class="link">+ Add <span class="term"
+          <button type="button" id="add-factor" class="link">+ Add another <span class="term" data-term="factor">factor</span></button>
+          <button type="button" id="add-categorical" class="link">+ Add a <span class="term"
             data-term="categorical">categorical factor</span></button>
           <span id="factors-full" class="hint" hidden>A study has at most 40 factors.</span>
         </p>

@@ -141,3 +141,16 @@ def test_a_study_of_curves_alone_is_saved_with_them_and_learn_draws_the_curve(bl
     reveal(blank_page, "#curves")
     blank_page.click("#curve-clear")
     assert blank_page.text_content("#curve-status") == ""
+
+
+@pytest.mark.parametrize("said", [True, False], ids=["said-a-curve", "said-nothing"])
+def test_a_reader_who_says_the_response_is_a_curve_finds_the_curves_box_open_under_the_run_sheet(blank_page, said):
+    """Where the response is named, the brief says the page takes a curve from each run, and where to paste them."""
+    page = blank_page
+    reveal(page, "#response-curve")
+    assert page.text_content("#response-curve summary").startswith("My measured response is a curve")
+    if said:
+        page.click("#response-curve summary")
+        assert 'in "Each run gives a curve"' in " ".join(page.text_content("#response-curve p").split())
+    generate(page)
+    assert (page.locator("#curves").get_attribute("open") is not None) is said
