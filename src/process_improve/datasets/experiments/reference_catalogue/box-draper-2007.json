@@ -58244,8 +58244,16 @@
       "quote": "Table 15.2 k = 2: k^(1/2) 1.41"
      },
      "check": {
-      "manual": "the square root of 2, the axial distance of a spherical composite design; arithmetic of k (the library's composite designs name no spherical axial distance, though they take a number)",
-      "cause": "not_a_result"
+      "kind": "design_property",
+      "property": "alpha",
+      "design": {
+       "design_type": "ccd",
+       "k": 2,
+       "options": {
+        "alpha": "spherical",
+        "n_center_points": 0
+       }
+      }
      }
     },
     {
@@ -58428,8 +58436,16 @@
       "quote": "Table 15.2 k = 3: k^(1/2) 1.73"
      },
      "check": {
-      "manual": "the square root of 3, the axial distance of a spherical composite design; arithmetic of k (the library's composite designs name no spherical axial distance, though they take a number)",
-      "cause": "not_a_result"
+      "kind": "design_property",
+      "property": "alpha",
+      "design": {
+       "design_type": "ccd",
+       "k": 3,
+       "options": {
+        "alpha": "spherical",
+        "n_center_points": 0
+       }
+      }
      }
     },
     {
@@ -58684,8 +58700,16 @@
       "quote": "Table 15.2 k = 4: k^(1/2) 2"
      },
      "check": {
-      "manual": "the square root of 4, the axial distance of a spherical composite design; arithmetic of k (the library's composite designs name no spherical axial distance, though they take a number)",
-      "cause": "not_a_result"
+      "kind": "design_property",
+      "property": "alpha",
+      "design": {
+       "design_type": "ccd",
+       "k": 4,
+       "options": {
+        "alpha": "spherical",
+        "n_center_points": 0
+       }
+      }
      }
     },
     {
@@ -58940,8 +58964,16 @@
       "quote": "Table 15.2 k = 5: k^(1/2) 2.24"
      },
      "check": {
-      "manual": "the square root of 5, the axial distance of a spherical composite design; arithmetic of k (the library's composite designs name no spherical axial distance, though they take a number)",
-      "cause": "not_a_result"
+      "kind": "design_property",
+      "property": "alpha",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "alpha": "spherical",
+        "n_center_points": 0
+       }
+      }
      }
     },
     {
@@ -59193,8 +59225,20 @@
       "quote": "Table 15.2 k = 5, cube fraction 1/2: k^(1/2) 2.24"
      },
      "check": {
-      "manual": "the square root of 5, the axial distance of a spherical composite design; arithmetic of k (the library's composite designs name no spherical axial distance, though they take a number)",
-      "cause": "not_a_result"
+      "kind": "design_property",
+      "property": "alpha",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "alpha": "spherical",
+        "n_center_points": 0,
+        "cube": "fractional",
+        "generators": [
+         "E=ABCD"
+        ]
+       }
+      }
      }
     },
     {
@@ -59410,8 +59454,20 @@
       "quote": "Table 15.2 k = 6, cube fraction 1/2: k^(1/2) 2.45"
      },
      "check": {
-      "manual": "the square root of 6, the axial distance of a spherical composite design; arithmetic of k (the library's composite designs name no spherical axial distance, though they take a number)",
-      "cause": "not_a_result"
+      "kind": "design_property",
+      "property": "alpha",
+      "design": {
+       "design_type": "ccd",
+       "k": 6,
+       "options": {
+        "alpha": "spherical",
+        "n_center_points": 0,
+        "cube": "fractional",
+        "generators": [
+         "F=ABCDE"
+        ]
+       }
+      }
      }
     },
     {
@@ -59708,8 +59764,20 @@
       "quote": "Table 15.2 k = 7, cube fraction 1/2: k^(1/2) 2.65"
      },
      "check": {
-      "manual": "the square root of 7, the axial distance of a spherical composite design; arithmetic of k (the library's composite designs name no spherical axial distance, though they take a number)",
-      "cause": "not_a_result"
+      "kind": "design_property",
+      "property": "alpha",
+      "design": {
+       "design_type": "ccd",
+       "k": 7,
+       "options": {
+        "alpha": "spherical",
+        "n_center_points": 0,
+        "cube": "fractional",
+        "generators": [
+         "G=ABCDEF"
+        ]
+       }
+      }
      }
     },
     {
@@ -60032,8 +60100,21 @@
       "quote": "Table 15.2 k = 8, cube fraction 1/4: k^(1/2) 2.83"
      },
      "check": {
-      "manual": "the square root of 8, the axial distance of a spherical composite design; arithmetic of k (the library's composite designs name no spherical axial distance, though they take a number)",
-      "cause": "not_a_result"
+      "kind": "design_property",
+      "property": "alpha",
+      "design": {
+       "design_type": "ccd",
+       "k": 8,
+       "options": {
+        "alpha": "spherical",
+        "n_center_points": 0,
+        "cube": "fractional",
+        "generators": [
+         "G=ABCD",
+         "H=ABEF"
+        ]
+       }
+      }
      }
     },
     {

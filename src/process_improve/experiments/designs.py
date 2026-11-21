@@ -988,8 +988,9 @@ def generate_design(  # noqa: PLR0913
         Any other design type raises ``ValueError``.
     alpha : str, float, or None
         Axial distance for CCD designs: ``"rotatable"``, ``"face_centered"``,
-        ``"inscribed"``, ``"orthogonal"`` (the default), or a positive number. Any
-        other value raises ``ValueError``.
+        ``"inscribed"``, ``"spherical"`` (``k ** 0.5`` for ``k`` factors, the distance
+        of the cube's corners), ``"orthogonal"`` (the default), or a positive number.
+        Any other value raises ``ValueError``.
     cube : str
         For CCD designs, how to build the cube (factorial) portion:
         ``"full"`` (default) uses the complete 2^k factorial; ``"fractional"``
