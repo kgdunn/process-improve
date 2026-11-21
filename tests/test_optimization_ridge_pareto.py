@@ -8,6 +8,7 @@ the front against a dense grid of the design region.
 from __future__ import annotations
 
 import itertools
+import warnings
 
 import numpy as np
 import pytest
@@ -197,6 +198,64 @@ def test_ridge_through_optimize_responses_reports_actual_units() -> None:
 
     furthest = result["path"][-1]
     assert furthest["actual"]["A"] == pytest.approx(175.0 + furthest["coded"]["A"] * 25.0)
+
+
+#: Hoerl's surface, Box and Draper (2007) Section 12.3: y = 80 + 0.1 x1 + 0.2 x2 + 0.2 x1^2 + 0.1 x2^2 + x1 x2.
+HOERL = (80.0, 0.1, 0.2, 0.2, 0.1, 1.0)
+
+
+def test_a_multiplier_gives_box_and_drapers_point() -> None:
+    """Eq. (12.3.4), x = -(B - mu I)^-1 b / 2: mu = 0.8 is (0.50, 0.50), and path 3 at mu = 0.2 is (-0.22, -0.10)."""
+    path = optimize_responses([model("y", HOERL)], method="ridge_analysis", multipliers=[0.8, 0.2])["ridge_analysis"]
+    first, third = path["path"]
+    assert [first["coded"]["A"], first["coded"]["B"]] == pytest.approx([0.5, 0.5])
+    assert first["radius"] == pytest.approx(0.5**0.5)
+    assert first["predicted_response"] == pytest.approx(80.475)
+    assert [third["coded"]["A"], third["coded"]["B"], third["radius"]] == pytest.approx([-0.22, -0.10, 0.242], abs=5e-3)
+    assert third["predicted_response"] == pytest.approx(79.99, abs=5e-3)
+    assert path["max_radius"] == pytest.approx(0.5**0.5)
+
+
+@pytest.mark.parametrize("direction", ["maximize", "minimize"])
+def test_the_multipliers_of_chosen_radii_give_the_same_points(direction: str) -> None:
+    """Radii and multipliers are two ways into one path: each radius's multiplier gives back its point."""
+    fit = [model("yield", (40.0, 5.25, -2.0, -3.0, -1.5, 1.5))]
+    by_radius = optimize_responses(fit, method="ridge_analysis", radii=[0.0, 0.3, 1.2], ridge_direction=direction)
+    path = by_radius["ridge_analysis"]["path"]
+    assert [entry["radius"] for entry in path] == [0.0, 0.3, 1.2]
+    assert np.isnan(path[0]["mu"])
+    by_multiplier = optimize_responses(fit, method="ridge_analysis", multipliers=[e["mu"] for e in path[1:]])
+    for entry, again in zip(path[1:], by_multiplier["ridge_analysis"]["path"], strict=True):
+        assert again["radius"] == pytest.approx(entry["radius"])
+        assert again["coded"] == pytest.approx(entry["coded"])
+
+
+def test_an_infinite_multiplier_is_the_centre() -> None:
+    path = optimize_responses([model("y", HOERL)], method="ridge_analysis", multipliers=[float("inf")])
+    entry = path["ridge_analysis"]["path"][0]
+    assert entry["radius"] == 0.0
+    assert entry["predicted_response"] == pytest.approx(80.0)
+
+
+def test_chosen_radii_do_not_warn_about_uneven_bounds() -> None:
+    """The bounds no longer set how far the ridge goes, so the warning about them does not apply."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        optimize_responses([model("y", HOERL)], method="ridge_analysis", radii=[0.5], search_bounds=(-1.0, 2.0))
+
+
+@pytest.mark.parametrize(
+    ("options", "match"),
+    [
+        ({"method": "ridge_analysis", "radii": [0.5], "multipliers": [0.8]}, "not both"),
+        ({"method": "ridge_analysis", "multipliers": [-0.3524937810560445]}, "not an eigenvalue"),
+        ({"method": "ridge_analysis", "radii": [-0.5]}, "0 or more"),
+        ({"method": "stationary_point", "radii": [0.5]}, "go with method='ridge_analysis'"),
+    ],
+)
+def test_bad_radii_and_multipliers_are_refused(options: dict, match: str) -> None:
+    with pytest.raises(ValueError, match=match):
+        optimize_responses([model("y", HOERL)], **options)
 
 
 # ---------------------------------------------------------------------------
