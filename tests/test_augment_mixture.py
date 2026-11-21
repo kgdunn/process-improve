@@ -75,6 +75,42 @@ def test_the_blends_of_an_l_pseudocomponent_simplex():
     np.testing.assert_allclose(blends[0], [0.56667, 0.21667, 0.21667], atol=1e-5)
 
 
+@pytest.mark.parametrize(("k", "r"), [(3, 5 / 24), (2, 1 / 3), (4, 0.1)])
+def test_axial_check_blends_at_a_chosen_distance(k: int, r: float):
+    """Box and Draper's (1 - (q - 1) r, r, ..., r).
+
+    Exercise 16.3's r = 5/24 gives 0.583 for three components, and Exercise 16.4's r = (q + 2)/(2q(q + 1)) gives
+    2/3 for two.
+    """
+    names = "ABCD"[:k]
+    result = augment_design(mixture(components(names), "scheffe_linear"), "add_axial_points", axial_distance=r)
+    blends = pd.DataFrame(result["new_runs"]).to_numpy()
+    np.testing.assert_allclose(blends, r + (1 - k * r) * np.eye(k))
+    np.testing.assert_allclose(blends.sum(axis=1), 1.0)
+
+
+def test_axial_distance_on_an_l_pseudocomponent_simplex_is_read_in_its_span():
+    """With every component at least 0.1 the simplex spans 0.7, so r = 0.2 adds 0.1 + 0.7 * 0.2 = 0.24 of each."""
+    design = mixture(components("ABC", low=0.1), "scheffe_quadratic")
+    blends = pd.DataFrame(augment_design(design, "add_axial_points", axial_distance=0.2)["new_runs"]).to_numpy()
+    np.testing.assert_allclose(blends[0], [0.52, 0.24, 0.24])
+
+
+@pytest.mark.parametrize("r", [0.0, 1 / 3, 0.5, -0.1])
+def test_an_axial_distance_off_the_axis_between_vertex_and_centroid_is_refused(r: float):
+    with pytest.raises(ValueError, match=r"between 0 \(the vertex\) and 1/3 \(the centroid\)"):
+        augment_design(mixture(components("ABC"), "scheffe_linear"), "add_axial_points", axial_distance=r)
+
+
+def test_axial_distance_is_refused_where_it_places_nothing():
+    """A design in coded units takes alpha; another augmentation has no axial blends."""
+    coded = pd.DataFrame({"A": [-1, 1, -1, 1], "B": [-1, -1, 1, 1]})
+    with pytest.raises(ValueError, match="use alpha"):
+        augment_design(coded, "add_axial_points", axial_distance=0.2)
+    with pytest.raises(ValueError, match="for 'add_axial_points' only"):
+        augment_design(mixture(components("ABC"), "scheffe_linear"), "add_center_points", axial_distance=0.2)
+
+
 def test_center_points_of_a_mixture_are_at_the_centroid():
     factors = [
         Factor(name="A", type="mixture", low=0.1, high=1),
