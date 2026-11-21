@@ -92715,8 +92715,11 @@
       "quote": "V(ȳ) = 0.000625, (4.2.18)"
      },
      "check": {
-      "manual": "s²/8 from the supposed s² = 0.0050; analyze_experiment's sigma = √0.0050 gives 0.000625, but no check kind passes a known σ, and the first-order fit's own residual gives 0.0049/8 = 0.0006125",
-      "cause": "check_gap"
+      "kind": "std_error",
+      "term": "Intercept",
+      "model": "x1 + x2 + x3",
+      "sigma": 0.07071067811865475,
+      "squared": true
      }
     },
     {
@@ -92729,8 +92732,11 @@
       "quote": "V(effect) = 0.0025. (4.2.18)"
      },
      "check": {
-      "manual": "4s²/8 from the supposed s² = 0.0050; analyze_experiment's sigma would give it, but no check kind passes a known σ; the first-order fit's own residual gives 0.00245",
-      "cause": "check_gap"
+      "kind": "effect_std_error",
+      "term": "x1",
+      "model": "x1 + x2 + x3",
+      "sigma": 0.07071067811865475,
+      "squared": true
      }
     },
     {
@@ -108842,8 +108848,10 @@
       "quote": "(d) V(effect) = 4σ²/n = 4(65)²/8 = (45.962)²"
      },
      "check": {
-      "manual": "2σ/√8 with the supposed σ = 65; no check kind passes a known σ to the fit (analyze_experiment takes sigma), which gives 2 x 22.981 = 45.962",
-      "cause": "check_gap"
+      "kind": "effect_std_error",
+      "term": "C",
+      "model": "C*Mn*Ni",
+      "sigma": 65
      }
     },
     {
@@ -108856,8 +108864,10 @@
       "quote": "so that standard error (effect) = 46, approximately."
      },
      "check": {
-      "manual": "45.962 rounded; no check kind passes a known σ to the fit (analyze_experiment takes sigma)",
-      "cause": "check_gap"
+      "kind": "effect_std_error",
+      "term": "C",
+      "model": "C*Mn*Ni",
+      "sigma": 65
      }
     },
     {
@@ -108884,7 +108894,7 @@
       "quote": "Only the 1-effect is larger than ±2(46) = ±92."
      },
      "check": {
-      "manual": "the effects beyond twice their standard error with the supposed σ = 65: 1 = -575 alone, the next being 2 = -90; no check kind passes a known σ to the fit (analyze_experiment takes sigma). With sigma = 65 the library's z of the coefficients are -12.5 for C and -1.96 for Mn",
+      "manual": "the effects beyond twice their standard error with the supposed σ = 65: 1 = -575 alone, the next being 2 = -90; the standard error 45.962 is checked above with sigma = 65, but no check kind counts the effects beyond a multiple of it. With sigma = 65 the library's z of the coefficients are -12.5 for C and -1.96 for Mn",
       "cause": "check_gap"
      }
     }
@@ -121117,8 +121127,10 @@
       "quote": "Standard error (effect) = {4σ²/8}^1/2 = 1."
      },
      "check": {
-      "manual": "{4σ²/8}^1/2 with the σ² = 2 the exercise gives; arithmetic; no check kind takes a known σ",
-      "cause": "not_a_result"
+      "kind": "effect_std_error",
+      "term": "x1",
+      "model": "x1 + x2 + x3 + x4 + x1:x2 + x1:x3 + x1:x4",
+      "sigma": 1.4142135623730951
      }
     },
     {
@@ -121131,7 +121143,7 @@
       "quote": "Factors 1 and 2 appear to be the only influential ones."
      },
      "check": {
-      "manual": "judged against the standard error 1 from the known σ²: only 3.75 and 5.75 (checked above) exceed two standard errors; no check kind compares effects with a known σ",
+      "manual": "judged against the standard error 1 from the known σ²: only 3.75 and 5.75 (checked above) exceed two standard errors; the standard error 1 is checked above with the known σ, but no check kind counts the effects beyond a multiple of it",
       "cause": "check_gap"
      }
     }
@@ -207124,8 +207136,10 @@
       "quote": "±0.71 ±0.71 ±0.71 ±0.71 (9.2.2)"
      },
      "check": {
-      "manual": "a standard error on the assumed sigma = 2, not on these runs' residual; the library gives it with analyze_experiment(..., sigma=2.0), but no catalogue check passes a prior sigma (sigma/8^1/2 = 0.707)",
-      "cause": "check_gap"
+      "kind": "std_error",
+      "term": "x1",
+      "model": "x1 + x2 + x3",
+      "sigma": 2
      }
     },
     {
@@ -207250,8 +207264,10 @@
       "quote": "Table 9.3 Estimated Coefficients ± Standard Errors ... ± 0.71"
      },
      "check": {
-      "manual": "a standard error on the assumed sigma = 2, not on these runs' residual; the library gives it with analyze_experiment(..., sigma=2.0), but no catalogue check passes a prior sigma (sigma/8^1/2 = 0.707)",
-      "cause": "check_gap"
+      "kind": "std_error",
+      "term": "x1:x2",
+      "model": "x1 + x2 + x3 + x1:x2 + x1:x3 + x2:x3",
+      "sigma": 2
      }
     },
     {
@@ -208396,10 +208412,22 @@
       "source_kind": "math",
       "quote": "±0.5 ±0.5 ±0.5 ±0.5 ±0.5 (9.2.4)"
      },
-     "check": {
-      "manual": "a standard error on the assumed sigma = 2, not on these runs' residual; the library gives it with analyze_experiment(..., sigma=2.0), but no catalogue check passes a prior sigma (sigma times the root of 2/32 = 0.5)",
-      "cause": "check_gap"
-     }
+     "check": [
+      {
+       "kind": "std_error",
+       "term": "x1",
+       "model": "x1 + x2 + x3 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + x1:x2 + x1:x3 + x2:x3",
+       "sigma": 2,
+       "printed": "0.5"
+      },
+      {
+       "kind": "std_error",
+       "term": "I(x1 ** 2)",
+       "model": "x1 + x2 + x3 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + x1:x2 + x1:x3 + x2:x3",
+       "sigma": 2,
+       "printed": "0.5"
+      }
+     ]
     },
     {
      "what": "std_error",
@@ -208411,8 +208439,10 @@
       "quote": "±0.5 ±0.7 ±0.7 ±0.7 (9.2.4)"
      },
      "check": {
-      "manual": "a standard error on the assumed sigma = 2, not on these runs' residual; the library gives it with analyze_experiment(..., sigma=2.0), but no catalogue check passes a prior sigma (sigma times the root of 4/32 = 0.707)",
-      "cause": "check_gap"
+      "kind": "std_error",
+      "term": "x1:x2",
+      "model": "x1 + x2 + x3 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + x1:x2 + x1:x3 + x2:x3",
+      "sigma": 2
      }
     },
     {
@@ -370737,8 +370767,10 @@
       "quote": "(13.8.8) +-0.25 +-0.17 +-0.17 +-0.14 +-0.14 +-0.24"
      },
      "check": {
-      "manual": "the standard error sqrt(0.457 c_jj) of the coefficient, c = (X'X)^-1 (0.25 reproduces so); it uses the pure error mean square s_e^2 = 0.457 for sigma^2, which analyze_experiment(..., sigma=0.457 ** 0.5) takes in place of the residual mean square (it gives 0.25, 0.17, 0.14 and 0.24, verified), but no check kind passes a sigma; 0.457 is itself not what the printed data give (see the pure error rows)",
-      "cause": "check_gap"
+      "kind": "std_error",
+      "term": "Intercept",
+      "model": "Blocks + x1 + x2 + I(x1 ** 2) + I(x2 ** 2) + x1:x2",
+      "sigma": 0.6760177512462229
      }
     },
     {
@@ -370767,8 +370799,10 @@
       "quote": "(13.8.8) +-0.25 +-0.17 +-0.17 +-0.14 +-0.14 +-0.24"
      },
      "check": {
-      "manual": "the standard error sqrt(0.457 c_jj) of the coefficient, c = (X'X)^-1 (0.17 reproduces so); it uses the pure error mean square s_e^2 = 0.457 for sigma^2, which analyze_experiment(..., sigma=0.457 ** 0.5) takes in place of the residual mean square (it gives 0.25, 0.17, 0.14 and 0.24, verified), but no check kind passes a sigma; 0.457 is itself not what the printed data give (see the pure error rows)",
-      "cause": "check_gap"
+      "kind": "std_error",
+      "term": "x1",
+      "model": "Blocks + x1 + x2 + I(x1 ** 2) + I(x2 ** 2) + x1:x2",
+      "sigma": 0.6760177512462229
      }
     },
     {
@@ -370797,8 +370831,10 @@
       "quote": "(13.8.8) +-0.25 +-0.17 +-0.17 +-0.14 +-0.14 +-0.24"
      },
      "check": {
-      "manual": "the standard error sqrt(0.457 c_jj) of the coefficient, c = (X'X)^-1 (0.17 reproduces so); it uses the pure error mean square s_e^2 = 0.457 for sigma^2, which analyze_experiment(..., sigma=0.457 ** 0.5) takes in place of the residual mean square (it gives 0.25, 0.17, 0.14 and 0.24, verified), but no check kind passes a sigma; 0.457 is itself not what the printed data give (see the pure error rows)",
-      "cause": "check_gap"
+      "kind": "std_error",
+      "term": "x2",
+      "model": "Blocks + x1 + x2 + I(x1 ** 2) + I(x2 ** 2) + x1:x2",
+      "sigma": 0.6760177512462229
      }
     },
     {
@@ -370827,8 +370863,10 @@
       "quote": "(13.8.8) +-0.25 +-0.17 +-0.17 +-0.14 +-0.14 +-0.24"
      },
      "check": {
-      "manual": "the standard error sqrt(0.457 c_jj) of the coefficient, c = (X'X)^-1 (0.14 reproduces so); it uses the pure error mean square s_e^2 = 0.457 for sigma^2, which analyze_experiment(..., sigma=0.457 ** 0.5) takes in place of the residual mean square (it gives 0.25, 0.17, 0.14 and 0.24, verified), but no check kind passes a sigma; 0.457 is itself not what the printed data give (see the pure error rows)",
-      "cause": "check_gap"
+      "kind": "std_error",
+      "term": "I(x1 ** 2)",
+      "model": "Blocks + x1 + x2 + I(x1 ** 2) + I(x2 ** 2) + x1:x2",
+      "sigma": 0.6760177512462229
      }
     },
     {
@@ -370857,8 +370895,10 @@
       "quote": "(13.8.8) +-0.25 +-0.17 +-0.17 +-0.14 +-0.14 +-0.24"
      },
      "check": {
-      "manual": "the standard error sqrt(0.457 c_jj) of the coefficient, c = (X'X)^-1 (0.14 reproduces so); it uses the pure error mean square s_e^2 = 0.457 for sigma^2, which analyze_experiment(..., sigma=0.457 ** 0.5) takes in place of the residual mean square (it gives 0.25, 0.17, 0.14 and 0.24, verified), but no check kind passes a sigma; 0.457 is itself not what the printed data give (see the pure error rows)",
-      "cause": "check_gap"
+      "kind": "std_error",
+      "term": "I(x2 ** 2)",
+      "model": "Blocks + x1 + x2 + I(x1 ** 2) + I(x2 ** 2) + x1:x2",
+      "sigma": 0.6760177512462229
      }
     },
     {
@@ -370887,8 +370927,10 @@
       "quote": "(13.8.8) +-0.25 +-0.17 +-0.17 +-0.14 +-0.14 +-0.24"
      },
      "check": {
-      "manual": "the standard error sqrt(0.457 c_jj) of the coefficient, c = (X'X)^-1 (0.24 reproduces so); it uses the pure error mean square s_e^2 = 0.457 for sigma^2, which analyze_experiment(..., sigma=0.457 ** 0.5) takes in place of the residual mean square (it gives 0.25, 0.17, 0.14 and 0.24, verified), but no check kind passes a sigma; 0.457 is itself not what the printed data give (see the pure error rows)",
-      "cause": "check_gap"
+      "kind": "std_error",
+      "term": "x1:x2",
+      "model": "Blocks + x1 + x2 + I(x1 ** 2) + I(x2 ** 2) + x1:x2",
+      "sigma": 0.6760177512462229
      }
     },
     {
