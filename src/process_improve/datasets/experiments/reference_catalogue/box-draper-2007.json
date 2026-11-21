@@ -277078,7 +277078,7 @@
    },
    "runs": null,
    "data_source": "none: the example starts from the fitted equation y-hat = 80 + 0.1x1 + 0.2x2 + 0.2x1^2 + 0.1x2^2 + x1x2, Eq. (12.3.1), printed without data.",
-   "notes": "Every printed point agrees with x = -(1/2)(B - lambda I)^-1 (b + 2 lambda f), Eq. (12.4.5), and with (12.5.1), to the printed digits. None is recomputed: the library traces the ridge from the origin only.",
+   "notes": "Every printed point agrees with x = -(1/2)(B - lambda I)^-1 (b + 2 lambda f), Eq. (12.4.5), and with (12.5.1), to the printed digits, but R at lambda = 1.6 (0.597 for 0.596). optimize_responses(..., focus={'x1': 0.5, 'x2': 0.5}, multipliers=[lambda]) recomputes each.",
    "expected": [
     {
      "what": "other",
@@ -277090,7 +277090,7 @@
       "quote": "x1 = (lambda^2 + 0.5 lambda + 0.09)/(2 lambda^2 - 0.60 lambda - 0.46), (12.5.1)"
      },
      "check": {
-      "manual": "Eq. (12.4.5) reduced for this surface and focus; algebra, and the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
+      "manual": "Eq. (12.4.5) reduced for this surface and focus; algebra, which optimize_responses evaluates at each multiplier given about a focus (focus=, multipliers=)",
       "cause": "not_a_result"
      }
     },
@@ -277104,8 +277104,54 @@
       "quote": "lambda x1 x2 R y-hat; infinity 0.500 0.500 0.000 80.475"
      },
      "check": {
-      "manual": "x1 on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "n_steps": 1
+      },
+      "key": "ridge_analysis.path.0.coded.x1"
      }
     },
     {
@@ -277118,8 +277164,54 @@
       "quote": "lambda x1 x2 R y-hat; infinity 0.500 0.500 0.000 80.475"
      },
      "check": {
-      "manual": "x2 on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "n_steps": 1
+      },
+      "key": "ridge_analysis.path.0.coded.x2"
      }
     },
     {
@@ -277132,8 +277224,54 @@
       "quote": "lambda x1 x2 R y-hat; infinity 0.500 0.500 0.000 80.475"
      },
      "check": {
-      "manual": "R on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "n_steps": 1
+      },
+      "key": "ridge_analysis.path.0.radius"
      }
     },
     {
@@ -277146,8 +277284,54 @@
       "quote": "lambda x1 x2 R y-hat; infinity 0.500 0.500 0.000 80.475"
      },
      "check": {
-      "manual": "y-hat on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "n_steps": 1
+      },
+      "key": "ridge_analysis.path.0.predicted_response"
      }
     },
     {
@@ -277160,8 +277344,56 @@
       "quote": "lambda x1 x2 R y-hat; 4.0 0.621 0.618 0.169 80.685"
      },
      "check": {
-      "manual": "x1 on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        4.0
+       ]
+      },
+      "key": "ridge_analysis.path.0.coded.x1"
      }
     },
     {
@@ -277174,8 +277406,56 @@
       "quote": "lambda x1 x2 R y-hat; 4.0 0.621 0.618 0.169 80.685"
      },
      "check": {
-      "manual": "x2 on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        4.0
+       ]
+      },
+      "key": "ridge_analysis.path.0.coded.x2"
      }
     },
     {
@@ -277188,8 +277468,56 @@
       "quote": "lambda x1 x2 R y-hat; 4.0 0.621 0.618 0.169 80.685"
      },
      "check": {
-      "manual": "R on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        4.0
+       ]
+      },
+      "key": "ridge_analysis.path.0.radius"
      }
     },
     {
@@ -277202,8 +277530,56 @@
       "quote": "lambda x1 x2 R y-hat; 4.0 0.621 0.618 0.169 80.685"
      },
      "check": {
-      "manual": "y-hat on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        4.0
+       ]
+      },
+      "key": "ridge_analysis.path.0.predicted_response"
      }
     },
     {
@@ -277216,8 +277592,56 @@
       "quote": "lambda x1 x2 R y-hat; 3.0 0.673 0.668 0.241 80.785"
      },
      "check": {
-      "manual": "x1 on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        3.0
+       ]
+      },
+      "key": "ridge_analysis.path.0.coded.x1"
      }
     },
     {
@@ -277230,8 +277654,56 @@
       "quote": "lambda x1 x2 R y-hat; 3.0 0.673 0.668 0.241 80.785"
      },
      "check": {
-      "manual": "x2 on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        3.0
+       ]
+      },
+      "key": "ridge_analysis.path.0.coded.x2"
      }
     },
     {
@@ -277244,8 +277716,56 @@
       "quote": "lambda x1 x2 R y-hat; 3.0 0.673 0.668 0.241 80.785"
      },
      "check": {
-      "manual": "R on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        3.0
+       ]
+      },
+      "key": "ridge_analysis.path.0.radius"
      }
     },
     {
@@ -277258,8 +277778,56 @@
       "quote": "lambda x1 x2 R y-hat; 3.0 0.673 0.668 0.241 80.785"
      },
      "check": {
-      "manual": "y-hat on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        3.0
+       ]
+      },
+      "key": "ridge_analysis.path.0.predicted_response"
      }
     },
     {
@@ -277272,8 +277840,56 @@
       "quote": "lambda x1 x2 R y-hat; 1.6 0.932 0.911 0.597 81.382"
      },
      "check": {
-      "manual": "x1 on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        1.6
+       ]
+      },
+      "key": "ridge_analysis.path.0.coded.x1"
      }
     },
     {
@@ -277286,8 +277902,56 @@
       "quote": "lambda x1 x2 R y-hat; 1.6 0.932 0.911 0.597 81.382"
      },
      "check": {
-      "manual": "x2 on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        1.6
+       ]
+      },
+      "key": "ridge_analysis.path.0.coded.x2"
      }
     },
     {
@@ -277300,8 +277964,58 @@
       "quote": "lambda x1 x2 R y-hat; 1.6 0.932 0.911 0.597 81.382"
      },
      "check": {
-      "manual": "R on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        1.6
+       ]
+      },
+      "key": "ridge_analysis.path.0.radius",
+      "disagreement": "Eq. (12.4.5) at lambda = 1.6 gives R = 0.59646, and the printed point (0.932, 0.911) gives 0.59628; both round to 0.596",
+      "cause": "unexplained"
      }
     },
     {
@@ -277314,8 +278028,56 @@
       "quote": "lambda x1 x2 R y-hat; 1.6 0.932 0.911 0.597 81.382"
      },
      "check": {
-      "manual": "y-hat on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        1.6
+       ]
+      },
+      "key": "ridge_analysis.path.0.predicted_response"
      }
     },
     {
@@ -277328,8 +278090,56 @@
       "quote": "lambda x1 x2 R y-hat; 1.2 1.253 1.206 1.032 82.337"
      },
      "check": {
-      "manual": "x1 on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        1.2
+       ]
+      },
+      "key": "ridge_analysis.path.0.coded.x1"
      }
     },
     {
@@ -277342,8 +278152,56 @@
       "quote": "lambda x1 x2 R y-hat; 1.2 1.253 1.206 1.032 82.337"
      },
      "check": {
-      "manual": "x2 on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        1.2
+       ]
+      },
+      "key": "ridge_analysis.path.0.coded.x2"
      }
     },
     {
@@ -277356,8 +278214,56 @@
       "quote": "lambda x1 x2 R y-hat; 1.2 1.253 1.206 1.032 82.337"
      },
      "check": {
-      "manual": "R on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        1.2
+       ]
+      },
+      "key": "ridge_analysis.path.0.radius"
      }
     },
     {
@@ -277370,8 +278276,56 @@
       "quote": "lambda x1 x2 R y-hat; 1.2 1.253 1.206 1.032 82.337"
      },
      "check": {
-      "manual": "y-hat on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        1.2
+       ]
+      },
+      "key": "ridge_analysis.path.0.predicted_response"
      }
     },
     {
@@ -277384,8 +278338,56 @@
       "quote": "lambda x1 x2 R y-hat; 1.0 1.691 1.606 1.626 84.038"
      },
      "check": {
-      "manual": "x1 on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        1.0
+       ]
+      },
+      "key": "ridge_analysis.path.0.coded.x1"
      }
     },
     {
@@ -277398,8 +278400,56 @@
       "quote": "lambda x1 x2 R y-hat; 1.0 1.691 1.606 1.626 84.038"
      },
      "check": {
-      "manual": "x2 on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        1.0
+       ]
+      },
+      "key": "ridge_analysis.path.0.coded.x2"
      }
     },
     {
@@ -277412,8 +278462,56 @@
       "quote": "lambda x1 x2 R y-hat; 1.0 1.691 1.606 1.626 84.038"
      },
      "check": {
-      "manual": "R on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        1.0
+       ]
+      },
+      "key": "ridge_analysis.path.0.radius"
      }
     },
     {
@@ -277426,8 +278524,56 @@
       "quote": "lambda x1 x2 R y-hat; 1.0 1.691 1.606 1.626 84.038"
      },
      "check": {
-      "manual": "y-hat on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        1.0
+       ]
+      },
+      "key": "ridge_analysis.path.0.predicted_response"
      }
     },
     {
@@ -277440,8 +278586,56 @@
       "quote": "lambda x1 x2 R y-hat; 0.9 2.177 2.048 2.283 86.455"
      },
      "check": {
-      "manual": "x1 on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        0.9
+       ]
+      },
+      "key": "ridge_analysis.path.0.coded.x1"
      }
     },
     {
@@ -277454,8 +278648,56 @@
       "quote": "lambda x1 x2 R y-hat; 0.9 2.177 2.048 2.283 86.455"
      },
      "check": {
-      "manual": "x2 on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        0.9
+       ]
+      },
+      "key": "ridge_analysis.path.0.coded.x2"
      }
     },
     {
@@ -277468,8 +278710,56 @@
       "quote": "lambda x1 x2 R y-hat; 0.9 2.177 2.048 2.283 86.455"
      },
      "check": {
-      "manual": "R on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        0.9
+       ]
+      },
+      "key": "ridge_analysis.path.0.radius"
      }
     },
     {
@@ -277482,8 +278772,56 @@
       "quote": "lambda x1 x2 R y-hat; 0.9 2.177 2.048 2.283 86.455"
      },
      "check": {
-      "manual": "y-hat on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        0.9
+       ]
+      },
+      "key": "ridge_analysis.path.0.predicted_response"
      }
     },
     {
@@ -277496,8 +278834,56 @@
       "quote": "lambda x1 x2 R y-hat; 0.8 3.324 3.088 3.830 94.377"
      },
      "check": {
-      "manual": "x1 on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        0.8
+       ]
+      },
+      "key": "ridge_analysis.path.0.coded.x1"
      }
     },
     {
@@ -277510,8 +278896,56 @@
       "quote": "lambda x1 x2 R y-hat; 0.8 3.324 3.088 3.830 94.377"
      },
      "check": {
-      "manual": "x2 on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        0.8
+       ]
+      },
+      "key": "ridge_analysis.path.0.coded.x2"
      }
     },
     {
@@ -277524,8 +278958,56 @@
       "quote": "lambda x1 x2 R y-hat; 0.8 3.324 3.088 3.830 94.377"
      },
      "check": {
-      "manual": "R on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        0.8
+       ]
+      },
+      "key": "ridge_analysis.path.0.radius"
      }
     },
     {
@@ -277538,8 +279020,56 @@
       "quote": "lambda x1 x2 R y-hat; 0.8 3.324 3.088 3.830 94.377"
      },
      "check": {
-      "manual": "y-hat on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        0.8
+       ]
+      },
+      "key": "ridge_analysis.path.0.predicted_response"
      }
     },
     {
@@ -277552,8 +279082,56 @@
       "quote": "lambda x1 x2 R y-hat; 0.78 3.769 3.492 4.431 98.294"
      },
      "check": {
-      "manual": "x1 on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        0.78
+       ]
+      },
+      "key": "ridge_analysis.path.0.coded.x1"
      }
     },
     {
@@ -277566,8 +279144,56 @@
       "quote": "lambda x1 x2 R y-hat; 0.78 3.769 3.492 4.431 98.294"
      },
      "check": {
-      "manual": "x2 on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        0.78
+       ]
+      },
+      "key": "ridge_analysis.path.0.coded.x2"
      }
     },
     {
@@ -277580,8 +279206,56 @@
       "quote": "lambda x1 x2 R y-hat; 0.78 3.769 3.492 4.431 98.294"
      },
      "check": {
-      "manual": "R on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        0.78
+       ]
+      },
+      "key": "ridge_analysis.path.0.radius"
      }
     },
     {
@@ -277594,8 +279268,56 @@
       "quote": "lambda x1 x2 R y-hat; 0.78 3.769 3.492 4.431 98.294"
      },
      "check": {
-      "manual": "y-hat on the path of maximum y-hat from the focus (0.5, 0.5); the library has no ridge analysis about a focus f other than the origin: optimize_responses' ridge_analysis traces spheres centred at x = 0 only, (x - f)'(x - f) = R^2 of Eq. (12.4.1) is not available",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "ridge_analysis",
+       "focus": {
+        "x1": 0.5,
+        "x2": 0.5
+       },
+       "multipliers": [
+        0.78
+       ]
+      },
+      "key": "ridge_analysis.path.0.predicted_response"
      }
     }
    ]
