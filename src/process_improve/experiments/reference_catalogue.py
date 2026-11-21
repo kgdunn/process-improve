@@ -98,6 +98,7 @@ from process_improve.experiments.multistratum import multistratum_anova
 from process_improve.experiments.omars_trade_off import get_omars_trade_off_table_entry, omars_minimum_runs
 from process_improve.experiments.optimization import optimize_responses
 from process_improve.experiments.projections import evaluate_projections
+from process_improve.experiments.pseudocomponents import u_simplex_check
 from process_improve.experiments.random_effects import expected_mean_squares
 from process_improve.experiments.random_effects import fixed_columns as _fixed_columns
 from process_improve.experiments.run_order import run_order_trends
@@ -2376,6 +2377,7 @@ _LIBRARY: dict[str, Callable[..., Any]] = {
     "optimum_spread": optimum_spread,
     "optimize_responses": optimize_responses,
     "t_value": t_value,
+    "u_simplex_check": u_simplex_check,
     "chi2_value": chi2_value,
     "dunnett_value": dunnett_value,
     "f_value": f_value,

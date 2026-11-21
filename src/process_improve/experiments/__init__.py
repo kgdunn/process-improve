@@ -59,7 +59,11 @@ if TYPE_CHECKING:
     )
     from process_improve.experiments.optimization import feasible_region, optimize_responses
     from process_improve.experiments.projections import evaluate_projections
-    from process_improve.experiments.pseudocomponents import from_pseudocomponents, to_pseudocomponents
+    from process_improve.experiments.pseudocomponents import (
+        from_pseudocomponents,
+        to_pseudocomponents,
+        u_simplex_check,
+    )
     from process_improve.experiments.random_effects import (
         expected_mean_squares,
         intraclass_correlation_interval,
@@ -140,7 +144,7 @@ _WHERE = {
     ),
     "optimization": ("feasible_region", "optimize_responses"),
     "projections": ("evaluate_projections",),
-    "pseudocomponents": ("from_pseudocomponents", "to_pseudocomponents"),
+    "pseudocomponents": ("from_pseudocomponents", "to_pseudocomponents", "u_simplex_check"),
     "random_effects": (
         "expected_mean_squares",
         "intraclass_correlation_interval",
@@ -303,6 +307,7 @@ __all__ = [
     "trade_off_table",
     "trend_robust_run_order",
     "tukey_nonadditivity",
+    "u_simplex_check",
     "variance_components",
     "variance_dispersion",
     "visualize_doe",

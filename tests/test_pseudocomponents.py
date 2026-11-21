@@ -1,4 +1,4 @@
-"""L-pseudocomponents of a mixture with lower bounds on its components (#788 A10).
+"""Pseudocomponents of a mixture with lower bounds (#788 A10) or upper bounds (#973 M4) on its components.
 
 The pid-book's mixture section puts lower bounds of 0.2, 0.2 and 0 on three ingredients, so the
 pure first pseudocomponent is the blend (0.8, 0.2, 0.0). Goos and Jones's rolling mill bounds each
@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from process_improve.experiments import from_pseudocomponents, to_pseudocomponents
+from process_improve.experiments import from_pseudocomponents, to_pseudocomponents, u_simplex_check
 from process_improve.experiments.reference_catalogue import reference_experiments
 
 
@@ -82,3 +82,62 @@ def test_bounds_that_cannot_be_used_are_refused(blends, lower, message):
 def test_bounds_by_name_need_a_data_frame():
     with pytest.raises(TypeError, match="need the blends as a DataFrame"):
         to_pseudocomponents([0.5, 0.5], {"a": 0.1})
+
+
+FIGURE_17_4A = [0.50, 0.45, 0.40]  # Box and Draper's upper bounds whose U-simplex lies inside the mixture simplex
+
+
+def test_the_u_simplex_vertices_are_the_pure_u_pseudocomponents():
+    """Eq. (17.3.1): each vertex puts two components at their upper bounds, (0.15, 0.45, 0.40) and so on."""
+    vertices = from_pseudocomponents(np.eye(3), upper=FIGURE_17_4A)
+    assert vertices == pytest.approx(np.array([[0.15, 0.45, 0.40], [0.50, 0.10, 0.40], [0.50, 0.45, 0.05]]))
+    assert vertices.sum(axis=1) == pytest.approx(1.0)
+
+
+def test_u_pseudocomponents_go_and_come_back_and_add_to_one():
+    blends = pd.DataFrame({"a": [0.3, 0.4], "b": [0.35, 0.3], "c": [0.35, 0.3]}, index=[7, 9])
+    coded = to_pseudocomponents(blends, upper={"a": 0.50, "b": 0.45, "c": 0.40})
+    assert coded.index.equals(blends.index)
+    assert coded.sum(axis=1).to_numpy() == pytest.approx(1.0)
+    assert coded.loc[7, "a"] == pytest.approx((0.50 - 0.3) / 0.35)
+    assert from_pseudocomponents(coded, upper={"a": 0.50, "b": 0.45, "c": 0.40}).to_numpy() == pytest.approx(blends)
+
+
+def test_an_unnamed_component_has_no_upper_bound():
+    """A component the mapping leaves out is bounded by the total, as if it had no upper bound."""
+    blends = pd.DataFrame({"a": [0.2], "b": [0.8]})
+    coded = to_pseudocomponents(blends, upper={"a": 0.5})
+    assert coded.to_numpy() == pytest.approx(np.array([[(0.5 - 0.2) / 0.5, (1.0 - 0.8) / 0.5]]))
+
+
+@pytest.mark.parametrize(
+    ("upper", "upper_sum", "less_smallest", "inside"),
+    [(FIGURE_17_4A, 1.35, 0.95, True), ([0.55, 0.50, 0.52], 1.57, 1.07, False), ([0.5, 0.5, 0.5], 1.5, 1.0, True)],
+)
+def test_the_u_simplex_check_of_box_and_drapers_figure_17_4(upper, upper_sum, less_smallest, inside):
+    """Eq. (17.3.2): inside when U - U_min <= 1; the third set touches every face of the simplex."""
+    check = u_simplex_check(upper)
+    assert check["upper_sum"] == pytest.approx(upper_sum)
+    assert check["upper_sum_less_smallest"] == pytest.approx(less_smallest)
+    assert check["inside"] is inside
+
+
+def test_the_u_simplex_check_agrees_with_its_vertices():
+    """Outside the simplex means a vertex of the U-simplex has a negative proportion."""
+    for upper in (FIGURE_17_4A, [0.55, 0.50, 0.52], [0.9, 0.3, 0.2]):
+        vertices = from_pseudocomponents(np.eye(3), upper=upper)
+        assert u_simplex_check(upper)["inside"] == bool(np.all(vertices >= -1e-12))
+
+
+@pytest.mark.parametrize(
+    ("options", "message"),
+    [
+        ({"lower": [0.1, 0.1, 0.1], "upper": FIGURE_17_4A}, "not both and not neither"),
+        ({}, "not both and not neither"),
+        ({"upper": [0.3, 0.3, 0.3]}, "is not above a total"),
+        ({"upper": [0.5, -0.1, 0.9]}, "finite number, 0 or more"),
+    ],
+)
+def test_bad_bounds_are_refused(options, message):
+    with pytest.raises(ValueError, match=message):
+        to_pseudocomponents([0.3, 0.3, 0.4], **options)
