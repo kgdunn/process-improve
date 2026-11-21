@@ -924,6 +924,26 @@ label.inline { display: flex; flex-direction: column; gap: 4px; font-size: 0.9re
 .with-unit { display: inline-flex; align-items: center; gap: 6px; }
 .with-unit .unit { color: var(--muted); font-size: 0.9rem; }
 .known { margin: 6px 0 0; }
+/* "My measured response is a curve": what the page does with curves, in words beside a picture of it (#1420). */
+.curve-explain { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: center; margin-top: 4px; }
+.curve-explain p { margin: 0; }
+.curve-explain svg { display: block; width: 100%; height: auto; max-height: 6.8em; }
+.curve-explain .axes { fill: none; stroke: var(--line); }
+.curve-explain text { font-size: 9px; fill: var(--muted); }
+/* Okabe and Ito's colourblind-safe colours, one per run; lighter on the dark theme. */
+.curve-explain { --run1: #0072b2; --run2: #d55e00; --run3: #009e73; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .curve-explain { --run1: #56b4e9; --run2: #e69f00; --run3: #3cc79a; }
+}
+:root[data-theme="dark"] .curve-explain { --run1: #56b4e9; --run2: #e69f00; --run3: #3cc79a; }
+.curve-explain polyline { fill: none; stroke-width: 1.3; stroke-linejoin: round; }
+.curve-explain polyline.run1 { stroke: var(--run1); }
+.curve-explain polyline.run2 { stroke: var(--run2); }
+.curve-explain polyline.run3 { stroke: var(--run3); }
+.curve-explain text.run1 { fill: var(--run1); }
+.curve-explain text.run2 { fill: var(--run2); }
+.curve-explain text.run3 { fill: var(--run3); }
+@media (max-width: 480px) { .curve-explain { grid-template-columns: 1fr; } }
 .known .row > label { flex: 1 1 9rem; }
 
 /* The limits on the settings: one card each, its number (as the picture numbers its boundary), its text in a box
