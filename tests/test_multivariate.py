@@ -101,6 +101,7 @@ from process_improve.multivariate.methods import (
 )
 from process_improve.multivariate.plots import _x_space_loadings
 from tests._no_spread import thin_residual
+from tests.test_multivariate_nipals_stopping import _two_groups
 
 pd.options.plotting.backend = "plotly"
 pd.options.display.max_columns = 20
@@ -6723,6 +6724,19 @@ class TestTPLSWrittenOut:
         # [11, 9, 27] when each component started from the first Quality column (#954).
         assert expected["iterations"] == [11, 9, 25]
         _check_tpls_fitted(model, d_matrix, fixture_tpls_example, expected, rtol=1e-9)
+
+    def test_a_component_that_cycles_is_damped_as_the_algorithm_is(self) -> None:
+        """Undamped, the first component swings for all 200 passes; damped, it converges pass for pass (#1163).
+
+        Each swing found halves the step, and each step mixes the directions of ``u`` at the size of the
+        pass's result, so the count of damped passes, 48, is the algorithm's, and so are the scores.
+        """
+        d_matrix, data = _two_groups(seed=110)
+        blocks = {block: dict(data[block]) for block in ("F", "Z", "Y")}
+        model = TPLS(n_components=1, d_matrix=d_matrix, max_iter=200).fit(DataFrameDict(copy.deepcopy(blocks)))
+        expected = _tpls_written_out(d_matrix, blocks, 1, stop=(200, epsqrt))
+        assert expected["iterations"] == [48]
+        _check_tpls_fitted(model, d_matrix, blocks, expected, rtol=1e-9)
 
     def test_a_looser_tolerance_stops_where_the_algorithm_does(self) -> None:
         """The tolerance is the change of u between passes, relative to its length, that counts as converged."""
