@@ -2133,6 +2133,19 @@ def test_spherical_and_blocked_designs_are_read_from_their_runs():
     )  # Montgomery's p. 509 design: two centre runs in each block
 
 
+def test_rotatability_is_read_from_the_runs_or_from_a_design_the_library_makes():
+    """Example 11.2's CCD, its axial runs at √2 = 4^(1/4), is rotatable; the face-centred CCD is not."""
+    from process_improve.experiments.reference_catalogue import _rotatable
+
+    entry = _ccd()
+    assert _rotatable(entry, {"factors": ["A", "B"]}) == 1
+    entry["runs"]["exact"] = {}  # the axial runs at 1.414, as printed, are rotatable only to that precision
+    assert _rotatable(entry, {"factors": ["A", "B"]}) == 0
+    face_centred = {"design_type": "ccd", "k": 2, "options": {"alpha": "face_centered"}}
+    assert _rotatable({}, {"design": face_centred}) == 0
+    assert _rotatable({}, {"design": {**face_centred, "options": {"alpha": "rotatable"}}}) == 1
+
+
 def test_a_definitive_screening_design_is_fold_over_pairs_with_squares_orthogonal_to_main_effects():
     """Figure 11.32's design for four factors: four fold-over pairs and a centre run."""
     from process_improve.experiments.reference_catalogue import (

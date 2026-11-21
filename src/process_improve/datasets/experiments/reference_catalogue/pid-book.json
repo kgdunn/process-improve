@@ -31558,7 +31558,7 @@
       "quote": "factor counts, including :math:`k = 3`, giving roughly uniform prediction variance at a"
      },
      "check": {
-      "manual": "a statement about rotatability (uniformity of the prediction variance), which no check here computes",
+      "manual": "a judgement of how nearly rotatable the design is: the rotatable check finds it not rotatable, its prediction variance spread on a sphere, but no check measures how near to uniform it is",
       "cause": "not_a_result"
      }
     },
@@ -31718,8 +31718,15 @@
       "quote": "it is rotatable for :math:`k = 4` (and :math:`k = 7`)"
      },
      "check": {
-      "manual": "a statement about rotatability (uniformity of the prediction variance), which no check here computes",
-      "cause": "not_a_result"
+      "kind": "rotatable",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 4,
+       "options": {
+        "n_center_points": 3
+       }
+      },
+      "printed": "1"
      }
     },
     {
@@ -31863,7 +31870,7 @@
       "quote": "and nearly rotatable for the other"
      },
      "check": {
-      "manual": "a statement about rotatability (uniformity of the prediction variance), which no check here computes",
+      "manual": "a judgement of how nearly rotatable the design is: the rotatable check finds it not rotatable, its prediction variance spread on a sphere, but no check measures how near to uniform it is",
       "cause": "not_a_result"
      }
     }
@@ -31993,7 +32000,7 @@
       "quote": "and nearly rotatable for the other"
      },
      "check": {
-      "manual": "a statement about rotatability (uniformity of the prediction variance), which no check here computes",
+      "manual": "a judgement of how nearly rotatable the design is: the rotatable check finds it not rotatable, its prediction variance spread on a sphere, but no check measures how near to uniform it is",
       "cause": "not_a_result"
      }
     }
@@ -32123,8 +32130,15 @@
       "quote": "it is rotatable for :math:`k = 4` (and :math:`k = 7`)"
      },
      "check": {
-      "manual": "a statement about rotatability (uniformity of the prediction variance), which no check here computes",
-      "cause": "not_a_result"
+      "kind": "rotatable",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 7,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "printed": "1"
      }
     }
    ]

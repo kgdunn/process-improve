@@ -63153,8 +63153,14 @@
       "quote": "This design is a rotatable second-order design suitable for studying four variables in 27 trials"
      },
      "check": {
-      "manual": "rotatability, the prediction variance depending on the distance from the centre only; the library's variance_dispersion finds it rotatable (its spread is zero on every sphere), but no check kind of the catalogue calls variance_dispersion",
-      "cause": "check_gap"
+      "kind": "rotatable",
+      "factors": [
+       "x1",
+       "x2",
+       "x3",
+       "x4"
+      ],
+      "printed": "1"
      }
     },
     {
@@ -65201,8 +65207,17 @@
       "quote": "The designs for k = 4 and 7 are both rotatable."
      },
      "check": {
-      "manual": "rotatability; the library's variance_dispersion finds it rotatable (its spread is zero on every sphere), but no check kind of the catalogue calls variance_dispersion",
-      "cause": "check_gap"
+      "kind": "rotatable",
+      "factors": [
+       "x1",
+       "x2",
+       "x3",
+       "x4",
+       "x5",
+       "x6",
+       "x7"
+      ],
+      "printed": "1"
      }
     }
    ]
@@ -193717,8 +193732,14 @@
       "quote": "These constituted a four-factor cube plus star rotatable design"
      },
      "check": {
-      "manual": "the library's variance_dispersion reports whether a design is rotatable, but no check kind calls it",
-      "cause": "check_gap"
+      "kind": "rotatable",
+      "factors": [
+       "x1",
+       "x2",
+       "x3",
+       "x4"
+      ],
+      "printed": "1"
      }
     },
     {
@@ -194671,8 +194692,13 @@
       "quote": "Confirm that the design is a rotatable dodecahedron"
      },
      "check": {
-      "manual": "the library's variance_dispersion reports whether a design is rotatable, but no check kind calls it",
-      "cause": "check_gap"
+      "kind": "rotatable",
+      "factors": [
+       "x1",
+       "x2",
+       "x3"
+      ],
+      "printed": "1"
      }
     },
     {
@@ -201172,8 +201198,13 @@
       "quote": "a two-factor, third-order, rotatable, orthogonally blocked"
      },
      "check": {
-      "manual": "the library's variance_dispersion reports whether a design is rotatable for a model of degree up to 3, but no check kind calls it",
-      "cause": "check_gap"
+      "kind": "rotatable",
+      "factors": [
+       "x1",
+       "x2"
+      ],
+      "model": "x1 + x2 + I(x1 ** 2) + I(x2 ** 2) + x1:x2 + I(x1 ** 3) + I(x2 ** 3) + I(x1 ** 2 * x2) + I(x1 * x2 ** 2)",
+      "printed": "1"
      }
     },
     {

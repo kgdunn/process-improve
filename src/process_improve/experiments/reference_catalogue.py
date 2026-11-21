@@ -98,6 +98,7 @@ from process_improve.experiments.separating import constraint_through_cuts
 from process_improve.experiments.sequential import steepest_path
 from process_improve.experiments.three_level_components import interaction_components
 from process_improve.experiments.trade_off import minimum_aberration_generators
+from process_improve.experiments.variance_dispersion import variance_dispersion
 from process_improve.experiments.yates import reverse_yates, yates_table
 from process_improve.monitoring.metrics import calculate_cpk
 from process_improve.multivariate._fpca import FPCA
@@ -3140,6 +3141,20 @@ def _blocks_orthogonal(experiment: dict, check: dict) -> float:
     return float(squares_orthogonal_to_blocks(design, labels))
 
 
+def _rotatable(experiment: dict, check: dict) -> float:
+    """Return 1 when the library's :func:`variance_dispersion` finds a design rotatable, 0 when it does not.
+
+    The design is the entry's runs in the factors ``check["factors"]``, or with ``check["design"]`` one the
+    library makes (see :func:`_design_property`). ``check["model"]`` is the model whose prediction variance
+    is judged: ``"quadratic"`` by default, or a formula, such as a third-order one.
+    """
+    if check.get("design"):
+        design = _made(json.dumps(check["design"], sort_keys=True))
+    else:
+        design = _coded_runs(experiment, check.get("runs"))[0][check["factors"]]
+    return float(variance_dispersion(design, model=check.get("model", "quadratic"))["rotatable"])
+
+
 def _desirability(experiment: dict, check: dict) -> float:
     """Return the Derringer and Suich desirability of the fitted responses at a coded point ``check["point"]``.
 
@@ -3485,6 +3500,7 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "log_variance_ratio": _log_variance_ratio,
     "normal_equations": _normal_equations,
     "relative_efficiency": _relative_efficiency,
+    "rotatable": _rotatable,
     "term_correlations": _term_correlations,
     "estimate_correlations": _estimate_correlations,
     "estimate_missing": _estimate_missing,
