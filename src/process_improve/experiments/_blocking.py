@@ -177,6 +177,7 @@ def _blocking_from_words(design: np.ndarray, words: list[int], names: list[str],
         labels[~centre] += (np.prod(corners[:, columns], axis=1) > 0).astype(int) << i
     labels[centre] = np.arange(int(centre.sum())) % 2 ** len(words)
     contrasts = _span(words)[1:]
+    _warn_of_aliased_interactions(contrasts, subgroup, names)
     return Blocking(
         labels=labels + 1,
         method="confounding",
@@ -184,6 +185,27 @@ def _blocking_from_words(design: np.ndarray, words: list[int], names: list[str],
         confounded_with=[_word(m, names) for m in contrasts],
         aliases=_alias_chains(contrasts, subgroup, names),
     )
+
+
+def _warn_of_aliased_interactions(contrasts: list[int], subgroup: list[int], names: list[str]) -> None:
+    """Warn when a fraction aliases a word confounded with blocks with a two-factor interaction.
+
+    The word itself is listed as confounded; its aliases are not, so a resolution V fraction in two
+    blocks could lose an interaction to the blocks without a word (Box and Draper 2007, Table 5.14).
+    """
+    hidden = [
+        f"{_word(c, names)} with {_word(c ^ d, names)}"
+        for c in contrasts
+        for d in subgroup[1:]
+        if (c ^ d).bit_count() == 2  # two factors make an interaction
+    ]
+    if hidden:
+        msg = (
+            f"The blocks are confounded with words that this fraction aliases with two-factor interactions: "
+            f"{'; '.join(hidden)}. Those interactions cannot be told apart from the blocks. Give other "
+            "block_generators, fewer blocks or a larger fraction to keep them clear."
+        )
+        warnings.warn(msg, UserWarning, stacklevel=user_stacklevel())
 
 
 def _alias_chains(contrasts: list[int], subgroup: list[int], names: list[str]) -> dict[str, list[str]]:

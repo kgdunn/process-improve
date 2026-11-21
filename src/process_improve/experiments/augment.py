@@ -1059,6 +1059,9 @@ def _augment_add_blocks(ctx: _AugmentContext) -> dict[str, Any]:
             f"Assigned {n_blocks} blocks with generators {', '.join(blocking.generators)}.",
             f"Confounded with blocks: {', '.join(blocking.confounded_with)} (no main effect).",
         ]
+        if blocking.aliases:  # a fraction: the blocks take each word's aliases with it
+            chains = "; ".join(f"{word} = {' = '.join(chain)}" for word, chain in blocking.aliases.items())
+            notes.append(f"In this fraction the blocks also take the words aliased with them: {chains}.")
     else:
         blocking = exchange_blocks(numeric, n_blocks, check_random_state(ctx.random_state))
         notes = [

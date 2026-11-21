@@ -15,7 +15,7 @@ import warnings
 import numpy as np
 import pytest
 
-from process_improve.experiments import Factor, generate_design
+from process_improve.experiments import Factor, augment_design, generate_design
 
 
 def factorial(names: str | list[str], **options):
@@ -166,3 +166,38 @@ def test_the_order_of_the_words_only_relabels_the_blocks(first, second):
     one = factorial("ABCDE", block_generators=[first, second], random_state=0)
     other = factorial("ABCDE", block_generators=["ADE", "BCE"], random_state=0)
     assert sorted(one.metadata["blocking"]["confounded_with"]) == sorted(other.metadata["blocking"]["confounded_with"])
+
+
+# ------------------------------------------------------------------ a word aliased with an interaction (#788 A14)
+def test_two_blocks_of_the_resolution_v_half_fraction_warn_of_the_interaction_they_take():
+    """Box and Draper's Table 5.14 prints "Not available": ABC, confounded with blocks, is aliased with DE."""
+    factors = [Factor(name=name, low=-1, high=1) for name in "ABCDE"]
+    with pytest.warns(UserWarning, match="aliases with two-factor interactions: ABC with DE"):
+        design = generate_design(factors, design_type="fractional_factorial", resolution=5, n_blocks=2)
+    assert design.metadata["blocking"]["aliases"] == {"ABC": ["DE"]}
+
+
+def test_block_generators_given_for_a_fraction_warn_too():
+    """ABCE and AD also confound their product BCDE, which I = BCDF aliases with EF."""
+    with pytest.warns(UserWarning, match="BCDE with EF"):
+        generate_design(
+            [Factor(name=name, low=-1, high=1) for name in "ABCDEF"],
+            design_type="fractional_factorial",
+            generators=["F=BCD"],
+            block_generators=["ABCE", "AD"],
+        )
+
+
+def test_a_full_factorial_in_blocks_and_a_clear_blocking_do_not_warn():
+    """The 2^5 in two blocks gives up ABCDE, with no alias; the photoresist half fraction gives up ABCE and ADEF."""
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message="The blocks are confounded")
+        factorial("ABCDE", n_blocks=2)
+        factorial("ABCDEF", generators=["F=BCD"], block_generators=["ABCE"])
+
+
+def test_augmenting_a_fraction_with_blocks_names_the_aliases_it_gives_up():
+    half = factorial("ABCDE", generators=["E=ABCD"]).design[list("ABCDE")]
+    with pytest.warns(UserWarning, match="two-factor interactions"):
+        result = augment_design(half, "add_blocks", n_additional_runs=2)
+    assert "the blocks also take the words aliased with them: ABC = DE" in result["explanation"]
