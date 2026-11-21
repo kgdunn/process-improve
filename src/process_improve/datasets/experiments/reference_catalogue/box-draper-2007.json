@@ -71767,10 +71767,36 @@
       "source_kind": "prose",
       "quote": "their average is (5/8, 1/8, 1/8, 1/8), which lies midway between the vertex"
      },
-     "check": {
-      "manual": "arithmetic on four blends of four components, (1, 0, 0, 0) and the three binary blends with it, which no check computes",
-      "cause": "check_gap"
-     }
+     "check": [
+      {
+       "kind": "axial_blend",
+       "components": 4,
+       "component": 0,
+       "printed": "5/8",
+       "expression": true
+      },
+      {
+       "kind": "axial_blend",
+       "components": 4,
+       "component": 1,
+       "printed": "1/8",
+       "expression": true
+      },
+      {
+       "kind": "axial_blend",
+       "components": 4,
+       "component": 2,
+       "printed": "1/8",
+       "expression": true
+      },
+      {
+       "kind": "axial_blend",
+       "components": 4,
+       "component": 3,
+       "printed": "1/8",
+       "expression": true
+      }
+     ]
     }
    ]
   },
@@ -393103,7 +393129,7 @@
       "quote": "This is minimized by r = 5/24 = 0.208."
      },
      "check": {
-      "manual": "dS/dr = 48r - 10 = 0; arithmetic on the exercise's points, which no check computes; the library's axial blends (mixture_candidates' axial_blend) sit halfway from each vertex to the centroid, r = 1/(2q) (1/6 for q = 3, verified), and the library has no axial points at another distance",
+      "manual": "dS/dr = 48r - 10 = 0; arithmetic on the exercise's points, which no check computes; the library places axial blends at a given r (augment_design's axial_distance) but does not choose r",
       "cause": "library_gap"
      }
     },
@@ -393117,7 +393143,7 @@
       "quote": "This is minimized by r = 5/24 = 0.208."
      },
      "check": {
-      "manual": "5/24 = 0.20833; arithmetic on the exercise's points, which no check computes; the library's axial blends (mixture_candidates' axial_blend) sit halfway from each vertex to the centroid, r = 1/(2q) (1/6 for q = 3, verified), and the library has no axial points at another distance",
+      "manual": "5/24 = 0.20833; arithmetic on the exercise's points, which no check computes; the library places axial blends at a given r (augment_design's axial_distance) but does not choose r",
       "cause": "library_gap"
      }
     },
@@ -393131,8 +393157,10 @@
       "quote": "the three axial points are at (0.583, 0.208, 0.208), (0.208, 0.583, 0.208)"
      },
      "check": {
-      "manual": "1 - 2(5/24) = 7/12 = 0.58333; arithmetic on the exercise's points, which no check computes; the library's axial blends (mixture_candidates' axial_blend) sit halfway from each vertex to the centroid, r = 1/(2q) (1/6 for q = 3, verified), and the library has no axial points at another distance",
-      "cause": "library_gap"
+      "kind": "axial_blend",
+      "components": 3,
+      "component": 0,
+      "axial_distance": 0.20833333333333334
      }
     },
     {
@@ -393145,8 +393173,8 @@
       "quote": "the three axial points are at (0.583, 0.208, 0.208), (0.208, 0.583, 0.208)"
      },
      "check": {
-      "manual": "r = 5/24; arithmetic on the exercise's points, which no check computes; the library's axial blends (mixture_candidates' axial_blend) sit halfway from each vertex to the centroid, r = 1/(2q) (1/6 for q = 3, verified), and the library has no axial points at another distance",
-      "cause": "library_gap"
+      "manual": "r = 5/24 itself, the input that places the blends; their first coordinate is checked",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -393184,8 +393212,10 @@
       "quote": "(0.667, 0.333) for q = 2; (0.584, 0.208, 0.208) for q = 3"
      },
      "check": {
-      "manual": "1/2 + 1/6 = 2/3; r = (q + 2)/[2q(q + 1)]; arithmetic on the exercise's points, which no check computes; the library's axial blends (mixture_candidates' axial_blend) sit halfway from each vertex to the centroid, r = 1/(2q) (1/6 for q = 3, verified), and the library has no axial points at another distance",
-      "cause": "library_gap"
+      "kind": "axial_blend",
+      "components": 2,
+      "component": 0,
+      "axial_distance": 0.3333333333333333
      }
     },
     {
@@ -393198,8 +393228,8 @@
       "quote": "(0.667, 0.333) for q = 2; (0.584, 0.208, 0.208) for q = 3"
      },
      "check": {
-      "manual": "r = (q + 2)/[2q(q + 1)] = 1/3; arithmetic on the exercise's points, which no check computes; the library's axial blends (mixture_candidates' axial_blend) sit halfway from each vertex to the centroid, r = 1/(2q) (1/6 for q = 3, verified), and the library has no axial points at another distance",
-      "cause": "library_gap"
+      "manual": "r = (q + 2)/[2q(q + 1)] itself, the input that places the blends; their first coordinate is checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -393212,8 +393242,12 @@
       "quote": "(0.667, 0.333) for q = 2; (0.584, 0.208, 0.208) for q = 3"
      },
      "check": {
-      "manual": "1/2 + 1/12 = 7/12 = 0.58333, which rounds to 0.583 (as Exercise 16.3 prints it); the printed 0.584 is 1 - 2(0.208), from the rounded r; arithmetic on the exercise's points, which no check computes; the library's axial blends (mixture_candidates' axial_blend) sit halfway from each vertex to the centroid, r = 1/(2q) (1/6 for q = 3, verified), and the library has no axial points at another distance",
-      "cause": "library_gap"
+      "kind": "axial_blend",
+      "components": 3,
+      "component": 0,
+      "disagreement": "the printed 0.584 is 1 - 2(0.208), from the rounded r: 7/12 = 0.58333 unrounded",
+      "cause": "source_rounding",
+      "axial_distance": 0.20833333333333334
      }
     },
     {
@@ -393226,8 +393260,8 @@
       "quote": "(0.667, 0.333) for q = 2; (0.584, 0.208, 0.208) for q = 3"
      },
      "check": {
-      "manual": "r = (q + 2)/[2q(q + 1)] = 5/24 = 0.20833; arithmetic on the exercise's points, which no check computes; the library's axial blends (mixture_candidates' axial_blend) sit halfway from each vertex to the centroid, r = 1/(2q) (1/6 for q = 3, verified), and the library has no axial points at another distance",
-      "cause": "library_gap"
+      "manual": "r = (q + 2)/[2q(q + 1)] itself, the input that places the blends; their first coordinate is checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -393240,8 +393274,10 @@
       "quote": "(0.550, 0.150, 0.150, 0.150) for q = 4"
      },
      "check": {
-      "manual": "1/2 + 1/20 = 0.55; arithmetic on the exercise's points, which no check computes; the library's axial blends (mixture_candidates' axial_blend) sit halfway from each vertex to the centroid, r = 1/(2q) (1/6 for q = 3, verified), and the library has no axial points at another distance",
-      "cause": "library_gap"
+      "kind": "axial_blend",
+      "components": 4,
+      "component": 0,
+      "axial_distance": 0.15
      }
     },
     {
@@ -393254,8 +393290,8 @@
       "quote": "(0.550, 0.150, 0.150, 0.150) for q = 4"
      },
      "check": {
-      "manual": "r = (q + 2)/[2q(q + 1)] = 6/40 = 0.15; arithmetic on the exercise's points, which no check computes; the library's axial blends (mixture_candidates' axial_blend) sit halfway from each vertex to the centroid, r = 1/(2q) (1/6 for q = 3, verified), and the library has no axial points at another distance",
-      "cause": "library_gap"
+      "manual": "r = (q + 2)/[2q(q + 1)] itself, the input that places the blends; their first coordinate is checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -393268,8 +393304,12 @@
       "quote": "(0.532, 0.117, 0.117, 0.117, 0.117) for q = 5"
      },
      "check": {
-      "manual": "1/2 + 1/30 = 8/15 = 0.53333, which rounds to 0.533; the printed 0.532 is 1 - 4(0.117), from the rounded r; arithmetic on the exercise's points, which no check computes; the library's axial blends (mixture_candidates' axial_blend) sit halfway from each vertex to the centroid, r = 1/(2q) (1/6 for q = 3, verified), and the library has no axial points at another distance",
-      "cause": "library_gap"
+      "kind": "axial_blend",
+      "components": 5,
+      "component": 0,
+      "disagreement": "the printed 0.532 is 1 - 4(0.117), from the rounded r: 8/15 = 0.53333 unrounded",
+      "cause": "source_rounding",
+      "axial_distance": 0.11666666666666667
      }
     },
     {
@@ -393282,8 +393322,8 @@
       "quote": "(0.532, 0.117, 0.117, 0.117, 0.117) for q = 5"
      },
      "check": {
-      "manual": "r = (q + 2)/[2q(q + 1)] = 7/60 = 0.11667; arithmetic on the exercise's points, which no check computes; the library's axial blends (mixture_candidates' axial_blend) sit halfway from each vertex to the centroid, r = 1/(2q) (1/6 for q = 3, verified), and the library has no axial points at another distance",
-      "cause": "library_gap"
+      "manual": "r = (q + 2)/[2q(q + 1)] itself, the input that places the blends; their first coordinate is checked",
+      "cause": "not_a_result"
      }
     },
     {
