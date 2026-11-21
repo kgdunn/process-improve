@@ -365005,10 +365005,48 @@
       "source_kind": "exercise",
       "quote": "Block 1 is a first-order orthogonal ... all three blocks form a third order rotatable design"
      },
-     "check": {
-      "manual": "rotatability of blocks 1 and 2 to second order and of all three to third order; the library's variance_dispersion tells rotatability, but no check reaches it, and with block 3 as printed to three decimals it reads all three blocks as not rotatable (spread 0.003 against its 1e-8 tolerance), rotatable with the exact heptagon",
-      "cause": "check_gap"
-     }
+     "check": [
+      {
+       "manual": "block 1 as a first-order orthogonal design, its columns x1, x2 and the constant orthogonal; no check kind tests one block's orthogonality",
+       "cause": "check_gap",
+       "printed": "first-order orthogonal"
+      },
+      {
+       "kind": "rotatable",
+       "factors": [
+        "x1",
+        "x2"
+       ],
+       "runs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14
+       ],
+       "printed": "1"
+      },
+      {
+       "kind": "rotatable",
+       "factors": [
+        "x1",
+        "x2"
+       ],
+       "model": "x1 + x2 + I(x1 ** 2) + I(x2 ** 2) + x1:x2 + I(x1 ** 3) + I(x2 ** 3) + I(x1 ** 2 * x2) + I(x1 * x2 ** 2)",
+       "tolerance": 0.001,
+       "printed": "1"
+      }
+     ],
+     "analysis": "blocks 1 and 2 (runs 1 to 14) rotatable for the second-order model, and all three for the third-order one; block 3's heptagon is printed to three decimals, so its spread on a sphere is 6.1e-4 of the mean, inside the tolerance of 1e-3 the check allows for that rounding"
     },
     {
      "what": "coefficient",
