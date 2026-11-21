@@ -25442,8 +25442,50 @@
       "quote": "θ = M'b = [0.6 0.8; -0.8 0.6][2.272; 3.496] = [4.16; 0.28], (10.3.17)"
      },
      "check": {
-      "manual": "m1'b, the slope along X1 at the design origin; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (ridge_form.linear), not along every canonical axis",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 78.8988
+          },
+          {
+           "term": "x1",
+           "coefficient": 2.272
+          },
+          {
+           "term": "x2",
+           "coefficient": 3.496
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": -2.08
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": -2.92
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": -2.88
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "canonical_analysis"
+      },
+      "key": "canonical_analysis.rotated_form.linear.0",
+      "sign_of": "canonical_analysis.eigenvectors.0.0"
      }
     },
     {
@@ -25514,8 +25556,50 @@
       "quote": "X1S = 4.16/(2 × 4) = 0.52, (10.3.18)"
      },
      "check": {
-      "manual": "-θ1/(2λ1), the coordinate of S on the X1 axis; minus the constant of the canonical axis (canonical_axes.i.constant, -mi'xS), which is checked; no check negates a library value",
-      "cause": "check_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 78.8988
+          },
+          {
+           "term": "x1",
+           "coefficient": 2.272
+          },
+          {
+           "term": "x2",
+           "coefficient": 3.496
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": -2.08
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": -2.92
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": -2.88
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "canonical_analysis"
+      },
+      "key": "canonical_analysis.rotated_form.stationary_point.0",
+      "sign_of": "canonical_analysis.eigenvectors.0.0"
      }
     },
     {
@@ -25529,8 +25613,50 @@
       "quote": "X2S = 0.28/(2 × 1) = 0.14. (10.3.18)"
      },
      "check": {
-      "manual": "-θ2/(2λ2), the coordinate of S on the X2 axis; minus the constant of the canonical axis (canonical_axes.i.constant, -mi'xS), which is checked; no check negates a library value",
-      "cause": "check_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 78.8988
+          },
+          {
+           "term": "x1",
+           "coefficient": 2.272
+          },
+          {
+           "term": "x2",
+           "coefficient": 3.496
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": -2.08
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": -2.92
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": -2.88
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "canonical_analysis"
+      },
+      "key": "canonical_analysis.rotated_form.stationary_point.1",
+      "sign_of": "canonical_analysis.eigenvectors.1.1"
      }
     },
     {
@@ -25556,10 +25682,102 @@
       "source_kind": "math",
       "quote": "ŷ = 78.8988 + 4.16X1 + 0.28X2 - 4X1² - 1X2², (10.3.19)"
      },
-     "check": {
-      "manual": "the slopes θ of (10.3.17) again; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (ridge_form.linear), not along every canonical axis",
-      "cause": "library_gap"
-     }
+     "check": [
+      {
+       "kind": "library_value",
+       "function": "optimize_responses",
+       "args": [
+        [
+         {
+          "response_name": "y",
+          "factor_names": [
+           "x1",
+           "x2"
+          ],
+          "coefficients": [
+           {
+            "term": "Intercept",
+            "coefficient": 78.8988
+           },
+           {
+            "term": "x1",
+            "coefficient": 2.272
+           },
+           {
+            "term": "x2",
+            "coefficient": 3.496
+           },
+           {
+            "term": "I(x1 ** 2)",
+            "coefficient": -2.08
+           },
+           {
+            "term": "I(x2 ** 2)",
+            "coefficient": -2.92
+           },
+           {
+            "term": "x1:x2",
+            "coefficient": -2.88
+           }
+          ]
+         }
+        ]
+       ],
+       "kwargs": {
+        "method": "canonical_analysis"
+       },
+       "key": "canonical_analysis.rotated_form.linear.0",
+       "sign_of": "canonical_analysis.eigenvectors.0.0",
+       "printed": "4.16"
+      },
+      {
+       "kind": "library_value",
+       "function": "optimize_responses",
+       "args": [
+        [
+         {
+          "response_name": "y",
+          "factor_names": [
+           "x1",
+           "x2"
+          ],
+          "coefficients": [
+           {
+            "term": "Intercept",
+            "coefficient": 78.8988
+           },
+           {
+            "term": "x1",
+            "coefficient": 2.272
+           },
+           {
+            "term": "x2",
+            "coefficient": 3.496
+           },
+           {
+            "term": "I(x1 ** 2)",
+            "coefficient": -2.08
+           },
+           {
+            "term": "I(x2 ** 2)",
+            "coefficient": -2.92
+           },
+           {
+            "term": "x1:x2",
+            "coefficient": -2.88
+           }
+          ]
+         }
+        ]
+       ],
+       "kwargs": {
+        "method": "canonical_analysis"
+       },
+       "key": "canonical_analysis.rotated_form.linear.1",
+       "sign_of": "canonical_analysis.eigenvectors.1.1",
+       "printed": "0.28"
+      }
+     ]
     },
     {
      "what": "canonical",
@@ -26022,8 +26240,50 @@
       "quote": "Slopes θ 4.2 0.3"
      },
      "check": {
-      "manual": "m1'b = 4.16 (10.3.17) rounded; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (ridge_form.linear), not along every canonical axis",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 78.8988
+          },
+          {
+           "term": "x1",
+           "coefficient": 2.272
+          },
+          {
+           "term": "x2",
+           "coefficient": 3.496
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": -2.08
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": -2.92
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": -2.88
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "canonical_analysis"
+      },
+      "key": "canonical_analysis.rotated_form.linear.0",
+      "sign_of": "canonical_analysis.eigenvectors.0.0"
      }
     },
     {
@@ -26204,10 +26464,102 @@
       "source_kind": "table",
       "quote": "Distances XS 0.5 0.1"
      },
-     "check": {
-      "manual": "X1S = 0.52 and X2S = 0.14 rounded; minus the constant of the canonical axis (canonical_axes.i.constant, -mi'xS), which is checked; no check negates a library value",
-      "cause": "check_gap"
-     }
+     "check": [
+      {
+       "kind": "library_value",
+       "function": "optimize_responses",
+       "args": [
+        [
+         {
+          "response_name": "y",
+          "factor_names": [
+           "x1",
+           "x2"
+          ],
+          "coefficients": [
+           {
+            "term": "Intercept",
+            "coefficient": 78.8988
+           },
+           {
+            "term": "x1",
+            "coefficient": 2.272
+           },
+           {
+            "term": "x2",
+            "coefficient": 3.496
+           },
+           {
+            "term": "I(x1 ** 2)",
+            "coefficient": -2.08
+           },
+           {
+            "term": "I(x2 ** 2)",
+            "coefficient": -2.92
+           },
+           {
+            "term": "x1:x2",
+            "coefficient": -2.88
+           }
+          ]
+         }
+        ]
+       ],
+       "kwargs": {
+        "method": "canonical_analysis"
+       },
+       "key": "canonical_analysis.rotated_form.stationary_point.0",
+       "sign_of": "canonical_analysis.eigenvectors.0.0",
+       "printed": "0.5"
+      },
+      {
+       "kind": "library_value",
+       "function": "optimize_responses",
+       "args": [
+        [
+         {
+          "response_name": "y",
+          "factor_names": [
+           "x1",
+           "x2"
+          ],
+          "coefficients": [
+           {
+            "term": "Intercept",
+            "coefficient": 78.8988
+           },
+           {
+            "term": "x1",
+            "coefficient": 2.272
+           },
+           {
+            "term": "x2",
+            "coefficient": 3.496
+           },
+           {
+            "term": "I(x1 ** 2)",
+            "coefficient": -2.08
+           },
+           {
+            "term": "I(x2 ** 2)",
+            "coefficient": -2.92
+           },
+           {
+            "term": "x1:x2",
+            "coefficient": -2.88
+           }
+          ]
+         }
+        ]
+       ],
+       "kwargs": {
+        "method": "canonical_analysis"
+       },
+       "key": "canonical_analysis.rotated_form.stationary_point.1",
+       "sign_of": "canonical_analysis.eigenvectors.1.1",
+       "printed": "0.1"
+      }
+     ]
     },
     {
      "what": "canonical",
@@ -26219,7 +26571,7 @@
       "quote": "Changes, ŷ r 8.3 1.1"
      },
      "check": {
-      "manual": "ri = (3θi² + λi²)^1/2 (11.2.5), the change in ŷ one unit either way along each axis; the library has no such summary, and it needs the slopes θi, which it does not report; from θ = (4.16, 0.28) and λ = (-4, -1), r = (8.24, 1.11); the printed 8.3 is (3(4.2)² + 4²)^1/2 = 8.31 from the rounded slope",
+      "manual": "ri = (3θi² + λi²)^1/2 (11.2.5), the change in ŷ one unit either way along each axis; the library has no such summary (the slopes θi are checked through rotated_form.linear); from θ = (4.16, 0.28) and λ = (-4, -1), r = (8.24, 1.11); the printed 8.3 is (3(4.2)² + 4²)^1/2 = 8.31 from the rounded slope",
       "cause": "library_gap"
      }
     },
@@ -213693,8 +214045,67 @@
       "quote": "Slopes θ 0.1 -2.3 2.2"
      },
      "check": {
-      "manual": "m1'b = 0.110; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (ridge_form.linear), not along every canonical axis",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2",
+          "x3"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 57.31
+          },
+          {
+           "term": "x1",
+           "coefficient": 1.5
+          },
+          {
+           "term": "x2",
+           "coefficient": -2.13
+          },
+          {
+           "term": "x3",
+           "coefficient": 1.81
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": -4.69
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": -6.27
+          },
+          {
+           "term": "I(x3 ** 2)",
+           "coefficient": -5.21
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": -7.13
+          },
+          {
+           "term": "x1:x3",
+           "coefficient": -3.27
+          },
+          {
+           "term": "x2:x3",
+           "coefficient": -2.73
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "canonical_analysis"
+      },
+      "key": "canonical_analysis.rotated_form.linear.0",
+      "sign_of": "canonical_analysis.eigenvectors.0.0"
      }
     },
     {
@@ -213708,8 +214119,67 @@
       "quote": "Slopes θ 0.1 -2.3 2.2"
      },
      "check": {
-      "manual": "m2'b = -2.301; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (ridge_form.linear), not along every canonical axis",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2",
+          "x3"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 57.31
+          },
+          {
+           "term": "x1",
+           "coefficient": 1.5
+          },
+          {
+           "term": "x2",
+           "coefficient": -2.13
+          },
+          {
+           "term": "x3",
+           "coefficient": 1.81
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": -4.69
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": -6.27
+          },
+          {
+           "term": "I(x3 ** 2)",
+           "coefficient": -5.21
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": -7.13
+          },
+          {
+           "term": "x1:x3",
+           "coefficient": -3.27
+          },
+          {
+           "term": "x2:x3",
+           "coefficient": -2.73
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "canonical_analysis"
+      },
+      "key": "canonical_analysis.rotated_form.linear.1",
+      "sign_of": "canonical_analysis.eigenvectors.1.0"
      }
     },
     {
@@ -214014,10 +214484,200 @@
       "source_kind": "table",
       "quote": "Distances XS 0.0 -0.3 0.6"
      },
-     "check": {
-      "manual": "minus the constant of the canonical axis (canonical_axes.i.constant, -mi'xS), which is checked; no check negates a library value (from the library: 0.0055, -0.2636, 0.6172 for the eigenvectors as signed on p. 336)",
-      "cause": "check_gap"
-     }
+     "check": [
+      {
+       "kind": "library_value",
+       "function": "optimize_responses",
+       "args": [
+        [
+         {
+          "response_name": "y",
+          "factor_names": [
+           "x1",
+           "x2",
+           "x3"
+          ],
+          "coefficients": [
+           {
+            "term": "Intercept",
+            "coefficient": 57.31
+           },
+           {
+            "term": "x1",
+            "coefficient": 1.5
+           },
+           {
+            "term": "x2",
+            "coefficient": -2.13
+           },
+           {
+            "term": "x3",
+            "coefficient": 1.81
+           },
+           {
+            "term": "I(x1 ** 2)",
+            "coefficient": -4.69
+           },
+           {
+            "term": "I(x2 ** 2)",
+            "coefficient": -6.27
+           },
+           {
+            "term": "I(x3 ** 2)",
+            "coefficient": -5.21
+           },
+           {
+            "term": "x1:x2",
+            "coefficient": -7.13
+           },
+           {
+            "term": "x1:x3",
+            "coefficient": -3.27
+           },
+           {
+            "term": "x2:x3",
+            "coefficient": -2.73
+           }
+          ]
+         }
+        ]
+       ],
+       "kwargs": {
+        "method": "canonical_analysis"
+       },
+       "key": "canonical_analysis.rotated_form.stationary_point.0",
+       "sign_of": "canonical_analysis.eigenvectors.0.0",
+       "printed": "0.0"
+      },
+      {
+       "kind": "library_value",
+       "function": "optimize_responses",
+       "args": [
+        [
+         {
+          "response_name": "y",
+          "factor_names": [
+           "x1",
+           "x2",
+           "x3"
+          ],
+          "coefficients": [
+           {
+            "term": "Intercept",
+            "coefficient": 57.31
+           },
+           {
+            "term": "x1",
+            "coefficient": 1.5
+           },
+           {
+            "term": "x2",
+            "coefficient": -2.13
+           },
+           {
+            "term": "x3",
+            "coefficient": 1.81
+           },
+           {
+            "term": "I(x1 ** 2)",
+            "coefficient": -4.69
+           },
+           {
+            "term": "I(x2 ** 2)",
+            "coefficient": -6.27
+           },
+           {
+            "term": "I(x3 ** 2)",
+            "coefficient": -5.21
+           },
+           {
+            "term": "x1:x2",
+            "coefficient": -7.13
+           },
+           {
+            "term": "x1:x3",
+            "coefficient": -3.27
+           },
+           {
+            "term": "x2:x3",
+            "coefficient": -2.73
+           }
+          ]
+         }
+        ]
+       ],
+       "kwargs": {
+        "method": "canonical_analysis"
+       },
+       "key": "canonical_analysis.rotated_form.stationary_point.1",
+       "sign_of": "canonical_analysis.eigenvectors.1.0",
+       "printed": "-0.3"
+      },
+      {
+       "kind": "library_value",
+       "function": "optimize_responses",
+       "args": [
+        [
+         {
+          "response_name": "y",
+          "factor_names": [
+           "x1",
+           "x2",
+           "x3"
+          ],
+          "coefficients": [
+           {
+            "term": "Intercept",
+            "coefficient": 57.31
+           },
+           {
+            "term": "x1",
+            "coefficient": 1.5
+           },
+           {
+            "term": "x2",
+            "coefficient": -2.13
+           },
+           {
+            "term": "x3",
+            "coefficient": 1.81
+           },
+           {
+            "term": "I(x1 ** 2)",
+            "coefficient": -4.69
+           },
+           {
+            "term": "I(x2 ** 2)",
+            "coefficient": -6.27
+           },
+           {
+            "term": "I(x3 ** 2)",
+            "coefficient": -5.21
+           },
+           {
+            "term": "x1:x2",
+            "coefficient": -7.13
+           },
+           {
+            "term": "x1:x3",
+            "coefficient": -3.27
+           },
+           {
+            "term": "x2:x3",
+            "coefficient": -2.73
+           }
+          ]
+         }
+        ]
+       ],
+       "kwargs": {
+        "method": "canonical_analysis"
+       },
+       "key": "canonical_analysis.rotated_form.stationary_point.2",
+       "sign_of": "canonical_analysis.eigenvectors.2.0",
+       "printed": "0.6"
+      }
+     ]
     },
     {
      "what": "canonical",
@@ -214029,7 +214689,7 @@
       "quote": "Changes, ŷ r 10.0 5.9 4.2"
      },
      "check": {
-      "manual": "ri = (3θi² + λi²)^1/2 (11.2.5), the change in ŷ one unit either way along each axis; the library has no such summary, and it needs the slopes θi, which it does not report (from the unrounded θ and λ, r = (10.04, 5.91, 4.17))",
+      "manual": "ri = (3θi² + λi²)^1/2 (11.2.5), the change in ŷ one unit either way along each axis; the library has no such summary (the slopes θi are checked through rotated_form.linear) (from the unrounded θ and λ, r = (10.04, 5.91, 4.17))",
       "cause": "library_gap"
      }
     },
@@ -216905,8 +217565,67 @@
       "quote": "Slopes θ 2.3 0.3 0.3"
      },
      "check": {
-      "manual": "m1'b; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (ridge_form.linear), not along every canonical axis",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2",
+          "x3"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 59.16
+          },
+          {
+           "term": "x1",
+           "coefficient": 2.01
+          },
+          {
+           "term": "x2",
+           "coefficient": 1.0
+          },
+          {
+           "term": "x3",
+           "coefficient": 0.67
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": -2.01
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": -0.72
+          },
+          {
+           "term": "I(x3 ** 2)",
+           "coefficient": -1.01
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": -2.78
+          },
+          {
+           "term": "x1:x3",
+           "coefficient": -2.18
+          },
+          {
+           "term": "x2:x3",
+           "coefficient": -1.16
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "canonical_analysis"
+      },
+      "key": "canonical_analysis.rotated_form.linear.0",
+      "sign_of": "canonical_analysis.eigenvectors.0.0"
      }
     },
     {
@@ -216920,8 +217639,69 @@
       "quote": "Slopes θ 2.3 0.3 0.3"
      },
      "check": {
-      "manual": "m2'b; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (ridge_form.linear), not along every canonical axis",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2",
+          "x3"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 59.16
+          },
+          {
+           "term": "x1",
+           "coefficient": 2.01
+          },
+          {
+           "term": "x2",
+           "coefficient": 1.0
+          },
+          {
+           "term": "x3",
+           "coefficient": 0.67
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": -2.01
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": -0.72
+          },
+          {
+           "term": "I(x3 ** 2)",
+           "coefficient": -1.01
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": -2.78
+          },
+          {
+           "term": "x1:x3",
+           "coefficient": -2.18
+          },
+          {
+           "term": "x2:x3",
+           "coefficient": -1.16
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "canonical_analysis"
+      },
+      "key": "canonical_analysis.rotated_form.linear.1",
+      "sign_of": "canonical_analysis.eigenvectors.1.0",
+      "disagreement": "m2'b with (11.3.10)'s m2 = (0.291, 0.361, -0.886) and (11.3.5)'s b = (2.01, 1.00, 0.67) is 0.352, 0.4 at one decimal; the book prints 0.3, one unit off in its last digit",
+      "cause": "source_rounding"
      }
     },
     {
@@ -217227,10 +218007,200 @@
       "source_kind": "table",
       "quote": "Distances XS 0.3 0.4 -0.7"
      },
-     "check": {
-      "manual": "minus the constants of (11.3.10), which are checked, rounded; no check negates a library value",
-      "cause": "check_gap"
-     }
+     "check": [
+      {
+       "kind": "library_value",
+       "function": "optimize_responses",
+       "args": [
+        [
+         {
+          "response_name": "y",
+          "factor_names": [
+           "x1",
+           "x2",
+           "x3"
+          ],
+          "coefficients": [
+           {
+            "term": "Intercept",
+            "coefficient": 59.16
+           },
+           {
+            "term": "x1",
+            "coefficient": 2.01
+           },
+           {
+            "term": "x2",
+            "coefficient": 1.0
+           },
+           {
+            "term": "x3",
+            "coefficient": 0.67
+           },
+           {
+            "term": "I(x1 ** 2)",
+            "coefficient": -2.01
+           },
+           {
+            "term": "I(x2 ** 2)",
+            "coefficient": -0.72
+           },
+           {
+            "term": "I(x3 ** 2)",
+            "coefficient": -1.01
+           },
+           {
+            "term": "x1:x2",
+            "coefficient": -2.78
+           },
+           {
+            "term": "x1:x3",
+            "coefficient": -2.18
+           },
+           {
+            "term": "x2:x3",
+            "coefficient": -1.16
+           }
+          ]
+         }
+        ]
+       ],
+       "kwargs": {
+        "method": "canonical_analysis"
+       },
+       "key": "canonical_analysis.rotated_form.stationary_point.0",
+       "sign_of": "canonical_analysis.eigenvectors.0.0",
+       "printed": "0.3"
+      },
+      {
+       "kind": "library_value",
+       "function": "optimize_responses",
+       "args": [
+        [
+         {
+          "response_name": "y",
+          "factor_names": [
+           "x1",
+           "x2",
+           "x3"
+          ],
+          "coefficients": [
+           {
+            "term": "Intercept",
+            "coefficient": 59.16
+           },
+           {
+            "term": "x1",
+            "coefficient": 2.01
+           },
+           {
+            "term": "x2",
+            "coefficient": 1.0
+           },
+           {
+            "term": "x3",
+            "coefficient": 0.67
+           },
+           {
+            "term": "I(x1 ** 2)",
+            "coefficient": -2.01
+           },
+           {
+            "term": "I(x2 ** 2)",
+            "coefficient": -0.72
+           },
+           {
+            "term": "I(x3 ** 2)",
+            "coefficient": -1.01
+           },
+           {
+            "term": "x1:x2",
+            "coefficient": -2.78
+           },
+           {
+            "term": "x1:x3",
+            "coefficient": -2.18
+           },
+           {
+            "term": "x2:x3",
+            "coefficient": -1.16
+           }
+          ]
+         }
+        ]
+       ],
+       "kwargs": {
+        "method": "canonical_analysis"
+       },
+       "key": "canonical_analysis.rotated_form.stationary_point.1",
+       "sign_of": "canonical_analysis.eigenvectors.1.0",
+       "printed": "0.4"
+      },
+      {
+       "kind": "library_value",
+       "function": "optimize_responses",
+       "args": [
+        [
+         {
+          "response_name": "y",
+          "factor_names": [
+           "x1",
+           "x2",
+           "x3"
+          ],
+          "coefficients": [
+           {
+            "term": "Intercept",
+            "coefficient": 59.16
+           },
+           {
+            "term": "x1",
+            "coefficient": 2.01
+           },
+           {
+            "term": "x2",
+            "coefficient": 1.0
+           },
+           {
+            "term": "x3",
+            "coefficient": 0.67
+           },
+           {
+            "term": "I(x1 ** 2)",
+            "coefficient": -2.01
+           },
+           {
+            "term": "I(x2 ** 2)",
+            "coefficient": -0.72
+           },
+           {
+            "term": "I(x3 ** 2)",
+            "coefficient": -1.01
+           },
+           {
+            "term": "x1:x2",
+            "coefficient": -2.78
+           },
+           {
+            "term": "x1:x3",
+            "coefficient": -2.18
+           },
+           {
+            "term": "x2:x3",
+            "coefficient": -1.16
+           }
+          ]
+         }
+        ]
+       ],
+       "kwargs": {
+        "method": "canonical_analysis"
+       },
+       "key": "canonical_analysis.rotated_form.stationary_point.2",
+       "sign_of": "canonical_analysis.eigenvectors.2.0",
+       "printed": "-0.7"
+      }
+     ]
     },
     {
      "what": "canonical",
@@ -217243,7 +218213,7 @@
       "quote": "Changes, ŷ r 5.3 0.7 0.6"
      },
      "check": {
-      "manual": "ri = (3θi² + λi²)^1/2 (11.2.5); the library has no such summary, and it needs the slopes θi, which it does not report. From the unrounded θ and λ, r3 = 0.50; the printed 0.6 is (3(0.3)² + 0.2²)^1/2 from the table's rounded entries",
+      "manual": "ri = (3θi² + λi²)^1/2 (11.2.5); the library has no such summary (the slopes θi are checked through rotated_form.linear). From the unrounded θ and λ, r3 = 0.50; the printed 0.6 is (3(0.3)² + 0.2²)^1/2 from the table's rounded entries",
       "cause": "library_gap"
      }
     },
@@ -219946,10 +220916,88 @@
       "source_kind": "prose",
       "quote": "this implies that (X1S, X2S, X3S) = (0.3015, -0.3649, 35.2796)"
      },
-     "check": {
-      "manual": "minus the constants of (11.4.7), which are checked; no check negates a library value",
-      "cause": "check_gap"
-     }
+     "check": [
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "(x1 + x2 + x3) ** 2 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2)",
+       "key": "canonical_analysis.rotated_form.stationary_point.0",
+       "sign_of": "canonical_analysis.eigenvectors.0.2",
+       "printed": "0.3015"
+      },
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "(x1 + x2 + x3) ** 2 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2)",
+       "key": "canonical_analysis.rotated_form.stationary_point.1",
+       "sign_of": "canonical_analysis.eigenvectors.1.1",
+       "printed": "-0.3649"
+      },
+      {
+       "kind": "library_value",
+       "function": "optimize_responses",
+       "args": [
+        [
+         {
+          "response_name": "y",
+          "factor_names": [
+           "x1",
+           "x2",
+           "x3"
+          ],
+          "coefficients": [
+           {
+            "term": "Intercept",
+            "coefficient": 51.796
+           },
+           {
+            "term": "x1",
+            "coefficient": 0.7446
+           },
+           {
+            "term": "x2",
+            "coefficient": 4.8133
+           },
+           {
+            "term": "x3",
+            "coefficient": 8.0125
+           },
+           {
+            "term": "I(x1 ** 2)",
+            "coefficient": -3.8333
+           },
+           {
+            "term": "I(x2 ** 2)",
+            "coefficient": 1.2167
+           },
+           {
+            "term": "I(x3 ** 2)",
+            "coefficient": -6.2583
+           },
+           {
+            "term": "x1:x2",
+            "coefficient": 0.375
+           },
+           {
+            "term": "x1:x3",
+            "coefficient": 10.35
+           },
+           {
+            "term": "x2:x3",
+            "coefficient": -2.825
+           }
+          ]
+         }
+        ]
+       ],
+       "kwargs": {
+        "method": "canonical_analysis"
+       },
+       "key": "canonical_analysis.rotated_form.stationary_point.2",
+       "sign_of": "canonical_analysis.eigenvectors.2.0",
+       "printed": "35.2796"
+      }
+     ]
     },
     {
      "what": "canonical",
@@ -219992,9 +221040,13 @@
       "quote": "ŷ = 57.71 - 10.49X̃1² + 1.25Ẋ2 + 6.53Ẋ3. (11.4.10)"
      },
      "check": {
-      "manual": "2(1.7109)(0.3649), the slope along X2 at R; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (ridge_form.linear), not along every canonical axis",
-      "cause": "library_gap"
-     }
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "(x1 + x2 + x3) ** 2 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2)",
+      "key": "canonical_analysis.rotated_form.linear.1",
+      "sign_of": "canonical_analysis.eigenvectors.1.1"
+     },
+     "analysis": "the slope along X2 at R, the point of the plane X̃1 = 0 nearest the design centre: R has X2 = 0 on the A form's axes, so the slope there is theta2 = m2'b"
     },
     {
      "what": "canonical",
@@ -220026,7 +221078,7 @@
       "quote": "1.25Ẋ2 + 6.53Ẋ3 = 4.41x1 + 4.03x2 + 2.91x3"
      },
      "check": {
-      "manual": "1.25m2 + 6.53m3, arithmetic on the slopes of (11.4.10) and the eigenvectors; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (ridge_form.linear), not along every canonical axis",
+      "manual": "1.25m2 + 6.53m3, arithmetic on the slopes of (11.4.10) and the eigenvectors; the library gives the slopes (rotated_form.linear) but no check kind combines them with the eigenvectors",
       "cause": "library_gap"
      }
     },
@@ -220040,7 +221092,7 @@
       "quote": "= 6.645(0.664x1 + 0.606x2 + 0.438x3) = 6.645X, (11.4.11)"
      },
      "check": {
-      "manual": "the length of (4.41, 4.03, 2.91); arithmetic on numbers of (11.4.11); the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (ridge_form.linear), not along every canonical axis",
+      "manual": "the length of (4.41, 4.03, 2.91); arithmetic on numbers of (11.4.11); the library gives the slopes (rotated_form.linear) but no check kind combines them with the eigenvectors",
       "cause": "library_gap"
      }
     },
@@ -220054,7 +221106,7 @@
       "quote": "= 6.645(0.664x1 + 0.606x2 + 0.438x3) = 6.645X, (11.4.11)"
      },
      "check": {
-      "manual": "(4.41, 4.03, 2.91) normalized; arithmetic on numbers of (11.4.11); the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (ridge_form.linear), not along every canonical axis",
+      "manual": "(4.41, 4.03, 2.91) normalized; arithmetic on numbers of (11.4.11); the library gives the slopes (rotated_form.linear) but no check kind combines them with the eigenvectors",
       "cause": "library_gap"
      }
     },
@@ -220083,8 +221135,11 @@
       "quote": "Slopes θ 6.3 1.3 6.8"
      },
      "check": {
-      "manual": "m1'b, the slope along X1 at the design origin; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (ridge_form.linear), not along every canonical axis",
-      "cause": "library_gap"
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "(x1 + x2 + x3) ** 2 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2)",
+      "key": "canonical_analysis.rotated_form.linear.0",
+      "sign_of": "canonical_analysis.eigenvectors.0.2"
      }
     },
     {
@@ -220098,8 +221153,13 @@
       "quote": "Slopes θ 6.3 1.3 6.8"
      },
      "check": {
-      "manual": "m2'b, the slope along X2 at the design origin; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (ridge_form.linear), not along every canonical axis",
-      "cause": "library_gap"
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "(x1 + x2 + x3) ** 2 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2)",
+      "key": "canonical_analysis.rotated_form.linear.1",
+      "sign_of": "canonical_analysis.eigenvectors.1.1",
+      "disagreement": "m2'b is 1.2486, which (11.4.10) prints as 1.25; the summary rounds that again, to 1.3",
+      "cause": "source_rounding"
      }
     },
     {
@@ -220181,10 +221241,88 @@
       "source_kind": "table",
       "quote": "Distances XS 0.3 -0.4 35.3"
      },
-     "check": {
-      "manual": "minus the constants of (11.4.7), which are checked, rounded; no check negates a library value",
-      "cause": "check_gap"
-     }
+     "check": [
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "(x1 + x2 + x3) ** 2 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2)",
+       "key": "canonical_analysis.rotated_form.stationary_point.0",
+       "sign_of": "canonical_analysis.eigenvectors.0.2",
+       "printed": "0.3"
+      },
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "(x1 + x2 + x3) ** 2 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2)",
+       "key": "canonical_analysis.rotated_form.stationary_point.1",
+       "sign_of": "canonical_analysis.eigenvectors.1.1",
+       "printed": "-0.4"
+      },
+      {
+       "kind": "library_value",
+       "function": "optimize_responses",
+       "args": [
+        [
+         {
+          "response_name": "y",
+          "factor_names": [
+           "x1",
+           "x2",
+           "x3"
+          ],
+          "coefficients": [
+           {
+            "term": "Intercept",
+            "coefficient": 51.796
+           },
+           {
+            "term": "x1",
+            "coefficient": 0.7446
+           },
+           {
+            "term": "x2",
+            "coefficient": 4.8133
+           },
+           {
+            "term": "x3",
+            "coefficient": 8.0125
+           },
+           {
+            "term": "I(x1 ** 2)",
+            "coefficient": -3.8333
+           },
+           {
+            "term": "I(x2 ** 2)",
+            "coefficient": 1.2167
+           },
+           {
+            "term": "I(x3 ** 2)",
+            "coefficient": -6.2583
+           },
+           {
+            "term": "x1:x2",
+            "coefficient": 0.375
+           },
+           {
+            "term": "x1:x3",
+            "coefficient": 10.35
+           },
+           {
+            "term": "x2:x3",
+            "coefficient": -2.825
+           }
+          ]
+         }
+        ]
+       ],
+       "kwargs": {
+        "method": "canonical_analysis"
+       },
+       "key": "canonical_analysis.rotated_form.stationary_point.2",
+       "sign_of": "canonical_analysis.eigenvectors.2.0",
+       "printed": "35.3"
+      }
+     ]
     },
     {
      "what": "canonical",
@@ -220197,7 +221335,7 @@
       "quote": "Changes, ŷ r 15.1 2.8 11.8"
      },
      "check": {
-      "manual": "ri = (3θi² + λi²)^1/2 (11.2.5), the change in ŷ one unit either way along each axis; the library has no such summary, and it needs the slopes θi, which it does not report",
+      "manual": "ri = (3θi² + λi²)^1/2 (11.2.5), the change in ŷ one unit either way along each axis; the library has no such summary (the slopes θi are checked through rotated_form.linear)",
       "cause": "library_gap"
      }
     },
