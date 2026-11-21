@@ -54975,7 +54975,7 @@
     "n_runs": 0,
     "treatment_factors": 1
    },
-   "notes": "The all-variance designs, V/(V + B) = 1, have an infinite spread for both weight functions. With mu4 - mu2^2 = (4/5) mu2^2 (uniform) or 2 mu2^2 (normal), minimizing M over t = m2/mu2 at fixed alpha^2 mu2^2 gives every printed spread but one to its digits: the normal weight at V/(V + B) = 0.2 gives 1.0525, printed 1.04.",
+   "notes": "The all-variance designs, V/(V + B) = 1, have an infinite spread for both weight functions. With mu4 - mu2^2 = (4/5) mu2^2 (uniform) or 2 mu2^2 (normal), minimizing M over t = m2/mu2 at fixed alpha^2 mu2^2 (optimum_spread) gives every printed spread but one to its digits: the normal weight at V/(V + B) = 0.2 gives 1.0525, printed 1.04.",
    "expected": [
     {
      "what": "optimum spread",
@@ -54987,8 +54987,12 @@
       "quote": "Table 13.1 ... All-bias 0 1.00 1.00"
      },
      "check": {
-      "manual": "the optimum spread (m2/mu2)^1/2 minimizing M = V + B of Eq. (13.5.8) with m3 = 0 at a given V/(V + B); the library has no integrated variance-plus-bias criterion for a weight function, nor minimum-bias designs",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimum_spread",
+      "args": [
+       "uniform",
+       0.0
+      ]
      }
     },
     {
@@ -55001,8 +55005,12 @@
       "quote": "Table 13.1 ... All-bias 0 1.00 1.00"
      },
      "check": {
-      "manual": "the optimum spread (m2/mu2)^1/2 minimizing M = V + B of Eq. (13.5.8) with m3 = 0 at a given V/(V + B); the library has no integrated variance-plus-bias criterion for a weight function, nor minimum-bias designs",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimum_spread",
+      "args": [
+       "normal",
+       0.0
+      ]
      }
     },
     {
@@ -55015,8 +55023,12 @@
       "quote": "Table 13.1 ... 0.2 1.02 1.04"
      },
      "check": {
-      "manual": "the optimum spread (m2/mu2)^1/2 minimizing M = V + B of Eq. (13.5.8) with m3 = 0 at a given V/(V + B); the library has no integrated variance-plus-bias criterion for a weight function, nor minimum-bias designs",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimum_spread",
+      "args": [
+       "uniform",
+       0.2
+      ]
      }
     },
     {
@@ -55029,8 +55041,14 @@
       "quote": "Table 13.1 ... 0.2 1.02 1.04"
      },
      "check": {
-      "manual": "the optimum spread (m2/mu2)^1/2 minimizing M = V + B of Eq. (13.5.8) with m3 = 0 at a given V/(V + B); the library has no integrated variance-plus-bias criterion for a weight function, nor minimum-bias designs",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimum_spread",
+      "args": [
+       "normal",
+       0.2
+      ],
+      "disagreement": "minimizing M of Eq. (13.5.8) gives 1.0525, as the 11 other cells of the table follow the same equation to their digits; 1.04 is the uniform weight's spread at 0.333",
+      "cause": "unexplained"
      }
     },
     {
@@ -55043,8 +55061,12 @@
       "quote": "Table 13.1 ... 0.333 1.04 1.09"
      },
      "check": {
-      "manual": "the optimum spread (m2/mu2)^1/2 minimizing M = V + B of Eq. (13.5.8) with m3 = 0 at a given V/(V + B); the library has no integrated variance-plus-bias criterion for a weight function, nor minimum-bias designs",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimum_spread",
+      "args": [
+       "uniform",
+       0.333
+      ]
      }
     },
     {
@@ -55057,8 +55079,12 @@
       "quote": "Table 13.1 ... 0.333 1.04 1.09"
      },
      "check": {
-      "manual": "the optimum spread (m2/mu2)^1/2 minimizing M = V + B of Eq. (13.5.8) with m3 = 0 at a given V/(V + B); the library has no integrated variance-plus-bias criterion for a weight function, nor minimum-bias designs",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimum_spread",
+      "args": [
+       "normal",
+       0.333
+      ]
      }
     },
     {
@@ -55071,8 +55097,12 @@
       "quote": "Table 13.1 ... V = B 0.5 1.08 1.16"
      },
      "check": {
-      "manual": "the optimum spread (m2/mu2)^1/2 minimizing M = V + B of Eq. (13.5.8) with m3 = 0 at a given V/(V + B); the library has no integrated variance-plus-bias criterion for a weight function, nor minimum-bias designs",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimum_spread",
+      "args": [
+       "uniform",
+       0.5
+      ]
      }
     },
     {
@@ -55085,8 +55115,12 @@
       "quote": "Table 13.1 ... V = B 0.5 1.08 1.16"
      },
      "check": {
-      "manual": "the optimum spread (m2/mu2)^1/2 minimizing M = V + B of Eq. (13.5.8) with m3 = 0 at a given V/(V + B); the library has no integrated variance-plus-bias criterion for a weight function, nor minimum-bias designs",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimum_spread",
+      "args": [
+       "normal",
+       0.5
+      ]
      }
     },
     {
@@ -55099,8 +55133,12 @@
       "quote": "Table 13.1 ... 0.667 1.14 1.26"
      },
      "check": {
-      "manual": "the optimum spread (m2/mu2)^1/2 minimizing M = V + B of Eq. (13.5.8) with m3 = 0 at a given V/(V + B); the library has no integrated variance-plus-bias criterion for a weight function, nor minimum-bias designs",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimum_spread",
+      "args": [
+       "uniform",
+       0.667
+      ]
      }
     },
     {
@@ -55113,8 +55151,12 @@
       "quote": "Table 13.1 ... 0.667 1.14 1.26"
      },
      "check": {
-      "manual": "the optimum spread (m2/mu2)^1/2 minimizing M = V + B of Eq. (13.5.8) with m3 = 0 at a given V/(V + B); the library has no integrated variance-plus-bias criterion for a weight function, nor minimum-bias designs",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimum_spread",
+      "args": [
+       "normal",
+       0.667
+      ]
      }
     },
     {
@@ -55127,8 +55169,12 @@
       "quote": "Table 13.1 ... 0.8 1.25 1.41"
      },
      "check": {
-      "manual": "the optimum spread (m2/mu2)^1/2 minimizing M = V + B of Eq. (13.5.8) with m3 = 0 at a given V/(V + B); the library has no integrated variance-plus-bias criterion for a weight function, nor minimum-bias designs",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimum_spread",
+      "args": [
+       "uniform",
+       0.8
+      ]
      }
     },
     {
@@ -55141,8 +55187,12 @@
       "quote": "Table 13.1 ... 0.8 1.25 1.41"
      },
      "check": {
-      "manual": "the optimum spread (m2/mu2)^1/2 minimizing M = V + B of Eq. (13.5.8) with m3 = 0 at a given V/(V + B); the library has no integrated variance-plus-bias criterion for a weight function, nor minimum-bias designs",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "optimum_spread",
+      "args": [
+       "normal",
+       0.8
+      ]
      }
     }
    ]
