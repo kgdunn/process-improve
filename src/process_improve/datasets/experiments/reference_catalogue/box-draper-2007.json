@@ -68391,7 +68391,7 @@
     "details": "cube (±1, ±1, ±1), not rescaled, plus star at α = 8^(1/4), plus n0 centre points, n0 = 2(2)10",
     "treatment_factors": 3
    },
-   "notes": "The exercise has no data. The answer (pp. 726-727) gives V(r) for a rotatable design in k factors, its terms for k = 3 as functions of n0, and the n0 for which V(0) = V(1) (4.58, rounded to 5), V(0) = V(r) at r^2 = B/N (5.55) and at r^2 = k (1.48, taken as 2 after Draper 1982). My computation reproduces every printed number: the constants 0.0117749, 0.0732233, 0.6828427 and 0.1171573 (= (272 - 192·2^(1/2))/40, 1/B, B/20 and (448 - 2B^2)/640), and the roots n0 = 4.584, 5.549 and 1.481; |V(0) - V(3^(1/2))| is 0.318 for n0 = 1 and 0.173 for n0 = 2. The library's ccd_center_points('uniform_precision', 8, 3) solves the r^2 = B/N condition and returns 6, the rounded 5.549.",
+   "notes": "The exercise has no data. The answer (pp. 726-727) gives V(r) for a rotatable design in k factors, its terms for k = 3 as functions of n0, and the n0 for which V(0) = V(1) (4.58, rounded to 5), V(0) = V(r) at r^2 = B/N (5.55) and at r^2 = k (1.48, taken as 2 after Draper 1982). My computation reproduces every printed number: the constants 0.0117749, 0.0732233, 0.6828427 and 0.1171573 (= (272 - 192·2^(1/2))/40, 1/B, B/20 and (448 - 2B^2)/640), and the roots n0 = 4.584, 5.549 and 1.481; |V(0) - V(3^(1/2))| is 0.318 for n0 = 1 and 0.173 for n0 = 2. The library's ccd_center_points('uniform_precision', 8, 3, rounded=False) gives 5.549, and with radius=1 and radius=3^(1/2) the other two roots; rounded, it gives 5 for radius=1 and 6 for Box and Hunter's unit.",
    "expected": [
     {
      "what": "variance function",
@@ -68684,8 +68684,17 @@
       "quote": "V(0) = V(1) implies that 2Q + 1/B + R = 0 which implies n0 = 4.58"
      },
      "check": {
-      "manual": "the real n0 at which V(0) = V(1) with the cube at ±1; the library has no solve for the (real) number of centre runs at which V(0) equals V at a chosen radius; its ccd_center_points rules are Box and Hunter's uniform precision and orthogonality, rounded to whole runs",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "ccd_center_points",
+      "args": [
+       "uniform_precision",
+       8,
+       3
+      ],
+      "kwargs": {
+       "radius": 1.0,
+       "rounded": false
+      }
      }
     },
     {
@@ -68698,8 +68707,16 @@
       "quote": "a result we round to the nearest value, 5"
      },
      "check": {
-      "manual": "4.58 rounded; the library has no solve for the (real) number of centre runs at which V(0) equals V at a chosen radius; its ccd_center_points rules are Box and Hunter's uniform precision and orthogonality, rounded to whole runs",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "ccd_center_points",
+      "args": [
+       "uniform_precision",
+       8,
+       3
+      ],
+      "kwargs": {
+       "radius": 1.0
+      }
      }
     },
     {
@@ -68712,8 +68729,16 @@
       "quote": "Similar work for r^2 = B/N and for r^2 = k provides n0 = 5.55"
      },
      "check": {
-      "manual": "the real n0 for Box and Hunter's uniform precision, V(0) = V(r) at r^2 = B/N; the library's ccd_center_points('uniform_precision', 8, 3) solves this condition but returns it rounded, 6, and the catalogue's library_value cannot call it",
-      "cause": "check_gap"
+      "kind": "library_value",
+      "function": "ccd_center_points",
+      "args": [
+       "uniform_precision",
+       8,
+       3
+      ],
+      "kwargs": {
+       "rounded": false
+      }
      }
     },
     {
@@ -68726,8 +68751,17 @@
       "quote": "for r^2 = k provides n0 = 5.55, and n0 = 1.48, respectively"
      },
      "check": {
-      "manual": "the real n0 at which V(0) = V(k^(1/2)); the library has no solve for the (real) number of centre runs at which V(0) equals V at a chosen radius; its ccd_center_points rules are Box and Hunter's uniform precision and orthogonality, rounded to whole runs",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "ccd_center_points",
+      "args": [
+       "uniform_precision",
+       8,
+       3
+      ],
+      "kwargs": {
+       "radius": 1.7320508075688772,
+       "rounded": false
+      }
      }
     },
     {

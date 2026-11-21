@@ -82,7 +82,7 @@ from process_improve.experiments.design_measures import (
 )
 from process_improve.experiments.designs import generate_design
 from process_improve.experiments.designs_omars_ilp import generate_omars
-from process_improve.experiments.designs_response_surface import blocking_alpha
+from process_improve.experiments.designs_response_surface import blocking_alpha, ccd_center_points
 from process_improve.experiments.evaluate import evaluate_design
 from process_improve.experiments.factor import Factor
 from process_improve.experiments.layouts import estimate_missing, tukey_nonadditivity
@@ -2360,6 +2360,7 @@ def _walk(found: Any, key: str | list[str] | None) -> Any:  # noqa: ANN401 - a l
 _LIBRARY: dict[str, Callable[..., Any]] = {
     "allocate_runs": allocate_runs,
     "blocking_alpha": blocking_alpha,
+    "ccd_center_points": ccd_center_points,
     "composite_desirability": composite_desirability,
     "get_omars_trade_off_table_entry": get_omars_trade_off_table_entry,
     "individual_desirability": individual_desirability,
