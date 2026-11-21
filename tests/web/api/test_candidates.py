@@ -69,6 +69,34 @@ def test_a_search_expected_to_take_long_waits_for_the_reader_with_its_seconds(ap
     assert "i_optimal" not in made
 
 
+def test_a_comparison_times_its_searches_and_a_slower_device_waits_for_more_of_them(api, bootstrap):
+    """The pace of the timed searches comes back, and a pace sent scales each search's wait (#1298).
+
+    Five factors and a quadratic aim: the D-optimal search is expected to take about 1.7 s, long enough to be timed,
+    and to be made at once. On a device four times slower it would take about 7 s, so it waits for the reader too.
+    """
+    request = {"factors": factors_named(*"ABCDE"), "model": "main_quadratic"}
+    made_for = bootstrap.OPTIMAL_MODEL["main_quadratic"]
+    rated = bootstrap._search_seconds("d_optimal", 5, made_for)
+    assert bootstrap.TIMED_SEARCH <= rated < bootstrap.SLOW_SEARCH <= 4 * rated
+    listed = api.ok("api_candidates", request)
+    assert listed["pace"] > 0, "the D-optimal search was timed"
+    slower = api.ok("api_candidates", {**request, "pace": 4})
+    assert {w["design_type"]: w["seconds"] for w in slower["waiting"]} == {
+        "d_optimal": pytest.approx(4 * rated),
+        "i_optimal": pytest.approx(4 * bootstrap._search_seconds("i_optimal", 5, made_for)),
+    }
+    assert slower["pace"] is None, "no search left to time"
+    two = {"factors": factors_named(*"AB"), "model": "main_effects"}
+    assert api.ok("api_candidates", two)["pace"] is None, "every search under TIMED_SEARCH: none is timed"
+
+
+@pytest.mark.parametrize("pace", [0.5, 101, float("inf"), "fast", True])
+def test_a_pace_that_is_no_number_from_1_to_100_is_refused(api, pace):
+    error = api.error("api_candidates", {"factors": factors_named(*"ABCDE"), "model": "main_effects", "pace": pace})
+    assert error == "pace must be a number from 1 to 100."
+
+
 def test_a_search_is_expected_to_take_as_long_as_its_model_is_large_and_its_factors_many(bootstrap):
     """The rate is the most a search took under Pyodide, so the seconds are a wait not to be passed."""
     for design_type, rate in bootstrap.SEARCH_SECONDS.items():

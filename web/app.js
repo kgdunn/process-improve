@@ -260,6 +260,7 @@ import {
   momentWords,
   shortCommit,
   versionText,
+  paceAfter,
   searchSeconds,
   waitWords,
   nameProblem,
@@ -668,6 +669,7 @@ const state = {
   buildsOn: [], // the study this one was started from, as the study keeps it (its builds_on): the round before
   goals: {}, // what the reader set of each response's goal in the balance, by its column: low, high, importance, shape
   comparison: null, // the designs that can learn the brief: what api_candidates returned, and the brief's key
+  pace: 1, // how many times slower than bootstrap.SEARCH_SECONDS this device searches, from the comparisons (#1298)
   picked: null, // a design taken from the comparison, {key, design}, made again only if the plan changes
   control: null, // the level Dunnett's intervals compare the others with, when the reader picks one: else the first
   plotlyJs: null, // the Plotly.js version the Python plotly package names
@@ -1990,13 +1992,13 @@ function refreshDesign() {
   }
   hint.classList.toggle("error", option.disabled);
   // A search that takes long is the reader's to start: the wait is said before the button is pressed.
-  const seconds = option.disabled ? 0 : searchSeconds(option.value, k, $("#model_type").value);
+  const seconds = option.disabled ? 0 : searchSeconds(option.value, k, $("#model_type").value, state.pace);
   const wait = $("#search-wait");
   wait.hidden = seconds < SLOW_SEARCH;
   wait.textContent = wait.hidden
     ? ""
-    : `The search for this design takes up to ${waitWords(seconds)} in a browser: its model has ${p} coefficients in ` +
-      `${k} factors. It starts when you make the run sheet, and you can stop it.`;
+    : `The search for this design takes up to ${waitWords(seconds)} ${state.pace > 1 ? "on this device" : "in a browser"}: ` +
+      `its model has ${p} coefficients in ${k} factors. It starts when you make the run sheet, and you can stop it.`;
   showTradeOff();
   showMakeable(showFactorProblems());
   $("#design-card").hidden = k < 1 && !state.design;
@@ -2590,9 +2592,15 @@ async function findCandidates({ search = false } = {}) {
   candidatesRunning = true;
   $("#candidates").setAttribute("aria-busy", "true");
   renderCandidates(search ? "Searching for the optimal designs as well..." : null);
-  const reply = await call("api_candidates", { ...request, search });
+  // The pace goes with the call, not into the brief's key: a new measure of it is no new brief to compare designs for.
+  const reply = await call("api_candidates", { ...request, search, ...(state.pace > 1 ? { pace: state.pace } : {}) });
   candidatesRunning = false;
   $("#candidates").removeAttribute("aria-busy");
+  const pace = paceAfter(state.pace, reply.ok ? reply.result.pace : null);
+  if (pace !== state.pace) {
+    state.pace = pace;
+    refreshDesign(); // the wait said for the design chosen is this device's now
+  }
   if (mine !== candidateTicket) return;
   state.comparison = reply.ok ? { key, ...reply.result } : { key, error: reply.error };
   // A design is picked from the designs of the brief on the page only: a new study takes none of the brief before's.
