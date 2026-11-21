@@ -21420,7 +21420,7 @@
       "quote": "the pure second-order region moment has value 1/(k + 2)"
      },
      "check": {
-      "manual": "a moment of the uniform distribution on the unit ball, by calculus; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
+      "manual": "a moment of the uniform distribution on the unit ball, by calculus; all_bias_distance uses it, but the library has no function that returns a region's moments",
       "cause": "library_gap"
      }
     },
@@ -21434,8 +21434,8 @@
       "quote": "to set na a^2/(na + n0) = 1/(k + 2), that is, to solve a^2 = (1 + n0/na)/(k + 2)"
      },
      "check": {
-      "manual": "the factorial distance that matches the design's second moment to the sphere's, a formula; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "manual": "the formula all_bias_distance evaluates, checked cell by cell in the table below",
+      "cause": "not_a_result"
      }
     },
     {
@@ -21448,8 +21448,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 2 4 0.500 0.559 0.612 0.661 0.707"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 2, na = 4, n0 = 0; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       2,
+       4,
+       0
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21462,8 +21470,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 2 4 0.500 0.559 0.612 0.661 0.707"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 2, na = 4, n0 = 1; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       2,
+       4,
+       1
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21476,8 +21492,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 2 4 0.500 0.559 0.612 0.661 0.707"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 2, na = 4, n0 = 2; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       2,
+       4,
+       2
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21490,8 +21514,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 2 4 0.500 0.559 0.612 0.661 0.707"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 2, na = 4, n0 = 3; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       2,
+       4,
+       3
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21504,8 +21536,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 2 4 0.500 0.559 0.612 0.661 0.707"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 2, na = 4, n0 = 4; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       2,
+       4,
+       4
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21518,8 +21558,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 3 8 0.447 0.474 0.500 0.524 0.548"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 3, na = 8, n0 = 0; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       3,
+       8,
+       0
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21532,8 +21580,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 3 8 0.447 0.474 0.500 0.524 0.548"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 3, na = 8, n0 = 1; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       3,
+       8,
+       1
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21546,8 +21602,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 3 8 0.447 0.474 0.500 0.524 0.548"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 3, na = 8, n0 = 2; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       3,
+       8,
+       2
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21560,8 +21624,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 3 8 0.447 0.474 0.500 0.524 0.548"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 3, na = 8, n0 = 3; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       3,
+       8,
+       3
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21574,8 +21646,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 3 8 0.447 0.474 0.500 0.524 0.548"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 3, na = 8, n0 = 4; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       3,
+       8,
+       4
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21588,8 +21668,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 4 8 0.408 0.433 0.456 0.479 0.500"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 4, na = 8, n0 = 0; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       8,
+       0
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21602,8 +21690,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 4 8 0.408 0.433 0.456 0.479 0.500"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 4, na = 8, n0 = 1; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       8,
+       1
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21616,8 +21712,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 4 8 0.408 0.433 0.456 0.479 0.500"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 4, na = 8, n0 = 2; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       8,
+       2
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21630,8 +21734,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 4 8 0.408 0.433 0.456 0.479 0.500"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 4, na = 8, n0 = 3; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       8,
+       3
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21644,8 +21756,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 4 8 0.408 0.433 0.456 0.479 0.500"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 4, na = 8, n0 = 4; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       8,
+       4
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21658,8 +21778,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 4 16 0.408 0.421 0.433 0.445 0.456"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 4, na = 16, n0 = 0; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       16,
+       0
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21672,8 +21800,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 4 16 0.408 0.421 0.433 0.445 0.456"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 4, na = 16, n0 = 1; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       16,
+       1
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21686,8 +21822,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 4 16 0.408 0.421 0.433 0.445 0.456"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 4, na = 16, n0 = 2; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       16,
+       2
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21700,8 +21844,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 4 16 0.408 0.421 0.433 0.445 0.456"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 4, na = 16, n0 = 3; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       16,
+       3
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21714,8 +21866,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 4 16 0.408 0.421 0.433 0.445 0.456"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 4, na = 16, n0 = 4; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       16,
+       4
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21728,8 +21888,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 5 16 0.378 0.390 0.401 0.412 0.423"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 5, na = 16, n0 = 0; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       16,
+       0
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21742,8 +21910,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 5 16 0.378 0.390 0.401 0.412 0.423"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 5, na = 16, n0 = 1; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       16,
+       1
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21756,8 +21932,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 5 16 0.378 0.390 0.401 0.412 0.423"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 5, na = 16, n0 = 2; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       16,
+       2
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21770,8 +21954,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 5 16 0.378 0.390 0.401 0.412 0.423"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 5, na = 16, n0 = 3; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       16,
+       3
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21784,8 +21976,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 5 16 0.378 0.390 0.401 0.412 0.423"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 5, na = 16, n0 = 4; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       16,
+       4
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21798,8 +21998,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 5 32 0.378 0.384 0.390 0.395 0.401"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 5, na = 32, n0 = 0; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       32,
+       0
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21812,8 +22020,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 5 32 0.378 0.384 0.390 0.395 0.401"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 5, na = 32, n0 = 1; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       32,
+       1
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21826,8 +22042,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 5 32 0.378 0.384 0.390 0.395 0.401"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 5, na = 32, n0 = 2; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       32,
+       2
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21840,8 +22064,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 5 32 0.378 0.384 0.390 0.395 0.401"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 5, na = 32, n0 = 3; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       32,
+       3
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21854,8 +22086,16 @@
       "quote": "a for n0 = 0, 1, 2, 3, and 4 ... 5 32 0.378 0.384 0.390 0.395 0.401"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/(k + 2)) for k = 5, na = 32, n0 = 4; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       32,
+       4
+      ],
+      "kwargs": {
+       "region": "spherical"
+      }
      }
     },
     {
@@ -21882,8 +22122,17 @@
       "quote": "expanding these designs by, say, 15% ... 2 4 0.575 0.643 0.704 0.761 0.813"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 2, na = 4, n0 = 0; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       2,
+       4,
+       0
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -21896,8 +22145,17 @@
       "quote": "expanding these designs by, say, 15% ... 2 4 0.575 0.643 0.704 0.761 0.813"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 2, na = 4, n0 = 1; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       2,
+       4,
+       1
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -21910,8 +22168,17 @@
       "quote": "expanding these designs by, say, 15% ... 2 4 0.575 0.643 0.704 0.761 0.813"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 2, na = 4, n0 = 2; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       2,
+       4,
+       2
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -21924,8 +22191,17 @@
       "quote": "expanding these designs by, say, 15% ... 2 4 0.575 0.643 0.704 0.761 0.813"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 2, na = 4, n0 = 3; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       2,
+       4,
+       3
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -21938,8 +22214,17 @@
       "quote": "expanding these designs by, say, 15% ... 2 4 0.575 0.643 0.704 0.761 0.813"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 2, na = 4, n0 = 4; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       2,
+       4,
+       4
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -21952,8 +22237,17 @@
       "quote": "expanding these designs by, say, 15% ... 3 8 0.514 0.545 0.575 0.603 0.630"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 3, na = 8, n0 = 0; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       3,
+       8,
+       0
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -21966,8 +22260,17 @@
       "quote": "expanding these designs by, say, 15% ... 3 8 0.514 0.545 0.575 0.603 0.630"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 3, na = 8, n0 = 1; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       3,
+       8,
+       1
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -21980,8 +22283,17 @@
       "quote": "expanding these designs by, say, 15% ... 3 8 0.514 0.545 0.575 0.603 0.630"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 3, na = 8, n0 = 2; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       3,
+       8,
+       2
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -21994,8 +22306,17 @@
       "quote": "expanding these designs by, say, 15% ... 3 8 0.514 0.545 0.575 0.603 0.630"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 3, na = 8, n0 = 3; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       3,
+       8,
+       3
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22008,8 +22329,17 @@
       "quote": "expanding these designs by, say, 15% ... 3 8 0.514 0.545 0.575 0.603 0.630"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 3, na = 8, n0 = 4; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       3,
+       8,
+       4
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22022,8 +22352,17 @@
       "quote": "expanding these designs by, say, 15% ... 4 8 0.469 0.498 0.524 0.551 0.575"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 4, na = 8, n0 = 0; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       8,
+       0
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22036,8 +22375,17 @@
       "quote": "expanding these designs by, say, 15% ... 4 8 0.469 0.498 0.524 0.551 0.575"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 4, na = 8, n0 = 1; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       8,
+       1
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22050,8 +22398,19 @@
       "quote": "expanding these designs by, say, 15% ... 4 8 0.469 0.498 0.524 0.551 0.575"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 4, na = 8, n0 = 2; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       8,
+       2
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      },
+      "disagreement": "1.15 times the table's rounded a, 0.456, is 0.5244; from the unrounded a, 0.45644, it is 0.52491",
+      "cause": "source_rounding"
      }
     },
     {
@@ -22064,8 +22423,17 @@
       "quote": "expanding these designs by, say, 15% ... 4 8 0.469 0.498 0.524 0.551 0.575"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 4, na = 8, n0 = 3; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       8,
+       3
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22078,8 +22446,17 @@
       "quote": "expanding these designs by, say, 15% ... 4 8 0.469 0.498 0.524 0.551 0.575"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 4, na = 8, n0 = 4; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       8,
+       4
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22092,8 +22469,17 @@
       "quote": "expanding these designs by, say, 15% ... 4 16 0.469 0.484 0.498 0.512 0.525"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 4, na = 16, n0 = 0; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       16,
+       0
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22106,8 +22492,17 @@
       "quote": "expanding these designs by, say, 15% ... 4 16 0.469 0.484 0.498 0.512 0.525"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 4, na = 16, n0 = 1; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       16,
+       1
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22120,8 +22515,17 @@
       "quote": "expanding these designs by, say, 15% ... 4 16 0.469 0.484 0.498 0.512 0.525"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 4, na = 16, n0 = 2; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       16,
+       2
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22134,8 +22538,17 @@
       "quote": "expanding these designs by, say, 15% ... 4 16 0.469 0.484 0.498 0.512 0.525"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 4, na = 16, n0 = 3; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       16,
+       3
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22148,8 +22561,17 @@
       "quote": "expanding these designs by, say, 15% ... 4 16 0.469 0.484 0.498 0.512 0.525"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 4, na = 16, n0 = 4; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       16,
+       4
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22162,8 +22584,17 @@
       "quote": "expanding these designs by, say, 15% ... 5 16 0.435 0.448 0.461 0.474 0.486"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 5, na = 16, n0 = 0; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       16,
+       0
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22176,8 +22607,17 @@
       "quote": "expanding these designs by, say, 15% ... 5 16 0.435 0.448 0.461 0.474 0.486"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 5, na = 16, n0 = 1; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       16,
+       1
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22190,8 +22630,17 @@
       "quote": "expanding these designs by, say, 15% ... 5 16 0.435 0.448 0.461 0.474 0.486"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 5, na = 16, n0 = 2; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       16,
+       2
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22204,8 +22653,17 @@
       "quote": "expanding these designs by, say, 15% ... 5 16 0.435 0.448 0.461 0.474 0.486"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 5, na = 16, n0 = 3; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       16,
+       3
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22218,8 +22676,17 @@
       "quote": "expanding these designs by, say, 15% ... 5 16 0.435 0.448 0.461 0.474 0.486"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 5, na = 16, n0 = 4; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       16,
+       4
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22232,8 +22699,17 @@
       "quote": "expanding these designs by, say, 15% ... 5 32 0.435 0.441 0.449 0.455 0.461"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 5, na = 32, n0 = 0; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       32,
+       0
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22246,8 +22722,17 @@
       "quote": "expanding these designs by, say, 15% ... 5 32 0.435 0.441 0.449 0.455 0.461"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 5, na = 32, n0 = 1; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       32,
+       1
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22260,8 +22745,19 @@
       "quote": "expanding these designs by, say, 15% ... 5 32 0.435 0.441 0.449 0.455 0.461"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 5, na = 32, n0 = 2; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       32,
+       2
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      },
+      "disagreement": "1.15 times the table's rounded a, 0.390, is 0.4485; from the unrounded a, 0.38960, it is 0.44804",
+      "cause": "source_rounding"
      }
     },
     {
@@ -22274,8 +22770,17 @@
       "quote": "expanding these designs by, say, 15% ... 5 32 0.435 0.441 0.449 0.455 0.461"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 5, na = 32, n0 = 3; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       32,
+       3
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22288,8 +22793,17 @@
       "quote": "expanding these designs by, say, 15% ... 5 32 0.435 0.441 0.449 0.455 0.461"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/(k + 2)) for k = 5, na = 32, n0 = 4; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       32,
+       4
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22302,8 +22816,18 @@
       "quote": "for a 2^3 design with three center points, the factorial points are at (±0.603, ± 0.603)"
      },
      "check": {
-      "manual": "the table's entry for k = 3, na = 8, n0 = 3; the library has no placement of a first-order design by matching its second-order moments to those of a spherical region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       3,
+       8,
+       3
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      },
+      "printed": "0.603"
      }
     }
    ]
@@ -22337,7 +22861,7 @@
       "quote": "the pure second-order region moment is 1/3 for all k"
      },
      "check": {
-      "manual": "a moment of the uniform distribution on [-1, 1], by calculus; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
+      "manual": "a moment of the uniform distribution on [-1, 1], by calculus; all_bias_distance uses it, but the library has no function that returns a region's moments",
       "cause": "library_gap"
      }
     },
@@ -22351,8 +22875,8 @@
       "quote": "We first solve a^2 = (1 + n0/na)/3"
      },
      "check": {
-      "manual": "the factorial distance that matches the design's second moment to the cube's, a formula; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "manual": "the formula all_bias_distance evaluates, checked cell by cell in the table below",
+      "cause": "not_a_result"
      }
     },
     {
@@ -22365,8 +22889,16 @@
       "quote": "When n0 = 0, a = 0.577 for all k"
      },
      "check": {
-      "manual": "√(1/3), the all-bias distance with no centre points; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       2,
+       4,
+       0
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22379,8 +22911,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 2 4 0.577 0.645 0.707 0.764 0.816"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 2, na = 4, n0 = 0; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       2,
+       4,
+       0
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22393,8 +22933,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 2 4 0.577 0.645 0.707 0.764 0.816"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 2, na = 4, n0 = 1; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       2,
+       4,
+       1
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22407,8 +22955,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 2 4 0.577 0.645 0.707 0.764 0.816"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 2, na = 4, n0 = 2; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       2,
+       4,
+       2
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22421,8 +22977,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 2 4 0.577 0.645 0.707 0.764 0.816"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 2, na = 4, n0 = 3; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       2,
+       4,
+       3
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22435,8 +22999,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 2 4 0.577 0.645 0.707 0.764 0.816"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 2, na = 4, n0 = 4; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       2,
+       4,
+       4
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22449,8 +23021,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 3 8 0.577 0.612 0.645 0.677 0.707"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 3, na = 8, n0 = 0; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       3,
+       8,
+       0
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22463,8 +23043,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 3 8 0.577 0.612 0.645 0.677 0.707"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 3, na = 8, n0 = 1; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       3,
+       8,
+       1
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22477,8 +23065,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 3 8 0.577 0.612 0.645 0.677 0.707"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 3, na = 8, n0 = 2; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       3,
+       8,
+       2
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22491,8 +23087,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 3 8 0.577 0.612 0.645 0.677 0.707"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 3, na = 8, n0 = 3; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       3,
+       8,
+       3
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22505,8 +23109,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 3 8 0.577 0.612 0.645 0.677 0.707"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 3, na = 8, n0 = 4; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       3,
+       8,
+       4
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22519,8 +23131,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 4 8 0.577 0.612 0.645 0.677 0.707"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 4, na = 8, n0 = 0; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       8,
+       0
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22533,8 +23153,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 4 8 0.577 0.612 0.645 0.677 0.707"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 4, na = 8, n0 = 1; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       8,
+       1
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22547,8 +23175,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 4 8 0.577 0.612 0.645 0.677 0.707"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 4, na = 8, n0 = 2; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       8,
+       2
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22561,8 +23197,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 4 8 0.577 0.612 0.645 0.677 0.707"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 4, na = 8, n0 = 3; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       8,
+       3
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22575,8 +23219,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 4 8 0.577 0.612 0.645 0.677 0.707"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 4, na = 8, n0 = 4; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       8,
+       4
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22589,8 +23241,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 4 16 0.577 0.595 0.612 0.629 0.645"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 4, na = 16, n0 = 0; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       16,
+       0
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22603,8 +23263,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 4 16 0.577 0.595 0.612 0.629 0.645"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 4, na = 16, n0 = 1; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       16,
+       1
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22617,8 +23285,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 4 16 0.577 0.595 0.612 0.629 0.645"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 4, na = 16, n0 = 2; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       16,
+       2
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22631,8 +23307,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 4 16 0.577 0.595 0.612 0.629 0.645"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 4, na = 16, n0 = 3; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       16,
+       3
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22645,8 +23329,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 4 16 0.577 0.595 0.612 0.629 0.645"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 4, na = 16, n0 = 4; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       16,
+       4
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22659,8 +23351,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 5 16 0.577 0.595 0.612 0.629 0.645"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 5, na = 16, n0 = 0; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       16,
+       0
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22673,8 +23373,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 5 16 0.577 0.595 0.612 0.629 0.645"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 5, na = 16, n0 = 1; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       16,
+       1
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22687,8 +23395,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 5 16 0.577 0.595 0.612 0.629 0.645"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 5, na = 16, n0 = 2; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       16,
+       2
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22701,8 +23417,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 5 16 0.577 0.595 0.612 0.629 0.645"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 5, na = 16, n0 = 3; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       16,
+       3
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22715,8 +23439,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 5 16 0.577 0.595 0.612 0.629 0.645"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 5, na = 16, n0 = 4; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       16,
+       4
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22729,8 +23461,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 5 32 0.577 0.586 0.595 0.604 0.612"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 5, na = 32, n0 = 0; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       32,
+       0
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22743,8 +23483,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 5 32 0.577 0.586 0.595 0.604 0.612"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 5, na = 32, n0 = 1; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       32,
+       1
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22757,8 +23505,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 5 32 0.577 0.586 0.595 0.604 0.612"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 5, na = 32, n0 = 2; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       32,
+       2
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22771,8 +23527,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 5 32 0.577 0.586 0.595 0.604 0.612"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 5, na = 32, n0 = 3; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       32,
+       3
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22785,8 +23549,16 @@
       "quote": "For n0 = 0, 1, 2, 3, and 4, we have the values displayed below ... 5 32 0.577 0.586 0.595 0.604 0.612"
      },
      "check": {
-      "manual": "the all-bias distance a = √((1 + n0/na)/3) for k = 5, na = 32, n0 = 4; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       32,
+       4
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      }
      }
     },
     {
@@ -22813,8 +23585,17 @@
       "quote": "Multiplying these a values by 1.15 ... 2 4 0.664 0.742 0.813 0.878 0.939"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 2, na = 4, n0 = 0; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       2,
+       4,
+       0
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22827,8 +23608,17 @@
       "quote": "Multiplying these a values by 1.15 ... 2 4 0.664 0.742 0.813 0.878 0.939"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 2, na = 4, n0 = 1; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       2,
+       4,
+       1
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22841,8 +23631,17 @@
       "quote": "Multiplying these a values by 1.15 ... 2 4 0.664 0.742 0.813 0.878 0.939"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 2, na = 4, n0 = 2; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       2,
+       4,
+       2
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22855,8 +23654,17 @@
       "quote": "Multiplying these a values by 1.15 ... 2 4 0.664 0.742 0.813 0.878 0.939"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 2, na = 4, n0 = 3; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       2,
+       4,
+       3
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22869,8 +23677,17 @@
       "quote": "Multiplying these a values by 1.15 ... 2 4 0.664 0.742 0.813 0.878 0.939"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 2, na = 4, n0 = 4; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       2,
+       4,
+       4
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22883,8 +23700,17 @@
       "quote": "Multiplying these a values by 1.15 ... 3 8 0.664 0.704 0.742 0.779 0.813"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 3, na = 8, n0 = 0; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       3,
+       8,
+       0
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22897,8 +23723,17 @@
       "quote": "Multiplying these a values by 1.15 ... 3 8 0.664 0.704 0.742 0.779 0.813"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 3, na = 8, n0 = 1; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       3,
+       8,
+       1
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22911,8 +23746,17 @@
       "quote": "Multiplying these a values by 1.15 ... 3 8 0.664 0.704 0.742 0.779 0.813"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 3, na = 8, n0 = 2; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       3,
+       8,
+       2
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22925,8 +23769,17 @@
       "quote": "Multiplying these a values by 1.15 ... 3 8 0.664 0.704 0.742 0.779 0.813"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 3, na = 8, n0 = 3; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       3,
+       8,
+       3
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22939,8 +23792,17 @@
       "quote": "Multiplying these a values by 1.15 ... 3 8 0.664 0.704 0.742 0.779 0.813"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 3, na = 8, n0 = 4; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       3,
+       8,
+       4
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22953,8 +23815,17 @@
       "quote": "Multiplying these a values by 1.15 ... 4 8 0.664 0.704 0.742 0.779 0.813"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 4, na = 8, n0 = 0; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       8,
+       0
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22967,8 +23838,17 @@
       "quote": "Multiplying these a values by 1.15 ... 4 8 0.664 0.704 0.742 0.779 0.813"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 4, na = 8, n0 = 1; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       8,
+       1
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22981,8 +23861,17 @@
       "quote": "Multiplying these a values by 1.15 ... 4 8 0.664 0.704 0.742 0.779 0.813"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 4, na = 8, n0 = 2; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       8,
+       2
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -22995,8 +23884,17 @@
       "quote": "Multiplying these a values by 1.15 ... 4 8 0.664 0.704 0.742 0.779 0.813"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 4, na = 8, n0 = 3; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       8,
+       3
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -23009,8 +23907,17 @@
       "quote": "Multiplying these a values by 1.15 ... 4 8 0.664 0.704 0.742 0.779 0.813"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 4, na = 8, n0 = 4; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       8,
+       4
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -23023,8 +23930,17 @@
       "quote": "Multiplying these a values by 1.15 ... 4 16 0.664 0.684 0.704 0.724 0.742"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 4, na = 16, n0 = 0; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       16,
+       0
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -23037,8 +23953,17 @@
       "quote": "Multiplying these a values by 1.15 ... 4 16 0.664 0.684 0.704 0.724 0.742"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 4, na = 16, n0 = 1; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       16,
+       1
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -23051,8 +23976,17 @@
       "quote": "Multiplying these a values by 1.15 ... 4 16 0.664 0.684 0.704 0.724 0.742"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 4, na = 16, n0 = 2; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       16,
+       2
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -23065,8 +23999,17 @@
       "quote": "Multiplying these a values by 1.15 ... 4 16 0.664 0.684 0.704 0.724 0.742"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 4, na = 16, n0 = 3; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       16,
+       3
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -23079,8 +24022,17 @@
       "quote": "Multiplying these a values by 1.15 ... 4 16 0.664 0.684 0.704 0.724 0.742"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 4, na = 16, n0 = 4; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       4,
+       16,
+       4
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -23093,8 +24045,17 @@
       "quote": "Multiplying these a values by 1.15 ... 5 16 0.664 0.684 0.704 0.724 0.742"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 5, na = 16, n0 = 0; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       16,
+       0
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -23107,8 +24068,17 @@
       "quote": "Multiplying these a values by 1.15 ... 5 16 0.664 0.684 0.704 0.724 0.742"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 5, na = 16, n0 = 1; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       16,
+       1
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -23121,8 +24091,17 @@
       "quote": "Multiplying these a values by 1.15 ... 5 16 0.664 0.684 0.704 0.724 0.742"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 5, na = 16, n0 = 2; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       16,
+       2
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -23135,8 +24114,17 @@
       "quote": "Multiplying these a values by 1.15 ... 5 16 0.664 0.684 0.704 0.724 0.742"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 5, na = 16, n0 = 3; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       16,
+       3
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -23149,8 +24137,17 @@
       "quote": "Multiplying these a values by 1.15 ... 5 16 0.664 0.684 0.704 0.724 0.742"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 5, na = 16, n0 = 4; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       16,
+       4
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -23163,8 +24160,17 @@
       "quote": "Multiplying these a values by 1.15 ... 5 32 0.664 0.674 0.684 0.694 0.704"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 5, na = 32, n0 = 0; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       32,
+       0
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -23177,8 +24183,17 @@
       "quote": "Multiplying these a values by 1.15 ... 5 32 0.664 0.674 0.684 0.694 0.704"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 5, na = 32, n0 = 1; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       32,
+       1
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -23191,8 +24206,17 @@
       "quote": "Multiplying these a values by 1.15 ... 5 32 0.664 0.674 0.684 0.694 0.704"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 5, na = 32, n0 = 2; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       32,
+       2
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -23205,8 +24229,17 @@
       "quote": "Multiplying these a values by 1.15 ... 5 32 0.664 0.674 0.684 0.694 0.704"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 5, na = 32, n0 = 3; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       32,
+       3
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     },
     {
@@ -23219,8 +24252,17 @@
       "quote": "Multiplying these a values by 1.15 ... 5 32 0.664 0.674 0.684 0.694 0.704"
      },
      "check": {
-      "manual": "1.15 times the all-bias distance √((1 + n0/na)/3) for k = 5, na = 32, n0 = 4; the library has no placement of a first-order design by matching its second-order moments to those of a cuboidal region (an all-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       5,
+       32,
+       4
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      }
      }
     }
    ]
