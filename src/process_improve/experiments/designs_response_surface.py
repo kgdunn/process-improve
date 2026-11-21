@@ -333,6 +333,63 @@ def blocking_alpha(
     return float(np.sqrt(f * (2 * n_factors * s + n_center_axial) / (2 * s * (f + n_center_cube))))
 
 
+def all_bias_distance(
+    n_factors: int, n_cube_runs: int, n_center_points: int, region: str = "spherical", expand: float = 1.0
+) -> float:
+    """Return the distance of a two-level first-order design's corners for an all-bias design.
+
+    When a first-order model is fitted but the true surface has curvature, the squared bias of the
+    fitted values, averaged over a region of interest, is smallest when the design's second moments
+    equal the region's (Box and Draper 2007, Section 6.2 and Appendix 6B). With ``n_a`` cube runs at
+    +/- ``a`` on each factor and ``n_0`` centre runs that sets ``a**2 = (1 + n_0 / n_a) m``, where
+    ``m`` is the region's pure second moment: ``1 / (k + 2)`` over the unit sphere in ``k`` factors,
+    and ``1 / 3`` over the cube of side 2. The variance of the fitted values is smallest with the
+    corners far apart instead, so a design meant to balance the two is spread a little wider, by
+    *expand*.
+
+    Parameters
+    ----------
+    n_factors : int
+        ``k``, the number of factors.
+    n_cube_runs : int
+        ``n_a``, the runs of the two-level factorial or fraction.
+    n_center_points : int
+        ``n_0``, the runs at the centre.
+    region : {"spherical", "cuboidal"}
+        The region of interest: the sphere of radius 1, or the cube from -1 to 1 on each factor.
+    expand : float
+        The factor that spreads the all-bias design; Box and Draper suggest 1.15.
+
+    Returns
+    -------
+    float
+        ``a``, in the coded units of the region.
+
+    Raises
+    ------
+    ValueError
+        If *region* is not one of the two, or a count or *expand* is out of range.
+
+    Examples
+    --------
+    Two factors, four cube runs and two centre runs in the unit sphere (Box and Draper's Table 6B.1):
+
+    >>> round(all_bias_distance(2, 4, 2), 3)
+    0.612
+    """
+    moment = {"spherical": 1 / (n_factors + 2), "cuboidal": 1 / 3}.get(region)
+    if moment is None:
+        msg = f"region must be 'spherical' or 'cuboidal'; got {region!r}."
+        raise ValueError(msg)
+    if n_factors < 1 or n_cube_runs < 1 or n_center_points < 0 or not expand > 0:
+        msg = (
+            "n_factors and n_cube_runs must be at least 1, n_center_points at least 0 and expand positive; got "
+            f"{n_factors}, {n_cube_runs}, {n_center_points} and {expand}."
+        )
+        raise ValueError(msg)
+    return float(expand * np.sqrt((1 + n_center_points / n_cube_runs) * moment))
+
+
 #: Accepted spellings of each named axial distance.
 _ALPHA_NAMES = {
     "faced": ("face_centered", "face centered", "face_centred", "ccf", "faced"),
