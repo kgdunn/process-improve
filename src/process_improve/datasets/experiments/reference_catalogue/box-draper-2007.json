@@ -389680,8 +389680,8 @@
       "quote": "which implies that B = 2^((k-p-1)/2){1 + Ab/2^(k-p)} - 2k."
      },
      "check": {
-      "manual": "the centre runs in each star block for orthogonal blocking at the rotatable α; algebra (as printed it gives B = -3, not 0, for k = 3, p = 0, A = 2, b = 2: see notes); the library has no function that gives the centre runs for orthogonal blocking at a chosen α (blocking_alpha gives α from them)",
-      "cause": "library_gap"
+      "manual": "the centre runs in each star block for orthogonal blocking at the rotatable alpha, a formula; as printed it gives B = -3, not 0, for k = 3, p = 0, A = 2, b = 2 (see notes); blocking_center_points gives the corrected value, checked at that case below",
+      "cause": "not_a_result"
      }
     },
     {
@@ -389722,8 +389722,22 @@
        "expression": true
       },
       {
-       "manual": "that no other case gives a whole B >= 0; my enumeration of the 21 cases (see notes); the library has no function that solves for B",
-       "cause": "library_gap"
+       "kind": "library_value",
+       "function": "blocking_center_points",
+       "args": [
+        1.4142135623730951,
+        8,
+        4,
+        3
+       ],
+       "kwargs": {
+        "n_axial_replicates": 2
+       },
+       "printed": "0"
+      },
+      {
+       "manual": "that no other case gives a whole B >= 0; an enumeration of the 21 cases (see notes), each of which blocking_center_points gives, but no check enumerates them",
+       "cause": "check_gap"
       }
      ],
      "analysis": "with A = 2 centre runs in each of b = 2 cube blocks and B = 0 in each of the two star blocks, the library's α for orthogonal blocking, blocking_alpha(8, 4, 3, 0, 2 axial replicates), equals the rotatable α^2 = 2^((k-p-1)/2) at k = 3, p = 0"

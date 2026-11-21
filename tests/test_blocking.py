@@ -210,3 +210,28 @@ def test_blocking_alpha_matches_the_orthogonality_condition() -> None:
     labels = np.array([1] * 11 + [2] * 8)
     assert squares_orthogonal_to_blocks(design, labels)
     assert not squares_orthogonal_to_blocks(design * np.r_[np.ones(11), 1.1 * np.ones(8)][:, None], labels)
+
+
+@pytest.mark.parametrize(
+    ("n_cube_runs", "n_center_cube", "n_factors", "n_center_axial", "n_axial_replicates"),
+    [(8, 3, 3, 2, 1), (16, 4, 4, 2, 1), (16, 6, 4, 3, 1), (8, 4, 3, 0, 2), (32, 6, 5, 4, 2)],
+)
+def test_blocking_center_points_inverts_blocking_alpha(
+    n_cube_runs: int, n_center_cube: int, n_factors: int, n_center_axial: int, n_axial_replicates: int
+) -> None:
+    """The axial block's centre runs for orthogonal blocking at blocking_alpha's alpha are the ones it was given."""
+    from process_improve.experiments.designs_response_surface import blocking_alpha, blocking_center_points
+
+    alpha = blocking_alpha(n_cube_runs, n_center_cube, n_factors, n_center_axial, n_axial_replicates)
+    found = blocking_center_points(alpha, n_cube_runs, n_center_cube, n_factors, n_axial_replicates)
+    assert found == pytest.approx(n_center_axial)
+
+
+def test_blocking_center_points_of_box_and_drapers_exercise_15_8_and_a_rotatable_alpha_too_small() -> None:
+    """The star run twice at alpha = 2**0.5 needs no centre run; at 8**0.25 with no cube centre runs, no count fits."""
+    from process_improve.experiments.designs_response_surface import blocking_center_points
+
+    assert blocking_center_points(2**0.5, 8, 4, 3, n_axial_replicates=2) == 0.0
+    assert blocking_center_points(8**0.25, 8, 0, 3) < 0
+    with pytest.raises(ValueError, match="alpha must be positive"):
+        blocking_center_points(0.0, 8, 4, 3)
