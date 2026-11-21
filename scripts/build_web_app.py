@@ -17,7 +17,8 @@ paint while Python loads in the browser. Each of the book's examples in
 opens from ``?book=<name>``, a link the book prints; so is each example of another published
 source in ``web/published-examples.json``, opened from ``?example=<name>`` with its citation.
 The docs workflow runs this into
-``docs/_build/html/app``.
+``docs/_build/factorial``, which goes to https://factori.al/; GitHub Pages gets a copy with a
+signpost to it in each page (``scripts/move_pages_copy.py``).
 
     uv run python scripts/build_web_app.py --serve
 
