@@ -668,7 +668,7 @@ def _center_points_by_rule(
     cube_runs = (
         2**k if ccd["cube"] == "full" else len(_fractional_cube(factors, ccd["generators"], ccd["resolution"])[0])
     )
-    return ccd_center_points(n_center_points, cube_runs, k, ccd["n_replicates"]), "rotatable"
+    return int(ccd_center_points(n_center_points, cube_runs, k, ccd["n_replicates"])), "rotatable"
 
 
 def _check_counts(n_center_points: int | None, n_replicates: int, n_blocks: int | None) -> None:

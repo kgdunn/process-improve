@@ -200,7 +200,15 @@ def orthogonal_alpha(n_cube_runs: int, n_runs: int, n_axial_replicates: int = 1)
 CENTER_POINT_RULES = ("uniform_precision", "orthogonal")
 
 
-def ccd_center_points(rule: str, n_cube_runs: int, n_factors: int, n_replicates: int = 1) -> int:
+def ccd_center_points(
+    rule: str,
+    n_cube_runs: int,
+    n_factors: int,
+    n_replicates: int = 1,
+    *,
+    radius: float | None = None,
+    rounded: bool = True,
+) -> int | float:
     r"""Return the number of centre runs of a rotatable central composite design by Box and Hunter's rule.
 
     In a rotatable CCD, with ``alpha = F ** 0.25`` for ``F`` cube runs, the variance of a prediction
@@ -222,6 +230,16 @@ def ccd_center_points(rule: str, n_cube_runs: int, n_factors: int, n_replicates:
       so the quadratic coefficients are estimated independently of one another. The number is then
       :math:`r(4\sqrt{F} + 4 - 2k)`.
 
+    With a *radius* :math:`\rho`, ``"uniform_precision"`` makes the variance at the centre equal to the
+    variance at that distance instead, in the coded units of the cube at :math:`\pm 1`. Box and Draper
+    (2007, Exercise 15.3) write the variance of a rotatable design as
+    :math:`V(\rho) = P + (2Q + 1/B)\rho^2 + R\rho^4`, with :math:`B` the sum of squares of a factor's
+    column and :math:`D` the sum of products of two squared columns; :math:`V(0) = V(\rho)` then needs
+
+    .. math::
+
+        N = \frac{B^2 \{2(k + 2)D + \rho^2 (k - 1) B\}}{D \{2(k + 2)D + \rho^2 (k + 1) B\}}.
+
     Parameters
     ----------
     rule : str
@@ -232,16 +250,23 @@ def ccd_center_points(rule: str, n_cube_runs: int, n_factors: int, n_replicates:
         ``k``, the number of factors.
     n_replicates : int
         ``r``, how many times the cube and axial runs are run.
+    radius : float or None
+        For ``"uniform_precision"`` only: the distance from the centre, in the cube's coded units, at
+        which the variance equals the variance at the centre. ``None`` takes Box and Hunter's unit.
+    rounded : bool
+        True rounds to the nearest whole run, at least 1. False returns the real solution, as a source
+        prints it; below 0 it says that no number of centre runs meets the rule.
 
     Returns
     -------
-    int
-        The number of centre runs, rounded to the nearest whole run and at least 1.
+    int or float
+        The number of centre runs: an ``int`` when *rounded*, else a ``float``.
 
     Raises
     ------
     ValueError
-        If *rule* is not one of :data:`CENTER_POINT_RULES`.
+        If *rule* is not one of :data:`CENTER_POINT_RULES`, or a *radius* is given that is not positive
+        or for the ``"orthogonal"`` rule.
 
     Examples
     --------
@@ -249,17 +274,29 @@ def ccd_center_points(rule: str, n_cube_runs: int, n_factors: int, n_replicates:
 
     >>> ccd_center_points("uniform_precision", 16, 4), ccd_center_points("orthogonal", 16, 4)
     (7, 12)
+
+    Box and Draper's Exercise 15.3, three factors: the same variance at the centre and one unit out:
+
+    >>> round(ccd_center_points("uniform_precision", 8, 3, radius=1.0, rounded=False), 2)
+    4.58
     """
     if rule not in CENTER_POINT_RULES:
         msg = f"rule must be one of {CENTER_POINT_RULES}; got {rule!r}."
         raise ValueError(msg)
+    if radius is not None and (rule != "uniform_precision" or not radius > 0):
+        msg = f"radius must be positive, and only goes with rule='uniform_precision'; got {radius!r} for {rule!r}."
+        raise ValueError(msg)
     k, r, root = n_factors, n_replicates, np.sqrt(n_cube_runs)
     if rule == "orthogonal":
         n_center = r * (4 * root + 4 - 2 * k)
-    else:
+    elif radius is None:
         lambda_4 = (k + 3 + np.sqrt(9 * k**2 + 14 * k - 7)) / (4 * (k + 2))
         n_center = lambda_4 * r * (n_cube_runs + 2 * root) ** 2 / n_cube_runs - r * (n_cube_runs + 2 * k)
-    return max(round(float(n_center)), 1)
+    else:
+        b, d = r * (n_cube_runs + 2 * root), r * n_cube_runs  # sum of x_i^2, and of x_i^2 x_j^2, over the runs
+        n_runs = b**2 * (2 * (k + 2) * d + radius**2 * (k - 1) * b) / (d * (2 * (k + 2) * d + radius**2 * (k + 1) * b))
+        n_center = n_runs - r * (n_cube_runs + 2 * k)
+    return max(round(float(n_center)), 1) if rounded else float(n_center)
 
 
 def blocking_alpha(

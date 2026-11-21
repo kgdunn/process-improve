@@ -109,3 +109,41 @@ def test_a_rule_where_it_does_not_hold_is_refused(design_type, options, message)
 def test_an_unknown_rule_is_refused():
     with pytest.raises(ValueError, match="rule must be one of"):
         ccd_center_points("rotatable", 16, 4)
+
+
+def test_a_radius_gives_box_and_drapers_exercise_15_3():
+    """Three factors, cube at +/-1: V(0) = V(1) at n0 = 4.58, rounded to 5; V(0) = V(3^(1/2)) at 1.48."""
+    assert ccd_center_points("uniform_precision", 8, 3, radius=1.0, rounded=False) == pytest.approx(4.584, abs=5e-4)
+    assert ccd_center_points("uniform_precision", 8, 3, radius=1.0) == 5
+    assert ccd_center_points("uniform_precision", 8, 3, radius=np.sqrt(3), rounded=False) == pytest.approx(
+        1.481, abs=5e-4
+    )
+    assert ccd_center_points("uniform_precision", 8, 3, rounded=False) == pytest.approx(5.549, abs=5e-4)
+
+
+@pytest.mark.parametrize(("k", "cube_runs"), [(2, 4), (3, 8), (4, 16), (5, 16), (6, 32)])
+def test_box_and_hunters_unit_is_the_radius_of_one_root_mean_square(k, cube_runs):
+    """The rule without a radius is the rule at rho^2 = B/N, the mean square of a factor over the runs."""
+    n_center = ccd_center_points("uniform_precision", cube_runs, k, rounded=False)
+    mean_square = (cube_runs + 2 * np.sqrt(cube_runs)) / (cube_runs + 2 * k + n_center)
+    at_that_radius = ccd_center_points("uniform_precision", cube_runs, k, radius=np.sqrt(mean_square), rounded=False)
+    assert at_that_radius == pytest.approx(n_center)
+
+
+@pytest.mark.parametrize(("k", "radius"), [(3, 1.0), (3, np.sqrt(3)), (4, 1.0), (4, 1.5)])
+def test_the_real_number_of_centre_runs_lies_where_the_variances_cross(k, radius):
+    """Built designs with the whole runs either side of the real number put V(0) - V(radius) on opposite sides of 0."""
+    n_center = ccd_center_points("uniform_precision", 2**k, k, radius=radius, rounded=False)
+
+    def gap(n: int) -> float:
+        runs = composite(k, n, alpha="rotatable")[1]
+        return prediction_variance(runs, np.zeros(k)) - prediction_variance(runs, radius * np.eye(k)[0])
+
+    below, above = int(np.floor(n_center)), int(np.ceil(n_center))
+    assert gap(below) * gap(above) < 0
+
+
+@pytest.mark.parametrize(("rule", "radius"), [("orthogonal", 1.0), ("uniform_precision", 0.0)])
+def test_a_radius_only_goes_with_uniform_precision_and_must_be_positive(rule, radius):
+    with pytest.raises(ValueError, match="radius must be positive"):
+        ccd_center_points(rule, 16, 4, radius=radius)
