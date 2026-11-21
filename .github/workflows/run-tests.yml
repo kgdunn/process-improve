@@ -253,7 +253,9 @@ jobs:
         # a default text encoding on Windows (#994) and a floating-point last digit on
         # macOS (#1007). Pushes to main and the nightly run add Windows and macOS at 3.11.
         # Python 3.13 on ubuntu is the `coverage` job below, so it is excluded here.
-        python-version: ["3.11", "3.12", "3.13"]
+        # Python 3.14, the newest release, runs on ubuntu only, as 3.12 does; its free-threaded
+        # build is the `test-free-threaded` job.
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
         os: ["ubuntu-latest", "windows-latest", "macos-latest"]
         experimental: [false]
         # Each row runs the suite in two duration-balanced halves (`--shard`, as the
@@ -267,6 +269,10 @@ jobs:
           - python-version: "3.12"
             os: windows-latest
           - python-version: "3.12"
+            os: macos-latest
+          - python-version: "3.14"
+            os: windows-latest
+          - python-version: "3.14"
             os: macos-latest
           # On a pull request only: 'none' matches no row, so pushes and nightly keep 3.11.
           - python-version: ${{ github.event_name == 'pull_request' && '3.11' || 'none' }}
@@ -284,16 +290,6 @@ jobs:
           # with asserts on. It was a job of its own, one more whole suite per run (#926).
           - python-version: "3.12"
             optimize: "1"
-          # Free-threaded (no-GIL) Python (3.13t / 3.14t) is intentionally NOT
-          # tested yet. Several dependencies still lack free-threaded (cp31Xt)
-          # wheels and fall back to building from source, which fails on the
-          # GitHub-hosted images: llvmlite (via numba / the `fast` extra) needs
-          # LLVM 20, and Rust-built deps (e.g. pydantic-core and some mcp
-          # transitives) fail their maturin/cargo source builds. These rows
-          # only ever failed at install and produced no useful signal, so they
-          # are removed rather than left as a permanent non-blocking red check.
-          # Re-add them once the free-threaded wheel ecosystem has caught up
-          # (tracked in issue #43).
     runs-on: ${{ matrix.os }}
     # Python warns when code reads or writes text in the platform's default encoding,
     # cp1252 on Windows (#994); tests/conftest.py fails the run when the call is ours.
