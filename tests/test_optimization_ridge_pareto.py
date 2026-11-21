@@ -446,3 +446,56 @@ def test_front_without_a_single_objective_optimum_raises(monkeypatch: pytest.Mon
     monkeypatch.setattr(optimization, "_multistart_slsqp", lambda *_args, **_kwargs: None)
     with pytest.raises(RuntimeError, match=r"^Pareto front: no start converged inside the region for a single"):
         _pareto_front([model("yield", YIELD), model("cost", COST)], MAX_MIN_GOALS, ["A", "B"])
+
+
+def test_a_focus_gives_box_and_drapers_table_about_it() -> None:
+    """Section 12.4, the ridge from f = (0.5, 0.5): (0.932, 0.911) at mu = 1.6, and (3.324, 3.088), R = 3.830 at 0.8."""
+    path = optimize_responses(
+        [model("y", HOERL)], method="ridge_analysis", focus={"A": 0.5, "B": 0.5}, multipliers=[1.6, 0.8]
+    )["ridge_analysis"]
+    near, far = path["path"]
+    assert [near["coded"]["A"], near["coded"]["B"], near["predicted_response"]] == pytest.approx(
+        [0.932, 0.911, 81.382], abs=5e-4
+    )
+    assert [far["coded"]["A"], far["coded"]["B"], far["radius"], far["predicted_response"]] == pytest.approx(
+        [3.324, 3.088, 3.830, 94.377], abs=5e-4
+    )
+    assert path["focus"] == {"A": 0.5, "B": 0.5}
+
+
+def test_the_ridge_about_a_focus_is_the_best_point_on_each_circle_about_it() -> None:
+    """At each radius from the focus, no point on that circle about the focus predicts more."""
+    focus = np.array([0.3, -0.4])
+    path = optimize_responses(
+        [model("y", HOERL)], method="ridge_analysis", focus={"A": 0.3, "B": -0.4}, radii=[0.25, 0.8]
+    )["ridge_analysis"]["path"]
+    b0, b, big_b = _extract_b_and_B(coefficients(HOERL), ["A", "B"])
+    angles = np.linspace(0.0, 2 * np.pi, 20_001)
+    for entry in path:
+        point = np.array([entry["coded"]["A"], entry["coded"]["B"]])
+        assert np.linalg.norm(point - focus) == pytest.approx(entry["radius"])
+        circle = focus + entry["radius"] * np.column_stack([np.cos(angles), np.sin(angles)])
+        best = np.max(b0 + circle @ b + np.einsum("ij,jk,ik->i", circle, big_b, circle))
+        assert entry["predicted_response"] == pytest.approx(best, abs=1e-6)
+
+
+def test_a_focus_at_the_centre_changes_nothing() -> None:
+    plain = optimize_responses([model("y", HOERL)], method="ridge_analysis", n_steps=3)["ridge_analysis"]
+    centred = optimize_responses([model("y", HOERL)], method="ridge_analysis", n_steps=3, focus={})["ridge_analysis"]
+    for a, b in zip(plain["path"], centred["path"], strict=True):
+        assert b["coded"] == pytest.approx(a["coded"])
+        assert b["predicted_response"] == pytest.approx(a["predicted_response"])
+    assert centred["stationary_point_radius"] == pytest.approx(plain["stationary_point_radius"])
+
+
+@pytest.mark.parametrize(
+    ("options", "match"),
+    [
+        ({"method": "ridge_analysis", "focus": {"C": 0.5}}, "focus must give finite coded values"),
+        ({"method": "ridge_analysis", "focus": {"A": float("nan")}}, "focus must give finite coded values"),
+        ({"method": "canonical_analysis", "focus": {"A": 0.5}}, "go with method='ridge_analysis'"),
+    ],
+)
+def test_a_bad_focus_is_refused(options: dict, match: str) -> None:
+    with pytest.raises(ValueError, match=match):
+        optimize_responses([model("y", HOERL)], **options)
