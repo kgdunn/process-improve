@@ -476,16 +476,16 @@ def test_the_page_counts_a_model_s_coefficients_as_bootstrap_does(bootstrap, nod
 
 def test_the_page_expects_a_search_to_take_as_long_as_bootstrap_does(bootstrap, node):
     """The form says how long a search takes before Python is asked, so the page holds the rule too."""
-    held = javascript(
-        node, source("logic.js"), [(name, []) for name in ("MAX_OPTIMAL_TERMS", "SEARCH_SECONDS", "SLOW_SEARCH")]
-    )
-    assert held == [bootstrap.MAX_OPTIMAL_TERMS, bootstrap.SEARCH_SECONDS, bootstrap.SLOW_SEARCH]
+    names = ("MAX_OPTIMAL_TERMS", "SEARCH_SECONDS", "SLOW_SEARCH", "MAX_PACE")
+    held = javascript(node, source("logic.js"), [(name, []) for name in names])
+    assert held == [bootstrap.MAX_OPTIMAL_TERMS, bootstrap.SEARCH_SECONDS, bootstrap.SLOW_SEARCH, bootstrap.MAX_PACE]
     assert bootstrap.MAX_OPTIMAL_TERMS == bootstrap._n_terms(bootstrap.MAX_INTERACTION_FACTORS, "quadratic") == 91
     assert set(bootstrap.SEARCH_SECONDS) == set(bootstrap.REGION_DESIGNS), "the designs that are searched for"
     cases = [
         (d, k, m) for d in ("d_optimal", "i_optimal", "a_optimal", "ccd") for k in (2, 6, 12) for m in bootstrap.MODELS
     ]
     cases += [(d, 40, "main_effects") for d in bootstrap.REGION_DESIGNS]
+    cases += [("i_optimal", 6, "quadratic", pace) for pace in (1, 2.5, 100)]  # a device's pace scales it (#1298)
     expected = javascript(node, source("logic.js"), [("searchSeconds", list(case)) for case in cases])
     assert expected == pytest.approx([bootstrap._search_seconds(*case) for case in cases])
 

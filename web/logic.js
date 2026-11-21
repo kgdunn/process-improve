@@ -1962,8 +1962,21 @@ export const SEARCH_SECONDS = { d_optimal: 0.016, i_optimal: 0.07, a_optimal: 0.
 /** A search expected to take this many seconds or more is the reader's to start; mirrors bootstrap.SLOW_SEARCH. */
 export const SLOW_SEARCH = 5;
 
-/** The seconds a design's search is expected to take, at most: 0 for a design not searched for (bootstrap._search_seconds). */
-export const searchSeconds = (designType, k, model) => (SEARCH_SECONDS[designType] ?? 0) * nTerms(k, model) * k;
+/**
+ * The seconds a design's search is expected to take, at most: 0 for a design not searched for
+ * (bootstrap._search_seconds). ``pace`` is how many times slower than the rates this device searches (#1298).
+ */
+export const searchSeconds = (designType, k, model, pace = 1) =>
+  (SEARCH_SECONDS[designType] ?? 0) * nTerms(k, model) * k * pace;
+
+/** The most a pace is taken to be; mirrors bootstrap.MAX_PACE. */
+export const MAX_PACE = 100;
+
+/**
+ * The pace of this device after a comparison's reply: how many times slower than the rates of SEARCH_SECONDS it
+ * searched, at least 1, as the rates are the most a search took. ``measured`` is the reply's, null when it timed none.
+ */
+export const paceAfter = (pace, measured) => (measured ? Math.min(MAX_PACE, Math.max(1, measured)) : pace);
 
 /** A wait in words, as roughly as it is known: to 10 seconds under 45, and to half a minute from there. */
 export function waitWords(seconds) {

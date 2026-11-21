@@ -1499,6 +1499,12 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "Factor T: its range ends at 200, above its highest possible setting.",
     ),
     # Runs from a model of every run (#1374): a goal of the largest, the smallest or a target; numeric factors.
+    # A device's pace, which the page measures and sends with a comparison (#1298).
+    "candidates: a pace below 1": (
+        "api_candidates",
+        lambda _: {"factors": FACTORS, "model": "main_effects", "pace": 0.5},
+        "pace must be a number from 1 to 100.",
+    ),
     "suggested runs: a goal of learning": (
         "api_suggest_runs",
         lambda ex: {

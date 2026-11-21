@@ -166,6 +166,7 @@ import {
   tradeOffBeyond,
   MAX_OPTIMAL_TERMS,
   SLOW_SEARCH,
+  paceAfter,
   searchSeconds,
   waitWords,
   REPOSITORY,
@@ -230,7 +231,16 @@ describe("the design's settings", () => {
     assert.equal(searchSeconds("i_optimal", 6, "quadratic"), 0.07 * 28 * 6);
     assert.ok(searchSeconds("d_optimal", 6, "quadratic") < SLOW_SEARCH, "a D-optimal design of six factors is made at once");
     assert.ok(searchSeconds("i_optimal", 6, "quadratic") >= SLOW_SEARCH, "and an I-optimal one is the reader's to start");
+    assert.equal(searchSeconds("d_optimal", 6, "quadratic", 3), 3 * searchSeconds("d_optimal", 6, "quadratic"));
     assert.ok(searchSeconds("i_optimal", 5, "main_effects") < SLOW_SEARCH);
+  });
+
+  test("learns the device's pace from a comparison, at least 1 and at most MAX_PACE (#1298)", () => {
+    assert.equal(paceAfter(1, null), 1, "a comparison that timed no search leaves it");
+    assert.equal(paceAfter(2.5, null), 2.5);
+    assert.equal(paceAfter(1, 3.2), 3.2, "a slower device scales the waits up");
+    assert.equal(paceAfter(3.2, 0.4), 1, "a faster one keeps the rates, the most a search took");
+    assert.equal(paceAfter(1, 1e6), 100);
   });
 
   test("a wait is said as roughly as it is known", () => {

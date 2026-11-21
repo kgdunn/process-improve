@@ -232,3 +232,27 @@ def test_a_catalog_design_of_40_factors_opens_as_the_page_makes_it(many_context,
     assert len(run_sheet(page)) == 81
     assert page.input_value("#design-type") == "taguchi"
     assert page.locator("#factors tbody tr").count() == 40
+
+
+def test_on_a_slower_device_the_form_says_the_longer_wait_this_device_takes(fresh_page, bootstrap, monkeypatch):
+    """A comparison times its searches; on a device that took longer, a quick search's wait is said too (#1298).
+
+    Each timed search here seems to take a minute, as on a slow phone: the D-optimal design for six factors, made
+    at once at the rates' pace, is then the reader's to start, with this device's wait.
+    """
+    monkeypatch.setattr(bootstrap, "_timed", lambda spec: (bootstrap.make_design(spec), 60.0))
+    page = fresh_page
+    before = page.evaluate("window.__pi.count('api_candidates')")
+    set_factors(page, factors(6))
+    page.wait_for_function(f"window.__pi.count('api_candidates') > {before}")
+    settled(page)
+    choose(page, design_type="d_optimal", model_type="quadratic")
+    page.wait_for_selector("#search-wait", state="visible")
+    said = page.text_content("#search-wait")
+    assert said.startswith("The search for this design takes up to "), said
+    assert " on this device: its model has 28 coefficients in 6 factors." in said
+    assert "pace" not in calls(page, "api_candidates")[0]["payload"], "the first comparison knows no pace yet"
+    before = page.evaluate("window.__pi.count('api_candidates')")
+    set_factors(page, factors(7))
+    page.wait_for_function(f"window.__pi.count('api_candidates') > {before}")
+    assert calls(page, "api_candidates")[-1]["payload"]["pace"] > 1, "a later one sends it"

@@ -184,7 +184,9 @@ Also:
 - **A long search waits for you.** A design that takes time to find says how long, up to
   about 2 minutes, and starts when you ask for it. You can stop it.
   - *Details:* An optimal design whose search is expected to take 5 seconds or more. The time
-    follows the size of its model and the number of factors, not the number of runs.
+    follows the size of its model and the number of factors, not the number of runs, and the
+    device: the comparison of designs times its searches, and on a device slower than the one
+    the times were measured on, the waits say how long they take on this device.
 - **Compare designs side by side.** What each design costs in runs and what it gives in
   precision. A switch sets a design aside.
   - *Details:* Nine measures of each design (precision of the coefficients and of the

@@ -37,6 +37,7 @@ import operator
 import platform
 import re
 import sys
+import time
 import unicodedata
 import warnings
 from importlib.metadata import PackageNotFoundError, version
@@ -143,6 +144,12 @@ SEARCH_SECONDS = {"d_optimal": 0.016, "i_optimal": 0.07, "a_optimal": 0.06}
 #: reader types leave it out until asked, so the list is not held up, and the design form says how long it
 #: takes. logic.js mirrors it.
 SLOW_SEARCH = 5
+
+#: A search expected to take this many seconds or more is timed, to learn how fast the reader's device is against
+#: the rates of SEARCH_SECONDS (#1298): a shorter one is mostly the call's own cost. The page keeps the ratio, at
+#: least 1, as its ``pace``, and sends it with the next comparison; a pace of more than MAX_PACE is refused.
+TIMED_SEARCH = 0.5
+MAX_PACE = 100
 
 #: The most factors the page compares designs for on every measure. G, the worst prediction, is searched for at
 #: every corner of the ranges, 2^k of them: a million at 20 factors. With more, the designs are scored as for a
@@ -2645,13 +2652,29 @@ def _model_type(spec: dict, design_type: str, k: int) -> str:
     return model_type
 
 
-def _search_seconds(design_type: str, k: int, model_type: str) -> float:
+def _search_seconds(design_type: str, k: int, model_type: str, pace: float = 1.0) -> float:
     """Return the seconds a design's search is expected to take in a browser, at most: 0 for a design not searched for.
 
     The time follows the size of the model and the number of factors (see :data:`SEARCH_SECONDS`), not the
-    runs asked for. logic.js's ``searchSeconds`` mirrors it.
+    runs asked for, and ``pace``, how many times slower than those rates the reader's device searches (#1298).
+    logic.js's ``searchSeconds`` mirrors it.
     """
-    return SEARCH_SECONDS.get(design_type, 0) * _n_terms(k, model_type) * k
+    return SEARCH_SECONDS.get(design_type, 0) * _n_terms(k, model_type) * k * pace
+
+
+def _pace(request: dict) -> float:
+    """Return the ``pace`` the page measured on this device, 1 when it sent none: a number from 1 to MAX_PACE."""
+    pace = request.get("pace", 1)
+    if isinstance(pace, bool) or not isinstance(pace, int | float) or not 1 <= pace <= MAX_PACE:
+        raise ValueError(f"pace must be a number from 1 to {MAX_PACE}.")
+    return float(pace)
+
+
+def _timed(spec: dict) -> tuple[dict, float]:
+    """Make a design as :func:`make_design` does, and say how many seconds it took."""
+    started = time.perf_counter()
+    design = make_design(spec)
+    return design, time.perf_counter() - started
 
 
 def _budget(spec: dict, design_type: str, k: int, model_type: str | None) -> int:
@@ -7611,21 +7634,22 @@ def candidates(request: dict) -> dict:
     (see :func:`_powers`), and a note says why.
     """
     plan = compare_plan(request)
-    k = len(request.get("factors") or [])
-    made, waiting, notes = [], [], list(plan["notes"])
+    k, pace = len(request.get("factors") or []), _pace(request)
+    made, waiting, notes, paces = [], [], list(plan["notes"]), []
     for item in plan["designs"]:
-        seconds = _search_seconds(item["design_type"], k, item["spec"].get("model_type", MODELS[0]))
-        if seconds >= SLOW_SEARCH and not request.get("search"):
-            waiting.append({"design_type": item["design_type"], "label": item["label"], "seconds": seconds})
+        rated = _search_seconds(item["design_type"], k, item["spec"].get("model_type", MODELS[0]))
+        if rated * pace >= SLOW_SEARCH and not request.get("search"):
+            waiting.append({"design_type": item["design_type"], "label": item["label"], "seconds": rated * pace})
             continue
         with _listening() as heard:
             try:
-                design = make_design(item["spec"])
+                design, took = _timed(item["spec"])
             except Exception as exc:  # one design that cannot be made leaves the others to compare
                 if _lacking(exc):
                     raise  # no fault of the design: the worker installs the package, and calls again
                 notes.append(f"{item['label']} could not be made: {exc}")
                 continue
+        paces += [took / rated] if rated >= TIMED_SEARCH else []
         made.append({**item, "design": design, "warnings": list(dict.fromkeys(heard))})
     if not made and not waiting:
         raise ValueError("None of the designs this page offers can be made for these factors.")
@@ -7644,6 +7668,8 @@ def candidates(request: dict) -> dict:
         "result": result,
         "left_out": plan["left_out"],
         "levels": plan["levels"],
+        # How many times slower than the rates this device searched, at the slowest of the timed searches (#1298).
+        "pace": round(max(paces), 3) if paces else None,
     }
 
 
