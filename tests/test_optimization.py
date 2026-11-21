@@ -1730,6 +1730,44 @@ class TestCanonicalForms:
         assert form["origin_response"] == pytest.approx(0.0)
         assert form["offsets"] == pytest.approx([0.0, 0.0, 0.0])
 
+    @pytest.mark.parametrize("coefficients", [_quadratic_2f_coeffs(), _saddle_2f_coeffs(), _bhh()])
+    def test_the_rotated_form_reproduces_the_model(self, coefficients: list[dict]) -> None:
+        """Box and Draper's A form: y = b0 + sum theta_i X_i + sum lambda_i X_i^2, the axes through the centre."""
+        result = _canonical_analysis(coefficients, FACTOR_NAMES_2F)
+        form, vectors = result["rotated_form"], np.array(result["eigenvectors"])
+        b0 = coefficients[0]["coefficient"]
+        for x in np.random.default_rng(2).uniform(-2, 2, size=(5, 2)):
+            axes = vectors @ x
+            value = b0 + np.dot(form["linear"], axes) + np.dot(result["eigenvalues"], axes**2)
+            assert value == pytest.approx(self._predict(coefficients, x))
+        if "canonical_axes" in result:  # X_iS is minus the constant of the axis centred on the stationary point
+            assert form["stationary_point"] == pytest.approx([-axis["constant"] for axis in result["canonical_axes"]])
+
+    def test_the_rotated_form_of_box_and_drapers_constructed_example(self) -> None:
+        """Eqs. (10.3.17) and (10.3.18): theta = (4.16, 0.28) and X_S = (0.52, 0.14), the axes signed as printed."""
+        coefficients = [
+            {"term": "Intercept", "coefficient": 78.8988},
+            {"term": "A", "coefficient": 2.272},
+            {"term": "B", "coefficient": 3.496},
+            {"term": "I(A ** 2)", "coefficient": -2.08},
+            {"term": "I(B ** 2)", "coefficient": -2.92},
+            {"term": "A:B", "coefficient": -2.88},
+        ]
+        result = _canonical_analysis(coefficients, FACTOR_NAMES_2F)
+        signs = np.sign([vector[1] for vector in result["eigenvectors"]])  # the book: m1 = (0.6, 0.8), m2 = (-0.8, 0.6)
+        form = result["rotated_form"]
+        assert signs * np.array(form["linear"]) == pytest.approx([4.16, 0.28], abs=5e-3)
+        assert signs * np.array(form["stationary_point"]) == pytest.approx([0.52, 0.14], abs=5e-3)
+
+    def test_a_flat_axis_has_a_slope_but_no_stationary_point(self) -> None:
+        """A rising ridge keeps its slope along the flat axis; X_S there does not exist."""
+        result = _canonical_analysis(self._two_flat_axes(1.0), ["X1", "X2", "X3"])
+        form = result["rotated_form"]
+        assert form["linear"][0] == pytest.approx(0.0)
+        assert np.linalg.norm(form["linear"][1:]) == pytest.approx(1.0)  # any basis of the flat plane
+        assert form["stationary_point"][0] == pytest.approx(0.0)
+        assert form["stationary_point"][1:] == [None, None]
+
 
 class TestFeasibleRegion:
     """The settings at which every response is predicted inside its window, and how surely a new run is."""
