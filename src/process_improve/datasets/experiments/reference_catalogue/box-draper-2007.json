@@ -28834,59 +28834,110 @@
       "source_kind": "table",
       "quote": "Table 11.1 (E) 0 0 0 / - 0 +, Line of centers on the X̃2"
      },
-     "check": {
-      "kind": "library_text",
-      "function": "optimize_responses",
-      "args": [
-       [
-        {
-         "response_name": "y",
-         "factor_names": [
-          "X1",
-          "X2",
-          "X3"
-         ],
-         "coefficients": [
-          {
-           "term": "Intercept",
-           "coefficient": 0.0
-          },
-          {
-           "term": "X1",
-           "coefficient": 0.0
-          },
-          {
-           "term": "X2",
-           "coefficient": 0.0
-          },
-          {
-           "term": "X3",
-           "coefficient": 0.0
-          },
-          {
-           "term": "I(X1 ** 2)",
-           "coefficient": -2.0
-          },
-          {
-           "term": "I(X2 ** 2)",
-           "coefficient": 0.0
-          },
-          {
-           "term": "I(X3 ** 2)",
-           "coefficient": 1.0
-          }
-         ]
-        }
-       ]
-      ],
-      "kwargs": {
-       "method": "canonical_analysis"
+     "check": [
+      {
+       "kind": "library_text",
+       "function": "optimize_responses",
+       "args": [
+        [
+         {
+          "response_name": "y",
+          "factor_names": [
+           "X1",
+           "X2",
+           "X3"
+          ],
+          "coefficients": [
+           {
+            "term": "Intercept",
+            "coefficient": 0.0
+           },
+           {
+            "term": "X1",
+            "coefficient": 0.0
+           },
+           {
+            "term": "X2",
+            "coefficient": 0.0
+           },
+           {
+            "term": "X3",
+            "coefficient": 0.0
+           },
+           {
+            "term": "I(X1 ** 2)",
+            "coefficient": -2.0
+           },
+           {
+            "term": "I(X2 ** 2)",
+            "coefficient": 0.0
+           },
+           {
+            "term": "I(X3 ** 2)",
+            "coefficient": 1.0
+           }
+          ]
+         }
+        ]
+       ],
+       "kwargs": {
+        "method": "canonical_analysis"
+       },
+       "key": "canonical_analysis.classification",
+       "printed": "stationary_ridge"
       },
-      "key": "canonical_analysis.classification",
-      "printed": "stationary_ridge",
-      "disagreement": "Convention: Table 11.1 (E), λ = (-, 0, +) with every θ zero, is a line of centres of minimax form; the library names the class from the signs of the curved eigenvalues and calls it saddle_point, having no class for a stationary ridge of minimax form.",
-      "cause": "method"
-     }
+      {
+       "kind": "library_text",
+       "function": "optimize_responses",
+       "args": [
+        [
+         {
+          "response_name": "y",
+          "factor_names": [
+           "X1",
+           "X2",
+           "X3"
+          ],
+          "coefficients": [
+           {
+            "term": "Intercept",
+            "coefficient": 0.0
+           },
+           {
+            "term": "X1",
+            "coefficient": 0.0
+           },
+           {
+            "term": "X2",
+            "coefficient": 0.0
+           },
+           {
+            "term": "X3",
+            "coefficient": 0.0
+           },
+           {
+            "term": "I(X1 ** 2)",
+            "coefficient": -2.0
+           },
+           {
+            "term": "I(X2 ** 2)",
+            "coefficient": 0.0
+           },
+           {
+            "term": "I(X3 ** 2)",
+            "coefficient": 1.0
+           }
+          ]
+         }
+        ]
+       ],
+       "kwargs": {
+        "method": "canonical_analysis"
+       },
+       "key": "canonical_analysis.ridge_of",
+       "printed": "minimax"
+      }
+     ]
     },
     {
      "what": "classification",
@@ -36072,10 +36123,137 @@
       "source_kind": "answer",
       "quote": "this is basically a form of the general nature of (E) in Figure 11.3"
      },
-     "check": {
-      "manual": "(E), the stationary ridge of minimax form, as the limit of the minimax (B) when λ3 is small; the library has no rule for an approximate limiting form: it classifies the exact eigenvalues (a small one earns only a classification_note) and has no notion of the lettered forms of Figure 11.1 or Table 11.1: it calls the surface a saddle_point, with a classification_note on the eigenvalue -0.069 (2.2% of the largest)",
-      "cause": "library_gap"
-     }
+     "check": [
+      {
+       "kind": "library_text",
+       "function": "optimize_responses",
+       "args": [
+        [
+         {
+          "response_name": "y",
+          "factor_names": [
+           "x1",
+           "x2",
+           "x3"
+          ],
+          "coefficients": [
+           {
+            "term": "Intercept",
+            "coefficient": 67.711
+           },
+           {
+            "term": "x1",
+            "coefficient": 1.944
+           },
+           {
+            "term": "x2",
+            "coefficient": 0.906
+           },
+           {
+            "term": "x3",
+            "coefficient": 1.069
+           },
+           {
+            "term": "I(x1 ** 2)",
+            "coefficient": -1.539
+           },
+           {
+            "term": "I(x2 ** 2)",
+            "coefficient": -0.264
+           },
+           {
+            "term": "I(x3 ** 2)",
+            "coefficient": -0.676
+           },
+           {
+            "term": "x1:x2",
+            "coefficient": -3.088
+           },
+           {
+            "term": "x1:x3",
+            "coefficient": -2.188
+           },
+           {
+            "term": "x2:x3",
+            "coefficient": -1.212
+           }
+          ]
+         }
+        ]
+       ],
+       "kwargs": {
+        "method": "canonical_analysis",
+        "flat_tolerance": 0.05
+       },
+       "key": "canonical_analysis.classification",
+       "printed": "stationary_ridge"
+      },
+      {
+       "kind": "library_text",
+       "function": "optimize_responses",
+       "args": [
+        [
+         {
+          "response_name": "y",
+          "factor_names": [
+           "x1",
+           "x2",
+           "x3"
+          ],
+          "coefficients": [
+           {
+            "term": "Intercept",
+            "coefficient": 67.711
+           },
+           {
+            "term": "x1",
+            "coefficient": 1.944
+           },
+           {
+            "term": "x2",
+            "coefficient": 0.906
+           },
+           {
+            "term": "x3",
+            "coefficient": 1.069
+           },
+           {
+            "term": "I(x1 ** 2)",
+            "coefficient": -1.539
+           },
+           {
+            "term": "I(x2 ** 2)",
+            "coefficient": -0.264
+           },
+           {
+            "term": "I(x3 ** 2)",
+            "coefficient": -0.676
+           },
+           {
+            "term": "x1:x2",
+            "coefficient": -3.088
+           },
+           {
+            "term": "x1:x3",
+            "coefficient": -2.188
+           },
+           {
+            "term": "x2:x3",
+            "coefficient": -1.212
+           }
+          ]
+         }
+        ]
+       ],
+       "kwargs": {
+        "method": "canonical_analysis",
+        "flat_tolerance": 0.05
+       },
+       "key": "canonical_analysis.ridge_of",
+       "printed": "minimax"
+      }
+     ],
+     "analysis": "the nearest limiting form read with lambda3 = -0.069 taken as zero: flat_tolerance=0.05 treats an eigenvalue within 5% of the largest in size (3.190) as flat, as Box, Hunter and Hunter read 0.0017 beside -9.02; any tolerance above 0.022 gives the same form"
     }
    ],
    "notes": "Answer (pp. 695-696): λ3 is relatively small, so the surface is basically of the form (E) of Figure 11.3, a limiting case of (B)."
