@@ -24517,7 +24517,7 @@
       "quote": "The pure second-order region moment has value 1/(k + 2)."
      },
      "check": {
-      "manual": "the pure second-order, pure fourth-order and mixed fourth-order moments of the unit sphere, formulas; the library has no moments of a region or of a design",
+      "manual": "the pure second-order, pure fourth-order and mixed fourth-order moments of the unit sphere, formulas; all_bias_ccd uses them, but the library has no function that returns the moments of a region or of a design",
       "cause": "library_gap"
      }
     },
@@ -24531,8 +24531,8 @@
       "quote": "n0 = (na^1/2 + 2)²(k + 2)/(k + 4) - na - 2k,"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "manual": "the formulas all_bias_ccd evaluates, checked row by row in the table below",
+      "cause": "not_a_result"
      }
     },
     {
@@ -24545,8 +24545,16 @@
       "quote": "k 2, na 4: 2.67 0.577 0.816 1.414"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       2,
+       4
+      ],
+      "kwargs": {
+       "region": "spherical"
+      },
+      "key": "n_center_points"
      }
     },
     {
@@ -24559,8 +24567,16 @@
       "quote": "k 2, na 4: 2.67 0.577 0.816 1.414"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       2,
+       4
+      ],
+      "kwargs": {
+       "region": "spherical"
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -24573,8 +24589,16 @@
       "quote": "k 2, na 4: 2.67 0.577 0.816 1.414"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       2,
+       4
+      ],
+      "kwargs": {
+       "region": "spherical"
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -24610,8 +24634,16 @@
       "quote": "k 3, na 8: 2.65 0.494 0.831 1.682"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       3,
+       8
+      ],
+      "kwargs": {
+       "region": "spherical"
+      },
+      "key": "n_center_points"
      }
     },
     {
@@ -24624,8 +24656,16 @@
       "quote": "k 3, na 8: 2.65 0.494 0.831 1.682"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       3,
+       8
+      ],
+      "kwargs": {
+       "region": "spherical"
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -24638,8 +24678,16 @@
       "quote": "k 3, na 8: 2.65 0.494 0.831 1.682"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       3,
+       8
+      ],
+      "kwargs": {
+       "region": "spherical"
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -24675,8 +24723,16 @@
       "quote": "k 4, na 8: 1.49 0.462 0.777 1.682"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       4,
+       8
+      ],
+      "kwargs": {
+       "region": "spherical"
+      },
+      "key": "n_center_points"
      }
     },
     {
@@ -24689,8 +24745,16 @@
       "quote": "k 4, na 8: 1.49 0.462 0.777 1.682"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       4,
+       8
+      ],
+      "kwargs": {
+       "region": "spherical"
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -24703,8 +24767,16 @@
       "quote": "k 4, na 8: 1.49 0.462 0.777 1.682"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       4,
+       8
+      ],
+      "kwargs": {
+       "region": "spherical"
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -24744,8 +24816,16 @@
       "quote": "k 4, na 16: 3.00 0.433 0.866 2"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       4,
+       16
+      ],
+      "kwargs": {
+       "region": "spherical"
+      },
+      "key": "n_center_points"
      }
     },
     {
@@ -24758,8 +24838,16 @@
       "quote": "k 4, na 16: 3.00 0.433 0.866 2"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       4,
+       16
+      ],
+      "kwargs": {
+       "region": "spherical"
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -24772,8 +24860,16 @@
       "quote": "k 4, na 16: 3.00 0.433 0.866 2"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       4,
+       16
+      ],
+      "kwargs": {
+       "region": "spherical"
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -24809,8 +24905,16 @@
       "quote": "k 5, na 16: 2.00 0.408 0.816 2"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       5,
+       16
+      ],
+      "kwargs": {
+       "region": "spherical"
+      },
+      "key": "n_center_points"
      }
     },
     {
@@ -24823,8 +24927,16 @@
       "quote": "k 5, na 16: 2.00 0.408 0.816 2"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       5,
+       16
+      ],
+      "kwargs": {
+       "region": "spherical"
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -24837,8 +24949,16 @@
       "quote": "k 5, na 16: 2.00 0.408 0.816 2"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       5,
+       16
+      ],
+      "kwargs": {
+       "region": "spherical"
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -24875,8 +24995,16 @@
       "quote": "k 6, na 16: 0.80 0.387 0.775 2"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       6,
+       16
+      ],
+      "kwargs": {
+       "region": "spherical"
+      },
+      "key": "n_center_points"
      }
     },
     {
@@ -24889,8 +25017,16 @@
       "quote": "k 6, na 16: 0.80 0.387 0.775 2"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       6,
+       16
+      ],
+      "kwargs": {
+       "region": "spherical"
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -24903,8 +25039,16 @@
       "quote": "k 6, na 16: 0.80 0.387 0.775 2"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       6,
+       16
+      ],
+      "kwargs": {
+       "region": "spherical"
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -24945,8 +25089,16 @@
       "quote": "k 6, na 32: 2.90 0.368 0.875 2.378"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       6,
+       32
+      ],
+      "kwargs": {
+       "region": "spherical"
+      },
+      "key": "n_center_points"
      }
     },
     {
@@ -24959,8 +25111,16 @@
       "quote": "k 6, na 32: 2.90 0.368 0.875 2.378"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       6,
+       32
+      ],
+      "kwargs": {
+       "region": "spherical"
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -24973,8 +25133,16 @@
       "quote": "k 6, na 32: 2.90 0.368 0.875 2.378"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       6,
+       32
+      ],
+      "kwargs": {
+       "region": "spherical"
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -25011,8 +25179,17 @@
       "quote": "k 2, na 4: 3 0.664 0.939 1.414"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       2,
+       4
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      },
+      "key": "n_center_points_rounded_up"
      }
     },
     {
@@ -25025,8 +25202,17 @@
       "quote": "k 2, na 4: 3 0.664 0.939 1.414"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       2,
+       4
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -25039,8 +25225,17 @@
       "quote": "k 2, na 4: 3 0.664 0.939 1.414"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       2,
+       4
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -25076,8 +25271,17 @@
       "quote": "k 3, na 8: 3 0.568 0.955 1.682"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       3,
+       8
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      },
+      "key": "n_center_points_rounded_up"
      }
     },
     {
@@ -25090,8 +25294,17 @@
       "quote": "k 3, na 8: 3 0.568 0.955 1.682"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       3,
+       8
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -25104,8 +25317,17 @@
       "quote": "k 3, na 8: 3 0.568 0.955 1.682"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       3,
+       8
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -25141,8 +25363,17 @@
       "quote": "k 4, na 8: 2 0.531 0.893 1.682"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       4,
+       8
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      },
+      "key": "n_center_points_rounded_up"
      }
     },
     {
@@ -25155,8 +25386,17 @@
       "quote": "k 4, na 8: 2 0.531 0.893 1.682"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       4,
+       8
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -25169,8 +25409,17 @@
       "quote": "k 4, na 8: 2 0.531 0.893 1.682"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       4,
+       8
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -25210,8 +25459,17 @@
       "quote": "k 4, na 16: 3 0.498 0.996 2"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       4,
+       16
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      },
+      "key": "n_center_points_rounded_up"
      }
     },
     {
@@ -25224,8 +25482,17 @@
       "quote": "k 4, na 16: 3 0.498 0.996 2"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       4,
+       16
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -25238,8 +25505,17 @@
       "quote": "k 4, na 16: 3 0.498 0.996 2"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       4,
+       16
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -25275,8 +25551,17 @@
       "quote": "k 5, na 16: 2 0.469 0.939 2"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       5,
+       16
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      },
+      "key": "n_center_points_rounded_up"
      }
     },
     {
@@ -25289,8 +25574,17 @@
       "quote": "k 5, na 16: 2 0.469 0.939 2"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       5,
+       16
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -25303,8 +25597,17 @@
       "quote": "k 5, na 16: 2 0.469 0.939 2"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       5,
+       16
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -25341,8 +25644,17 @@
       "quote": "k 6, na 16: 1 0.445 0.891 2"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       6,
+       16
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      },
+      "key": "n_center_points_rounded_up"
      }
     },
     {
@@ -25355,8 +25667,17 @@
       "quote": "k 6, na 16: 1 0.445 0.891 2"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       6,
+       16
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -25369,8 +25690,17 @@
       "quote": "k 6, na 16: 1 0.445 0.891 2"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       6,
+       16
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -25411,8 +25741,17 @@
       "quote": "k 6, na 32: 3 0.423 1.006 2.378"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       6,
+       32
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      },
+      "key": "n_center_points_rounded_up"
      }
     },
     {
@@ -25425,8 +25764,17 @@
       "quote": "k 6, na 32: 3 0.423 1.006 2.378"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       6,
+       32
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -25439,8 +25787,17 @@
       "quote": "k 6, na 32: 3 0.423 1.006 2.378"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       6,
+       32
+      ],
+      "kwargs": {
+       "region": "spherical",
+       "expand": 1.15
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -25500,7 +25857,7 @@
       "quote": "The pure second-order region moment has value 1/3 for all k."
      },
      "check": {
-      "manual": "the pure second-order, pure fourth-order and mixed fourth-order moments of the cube [-1, 1]^k; the library has no moments of a region or of a design",
+      "manual": "the pure second-order, pure fourth-order and mixed fourth-order moments of the cube [-1, 1]^k; all_bias_ccd uses them, but the library has no function that returns the moments of a region or of a design",
       "cause": "library_gap"
      }
     },
@@ -25514,8 +25871,8 @@
       "quote": "n0 = 4(2na/5)^1/2 + 1.6 - 2k,"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "manual": "the formulas all_bias_ccd evaluates, checked row by row in the table below",
+      "cause": "not_a_result"
      }
     },
     {
@@ -25528,8 +25885,16 @@
       "quote": "k 2, na 4: 2.66 0.738 0.830"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       2,
+       4
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      },
+      "key": "n_center_points"
      }
     },
     {
@@ -25542,8 +25907,16 @@
       "quote": "k 2, na 4: 2.66 0.738 0.830"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       2,
+       4
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -25556,8 +25929,16 @@
       "quote": "k 2, na 4: 2.66 0.738 0.830"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       2,
+       4
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -25570,8 +25951,16 @@
       "quote": "k 3, na 8: 2.76 0.695 0.929"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       3,
+       8
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      },
+      "key": "n_center_points"
      }
     },
     {
@@ -25584,8 +25973,16 @@
       "quote": "k 3, na 8: 2.76 0.695 0.929"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       3,
+       8
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -25598,8 +25995,16 @@
       "quote": "k 3, na 8: 2.76 0.695 0.929"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       3,
+       8
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -25612,8 +26017,16 @@
       "quote": "k 4, na 8: 0.76 0.695 0.929"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       4,
+       8
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      },
+      "key": "n_center_points"
      }
     },
     {
@@ -25626,8 +26039,16 @@
       "quote": "k 4, na 8: 0.76 0.695 0.929"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       4,
+       8
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -25640,8 +26061,16 @@
       "quote": "k 4, na 8: 0.76 0.695 0.929"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       4,
+       8
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -25654,8 +26083,16 @@
       "quote": "k 4, na 16: 3.72 0.662 1.054"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       4,
+       16
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      },
+      "key": "n_center_points"
      }
     },
     {
@@ -25668,8 +26105,16 @@
       "quote": "k 4, na 16: 3.72 0.662 1.054"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       4,
+       16
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -25682,8 +26127,16 @@
       "quote": "k 4, na 16: 3.72 0.662 1.054"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       4,
+       16
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -25696,8 +26149,16 @@
       "quote": "k 5, na 16: 1.72 0.662 1.054"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       5,
+       16
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      },
+      "key": "n_center_points"
      }
     },
     {
@@ -25710,8 +26171,16 @@
       "quote": "k 5, na 16: 1.72 0.662 1.054"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       5,
+       16
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -25724,8 +26193,16 @@
       "quote": "k 5, na 16: 1.72 0.662 1.054"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       5,
+       16
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -25738,8 +26215,16 @@
       "quote": "k 6, na 16: -0.28 0.662 1.054"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       6,
+       16
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      },
+      "key": "n_center_points"
      }
     },
     {
@@ -25752,8 +26237,16 @@
       "quote": "k 6, na 16: -0.28 0.662 1.054"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       6,
+       16
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -25766,8 +26259,16 @@
       "quote": "k 6, na 16: -0.28 0.662 1.054"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       6,
+       16
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -25780,8 +26281,16 @@
       "quote": "k 6, na 32: 3.91 0.639 1.208"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       6,
+       32
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      },
+      "key": "n_center_points"
      }
     },
     {
@@ -25794,8 +26303,16 @@
       "quote": "k 6, na 32: 3.91 0.639 1.208"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       6,
+       32
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -25808,8 +26325,16 @@
       "quote": "k 6, na 32: 3.91 0.639 1.208"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       6,
+       32
+      ],
+      "kwargs": {
+       "region": "cuboidal"
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -25822,8 +26347,17 @@
       "quote": "k 2, na 4: 3 0.848 0.954"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       2,
+       4
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      },
+      "key": "n_center_points_rounded_up"
      }
     },
     {
@@ -25836,8 +26370,17 @@
       "quote": "k 2, na 4: 3 0.848 0.954"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       2,
+       4
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -25850,8 +26393,17 @@
       "quote": "k 2, na 4: 3 0.848 0.954"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       2,
+       4
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -25864,8 +26416,17 @@
       "quote": "k 3, na 8: 3 0.799 1.068"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       3,
+       8
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      },
+      "key": "n_center_points_rounded_up"
      }
     },
     {
@@ -25878,8 +26439,17 @@
       "quote": "k 3, na 8: 3 0.799 1.068"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       3,
+       8
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -25892,8 +26462,17 @@
       "quote": "k 3, na 8: 3 0.799 1.068"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       3,
+       8
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -25906,8 +26485,17 @@
       "quote": "k 4, na 8: 1 0.799 1.068"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       4,
+       8
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      },
+      "key": "n_center_points_rounded_up"
      }
     },
     {
@@ -25920,8 +26508,17 @@
       "quote": "k 4, na 8: 1 0.799 1.068"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       4,
+       8
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -25934,8 +26531,17 @@
       "quote": "k 4, na 8: 1 0.799 1.068"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       4,
+       8
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -25948,8 +26554,17 @@
       "quote": "k 4, na 16: 4 0.762 1.212"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       4,
+       16
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      },
+      "key": "n_center_points_rounded_up"
      }
     },
     {
@@ -25962,8 +26577,17 @@
       "quote": "k 4, na 16: 4 0.762 1.212"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       4,
+       16
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -25976,8 +26600,17 @@
       "quote": "k 4, na 16: 4 0.762 1.212"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       4,
+       16
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -25990,8 +26623,17 @@
       "quote": "k 5, na 16: 2 0.762 1.212"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       5,
+       16
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      },
+      "key": "n_center_points_rounded_up"
      }
     },
     {
@@ -26004,8 +26646,17 @@
       "quote": "k 5, na 16: 2 0.762 1.212"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       5,
+       16
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -26018,8 +26669,17 @@
       "quote": "k 5, na 16: 2 0.762 1.212"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       5,
+       16
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -26032,8 +26692,17 @@
       "quote": "k 6, na 16: 0 0.762 1.212"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       6,
+       16
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      },
+      "key": "n_center_points_rounded_up"
      }
     },
     {
@@ -26046,8 +26715,17 @@
       "quote": "k 6, na 16: 0 0.762 1.212"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       6,
+       16
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -26060,8 +26738,17 @@
       "quote": "k 6, na 16: 0 0.762 1.212"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       6,
+       16
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      },
+      "key": "axial_distance"
      }
     },
     {
@@ -26074,8 +26761,17 @@
       "quote": "k 6, na 32: 4 0.734 1.389"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       6,
+       32
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      },
+      "key": "n_center_points_rounded_up"
      }
     },
     {
@@ -26088,8 +26784,17 @@
       "quote": "k 6, na 32: 4 0.734 1.389"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       6,
+       32
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      },
+      "key": "cube_distance"
      }
     },
     {
@@ -26102,8 +26807,17 @@
       "quote": "k 6, na 32: 4 0.734 1.389"
      },
      "check": {
-      "manual": "the library has no all-bias composite design: no construction that matches the design's moments to those of a spherical or cuboidal region up to order d1 + d2 (here 5)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       6,
+       32
+      ],
+      "kwargs": {
+       "region": "cuboidal",
+       "expand": 1.15
+      },
+      "key": "axial_distance"
      }
     }
    ]
