@@ -42,8 +42,8 @@ jobs:
         uses: actions/configure-pages@v6
       - name: Build docs
         run: uv run sphinx-build docs docs/_build/html -b html -W
-      - name: Add the no-install browser app at /app
-        run: uv run python scripts/build_web_app.py -o docs/_build/html/app
+      - name: Build the no-install browser app
+        run: uv run python scripts/build_web_app.py -o docs/_build/factorial
       # The deploy needs this job, so a built app that does not work is never published:
       # the smoke tests start Python in the built page under Pyodide, in Chromium, and run
       # the worked example there. The page's downloads are not cached, as a reader's are not.
@@ -52,7 +52,14 @@ jobs:
       - name: Check the app works before it is published
         run: >-
           uv run --with playwright==1.64.1 pytest tests/web/live -m smoke --live
-          --web-app=docs/_build/html/app --cdn-cache=off --no-cov
+          --web-app=docs/_build/factorial --cdn-cache=off --no-cov
+      # The app lives at factori.al. Older links and releases of the package point to Pages at /app, so a copy stays
+      # there with a signpost in each page: a browser with no study saved at that address goes on to factori.al, and
+      # one with studies is told how to take them along (#1237).
+      - name: Put the signpost to factori.al at /app
+        run: |
+          cp -r docs/_build/factorial docs/_build/html/app
+          uv run python scripts/move_pages_copy.py docs/_build/html/app
       # A pull request's build, kept for its reviewer to try: download the artifact, unzip it,
       # `python -m http.server -d <the folder>`, and open http://localhost:8000/ or /mva/.
       - name: Keep the app built from this pull request
@@ -60,7 +67,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: web-app-pr-${{ github.event.pull_request.number }}
-          path: docs/_build/html/app
+          path: docs/_build/factorial
           if-no-files-found: error
           retention-days: 7
       # factori.al gets this same build, the one the smoke tests above just passed.
@@ -69,7 +76,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: factorial-app
-          path: docs/_build/html/app
+          path: docs/_build/factorial
           if-no-files-found: error
           retention-days: 7
       - name: Upload Pages artifact
@@ -94,33 +101,6 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
-
-  # The app a reader gets is the published one, so it is checked again once deployed. For a
-  # few minutes Pages can serve the app before it from a cache: the check first waits until
-  # the published manifest names this commit. Nothing is cached, as on a reader's first visit.
-  check-published-app:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: deploy
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    env:
-      APP: ${{ needs.deploy.outputs.page_url }}app/
-    steps:
-      - uses: actions/checkout@v7
-      - name: Set up the project environment
-        uses: ./.github/actions/setup-env
-        with:
-          python-version: "3.13"
-      - name: Wait until the published app is this commit's
-        run: uv run python tools/wait_for_web_app.py "$APP" "$GITHUB_SHA"
-      - name: Install Chromium for Playwright
-        uses: ./.github/actions/install-chromium
-      - name: Check the published app works
-        run: >-
-          uv run --with playwright==1.64.1 pytest tests/web/live -m smoke --live
-          --web-app="$APP" --cdn-cache=off --no-cov
 
   # factori.al, the app's own address, is served from a server of its own (deploy/factorial).
   # It gets the build the smoke tests passed in the build job, over SSH, from a key that can do
@@ -162,8 +142,8 @@ jobs:
           ssh factorial "activate $GITHUB_SHA"
           { echo '```'; ssh factorial status; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
-  # As check-published-app does for Pages. No cache stands between the server and a reader, so
-  # the wait only confirms the switch took; the smoke tests then run against factori.al itself.
+  # The app a reader gets is the published one, so it is checked again once deployed. No cache stands between
+  # the server and a reader, so the wait only confirms the switch took; the smoke tests then run against factori.al.
   check-factorial:
     needs: deploy-factorial
     runs-on: ubuntu-latest

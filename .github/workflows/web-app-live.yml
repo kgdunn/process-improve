@@ -2,9 +2,9 @@ name: Browser app, published
 
 # The published app depends on what this repository does not control: Pyodide's CDN, PyPI for
 # the pinned packages, and Plotly's CDN. Every week this runs the smoke tests against the
-# published app, at both of its addresses (factori.al, where readers are sent, and the copy on
-# GitHub Pages, which older links and releases of the package point to), and reports a pin in web/runtime.json that is no longer the latest release,
-# which Dependabot cannot see. A failure of either opens an issue, one at a time.
+# published app at factori.al (the copy on GitHub Pages only sends readers there, #1237), and
+# reports a pin in web/runtime.json that is no longer the latest release, which Dependabot
+# cannot see. A failure of either opens an issue, one at a time.
 #
 # newest-pyodide is advisory, as in pid-book's run-in-browser.yml: when npm has a newer
 # Pyodide than web/runtime.json pins, it runs the wasm and live tiers on that release and ends
@@ -24,14 +24,8 @@ jobs:
     permissions:
       contents: read
       issues: write
-    strategy:
-      fail-fast: false   # one address failing says nothing of the other
-      matrix:
-        app:
-          - https://factori.al/
-          - https://kgdunn.github.io/process-improve/app/
     env:
-      APP: ${{ matrix.app }}
+      APP: https://factori.al/
     steps:
       - uses: actions/checkout@v7
       - name: Set up the project environment
