@@ -55434,8 +55434,13 @@
       "quote": "so that a = 0.447"
      },
      "check": {
-      "manual": "a = 0.2^1/2 from a^2 = 1/(k + 2), matching the design's second moment to the region's; arithmetic, and the library has no design that matches the moments of a region (a minimum-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_distance",
+      "args": [
+       3,
+       8,
+       0
+      ]
      }
     },
     {
@@ -55530,7 +55535,7 @@
     "n_runs": 0,
     "treatment_factors": 3
    },
-   "notes": "The moment equations (13.6.17) give alpha^4 = 8, a^2 = N/68.28 and N = 16.65; the book's solution reproduces to its digits by hand. Only alpha is a number the library makes.",
+   "notes": "The moment equations (13.6.17) give alpha^4 = 8, a^2 = N/68.28 and N = 16.65; the book's solution reproduces to its digits by hand. all_bias_ccd(3, 8) solves them: a, n0 and the axial distance alpha a are checked through it.",
    "expected": [
     {
      "what": "moment",
@@ -55607,8 +55612,13 @@
       "quote": "alpha = 2^(3/4) = 1.682, a = 0.4938, n0 = 2.653"
      },
      "check": {
-      "manual": "the solution of the moment equations (13.6.17) (0.49384 by hand); the library has no design that matches the moments of a region (a minimum-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       3,
+       8
+      ],
+      "key": "cube_distance"
      }
     },
     {
@@ -55621,8 +55631,13 @@
       "quote": "alpha = 2^(3/4) = 1.682, a = 0.4938, n0 = 2.653"
      },
      "check": {
-      "manual": "the solution of the moment equations (13.6.17) (2.6536 by hand); the library has no design that matches the moments of a region (a minimum-bias design)",
-      "cause": "library_gap"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       3,
+       8
+      ],
+      "key": "n_center_points"
      }
     },
     {
@@ -55635,8 +55650,13 @@
       "quote": "if we set a = 0.49 and alpha a = 0.83 and use three center points"
      },
      "check": {
-      "manual": "1.682 x 0.4938 = 0.8305; arithmetic",
-      "cause": "not_a_result"
+      "kind": "library_value",
+      "function": "all_bias_ccd",
+      "args": [
+       3,
+       8
+      ],
+      "key": "axial_distance"
      }
     },
     {
