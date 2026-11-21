@@ -109,6 +109,19 @@ def test_spe_values_with_no_spread_give_their_own_level_as_the_limit():
     assert spe_calculation(np.zeros(10)) == 0.0
 
 
+def test_a_weighted_spe_limit_gives_a_row_with_no_spe_no_weight():
+    """A row with nothing observed has no SPE: the weighted limit is the one of the other rows (#1149).
+
+    SPE values held as objects, as a frame of mixed columns holds them, are read as numbers.
+    """
+    rng = np.random.default_rng(5)
+    spe, weights = np.sqrt(rng.chisquare(4, size=20)), rng.uniform(0.2, 1.0, size=20)
+    without_the_row = spe_calculation(spe[1:], 0.9, weights=weights[1:])
+    spe[0] = np.nan
+    assert spe_calculation(spe, 0.9, weights=weights) == pytest.approx(without_the_row, rel=1e-12)
+    assert spe_calculation(pd.Series(spe, dtype=object), 0.9, weights=weights) == pytest.approx(without_the_row)
+
+
 @pytest.mark.parametrize("conf_level", [0.0, 1.0])
 def test_the_spe_limit_refuses_a_confidence_level_outside_the_open_interval(conf_level):
     """``conf_level`` must lie strictly between 0 and 1."""
