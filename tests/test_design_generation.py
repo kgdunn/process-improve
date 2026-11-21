@@ -465,6 +465,25 @@ class TestCCD:
         assert result.metadata["alpha_rule"] == "inscribed"
 
     @pytest.mark.parametrize(
+        ("k", "cube", "generators"),
+        [(2, "full", None), (3, "full", None), (5, "fractional", ["E=ABCD"]), (8, "fractional", ["G=ABCD", "H=ABEF"])],
+    )
+    def test_spherical_puts_the_axial_runs_at_the_corners_distance(
+        self, k: int, cube: str, generators: list[str] | None
+    ) -> None:
+        """Box and Draper's Table 15.2: alpha = k ** 0.5, so every run but the centre is on one sphere."""
+        names = "ABCDEFGH"[:k]
+        result = generate_design(
+            _continuous_factors(k, names), design_type="ccd", alpha="spherical", cube=cube, generators=generators
+        )
+        coded = result.design[result.factor_names].to_numpy(dtype=float)
+        radius = np.linalg.norm(coded, axis=1)
+        assert result.alpha == pytest.approx(k**0.5)
+        assert np.allclose(radius[radius > 0], k**0.5)
+        assert result.metadata["alpha_rule"] == "spherical"
+        assert result.metadata["face"] == "circumscribed"
+
+    @pytest.mark.parametrize(
         ("alpha", "face", "rule"),
         [
             ("rotatable", "circumscribed", "rotatable"),
