@@ -26570,10 +26570,102 @@
       "source_kind": "table",
       "quote": "Changes, ŷ r 8.3 1.1"
      },
-     "check": {
-      "manual": "ri = (3θi² + λi²)^1/2 (11.2.5), the change in ŷ one unit either way along each axis; the library has no such summary (the slopes θi are checked through rotated_form.linear); from θ = (4.16, 0.28) and λ = (-4, -1), r = (8.24, 1.11); the printed 8.3 is (3(4.2)² + 4²)^1/2 = 8.31 from the rounded slope",
-      "cause": "library_gap"
-     }
+     "check": [
+      {
+       "kind": "library_value",
+       "function": "optimize_responses",
+       "args": [
+        [
+         {
+          "response_name": "y",
+          "factor_names": [
+           "x1",
+           "x2"
+          ],
+          "coefficients": [
+           {
+            "term": "Intercept",
+            "coefficient": 78.8988
+           },
+           {
+            "term": "x1",
+            "coefficient": 2.272
+           },
+           {
+            "term": "x2",
+            "coefficient": 3.496
+           },
+           {
+            "term": "I(x1 ** 2)",
+            "coefficient": -2.08
+           },
+           {
+            "term": "I(x2 ** 2)",
+            "coefficient": -2.92
+           },
+           {
+            "term": "x1:x2",
+            "coefficient": -2.88
+           }
+          ]
+         }
+        ]
+       ],
+       "kwargs": {
+        "method": "canonical_analysis"
+       },
+       "key": "canonical_analysis.rotated_form.unit_change.0",
+       "printed": "8.3",
+       "disagreement": "from theta1 = 4.16 and lambda1 = -4 r1 is 8.24; the printed 8.3 is (3(4.2)^2 + 4^2)^1/2 = 8.31 from the rounded slope",
+       "cause": "source_rounding"
+      },
+      {
+       "kind": "library_value",
+       "function": "optimize_responses",
+       "args": [
+        [
+         {
+          "response_name": "y",
+          "factor_names": [
+           "x1",
+           "x2"
+          ],
+          "coefficients": [
+           {
+            "term": "Intercept",
+            "coefficient": 78.8988
+           },
+           {
+            "term": "x1",
+            "coefficient": 2.272
+           },
+           {
+            "term": "x2",
+            "coefficient": 3.496
+           },
+           {
+            "term": "I(x1 ** 2)",
+            "coefficient": -2.08
+           },
+           {
+            "term": "I(x2 ** 2)",
+            "coefficient": -2.92
+           },
+           {
+            "term": "x1:x2",
+            "coefficient": -2.88
+           }
+          ]
+         }
+        ]
+       ],
+       "kwargs": {
+        "method": "canonical_analysis"
+       },
+       "key": "canonical_analysis.rotated_form.unit_change.1",
+       "printed": "1.1"
+      }
+     ]
     },
     {
      "what": "std_error",
@@ -26599,8 +26691,49 @@
       "quote": "We can take R = S and OR = OS = [0.5² + (-0.1)²]^1/2 ≐ 0.5."
      },
      "check": {
-      "manual": "the distance from the design centre to S; the library returns xS (checked) but not its distance from the centre, only whether it lies inside the search bounds; |xS| = (0.2² + 0.5²)^1/2 = 0.54. The book writes X2S as -0.1 where (10.3.18) and the table give +0.14; the square hides the slip",
-      "cause": "not_a_result"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 78.8988
+          },
+          {
+           "term": "x1",
+           "coefficient": 2.272
+          },
+          {
+           "term": "x2",
+           "coefficient": 3.496
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": -2.08
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": -2.92
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": -2.88
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "canonical_analysis"
+      },
+      "key": "canonical_analysis.rotated_form.stationary_point_distance"
      }
     },
     {
@@ -212766,8 +212899,66 @@
       "quote": "D = {x'SxS}^1/2 = {(0.4603)² + (-0.4645)² + (0.1509)²}^1/2 = 0.6711. (10.3.35)"
      },
      "check": {
-      "manual": "the distance from the design centre to S; the library returns xS (checked) but not its distance from the centre, only whether it lies inside the search bounds (from the library's xS it is 0.6711)",
-      "cause": "not_a_result"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2",
+          "x3"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 57.31
+          },
+          {
+           "term": "x1",
+           "coefficient": 1.5
+          },
+          {
+           "term": "x2",
+           "coefficient": -2.13
+          },
+          {
+           "term": "x3",
+           "coefficient": 1.81
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": -4.69
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": -6.27
+          },
+          {
+           "term": "I(x3 ** 2)",
+           "coefficient": -5.21
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": -7.13
+          },
+          {
+           "term": "x1:x3",
+           "coefficient": -3.27
+          },
+          {
+           "term": "x2:x3",
+           "coefficient": -2.73
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "canonical_analysis"
+      },
+      "key": "canonical_analysis.rotated_form.stationary_point_distance"
      }
     },
     {
@@ -214719,10 +214910,197 @@
       "source_kind": "table",
       "quote": "Changes, ŷ r 10.0 5.9 4.2"
      },
-     "check": {
-      "manual": "ri = (3θi² + λi²)^1/2 (11.2.5), the change in ŷ one unit either way along each axis; the library has no such summary (the slopes θi are checked through rotated_form.linear) (from the unrounded θ and λ, r = (10.04, 5.91, 4.17))",
-      "cause": "library_gap"
-     }
+     "check": [
+      {
+       "kind": "library_value",
+       "function": "optimize_responses",
+       "args": [
+        [
+         {
+          "response_name": "y",
+          "factor_names": [
+           "x1",
+           "x2",
+           "x3"
+          ],
+          "coefficients": [
+           {
+            "term": "Intercept",
+            "coefficient": 57.31
+           },
+           {
+            "term": "x1",
+            "coefficient": 1.5
+           },
+           {
+            "term": "x2",
+            "coefficient": -2.13
+           },
+           {
+            "term": "x3",
+            "coefficient": 1.81
+           },
+           {
+            "term": "I(x1 ** 2)",
+            "coefficient": -4.69
+           },
+           {
+            "term": "I(x2 ** 2)",
+            "coefficient": -6.27
+           },
+           {
+            "term": "I(x3 ** 2)",
+            "coefficient": -5.21
+           },
+           {
+            "term": "x1:x2",
+            "coefficient": -7.13
+           },
+           {
+            "term": "x1:x3",
+            "coefficient": -3.27
+           },
+           {
+            "term": "x2:x3",
+            "coefficient": -2.73
+           }
+          ]
+         }
+        ]
+       ],
+       "kwargs": {
+        "method": "canonical_analysis"
+       },
+       "key": "canonical_analysis.rotated_form.unit_change.0",
+       "printed": "10.0"
+      },
+      {
+       "kind": "library_value",
+       "function": "optimize_responses",
+       "args": [
+        [
+         {
+          "response_name": "y",
+          "factor_names": [
+           "x1",
+           "x2",
+           "x3"
+          ],
+          "coefficients": [
+           {
+            "term": "Intercept",
+            "coefficient": 57.31
+           },
+           {
+            "term": "x1",
+            "coefficient": 1.5
+           },
+           {
+            "term": "x2",
+            "coefficient": -2.13
+           },
+           {
+            "term": "x3",
+            "coefficient": 1.81
+           },
+           {
+            "term": "I(x1 ** 2)",
+            "coefficient": -4.69
+           },
+           {
+            "term": "I(x2 ** 2)",
+            "coefficient": -6.27
+           },
+           {
+            "term": "I(x3 ** 2)",
+            "coefficient": -5.21
+           },
+           {
+            "term": "x1:x2",
+            "coefficient": -7.13
+           },
+           {
+            "term": "x1:x3",
+            "coefficient": -3.27
+           },
+           {
+            "term": "x2:x3",
+            "coefficient": -2.73
+           }
+          ]
+         }
+        ]
+       ],
+       "kwargs": {
+        "method": "canonical_analysis"
+       },
+       "key": "canonical_analysis.rotated_form.unit_change.1",
+       "printed": "5.9"
+      },
+      {
+       "kind": "library_value",
+       "function": "optimize_responses",
+       "args": [
+        [
+         {
+          "response_name": "y",
+          "factor_names": [
+           "x1",
+           "x2",
+           "x3"
+          ],
+          "coefficients": [
+           {
+            "term": "Intercept",
+            "coefficient": 57.31
+           },
+           {
+            "term": "x1",
+            "coefficient": 1.5
+           },
+           {
+            "term": "x2",
+            "coefficient": -2.13
+           },
+           {
+            "term": "x3",
+            "coefficient": 1.81
+           },
+           {
+            "term": "I(x1 ** 2)",
+            "coefficient": -4.69
+           },
+           {
+            "term": "I(x2 ** 2)",
+            "coefficient": -6.27
+           },
+           {
+            "term": "I(x3 ** 2)",
+            "coefficient": -5.21
+           },
+           {
+            "term": "x1:x2",
+            "coefficient": -7.13
+           },
+           {
+            "term": "x1:x3",
+            "coefficient": -3.27
+           },
+           {
+            "term": "x2:x3",
+            "coefficient": -2.73
+           }
+          ]
+         }
+        ]
+       ],
+       "kwargs": {
+        "method": "canonical_analysis"
+       },
+       "key": "canonical_analysis.rotated_form.unit_change.2",
+       "printed": "4.2"
+      }
+     ]
     },
     {
      "what": "std_error",
@@ -214748,8 +215126,66 @@
       "quote": "For this situation R = S, and OR = OS = (0² + (-0.3²) + 0.6²)^1/2 ≐ 0.7."
      },
      "check": {
-      "manual": "the distance from the design centre to S; the library returns xS (checked) but not its distance from the centre, only whether it lies inside the search bounds; it is D = 0.6711 of (10.3.35)",
-      "cause": "not_a_result"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2",
+          "x3"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 57.31
+          },
+          {
+           "term": "x1",
+           "coefficient": 1.5
+          },
+          {
+           "term": "x2",
+           "coefficient": -2.13
+          },
+          {
+           "term": "x3",
+           "coefficient": 1.81
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": -4.69
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": -6.27
+          },
+          {
+           "term": "I(x3 ** 2)",
+           "coefficient": -5.21
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": -7.13
+          },
+          {
+           "term": "x1:x3",
+           "coefficient": -3.27
+          },
+          {
+           "term": "x2:x3",
+           "coefficient": -2.73
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "canonical_analysis"
+      },
+      "key": "canonical_analysis.rotated_form.stationary_point_distance"
      }
     },
     {
@@ -218243,10 +218679,199 @@
       "source_kind": "table",
       "quote": "Changes, ŷ r 5.3 0.7 0.6"
      },
-     "check": {
-      "manual": "ri = (3θi² + λi²)^1/2 (11.2.5); the library has no such summary (the slopes θi are checked through rotated_form.linear). From the unrounded θ and λ, r3 = 0.50; the printed 0.6 is (3(0.3)² + 0.2²)^1/2 from the table's rounded entries",
-      "cause": "library_gap"
-     }
+     "check": [
+      {
+       "kind": "library_value",
+       "function": "optimize_responses",
+       "args": [
+        [
+         {
+          "response_name": "y",
+          "factor_names": [
+           "x1",
+           "x2",
+           "x3"
+          ],
+          "coefficients": [
+           {
+            "term": "Intercept",
+            "coefficient": 59.16
+           },
+           {
+            "term": "x1",
+            "coefficient": 2.01
+           },
+           {
+            "term": "x2",
+            "coefficient": 1.0
+           },
+           {
+            "term": "x3",
+            "coefficient": 0.67
+           },
+           {
+            "term": "I(x1 ** 2)",
+            "coefficient": -2.01
+           },
+           {
+            "term": "I(x2 ** 2)",
+            "coefficient": -0.72
+           },
+           {
+            "term": "I(x3 ** 2)",
+            "coefficient": -1.01
+           },
+           {
+            "term": "x1:x2",
+            "coefficient": -2.78
+           },
+           {
+            "term": "x1:x3",
+            "coefficient": -2.18
+           },
+           {
+            "term": "x2:x3",
+            "coefficient": -1.16
+           }
+          ]
+         }
+        ]
+       ],
+       "kwargs": {
+        "method": "canonical_analysis"
+       },
+       "key": "canonical_analysis.rotated_form.unit_change.0",
+       "printed": "5.3"
+      },
+      {
+       "kind": "library_value",
+       "function": "optimize_responses",
+       "args": [
+        [
+         {
+          "response_name": "y",
+          "factor_names": [
+           "x1",
+           "x2",
+           "x3"
+          ],
+          "coefficients": [
+           {
+            "term": "Intercept",
+            "coefficient": 59.16
+           },
+           {
+            "term": "x1",
+            "coefficient": 2.01
+           },
+           {
+            "term": "x2",
+            "coefficient": 1.0
+           },
+           {
+            "term": "x3",
+            "coefficient": 0.67
+           },
+           {
+            "term": "I(x1 ** 2)",
+            "coefficient": -2.01
+           },
+           {
+            "term": "I(x2 ** 2)",
+            "coefficient": -0.72
+           },
+           {
+            "term": "I(x3 ** 2)",
+            "coefficient": -1.01
+           },
+           {
+            "term": "x1:x2",
+            "coefficient": -2.78
+           },
+           {
+            "term": "x1:x3",
+            "coefficient": -2.18
+           },
+           {
+            "term": "x2:x3",
+            "coefficient": -1.16
+           }
+          ]
+         }
+        ]
+       ],
+       "kwargs": {
+        "method": "canonical_analysis"
+       },
+       "key": "canonical_analysis.rotated_form.unit_change.1",
+       "printed": "0.7"
+      },
+      {
+       "kind": "library_value",
+       "function": "optimize_responses",
+       "args": [
+        [
+         {
+          "response_name": "y",
+          "factor_names": [
+           "x1",
+           "x2",
+           "x3"
+          ],
+          "coefficients": [
+           {
+            "term": "Intercept",
+            "coefficient": 59.16
+           },
+           {
+            "term": "x1",
+            "coefficient": 2.01
+           },
+           {
+            "term": "x2",
+            "coefficient": 1.0
+           },
+           {
+            "term": "x3",
+            "coefficient": 0.67
+           },
+           {
+            "term": "I(x1 ** 2)",
+            "coefficient": -2.01
+           },
+           {
+            "term": "I(x2 ** 2)",
+            "coefficient": -0.72
+           },
+           {
+            "term": "I(x3 ** 2)",
+            "coefficient": -1.01
+           },
+           {
+            "term": "x1:x2",
+            "coefficient": -2.78
+           },
+           {
+            "term": "x1:x3",
+            "coefficient": -2.18
+           },
+           {
+            "term": "x2:x3",
+            "coefficient": -1.16
+           }
+          ]
+         }
+        ]
+       ],
+       "kwargs": {
+        "method": "canonical_analysis"
+       },
+       "key": "canonical_analysis.rotated_form.unit_change.2",
+       "printed": "0.6",
+       "disagreement": "from the unrounded theta3 and lambda3 r3 is 0.50; the printed 0.6 is (3(0.3)^2 + 0.2^2)^1/2 from the table's rounded entries",
+       "cause": "source_rounding"
+      }
+     ]
     },
     {
      "what": "std_error",
@@ -221365,10 +221990,31 @@
       "source_kind": "table",
       "quote": "Changes, ŷ r 15.1 2.8 11.8"
      },
-     "check": {
-      "manual": "ri = (3θi² + λi²)^1/2 (11.2.5), the change in ŷ one unit either way along each axis; the library has no such summary (the slopes θi are checked through rotated_form.linear)",
-      "cause": "library_gap"
-     }
+     "check": [
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "(x1 + x2 + x3) ** 2 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2)",
+       "key": "canonical_analysis.rotated_form.unit_change.0",
+       "printed": "15.1",
+       "disagreement": "from the unrounded theta1 and lambda1 r1 is 15.17; the printed 15.1 is (3(6.3)^2 + 10.5^2)^1/2 = 15.14 from the table's rounded entries",
+       "cause": "source_rounding"
+      },
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "(x1 + x2 + x3) ** 2 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2)",
+       "key": "canonical_analysis.rotated_form.unit_change.1",
+       "printed": "2.8"
+      },
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "(x1 + x2 + x3) ** 2 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2)",
+       "key": "canonical_analysis.rotated_form.unit_change.2",
+       "printed": "11.8"
+      }
+     ]
     },
     {
      "what": "std_error",
