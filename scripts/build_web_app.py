@@ -1060,6 +1060,7 @@ NOT_SHOWN = (
     "alternative",
     "scale",
     "categorical",
+    "sigma",  # a standard error on a known sigma: the page's fit takes the runs' own residual
 )
 
 
