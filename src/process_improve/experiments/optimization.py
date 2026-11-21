@@ -536,7 +536,12 @@ def _canonical_analysis(
         lambda_i X_i^2, with X_i = v_i'x. It holds the ``linear`` slope theta_i =
         v_i'b along every axis, in the order of ``eigenvalues``, and the
         ``stationary_point``, X_iS = -theta_i / (2 lambda_i) on each axis, ``None``
-        along a flat one. It exists with or without a stationary point.
+        along a flat one. It exists with or without a stationary point. Box and
+        Draper's summary of it (Section 11.2) is there too: the ``unit_change``
+        along each axis, r_i = (3 theta_i^2 + lambda_i^2)^(1/2), how much the
+        response changes one unit either way along it (Eq. 11.2.5); and the
+        ``stationary_point_distance`` D from the design centre, ``None`` when an
+        axis is flat.
 
         When the surface has a stationary point x_s, ``canonical_axes`` gives
         each canonical variable W_i = v_i'(x - x_s) as its ``constant``,
@@ -586,11 +591,14 @@ def _canonical_analysis(
 def _rotated_form(b: np.ndarray, eigenvalues: np.ndarray, eigenvectors: np.ndarray, flat: np.ndarray) -> dict[str, Any]:
     """Return Box and Draper's A canonical form (Eq. 10.3.9): the slope along each axis, and where it stops changing."""
     slopes = eigenvectors.T @ b
+    stationary = [
+        None if is_flat else float(-s / (2 * ev)) for s, ev, is_flat in zip(slopes, eigenvalues, flat, strict=True)
+    ]
     return {
         "linear": [float(s) for s in slopes],
-        "stationary_point": [
-            None if is_flat else float(-s / (2 * ev)) for s, ev, is_flat in zip(slopes, eigenvalues, flat, strict=True)
-        ],
+        "stationary_point": stationary,
+        "unit_change": [float(np.sqrt(3 * s**2 + ev**2)) for s, ev in zip(slopes, eigenvalues, strict=True)],
+        "stationary_point_distance": None if None in stationary else float(np.linalg.norm(stationary)),
     }
 
 
