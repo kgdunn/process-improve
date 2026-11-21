@@ -598,7 +598,7 @@ def _rotated_form(b: np.ndarray, eigenvalues: np.ndarray, eigenvectors: np.ndarr
         "linear": [float(s) for s in slopes],
         "stationary_point": stationary,
         "unit_change": [float(np.sqrt(3 * s**2 + ev**2)) for s, ev in zip(slopes, eigenvalues, strict=True)],
-        "stationary_point_distance": None if None in stationary else float(np.linalg.norm(stationary)),
+        "stationary_point_distance": None if flat.any() else float(np.linalg.norm(slopes / (2 * eigenvalues))),
     }
 
 
