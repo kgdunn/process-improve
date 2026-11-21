@@ -18,7 +18,7 @@ Designed Experiments
    :members: dispatch_fractional_factorial, defining_relation, dispatch_plackett_burman, plackett_burman_runs, dispatch_taguchi
 
 .. automodule:: process_improve.experiments.designs_response_surface
-   :members: dispatch_ccd, orthogonal_alpha, blocking_alpha, ccd_center_points, all_bias_distance, dispatch_box_behnken, dispatch_dsd, dsd_conference_order, dsd_run_count
+   :members: dispatch_ccd, orthogonal_alpha, blocking_alpha, ccd_center_points, all_bias_distance, all_bias_ccd, dispatch_box_behnken, dispatch_dsd, dsd_conference_order, dsd_run_count
 
 .. automodule:: process_improve.experiments.designs_optimal
    :members: dispatch_d_optimal, dispatch_i_optimal, dispatch_a_optimal
