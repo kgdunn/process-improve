@@ -543,6 +543,11 @@ def _canonical_analysis(
         ``stationary_point_distance`` D from the design centre, ``None`` when an
         axis is flat.
 
+        ``axis_angles`` gives, for each canonical axis in the order of
+        ``eigenvalues``, its angle in degrees to each factor's axis, between 0
+        and 90: arccos(|v_ij|). ``determinant`` is that of *B*, the product of
+        the eigenvalues.
+
         When the surface has a stationary point x_s, ``canonical_axes`` gives
         each canonical variable W_i = v_i'(x - x_s) as its ``constant``,
         -v_i'x_s, and ``coefficients``: Box and Draper's B canonical form is
@@ -570,6 +575,12 @@ def _canonical_analysis(
         "factor_names": factor_names,
         "ridge_form": _ridge_form((b0, b, B), eigenvalues, eigenvectors, factor_names, shape.flat),
         "rotated_form": _rotated_form(b, eigenvalues, eigenvectors, shape.flat),
+        # An axis has no direction along it, so its angle to a factor's axis lies in [0, 90] degrees.
+        "axis_angles": [
+            dict(zip(factor_names, map(float, np.degrees(np.arccos(np.clip(np.abs(v), 0.0, 1.0)))), strict=True))
+            for v in eigenvectors.T
+        ],
+        "determinant": float(np.prod(eigenvalues)),
     }
     if not shape.drifts:  # a stationary point exists: the B canonical form's axes are centred on it
         curved = ~shape.flat

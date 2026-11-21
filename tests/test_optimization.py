@@ -1774,6 +1774,30 @@ class TestCanonicalForms:
         assert form["stationary_point"][1:] == [None, None]
         assert form["stationary_point_distance"] is None
 
+    def test_axis_angles_and_determinant_of_hoerls_surface(self) -> None:
+        """Box and Draper Section 12.3: the axis of mu = 0.652 lies at 42.1 degrees to x1, and |B| = mu1 mu2."""
+        coefficients = [
+            {"term": "Intercept", "coefficient": 80.0},
+            {"term": "A", "coefficient": 0.1},
+            {"term": "B", "coefficient": 0.2},
+            {"term": "I(A ** 2)", "coefficient": 0.2},
+            {"term": "I(B ** 2)", "coefficient": 0.1},
+            {"term": "A:B", "coefficient": 1.0},
+        ]
+        result = _canonical_analysis(coefficients, FACTOR_NAMES_2F)
+        first, second = result["axis_angles"]
+        assert first["A"] == pytest.approx(np.degrees(np.arctan(0.4525 / 0.5)), abs=1e-2)
+        assert first["A"] + first["B"] == pytest.approx(90.0)  # two axes in a plane are at right angles
+        assert second == pytest.approx({"A": first["B"], "B": first["A"]})
+        assert result["determinant"] == pytest.approx(0.2 * 0.1 - 0.5**2)
+
+    def test_an_axis_along_a_factor_is_at_zero_degrees_to_it(self) -> None:
+        """A surface with no interaction keeps its axes on the factors': 0 degrees to one, 90 to the other."""
+        coefficients = [c for c in _quadratic_2f_coeffs() if c["term"] != "A:B"]
+        result = _canonical_analysis(coefficients, FACTOR_NAMES_2F)
+        assert result["axis_angles"] == [pytest.approx({"A": 0.0, "B": 90.0}), pytest.approx({"A": 90.0, "B": 0.0})]
+        assert result["determinant"] == pytest.approx(-3.0 * -1.5)
+
 
 class TestFeasibleRegion:
     """The settings at which every response is predicted inside its window, and how surely a new run is."""
