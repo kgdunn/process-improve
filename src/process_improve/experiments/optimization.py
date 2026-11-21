@@ -38,7 +38,7 @@ import re
 import warnings
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -1796,8 +1796,7 @@ def _ridge_analysis(
     direction: str = "maximize",
     n_radii: int = 10,
     max_radius: float = 1.0,
-    radii: Sequence[float] | None = None,
-    multipliers: Sequence[float] | None = None,
+    at: _RidgeAt | None = None,
 ) -> dict[str, Any]:
     """Trace the constrained optimum along spheres of increasing radius.
 
@@ -1824,15 +1823,19 @@ def _ridge_analysis(
         derives it from ``search_bounds``: the factorial cube's default of
         (-1, 1) traces out to 1, and a rotatable central composite design's
         ``(-1.41, 1.41)`` traces out to its axial distance.
-    radii : Sequence[float] or None
-        The radii to report instead of *n_radii* evenly spaced ones, in coded units.
-    multipliers : Sequence[float] or None
-        The Lagrange multipliers to report instead of radii, as sources set out a
-        ridge table: each gives the point ``x = -(B - mu I)^-1 b / 2`` directly,
-        and its radius ``|x|``. A multiplier above the largest eigenvalue of *B*
-        is on the ridge of maxima, one below the smallest on the ridge of minima
-        (*direction* is not used), and one between them on one of the other
-        stationary paths. An infinite multiplier gives the centre.
+    at : _RidgeAt or None
+        Where to report the ridge instead, and about which point. Its ``radii``
+        replace the *n_radii* evenly spaced ones, in coded units. Its
+        ``multipliers`` replace radii, as sources set out a ridge table: each
+        gives the point ``x = -(B - mu I)^-1 b / 2`` directly, and its radius
+        ``|x|``. A multiplier above the largest eigenvalue of *B* is on the ridge
+        of maxima, one below the smallest on the ridge of minima (*direction* is
+        not used), and one between them on one of the other stationary paths. An
+        infinite multiplier gives the centre. Its ``focus`` centres the spheres
+        on that coded point instead of the design centre (Box and Draper 2007,
+        Section 12.4): the ridge is that of the surface written about the focus,
+        ``b0 + b'f + f'Bf``, ``b + 2Bf`` and the same *B*, so each radius, and
+        ``stationary_point_radius``, is the distance from the focus.
 
     Returns
     -------
@@ -1869,6 +1872,7 @@ def _ridge_analysis(
         msg = f"max_radius must be positive; got {max_radius}."
         raise ValueError(msg)
 
+    at = at or _RidgeAt()
     b0, b, B = _extract_b_and_B(coefficients, factor_names)
     if np.allclose(B, 0):
         return {
@@ -1880,14 +1884,17 @@ def _ridge_analysis(
 
     eigenvalues, eigenvectors = np.linalg.eigh(B)
 
+    focus = np.zeros(len(factor_names)) if at.focus is None else at.focus
+    b0, b = b0 + b @ focus + focus @ B @ focus, b + 2.0 * B @ focus  # the surface written about the focus
+    chosen = at.radii is not None or at.multipliers is not None
     path: list[dict[str, Any]] = []
-    grid = np.linspace(0.0, max_radius, n_radii + 1) if radii is None and multipliers is None else radii
-    for radius, x, mu in _ridge_points(b, B, (eigenvalues, eigenvectors), direction, grid, multipliers):
+    grid = at.radii if chosen else np.linspace(0.0, max_radius, n_radii + 1)
+    for radius, z, mu in _ridge_points(b, B, (eigenvalues, eigenvectors), direction, grid, at.multipliers):
         entry: dict[str, Any] = {
             "radius": radius,
             "mu": mu,
-            "coded": {n: float(x[i]) for i, n in enumerate(factor_names)},
-            "predicted_response": float(b0 + b @ x + x @ B @ x),
+            "coded": {n: float(focus[i] + z[i]) for i, n in enumerate(factor_names)},
+            "predicted_response": float(b0 + b @ z + z @ B @ z),
         }
         path.append(entry)
 
@@ -1895,13 +1902,24 @@ def _ridge_analysis(
     with contextlib.suppress(np.linalg.LinAlgError):
         stationary_radius = float(np.linalg.norm(np.linalg.solve(2.0 * B, -b)))
 
-    return {
+    result: dict[str, Any] = {
         "direction": direction,
         "eigenvalues": [float(e) for e in eigenvalues],
-        "max_radius": float(max_radius) if radii is None and multipliers is None else max(e["radius"] for e in path),
+        "max_radius": max(e["radius"] for e in path) if chosen else float(max_radius),
         "stationary_point_radius": stationary_radius,
         "path": path,
     }
+    if at.focus is not None:
+        result["focus"] = dict(zip(factor_names, map(float, focus), strict=True))
+    return result
+
+
+class _RidgeAt(NamedTuple):
+    """Where to report a ridge, as :func:`_ridge_analysis` describes: radii or multipliers, and a focus."""
+
+    radii: Sequence[float] | None = None
+    multipliers: Sequence[float] | None = None
+    focus: np.ndarray | None = None
 
 
 def _ridge_points(
@@ -1942,11 +1960,11 @@ def _ridge_within_bounds(
     search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None,
     direction: str,
     n_radii: int,
-    along: tuple[Sequence[float] | None, Sequence[float] | None] = (None, None),
+    at: _RidgeAt | None = None,
 ) -> dict[str, Any]:
     """Trace the ridge out to the farthest bound, flagging the points that leave the search box.
 
-    *along* holds the radii and the multipliers at which to report the ridge instead, when given.
+    *at* holds the radii or the multipliers at which to report the ridge instead, and its focus.
 
     The ridge lives on spheres around the design centre, so it can follow a box
     only as far as its largest ``|bound|``. Bounds that differ between factors, or
@@ -1955,22 +1973,16 @@ def _ridge_within_bounds(
     """
     box = _resolve_search_bounds(search_bounds, factor_names)
     max_radius = max(max(abs(low), abs(high)) for low, high in box)
-    radii, multipliers = along
+    at = at or _RidgeAt()
     ridge = _ridge_analysis(
-        coefficients,
-        factor_names,
-        direction=direction,
-        n_radii=n_radii,
-        max_radius=max_radius,
-        radii=radii,
-        multipliers=multipliers,
+        coefficients, factor_names, direction=direction, n_radii=n_radii, max_radius=max_radius, at=at
     )
     for entry in ridge.get("path", []):
         entry["inside_search_bounds"] = all(
             low - 1e-9 <= entry["coded"][name] <= high + 1e-9
             for name, (low, high) in zip(factor_names, box, strict=True)
         )
-    if radii is None and multipliers is None and (len(set(box)) > 1 or box[0][0] != -box[0][1]):
+    if at.radii is None and at.multipliers is None and (len(set(box)) > 1 or box[0][0] != -box[0][1]):
         warnings.warn(
             f"ridge_analysis traces spheres around the design centre out to radius {max_radius}, the "
             "largest |bound|; it cannot follow search_bounds that differ between factors or are not symmetric "
@@ -2493,11 +2505,28 @@ def _check_fitted_models(fitted_models: list[dict[str, Any]], method: str) -> No
         raise ValueError(msg)
 
 
-def _check_ridge_options(method: str, radii: Sequence[float] | None, multipliers: Sequence[float] | None) -> None:
-    """Refuse ridge radii or multipliers for a method that traces no ridge."""
-    if method != "ridge_analysis" and (radii is not None or multipliers is not None):
-        msg = f"radii and multipliers go with method='ridge_analysis'; got method={method!r}."
+def _check_ridge_options(
+    method: str,
+    radii: Sequence[float] | None,
+    multipliers: Sequence[float] | None,
+    focus: Mapping[str, float] | None,
+) -> None:
+    """Refuse ridge radii, multipliers or a focus for a method that traces no ridge."""
+    if method != "ridge_analysis" and (radii is not None or multipliers is not None or focus is not None):
+        msg = f"radii, multipliers and focus go with method='ridge_analysis'; got method={method!r}."
         raise ValueError(msg)
+
+
+def _focus_point(focus: Mapping[str, float] | None, factor_names: list[str]) -> np.ndarray | None:
+    """Return the ridge's focus as a coded point in the order of *factor_names*; a factor not named is at 0."""
+    if focus is None:
+        return None
+    unknown = sorted(set(focus) - set(factor_names))
+    point = np.array([float(focus.get(name, 0.0)) for name in factor_names])
+    if unknown or not np.all(np.isfinite(point)):
+        msg = f"focus must give finite coded values for factors among {factor_names}; got {dict(focus)}."
+        raise ValueError(msg)
+    return point
 
 
 def _check_alternatives(n_alternatives: int) -> int:
@@ -2590,6 +2619,7 @@ def optimize_responses(  # noqa: PLR0913
     flat_tolerance: float = _FLAT_EIGENVALUE_TOL,
     radii: Sequence[float] | None = None,
     multipliers: Sequence[float] | None = None,
+    focus: Mapping[str, float] | None = None,
 ) -> dict[str, Any]:
     """Find optimal factor settings for one or multiple responses.
 
@@ -2756,6 +2786,11 @@ def optimize_responses(  # noqa: PLR0913
         ridge of maxima, one below the smallest on the ridge of minima, whatever
         ``ridge_direction`` says, and an infinite one gives the centre. Give
         *radii* or *multipliers*, not both.
+    focus : Mapping[str, float] or None
+        For ``method="ridge_analysis"``: the coded point the spheres are centred
+        on, by factor name, in place of the design centre (Box and Draper 2007,
+        Section 12.4); a factor not named is at 0. Each path entry's ``radius``
+        is then its distance from the focus, and the result carries ``focus``.
 
     Returns
     -------
@@ -2808,7 +2843,7 @@ def optimize_responses(  # noqa: PLR0913
         raise ValueError(msg)
 
     _check_fitted_models(fitted_models, method)
-    _check_ridge_options(method, radii, multipliers)
+    _check_ridge_options(method, radii, multipliers, focus)
     factor_ranges = _ranges_from_coding(fitted_models, factor_ranges, region.mixture_names if region else ())
 
     # Use factor_names from the first model as the canonical ordering
@@ -2857,7 +2892,12 @@ def optimize_responses(  # noqa: PLR0913
     elif method == "ridge_analysis":
         result["ridge_analysis"] = _add_actual_units(
             _ridge_within_bounds(
-                coefficients, factor_names, search_bounds, ridge_direction, n_steps, (radii, multipliers)
+                coefficients,
+                factor_names,
+                search_bounds,
+                ridge_direction,
+                n_steps,
+                _RidgeAt(radii, multipliers, _focus_point(focus, factor_names)),
             ),
             factor_ranges,
             "path",
