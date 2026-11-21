@@ -400,9 +400,17 @@ class PRM(PLS):
         # not to their units (#1114). X keeps one number for the block, which leaves its distances in
         # proportion; scaled, X is already in units of its spread. Each target has its own.
         x_spread = float(np.max(_spreads(X_df.to_numpy()[active])))
-        x_unit = 1.0 if self.scale or x_spread == 0 else x_spread
+        x_unit = (
+            1.0  # pragma: no mutate - scaled X is in its spread's units; another moves only the L1 median's tolerance
+            if self.scale or x_spread == 0
+            else x_spread
+        )
         y_spreads = _spreads(Y_df.to_numpy()[active])
-        self._y_units = np.where(y_spreads > 0, y_spreads, 1.0)
+        self._y_units = np.where(
+            y_spreads > 0,
+            y_spreads,
+            1.0,  # pragma: no mutate - a constant target's residuals are 0 in any unit, and it is no reference below
+        )
         self._robust_scalers = (
             _robust_scaler(X_df, active, scale=self.scale, unit=x_unit, centre=l1_median),
             _robust_scaler(Y_df, active, scale=self.scale, centre=_column_medians),
@@ -415,7 +423,9 @@ class PRM(PLS):
 
         self.weights_converged_ = False
         regression_norm = np.inf
-        y_reference = self._y_units / self._robust_scalers[1].scale_.to_numpy()
+        # Over the targets that vary: a constant one's unit of 1 put the floor in Y's units (#1092). PLS.fit refuses a
+        # Y with none before the floor is read.
+        y_reference = (self._y_units / self._robust_scalers[1].scale_.to_numpy())[y_spreads > 0]
         for iteration in range(1, int(self.max_weight_iter) + 1):
             self.n_weight_iter_ = iteration
             fit_weights = prior * weights
