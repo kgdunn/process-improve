@@ -226657,10 +226657,24 @@
       "source_kind": "answer",
       "quote": "the canonical axes through xS angled at 53.5° and 36.5° to the x1 axis"
      },
-     "check": {
-      "manual": "arctan(0.595/0.803) = 36.5° and its complement, from the eigenvectors (checked); the library reports the eigenvectors (checked) but not the angles of the canonical axes",
-      "cause": "not_a_result"
-     }
+     "check": [
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "(x1 + x2) ** 2 + I(x1 ** 2) + I(x2 ** 2)",
+       "response": "y",
+       "key": "canonical_analysis.axis_angles.1.x1",
+       "printed": "53.5"
+      },
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "(x1 + x2) ** 2 + I(x1 ** 2) + I(x2 ** 2)",
+       "response": "y",
+       "key": "canonical_analysis.axis_angles.0.x1",
+       "printed": "36.5"
+      }
+     ]
     },
     {
      "what": "ratio",
@@ -237836,8 +237850,52 @@
       "quote": "pointing out of the positive quadrant at roughly 45 degrees"
      },
      "check": {
-      "manual": "the eigenvector of the small eigenvalue, (0.7394, 0.6732), at 42° to the x1 axis; the library reports the eigenvectors (checked) but not the angles of the canonical axes",
-      "cause": "not_a_result"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 10.7853
+          },
+          {
+           "term": "x1",
+           "coefficient": 2.7117
+          },
+          {
+           "term": "x2",
+           "coefficient": 1.9017
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": -0.7062
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": -0.8244
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.2583
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "canonical_analysis"
+      },
+      "key": "canonical_analysis.axis_angles.1.x1",
+      "printed": "45",
+      "disagreement": "the eigenvector of the small eigenvalue, (0.7394, 0.6732), is at 42.3 degrees to the x1 axis; the answer gives the direction roughly",
+      "cause": "source_rounding"
      }
     },
     {
@@ -271350,8 +271408,52 @@
       "quote": "with ridges oriented approximately 45 degrees to the x-axes"
      },
      "check": {
-      "manual": "the angle of the canonical axes, the eigenvectors of B, to the x-axes (42.0 degrees for mu2 = 0.652); the library gives the eigenvectors, not their angles",
-      "cause": "not_a_result"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 80.0
+          },
+          {
+           "term": "x1",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x2",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": 0.2
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.1
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 1.0
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "canonical_analysis"
+      },
+      "key": "canonical_analysis.axis_angles.0.x1",
+      "printed": "45",
+      "disagreement": "the canonical axis of mu2 = 0.652 is at 42.1 degrees to the x1 axis, and the other axis at 42.1 degrees to the x2 axis; the text gives the orientation roughly",
+      "cause": "source_rounding"
      }
     },
     {
@@ -385399,8 +385501,88 @@
       "quote": "Their product, the determinant of B, is tiny, 3.056 × 10^-7."
      },
      "check": {
-      "manual": "the product of the four printed eigenvalues, 3.0559 x 10^-7; arithmetic; the library's ridge and canonical analyses report the eigenvalues, not |B|",
-      "cause": "not_a_result"
+      "kind": "library_value",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2",
+          "x3",
+          "x4"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 1.279
+          },
+          {
+           "term": "x1",
+           "coefficient": -0.04003
+          },
+          {
+           "term": "x2",
+           "coefficient": -0.00537
+          },
+          {
+           "term": "x3",
+           "coefficient": 0.00982
+          },
+          {
+           "term": "x4",
+           "coefficient": -0.00065
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": -0.03726
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": 0.024706
+          },
+          {
+           "term": "I(x3 ** 2)",
+           "coefficient": 0.003498
+          },
+          {
+           "term": "I(x4 ** 2)",
+           "coefficient": 0.03873
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": 0.00182
+          },
+          {
+           "term": "x1:x3",
+           "coefficient": -0.02
+          },
+          {
+           "term": "x1:x4",
+           "coefficient": 0.07858
+          },
+          {
+           "term": "x2:x3",
+           "coefficient": -0.00625
+          },
+          {
+           "term": "x2:x4",
+           "coefficient": 0.00761
+          },
+          {
+           "term": "x3:x4",
+           "coefficient": -0.03625
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "canonical_analysis"
+      },
+      "key": "canonical_analysis.determinant",
+      "printed": "3.056e-7"
      }
     },
     {
