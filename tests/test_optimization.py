@@ -484,6 +484,37 @@ class TestRidgeSystems:
         assert out["stationary_point"]["classification"] == "rising_ridge"
         assert "No stationary point" in out["stationary_point"]["error"]
 
+    @staticmethod
+    def _saddle_with_a_flat_axis(slope_c: float) -> dict:
+        """Build 5 + 2A - A^2 + B^2 + slope_c*C: curved down along A, up along B, flat along C."""
+        return {
+            "response_name": "y",
+            "factor_names": ["A", "B", "C"],
+            "coefficients": [
+                {"term": "Intercept", "coefficient": 5.0},
+                {"term": "A", "coefficient": 2.0},
+                {"term": "C", "coefficient": slope_c},
+                {"term": "I(A ** 2)", "coefficient": -1.0},
+                {"term": "I(B ** 2)", "coefficient": 1.0},
+                {"term": "I(C ** 2)", "coefficient": 0.0},
+            ],
+        }
+
+    def test_a_flat_axis_beside_both_signs_is_a_ridge_of_saddle_centres(self) -> None:
+        """Box and Draper's Table 11.1 (E): a line of minimax centres along C, through (1, 0, c)."""
+        out = optimize_responses([self._saddle_with_a_flat_axis(0.0)], method="canonical_analysis")
+        assert out["canonical_analysis"]["classification"] == "stationary_ridge"
+        assert out["canonical_analysis"]["ridge_of"] == "minimax"
+        point = out["stationary_point"]
+        assert point["stationary_point_coded"] == pytest.approx({"A": 1.0, "B": 0.0, "C": 0.0})
+        assert point["predicted_response"] == pytest.approx(6.0)
+
+    def test_a_saddle_that_drifts_along_its_flat_axis_is_still_a_saddle(self) -> None:
+        """With a slope along C there is no line of centres, and no stationary point."""
+        out = optimize_responses([self._saddle_with_a_flat_axis(1.0)], method="canonical_analysis")
+        assert out["canonical_analysis"]["classification"] == "saddle_point"
+        assert "ridge_of" not in out["canonical_analysis"]
+
     def test_curved_surfaces_are_unchanged(self) -> None:
         """A small but real eigenvalue keeps its sign: this is a maximum, not a ridge."""
         out = optimize_responses([self._model(2.0, 0.0, -0.01)], method="stationary_point")["stationary_point"]

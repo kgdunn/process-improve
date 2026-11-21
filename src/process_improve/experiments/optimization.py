@@ -311,7 +311,7 @@ class _SurfaceShape:
     classification: str
     flat: np.ndarray  # True for an eigenvalue that counts as zero
     drifts: bool  # b has a component along a flat direction, so there is no stationary point
-    ridge_of: str | None = None  # "maxima" or "minima" for a ridge system, else None
+    ridge_of: str | None = None  # "maxima", "minima" or "minimax" for a ridge system, else None
 
 
 def _surface_shape(
@@ -327,7 +327,10 @@ def _surface_shape(
     ridge*, with no stationary point, when it has one and the response keeps
     changing along them. The slope along the flat directions is judged as their
     eigenvalues are: at most ``flat_tolerance`` of the largest eigenvalue in size
-    is none, so a ridge whose estimated slope is small is stationary.
+    is none, so a ridge whose estimated slope is small is stationary. A flat
+    direction beside curved ones of both signs, with no slope along it, is a line
+    or plane of saddle centres: a stationary ridge of ``"minimax"`` form (Box and
+    Draper 2007, Table 11.1 (E)).
     """
     scale = float(np.abs(eigenvalues).max())
     flat = np.abs(eigenvalues) <= flat_tolerance * scale
@@ -338,6 +341,8 @@ def _surface_shape(
         kind, ridge_of = "maximum", "maxima"
     elif np.all(curved > 0):
         kind, ridge_of = "minimum", "minima"
+    elif flat.any() and not drifts:
+        return _SurfaceShape("stationary_ridge", flat, drifts, "minimax")
     else:
         return _SurfaceShape("saddle_point", flat, drifts)
     if not flat.any():
@@ -427,7 +432,7 @@ def _find_stationary_point(
         For a stationary ridge, where an eigenvalue is zero and every point
         along its eigenvector is equally good, the point reported is the one
         nearest the design centre and ``ridge_of`` says whether the ridge is
-        one of ``"maxima"`` or ``"minima"``. ``classification_note`` says when
+        one of ``"maxima"``, ``"minima"`` or saddle centres, ``"minimax"``. ``classification_note`` says when
         an eigenvalue is small next to the largest though not flat, so the
         surface may be a ridge.
 
@@ -512,7 +517,7 @@ def _canonical_analysis(
         ``"minimum"``, ``"saddle_point"``, ``"stationary_ridge"`` or
         ``"rising_ridge"``), and ``canonical_form_description``, which labels
         each canonical axis concave, convex, or flat (a zero eigenvalue). A
-        ridge also carries ``ridge_of``, ``"maxima"`` or ``"minima"``, and
+        ridge also carries ``ridge_of``, ``"maxima"``, ``"minima"`` or ``"minimax"``, and
         ``classification_note`` says when an eigenvalue is small next to the
         largest though not flat.
 
