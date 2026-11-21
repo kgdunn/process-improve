@@ -3526,7 +3526,7 @@ function renderCurves() {
   }
   $("#curve-clear").hidden = !curve;
   $("#curve-status").textContent = curve ? curvesSaid(curve, state.curves) : "";
-  if (curve) box.open = true;
+  if (curve || $("#response-curve").open) box.open = true; // a reader who said the response is a curve finds the box open
 }
 
 /** The reader's words for the curve and for the points along it, as a study keeps them: each left out when blank. */

@@ -217,8 +217,8 @@ none skips its setup; a change to the changelog, a tool, the Sphinx docs or a te
   answered natively by `bootstrap.py` in the test process. It needs neither Pyodide nor
   the network, and each test gets a fresh page; a console error fails the test.
 - `tests/web/live` (`--live`): the built app in Chromium, with Pyodide in its worker. Its
-  `smoke` tests also run in `docs.yml` against the built `/app`, so an app that does not
-  work is not deployed; again once the deploy is served (`tools/wait_for_web_app.py` waits
+  `smoke` tests also run in `docs.yml` against the build, so an app that does not
+  work is not deployed; again once factori.al serves it (`tools/wait_for_web_app.py` waits
   for the published manifest to name the commit); and weekly against the published app, in
   `web-app-live.yml`, which also reports a pin in `web/runtime.json` that is no longer the
   latest release (`tools/check_web_runtime.py`). When npm has a newer Pyodide, that workflow
@@ -345,10 +345,12 @@ tier finds what the stand-in let pass, the stand-in is changed first, so that th
 under Node.js before the code is fixed. The other browser tests run without the worker: a
 request it answers passes by Playwright's routes.
 
-One build is served in two places: https://factori.al/, the app's address, and GitHub
-Pages at `/app`. On each push to `main`, `docs.yml` publishes the build the smoke tests
-passed to both (`deploy-factorial` sends it to factori.al's server over SSH) and runs the
-smoke tests against each once it is served. [`deploy/factorial/README.md`](deploy/factorial/README.md)
+The app is served at https://factori.al/. On each push to `main`, `docs.yml` sends the
+build the smoke tests passed to factori.al's server over SSH (`deploy-factorial`) and runs
+the smoke tests against it once it is served. GitHub Pages keeps a copy at `/app`, for older
+links and releases of the package, with a signpost in each page (`scripts/move_pages_copy.py`):
+a browser with no study saved there goes on to factori.al, one with studies is told how to
+take them along (#1237). [`deploy/factorial/README.md`](deploy/factorial/README.md)
 covers the server: its one-time setup, what it logs, and how to roll back.
 - A new design type or simulated process: in `ALL_DESIGNS` or `ALL_SCENARIOS` in
   `tests/web/_support.py` (a mixture design in `ALL_MIXTURES`), so the tests that run over every one

@@ -6,7 +6,7 @@
 
 **Repository:** https://github.com/kgdunn/process-improve
 **License:** MIT
-**Python:** >= 3.11 (CI tests 3.11-3.13, with 3.11 at the lowest dependency versions allowed; 3.13 is the primary version for lint, typecheck, and coverage)
+**Python:** >= 3.11 (CI tests 3.11-3.14, with 3.11 at the lowest dependency versions allowed; 3.13 is the primary version for lint, typecheck, and coverage)
 
 ## Authoritative documents
 
@@ -286,11 +286,11 @@ Workflows in `.github/workflows/`:
   (builds the browser app and runs its Chromium, Pyodide and Node.js tests), `web-app-webkit`
   (the browser tests of the forms, the run sheet and the layout in WebKit, Safari's engine, run in
   Playwright's image), `test`
-  (the full suite without coverage, over Python 3.11-3.13; the 3.11 rows install
+  (the full suite without coverage, over Python 3.11-3.14; the 3.11 rows install
   the lowest release of each dependency that `pyproject.toml` allows, and the 3.12 rows run
   with `PYTHONOPTIMIZE=1` to catch load-bearing asserts (plain `python -O` would not reach
   the xdist workers); a pull request runs
-  ubuntu at 3.11 and 3.12 and windows and macos at 3.13 (the macOS rows are advisory on a pull
+  ubuntu at 3.11, 3.12 and 3.14 and windows and macos at 3.13 (the macOS rows are advisory on a pull
   request: `continue-on-error`, as GitHub's macOS runner was often lost), and pushes to main, the nightly
   schedule and manual runs add windows and macos at 3.11; ubuntu/3.13 is the `coverage` job
   instead), `coverage`
