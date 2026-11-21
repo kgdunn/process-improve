@@ -379,7 +379,7 @@ import { drawFieldChart } from "./field-chart.js";
 import { RUN_ORDER_SEED, briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows, termsHtml } from "./report.js";
 import { mapCode, campaignMapCode, campaignRunsCode, analyseCode, balanceCode, bestCode, compareCode, comparisonFigureCode, correlationCode, cumulative, curveCode, designCode, figureCode, forResponse, notebook, overlayCode, ownFigureCode, resultsCode, sensitivityCode, targetCode, targetOverlayCode, tradeOffCode, whatIfCode, windowCode, windowOverlayCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
-import { CONTEXT, DESIGN_CONTEXT, GLOSSARY, MARKED } from "./glossary.js";
+import { CONTEXT, DESIGN_CONTEXT, GLOSSARY, MARKED, MEASURE_CONTEXT } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
 import { closeOnBackdrop } from "./dialogs.js";
 import { DECIMAL_MARKS, DEFAULT_SIGNIFICANCE, SIGNIFICANCE_LEVELS, confidencePercent, decimalMark, marked as inMark, markedEquation, setDecimalMark, setSignificance, significance } from "./numbers.js"; // terms.js has a "marked" too
@@ -2975,11 +2975,12 @@ function renderComparison(result, made, notes, hidden) {
     const tr = el("tr", "", "");
     tr.dataset.measure = String(row);
     const name = el("td", "", "");
+    const concept = MEASURE_CONTEXT[m.key] ?? null; // the measure's term in the concept map (#1263)
     if (m.group === "Feasibility") {
-      name.append(term(m.label, { definition: m.description, alone: true }));
+      name.append(term(m.label, { definition: m.description, alone: true, concept }));
     } else {
       const to = link(BOOK_PAGES.measures, "");
-      to.append(term(m.label, { definition: m.description }));
+      to.append(term(m.label, { definition: m.description, concept }));
       name.append(to);
     }
     tr.append(name, el("td", "arrow", m.direction === "higher" ? "↑" : m.direction === "lower" ? "↓" : ""));

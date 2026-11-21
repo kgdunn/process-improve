@@ -12,6 +12,7 @@ import math
 import re
 import struct
 
+from process_improve.experiments.compare import MEASURES
 from process_improve.experiments.design_catalog import FAMILIES
 from tests.web._support import APP_SOURCES, WEB, javascript, source
 
@@ -214,6 +215,15 @@ def test_each_design_s_context_is_a_term_of_the_map_and_a_design_the_page_makes(
     assert {*bootstrap.DESIGNS, *bootstrap.MIXTURES} - set(context) == {"taguchi", "maximin_lhs", "sobol"}, (
         "the designs the map has no term of its own for"
     )
+
+
+def test_each_measure_s_context_is_a_term_of_the_map_and_a_measure_the_comparison_gives(node):
+    """``glossary.MEASURE_CONTEXT`` gives a measure of the comparison in detail its term in the map (#1263)."""
+    (context,) = javascript(node, source("glossary.js"), [("MEASURE_CONTEXT", [])])
+    keys = {measure.key for measure in MEASURES}
+    assert set(context) <= keys, "each key is one of the library's measures"
+    assert set(context.values()) <= {term["id"] for term in GRAPH["nodes"]}, "each term is the map's"
+    assert keys - set(context) == {"runs", "fits"}, "the measures the map has no term of its own for"
 
 
 def test_a_word_defined_where_the_page_draws_it_names_a_term_of_the_map():

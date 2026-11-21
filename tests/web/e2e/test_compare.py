@@ -264,6 +264,24 @@ def test_the_comparison_in_detail_has_a_column_per_design_and_a_row_per_measure(
     assert [c["fn"] for c in calls(page)] == ["api_catalogue"], "the build compared them"
 
 
+def test_a_measure_s_definition_leads_to_its_term_in_the_concept_map(page, first_paint):
+    """A measure the concept map has a term for names it, as a word of the glossary does (#1263)."""
+    reveal(page, "#compare")
+    page.click("#compare")
+    page.wait_for_selector("#comparison tbody tr[data-measure]")
+    measures = first_paint["comparison"]["result"]["measures"]
+    rows = page.locator("#comparison tbody tr[data-measure]").evaluate_all(
+        "(rows) => rows.map((r) => [Number(r.dataset.measure), r.querySelector('.term')?.dataset.concept ?? null])"
+    )
+    concepts = {measures[row]["key"]: concept for row, concept in rows}
+    assert concepts["d"] == "d_efficiency"
+    assert concepts["max_r"] == "maximum_absolute_correlation_between_model_terms"
+    assert concepts["runs"] is None, "the runs have no term of their own"
+    d = measures.index(next(m for m in measures if m["key"] == "d"))
+    page.hover(f'#comparison tbody tr[data-measure="{d}"] .term')
+    page.wait_for_function("document.querySelector('.term-tip a')?.hash === '#d-efficiency'")
+
+
 def test_the_designs_that_cannot_fit_the_model_are_compared_at_the_right(page, first_paint):
     compared = first_paint["comparison"]["result"]
     fitting = [d for d in compared["designs"] if compared["values"][d]["fits"]]

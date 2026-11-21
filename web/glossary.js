@@ -302,6 +302,25 @@ export const DESIGN_CONTEXT = {
 };
 
 /**
+ * The term of the concept map (map/graph.json) for each measure of the comparison in detail, by its key in
+ * process_improve.experiments.compare.MEASURES: what "See it in context" opens from the measure's name. The runs,
+ * and whether a design fits the model, have no term of their own. tests/web/page/test_concept_map.py holds each term
+ * to the map and each key to the library's measures.
+ */
+export const MEASURE_CONTEXT = {
+  residual_df: "degrees_of_freedom",
+  a: "a_optimal",
+  i: "i_optimal",
+  e: "e_optimality",
+  g: "g_optimal",
+  d: "d_efficiency",
+  max_r: "maximum_absolute_correlation_between_model_terms",
+  power_main: "statistical_power",
+  power_interaction: "statistical_power",
+  power_quadratic: "statistical_power",
+};
+
+/**
  * Where each word sits in the concept map (map/graph.json): the term its definition's "See it in context" opens
  * (terms.js), with the ideas around it and the book's line. A word the map has no term for, and no term near, is
  * not here, and its definition ends without a link. tests/web/page/test_concept_map.py holds each term to the map,
