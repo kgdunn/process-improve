@@ -109,11 +109,16 @@ def _stratum_rows(
         fitted = np.hstack([fitted, added])
     residual: dict[str, Any] = {"df": int(basis.shape[1] - fitted.shape[1])}
     if projected_y is not None:
-        residual["ss"] = float(np.sum(projected_y**2) - np.sum((fitted.T @ projected_y) ** 2))
+        left = projected_y - fitted @ (fitted.T @ projected_y)
+        ss = float(np.sum(left**2))
+        # A stratum the terms fit exactly leaves only rounding error, which would divide into an F of 1e15 or more
+        # (or by an exact 0.0 on another BLAS): it is no variation to test against.
+        residual["ss"] = 0.0 if ss <= np.finfo(float).eps * float(np.sum(projected_y**2)) else ss
+        testable = residual["df"] > 0 and residual["ss"] > 0
         residual["ms"] = residual["ss"] / residual["df"] if residual["df"] else float("nan")
         for row in rows:
-            row["f"] = row["ms"] / residual["ms"] if residual["df"] else float("nan")
-            row["p_value"] = float(stats.f.sf(row["f"], row["df"], residual["df"])) if residual["df"] else float("nan")
+            row["f"] = row["ms"] / residual["ms"] if testable else float("nan")
+            row["p_value"] = float(stats.f.sf(row["f"], row["df"], residual["df"])) if testable else float("nan")
     return rows, residual
 
 
@@ -145,7 +150,8 @@ def multistratum_anova(
         ``strata``, one entry per stratum (each error term, then ``"Within"``) with its ``df``,
         its ``units`` (the number of groups its error term makes, the runs for ``"Within"``), the
         ``terms`` estimated in it, each with its ``df`` (and with a response ``ss``, ``ms``,
-        ``f`` and ``p_value``), and its ``residual``; ``df``, each stratum's terms and
+        ``f`` and ``p_value``, NaN where the stratum's residual has no degrees of freedom or no
+        variation), and its ``residual``; ``df``, each stratum's terms and
         ``"Residual"`` mapped to their degrees of freedom; and ``table``, every row as a
         DataFrame. A term whose contrasts fall in two strata, as in a design that is not
         orthogonal, has a row in each.

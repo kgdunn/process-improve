@@ -10,6 +10,7 @@ from __future__ import annotations
 import itertools
 import json
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -75,6 +76,24 @@ def test_split_plot_tests_each_term_on_its_own_stratum():
     assert table.loc[("Within", "temperature"), "ss"] == pytest.approx(434.0833, abs=5e-5)
     assert table.loc[("Within", "Residual"), "df"] == 18  # replicates x B and x AB, pooled: 20.67 + 50.83
     assert table.loc[("Within", "Residual"), "ss"] == pytest.approx(71.5, abs=5e-5)
+
+
+def test_a_stratum_the_terms_fit_exactly_has_no_f_test():
+    """Its residual is rounding error only: 0, with no F, on every BLAS, where one gave 1e15 and another 0/0."""
+    runs = pd.DataFrame(
+        [
+            {"rep": r, "M": m, "T": t, "y": r + 2 * m + t + 0.1 * ((r + m + t) % 3)}
+            for r in (1, 2)
+            for m in (0, 1)
+            for t in (0, 1)
+        ]
+    )
+    found = multistratum_anova(runs, "M * T", "rep/M", response="y")
+    table = found["table"].set_index(["stratum", "term"])
+    assert table.loc[("rep:M", "Residual"), "ss"] == 0.0
+    assert np.isnan(table.loc[("rep:M", "M"), "f"])
+    assert np.isnan(table.loc[("rep:M", "M"), "p_value"])
+    assert table.loc[("Within", "T"), "f"] == pytest.approx(80.2222, abs=5e-4)
 
 
 def test_an_error_term_that_names_every_run_leaves_the_within_stratum_empty():
