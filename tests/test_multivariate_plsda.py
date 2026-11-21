@@ -1076,7 +1076,7 @@ def test_plsda_cross_validation_runs_pls_on_the_class_indicators() -> None:
     pd.testing.assert_frame_equal(chosen.rmsecv, reference.rmsecv)
     pd.testing.assert_series_equal(chosen.selection_distribution, reference.selection_distribution)
 
-    nesting = {"max_components": 2, "n_inner_repeats": 1, "random_state": 0}
+    nesting = {"max_components": 2, "n_inner_repeats": 1, "random_state": 2}  # where six inner folds choose otherwise
     pd.testing.assert_series_equal(
         PLSDA.nested_cv(X, y, **nesting).q2y,  # five inner folds, as PLS has by default
         PLS.nested_cv(X, indicators, outer_cv=FoldsByClass(5), inner_cv=FoldsByClass(5), **nesting).q2y,
@@ -1102,11 +1102,14 @@ def test_plsda_cross_validation_runs_pls_on_the_class_indicators() -> None:
         .cross_validate(X, indicators, cv=FoldsByClass(3), **resampling)
         .beta_mean,
     )
-    # Leave-one-out has no folds to stratify, and is PLS's.
+    # Leave-one-out has no folds to stratify, and is PLS's, by default and by name.
     jackknife = PLSDA(n_components=1).cross_validate(X, y, **resampling)
     pd.testing.assert_frame_equal(
         jackknife.beta_mean,
         PLS(n_components=1).fit(X, indicators).cross_validate(X, indicators, **resampling).beta_mean,
+    )
+    pd.testing.assert_frame_equal(
+        PLSDA(n_components=1).cross_validate(X, y, cv="loo", **resampling).beta_mean, jackknife.beta_mean
     )
 
     with pytest.raises(ValueError, match=r"^X has 24 rows but y has 23 labels\.$"):
