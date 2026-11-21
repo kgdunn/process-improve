@@ -11,12 +11,13 @@ variable moved, and how sure am I?*
 </picture>
 
 [![PyPI version](https://img.shields.io/pypi/v/process-improve.svg)](https://pypi.org/project/process-improve/)
-[![Python versions](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2Fkgdunn%2Fprocess-improve%2Fmain%2Fpyproject.toml&label=python)](https://pypi.org/project/process-improve/)
+[![Python versions](https://img.shields.io/pypi/pyversions/process-improve.svg)](https://pypi.org/project/process-improve/)
 [![Downloads](https://static.pepy.tech/badge/process-improve)](https://pepy.tech/project/process-improve)
 [![Downloads per month](https://static.pepy.tech/badge/process-improve/month)](https://pepy.tech/project/process-improve)
 [![CI](https://github.com/kgdunn/process-improve/actions/workflows/main-status.yml/badge.svg)](https://github.com/kgdunn/process-improve/actions/workflows/run-tests.yml?query=branch%3Amain)
 [![codecov](https://codecov.io/gh/kgdunn/process-improve/branch/main/graph/badge.svg)](https://codecov.io/gh/kgdunn/process-improve)
-[![Docs](https://img.shields.io/badge/docs-kgdunn.github.io-blue.svg)](https://kgdunn.github.io/process-improve/)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Docs](https://github.com/kgdunn/process-improve/actions/workflows/docs.yml/badge.svg?branch=main)](https://kgdunn.github.io/process-improve/)
 [![License](https://img.shields.io/pypi/l/process-improve.svg)](https://github.com/kgdunn/process-improve/blob/main/LICENSE)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24361808.svg)](https://doi.org/10.5281/zenodo.24361808)
 
