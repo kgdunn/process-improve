@@ -86,6 +86,7 @@ from process_improve.experiments.designs_response_surface import (
     all_bias_ccd,
     all_bias_distance,
     blocking_alpha,
+    blocking_center_points,
     ccd_center_points,
     optimum_spread,
 )
@@ -2369,6 +2370,7 @@ _LIBRARY: dict[str, Callable[..., Any]] = {
     "all_bias_distance": all_bias_distance,
     "allocate_runs": allocate_runs,
     "blocking_alpha": blocking_alpha,
+    "blocking_center_points": blocking_center_points,
     "ccd_center_points": ccd_center_points,
     "composite_desirability": composite_desirability,
     "get_omars_trade_off_table_entry": get_omars_trade_off_table_entry,
