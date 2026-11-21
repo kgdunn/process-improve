@@ -79,6 +79,7 @@ class _AugmentContext:
     random_state: int | np.random.Generator | None = 42
     hard_limits: tuple[str, ...] = ()
     region: DesignRegion | None = None
+    axial_distance: float | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -449,27 +450,37 @@ def _blend_text(blend: np.ndarray) -> str:
 
 
 def _augment_axial_check_blends(ctx: _AugmentContext, df: pd.DataFrame) -> dict[str, Any]:
-    """Add a mixture design's axial check blends: one on each axis, midway between the centroid and a vertex.
+    """Add a mixture design's axial check blends: one on each axis, between the centroid and a vertex.
 
-    On the simplex of the runs, the blend on the axis of component i has (k + 1) / (2k) of
-    component i and 1 / (2k) of each other component (Cornell 2002).
+    On the simplex of the runs, the blend on the axis of component i has 1 - (k - 1) r of component i
+    and r of each other component (Box and Draper 2007, Section 16.5). By default r = 1 / (2k), midway
+    between the centroid and the vertex (Cornell 2002); ``ctx.axial_distance`` gives r, between 0 (the
+    vertex) and 1 / k (the centroid).
     """
     if ctx.alpha is not None:
         msg = (
             "alpha sets the distance of a star point. The runs are mixture blends, and their axial points are "
-            "the axial check blends, midway between the centroid and each vertex: leave alpha unset."
+            "the axial check blends between the centroid and each vertex: leave alpha unset, and give "
+            "axial_distance for another distance."
         )
         raise ValueError(msg)
     k = len(ctx.factor_names)
+    r = 1.0 / (2 * k) if ctx.axial_distance is None else ctx.axial_distance
+    if not 0 < r < 1.0 / k:
+        msg = (
+            f"axial_distance is the proportion r of each other component in an axial check blend, between 0 "
+            f"(the vertex) and 1/{k} (the centroid); got {r!r}."
+        )
+        raise ValueError(msg)
     low, span = _simplex(df)
-    blends = low + span * (np.eye(k) + 1.0 / k) / 2.0
+    blends = low + span * (r + (1.0 - k * r) * np.eye(k))
     axial_df = pd.DataFrame(blends, columns=ctx.factor_names)
     augmented = pd.concat([df, axial_df], ignore_index=True)
 
     notes = [
         (
-            f"The runs are mixture blends, so the axial points are the {k} axial check blends, each midway "
-            f"between the centroid of the simplex and one vertex, such as {_blend_text(blends[0])}."
+            f"The runs are mixture blends, so the axial points are the {k} axial check blends, each between "
+            f"the centroid of the simplex and one vertex, such as {_blend_text(blends[0])}."
         ),
         "They put runs inside the simplex, where the fit of the model can be checked.",
     ]
@@ -589,6 +600,9 @@ def _augment_add_axial_points(ctx: _AugmentContext) -> dict[str, Any]:
     df = ctx.existing_design[ctx.factor_names].copy()
     if _are_blends(df):
         return _augment_axial_check_blends(ctx, df)
+    if ctx.axial_distance is not None:
+        msg = "axial_distance places a mixture design's axial check blends; the runs are not blends, so use alpha."
+        raise ValueError(msg)
     k = len(ctx.factor_names)
 
     alpha_value = _axial_distance(ctx, df)
@@ -1250,6 +1264,7 @@ def augment_design(  # noqa: PLR0913
     factor_names: list[str] | None = None,
     hard_limits: list[str] | None = None,
     region: DesignRegion | dict[str, Any] | None = None,
+    axial_distance: float | None = None,
 ) -> dict[str, Any]:
     """Extend or modify an existing experimental design.
 
@@ -1320,6 +1335,11 @@ def augment_design(  # noqa: PLR0913
         new run that breaks a limit (a folded run, an axial or centre run, a copy) is
         refused, and the message names it and the limit. Existing runs outside the region
         are kept, with a ``UserWarning``.
+    axial_distance : float or None
+        For ``"add_axial_points"`` on a mixture design only: the proportion r of each other
+        component in an axial check blend, which has 1 - (k - 1) r of its own component (Box
+        and Draper 2007, Section 16.5). Between 0 (the vertex) and 1/k (the centroid); ``None``
+        is 1/(2k), midway. Any other design raises ``ValueError``.
 
     Returns
     -------
@@ -1379,6 +1399,9 @@ def augment_design(  # noqa: PLR0913
             "beside these, pass them to generate_design(..., design_type='d_optimal', fixed_runs=...)."
         )
         raise ValueError(msg)
+    if axial_distance is not None and augmentation_type != "add_axial_points":
+        msg = f"axial_distance is for 'add_axial_points' only; got augmentation_type={augmentation_type!r}."
+        raise ValueError(msg)
     unknown = sorted(set(hard_limits or []) - set(factor_names))
     if unknown:
         raise ValueError(f"hard_limits names {unknown}, which are not factors of the design: {factor_names}.")
@@ -1397,6 +1420,7 @@ def augment_design(  # noqa: PLR0913
         random_state=random_state,
         hard_limits=tuple(n for n in factor_names if n in limited),
         region=checked,
+        axial_distance=axial_distance,
     )
 
     outside = _existing_outside(ctx)

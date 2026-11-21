@@ -71,6 +71,7 @@ from process_improve.experiments._desirability import composite_desirability, in
 from process_improve.experiments._orthogonal_arrays import orthogonal_array
 from process_improve.experiments.allocation import allocate_runs
 from process_improve.experiments.analysis import analyze_experiment
+from process_improve.experiments.augment import augment_design
 from process_improve.experiments.crossed_arrays import signal_to_noise
 from process_improve.experiments.design_measures import (
     design_structure,
@@ -3141,6 +3142,20 @@ def _blocks_orthogonal(experiment: dict, check: dict) -> float:
     return float(squares_orthogonal_to_blocks(design, labels))
 
 
+def _axial_blend(_experiment: dict, check: dict) -> float:
+    """Return a proportion of the axial check blend that :func:`augment_design` adds on the first axis of a simplex.
+
+    The design augmented is the vertices of the simplex of ``check["components"]`` components, which is all
+    the blends depend on; ``check["axial_distance"]`` places them, as ``augment_design`` takes it (omitted,
+    midway between the centroid and the vertex). ``check["component"]`` (0-based) is the proportion read:
+    0 the blend's own component, any other one of the rest.
+    """
+    names = [f"x{i + 1}" for i in range(check["components"])]
+    vertices = pd.DataFrame(np.eye(len(names)), columns=names)
+    blends = augment_design(vertices, "add_axial_points", axial_distance=check.get("axial_distance"))["new_runs"]
+    return float(blends[0][names[check["component"]]])
+
+
 def _rotatable(experiment: dict, check: dict) -> float:
     """Return 1 when the library's :func:`variance_dispersion` finds a design rotatable, 0 when it does not.
 
@@ -3489,6 +3504,7 @@ def _connecting_letters(experiment: dict, check: dict, printed: str) -> tuple[st
 
 
 _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
+    "axial_blend": _axial_blend,
     "blocks_orthogonal": _blocks_orthogonal,
     "capability": _capability,
     "desirability": _desirability,
