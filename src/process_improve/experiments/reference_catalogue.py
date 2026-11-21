@@ -87,6 +87,7 @@ from process_improve.experiments.designs_response_surface import (
     all_bias_distance,
     blocking_alpha,
     ccd_center_points,
+    optimum_spread,
 )
 from process_improve.experiments.evaluate import evaluate_design
 from process_improve.experiments.factor import Factor
@@ -2372,6 +2373,7 @@ _LIBRARY: dict[str, Callable[..., Any]] = {
     "get_omars_trade_off_table_entry": get_omars_trade_off_table_entry,
     "individual_desirability": individual_desirability,
     "omars_minimum_runs": omars_minimum_runs,
+    "optimum_spread": optimum_spread,
     "optimize_responses": optimize_responses,
     "t_value": t_value,
     "chi2_value": chi2_value,

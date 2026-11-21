@@ -15,6 +15,7 @@ import warnings
 from typing import TYPE_CHECKING
 
 import numpy as np
+from scipy import optimize
 
 from process_improve._warnings import user_stacklevel
 from process_improve.experiments._classical import bbdesign, ccdesign
@@ -464,6 +465,72 @@ def all_bias_ccd(n_factors: int, n_cube_runs: int, region: str = "spherical", ex
         "cube_distance": float(expand * cube),
         "axial_distance": float(expand * axial),
     }
+
+
+#: (mu4 - mu2**2) / mu2**2 of each weight function over the region: its excess spread of x**2.
+_WEIGHT_KURTOSIS = {"uniform": 4 / 5, "normal": 2.0}
+
+
+def optimum_spread(weight: str = "uniform", variance_share: float = 0.5) -> float:
+    r"""Return the spread of a straight line's design that minimizes variance plus bias against a quadratic truth.
+
+    A straight line fitted to a curve that is in truth quadratic has an error, averaged over the
+    region with a weight function, of variance :math:`V` and squared bias :math:`B`. For a design
+    symmetric about the centre, with second moment :math:`m_2` against the weight function's
+    :math:`\mu_2` and :math:`t = m_2 / \mu_2` (Box and Draper 2007, Section 13.5, Eq. 13.5.8):
+
+    .. math::
+
+        V = 1 + 1/t, \qquad B = \alpha^2 \mu_2^2 \{c + (t - 1)^2\},
+
+    with :math:`c = (\mu_4 - \mu_2^2) / \mu_2^2`, 4/5 for a uniform weight and 2 for a normal one, and
+    :math:`\alpha` the quadratic coefficient in units of :math:`\sigma / N^{1/2}`. The :math:`t` that
+    minimizes :math:`V + B` satisfies :math:`2 \alpha^2 \mu_2^2 = 1 / \{t^2 (t - 1)\}`, so each share
+    of variance in the total, :math:`V / (V + B)`, has one optimum spread. A share of 0, all bias, gives
+    the all-bias spread 1; a share of 1, all variance, spreads the runs without limit.
+
+    Parameters
+    ----------
+    weight : {"uniform", "normal"}
+        The weight function over the region of interest.
+    variance_share : float
+        :math:`V / (V + B)` at the optimum, from 0 (all bias) up to, not including, 1.
+
+    Returns
+    -------
+    float
+        The spread :math:`(m_2 / \mu_2)^{1/2}`.
+
+    Raises
+    ------
+    ValueError
+        If *weight* is not one of the two, or *variance_share* is not in [0, 1).
+
+    Examples
+    --------
+    Box and Draper's Table 13.1, variance and bias of equal size:
+
+    >>> round(optimum_spread("uniform", 0.5), 2), round(optimum_spread("normal", 0.5), 2)
+    (1.08, 1.16)
+    """
+    excess = _WEIGHT_KURTOSIS.get(weight)
+    if excess is None:
+        msg = f"weight must be 'uniform' or 'normal'; got {weight!r}."
+        raise ValueError(msg)
+    if not 0 <= variance_share < 1:
+        msg = f"variance_share must be at least 0 and below 1; got {variance_share}."
+        raise ValueError(msg)
+    if variance_share == 0:
+        return 1.0
+
+    def share_above_wanted(t: float) -> float:  # rises from 0 at t = 1 towards 1 as t grows
+        variance, bias = 1 + 1 / t, (excess + (t - 1) ** 2) / (2 * t**2 * (t - 1))
+        return variance / (variance + bias) - variance_share
+
+    high = 2.0
+    while share_above_wanted(high) < 0:
+        high *= 2
+    return float(np.sqrt(optimize.brentq(share_above_wanted, 1 + 1e-12, high, xtol=1e-14)))
 
 
 #: Accepted spellings of each named axial distance.

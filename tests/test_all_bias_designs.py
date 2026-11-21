@@ -1,4 +1,4 @@
-"""All-bias designs: a first-order design (Box and Draper 2007, Appendix 6B; #972 V2) and a composite one (V3).
+"""All-bias designs (Box and Draper 2007, Appendices 6B and 7H; #972 V2, V3) and the optimum spread (V4).
 
 The design is all-bias when its pure second moment equals the region's. These tests hold the function
 to Box and Draper's tables and, independently, to that condition: on the corners and centre runs of the
@@ -11,8 +11,9 @@ import itertools
 
 import numpy as np
 import pytest
+from scipy import optimize
 
-from process_improve.experiments.designs_response_surface import all_bias_ccd, all_bias_distance
+from process_improve.experiments.designs_response_surface import all_bias_ccd, all_bias_distance, optimum_spread
 
 
 @pytest.mark.parametrize(
@@ -115,3 +116,34 @@ def test_expand_spreads_the_composite_design_but_not_its_centre_runs():
 def test_bad_composite_arguments_are_refused(args, options, message):
     with pytest.raises(ValueError, match=message):
         all_bias_ccd(*args, **options)
+
+
+@pytest.mark.parametrize(
+    ("weight", "spreads"),
+    [("uniform", [1.00, 1.02, 1.04, 1.08, 1.14, 1.25]), ("normal", [1.00, 1.09, 1.16, 1.26, 1.41])],
+)
+def test_the_optimum_spread_gives_box_and_drapers_table_13_1(weight, spreads):
+    """Table 13.1, at V/(V + B) = 0, 0.2, 0.333, 0.5, 0.667 and 0.8 (the normal weight's 0.2 left out: 1.0525)."""
+    shares = [0, 0.2, 0.333, 0.5, 0.667, 0.8] if weight == "uniform" else [0, 0.333, 0.5, 0.667, 0.8]
+    assert [optimum_spread(weight, share) for share in shares] == pytest.approx(spreads, abs=5e-3)
+
+
+@pytest.mark.parametrize(("weight", "excess"), [("uniform", 0.8), ("normal", 2.0)])
+@pytest.mark.parametrize("share", [0.1, 0.5, 0.9])
+def test_the_optimum_spread_minimizes_variance_plus_bias(weight, excess, share):
+    """At the bias it implies, no other spread gives a smaller V + B, and V is that share of the total."""
+    t_best = optimum_spread(weight, share) ** 2
+    scale = 1 / (2 * t_best**2 * (t_best - 1))  # alpha^2 mu2^2 at which t_best is the optimum
+
+    def total(t: float) -> float:
+        return 1 + 1 / t + scale * (excess + (t - 1) ** 2)
+
+    found = optimize.minimize_scalar(total, bounds=(1.0, 10 * t_best), method="bounded", options={"xatol": 1e-10})
+    assert found.x == pytest.approx(t_best, rel=1e-4)
+    assert (1 + 1 / t_best) / total(t_best) == pytest.approx(share)
+
+
+@pytest.mark.parametrize(("weight", "share"), [("triangular", 0.5), ("uniform", 1.0), ("normal", -0.1)])
+def test_bad_optimum_spread_arguments_are_refused(weight, share):
+    with pytest.raises(ValueError, match=r"weight must be|variance_share must be"):
+        optimum_spread(weight, share)
