@@ -2141,8 +2141,10 @@ def test_rotatability_is_read_from_the_runs_or_from_a_design_the_library_makes()
     assert _rotatable(entry, {"factors": ["A", "B"]}) == 1
     entry["runs"]["exact"] = {}  # the axial runs at 1.414, as printed, are rotatable only to that precision
     assert _rotatable(entry, {"factors": ["A", "B"]}) == 0
+    assert _rotatable(entry, {"factors": ["A", "B"], "tolerance": 1e-3}) == 1  # its spread is 2.4e-4 of the mean
     face_centred = {"design_type": "ccd", "k": 2, "options": {"alpha": "face_centered"}}
     assert _rotatable({}, {"design": face_centred}) == 0
+    assert _rotatable({}, {"design": face_centred, "tolerance": 1e-3}) == 0  # far from rotatable, not rounded
     assert _rotatable({}, {"design": {**face_centred, "options": {"alpha": "rotatable"}}}) == 1
 
 

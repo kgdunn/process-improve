@@ -3146,13 +3146,18 @@ def _rotatable(experiment: dict, check: dict) -> float:
 
     The design is the entry's runs in the factors ``check["factors"]``, or with ``check["design"]`` one the
     library makes (see :func:`_design_property`). ``check["model"]`` is the model whose prediction variance
-    is judged: ``"quadratic"`` by default, or a formula, such as a third-order one.
+    is judged: ``"quadratic"`` by default, or a formula, such as a third-order one. ``check["tolerance"]`` is
+    the spread allowed on each sphere, as a share of its mean, for a design printed rounded; without it the
+    library's own tolerance holds.
     """
     if check.get("design"):
         design = _made(json.dumps(check["design"], sort_keys=True))
     else:
         design = _coded_runs(experiment, check.get("runs"))[0][check["factors"]]
-    return float(variance_dispersion(design, model=check.get("model", "quadratic"))["rotatable"])
+    found = variance_dispersion(design, model=check.get("model", "quadratic"))
+    if "tolerance" not in check:
+        return float(found["rotatable"])
+    return float(np.all(np.asarray(found["spread"]) <= check["tolerance"] * np.asarray(found["mean"])))
 
 
 def _desirability(experiment: dict, check: dict) -> float:
