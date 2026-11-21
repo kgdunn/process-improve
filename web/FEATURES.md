@@ -281,8 +281,7 @@ Also:
 - **A whole curve as a result.** A response that is a curve at each run, such as a spectrum
   or a colour over time, pasted under the run sheet.
   - *Details:* "My measured response is a curve", under the response in the brief, says so before
-    the design is made, beside a small picture: two runs' curves and the curve predicted between
-    them, with its band. Opening it opens the box for the curves under the run sheet once the design
+    the design is made, beside a small picture of three runs' noisy curves, one colour per run. Opening it opens the box for the curves under the run sheet once the design
     is made. A predicted curve's bands rest on 200 bootstrap replicates, and on 1,000 at a
     significance level of 0.01, so that ten replicates lie past the 99% quantile they are read
     from. The refit then takes about twice as long.

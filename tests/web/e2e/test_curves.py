@@ -153,6 +153,6 @@ def test_a_reader_who_says_the_response_is_a_curve_finds_the_curves_box_open_und
         page.click("#response-curve summary")
         text = " ".join(page.text_content("#response-curve p").split())
         assert text.startswith("Paste one curve per run under the run sheet.")
-        assert page.locator("#response-curve svg[role=img]").get_attribute("aria-label").startswith("Two runs' curves")
+        assert page.locator("#response-curve svg[role=img]").get_attribute("aria-label").startswith("Three runs' curves")
     generate(page)
     assert (page.locator("#curves").get_attribute("open") is not None) is said
