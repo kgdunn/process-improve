@@ -13518,7 +13518,7 @@
       "quote": "Table 5.14 ... 5 16 1/2 2_V^(5-1) ±5 = 1234 Not available"
      },
      "check": {
-      "manual": "no word splits the 2_V^(5-1) in two blocks without confounding a main effect or two-factor interaction, since a word and its alias by 12345 have five letters between them; the library nonetheless blocks it in two with ABC, aliased with the two-factor interaction DE, without a warning (worked here); no check kind reads the aliases of the block words",
+      "manual": "no word splits the 2_V^(5-1) in two blocks without confounding a main effect or two-factor interaction, since a word and its alias by 12345 have five letters between them; the library blocks it in two with ABC and warns that ABC is aliased with the two-factor interaction DE (its metadata lists the alias); no check kind reads a warning",
       "cause": "check_gap"
      }
     },
