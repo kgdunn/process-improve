@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import itertools
 import logging
+import math
 import warnings
 from typing import TYPE_CHECKING
 
@@ -388,6 +389,81 @@ def all_bias_distance(
         )
         raise ValueError(msg)
     return float(expand * np.sqrt((1 + n_center_points / n_cube_runs) * moment))
+
+
+def all_bias_ccd(n_factors: int, n_cube_runs: int, region: str = "spherical", expand: float = 1.0) -> dict[str, float]:
+    """Return the centre runs and distances of an all-bias central composite design.
+
+    A composite design fitted with a second-order model, when the true surface is of third order,
+    has the smallest squared bias averaged over the region when its moments up to order 5 equal the
+    region's (Box and Draper 2007, Appendix 7H). For ``n_a`` cube runs at +/- ``a`` and ``2k`` axial
+    runs at +/- ``b`` that fixes all three:
+
+    - over the unit sphere, ``n_0 = (n_a**0.5 + 2)**2 (k + 2) / (k + 4) - n_a - 2k``,
+      ``a = (N / (n_a (k + 2) (k + 4)))**0.25`` and ``b = a n_a**0.25``, a rotatable design;
+    - over the cube of side 2, ``n_0 = 4 (2 n_a / 5)**0.5 + 1.6 - 2k``, ``a = (N / (9 n_a))**0.25`` and
+      ``b = (2 N / 45)**0.25``;
+
+    with ``N = n_a + 2k + n_0``. To build the design, run a central composite design with
+    ``alpha = axial_distance / cube_distance`` and the rounded centre runs, and multiply its coded
+    settings by ``cube_distance``.
+
+    Parameters
+    ----------
+    n_factors : int
+        ``k``, the number of factors.
+    n_cube_runs : int
+        ``n_a``, the runs of the two-level factorial or fraction.
+    region : {"spherical", "cuboidal"}
+        The region of interest: the sphere of radius 1, or the cube from -1 to 1 on each factor.
+    expand : float
+        The factor that spreads the cube and axial runs, as in :func:`all_bias_distance`; Box and
+        Draper suggest 1.15 when variance and bias are of about the same size.
+
+    Returns
+    -------
+    dict[str, float]
+        ``n_center_points``, the real number of centre runs, which can be below 0;
+        ``n_center_points_rounded_up``, the whole number to run, at least 0; ``cube_distance``, ``a``;
+        and ``axial_distance``, ``b``, both times *expand*.
+
+    Raises
+    ------
+    ValueError
+        If *region* is not one of the two, or *n_factors*, *n_cube_runs* or *expand* is out of range.
+
+    Examples
+    --------
+    Two factors in the unit sphere (Box and Draper's Table 7H.1):
+
+    >>> {key: round(value, 3) for key, value in all_bias_ccd(2, 4).items()}
+    {'n_center_points': 2.667, 'n_center_points_rounded_up': 3, 'cube_distance': 0.577, 'axial_distance': 0.816}
+    """
+    if region not in ("spherical", "cuboidal"):
+        msg = f"region must be 'spherical' or 'cuboidal'; got {region!r}."
+        raise ValueError(msg)
+    if n_factors < 1 or n_cube_runs < 1 or not expand > 0:
+        msg = (
+            "n_factors and n_cube_runs must be at least 1 and expand positive; got "
+            f"{n_factors}, {n_cube_runs} and {expand}."
+        )
+        raise ValueError(msg)
+    k, n_a = n_factors, n_cube_runs
+    if region == "spherical":
+        n_center = (np.sqrt(n_a) + 2) ** 2 * (k + 2) / (k + 4) - n_a - 2 * k
+        cube = ((n_a + 2 * k + n_center) / (n_a * (k + 2) * (k + 4))) ** 0.25
+        axial = cube * n_a**0.25
+    else:
+        n_center = 4 * np.sqrt(2 * n_a / 5) + 1.6 - 2 * k
+        cube = ((n_a + 2 * k + n_center) / (9 * n_a)) ** 0.25
+        axial = (2 * (n_a + 2 * k + n_center) / 45) ** 0.25
+    return {
+        "n_center_points": float(n_center),
+        # rounded first, so that a whole number in floating point (3.0000000000000036) is not taken up to 4
+        "n_center_points_rounded_up": max(math.ceil(round(float(n_center), 9)), 0),
+        "cube_distance": float(expand * cube),
+        "axial_distance": float(expand * axial),
+    }
 
 
 #: Accepted spellings of each named axial distance.
