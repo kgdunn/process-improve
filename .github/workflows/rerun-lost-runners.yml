@@ -1,0 +1,51 @@
+# A run of the tests whose only failures are runners GitHub lost is run again, once.
+#
+# GitHub's hosted runners are now and then lost in the middle of a job ("The hosted runner
+# lost communication with the server"), most often the macOS ones: the job fails with no
+# test failing and no log, and on main that turns the README's badge red. This workflow
+# reads why each failed job failed. When every one was a lost runner, it runs the failed
+# jobs again, once (the first attempt only), and the run, the checks and the badge go
+# green on their own. A run with any other failure is left as it is, so a test that fails
+# is never re-run to make it pass.
+name: Re-run jobs whose runner was lost
+
+on:
+  workflow_run:
+    workflows: [Unit tests]
+    types: [completed]
+
+# It reads the run's jobs and their annotations, and starts a re-run; it checks out no code.
+permissions:
+  actions: write
+  checks: read
+
+jobs:
+  rerun:
+    name: Re-run the jobs whose runner was lost
+    if: github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.run_attempt == 1
+    runs-on: ubuntu-latest
+    steps:
+    - name: Re-run the failed jobs if every failure was a lost runner
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        RUN: ${{ github.event.workflow_run.id }}
+      run: |
+        # `CI passed` only gathers the others, so it fails whenever one of them does.
+        failed=0
+        lost=0
+        for job in $(gh api "repos/$REPO/actions/runs/$RUN/jobs?per_page=100" --paginate \
+            --jq '.jobs[] | select(.conclusion == "failure" and .name != "CI passed") | .id'); do
+          failed=$((failed + 1))
+          if gh api "repos/$REPO/check-runs/$job/annotations" --jq '.[].message' |
+              grep -qE 'lost communication with the server|runner has received a shutdown signal|was not acquired by Runner'; then
+            lost=$((lost + 1))
+          fi
+        done
+        echo "Failed jobs: $failed; of them, lost runners: $lost."
+        if [ "$failed" -gt 0 ] && [ "$lost" -eq "$failed" ]; then
+          gh run rerun "$RUN" --failed --repo "$REPO"
+          echo "Every failure was a lost runner: the failed jobs run again."
+        else
+          echo "Not every failure was a lost runner: the run is left as it is."
+        fi
