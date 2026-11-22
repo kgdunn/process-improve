@@ -27,7 +27,7 @@ from process_improve.experiments import Constraint, Factor, generate_design
 warnings.simplefilter("ignore")
 
 #: The run/extra pair in each theme passes the dataviz palette validator (CVD separation,
-#: lightness band, contrast) on that theme's surface, which matches GitHub's page colour.
+#: lightness band, contrast) on that theme's surface, which matches GitHub's page color.
 THEMES = {
     "light": {
         "run": "#1f5f8f",
@@ -218,11 +218,11 @@ def draw_panel(fig: plt.Figure, rect: tuple, kind: str, kwargs: dict, c: dict) -
 
 
 def add_legend(fig: plt.Figure, c: dict, anchor: tuple, ncol: int, fontsize: float, *, full: bool) -> None:
-    """Name every encoding the figure uses, so colour never carries meaning on its own."""
+    """Name every encoding the figure uses, so color never carries meaning on its own."""
     dot = {"marker": "o", "ls": "", "ms": 7, "mec": c["surface"]}
     handles = [
         Line2D([], [], mfc=c["run"], label="run" + (" (filled cell: high level)" if full else ""), **dot),
-        Line2D([], [], mfc=c["extra"], label="centre or axial run", **dot),
+        Line2D([], [], mfc=c["extra"], label="center or axial run", **dot),
     ]
     if full:  # the banner names its one constraint in a panel title instead
         handles += [
@@ -310,7 +310,7 @@ def hero(c: dict) -> plt.Figure:
     fig.text(
         0.035,
         0.05,
-        "+ 12 more designs, with evaluation, analysis and optimisation",
+        "+ 12 more designs, with evaluation, analysis and optimization",
         fontsize=13,
         color=c["muted"],
         va="center",

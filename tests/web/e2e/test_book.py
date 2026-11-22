@@ -1,7 +1,7 @@
 """The book's examples, opened by name: ``?book=<name>`` opens the example with the book's runs and results.
 
 The book prints these links beside its worked examples and exercises. Each opens the factors,
-their units and the run sheet as the book's table has them, analysed once Python has started,
+their units and the run sheet as the book's table has them, analyzed once Python has started,
 and says where in the book it comes from.
 """
 
@@ -13,7 +13,7 @@ BANNER = "#campaign-banner"
 
 
 def open_example(context, site: str, name: str) -> object:
-    """Open the page at ``?book=<name>``, and wait until it has analysed the example's results."""
+    """Open the page at ``?book=<name>``, and wait until it has analyzed the example's results."""
     page = context.new_page()
     page.goto(f"{site}?book={name}")
     page.wait_for_selector(BANNER, state="visible")
@@ -49,7 +49,7 @@ def test_a_book_example_opens_with_its_factors_runs_and_results(context, site, b
         {"name": "S", "low": "200", "high": "400", "units": "rpm"},
     ]
     assert page.input_value("#response") == "Pollutant"
-    assert page.get_attribute("#workspace", "data-phase") == "learn", "the book's results, analysed"
+    assert page.get_attribute("#workspace", "data-phase") == "learn", "the book's results, analyzed"
     assert page.is_hidden("#demo-banner"), "a book's example is not the worked example"
     categorical = page.eval_on_selector_all("#factors tbody [name=categorical]", "boxes => boxes.map((b) => b.checked)")
     assert categorical == [True, False, False], "the chemical, P or Q, is categorical"

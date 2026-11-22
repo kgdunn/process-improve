@@ -43,7 +43,7 @@ def calculate_cpk(  # noqa: C901
         used as a percentile on the data (in percent) to estimate that limit: the lower spec is
         set to ``np.nanpercentile(data, trim_percentile)`` and the upper spec to
         ``np.nanpercentile(data, 100 - trim_percentile)``. Default ``2.5`` therefore yields the
-        2.5th and 97.5th percentiles. (2) When ``trim_percentile > 0`` the centre/spread used in
+        2.5th and 97.5th percentiles. (2) When ``trim_percentile > 0`` the center/spread used in
         the Cpk formula switch from mean/std to robust alternatives (median and ``Sn``); when 0
         the classical mean/std are used.
 
@@ -59,12 +59,12 @@ def calculate_cpk(  # noqa: C901
         * ``spread``: the spread (standard deviation or Sn) of the limiting side.
         * ``rsd``: the relative standard deviation OF THE DATA COLUMN, as a
           percentage: ``spread / center-of-the-data * 100``. (Earlier versions
-          divided by the distance-to-spec centre, which is not an RSD of
+          divided by the distance-to-spec center, which is not an RSD of
           anything and changed value when the spec limit moved.)
         * ``defects_per_million``: the parts per million outside the specifications
           of a normal process with this capability, ``(Phi(-3 Cpk_lower) +
           Phi(-3 Cpk_upper)) x 10^6``, ``2 Phi(-3 Cp) x 10^6`` when the process is
-          centred; a side with no capability (NaN) adds nothing.
+          centered; a side with no capability (NaN) adds nothing.
         * ``defects_per_million_nearer``: those beyond the nearer specification
           alone, ``Phi(-3 Cpk) x 10^6``.
 
@@ -130,7 +130,7 @@ def calculate_cpk(  # noqa: C901
     cpk_lower = _safe_ratio(center_lower, spread_lower, "lower")
     cpk_upper = _safe_ratio(center_upper, spread_upper, "upper")
 
-    # The Cpk is the smaller (limiting) of the two sides; report the centre,
+    # The Cpk is the smaller (limiting) of the two sides; report the center,
     # spread and RSD of whichever side that is. A NaN side never wins over a
     # finite one.
     if np.isnan(cpk_upper) or (not np.isnan(cpk_lower) and cpk_lower <= cpk_upper):
@@ -139,7 +139,7 @@ def calculate_cpk(  # noqa: C901
         cpk, center, spread = cpk_upper, center_upper, spread_upper
 
     # RSD of the DATA: the spread of (x - constant) equals the spread of x,
-    # but the centre must be the centre of the data itself, not the centre of
+    # but the center must be the center of the data itself, not the center of
     # the distance-to-spec metric (which made the "RSD" depend on where the
     # specification sat). data_center / data_spread are computed from the data
     # column directly above, alongside the per-side statistics.

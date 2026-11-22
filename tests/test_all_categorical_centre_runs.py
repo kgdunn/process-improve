@@ -1,6 +1,6 @@
-"""A factorial whose factors are all categorical gets no centre runs unless they are asked for (#788 A5).
+"""A factorial whose factors are all categorical gets no center runs unless they are asked for (#788 A5).
 
-A categorical factor has no centre, so the three default "centre runs" of such a design only repeat
+A categorical factor has no center, so the three default "center runs" of such a design only repeat
 cells it already has: a 3 x 3 factorial had 12 runs, with three of its diagonal cells twice.
 """
 
@@ -20,7 +20,7 @@ def categorical(name: str, n_levels: int) -> Factor:
 def runs(factors: list[Factor], **options) -> tuple[int, int]:
     """Return the number of runs of the design, and how many of them repeat an earlier run."""
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore", UserWarning)  # no pure error without centre runs: wanted here
+        warnings.simplefilter("ignore", UserWarning)  # no pure error without center runs: wanted here
         design = generate_design(factors, **options).design
     cells = design[[f.name for f in factors]].astype(str).agg("|".join, axis=1)
     return len(design), int(cells.duplicated().sum())
@@ -44,7 +44,7 @@ def test_centre_runs_asked_for_are_still_added():
 
 
 def test_a_design_with_a_numeric_factor_keeps_its_three_centre_runs():
-    """With a numeric factor there is a centre to run at, so the default is unchanged."""
+    """With a numeric factor there is a center to run at, so the default is unchanged."""
     factors = [Factor(name="T", low=10, high=20), categorical("B", 3)]
     n_runs, repeats = runs(factors, design_type="full_factorial")
-    assert (n_runs, repeats) == (9, 0), "6 corners and 3 centre runs, one at each level of B"
+    assert (n_runs, repeats) == (9, 0), "6 corners and 3 center runs, one at each level of B"

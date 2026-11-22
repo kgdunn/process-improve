@@ -3,7 +3,7 @@
 ``write_books`` writes ``catalog/books/<source>/index.html`` for each source with a case, and the list of them. Each
 page says in words how closely Factorial gives the source's answers, draws its printed numbers as a bar by state, lists
 its examples in page order with the state of each, the numbers the source misprints with what it prints beside what its
-own data give, and what Factorial cannot compute yet. The states, their words and their colours are those of the
+own data give, and what Factorial cannot compute yet. The states, their words and their colors are those of the
 reproduction page, which each example opens on.
 """
 
@@ -243,7 +243,7 @@ def test_a_book_s_page_lists_its_examples_in_page_order_each_opening_its_numbers
 
 
 def test_a_book_s_bar_and_legend_are_its_numbers_in_the_reproduction_page_s_states(build_script, written):
-    """The bar of a source's row there, in its words and colours: what the book prints, from a match to a gap."""
+    """The bar of a source's row there, in its words and colors: what the book prints, from a match to a gap."""
     page = (written / "books" / "montgomery-2013" / "index.html").read_text(encoding="utf-8")
     bar = page.split('<div class="statebar" aria-hidden="true">')[1].split("</div>")[0]
     parts = [("match", "17"), ("known", "2"), ("open", "1"), ("gap", "3")]

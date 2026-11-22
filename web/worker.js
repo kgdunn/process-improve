@@ -1,4 +1,4 @@
-// Runs Python in a Web Worker, so the page never freezes while Pyodide loads or while a design is optimised.
+// Runs Python in a Web Worker, so the page never freezes while Pyodide loads or while a design is optimized.
 // It is a module worker (app.js makes it with type "module"): Pyodide 314 refuses a classic one.
 //
 // Protocol: the page posts {id, fn, payload}; the worker answers {id, reply}, where reply is the JSON string the

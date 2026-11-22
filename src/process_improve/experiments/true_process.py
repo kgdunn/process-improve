@@ -3,7 +3,7 @@
 """A known process, for simulating the results of a designed experiment.
 
 Before running a design on the plant, it can be run on a process whose true model is
-known: simulate the responses, analyse them as if they were real, and compare what
+known: simulate the responses, analyze them as if they were real, and compare what
 the analysis finds with the truth. That shows what a design can and cannot recover,
 such as an interaction aliased with a main effect, or a quadratic too small to detect
 at the noise level, before any experiment is spent.
@@ -75,7 +75,7 @@ def _canonical(term: str) -> tuple[str, tuple[str, ...]]:
 
 
 def _canonical_coefficients(coefficients: Mapping[str, float]) -> dict[str, float]:
-    """Normalise the terms' spellings, refusing a term given twice or a value that is not a number."""
+    """Normalize the terms' spellings, refusing a term given twice or a value that is not a number."""
     canonical: dict[str, float] = {}
     seen: dict[tuple[str, ...], str] = {}
     for term, value in coefficients.items():
@@ -157,7 +157,7 @@ class TrueProcess:
     sigma: float
 
     def __post_init__(self) -> None:
-        """Normalise the terms and freeze them; check the noise level."""
+        """Normalize the terms and freeze them; check the noise level."""
         object.__setattr__(self, "coefficients", MappingProxyType(_canonical_coefficients(self.coefficients)))
         sigma = float(self.sigma)
         if not (math.isfinite(sigma) and sigma > 0):

@@ -1,7 +1,7 @@
 """The runs along the path of steepest ascent: listed in Next, added to the run sheet, and followed to a new study.
 
 The worked example's results call for a move past its ranges. The path's runs are made one at a time, in the path's
-order, and are no part of the fit; the best of them is the centre of the next study.
+order, and are no part of the fit; the best of them is the center of the next study.
 """
 
 from __future__ import annotations
@@ -90,7 +90,7 @@ def test_the_path_is_followed_to_the_first_run_that_does_worse_and_a_study_is_ce
     enter(page, ["70", "75", "60"])
     assert "Run 18 did worse than run 17: stop here." in page.text_content(PATH)
     centre = float(path_table(page)[1][1].split()[0])
-    assert page.text_content("#path-study") == "Start a new study centred on run 17"
+    assert page.text_content("#path-study") == "Start a new study centered on run 17"
     page.click("#path-study")
     settled(page)
     assert page.get_attribute("#workspace", "data-phase") == "plan"

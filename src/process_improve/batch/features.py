@@ -370,7 +370,7 @@ def f_rupture(
     ``batch_col`` indicator column, and within each unique phase, per batch, of the
     ``phase_col`` column.
 
-    A change point is a position where the statistical behaviour of the trajectory
+    A change point is a position where the statistical behavior of the trajectory
     shifts: the mean steps, the variance opens up, or the correlation structure changes.
     In a batch context these usually mark the transitions between operating stages
     (heat-up finishing, a feed starting, an agitator changing speed), which is why they
@@ -398,7 +398,7 @@ def f_rupture(
                 "jump": 5,          # only consider change points at multiples of this
             }
 
-        ``model`` is the cost function ``ruptures`` minimises: ``"rbf"`` (the default)
+        ``model`` is the cost function ``ruptures`` minimizes: ``"rbf"`` (the default)
         detects any change in distribution through a kernel, ``"l2"`` detects a change in
         the mean, ``"l1"`` is its outlier-resistant counterpart, and ``"normal"`` detects
         a change in mean or variance.
@@ -481,7 +481,7 @@ def _change_points(signal: np.ndarray, settings: dict) -> tuple[int, ...]:
 
     ``ruptures`` always ends its result with the length of the signal, which marks the
     end of the last segment rather than a change, and it raises rather than returning
-    nothing when the signal is too short to hold two segments. Both are normalised here
+    nothing when the signal is too short to hold two segments. Both are normalized here
     to an empty tuple, so a caller can compare batches without special cases.
 
     A ``penalty`` of ``None`` becomes ``log(n)``, which is why it is resolved per signal

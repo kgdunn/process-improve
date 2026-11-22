@@ -171,7 +171,7 @@ class Expression:
     def to_code(self, frame: str = "df") -> str:
         """Return the pandas code that computes the expression over the table named ``frame``.
 
-        Every operation is parenthesised, so the code groups exactly as the parse did.
+        Every operation is parenthesized, so the code groups exactly as the parse did.
         """
         return self._code(self._tree, frame)
 

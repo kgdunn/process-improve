@@ -332,7 +332,7 @@ def test_rules_the_model_cannot_read_are_refused_with_every_reason(cheese: PLS) 
 
 
 def test_with_nothing_to_pay_nothing_binds_and_the_answer_is_the_model_centre(cheese: PLS) -> None:
-    """A cost of zero and no window: the search stays at the centre, where no rule binds and nothing has a price."""
+    """A cost of zero and no window: the search stays at the center, where no rule binds and nothing has a price."""
     result = cheese.optimal_inversion(InversionRules(costs={"Acetic": 0.0}))
 
     assert result.feasible
@@ -344,7 +344,7 @@ def test_with_nothing_to_pay_nothing_binds_and_the_answer_is_the_model_centre(ch
 def test_a_first_try_that_stops_short_starts_again_from_the_least_excess(
     cheese: PLS, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """When the first search from the centre stops outside a limit, the least-excess point is the next start."""
+    """When the first search from the center stops outside a limit, the least-excess point is the next start."""
     rules = InversionRules(costs=CHEESE_COSTS, windows={"Taste": (20.0, 30.0)})
     expected = cheese.optimal_inversion(rules).objective
     monkeypatch.setattr(oi, "_FIRST_TRY_ITERATIONS", 1)
@@ -359,7 +359,7 @@ def test_a_restart_that_finds_nothing_better_keeps_the_point_in_hand(
     problem = oi._Problem(affine_model(cheese), InversionRules(costs=CHEESE_COSTS, windows={"Taste": (20.0, 30.0)}))
     bounds, rows = problem.continuous_bounds(None), problem.core_rows()
     objective = problem.objective[problem.keep()]
-    point = problem.start(bounds)  # the model's centre: not the optimum
+    point = problem.start(bounds)  # the model's center: not the optimum
     search = oi._Search(lambda w: objective @ w, lambda _w: objective, point, bounds, [], problem.scale(bounds))
     monkeypatch.setattr(oi, "_slsqp", lambda s, _maxiter: s.start + 1e3)
 
@@ -712,7 +712,7 @@ def test_tpls_closest_blend_with_two_lots_per_material_is_what_tpls_predicts(pyp
 
 @pytest.mark.dataset
 def test_tpls_cheapest_blend_beats_every_training_blend_that_qualifies(pyphi: tuple[TPLS, dict]) -> None:
-    """Minimise cost under two windows: no training blend inside the windows and the limits is cheaper."""
+    """Minimize cost under two windows: no training blend inside the windows and the limits is cheaper."""
     model, data = pyphi
     affine = affine_model(model)
     lots = [n for g in GROUPS for n in model.material_names[g]]

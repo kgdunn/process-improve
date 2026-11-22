@@ -1,4 +1,4 @@
-"""``spe_plot`` and ``t2_plot`` honour ``settings["show_limit"]`` on every estimator that offers them (#1150)."""
+"""``spe_plot`` and ``t2_plot`` honor ``settings["show_limit"]`` on every estimator that offers them (#1150)."""
 
 from __future__ import annotations
 

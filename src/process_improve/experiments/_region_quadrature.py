@@ -218,7 +218,7 @@ def _boundaries(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Return where lines from ``low`` to ``high`` cross the boundary of the curved ``limits``.
 
-    Each line is cut at a grid of points. Where two neighbouring points differ, the step
+    Each line is cut at a grid of points. Where two neighboring points differ, the step
     between them is searched: at each search, the limits are evaluated at 15 points across
     the bracket, all brackets in one call, and the bracket shrinks to the sixteenth where the
     boundary first appears, until it is found to the last bit. Returns the grid, whether each
@@ -271,7 +271,7 @@ def _intervals(limits: list[Inequality], place: Place, low: float, high: float) 
 
 
 def _integral(f: Callable[[np.ndarray], np.ndarray], pieces: list[tuple[float, float]]) -> float:
-    """Return the integral of a vectorised ``f`` over the intervals ``pieces``.
+    """Return the integral of a vectorized ``f`` over the intervals ``pieces``.
 
     Gauss-Legendre on panels: a panel settles when its integral and the sum of its two
     halves' agree to :data:`_SETTLED` times the pieces' length, so the smooth stretches

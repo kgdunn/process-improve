@@ -228,7 +228,7 @@ def _alias_word(term: Any) -> list[str]:  # noqa: ANN401
 def _find_aliases(exog: np.ndarray, terms: list[Any], threshold: float) -> tuple[dict, list[int]]:
     """Find the model columns that are aliases of one another, and the ones to drop.
 
-    Two columns that vary are aliases when the absolute correlation of the centred
+    Two columns that vary are aliases when the absolute correlation of the centered
     columns exceeds ``threshold`` (a threshold of one means exactly, up to rounding);
     the sign of an alias is the sign of that correlation, so it holds in actual units
     too (``E = 30 - A`` is ``-A``). Columns that do not vary (the intercept, or a word

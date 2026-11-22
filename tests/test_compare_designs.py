@@ -31,7 +31,7 @@ from process_improve.experiments.compare import MEASURES, _curved_boundary, _mod
 from process_improve.experiments.visualization.plots import create_plot
 from process_improve.visualization.colors import diverging_colorscale
 
-#: The twelve design points behind the book's centre-run example: six half-rows and their negations.
+#: The twelve design points behind the book's center-run example: six half-rows and their negations.
 HALF = np.array([[0, 1, -1], [0, 1, 1], [1, -1, 0], [1, 0, -1], [1, 0, 1], [1, 1, 0]], dtype=float)
 POINTS = np.vstack([HALF, -HALF])
 
@@ -125,10 +125,10 @@ def test_a_d_e_and_power_agree_with_evaluate_design(design_type, options):
 
 # --------------------------------------------------------------------------- feasibility
 def test_a_two_level_design_cannot_fit_the_squares():
-    """At two levels every square equals 1, and a centre run makes them equal to each other instead."""
+    """At two levels every square equals 1, and a center run makes them equal to each other instead."""
     corners = generate_design(factors(), "full_factorial", n_center_points=0)
     centred = generate_design(factors(), "full_factorial", n_center_points=2)
-    comparison = compare_designs({"2^3": corners, "2^3 + 2 centre": centred})
+    comparison = compare_designs({"2^3": corners, "2^3 + 2 center": centred})
     bare, with_centre = (comparison.values[label] for label in comparison.designs)
     assert (bare["fits"], bare["rank"], bare["residual_df"]) == (False, 4, 4)
     assert (with_centre["fits"], with_centre["rank"], with_centre["residual_df"]) == (False, 5, 5)
@@ -476,7 +476,7 @@ HEAT_LIMIT = "3*T + 5*D <= 600"
 
 
 def heat_designs() -> dict[str, object]:
-    """Two quadratic designs inside the heat limit, and a face-centred CCD with three corners outside it."""
+    """Two quadratic designs inside the heat limit, and a face-centered CCD with three corners outside it."""
     inside = {
         name: generate_design(HEAT, name, constraints=[HEAT_LIMIT], budget=9, model_type="quadratic", random_state=1)
         for name in ("d_optimal", "i_optimal")

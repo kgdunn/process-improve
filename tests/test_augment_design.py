@@ -328,7 +328,7 @@ class TestFoldSigns:
 @pytest.mark.parametrize("augmentation_type", ["add_runs_optimal", "add_center_points", "replicate", "add_blocks"])
 @pytest.mark.parametrize("n_additional_runs", [0, -2, 1.5])
 def test_non_positive_run_count_is_refused(augmentation_type: str, n_additional_runs: float) -> None:
-    """add_runs_optimal with 0 or -2 added a run anyway; replicate and centre points failed inside pandas or numpy."""
+    """add_runs_optimal with 0 or -2 added a run anyway; replicate and center points failed inside pandas or numpy."""
     with pytest.raises(ValueError, match="n_additional_runs must be a positive whole number"):
         augment_design(
             _full_factorial_df(3), augmentation_type, n_additional_runs=n_additional_runs, target_model="interactions"
@@ -423,7 +423,7 @@ class TestAliasingExplanation:
         assert abs(self._correlation(result["augmented_design"], "A:B", "C:D")) == pytest.approx(1 / 3)
 
     def test_upgrade_to_rsm_keeps_two_factor_chains_aliased(self) -> None:
-        """Axial and centre runs are zero on every interaction column, so A:B = C:D survives."""
+        """Axial and center runs are zero on every interaction column, so A:B = C:D survives."""
         design = _fractional_factorial_df(["D=ABC"], names="ABCD")
         with pytest.warns(UserWarning, match="supports only 12"):
             result = augment_design(design, "upgrade_to_rsm", generators=["D=ABC"])
@@ -431,7 +431,7 @@ class TestAliasingExplanation:
         assert "independently estimable" not in result["explanation"]
 
     def test_center_points_leave_the_resolution_unchanged(self) -> None:
-        """Adding centre runs changes no aliasing."""
+        """Adding center runs changes no aliasing."""
         design = _fractional_factorial_df(["D=ABC"], names="ABCD")
         result = augment_design(design, "add_center_points", generators=["D=ABC"], n_additional_runs=3)
         assert result["after_metrics"]["resolution"] == 4
@@ -592,19 +592,19 @@ class TestUpgradeToRSM:
         assert "supports the main_effects model" in result["explanation"]
 
     def test_full_cube_supports_the_quadratic(self) -> None:
-        """A 2^3 cube with axial and centre runs estimates all 10 quadratic coefficients."""
+        """A 2^3 cube with axial and center runs estimates all 10 quadratic coefficients."""
         result = augment_design(_full_factorial_df(3), "upgrade_to_rsm")
         assert result["n_estimable"] == result["n_coefficients"] == 10
 
     @pytest.mark.parametrize(("existing", "added"), [(0, 5), (1, 4), (2, 3), (5, 0), (7, 0)])
     def test_centre_runs_are_topped_up_to_five(self, existing: int, added: int) -> None:
-        """The total used to fall as existing centres rose: 0 -> 5 total, 1 -> 4, 2 -> 3."""
+        """The total used to fall as existing centers rose: 0 -> 5 total, 1 -> 4, 2 -> 3."""
         design = pd.concat([_full_factorial_df(2), pd.DataFrame({"A": [0.0] * existing, "B": [0.0] * existing})])
         result = augment_design(design.reset_index(drop=True), "upgrade_to_rsm", alpha="face_centered")
         assert result["n_runs_after"] - result["n_runs_before"] == 4 + added
 
     def test_orthogonal_alpha_counts_the_new_centre_runs(self) -> None:
-        """alpha='orthogonal' must make the centred squared columns orthogonal in the final design."""
+        """alpha='orthogonal' must make the centered squared columns orthogonal in the final design."""
         result = augment_design(_full_factorial_df(3), "upgrade_to_rsm", alpha="orthogonal")
         squares = pd.DataFrame(result["augmented_design"]).to_numpy(float) ** 2
         centred = squares - squares.mean(axis=0)
@@ -617,7 +617,7 @@ class TestUpgradeToRSM:
         assert "central composite" in result["explanation"].lower() or "ccd" in result["explanation"].lower()
 
     def test_davies_composite_design_comes_from_its_factorial(self) -> None:
-        """Davies 11.72: a 2^3 completed with one centre run and six axial runs at 2, trials 9 to 15 (#796)."""
+        """Davies 11.72: a 2^3 completed with one center run and six axial runs at 2, trials 9 to 15 (#796)."""
         cube = pd.DataFrame(list(itertools.product([-1, 1], repeat=3)), columns=["T", "c", "t"])
         result = augment_design(cube, "upgrade_to_rsm", n_additional_runs=1, alpha=2.0)
         assert result["n_runs_after"] == 15
@@ -629,7 +629,7 @@ class TestUpgradeToRSM:
 
     @pytest.mark.parametrize(("existing", "asked"), [(0, 1), (0, 3), (2, 2)])
     def test_n_additional_runs_sets_the_second_stage_centre_runs(self, existing: int, asked: int) -> None:
-        """It was ignored: the centre runs were always topped up to five."""
+        """It was ignored: the center runs were always topped up to five."""
         design = pd.concat([_full_factorial_df(2), pd.DataFrame({"A": [0.0] * existing, "B": [0.0] * existing})])
         result = augment_design(
             design.reset_index(drop=True), "upgrade_to_rsm", alpha="face_centered", n_additional_runs=asked
@@ -637,7 +637,7 @@ class TestUpgradeToRSM:
         assert result["n_runs_after"] - result["n_runs_before"] == 4 + asked
 
     def test_the_stages_block_orthogonally_at_the_blocking_alpha(self) -> None:
-        """A 2^2 cube with three centre runs, then three more beside the axial runs: sqrt(2) (Montgomery 11.4)."""
+        """A 2^2 cube with three center runs, then three more beside the axial runs: sqrt(2) (Montgomery 11.4)."""
         design = pd.concat([_full_factorial_df(2), pd.DataFrame({"A": [0.0] * 3, "B": [0.0] * 3})])
         design = design.reset_index(drop=True)
         result = augment_design(design, "upgrade_to_rsm", alpha=np.sqrt(2), n_additional_runs=3)

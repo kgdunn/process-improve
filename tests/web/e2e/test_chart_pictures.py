@@ -1,6 +1,6 @@
 """The pictures of the charts on the list of what Factorial does (``web/chart-pictures/``).
 
-Each picture is a chart as the app draws it, in the light colours and on no ground of its own, written by this
+Each picture is a chart as the app draws it, in the light colors and on no ground of its own, written by this
 file: run it with ``PI_WRITE_CHART_PICTURES=1`` to draw them all again, after a change to how a chart looks or
 when a chart is added. No one study draws every chart, so five do, each named with the charts it is asked for.
 Without the variable the file holds those studies to the app: each still draws its charts, and together they
@@ -37,7 +37,7 @@ PICTURE = """async (key) => {
 
 
 def opened(context: Any, site: str, query: str = "") -> Any:  # noqa: ANN401 - a Playwright BrowserContext and Page
-    """Open the page at ``query``, in the light colours, and return it once Python has answered."""
+    """Open the page at ``query``, in the light colors, and return it once Python has answered."""
     page = context.new_page()
     page.emulate_media(color_scheme="light")
     page.goto(f"{site}{query}")

@@ -767,7 +767,7 @@ def test_a_budget_below_k_plus_1_recommends_a_supersaturated_design() -> None:
 
 
 def test_an_all_mixture_problem_optimises_with_a_mixture_design() -> None:
-    """The optimisation stage was a CCD on the components, which gave coded +/-alpha rows, not proportions."""
+    """The optimization stage was a CCD on the components, which gave coded +/-alpha rows, not proportions."""
     inputs = _SCENARIOS["bounded mixture"]
     strategy = recommend_strategy(**inputs)
     stage = next(s for s in strategy["stages"] if s["stage_name"] == "Optimization")
@@ -946,7 +946,7 @@ def test_domain_considerations_and_extra_stages_reach_the_output() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Screening that can decide whether the optimisation stage is needed
+# Screening that can decide whether the optimization stage is needed
 # ---------------------------------------------------------------------------
 
 
@@ -966,7 +966,7 @@ def test_eight_continuous_factors_screen_with_a_dsd_that_leaves_error_degrees_of
 
 
 def test_an_odd_number_of_factors_needs_one_centre_run_fewer_in_its_dsd() -> None:
-    """The odd DSD leaves one more degree of freedom for error per centre run than the even one."""
+    """The odd DSD leaves one more degree of freedom for error per center run than the even one."""
     screening = _stage(recommend_strategy(factors=_continuous(7), responses=_maximise()), "Screening")
     expected = ("dsd", {"n_center_points": 4}, 20)
     assert (screening["design_type"], screening["design_params"], screening["estimated_runs"]) == expected
@@ -998,7 +998,7 @@ def test_a_domain_preferring_plackett_burman_gets_centre_runs_and_a_conditional_
 
 
 def test_without_a_test_for_curvature_the_optimisation_stage_is_unconditional() -> None:
-    """A categorical factor has no centre, so a Plackett-Burman screen cannot test for curvature."""
+    """A categorical factor has no center, so a Plackett-Burman screen cannot test for curvature."""
     factors = [Factor(name="Supplier", type="categorical", levels=["a", "b"]), *_continuous(7)]
     strategy = recommend_strategy(factors=factors, responses=_maximise())
     assert _stage(strategy, "Screening")["design_params"] == {"n_center_points": 0}
@@ -1038,7 +1038,7 @@ def test_hard_limits_are_named_and_every_stage_stays_inside_them() -> None:
 
 
 def test_a_budget_that_would_strip_the_curvature_test_gets_one_dsd_instead() -> None:
-    """Reducing the plan to fit 30 runs gave a 12-run Plackett-Burman design and an optimisation always run."""
+    """Reducing the plan to fit 30 runs gave a 12-run Plackett-Burman design and an optimization always run."""
     strategy = recommend_strategy(factors=_continuous(8), responses=_maximise(), budget=30)
     assert [s["design_type"] for s in strategy["stages"]] == ["dsd", "replicates_at_optimum"]
     assert strategy["total_estimated_runs"] == 24
@@ -1064,7 +1064,7 @@ def test_a_dsd_plan_is_offered_plackett_burman_as_the_alternative() -> None:
     strategy = recommend_strategy(factors=_continuous(8), responses=_maximise())
     assert not any(alt.startswith("Definitive Screening Design") for alt in strategy["alternative_strategies"])
     assert any(
-        alt.startswith("Plackett-Burman design with 3 centre runs") for alt in strategy["alternative_strategies"]
+        alt.startswith("Plackett-Burman design with 3 center runs") for alt in strategy["alternative_strategies"]
     )
 
 

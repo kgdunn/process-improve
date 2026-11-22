@@ -23,7 +23,7 @@ and the audit work to verify a fix is multiplied.
 This guide pins one pattern per situation. The patterns are not
 novel - they follow the conventions used by NumPy, SciPy, and
 scikit-learn - so a contributor familiar with the scientific Python
-stack should not need to memorise anything new.
+stack should not need to memorize anything new.
 
 Decision tree
 -------------
@@ -73,7 +73,7 @@ Use ``ValueError`` for wrong *value*; use ``TypeError`` for wrong
 - the expected value or constraint.
 
 **Do not use** ``assert`` for these checks. Asserts are stripped
-by ``python -O``; the check silently disappears in optimised
+by ``python -O``; the check silently disappears in optimized
 deployments, and the bug surfaces miles downstream as a confusing
 NaN or shape mismatch.
 
@@ -260,8 +260,8 @@ those conditions is something a caller might trigger *on
 purpose*, give it its own subclass, so permitting that one case
 does not mean going blind to the rest::
 
-    class UncentredDataWarning(SpecificationWarning):
-        """A model that fits no intercept got an un-centred block."""
+    class UncenteredDataWarning(SpecificationWarning):
+        """A model that fits no intercept got an un-centered block."""
 
 Subclassing is backwards compatible: filters and
 ``pytest.warns(SpecificationWarning)`` assertions written
@@ -270,7 +270,7 @@ package ``__init__`` too, so a ``filterwarnings`` entry can name
 it without reaching into a private module.
 
 Narrower still is a constructor flag on the estimator that
-raises it (``PLS(..., warn_on_uncentred=False)``): it reaches
+raises it (``PLS(..., warn_on_uncentered=False)``): it reaches
 one model rather than a scope, needs no global filter, and
 survives ``clone()``. Offer the flag where the caller
 constructs the object, and the subclass for when they do not.

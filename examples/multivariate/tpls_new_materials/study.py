@@ -96,9 +96,9 @@ def fit_ceiling(n_components: int = 8, n_repeats: int = 6) -> pd.DataFrame:
 
 
 def pls_equivalence(components: tuple = (2, 4, 6, 8), n_repeats: int = 6) -> pd.DataFrame:
-    """Largest change of any in-sample prediction from TPLS, with centred F and no D deflation, to PLS on F D.
+    """Largest change of any in-sample prediction from TPLS, with centered F and no D deflation, to PLS on F D.
 
-    With one group of materials and no Z, that TPLS is a PLS on the mean properties ``F D`` that centres
+    With one group of materials and no Z, that TPLS is a PLS on the mean properties ``F D`` that centers
     them without scaling them and autoscales Y, as TPLS does. Approach 3a's PLS, which :func:`fit_ceiling`
     fits too, autoscales each mean property as well. The data sets are those of the "group A only" row of
     :func:`fit_ceiling`; with 8 components, as many as there are properties, both PLS models are least
@@ -408,7 +408,7 @@ def _real_one(group: str, n_comp: int, n_materials: int | None) -> pd.DataFrame:
 def real_data(
     components: tuple = (1, 2, 3, 4), n_materials: int | None = None, n_jobs: int = -1
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Leave-one-lot-out on the pyphi data: Q2 = 1 - PRESS / SS, Y columns standardised, per group."""
+    """Leave-one-lot-out on the pyphi data: Q2 = 1 - PRESS / SS, Y columns standardized, per group."""
     data = load_pyphi()
     y = data["Y"]["Quality"]
     jobs = [(g, a) for g in data["F"] for a in components]

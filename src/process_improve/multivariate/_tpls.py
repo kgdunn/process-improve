@@ -112,7 +112,7 @@ class DataFrameDict(dict):
                 f"Provided DataFrame has {value.shape[0]} rows."
             )
         # The setter intentionally stores a bare DataFrame here (not the nested
-        # dict[str, DataFrame] used at construction); preserve that behaviour.
+        # dict[str, DataFrame] used at construction); preserve that behavior.
         self.datadict[key] = value  # type: ignore[assignment]  # reason: legacy bare-DataFrame storage
 
     @typing.overload
@@ -349,7 +349,7 @@ class TPLS(RegressorMixin, BaseEstimator):
     w_loadings_super : pd.DataFrame
         Super-block weights, rows ``["Z", "F"]`` (or just ``["F"]`` when
         there are no process conditions). Each Z group is a block of its own
-        in the super-level, so several Z groups give one row each, labelled
+        in the super-level, so several Z groups give one row each, labeled
         ``Z["<group>"]``, before the ``"F"`` row.
     s_loadings_d, v_loadings_d : dict[str, pd.DataFrame]
         D-block scores and loadings per group.
@@ -360,7 +360,7 @@ class TPLS(RegressorMixin, BaseEstimator):
     q_loadings_y : dict[str, pd.DataFrame]
         Y-block loadings per Y-block.
     hat_ : dict[str, pd.DataFrame]
-        Per-Y-block predictions on the preprocessed (centred / scaled) scale.
+        Per-Y-block predictions on the preprocessed (centered / scaled) scale.
     hat : dict[str, pd.DataFrame]
         Per-Y-block in-sample predictions on the *original* scale.
     spe : dict[str, dict[str, pd.DataFrame or pd.Series]]
@@ -460,7 +460,7 @@ class TPLS(RegressorMixin, BaseEstimator):
     # used to be ``functools.partial`` instances bound in ``fit``; defining them
     # as real methods keeps ``help`` / ``inspect.signature`` accurate and the
     # fitted model picklable.
-    # Inversion as an optimisation: which lots, at what fractions, and which conditions, under rules.
+    # Inversion as an optimization: which lots, at what fractions, and which conditions, under rules.
     optimal_inversion = _model_method(_optimal_inversion)
     inversion_sensitivity = _model_method(_inversion_sensitivity)
 
@@ -542,7 +542,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             score_sd=_t2_score_sd(self.scaling_factor_for_scores.to_numpy()),
             t2_limit=float(self.hotellings_t2_limit(conf_level, judged_rows="new")),  # an input is a new row
             y_scale=np.concatenate([finite_or(self.preproc_["Y"][g]["scale"], 1.0) for g in self.quality_names]),
-            # In the inputs' order already: F is put in D's order before its centre and scale are learned.
+            # In the inputs' order already: F is put in D's order before its center and scale are learned.
             centre=np.concatenate([np.nan_to_num(self.preproc_[b][g]["center"]) for b, g, _ in columns]),
             spread=np.concatenate([finite_or(self.preproc_[b][g]["scale"], 1.0) for b, g, _ in columns]),
             diagnose=diagnose,
@@ -632,7 +632,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         # No missing_data_settings, so the resolver's message naming the estimator is never reached.
         settings = resolve_loop_settings(tol=self.tol, max_iter=self.max_iter, missing_data_settings=None)
         self._input_data_checks(X)
-        # F in D's order from here on, so the centre and scale learned for F are in the order diagnose reads it.
+        # F in D's order from here on, so the center and scale learned for F are in the order diagnose reads it.
         X = DataFrameDict(
             {**X.datadict, "F": {k: _f_in_the_order_of_d(f, self.d_matrix[k], k) for k, f in X["F"].items()}}
         )
@@ -695,7 +695,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             n_lots, n_properties = df_d.shape
             self.preproc_["D"][key]["block"] = float(np.sqrt(n_lots * n_properties))
             #
-            # Also do the same for the formula matrix. F used as given is not scaled, so its centre and
+            # Also do the same for the formula matrix. F used as given is not scaled, so its center and
             # scale are learned only for optimal inversion, which starts and steps from them.
             self.preproc_["F"][key] = {}
             self.preproc_["F"][key]["center"], self.preproc_["F"][key]["scale"] = (
@@ -859,7 +859,7 @@ class TPLS(RegressorMixin, BaseEstimator):
               the same DataFrame as ``cumulative_hotellings_t2``. Reading it warns.
             - ``residuals`` (dict[str, dict[str, DataFrame]]) : what is left of
               each ``"Z"`` and ``"F"`` group after all the components, in the
-              preprocessed (centred and scaled) units, keyed like ``spe``. The
+              preprocessed (centered and scaled) units, keyed like ``spe``. The
               last column of ``spe`` is the length of each row; a missing cell,
               and a column excluded for having no variance, leave 0.
         """
@@ -1097,7 +1097,7 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         See Also
         --------
-        make_tpls_scorer : Build a ``scoring=`` callable that TPLS can honour.
+        make_tpls_scorer : Build a ``scoring=`` callable that TPLS can honor.
         """
         _reject_separate_y(y, "TPLS.score")
         y_pred = self.diagnose(X).hat
@@ -1202,7 +1202,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             (:meth:`_name_blocks_with_no_variance`). It used to be excluded without a word (#513).
         """
         # pandas 2 hands a reduction the caller's own column labels, so a name given to them after
-        # the fit renamed the centre and scale too; pandas 3 does not, and both keep a copy now.
+        # the fit renamed the center and scale too; pandas 3 does not, and both keep a copy now.
         y = _own_axes(y)
         centering = pd.Series(column_mean(y), index=y.columns)  # pandas' mean was inf near 1e308 (#1149)
         # ddof=1, as pandas' std, and in any units: pandas' std was inf near 1e160 and 0 near 1e-160 (#1070)
@@ -1274,7 +1274,7 @@ class TPLS(RegressorMixin, BaseEstimator):
     def _regress_f_group_on_u(f_group: np.ndarray, u: np.ndarray, present: np.ndarray) -> np.ndarray:
         """Step 2 for one F group: ``h = F'u / u'u``, or NaN where ``F'u`` is only rounding error (#1144).
 
-        A group with no variation over the blends, used as given, meets a centred ``u`` with an
+        A group with no variation over the blends, used as given, meets a centered ``u`` with an
         ``F'u`` of about 1e-17 times ``||F|| ||u||``: exactly 0 with some numpy builds, not with
         others. Regressing D on that remainder gave F weights near 1e15 and took F out of the model
         without a word, or refused the fit, by build. Such a group now gets zero weight in place of
@@ -1637,7 +1637,7 @@ class TPLS(RegressorMixin, BaseEstimator):
     def d_block_scaling_(self) -> dict[str, float]:
         """Block-scaling factor applied to each D-block (read-only).
 
-        After column-wise centring and auto-scaling, every D-block ``X_i`` is additionally divided by
+        After column-wise centering and auto-scaling, every D-block ``X_i`` is additionally divided by
         ``sqrt(P_i * M_i)`` (``P_i`` = number of lots/rows, ``M_i`` = number of properties/columns) so that
         ``trace(X_i^T X_i) ~= 1``, removing bias toward blocks with more lots or properties
         (Garcia-Munoz, 2014, section 2.1).
@@ -1729,7 +1729,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         # The score standard deviations use the unbiased (N - 1) divisor, which is the
         # estimator the F-distribution limit in ``hotellings_t2_limit`` is derived for;
         # the previous N divisor inflated T2 by N / (N - 1). N is at least 2: one blend's
-        # Y column centres to 0, so the first regression on it is 0 / 0 and fit refuses it.
+        # Y column centers to 0, so the first regression on it is 0 / 0 and fit refuses it.
         scores_np = self.t_scores_super.to_numpy()
         n_obs = scores_np.shape[0]
         self.scaling_factor_for_scores = pd.Series(
@@ -2124,7 +2124,7 @@ def _reject_separate_y(y: object, where: str) -> None:
     """Raise if a caller supplies a conventional ``y`` to a T-shaped model.
 
     TPLS reads its response out of ``X["Y"]``, so a separate ``y`` is never the target
-    it scores against. Silently ignoring it (the behaviour before #565) let callers
+    it scores against. Silently ignoring it (the behavior before #565) let callers
     believe a response had been supplied when it had not.
 
     Parameters

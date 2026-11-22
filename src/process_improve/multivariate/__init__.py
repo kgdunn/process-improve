@@ -1,5 +1,6 @@
 """Multivariate analysis: PCA, PLS, TPLS, scaling, and diagnostic plots."""
 
+from process_improve.multivariate._common import _former_name
 from process_improve.multivariate.methods import (
     ASCA,
     FPCA,
@@ -14,7 +15,7 @@ from process_improve.multivariate.methods import (
     LinearRule,
     MCUVScaler,
     SpecificationWarning,
-    UncentredDataWarning,
+    UncenteredDataWarning,
     affine_model,
     center,
     check_predictive_signal,
@@ -68,7 +69,7 @@ __all__ = [
     "LinearRule",
     "MCUVScaler",
     "SpecificationWarning",
-    "UncentredDataWarning",
+    "UncenteredDataWarning",
     "affine_model",
     "center",
     "check_predictive_signal",
@@ -105,3 +106,11 @@ __all__ = [
     "t2_plot",
     "vip",
 ]
+
+
+def __getattr__(name: str) -> type:
+    """Return the class a former public name, such as ``UncentredDataWarning``, stands for, with a warning."""
+    try:
+        return _former_name(name)
+    except AttributeError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None

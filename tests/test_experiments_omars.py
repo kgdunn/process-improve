@@ -65,7 +65,7 @@ class TestOMARSProperties:
         assert is_omars(ff) is False
 
     def test_factor_never_leaving_the_middle_is_not_omars(self) -> None:
-        """A factor pinned at the centre has a constant quadratic, so it is not OMARS.
+        """A factor pinned at the center has a constant quadratic, so it is not OMARS.
 
         The mirror of :meth:`test_full_factorial_is_not_omars`: a two-level factor
         gives the constant quadratic ``1``, and a factor the design never varies

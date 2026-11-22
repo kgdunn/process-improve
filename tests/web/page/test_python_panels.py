@@ -40,7 +40,7 @@ from tests.web.api.test_level_limits import UP_TO
 from tests.web.api.test_level_limits import made as level_limited
 from tests.web.api.test_level_limits import results as level_results
 
-#: Best settings for the worked example as the catalogue gives it, its factors named in full: coded, as the page
+#: Best settings for the worked example as the catalog gives it, its factors named in full: coded, as the page
 #: sends them. The tests that make the example themselves, not through the shared fixtures, read the page's names.
 EXAMPLE_BEST = {"Temperature": 1.0, "Pressure": -1.0, "Flow": 0.6}
 
@@ -542,7 +542,7 @@ def aimed(held: dict, goal: str, target: float | None = None) -> dict:
 
 
 def assert_same_best(namespace: dict, best: dict, spec: dict) -> None:
-    """Assert that the code's optimiser finds the page's best settings, and the page's prediction and intervals."""
+    """Assert that the code's optimizer finds the page's best settings, and the page's prediction and intervals."""
     found = namespace["best"]
     for setting, factor in zip(best["settings"], spec["factors"], strict=True):
         if setting["kind"] == "numeric":
@@ -734,7 +734,7 @@ def test_the_best_blend_code_finds_the_page_s_best_blend(api, node, request_, go
 
 
 # --------------------------------------------------------------------------- several responses
-#: Three responses, as the brief lists them: a yield to maximise, a cost to minimise and a purity with a target.
+#: Three responses, as the brief lists them: a yield to maximize, a cost to minimize and a purity with a target.
 THREE = [
     {"name": "Yield", "label": "Yield", "units": "%", "goal": "maximize"},
     {"name": "Cost", "label": "Cost", "units": "$/kg", "goal": "minimize"},
@@ -1902,7 +1902,7 @@ def test_the_notebook_draws_each_figure_after_the_analysis_it_is_of(api, node, m
         figures={"response": "another response", "codes": codes},
     )
     assert len(other["cells"]) == len(book["cells"]) - 6, (
-        "figures of a response the notebook does not analyse are left out"
+        "figures of a response the notebook does not analyze are left out"
     )
 
 

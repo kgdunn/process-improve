@@ -54,7 +54,7 @@ def run_sheet(
     ----------
     runs : DesignResult, DataFrame or list of dicts
         The runs in the factors' actual units: a :class:`DesignResult` (its ``design_actual``,
-        in its randomised run order), or a table with a column per factor, such as the
+        in its randomized run order), or a table with a column per factor, such as the
         ``runs`` that :func:`~process_improve.experiments.recommend_next_step` returns. A
         ``Block`` column is kept.
     factors : sequence of Factor

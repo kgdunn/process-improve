@@ -1018,7 +1018,7 @@ class TestLinearForms:
     @pytest.mark.parametrize(
         ("ranges", "expression", "form"),
         [
-            # A's effect over its range is 1e-10 of B's: it is dropped, held at its centre, not at zero (bound 6)
+            # A's effect over its range is 1e-10 of B's: it is dropped, held at its center, not at zero (bound 6)
             ({"A": (1, 1 + 1e-9), "B": (0, 10)}, "A + B <= 6", ({"B": 1.0}, None, 4.9999999995)),
             (
                 {"t1": (1.7e9, 1.7e9 + 3600), "t2": (1.7e9, 1.7e9 + 3600)},
@@ -1044,7 +1044,7 @@ class TestLinearForms:
         """A setting meets a form's bounds where the region holds it, but for a sliver along the boundary.
 
         Random straight limits over factors whose ranges are narrow or wide next to their values,
-        with coefficients from 1e-6 to 1e3. A term held at zero rather than at its factor's centre
+        with coefficients from 1e-6 to 1e3. A term held at zero rather than at its factor's center
         once made the form and the region disagree on up to 10% of the box.
         """
         rng = np.random.default_rng(5)
@@ -1501,7 +1501,7 @@ class TestSlicePolygon:
             [200.0, 3.0],
             [150.0, 3.0],
         ]
-        assert region.slice_polygon("T", "P")["points"] == [  # F at its centre, 15
+        assert region.slice_polygon("T", "P")["points"] == [  # F at its center, 15
             [150.0, 1.0],
             [200.0, 1.0],
             [200.0, 3.0],

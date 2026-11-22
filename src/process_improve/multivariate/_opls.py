@@ -105,7 +105,7 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
     beta_coefficients_ : pd.DataFrame of shape (n_features, 1)
         Regression coefficients linking X directly to y, on the original scale.
     scores_ : pd.DataFrame of shape (n_samples, 1 + n_orthogonal)
-        Predictive score followed by the orthogonal scores, labelled
+        Predictive score followed by the orthogonal scores, labeled
         ``["t_predictive", "t_orthogonal_1", ...]``. Lets the inherited
         :meth:`score_plot` draw the predictive-vs-orthogonal score plot.
     x_filtered_ : pd.DataFrame of shape (n_samples, n_features)
@@ -199,7 +199,7 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         NotEnoughVarianceError
             If every column of X is constant, as across the family (#1144); if X has
             no variance left for a component, as when there are more components than
-            the rank of the centred X; if Y is constant (with
+            the rank of the centered X; if Y is constant (with
             ``scale=False``, if Y is 0 throughout); or if X has no covariance with Y.
         """
         self._validate_params()
@@ -251,7 +251,7 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         Xmat = X.to_numpy()
         y = Y.to_numpy()  # (N, 1)
         target_name = Y.columns
-        # A constant response, all 0 once centred, gives no predictive direction: refused, as PLS refuses it (#1128)
+        # A constant response, all 0 once centered, gives no predictive direction: refused, as PLS refuses it (#1128)
         check_y_varies(y)
         # An X with no variance is refused before X'y, which is then 0, is divided by its norm (#1114), in the
         # family's words (#1144).
@@ -272,7 +272,7 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         for i in range(n_ortho):
             _check_variance_left(Xd, size, i)
             t = Xd @ w_p  # (N, 1)
-            p = Xd.T @ t  # (K, 1): the loading on t, up to the scale that normalising w_o drops
+            p = Xd.T @ t  # (K, 1): the loading on t, up to the scale that normalizing w_o drops
             # Orthogonal weight: the part of the loading orthogonal to w_p.
             w_o = p - (w_p.T @ p).item() * w_p
             w_o = w_o / np.linalg.norm(w_o)

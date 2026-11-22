@@ -1,4 +1,4 @@
-# Multivariate app: feature catalogue
+# Multivariate app: feature catalog
 
 The features of a PCA and PLS application, grouped by kind: the reference list for
 planning the multivariate browser app in this folder. This is a collection only: there
@@ -25,7 +25,7 @@ A later source adds its letter, so the number of letters on an item is its weigh
 8. [UI expectations](#7-ui-expectations)
 9. [Settings and defaults](#8-settings-and-defaults)
 10. [Reporting, audit and sharing](#9-reporting-audit-and-sharing)
-11. [Results catalogue](#10-results-catalogue-what-can-be-plotted-or-listed)
+11. [Results catalog](#10-results-catalog-what-can-be-plotted-or-listed)
 12. [Glossary and notation](#11-glossary-and-notation)
 13. [Designed experiments](#12-designed-experiments)
 14. [Model exchange and deployment](#13-model-exchange-and-deployment)
@@ -49,8 +49,8 @@ The items both sources describe, by section: the first candidates for priority.
 - **Preprocessing**:
   - multiplicative scatter correction;
   - Savitzky-Golay derivatives;
-  - interaction and square terms built from centred and scaled parents;
-  - per-variable centring and weights;
+  - interaction and square terms built from centered and scaled parents;
+  - per-variable centering and weights;
   - a record of every transform applied;
   - plug-in user transforms.
 - **Algorithms**:
@@ -63,7 +63,7 @@ The items both sources describe, by section: the first candidates for priority.
     of freedom;
   - residual variance per row and per variable;
   - distance to the model;
-  - modelling power;
+  - modeling power;
   - leverage;
   - Hotelling's T² with its F limit and ellipse, identical in both;
   - jackknife uncertainty from the cross-validation models;
@@ -74,9 +74,9 @@ The items both sources describe, by section: the first candidates for priority.
   - correlation loadings.
 - **Plots**: histograms; a regression line on a scatter; the T² ellipse; response
   surfaces.
-- **Settings**: model centring on or off; the numbers of components used for results and
+- **Settings**: model centering on or off; the numbers of components used for results and
   for predictions.
-- **Sharing**: a model exported for use elsewhere; a named catalogue of results.
+- **Sharing**: a model exported for use elsewhere; a named catalog of results.
 
 ---
 
@@ -146,7 +146,7 @@ The items both sources describe, by section: the first candidates for priority.
   to the end, with a live sample of the result.
 - Column types: X, Y, qualitative X (dummy columns in the working copy), generated
   (recorded with its formula). B also marks the design and category columns of a
-  designed experiment ("levelled variables") `[B]`.
+  designed experiment ("leveled variables") `[B]`.
 - Classes of rows, set:
   - from marked rows, the class number incrementing each time;
   - from part of an id;
@@ -211,7 +211,7 @@ The items both sources describe, by section: the first candidates for priority.
 - Other chemometrics packages' files.
 - Databases, through a query wizard: tables, columns, filter, sort, a saved query.
 - Images, compressed to one row each (§4.8).
-- An import wizard over a colour-coded preview, where the user marks:
+- An import wizard over a color-coded preview, where the user marks:
   - the id rows and columns;
   - the X, Y and qualitative columns;
   - the excluded rows and columns;
@@ -223,7 +223,7 @@ The items both sources describe, by section: the first candidates for priority.
 - A context menu:
   - undo, cut, copy, paste, delete;
   - create a list, a plot, or a plot of X or Y rows;
-  - add to favourites or report;
+  - add to favorites or report;
   - add rows, columns or secondary ids;
   - quick info;
   - zoom out;
@@ -302,7 +302,7 @@ The items both sources describe, by section: the first candidates for priority.
   turn yellow), or drag a band of rows to set them missing.
 - The whole table or a subset, by SD multiples, values or percentiles.
 - Limits read from rows of the table.
-- A trimming overview: a pixel map of changed cells (red trimmed, grey winsorized).
+- A trimming overview: a pixel map of changed cells (red trimmed, gray winsorized).
 
 **3.3 Generated columns (changes the stored table)**
 - A wizard over the table: type an expression, preview it with statistics and quick info,
@@ -337,7 +337,7 @@ The items both sources describe, by section: the first candidates for priority.
 - A writes a new project: the filtered X plus untouched columns, optionally the original
   X; left-out rows as a secondary table; later secondary tables filtered automatically.
 - Orthogonal signal correction (OSC): removes from X only what is orthogonal to Y.
-  1. Start from a loading vector (a row of ones, the first PC of uncentred X, the
+  1. Start from a loading vector (a row of ones, the first PC of uncentered X, the
      average spectrum).
   2. t = Xp/p'p.
   3. Orthogonalize t to Y.
@@ -396,7 +396,7 @@ The items both sources describe, by section: the first candidates for priority.
 **3.5 Time-series filters (column-wise)**
 - Wavelet compression for PLS, to reduce the number of rows:
   - one target Y (several only if positively correlated: check by PCA first);
-  - X and Y padded and centred;
+  - X and Y padded and centered;
   - DWT or best basis on the target;
   - keep by variance of Y (85%) or by detail level;
   - the same positions kept for every column;
@@ -422,28 +422,28 @@ The items both sources describe, by section: the first candidates for priority.
   transform and weight.
 - Expanded terms (interactions and squares) `[A B]`:
   - cross terms and squares `[A B]`; cubes and three-factor terms built by hand;
-  - parents centred and scaled before multiplying `[A B]`: B centres each main variable
+  - parents centered and scaled before multiplying `[A B]`: B centers each main variable
     on the calibration rows and divides it by its SD;
-  - the model's own centring and weighting are applied after the terms are made `[B]`;
+  - the model's own centering and weighting are applied after the terms are made `[B]`;
   - mixed types take the higher type;
   - can be block scaled or given a modifier;
   - changing a lag deletes the terms built on it;
   - predictions from PCA, PCR and PLS rebuild the terms automatically; an MLR or
-    response-surface equation needs the stored centres and weights `[B]`.
-- Scaling: weight = base × block × modifier `[A B]` (B: one centre and one weight per
+    response-surface equation needs the stored centers and weights `[B]`.
+- Scaling: weight = base × block × modifier `[A B]` (B: one center and one weight per
   X and per Y column).
   - Base types:
     - UV;
-    - UVN (uncentred);
+    - UVN (uncentered);
     - Pareto, ParN;
-    - centre only;
+    - center only;
     - none;
     - freeze.
-  - Centring on the mean, or none (the origin) `[A B]`.
+  - Centering on the mean, or none (the origin) `[A B]`.
   - Block: 1/√K or 1/K^¼ (X and Y cannot share a block).
   - Modifier: 1 by default.
-  - Custom centre and weight (Frozen, FrozenC, FrozenN, UVF, NoneF); the weight given as
-    the weight, the SD, or a % of the centre.
+  - Custom center and weight (Frozen, FrozenC, FrozenN, UVF, NoneF); the weight given as
+    the weight, the SD, or a % of the center.
   - From two table rows or a file (names, mean, weights; per phase for batch data).
   - Weights recomputed whenever the included rows change, except frozen ones. A class
     model's weights come from its class.
@@ -510,8 +510,8 @@ The items both sources describe, by section: the first candidates for priority.
   - leverage correction `[B]`: a fast estimate without refitting, each Y residual
     divided by (1 − hᵢ), so extreme rows weigh more;
   - an iteration cap; no validation as an option.
-- Whether each cross-validation segment re-centres and re-scales its data is a stated
-  choice `[B]`: B re-centres but no longer re-scales, which it reports as slightly
+- Whether each cross-validation segment re-centers and re-scales its data is a stated
+  choice `[B]`: B re-centers but no longer re-scales, which it reports as slightly
   less conservative.
 
 **4.3 Statistics**
@@ -540,11 +540,11 @@ The items both sources describe, by section: the first candidates for priority.
     N `[A B]`;
   - total residual variance, also per cross-validation segment `[B]`;
   - explained variance per row `[B]`.
-- Modelling power, Mpowₖ = 1 − SVₖ/SV₀ₖ, the same as B's 1 − √(ResVar(a, k)/ResVar(0, k))
+- Modeling power, Mpowₖ = 1 − SVₖ/SV₀ₖ, the same as B's 1 − √(ResVar(a, k)/ResVar(0, k))
   `[A B]`. Fully relevant at 1; around A/K means little relevance.
 - Leverages `[A B]`:
   - in X, H₀ = T(T'T)⁻¹T', and in Y, H_Y = U(U'U)⁻¹U', proportional to T² `[A B]`;
-  - B adds 1/I for the centring, hᵢ = 1/I + Σₐ tᵢₐ²/tₐ'tₐ `[B]`;
+  - B adds 1/I for the centering, hᵢ = 1/I + Σₐ tᵢₐ²/tₐ'tₐ `[B]`;
   - variable leverages, Hₖ = Σₐ wₖₐ²/wₐ'wₐ `[B]`;
   - for MLR, hᵢ = 1/I + xᵢ'(X'X)⁻¹xᵢ `[B]`.
 - Hotelling's T², identical in both `[A B]`:
@@ -564,19 +564,19 @@ The items both sources describe, by section: the first candidates for priority.
   - (sᵢ/s₀)² ~ F, which gives the critical distance and the probability of belonging
     `[A B]`; A's guide gives F(K − A, (N − A − A₀)(K − A)), but a limit A printed (1.389)
     follows no stated degrees of freedom (URS STA-5);
-  - optionally weighted by modelling power.
+  - optionally weighted by modeling power.
 - Distance to the model in Y (DModY): sᵢ = √(Σfᵢₘ²/M), normalized by its s₀ `[A B]` (B:
   residual Y variance per row); measured, A's printed values are √2·v times this for M = 2
   (URS STA-5).
 - For predictions, "distance +": DModXPS+ = √(DModXPS² + d²), where d is how far the
   projection falls outside the model's score range, in residual units.
 - Coefficients `[A B]`:
-  - scaled and centred (CoeffCS), the same as B's weighted coefficients `[A B]`;
+  - scaled and centered (CoeffCS), the same as B's weighted coefficients `[A B]`;
   - raw (y = b₀ + Σbₖxₖ + Σbₖₖxₖ² + ..., for computation only) `[A B]` (B: B and B₀ on
     the original scale);
-  - Y in original units, X centred (CoeffC);
+  - Y in original units, X centered (CoeffC);
   - multiple-regression form (CoeffMR);
-  - all with the centring of squared and cross terms handled;
+  - all with the centering of squared and cross terms handled;
   - B = W(P'W)⁻¹C' = W*C', and b₀ = ȳ − x̄'b `[A B]`;
   - rotated toward pure profiles, K = B(BᵀB)⁻¹.
 - VIP: VIPₖ = √(Σₐ wₐₖ²·(SSYₐ₋₁ − SSYₐ)·K/(SSY₀ − SSY_A)). The sum of squares equals
@@ -638,7 +638,7 @@ The items both sources describe, by section: the first candidates for priority.
   - a mix of rows from several of these;
   - typed or pasted in.
 
-  It stays current. Centres can be imported.
+  It stays current. Centers can be imported.
 - Predicted scores with missing values follow Nelson, Taylor and MacGregor.
 - Prediction projects each new row through the model, giving its scores and residuals
   as well as ŷ `[A B]`:
@@ -655,12 +655,12 @@ The items both sources describe, by section: the first candidates for priority.
   - hierarchical Y.
 - Prediction with reference values `[A B]`: when Y is known for the prediction set, its
   RMSEP `[A B]`, and in B also SEP, bias, slope, offset, correlation, corrected SEP, and
-  the slope and offset labelled ICM `[B]`.
+  the slope and offset labeled ICM `[B]`.
 - Cross-validated predictions for test rows, from each round's submodel, with their
   jackknife SE.
-- Adaptive predictions: an EWMA of the centring of chosen columns, λ = 0.1. λ can be
+- Adaptive predictions: an EWMA of the centering of chosen columns, λ = 0.1. λ can be
   found from training rows, or updated continuously from three branches; a project of
-  the centres can be saved.
+  the centers can be saved.
 - A lagged model needs the same sampling interval; the first rows (up to the maximum lag)
   are incomplete.
 - Save the prediction set as a secondary table.
@@ -677,7 +677,7 @@ The items both sources describe, by section: the first candidates for priority.
     `[B]`;
   - model distance between two class models `[B]`;
   - discrimination power of each variable between two classes `[B]`;
-  - modelling power of each variable within a class `[A B]`;
+  - modeling power of each variable within a class `[A B]`;
   - a PLS-DA misclassification table.
 - What-if:
   - sliders per column, as a % of the value, a % of the range, or a value (±25% of the
@@ -719,7 +719,7 @@ The items both sources describe, by section: the first candidates for priority.
     response, its running sum, is previewed and plotted;
   - saved FIR models can be reused.
 - Auto- and cross-correlation (lags 0 to 30 and −30 to +20 by default), computed by FFT,
-  with optional centring or detrending.
+  with optional centering or detrending.
 - Wavelets:
   - DWT with fast multiresolution (Mallat) or the best basis (lowest entropy,
     Coifman-Wickerhauser);
@@ -741,7 +741,7 @@ The items both sources describe, by section: the first candidates for priority.
   - a target image, compressed by variance (a curve of coefficients kept) or by scale;
   - a preview of the reconstructed image, with its compression ratio and R²;
   - a saved parameter file.
-- The rows open as a project and are modelled as usual (for example PLS-DA with classes
+- The rows open as a project and are modeled as usual (for example PLS-DA with classes
   from the first letter of the file name).
 - The model's loadings, weights and coefficients are reconstructed and shown as images.
   New images are compressed the same way for prediction.
@@ -787,10 +787,10 @@ allowed range, and collects every warning in an outlier list `[B]`:
   - phases out of order;
   - a phase page: rename, delete, merge, choose the maturity column, assign variables;
   - a batch page: rows per batch and phase, delete, conditional delete.
-- Local centring per batch, phase and variable, from a file.
+- Local centering per batch, phase and variable, from a file.
 - Generated columns per phase. Transforms and scaling per phase.
 
-**5.2 Modelling the evolution (observation level)**
+**5.2 Modeling the evolution (observation level)**
 - One PLS model per phase, with time or maturity as Y, under a parent model.
 - The Y can be:
   - smoothed to increase strictly;
@@ -830,7 +830,7 @@ allowed range, and collects every warning in an outlier list `[B]`:
   with its average and SD.
 - Mark a whole batch and exclude it everywhere.
 
-**5.4 Modelling whole batches (batch level)**
+**5.4 Modeling whole batches (batch level)**
 - One row per batch. The columns can be:
   - initial conditions;
   - unfolded scores or raw variables;
@@ -888,10 +888,10 @@ allowed range, and collects every warning in an outlier list `[B]`:
   axis-label rotation and interval, the ids in titles; saved as the default.
 - Item selection: move items between selected and unselected; find text or class, X, Y,
   lags or cross terms; invert; select all.
-- Colour (scatter only):
-  - continuous, between begin and end colours, with colours for missing and for outside
+- Color (scatter only):
+  - continuous, between begin and end colors, with colors for missing and for outside
     below or above;
-  - by categories, splitting a range into n editable parts with editable colours;
+  - by categories, splitting a range into n editable parts with editable colors;
   - by score categories (a score or distance split the same way);
   - by density, with n levels;
   - by predictions;
@@ -945,9 +945,9 @@ allowed range, and collects every warning in an outlier list `[B]`:
 **6.4 Special plots**
 - Contour and response surface `[A B]`:
   - model, components, Y, two X on the axes with low and high limits;
-  - the other X held at low, centre, high or a custom value, shown beside the plot and
+  - the other X held at low, center, high or a custom value, shown beside the plot and
     editable live;
-  - resolution, number of levels, colour, level labels;
+  - resolution, number of levels, color, level labels;
   - B finds and reports the maximum, minimum or saddle point of a response surface
     `[B]`.
 - Wavelet structure:
@@ -961,7 +961,7 @@ allowed range, and collects every warning in an outlier list `[B]`:
 - Visualization dashboard:
   - four linked plots (a score scatter beside line or histogram plots of three
     variables);
-  - a property bar to choose the model, components and the colouring variable;
+  - a property bar to choose the model, components and the coloring variable;
   - marking in one marks in all;
   - right-click to change a plot's type, reusing its window.
 
@@ -973,7 +973,7 @@ allowed range, and collects every warning in an outlier list `[B]`:
   - bias, the mean of y − x;
   - the correlation coefficient;
   - RMSED and SED, the root mean square of y − x and its SD about the bias.
-- Cell colours in lists: out-of-limit predictions in red; classification probabilities
+- Cell colors in lists: out-of-limit predictions in red; classification probabilities
   green or red; misclassifications highlighted; significant components in green.
 - Axes:
   - range, ticks, decimals;
@@ -1016,7 +1016,7 @@ allowed range, and collects every warning in an outlier list `[B]`:
   - copy;
   - create a list or a plot;
   - show as histogram;
-  - add to favourites, add to report;
+  - add to favorites, add to report;
   - quick info;
   - sort;
   - plot settings;
@@ -1046,14 +1046,14 @@ allowed range, and collects every warning in an outlier list `[B]`:
 - Dockable panes:
   - audit trail;
   - advisor;
-  - favourites;
+  - favorites;
   - item information;
   - marked items;
   - observations;
   - variables;
   - what-if;
   - quick info.
-- Favourites: commands and plots in folders; run a whole folder.
+- Favorites: commands and plots in folders; run a whole folder.
 
 **7.5 Guidance and help**
 - A working-copy wizard (simple mode) that states the model it will build and fits it;
@@ -1096,10 +1096,10 @@ allowed range, and collects every warning in an outlier list `[B]`:
   - confidence level (95%);
   - significance level (0.05);
   - wavelet reconstruction on or off;
-  - centring on the mean or none `[A B]`;
+  - centering on the mean or none `[A B]`;
   - the warning limits, and outlier and leverage detection on or off (§4.9) `[B]`.
 - Predictions: units of predicted Y; apply the working copy's trimming; adaptive λ (0.1).
-- Distance: normalized or absolute; weighted by modelling power or not.
+- Distance: normalized or absolute; weighted by modeling power or not.
 - Labels: the default id and its part; title ids; a 500-label cap.
 - Residuals raw or standardized; R² explained or adjusted; coefficient type;
   cross-validation groups; components for results and predictions `[A B]`.
@@ -1108,10 +1108,10 @@ allowed range, and collects every warning in an outlier list `[B]`:
   - folders (including the plug-in folder);
   - tab position;
   - simple or advanced mode;
-  - print lists in colour;
+  - print lists in color;
   - caching.
 - Each file remembers its display preferences when it closes `[B]`.
-- Restore factory plot styles, favourites, toolbars and "don't show again" messages.
+- Restore factory plot styles, favorites, toolbars and "don't show again" messages.
 
 ---
 
@@ -1145,7 +1145,7 @@ allowed range, and collects every warning in an outlier list `[B]`:
 
 ---
 
-## 10. Results catalogue (what can be plotted or listed)
+## 10. Results catalog (what can be plotted or listed)
 
 Every quantity has a name, in both sources `[A B]`. A's suffixes say where a result
 comes from:
@@ -1164,7 +1164,7 @@ Data types:
 - Scores t, u, tPS, tcv, tcvSE, tPScv, tPScvSE `[A B]`; B also has preliminary scores,
   and scores within each class model `[B]`.
 - T², T²PS, T² range, T² range PS `[A B]`.
-- DModX, DModXPS and DModXPS+, each absolute, normalized or modelling-power weighted
+- DModX, DModXPS and DModXPS+, each absolute, normalized or modeling-power weighted
   `[A B]`.
 - DModY, DModYPS. PModX, PModXPS, PModXPS+, PModY, PModYPS.
 - Leverages in X and Y `[A B]`, and within each class model `[B]`. Observation risk,
@@ -1191,7 +1191,7 @@ Data types:
   also has each segment's coefficients and their p-values `[B]`.
 - p-values for every loading and loading weight `[B]`.
 - VIP and its cv and cvSE; batch VIP.
-- Modelling power `[A B]`; discrimination power between two classes `[B]`.
+- Modeling power `[A B]`; discrimination power between two classes `[B]`.
 - Variable leverage `[B]`.
 - Q²V and Q²V(cum); R²V, R²V(cum), R²V(adj) and R²V(adj)(cum), for X and Y `[A B]`.
 - Residual variances S2VX and S2VY (at component 0, the working copy's variances)
@@ -1278,7 +1278,7 @@ B states its symbols in one table:
 |---|---|
 | a, A | component number, number of components |
 | b₀, **B** | intercept, regression coefficients |
-| C | 1 if the model is centred, 0 if not |
+| C | 1 if the model is centered, 0 if not |
 | d | degrees of freedom |
 | **E**, **F** | X and Y residuals for a model with a components |
 | h, **H** | leverage |
@@ -1301,7 +1301,7 @@ columns: M in A, J in B). The app should pick one set and use it everywhere.
 
 Everything in this section is `[B]`. A imports designs from a separate tool (§2), and its cautions refer to them: undesigned
 data do not show cause and effect, and cross terms belong to response-surface designs.
-B builds and analyses designs itself.
+B builds and analyzes designs itself.
 
 **Designs**
 - Full factorial, fractional factorial, Plackett-Burman, combined designs.
@@ -1315,7 +1315,7 @@ B builds and analyses designs itself.
 - Interactions and squares from the coded levels, without standardization.
 
 **Response surface analysis**
-- MLR with the main variables centred first; ANOVA table, lack of fit, a curvature test.
+- MLR with the main variables centered first; ANOVA table, lack of fit, a curvature test.
 - The maximum, minimum or saddle point of the fitted surface.
 
 **Significance testing** (MLR-based methods)
@@ -1344,7 +1344,7 @@ B builds and analyses designs itself.
 
 **Predictions**
 - From an MLR or response-surface model, by its coefficient equation, with the main
-  variables centred and the interaction terms rebuilt from the stored centres and
+  variables centered and the interaction terms rebuilt from the stored centers and
   weights (§3.6).
 
 ---
@@ -1359,7 +1359,7 @@ built for prediction outside the application `[B]`:
 - Plain text, everything needed for prediction and classification.
 - "Mini": the coefficients and intercepts only, for prediction alone.
 - "Full" adds what outlier statistics need:
-  - X and Y weights and centres;
+  - X and Y weights and centers;
   - residual variances;
   - loadings and loading weights;
   - sums of squares;
@@ -1375,7 +1375,7 @@ built for prediction outside the application `[B]`:
   - numbers of rows, X and Y columns;
   - validation method;
   - components present, and the suggested number;
-  - centring;
+  - centering;
   - calibration and test rows, cross-validation segments;
   - instrument parameters;
   - the list of matrices.

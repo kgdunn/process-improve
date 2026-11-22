@@ -2,7 +2,7 @@
 
 pyDOE3's ``fracfact_by_res`` could not build the 2^(3-1), 2^(4-1) or 2^(5-1) half
 fractions ("design not possible"), and for 7 to 11 factors at resolution V it
-returned resolution IV designs labelled V. Designs up to 11 factors now come from a
+returned resolution IV designs labeled V. Designs up to 11 factors now come from a
 table of minimum-aberration generators, and the reported resolution is always the
 one the design has: these tests measure it from the runs themselves.
 """
@@ -238,7 +238,7 @@ class TestReportedMetadata:
     def test_fractional_ccd_cube_really_is_resolution_v(self) -> None:
         """A resolution-V cube for 7 factors needs 64 runs.
 
-        pyDOE3 gave a 32-run cube labelled V that was resolution IV, so the CCD's check
+        pyDOE3 gave a 32-run cube labeled V that was resolution IV, so the CCD's check
         for resolution V passed while two-factor interactions were aliased.
         """
         result = generate_design(
@@ -361,11 +361,11 @@ class TestBudgetSizesTheFraction:
         assert result.n_runs == 32
 
     def test_centre_runs_and_replicates_are_counted(self) -> None:
-        """35 runs hold the 32-run fraction and 3 centre runs; 32 runs with 3 centre runs hold only 16."""
+        """35 runs hold the 32-run fraction and 3 center runs; 32 runs with 3 center runs hold only 16."""
         factors = _factors(7)
         result = generate_design(factors, design_type="fractional_factorial", budget=35, n_center_points=3)
         assert result.n_runs == 35
-        with pytest.warns(UserWarning, match="29 run.*after 3 centre run"):
+        with pytest.warns(UserWarning, match="29 run.*after 3 center run"):
             result = generate_design(factors, design_type="fractional_factorial", budget=32, n_center_points=3)
         assert result.n_runs == 16 + 3
         result = _fraction(6, budget=32, n_replicates=2)

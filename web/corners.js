@@ -193,7 +193,7 @@ function cornerRow(row, probes) {
   return tr;
 }
 
-/** Show a row as marked, ruled out by a limit (ticked, and greyed: a limit decides it), or neither. */
+/** Show a row as marked, ruled out by a limit (ticked, and grayed: a limit decides it), or neither. */
 function markRow(tr) {
   const row = Number(tr.dataset.row);
   const by = limitNumbers(row);

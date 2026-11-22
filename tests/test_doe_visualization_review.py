@@ -203,7 +203,7 @@ def _unreplicated_analysis(significance_level: float) -> dict:
 
 
 def test_lenth_margins_drawn_at_the_analysis_level_are_the_analysis_margins() -> None:
-    """At the level the analysis used, the plot draws its ME and SME as reported, labelled with that level.
+    """At the level the analysis used, the plot draws its ME and SME as reported, labeled with that level.
 
     The plot looked for the level under ``alpha``, but the analysis stores it as
     ``significance_level``, so an analysis at 0.10 was taken to be at 0.05.
@@ -247,7 +247,7 @@ def test_visualize_doe_forwards_the_model() -> None:
 
 
 def test_default_model_is_the_richest_the_design_estimates() -> None:
-    """A 2^2 with centre points has three levels per factor, but cannot estimate both squares."""
+    """A 2^2 with center points has three levels per factor, but cannot estimate both squares."""
     rows = [{"A": a, "B": b, "y": 0.0} for a, b in itertools.product([-1, 1], repeat=2)]
     rows += [{"A": 0, "B": 0, "y": 0.0}] * 3
     spec = create_plot("prediction_variance", design_data=rows, response_column="y").to_spec()
@@ -261,7 +261,7 @@ def test_default_model_is_the_richest_the_design_estimates() -> None:
 
 
 def _fitted_quadratic(first: str) -> tuple[list[dict[str, float]], dict]:
-    """Return a face-centred CCD in two factors, the first named ``first``, and its fitted quadratic model."""
+    """Return a face-centered CCD in two factors, the first named ``first``, and its fitted quadratic model."""
     factors = [Factor(name=name, low=-1, high=1) for name in (first, "T")]
     design = pd.DataFrame(generate_design(factors, design_type="ccd", alpha="face_centered").design)[[first, "T"]]
     y = pd.Series(50 + 3 * design[first] - 2 * design["T"] - 4 * design[first] ** 2 + design.index % 3, name="y")

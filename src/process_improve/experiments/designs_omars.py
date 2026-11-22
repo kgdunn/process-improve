@@ -21,9 +21,9 @@ This module provides two things:
   them to validate designs we generate, designs produced by a future
   enumerator, or designs supplied from an external source.
 
-A public catalogue of enumerated OMARS designs exists, but it is unlicensed
+A public catalog of enumerated OMARS designs exists, but it is unlicensed
 and is therefore **not** redistributed with this package.  The verifiers here
-let a user cross-check a generated design against such a catalogue offline.
+let a user cross-check a generated design against such a catalog offline.
 
 References
 ----------
@@ -236,7 +236,7 @@ def dispatch_omars(factors: list[Factor], *, verify: bool = True) -> tuple[np.nd
     (``2k + 3`` runs).  This yields the definitive screening design, the
     conference-matrix member of the foldover OMARS family.  It is not the
     smallest OMARS design for odd ``k``: ``2k + 1`` runs suffice, for example
-    the foldover of the identity matrix with a centre run.  For larger designs,
+    the foldover of the identity matrix with a center run.  For larger designs,
     with error degrees of freedom for a second-order model, see
     :func:`~process_improve.experiments.generate_omars`.
 

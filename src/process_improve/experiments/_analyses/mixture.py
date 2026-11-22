@@ -8,7 +8,7 @@ gives a response of zero, which is rarely a question anyone asks. The questions 
 mean something are:
 
 - **Do the components blend differently at all?** The linear block is tested as one
-  hypothesis, ``beta_1 = beta_2 = ... = beta_q``, which is the mixture analogue of
+  hypothesis, ``beta_1 = beta_2 = ... = beta_q``, which is the mixture analog of
   testing every main effect at once (Cornell, *Experiments with Mixtures*).
 - **Is there non-linear blending?** Each ``x_i x_j`` (and ``x_i x_j x_k``) term is
   tested against zero, as in any regression; those hypotheses are meaningful.

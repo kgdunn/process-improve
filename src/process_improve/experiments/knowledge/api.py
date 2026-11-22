@@ -42,7 +42,7 @@ def doe_knowledge(
         ``"response_surface"``. Results then come only from that topic's
         entries; without a query, all of them are returned.
     context : dict, optional
-        Experimental context for design-selection queries.  Recognised keys:
+        Experimental context for design-selection queries.  Recognized keys:
 
         * ``n_factors`` (int) - number of factors
         * ``budget`` (int) - maximum number of runs

@@ -1,7 +1,7 @@
 # Cross-check of designs against other libraries
 
-`compare.py` builds the designs of the reference catalogue with another library and compares
-every printed number that depends on how a design is built. The catalogue's own checker
+`compare.py` builds the designs of the reference catalog with another library and compares
+every printed number that depends on how a design is built. The catalog's own checker
 measures both designs, so only the construction differs. The results are reported in
 `docs/validation.rst`.
 
@@ -40,8 +40,8 @@ a conference design or an orthogonal array with OApackage.
 | `other differs` | process-improve gives the printed number; the other library gives another |
 | `other cannot build` | The other library has no such design, or declines the request |
 | `process-improve differs` | The other library gives the printed number; process-improve does not |
-| `neither gives the printed number` | Neither does; the catalogue records the cause, most often a misprint |
+| `neither gives the printed number` | Neither does; the catalog records the cause, most often a misprint |
 
 A row that differs is a starting point, not a verdict. Some come from how a request is mapped
-to the other library (for example which centre runs go to which block), so each group of
+to the other library (for example which center runs go to which block), so each group of
 differences is examined before it is reported.

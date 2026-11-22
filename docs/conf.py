@@ -111,8 +111,8 @@ html_context = {
 }
 
 html_theme_options = {
-    # The mark is a two-level factorial design in two factors with a centre point, in the
-    # README banner's colours.
+    # The mark is a two-level factorial design in two factors with a center point, in the
+    # README banner's colors.
     "logo": {
         "text": "process-improve",
         "image_light": "_static/logo/logo-light.svg",

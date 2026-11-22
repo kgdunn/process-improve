@@ -1,6 +1,6 @@
 # Multivariate app: user requirements
 
-The requirements this app is built to, chosen line by line from the feature catalogue
+The requirements this app is built to, chosen line by line from the feature catalog
 ([`FEATURES.md`](FEATURES.md)) in the review of 24 October 2026. Each line has an id to quote in
 commits and pull requests, says what it covers, and says how much of it `process_improve` (the
 library or this page) already has. A line marked *in* or *partly* is mostly a matter of wiring the
@@ -65,7 +65,7 @@ In numbers: 93 Definitely lines, of which 12 are in process-improve and 58 partl
   - Already there: SetIndex makes a column the row ids; every point and cell in the page carries its row id and column id.
 - **PRJ-8** Column types: X, Y, qualitative (as dummy columns), generated (with its formula), design. *(partly in process-improve)*
   - Column types: X, Y, qualitative X (expanded to dummy columns in the working copy), generated (kept with its formula), and the design and category columns of a designed experiment.
-  - Already there: AddColumn keeps its expression; PLSDA one-hot encodes a class column; FAMD and MCA analyse categorical columns.
+  - Already there: AddColumn keeps its expression; PLSDA one-hot encodes a class column; FAMD and MCA analyze categorical columns.
 - **PRJ-9** Classes of rows, set from marks, ids, value ranges, equal bins or a qualitative column. *(partly in process-improve)*
   - Classes of rows, set from marked rows (the class number increments each time), from part of an id, from a range of a column or a score, into n classes of equal range or size, or one per level of a qualitative column. Only included rows belong to a class; a column belongs to all classes or to chosen ones.
   - Already there: Named sets in the selection store: a saved lasso, combined by union, intersection and difference.
@@ -81,8 +81,8 @@ In numbers: 93 Definitely lines, of which 12 are in process-improve and 58 partl
   - Import delimited text: tab, blank, semicolon or comma separated, with comment lines; also a plain matrix format with a header and row and column names.
   - Import spreadsheets, with dates, from one or more worksheets.
   - Already there: SourceFile reads CSV with a chosen separator, decimal mark, header, skipped rows, missing codes and encoding; the page opens CSV files. SourceFile reads Excel, one chosen sheet.
-- **DAT-4** An import wizard on a colour-coded preview: mark ids, X, Y, excluded rows, missing codes. *(partly in process-improve)*
-  - An import wizard over a colour-coded preview, marking the id rows and columns, the X, Y and qualitative columns, the excluded rows and columns, and the missing-value code. Ids are generated when the file has none; a summary page comes before finishing.
+- **DAT-4** An import wizard on a color-coded preview: mark ids, X, Y, excluded rows, missing codes. *(partly in process-improve)*
+  - An import wizard over a color-coded preview, marking the id rows and columns, the X, Y and qualitative columns, the excluded rows and columns, and the missing-value code. Ids are generated when the file has none; a summary page comes before finishing.
   - Already there: The page opens a file into the table; Use as Y marks the Y columns; recipe steps set the row ids and drop rows and columns.
 - **DAT-5** Edit the table as a spreadsheet: insert, delete, replace, sort, transpose, find, undo. *(partly in process-improve)*
   - The table works as a spreadsheet, with a context menu for its actions (undo, cut, copy, paste, delete; create a list or plot; add rows, columns or secondary ids; quick info; save as text, print, properties).
@@ -115,23 +115,23 @@ In numbers: 93 Definitely lines, of which 12 are in process-improve and 58 partl
   - For one column: limits as values or as the median plus or minus k robust SDs, with the count and % beyond each; replace by an SD multiple, a limit, a percentile or the last value inside, or exclude the rows; apply and reset.
   - Graphically: drag over the histogram or the time series (cut values turn yellow), or drag a band of rows to set them missing.
   - For the whole table or a subset, by SD multiples, values or percentiles, or with limits read from rows of the table.
-  - A trimming overview: a pixel map of the changed cells (red trimmed, grey winsorized).
+  - A trimming overview: a pixel map of the changed cells (red trimmed, gray winsorized).
   - Trim or winsorize the working copy only, graphically too, with a trim summary.
 - **PRE-3** Generated columns from an expression, kept with their formula. *(in process-improve)*
   - Generated columns from an expression, previewed with statistics before finishing; the formula is kept with the column and recorded in the log.
   - Already there: AddColumn recipe step: a parsed, safe expression, kept in the recipe and written as Python; the page's Add column.
-- **PRE-7** Expanded terms: cross and square terms from centred, scaled parents. *(partly in process-improve)*
-  - Expanded terms: cross terms and squares (cubes and three-factor terms by hand), built from parents centred and scaled on the calibration rows, the model's own centring and weighting applied afterwards; predictions rebuild the terms.
-  - Already there: interactions.interaction_terms builds two-factor terms from centred, scaled parents and re-centres them; pair_coverage says whether the data can support each pair.
-- **PRE-8** Scaling per column: unit variance, Pareto, centre only, none, frozen, block weights. *(partly in process-improve)*
-  - Scaling per column, weight = base × block × modifier, with one centre and one weight per X and Y column.
-  - Base types: unit variance, unit variance uncentred, Pareto (centred or not), centre only, none, frozen.
-  - Centring on the mean, or none (through the origin).
+- **PRE-7** Expanded terms: cross and square terms from centered, scaled parents. *(partly in process-improve)*
+  - Expanded terms: cross terms and squares (cubes and three-factor terms by hand), built from parents centered and scaled on the calibration rows, the model's own centering and weighting applied afterwards; predictions rebuild the terms.
+  - Already there: interactions.interaction_terms builds two-factor terms from centered, scaled parents and re-centers them; pair_coverage says whether the data can support each pair.
+- **PRE-8** Scaling per column: unit variance, Pareto, center only, none, frozen, block weights. *(partly in process-improve)*
+  - Scaling per column, weight = base × block × modifier, with one center and one weight per X and Y column.
+  - Base types: unit variance, unit variance uncentered, Pareto (centered or not), center only, none, frozen.
+  - Centering on the mean, or none (through the origin).
   - Block weights (1/√K or 1/K^¼) and a modifier (1 by default).
-  - Custom centres and weights (frozen), given as the weight, the SD or a % of the centre, from two table rows or a file (per phase for batch data).
+  - Custom centers and weights (frozen), given as the weight, the SD or a % of the center, from two table rows or a file (per phase for batch data).
   - Weights recomputed whenever the included rows change, except frozen ones; a class model's weights come from its class; each column's average and SD shown beside its scaling.
   - Show the working copy raw or in scaled units.
-  - Already there: MCUVScaler (unit variance); chemistry.center_and_scale (autoscale or Pareto); MBPCA and MBPLS weight the blocks. The page always uses unit variance. Unit variance and Pareto in the library. PLS(scale=False) and PCA on uncentred data; MCUVScaler centres. MBPCA and MBPLS weight each block. Variant.fit scales on the included rows only.
+  - Already there: MCUVScaler (unit variance); chemistry.center_and_scale (autoscale or Pareto); MBPCA and MBPLS weight the blocks. The page always uses unit variance. Unit variance and Pareto in the library. PLS(scale=False) and PCA on uncentered data; MCUVScaler centers. MBPCA and MBPLS weight each block. Variant.fit scales on the included rows only.
 
 ### MOD: Models and validation
 
@@ -166,7 +166,7 @@ In numbers: 93 Definitely lines, of which 12 are in process-improve and 58 partl
   - Already there: PCA.select_n_components (cv_scheme ekf, ckf, ek, sacv, gcv); PLS.select_n_components, row-wise k-fold, repeated.
 - **MOD-10** Validation choices: cross-validation groups, a test set, leverage correction, re-scaling per segment. *(partly in process-improve)*
   - Validation methods: cross-validation (7 rounds by default; groups by every n-th row, by a score, a column or an id; random or systematic; frozen rows), a test set chosen at random or by hand, leverage correction (fast, no refit), or no validation.
-  - Whether each segment re-centres and re-scales its data is a stated choice.
+  - Whether each segment re-centers and re-scales its data is a stated choice.
   - A held-out row with missing cells is predicted by the same choice of projection as a new row (PRD-2). On a published example with missing cells, source A's single-component projection gives the printed cross-validated Q² of 16 %; trimmed score regression gives 18.5 %.
   - Already there: select_n_components takes any scikit-learn splitter and repeats it; diagnose and predict score a test set. No leverage correction. PCA.select_n_components takes scale_inside_folds; compare_cv_criteria scales inside the folds and warns about scaling traps. No choice of projection for held-out rows: select_n_components uses trimmed score regression.
 - **MOD-11** PLS by SIMPLS as well as by NIPALS. *(not in process-improve)*
@@ -188,21 +188,21 @@ In numbers: 93 Definitely lines, of which 12 are in process-improve and 58 partl
   - R² as an explained sum of squares or adjusted for degrees of freedom, also per variable (R²V, R²V(adj)), with the degrees of freedom stated for each use.
   - Residual variance per column and per row, for calibration and validation (SD and residual SD, original and scaled, degrees of freedom, N); total residual variance per cross-validation segment; explained variance per row.
   - Already there: r2_per_variable_ on PCA and PLS. No adjusted R². SPE per row (spe_) and R² per column (r2_per_variable_).
-- **STA-3** Modelling power of each variable, and leverages of rows and variables. *(not in process-improve)*
-  - Modelling power of each variable, 1 − SVₖ/SV₀ₖ (1 is fully relevant; near A/K is little relevance).
-  - Leverages of rows in X and in Y (with 1/I for the centring), of variables, and for MLR.
+- **STA-3** Modeling power of each variable, and leverages of rows and variables. *(not in process-improve)*
+  - Modeling power of each variable, 1 − SVₖ/SV₀ₖ (1 is fully relevant; near A/K is little relevance).
+  - Leverages of rows in X and in Y (with 1/I for the centering), of variables, and for MLR.
 - **STA-4** Hotelling's T², with its limits and ellipse. *(partly in process-improve)*
   - Hotelling's T² over any range of components, with its F-based limits (95% and 99%) and the T² ellipse; a zero significance hides the limits.
-  - The limit depends on the row. A fitted row helped estimate the centre and the score variances, so its T² can never exceed (N − 1)²/N, and its law is T² ~ ((N − 1)²/N)·Beta(A/2, (N − A − 1)/2) (Tracy, Young and Mason, 1992; exact for fixed variables, close for scores chosen from the same data): a fitted row's limit comes from it, and the score plot's ellipse is drawn at it with A = 2. A new row's limit is A(N² − 1)/(N(N − A))·F(A, N − A), as source A's guide gives it. Source A's own exports use A(N − 1)/(N − A)·F(A, N − A) for fitted rows; that form can lie above (N − 1)²/N, where it can flag no fitted row (10.03 against 8.10 at N = 10, A = 2), and it is kept only to reproduce source A's numbers. A further form source A has drawn, A·F(A, N − A) with no N factor, is not used.
+  - The limit depends on the row. A fitted row helped estimate the center and the score variances, so its T² can never exceed (N − 1)²/N, and its law is T² ~ ((N − 1)²/N)·Beta(A/2, (N − A − 1)/2) (Tracy, Young and Mason, 1992; exact for fixed variables, close for scores chosen from the same data): a fitted row's limit comes from it, and the score plot's ellipse is drawn at it with A = 2. A new row's limit is A(N² − 1)/(N(N − A))·F(A, N − A), as source A's guide gives it. Source A's own exports use A(N − 1)/(N − A)·F(A, N − A) for fitted rows; that form can lie above (N − 1)²/N, where it can flag no fitted row (10.03 against 8.10 at N = 10, A = 2), and it is kept only to reproduce source A's numbers. A further form source A has drawn, A·F(A, N − A) with no N factor, is not used.
   - Already there: hotellings_t2_limit, ellipse_coordinates and t2_plot, each with judged_rows="fitted" for the beta form and "new" for the F form (#978). The page draws the ellipse and the fitted rows' limit by the beta form (at N = 20, A = 2, the 95% limit is 5.36, against 7.88 for a new row), and the workbench judges the rows a model left out by the F form.
 - **STA-5** Distance to the model in X and in Y, with its critical limit and probability. *(partly in process-improve)*
-  - Distance to the model in X (DModX), absolute or normalized by the pooled residual SD, with its F-based critical distance and probability of belonging, optionally weighted by modelling power; the distance in Y (DModY); for predictions, the distance plus how far a row falls outside the model's score range.
-  - A fitted row's DModX is sᵢ = √(Σeᵢₖ²/(K − A))·v, with v = √(N/(N − A − A₀)) and A₀ = 1 when the data are centred; it is normalized by s₀ = √(ΣΣe²/((N − A − A₀)(K − A))). The critical distance and the probability come from (sᵢ/s₀)² ~ F(K − A, (N − A − A₀)(K − A)), the degrees of freedom of source A's guide. An older version of source A printed 1.389 for a limit these give as 1.285; no stated rule gives 1.389.
+  - Distance to the model in X (DModX), absolute or normalized by the pooled residual SD, with its F-based critical distance and probability of belonging, optionally weighted by modeling power; the distance in Y (DModY); for predictions, the distance plus how far a row falls outside the model's score range.
+  - A fitted row's DModX is sᵢ = √(Σeᵢₖ²/(K − A))·v, with v = √(N/(N − A − A₀)) and A₀ = 1 when the data are centered; it is normalized by s₀ = √(ΣΣe²/((N − A − A₀)(K − A))). The critical distance and the probability come from (sᵢ/s₀)² ~ F(K − A, (N − A − A₀)(K − A)), the degrees of freedom of source A's guide. An older version of source A printed 1.389 for a limit these give as 1.285; no stated rule gives 1.389.
   - A row's DModY is its root-mean-square Y residual, sᵢ = √(Σfᵢₘ²/M), shown by default divided by the pooled value s₀ over the fitted rows. A constant factor in sᵢ cancels in that ratio: source A's printed values are the absolute sᵢ times such a factor, √2·v for M = 2, and its divisor cannot be told from them.
   - Already there: SPE per row with spe_limit; the page's SPE plot. No normalized DModX or probability.
 - **STA-6** Regression coefficients in every form: scaled, raw with intercept, MLR form. *(partly in process-improve)*
-  - Regression coefficients in every form: scaled and centred; raw, with the intercept b₀ = ȳ − x̄'b; Y in original units with X centred; the multiple-regression form; squared and cross terms handled; B = W(P'W)⁻¹C'; rotated toward pure profiles.
-  - Already there: beta_coefficients_ on PLS (scaled and centred); coefficient_plot.
+  - Regression coefficients in every form: scaled and centered; raw, with the intercept b₀ = ȳ − x̄'b; Y in original units with X centered; the multiple-regression form; squared and cross terms handled; B = W(P'W)⁻¹C'; rotated toward pure profiles.
+  - Already there: beta_coefficients_ on PLS (scaled and centered); coefficient_plot.
 - **STA-7** VIP. *(in process-improve)*
   - VIP of each variable.
   - Already there: vip(); the squared VIP values sum to K.
@@ -233,7 +233,7 @@ In numbers: 93 Definitely lines, of which 12 are in process-improve and 58 partl
 ### PRD: Prediction and classification
 
 - **PRD-1** A prediction set from a table, the unfitted rows, a class or pasted rows; saved as a table. *(partly in process-improve)*
-  - A prediction set taken from a table, the rows not fitted, the working copy, a class, a mix of these, or rows typed or pasted in. It stays current, and centres can be imported.
+  - A prediction set taken from a table, the rows not fitted, the working copy, a class, a mix of these, or rows typed or pasted in. It stays current, and centers can be imported.
   - Save the prediction set as a secondary table.
   - Already there: PCA.diagnose and PLS.diagnose project any new rows; the page projects its excluded rows.
 - **PRD-2** Prediction gives scores, ŷ with its error, T², distances and residuals, missing values handled. *(partly in process-improve)*
@@ -247,7 +247,7 @@ In numbers: 93 Definitely lines, of which 12 are in process-improve and 58 partl
 - **PRD-4** Cross-validated predictions for test rows, with their standard errors. *(not in process-improve)*
   - Cross-validated predictions for test rows from each round's submodel, with their jackknife SE.
 - **PRD-6** Classification with one model per class, with membership probabilities. *(not in process-improve)*
-  - Classification with one model per class: a table of members with the probability per class model (green above 10%, red from 5 to 10%, not a member below 5%), membership decided by a leverage limit and a distance limit, the modelling power of each variable within a class.
+  - Classification with one model per class: a table of members with the probability per class model (green above 10%, red from 5 to 10%, not a member below 5%), membership decided by a leverage limit and a distance limit, the modeling power of each variable within a class.
   - **PRD-6.1** Coomans' plot, distances between class models, discrimination power. *(not in process-improve)*
     - Coomans' plot: the distance to one class model against the distance to another.
     - The distance between two class models, and the discrimination power of each variable between two classes.
@@ -262,14 +262,14 @@ In numbers: 93 Definitely lines, of which 12 are in process-improve and 58 partl
   - A plot builder for every plot and list: the data source, the data type, the item (variable, component, cross-validation round), an x series and any number of series, each scaled, offset or scaled 0 to 1, in original, transformed or working-copy units.
   - Transform a series: auto- or cross-correlation, power spectrum, wavelet coefficients, EWMA smoothing (which tames a dense score trajectory).
   - The confidence level of column plots (default, none, 99%, 95%), and the number format and precision of lists.
-  - **VIS-2.1** Colour and size by value, category, class, density or limit. *(partly in process-improve)*
-    - Colour a scatter: continuously between two colours (with colours for missing and out of range), by categories, by score categories, by density, by predictions, by models, by what-if, by ids, by patterns, or by class (the default when classes exist).
+  - **VIS-2.1** Color and size by value, category, class, density or limit. *(partly in process-improve)*
+    - Color a scatter: continuously between two colors (with colors for missing and out of range), by categories, by score categories, by density, by predictions, by models, by what-if, by ids, by patterns, or by class (the default when classes exist).
     - Size: enlarge the points whose distance is over the critical limit.
-    - Already there: views.js colours by a number (a colour scale) or by a category (a colour-blind safe palette). views.js sizes markers by a number, area-proportional.
+    - Already there: views.js colors by a number (a color scale) or by a category (a color-blind safe palette). views.js sizes markers by a number, area-proportional.
   - **VIS-2.2** Point and axis labels from ids, and item selection. *(partly in process-improve)*
     - Labels: the id (or part of it) for points and axis labels, axis-label rotation and interval, the ids in titles, saved as the default.
     - Item selection: move items between selected and unselected; find by text, class, X, Y, lag or cross term; invert; select all.
-    - Already there: The page labels the selection and the extremes, each placed away from its neighbours.
+    - Already there: The page labels the selection and the extremes, each placed away from its neighbors.
 - **VIS-3** Summary plots of the model. *(partly in process-improve)*
   - Summary plots: model overview, X/Y overview, X/Y component, component contribution, summary list.
   - Already there: The page's model summary and its R² beside Q² chart.
@@ -292,21 +292,21 @@ In numbers: 93 Definitely lines, of which 12 are in process-improve and 58 partl
   - Contributions plotted from any of these plots.
   - Already there: The page's contribution bars for a lassoed group, with each top variable's raw data beside them.
 - **VIS-10** Contour and response-surface plots, with the optimum found. *(partly in process-improve)*
-  - Contour and response-surface plots: two X on the axes between low and high limits, the other X held at low, centre, high or a value (editable live), with resolution, levels, colours and labels; the maximum, minimum or saddle point found and reported.
+  - Contour and response-surface plots: two X on the axes between low and high limits, the other X held at low, center, high or a value (editable live), with resolution, levels, colors and labels; the maximum, minimum or saddle point found and reported.
   - Already there: The designed-experiments surface plots and their stationary point, for least-squares models.
 - **VIS-11** Linked views: marking in one plot marks in all. *(in process-improve)*
-  - A linked dashboard: four linked plots (a score scatter beside line or histogram plots of three variables) and a property bar for the model, the components and the colouring variable; marking in one marks in all; right-click changes a plot's type.
+  - A linked dashboard: four linked plots (a score scatter beside line or histogram plots of three variables) and a property bar for the model, the components and the coloring variable; marking in one marks in all; right-click changes a plot's type.
   - Already there: The selection store and link.js: a selection in one view shows in every view and in the table.
 - **VIS-12** Annotations and fit statistics on plots. *(partly in process-improve)*
   - Annotations: labels (500 at most), free text, shaded alarm zones, regression lines, ellipses, limits and bars at a chosen confidence, a header and a time-stamped footer.
   - Statistics printed on any 2D scatter: the least-squares line with its slope and offset, bias, correlation, RMSED and SED.
   - Already there: views.js draws the T² ellipse, origin lines, control limits and arrows.
-- **VIS-13** Styles: axes, fonts, colours in lists, saved defaults. *(partly in process-improve)*
-  - Cell colours in lists: out-of-limit predictions red, classification probabilities green or red, misclassifications highlighted, significant components green.
+- **VIS-13** Styles: axes, fonts, colors in lists, saved defaults. *(partly in process-improve)*
+  - Cell colors in lists: out-of-limit predictions red, classification probabilities green or red, misclassifications highlighted, significant components green.
   - Axes and styles: range, ticks, decimals, scientific or time labels, log or reversed axes, a second Y axis; grids, titles, fonts, line, symbol and column styles; restyle the marked points; legends and backgrounds; save a style as the default and restore the factory styles.
   - Already there: visualization themes (register_themes, set_theme).
 - **VIS-14** Every result is named, and can be plotted or listed. *(partly in process-improve)*
-  - Every result has a name, and can be plotted or listed: per row (scores, T², distances, leverages, predictions and their errors, residuals, classification, the cross-validation group), per column (averages, weights, loadings, coefficients, VIP, modelling power, R²V and Q²V, residual variances, error measures) and per number of components (eigenvalues, Q², R², sums of squares, the SD of t and u).
+  - Every result has a name, and can be plotted or listed: per row (scores, T², distances, leverages, predictions and their errors, residuals, classification, the cross-validation group), per column (averages, weights, loadings, coefficients, VIP, modeling power, R²V and Q²V, residual variances, error measures) and per number of components (eigenvalues, Q², R², sums of squares, the SD of t and u).
   - Already there: Fitted models expose named DataFrames: scores_, loadings_, spe_, hotellings_t2_, beta_coefficients_, r2_per_variable_ and more.
 
 ### UI: Interaction
@@ -326,7 +326,7 @@ In numbers: 93 Definitely lines, of which 12 are in process-improve and 58 partl
   - Exclude or include marked points from any plot: this creates a new model, fitted at once, and keeps the old one.
   - Already there: Exclude and Include refit the one model; the excluded rows are still projected and drawn.
 - **UI-5** A right-click menu on every plot and list; sortable lists. *(not in process-improve)*
-  - A right-click menu on every plot and list (copy, create a list or plot, show as histogram, add to favourites or to the report, quick info, sort, plot settings, maximize, save as the default style, save, print, properties); properties open the plot builder.
+  - A right-click menu on every plot and list (copy, create a list or plot, show as histogram, add to favorites or to the report, quick info, sort, plot settings, maximize, save as the default style, save, print, properties); properties open the plot builder.
   - Lists warn before listing every item; lists and bar charts sort by value, or by part of an id then value.
 - **UI-6** Zoom, hover and 3D rotation. *(in process-improve)*
   - Zoom (box, x, y, subplot) and zoom out, coordinates, 3D rotation, and hover giving the id, the series and the value.
@@ -339,24 +339,24 @@ In numbers: 93 Definitely lines, of which 12 are in process-improve and 58 partl
 - **UI-9** A model window, the working copy as tabs, and a simple wizard mode. *(not in process-improve)*
   - A model window with its summary and buttons to its options and working copy; the working copy as tabs (overview, variables, observations, transform, lag, expand, scale, spreadsheet), each with "as model", the selections kept across tabs.
   - A simple mode: a wizard that states the model it will build and fits it; the tabbed working copy is the advanced mode.
-- **UI-10** Panes, toolbars and favourites. *(not in process-improve)*
+- **UI-10** Panes, toolbars and favorites. *(not in process-improve)*
   - An item-information pane.
   - Toolbars (standard, shortcuts, a customizable plot toolbar), tooltips and status-bar hints.
-  - Dockable panes: audit trail, advisor, favourites, item information, marked items, observations, variables, what-if, quick info.
-  - Favourites: commands and plots kept in folders; run a whole folder.
+  - Dockable panes: audit trail, advisor, favorites, item information, marked items, observations, variables, what-if, quick info.
+  - Favorites: commands and plots kept in folders; run a whole folder.
 
 ### SET: Settings
 
 - **SET-1** Settings at four levels: factory, user, project, model. *(not in process-improve)*
   - Settings at four levels: factory, global (per user), project, and model, which overrides the project; a fitted model keeps its options until reset.
 - **SET-2** Fit and prediction settings: cross-validation rounds, confidence level, tolerances, units. *(partly in process-improve)*
-  - Fit settings: cross-validation rounds and segment selection, iteration cap, missing-value tolerance (50%), minimum distinct values, confidence level (95%), significance level (0.05), wavelet reconstruction, centring on the mean or none, and the warning limits.
+  - Fit settings: cross-validation rounds and segment selection, iteration cap, missing-value tolerance (50%), minimum distinct values, confidence level (95%), significance level (0.05), wavelet reconstruction, centering on the mean or none, and the warning limits.
   - Prediction settings: the units of predicted Y, whether the working copy's trimming applies, the adaptive λ (0.1).
   - Already there: The estimators take these as arguments (cv, n_repeats, max_iter, tol, conf_level).
 - **SET-3** Display and start-up settings: result types, labels, preferences. *(not in process-improve)*
-  - Result settings: distance normalized or absolute, weighted by modelling power or not; residuals raw or standardized; R² explained or adjusted; the coefficient type; the cross-validation groups; the components for results and for predictions.
+  - Result settings: distance normalized or absolute, weighted by modeling power or not; residuals raw or standardized; R² explained or adjusted; the coefficient type; the cross-validation groups; the components for results and for predictions.
   - Label settings: the default id and its part, the ids in titles, a cap of 500 labels.
-  - General settings: open the last project on start-up, folders, tab position, simple or advanced mode, printing in colour, caching; each file remembers its display preferences; restore the factory plot styles, favourites, toolbars and "don't show again" messages.
+  - General settings: open the last project on start-up, folders, tab position, simple or advanced mode, printing in color, caching; each file remembers its display preferences; restore the factory plot styles, favorites, toolbars and "don't show again" messages.
 
 ### REP: Reporting, audit and help
 
@@ -384,11 +384,11 @@ In numbers: 93 Definitely lines, of which 12 are in process-improve and 58 partl
   - Already there: The project file holds the recipe, the variants and the fitted arrays; the recipe and the model are written as runnable Python.
   - **DEP-1.1** As a plain-text model file, with a header and every matrix. *(not in process-improve)*
     - A plain-text model file with everything needed for prediction and classification.
-    - A file header: type and format version, model name, date and creator, method, calibration data name, numbers of rows and columns, validation method, components present and suggested, centring, calibration and test rows, cross-validation segments, the list of matrices.
+    - A file header: type and format version, model name, date and creator, method, calibration data name, numbers of rows and columns, validation method, components present and suggested, centering, calibration and test rows, cross-validation segments, the list of matrices.
     - Each matrix as a header (name, rows, columns) with its values, missing written as "m"; the prediction-with-reference statistics, when Y was known.
   - **DEP-1.2** In a mini version (coefficients only) and a full one (with the outlier statistics). *(not in process-improve)*
     - A "mini" model file: the coefficients and intercepts only, for prediction alone.
-    - A "full" model file that adds what the outlier statistics need: X and Y weights and centres, residual variances, loadings and loading weights, sums of squares, the mean calibration leverage, the RMSE of calibration, the SD of the scores, and the calibration means, SDs and values.
+    - A "full" model file that adds what the outlier statistics need: X and Y weights and centers, residual variances, loadings and loading weights, sums of squares, the mean calibration leverage, the RMSE of calibration, the SD of the scores, and the calibration means, SDs and values.
   - **DEP-1.3** With its preprocessing steps, so the deployed model repeats them. *(partly in process-improve)*
     - One line per preprocessing step, with its parameters, so the deployed model repeats the preprocessing; a step that needs stored data refers to a matrix in the file and is flagged when that matrix is missing.
     - Already there: The recipe's steps are written as Python with their settings.
@@ -411,14 +411,14 @@ Built only when a Definitely line brings it within reach at almost no cost.
 - **MOD-3** Three-way data and three-way PLS. *(not in process-improve)*
 - **STA-14** A response permutation test for over-fitting. *(partly in process-improve)*
 - **STA-15.1** Automatic warnings with settable limits, collected in one outlier list. *(not in process-improve)*
-- **PRD-5** Adaptive predictions, with EWMA-updated centring. *(partly in process-improve)*
+- **PRD-5** Adaptive predictions, with EWMA-updated centering. *(partly in process-improve)*
 - **PRD-8** What-if sliders on the inputs of a prediction. *(partly in process-improve)*
 - **MON-1** Control charts of scores, variables, residuals or predictions. *(partly in process-improve)*
 - **MON-2** Shewhart, CUSUM and EWMA charts, with limits from training data or entered. *(in process-improve)*
 - **MON-3** Time-series PLS with lagged X and Y, and finite impulse response models. *(not in process-improve)*
 - **MON-4** Auto- and cross-correlation. *(partly in process-improve)*
 - **MON-5** Wavelet analysis, with its plots. *(not in process-improve)*
-- **MON-6** Images analysed as rows, or as pixels. *(not in process-improve)*
+- **MON-6** Images analyzed as rows, or as pixels. *(not in process-improve)*
 - **REP-2.1** A regulated audit trail: user and time on every event, an administrator lock. *(not in process-improve)*
 - **REP-5** The analysis cycle and its cautions, as the app's guide. *(not in process-improve)*
 

@@ -1,4 +1,4 @@
-Least squares modelling
+Least squares modeling
 =======================
 
 Worked case studies that fit a response variable to one or more predictors

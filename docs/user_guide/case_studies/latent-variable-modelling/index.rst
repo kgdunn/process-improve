@@ -1,4 +1,4 @@
-Latent variable modelling
+Latent variable modeling
 =========================
 
 Worked case studies that use principal component analysis (PCA) and

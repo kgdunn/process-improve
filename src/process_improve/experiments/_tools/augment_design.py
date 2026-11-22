@@ -98,8 +98,8 @@ class AugmentDesignInput(BaseModel):
         description=(
             "Limits on the settings that every new run keeps to, as {'factors': [...], 'constraints': [...]}: "
             "pass metadata['region'] from generate_design, whose factors' low and high are the design's -1 and +1. "
-            "add_runs_optimal then chooses runs inside the limits, add_center_points moves the centre runs to the "
-            "region's central setting when the centre breaks a limit, and any other new run that breaks a limit "
+            "add_runs_optimal then chooses runs inside the limits, add_center_points moves the center runs to the "
+            "region's central setting when the center breaks a limit, and any other new run that breaks a limit "
             "is refused with the run and the limit named."
         ),
     )

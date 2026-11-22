@@ -37,7 +37,7 @@ from process_improve.visualization.types import AnnotationType, MarkType
 class ResidualsVsFittedPlot(BasePlot):
     """Residuals vs fitted values plot.
 
-    A random scatter with no pattern indicates a good model.  Funnelling
+    A random scatter with no pattern indicates a good model.  Funneling
     suggests heteroscedasticity; curvature suggests a missing term.
 
     Data sources

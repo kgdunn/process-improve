@@ -14,7 +14,7 @@ Package layout
 
    process_improve/
        multivariate/    # PCA, PLS, TPLS, and multi-block (MBPCA / MBPLS)
-       experiments/     # designed experiments: designs, analysis, optimisation
+       experiments/     # designed experiments: designs, analysis, optimization
        monitoring/      # control charts (Shewhart, EWMA, CUSUM, Holt-Winters)
        batch/           # batch data alignment (DTW), features, preprocessing
        regression/      # robust regression (repeated median, Theil-Sen)
@@ -55,7 +55,7 @@ Conventions every subpackage follows
 - **Error handling.** Tool wrappers narrow their ``except`` to a canonical set
   so unexpected errors propagate to the server and get redacted. See
   :doc:`development/error_handling`.
-- **Reproducibility.** Randomised paths take an explicit ``random_state``. See
+- **Reproducibility.** Randomized paths take an explicit ``random_state``. See
   :doc:`development/reproducibility`.
 
 The multivariate estimator stack

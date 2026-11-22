@@ -12,7 +12,7 @@ solves that choice as a quadratic program in the scaled space of a fitted
   projection operator (:meth:`~process_improve.batch.BatchPLS.projection_matrix`,
   trimmed score regression by default), with the future *response* columns
   treated as missing;
-- the objective trades off quality tracking (or maximisation) against
+- the objective trades off quality tracking (or maximization) against
   movement from the nominal remaining schedule, plus soft SPE and Hotelling's
   T2 penalties that keep the correction where the model has data;
 - box bounds, rate-of-change limits between consecutive samples (including
@@ -47,7 +47,7 @@ Arteaga and Ferrer (2002) give the trimmed score regression used to estimate
 the scores of a partially observed row.
 
 Two departures from Flores-Cerrillo and MacGregor are deliberate. Their
-optimisation is over an adjustment to the scores, with the remaining
+optimization is over an adjustment to the scores, with the remaining
 trajectories recovered by inverting the PLS model, which is what keeps those
 trajectories consistent with past operation. Here the decision variables are
 the future MV columns themselves, so actuator bounds and rate limits apply
@@ -55,16 +55,16 @@ exactly in engineering units, and the terms that hold the answer inside the
 model's region are stated explicitly instead. Golshan et al. (2010) give both
 forms for latent-variable MPC: over a correction to the scores, and directly
 over the future manipulated variables. Second, the SPE of the *candidate* row
-is penalised and capped, not only checked on the measurements so far: a
+is penalized and capped, not only checked on the measurements so far: a
 trajectory reconstructed from adjusted scores lies on the model plane by
 construction, and one written directly in the MV columns need not.
 
 A practical caveat: models of this kind are identified on *recorded*
-trajectories (the realised values plus measurement noise), while the
+trajectories (the realized values plus measurement noise), while the
 corrector outputs *setpoints*. The substitution is sound where the control
 loops track their setpoints; the executed-policy evaluation in
 :func:`evaluate_control_policies` (:mod:`process_improve.simulation`)
-measures the realised effect rather than trusting the model's own
+measures the realized effect rather than trusting the model's own
 prediction.
 
 References
@@ -206,9 +206,9 @@ def midcourse_correction(  # noqa: PLR0913, PLR0912, PLR0915, C901
     ridge: float = 0.0,
     n_knots: int | None = None,
 ) -> Bunch:
-    """Optimise the remaining manipulated-variable columns of one batch.
+    """Optimize the remaining manipulated-variable columns of one batch.
 
-    This is the pure optimisation: everything is explicit and nothing is
+    This is the pure optimization: everything is explicit and nothing is
     gated (no dead band, no validity check; use
     :class:`MidCourseCorrector` for the full decision-point workflow). The
     unfolded row of the model splits three ways: ``observed`` columns carry
@@ -233,7 +233,7 @@ def midcourse_correction(  # noqa: PLR0913, PLR0912, PLR0915, C901
         Yabuki-MacGregor use case). ``"maximize"`` pushes the predicted
         quality up with a linear term; the quadratic movement penalty keeps
         the program bounded, which is the correct form for quality
-        maximisation (an unreachable setpoint inside a quadratic is
+        maximization (an unreachable setpoint inside a quadratic is
         deliberately not used).
     y_target : Series, dict, or float, optional
         The quality target in original units; required for ``mode="target"``
@@ -250,8 +250,8 @@ def midcourse_correction(  # noqa: PLR0913, PLR0912, PLR0915, C901
     bounds : dict, optional
         Per-tag box bounds in engineering units, ``{tag: (low, high)}``,
         applied to every free column of that tag. Tighten the box inward by
-        roughly two control-error standard deviations, so optimised setpoints
-        do not sit on the actuator rails where clipping biases the realised
+        roughly two control-error standard deviations, so optimized setpoints
+        do not sit on the actuator rails where clipping biases the realized
         mean.
     rate_limits : dict, optional
         Per-tag limit on the change between consecutive samples, in
@@ -264,7 +264,7 @@ def midcourse_correction(  # noqa: PLR0913, PLR0912, PLR0915, C901
     nominal_remaining : pd.Series, optional
         The nominal remaining schedule in engineering units, indexed by
         ``free_columns``; the movement penalty is measured from it. Default:
-        the training average (the model's centring) of those columns.
+        the training average (the model's centering) of those columns.
     spe_cap : float, optional
         Hard cap on the candidate row's SPE (on the square-root scale used
         throughout the package, so the quadratic constraint bounds
@@ -283,17 +283,17 @@ def midcourse_correction(  # noqa: PLR0913, PLR0912, PLR0915, C901
     method : {"tsr", "scp", "pmp"}, default="tsr"
         Score-estimation method for the projection operator.
     ridge : float, default=0.0
-        Regularisation for the operator; see
+        Regularization for the operator; see
         :meth:`~process_improve.batch.BatchPLS.projection_matrix`.
     n_knots : int, optional
-        Parameterise each tag's free samples by ``n_knots`` linearly
+        Parameterize each tag's free samples by ``n_knots`` linearly
         interpolated knot values. Shrinks the decision space (useful early in
         the batch) and smooths the schedule; the problem stays a QP.
 
     Returns
     -------
     result : sklearn.utils.Bunch
-        With keys ``mv`` (Series, the optimised free columns in engineering
+        With keys ``mv`` (Series, the optimized free columns in engineering
         units, in model-feature order), ``y_hat`` and ``y_hat_no_change``
         (Series, original quality units), ``scores`` (Series), ``spe`` and
         ``t2`` (floats for the candidate row over the observed-plus-free
@@ -310,7 +310,7 @@ def midcourse_correction(  # noqa: PLR0913, PLR0912, PLR0915, C901
     if mode not in _MODES:
         raise ValueError(f"mode must be one of {list(_MODES)}; got {mode!r}.")
     if not free_columns:
-        raise ValueError("free_columns is empty: there is nothing to optimise.")
+        raise ValueError("free_columns is empty: there is nothing to optimize.")
     if not isinstance(observed, pd.Series):
         raise TypeError(
             f"observed must be a pandas Series indexed by unfolded column labels; got {type(observed).__name__}."
@@ -488,11 +488,11 @@ def midcourse_correction(  # noqa: PLR0913, PLR0912, PLR0915, C901
     lower = np.asarray(lows, dtype=float) if rows else None
     upper = np.asarray(highs, dtype=float) if rows else None
 
-    # --- Optional knot parameterisation ------------------------------------
+    # --- Optional knot parameterization ------------------------------------
     # The knots live in ENGINEERING units (the whole point is a smooth
     # schedule), so the substitution into the scaled decision space is
     # affine: u = W v + d with W = S^{-1} B_eng and d = -S^{-1} c, where S
-    # and c are the per-column scale and centre of the free columns.
+    # and c are the per-column scale and center of the free columns.
     if n_knots is not None:
         by_tag = {}
         for j, tag in enumerate(free_tags):
@@ -811,7 +811,7 @@ class MidCourseCorrector:
         patterns: the *monitoring* pattern (initial conditions plus every tag
         up to ``k``; the future entirely missing) for the SPE validity gate,
         and the *candidate* pattern (monitoring plus the future MV columns,
-        which the optimiser treats as observed) for the QP's SPE cap and the
+        which the optimizer treats as observed) for the QP's SPE cap and the
         score covariance behind its T2 term. Limits: the g-chi-squared SPE
         limit (Box's approximation, as Nomikos and MacGregor, 1995, use it)
         on each pattern's training SPE values, and the F-distribution T2
@@ -1207,7 +1207,7 @@ def _oracle_remaining(
     n_knots: int = 4,
     max_evaluations: int = 400,
 ) -> float:
-    """Best achievable titer when the remaining schedule is optimised against the simulator.
+    """Best achievable titer when the remaining schedule is optimized against the simulator.
 
     Direct search (Nelder-Mead, then Powell from the same start) over
     ``n_knots`` linearly interpolated knot values per manipulated variable
@@ -1337,7 +1337,7 @@ def evaluate_control_policies(  # noqa: PLR0913, PLR0915, C901 - one executed co
     """Compare batch operating policies on the bioreactor simulator, executed.
 
     Runs the full mid-course-correction workflow end to end and reports
-    *realised* (executed) quality, not model predictions: every corrected
+    *realized* (executed) quality, not model predictions: every corrected
     schedule is fed back into the simulator with the identical seed, so the
     with- and without-correction titers are true same-batch counterfactuals.
     Four policies are compared:
@@ -1349,7 +1349,7 @@ def evaluate_control_policies(  # noqa: PLR0913, PLR0915, C901 - one executed co
       historical campaign; batches the dead band or the validity gate skips
       run the nominal schedule.
     - **oracle-from-k**: for every batch the mid-course policy corrected,
-      the remaining schedule is instead optimised against the simulator
+      the remaining schedule is instead optimized against the simulator
       itself at the same decision point, with the batch's own seed
       (:func:`_oracle_remaining`). This estimates the ceiling for any
       mid-course scheme at that decision point. The gap to the mid-course
@@ -1357,7 +1357,7 @@ def evaluate_control_policies(  # noqa: PLR0913, PLR0915, C901 - one executed co
       excitation, the oracle's knowledge of the disturbances still to come,
       and the corrector's own limits (movement penalty, validity caps,
       tighter bounds and rate limits).
-    - **adapted**: every batch runs the schedule that maximises the
+    - **adapted**: every batch runs the schedule that maximizes the
       disturbance-free titer for its own initial conditions, found before
       the batch starts from the simulator's own equations
       (``simulator.optimal_trajectory``): feedforward adaptation with a
@@ -1386,7 +1386,7 @@ def evaluate_control_policies(  # noqa: PLR0913, PLR0915, C901 - one executed co
     per_class : bool, default=True
         Fit one model per feed class (labels from the training campaign;
         test batches are assigned to the nearest class centroid in
-        standardised Z). With ``False``, or when class labels are
+        standardized Z). With ``False``, or when class labels are
         unavailable, a single global model is used. The effect of a schedule
         change depends on the feed class and one linear model averages it:
         on the default configuration the global model corrects five batches
@@ -1406,7 +1406,7 @@ def evaluate_control_policies(  # noqa: PLR0913, PLR0915, C901 - one executed co
         Passed to ``optimal_trajectory`` for the adapted policy.
     oracle : {"corrected", "none"}, default="corrected"
         Compute the oracle-from-k row for the batches the mid-course policy
-        corrected (a few direct-search optimisations against the simulator),
+        corrected (a few direct-search optimizations against the simulator),
         or skip it.
     random_state : int, np.random.Generator, or None
         Seed for the campaigns and the per-batch execution seeds; the whole

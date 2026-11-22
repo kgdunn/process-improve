@@ -158,7 +158,7 @@ def test_renaming_the_response_leaves_the_run_sheet_as_it_is(page):
     page.fill("#response", "Yield of the reactor")
     page.fill("#response-units", "mol%")
     assert not stale(page), "the response is the reader's to rename: its runs and its column stay"
-    assert page.text_content("#study-title") == "Yield of the reactor (mol%), maximise"
+    assert page.text_content("#study-title") == "Yield of the reactor (mol%), maximize"
 
 
 def test_the_new_run_sheet_is_made_from_the_stale_notice(page):

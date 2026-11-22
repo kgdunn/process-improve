@@ -3,7 +3,7 @@
 
 Each row of the data is one curve, measured at the points of a common grid; a point a
 curve was not measured at is ``NaN``, so curves sampled at their own times share the
-union of all the times as their grid. Every curve is smoothed by one penalised B-spline
+union of all the times as their grid. Every curve is smoothed by one penalized B-spline
 (P-spline) smoother, and the principal components are found in the L2 metric of the
 basis, so they are functions of the grid's argument (time, temperature, wavelength),
 not of how the basis happens to be laid out. See ``docs/development/functional_doe.rst``
@@ -76,7 +76,7 @@ def _patterns(missing: np.ndarray) -> list[tuple[np.ndarray, np.ndarray]]:
 class FPCA(TransformerMixin, BaseEstimator):
     """Functional principal component analysis of curves measured on a grid.
 
-    Each curve is smoothed by a cubic penalised B-spline (P-spline): ``n_basis`` B-splines on
+    Each curve is smoothed by a cubic penalized B-spline (P-spline): ``n_basis`` B-splines on
     equally spaced knots that run past the ends of the grid, with a penalty on the
     ``penalty_order``-th differences of their coefficients. One penalty is shared by every curve, so
     the smoother is one linear map and cannot be mistaken for a difference between curves. The
@@ -96,13 +96,13 @@ class FPCA(TransformerMixin, BaseEstimator):
         Number of B-splines. ``None`` takes the number of grid points plus two, at most 40: the
         penalty, not the number of B-splines, sets how smooth the curves are.
     smoothing : float or None, default=None
-        The penalty's weight. ``None`` chooses it by generalised cross-validation, pooled over all
+        The penalty's weight. ``None`` chooses it by generalized cross-validation, pooled over all
         the curves.
     degree : int, default=3
         Degree of the B-splines (3 is cubic).
     penalty_order : int, default=2
-        Order of the coefficient differences penalised. Raise it to 3 when rates (first derivatives)
-        are what is wanted, so the rates are penalised for curvature, not the curves.
+        Order of the coefficient differences penalized. Raise it to 3 when rates (first derivatives)
+        are what is wanted, so the rates are penalized for curvature, not the curves.
 
     Attributes
     ----------
@@ -129,7 +129,7 @@ class FPCA(TransformerMixin, BaseEstimator):
     explained_variance_ratio_ : pd.Series of length n_components
         The fraction of the smoothed curves' variance each component explains.
     pca_ : PCA
-        The PCA of the weighted, centred coefficients the components come from. Its
+        The PCA of the weighted, centered coefficients the components come from. Its
         ``hotellings_t2_`` and ``spe_`` flag a curve unlike the others.
     n_features_in_ : int
         The number of grid points.
@@ -306,7 +306,7 @@ class FPCA(TransformerMixin, BaseEstimator):
         self._inverse_root_gram = _symmetric_power(gram, -0.5)
 
     def _coefficients(self, values: np.ndarray, smoothing: float) -> np.ndarray:
-        """Return each curve's B-spline coefficients: its penalised least-squares fit to the points it observes."""
+        """Return each curve's B-spline coefficients: its penalized least-squares fit to the points it observes."""
         coefficients = np.empty((values.shape[0], self.n_basis_))
         for observed, rows in self._measured(values):
             basis = self._basis[observed]
@@ -315,7 +315,7 @@ class FPCA(TransformerMixin, BaseEstimator):
         return coefficients
 
     def _choose_smoothing(self, values: np.ndarray) -> float:
-        """Return the penalty weight that minimises the generalised cross-validation score, pooled over the curves."""
+        """Return the penalty weight that minimizes the generalized cross-validation score, pooled over the curves."""
         patterns = self._measured(values)
         scale = np.trace(self._basis.T @ self._basis) / max(np.trace(self._penalty), np.finfo(float).tiny)
         n_observed = int(np.isfinite(values).sum())
@@ -336,7 +336,7 @@ class FPCA(TransformerMixin, BaseEstimator):
     def _measured(self, values: np.ndarray) -> list[tuple[np.ndarray, np.ndarray]]:
         """Return the curves grouped by the points they observe, once each curve has enough points to fit.
 
-        The penalty leaves polynomials of degree below ``penalty_order`` unpenalised, so a curve
+        The penalty leaves polynomials of degree below ``penalty_order`` unpenalized, so a curve
         needs at least that many points for its fit to be determined.
         """
         missing = np.isnan(values)
@@ -348,7 +348,7 @@ class FPCA(TransformerMixin, BaseEstimator):
         return _patterns(missing)
 
     def _resolve_components(self, n_curves: int) -> int:
-        """Return the number of components, clamped to what the centred curves can support."""
+        """Return the number of components, clamped to what the centered curves can support."""
         most = min(n_curves - 1, self.n_basis_)
         if self.n_components is None:
             return most

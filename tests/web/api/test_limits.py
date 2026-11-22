@@ -81,7 +81,7 @@ def test_the_corners_come_in_the_page_s_order_then_the_centre(api):
     assert probes["center"] == 8
 
 
-#: Limits, and the same limits written as Python, to test each corner and the centre with.
+#: Limits, and the same limits written as Python, to test each corner and the center with.
 AS_PYTHON = {
     HEAT: lambda t, p, _f: t + 25 * p <= 250,
     "T - 25 * P >= 100": lambda t, p, _f: t - 25 * p >= 100,
@@ -234,7 +234,7 @@ def test_a_stored_limit_is_checked_and_its_type_worked_out_again(bootstrap, held
 
 
 # --------------------------------------------------------------------------- limits proposed from the corners marked
-#: The worked example's corners, in the order of the table of corners; its centre is row 8.
+#: The worked example's corners, in the order of the table of corners; its center is row 8.
 CORNERS = [tuple(c) for c in itertools.product(*[(f["low"], f["high"]) for f in FACTORS])]
 
 
@@ -258,7 +258,7 @@ def test_marking_corners_proposes_the_limit_that_rules_out_just_those(api, condi
     [proposal] = described(api, marked=marked)["proposals"]
     assert proposal["marked"] == marked
     assert proposal["expression"] == proposed
-    assert proposal["removes"] == marked, "the centre and every other corner can still be run"
+    assert proposal["removes"] == marked, "the center and every other corner can still be run"
     assert proposal["linear"]["high"] is not None
 
 
@@ -301,7 +301,7 @@ INTERLEAVED = (
     [
         (list(range(8)), FACTORS, None),
         ([8], FACTORS, CENTRE_ALONE),
-        ([0, 1, 3], FACTORS[:2], CENTRE_BETWEEN),  # three corners of the T-P square: their triangle holds the centre
+        ([0, 1, 3], FACTORS[:2], CENTRE_BETWEEN),  # three corners of the T-P square: their triangle holds the center
         ([0, 1, 2, 5], factors_named(*"ABCD"), INTERLEAVED),  # interleaved with corners that can be run
     ],
 )
@@ -420,7 +420,7 @@ def test_from_five_factors_the_picture_shows_the_pairs_of_factors_the_limits_nam
 
 
 def test_the_picture_holds_the_others_at_a_setting_that_can_be_run(api):
-    """With the centre of the ranges ruled out, the page looks inside at a central setting that can be run."""
+    """With the center of the ranges ruled out, the page looks inside at a central setting that can be run."""
     center = described(api, "T + 25 * P <= 220")["picture"]["center"]
     assert center["T"] + 25 * center["P"] <= 220
     assert described(api, "T >= 210")["picture"]["center"] is None

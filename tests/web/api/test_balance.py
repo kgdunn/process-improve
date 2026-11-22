@@ -16,7 +16,7 @@ import pytest
 from process_improve.experiments import DesignRegion, Factor
 from tests.web._support import FACTORS, coded, held_of, run_sheet
 
-#: A yield to maximise and a cost to minimise, as the brief describes them.
+#: A yield to maximize and a cost to minimize, as the brief describes them.
 TWO = [
     {"name": "Yield", "label": "Yield", "units": "%", "goal": "maximize"},
     {"name": "Cost", "label": "Cost", "units": "$/kg", "goal": "minimize"},
@@ -32,7 +32,7 @@ SURFACES = {
 
 # --------------------------------------------------------------------------- helpers
 def design_of(api, responses: list[dict], **more) -> dict:
-    """Make a face-centred CCD in T and P measuring these responses, as the page holds it."""
+    """Make a face-centered CCD in T and P measuring these responses, as the page holds it."""
     spec = {"design_type": "ccd", "factors": FACTORS[:2], "responses": responses, "alpha": "face_centered", **more}
     return held_of(api.ok("api_make_design", spec))
 
@@ -194,7 +194,7 @@ def test_ranges_no_setting_meets_give_d_of_zero_and_the_closest_settings(api):
 
 # --------------------------------------------------------------------------- the limits and the categorical factors
 def test_the_balance_keeps_to_the_limits_on_the_settings(api):
-    limit = {"expression": "T + 25*P <= 215"}  # T 175 and P 1.6 at the centre of their ranges' corner
+    limit = {"expression": "T + 25*P <= 215"}  # T 175 and P 1.6 at the center of their ranges' corner
     held = design_of(api, TWO, design_type="d_optimal", constraints=[limit], model_type="quadratic", budget=12)
     reply = balanced(api, held)
     region = DesignRegion(
@@ -205,7 +205,7 @@ def test_the_balance_keeps_to_the_limits_on_the_settings(api):
     inside = lambda t, p: region.feasible(np.column_stack([t, p]))  # noqa: E731
     best, *_ = grid_best(reply["search"]["goals"], inside, points=201)
     assert reply["composite"] >= best - 2e-4, "no runnable setting on a grid does better"
-    assert reply["overlay"]["runnable"] is not None, "the overlay greys what cannot be run"
+    assert reply["overlay"]["runnable"] is not None, "the overlay grays what cannot be run"
 
 
 def test_a_categorical_factor_is_held_at_the_level_that_balances_best(api):
@@ -260,8 +260,8 @@ def test_the_overlay_shades_where_every_response_is_acceptable(api):
     assert np.array_equal(shaded[~on_edge], acceptable[~on_edge])
     assert shaded[~on_edge].any(), "some settings are acceptable for both"
     assert not shaded[~on_edge].all(), "and some are not"
-    assert surfaces["Yield"]["levels"] == [goals["Yield"]["low"]], "a yield to maximise is acceptable above its low end"
-    assert surfaces["Cost"]["levels"] == [goals["Cost"]["high"]], "a cost to minimise, below its high end"
+    assert surfaces["Yield"]["levels"] == [goals["Yield"]["low"]], "a yield to maximize is acceptable above its low end"
+    assert surfaces["Cost"]["levels"] == [goals["Cost"]["high"]], "a cost to minimize, below its high end"
     assert overlay["at"] == [reply["coded"][overlay["x"]], reply["coded"][overlay["y"]]]
     assert overlay["ticks"]["T"]["ticktext"] == ["150", "175", "200"]
     assert overlay["runnable"] is None

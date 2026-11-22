@@ -1,7 +1,7 @@
 """All-bias designs (Box and Draper 2007, Appendices 6B and 7H; #972 V2, V3) and the optimum spread (V4).
 
 The design is all-bias when its pure second moment equals the region's. These tests hold the function
-to Box and Draper's tables and, independently, to that condition: on the corners and centre runs of the
+to Box and Draper's tables and, independently, to that condition: on the corners and center runs of the
 design it builds, and on points drawn uniformly over the region.
 """
 
@@ -21,7 +21,7 @@ from process_improve.experiments.designs_response_surface import all_bias_ccd, a
     [("spherical", [0.500, 0.559, 0.612, 0.661, 0.707]), ("cuboidal", [0.577, 0.645, 0.707, 0.764, 0.816])],
 )
 def test_two_factors_give_box_and_drapers_table(region, distances):
-    """Table 6B: k = 2, four cube runs and 0 to 4 centre runs."""
+    """Table 6B: k = 2, four cube runs and 0 to 4 center runs."""
     found = [all_bias_distance(2, 4, n_center, region=region) for n_center in range(5)]
     assert found == pytest.approx(distances, abs=5e-4)
 
@@ -85,7 +85,7 @@ def test_two_factors_give_box_and_drapers_composite_table(region, row):
     ],
 )
 def test_the_composite_design_matches_the_regions_moments(k, cube_runs, region, moments):
-    """The design's [ii], [iiii] and [iijj] moments, with its real number of centre runs, equal the region's."""
+    """The design's [ii], [iiii] and [iijj] moments, with its real number of center runs, equal the region's."""
     found = all_bias_ccd(k, cube_runs, region=region)
     a, b, n_runs = found["cube_distance"], found["axial_distance"], cube_runs + 2 * k + found["n_center_points"]
     design = ((cube_runs * a**2 + 2 * b**2) / n_runs, (cube_runs * a**4 + 2 * b**4) / n_runs, cube_runs * a**4 / n_runs)

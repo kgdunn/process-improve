@@ -1,15 +1,15 @@
 """Draw the mark of Factorial, the browser app, from a design process-improve generates.
 
-The package's logo is a two-level factorial in two factors with its centre point. The app's mark
-is the same in three factors: ``generate_design`` makes the 2^3 factorial with one centre run, and
+The package's logo is a two-level factorial in two factors with its center point. The app's mark
+is the same in three factors: ``generate_design`` makes the 2^3 factorial with one center run, and
 each run is projected down the cube's diagonal. Six corners land on a hexagon. The corners
-(+,+,+) and (-,-,-) land on the centre, behind the centre run, which is red as the README banner
-draws centre runs. The lines are the hexagon and the three edges that meet at the corner nearest
+(+,+,+) and (-,-,-) land on the center, behind the center run, which is red as the README banner
+draws center runs. The lines are the hexagon and the three edges that meet at the corner nearest
 the eye, so the cube is seen from above.
 
-The mark wears the four colours of the app's stages (``--stage-*`` in ``web/style.css``): round
+The mark wears the four colors of the app's stages (``--stage-*`` in ``web/style.css``): round
 the rim the corners are Design's blue, Run's ochre and Learn's green, opposite corners alike, and
-the centre run is the red of what comes next.
+the center run is the red of what comes next.
 
 Usage, from the repository root::
 
@@ -22,7 +22,7 @@ It writes into ``web/``:
   installed-app icons that ``manifest.webmanifest`` names;
 * ``og-card.png``: the 1200 x 630 card a chat or a blog post shows for a link to the app.
 
-The page's header draws the same mark inline, in the page's own colours, so it follows the
+The page's header draws the same mark inline, in the page's own colors, so it follows the
 reader's light or dark theme; ``tests/web/page/test_brand.py`` checks that the two agree.
 """
 
@@ -37,12 +37,12 @@ from matplotlib.patches import Circle, FancyBboxPatch, Polygon
 
 from process_improve.experiments import Factor, generate_design
 
-# The README banner's and social card's colours (tools/branding/social_card.py).
+# The README banner's and social card's colors (tools/branding/social_card.py).
 NAVY, RED, SPINE, PAPER, INK, MUTED = "#2c5f7c", "#a93226", "#a6a49e", "#faf8f3", "#1d1d1f", "#5f6368"
-# The app's two other stage colours, as its light theme has them (--warn and --ok in web/style.css).
+# The app's two other stage colors, as its light theme has them (--warn and --ok in web/style.css).
 OCHRE, GREEN = "#a35f00", "#1e7b3a"
 
-#: The colour of each corner round the rim, in turn: three stages' colours twice, so opposite corners are alike.
+#: The color of each corner round the rim, in turn: three stages' colors twice, so opposite corners are alike.
 RIM_COLOURS = (NAVY, OCHRE, GREEN) * 2
 
 #: The mark's geometry on a 64-unit square: the hexagon's radius, a run's radius, a line's width.
@@ -54,17 +54,17 @@ AXES = np.array([[-np.sqrt(3) / 2, -0.5], [np.sqrt(3) / 2, -0.5], [0.0, 1.0]])
 
 
 def runs() -> np.ndarray:
-    """Return the coded runs of a 2^3 factorial with one centre run, as process-improve generates it."""
+    """Return the coded runs of a 2^3 factorial with one center run, as process-improve generates it."""
     factors = [Factor(name=name, low=-1, high=1) for name in "ABC"]
     design = generate_design(factors, design_type="full_factorial", n_center_points=1, random_state=1)
     return design.design[list("ABC")].to_numpy(float)
 
 
 def mark() -> tuple[list[tuple[float, float]], tuple[float, float], list[tuple[float, float]]]:
-    """Return the mark on the 64-unit square: the rim's six corners in turn, the centre, and the three edge ends.
+    """Return the mark on the 64-unit square: the rim's six corners in turn, the center, and the three edge ends.
 
     y points down, as SVG's does. A corner of the cube lands at twice an axis's length from the
-    centre, so each projected run is scaled by RIM / 2.
+    center, so each projected run is scaled by RIM / 2.
     """
     coded = runs()
     projected = coded @ AXES * (RIM / 2)
@@ -90,7 +90,7 @@ def svg(*, tile: bool) -> str:
     back = f'<rect width="{SIZE:g}" height="{SIZE:g}" rx="14" fill="{PAPER}"/>' if tile else ""
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {SIZE:g} {SIZE:g}" role="img" aria-label="Factorial">'
-        "<!-- A 2^3 factorial and its centre run, seen down the cube's diagonal; drawn by "
+        "<!-- A 2^3 factorial and its center run, seen down the cube's diagonal; drawn by "
         "tools/branding/app_mark.py from generate_design. -->"
         f"{back}"
         f'<g fill="none" stroke="{SPINE}" stroke-width="{LINE:g}" stroke-linecap="round" stroke-linejoin="round">'
@@ -140,7 +140,7 @@ def icon(path: Path, pixels: int, *, safe: float) -> None:
 
 
 def card(path: Path) -> None:
-    """Write the 1200 x 630 card for a shared link, in the social-preview card's layout and colours."""
+    """Write the 1200 x 630 card for a shared link, in the social-preview card's layout and colors."""
     width, height = 1200, 630
     fig, ax = canvas(width, height)
     ax.add_patch(plt.Rectangle((0, 0), width, height, fc=PAPER, ec="none"))

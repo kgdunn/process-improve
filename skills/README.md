@@ -8,13 +8,13 @@ The library is the computation; the skill carries the methodology. That split
 is deliberate: a language model asked to *do* design of experiments will
 happily write out a design matrix that looks right and is not (see
 `doe-designer/references/verification.md` for the evidence). The skill's job
-is to route the model to a catalogue-backed generator and a verifier instead.
+is to route the model to a catalog-backed generator and a verifier instead.
 
 ## Available skills
 
 | Skill | What it does |
 |---|---|
-| [`doe-designer`](doe-designer/) | Plan, generate, verify and analyse designed experiments |
+| [`doe-designer`](doe-designer/) | Plan, generate, verify and analyze designed experiments |
 
 ## Installing
 
@@ -81,7 +81,7 @@ pip install 'process-improve[plotting]'
 Each script also carries a PEP 723 header, so `uv run --script <script>` will
 resolve its own dependencies with nothing installed in advance.
 
-## Licence
+## License
 
 MIT, the same as the rest of the repository. The skill text and code are
 covered; the output is not engineering or statistical validation. Review any

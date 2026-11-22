@@ -32,7 +32,7 @@ NEEDS_PYTHON = ("#generate", "#simulate", "#upload")
 
 
 def open_while_python_starts(context, site):
-    """Open the worked example with the catalogue held back, as Python still loading."""
+    """Open the worked example with the catalog held back, as Python still loading."""
     context.add_init_script("window.__pi.hold('api_catalogue');")
     page = context.new_page()
     page.goto(f"{site}?example=worked")
@@ -90,7 +90,7 @@ def test_while_python_starts_the_status_line_lights_up_the_mark_s_runs(context, 
     """The loader is the app's mark: its runs light up in a random run order until Python answers."""
     page = open_while_python_starts(context, site)
     assert page.is_visible("#status .status__icon svg")
-    assert page.locator("#status .status__icon circle").count() == 7, "the mark's six corners and its centre run"
+    assert page.locator("#status .status__icon circle").count() == 7, "the mark's six corners and its center run"
     page.evaluate("window.__pi.release('api_catalogue')")
     first_paint_done(page)
     assert page.is_hidden("#status .status__icon svg"), "a tick once Python is ready"
@@ -103,12 +103,12 @@ def test_the_status_line_fades_after_a_success_and_comes_back_for_a_wait_or_an_e
     page.wait_for_selector("#status", state="hidden", timeout=8_000)
     assert status(page)[1] == "ok", "faded, its message kept"
     type_results(page, dict.fromkeys(range(15), ""))
-    assert status(page) == ("No results to analyse yet.", "ok")
+    assert status(page) == ("No results to analyze yet.", "ok")
     assert page.is_hidden("#status"), "a success that the page itself shows brings nothing back"
     page.evaluate("window.__pi.hold('api_analyze_runs')")
     enter_results(page, {0: 50})
     page.wait_for_selector("#status", state="visible")
-    assert status(page) == ("Analysing...", "busy"), "a wait that lasts is shown"
+    assert status(page) == ("Analyzing...", "busy"), "a wait that lasts is shown"
     page.evaluate("window.__pi.release('api_analyze_runs')")
     page.wait_for_function("document.querySelector('#status').dataset.state === 'error'")
     assert page.is_visible("#status"), "one result cannot fit the model: the error stays in view"
@@ -123,7 +123,7 @@ def test_the_brief_holds_the_worked_example_s_response_factors_and_aim(page, fir
     assert float(page.input_value("#response-typical")) == described["typical"]
     assert float(page.input_value("#response-noise")) == described["noise"]
     assert float(page.input_value("#response-change")) == described["smallest_change"]
-    assert page.text_content("#study-title") == "Yield (%), maximise"
+    assert page.text_content("#study-title") == "Yield (%), maximize"
     assert factor_table(page) == [
         {key: str(f[key]) for key in ("name", "low", "high", "units")} for f in inputs["design"]["factors"]
     ]
@@ -213,4 +213,4 @@ def test_a_study_opened_with_its_results_says_they_wait_for_python_not_that_ther
     # With Python started and no result in, Learn says so as before.
     study_menu(again, "#new-study")
     again.click("#go-learn")
-    assert again.text_content("#analyse-empty") == "No results yet: enter them in Run, or practise with simulated ones."
+    assert again.text_content("#analyse-empty") == "No results yet: enter them in Run, or practice with simulated ones."

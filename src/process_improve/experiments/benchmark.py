@@ -8,11 +8,11 @@ ends and how many runs it took to get there. :func:`run_study` follows
 :func:`~process_improve.experiments.recommend_next_step` round by round on a process whose
 truth is known, making each round's runs on that truth, until the recommendation stops the
 study; :func:`run_benchmark` does so for a set of :class:`BenchmarkCase` over many noise
-seeds, and summarises each case by the runs used and how far the final settings fall short of
+seeds, and summarizes each case by the runs used and how far the final settings fall short of
 the true best.
 
 The cases in :data:`CASES` include the adhesion problem of the "AI agents in DoE" study (its
-true model as the study published it), and hypothesised processes for its Problems 02
+true model as the study published it), and hypothesized processes for its Problems 02
 (pendulum hardness of a polyurethane clearcoat) and 03 (reverse impact of a coil coating),
 written from the chemistry of those coatings: they are not the study's hidden models.
 """
@@ -110,7 +110,7 @@ def run_study(case: BenchmarkCase, *, random_state: int | np.random.Generator | 
     passed as confirmation runs, and join the other runs after a miss; after ``widen_ranges``
     the study starts again on the new ranges; after ``move_region`` the runs along the path are
     made in order up to the first that does worse than the one before, and a new first design
-    is centred on the best of them, with ranges as wide as before. The study ends at ``stop``
+    is centered on the best of them, with ranges as wide as before. The study ends at ``stop``
     or ``investigate``, when the runs are spent, or after twelve rounds.
 
     Parameters
@@ -206,7 +206,7 @@ def _best_on_path(path: pd.DataFrame, goal: Goal, target: float | None) -> pd.Se
 
 
 def _centred(factors: Sequence[Factor], best: pd.Series) -> list[Factor]:
-    """Return the factors with ranges as wide as before, centred on the best run."""
+    """Return the factors with ranges as wide as before, centered on the best run."""
     return [
         Factor(name=f.name, low=best[f.name] - (f.high - f.low) / 2, high=best[f.name] + (f.high - f.low) / 2)  # type: ignore[operator]
         for f in factors
@@ -216,7 +216,7 @@ def _centred(factors: Sequence[Factor], best: pd.Series) -> list[Factor]:
 def run_benchmark(
     cases: Sequence[BenchmarkCase] | None = None, *, n_seeds: int = 20, random_state: int = 0
 ) -> pd.DataFrame:
-    """Run every case ``n_seeds`` times and summarise each.
+    """Run every case ``n_seeds`` times and summarize each.
 
     Returns
     -------
@@ -300,7 +300,7 @@ CASES: tuple[BenchmarkCase, ...] = (
             sigma=5,
         ),
         {"design_type": "dsd", "n_center_points": 5},
-        note="Hypothesised from polyurethane chemistry; not the study's hidden model.",
+        note="Hypothesized from polyurethane chemistry; not the study's hidden model.",
     ),
     BenchmarkCase(
         "impact (03), hypothesised",
@@ -324,7 +324,7 @@ CASES: tuple[BenchmarkCase, ...] = (
             sigma=8,
         ),
         {"design_type": "dsd", "n_center_points": 5},
-        note="Hypothesised from coil-coating practice; not the study's hidden model.",
+        note="Hypothesized from coil-coating practice; not the study's hidden model.",
     ),
     BenchmarkCase(
         "interior optimum, 2^3 + centre",

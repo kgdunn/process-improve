@@ -73,7 +73,7 @@ def called_for(page) -> str | None:
 
 
 def practise_on(page, scenario: str) -> None:
-    """Simulate the run sheet's results from one of the page's processes, as a reader practising would."""
+    """Simulate the run sheet's results from one of the page's processes, as a reader practicing would."""
     reveal(page, "#panel-simulate")
     page.click("#tab-simulate")
     page.select_option("#scenario", scenario)

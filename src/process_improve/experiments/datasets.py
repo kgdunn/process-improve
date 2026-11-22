@@ -235,7 +235,7 @@ def corrosion() -> pd.DataFrame:
 
     The heats are the whole plots, and temperature, which changes only from heat to heat,
     is the whole-plot factor; the bars are the subplots, and coating the subplot factor.
-    Analysing these data as if the 24 bars were independent finds temperature significant
+    Analyzing these data as if the 24 bars were independent finds temperature significant
     and coating not, the opposite of the correct split-plot analysis: see
     ``analyze_experiment(..., analysis_type="split_plot")``.
 
@@ -284,7 +284,7 @@ def biscuit() -> pd.DataFrame:
     Osborne, B. G., Fearn, T., Miller, A. R. and Douglas, S., Application of near infrared
     reflectance spectroscopy to the compositional analysis of biscuits and biscuit doughs,
     Journal of the Science of Food and Agriculture, 35, 99-105, 1984; as ``cookie`` in the
-    ppls R package. The values are the source's measurements, which the MIT licence of this
+    ppls R package. The values are the source's measurements, which the MIT license of this
     package does not cover; cite the source when you use them. See the ``NOTICE`` beside the
     file.
 

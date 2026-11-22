@@ -118,10 +118,10 @@ def multiple_linear_regression_data() -> tuple[np.ndarray, np.ndarray]:
 
 
 def test_inconsistent_sizes() -> None:
-    """Dimension mismatches are rejected, and the saturated boundary case is characterised.
+    """Dimension mismatches are rejected, and the saturated boundary case is characterized.
 
     These three shapes were listed as TODOs here for years while the test body asserted
-    nothing at all. The behaviour is correct; only the assertions were missing.
+    nothing at all. The behavior is correct; only the assertions were missing.
     """
     rng = np.random.default_rng(3)
 
@@ -371,7 +371,7 @@ def test_robust_regression_t_value_is_populated(
 ) -> None:
     """`t_value` holds the per-coefficient t-statistic, as in the OLS sibling.
 
-    Regression test: the key was documented but only ever initialised to NaN,
+    Regression test: the key was documented but only ever initialized to NaN,
     because the critical value was computed into a local variable, used for the
     interval widths, and never assigned back. This fails on the pre-fix code.
     """
@@ -1262,7 +1262,7 @@ class TestRepeatedMedianSlopeMissingValues:
 
 
 # ---------------------------------------------------------------------------
-# #953: the vectorised repeated median, and intervals that resist outliers
+# #953: the vectorized repeated median, and intervals that resist outliers
 # ---------------------------------------------------------------------------
 
 

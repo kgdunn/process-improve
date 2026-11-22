@@ -38,7 +38,7 @@ batch-monitoring comparison of Garcia-Munoz, Kourti and MacGregor (2004):
 For a fixed missingness pattern each estimator is a fixed linear operator on
 the observed columns, exposed by :func:`operator_for_pattern` so callers that
 revisit the same pattern (an online monitor at time k, or a mid-course
-optimiser treating candidate columns as observed) can precompute the matrix
+optimizer treating candidate columns as observed) can precompute the matrix
 once. The conditioning of the estimator is a first-class output: nothing
 degrades silently, and a documented ``ridge`` option is available for the
 regression-based estimators.
@@ -79,7 +79,7 @@ _EPS = np.sqrt(np.finfo(float).eps)
 
 
 def coerce_observed_mask(observed: object, feature_names: Iterable[Hashable]) -> np.ndarray:
-    """Normalise an ``observed`` argument to a boolean mask over the features.
+    """Normalize an ``observed`` argument to a boolean mask over the features.
 
     Accepts a boolean array-like of length ``n_features`` (True = observed),
     or a collection of feature labels to treat as observed; anything else, a
@@ -148,10 +148,10 @@ def operator_for_pattern(  # noqa: PLR0913 - the operator inputs are irreducible
     """Build the linear score-estimation operator for one missingness pattern.
 
     For a fixed pattern of observed features, every estimator here is a fixed
-    linear map from the observed (centred and scaled) values to the score
+    linear map from the observed (centered and scaled) values to the score
     estimates: ``t_hat = M @ z_observed``. This function builds that matrix
     once, so callers that reuse a pattern (an online monitor at time sample
-    ``k``; a mid-course optimiser at a decision point) do not re-derive it per
+    ``k``; a mid-course optimizer at a decision point) do not re-derive it per
     observation.
 
     Parameters
@@ -173,7 +173,7 @@ def operator_for_pattern(  # noqa: PLR0913 - the operator inputs are irreducible
     method : {"tsr", "scp", "pmp"}, default="tsr"
         The estimator; see the module docstring.
     ridge : float, default=0.0
-        Non-negative regularisation added to the diagonal of the matrix being
+        Non-negative regularization added to the diagonal of the matrix being
         inverted (``tsr`` and ``pmp`` only; ``scp`` inverts nothing). Use when
         ``condition_number`` reports near-singularity, at the cost of a small
         bias toward zero scores.
@@ -183,7 +183,7 @@ def operator_for_pattern(  # noqa: PLR0913 - the operator inputs are irreducible
         ``x_loadings``). For PLS pass ``x_weights_``; for PCA the weights are
         the loadings, which is the default when omitted.
     x_residuals : np.ndarray of shape (n_train, n_features), optional
-        The training residual block ``E = Z - T P'`` in the model's centred
+        The training residual block ``E = Z - T P'`` in the model's centered
         and scaled space, used by ``tsr`` only. The TSR regression is on the
         covariance of the *observed* columns, which is the model plane
         ``P* Theta P*'`` plus the spread around it ``E*'E* / (n_train - 1)``;
@@ -203,7 +203,7 @@ def operator_for_pattern(  # noqa: PLR0913 - the operator inputs are irreducible
         ``scp`` the largest per-component weight-norm inflation
         ``||w_a||^2 / ||w_a_observed||^2``; 1.0 means no loss), and
         ``method``. With nothing observed the matrix has no column, so every
-        row scores 0, the model centre, and the condition number is inf.
+        row scores 0, the model center, and the condition number is inf.
     """
     method = _validate_method(method)
     if ridge < 0:
@@ -217,7 +217,7 @@ def operator_for_pattern(  # noqa: PLR0913 - the operator inputs are irreducible
     A = x_loadings.shape[1]
     if n_observed == 0:
         # Nothing observed says nothing about the scores: every estimator's answer is the model
-        # centre, 0, where fit() places a row with no observed value, and none of the information
+        # center, 0, where fit() places a row with no observed value, and none of the information
         # is left, so the condition number is inf, as SCP gives a component with nothing observed.
         return Bunch(matrix=np.zeros((A, 0)), condition_number=np.inf, method=method)
 
@@ -301,7 +301,7 @@ def project_rows(  # noqa: PLR0913 - mirrors operator_for_pattern
     x_loadings, guide, score_variances
         As in :func:`operator_for_pattern`.
     x_scaled : np.ndarray of shape (n_rows, n_features)
-        The observations in the model's centred and scaled space, NaN for
+        The observations in the model's centered and scaled space, NaN for
         missing entries.
     method : {"tsr", "scp", "pmp"}, default="tsr"
     ridge : float, default=0.0

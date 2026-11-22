@@ -3,7 +3,7 @@
 In a mixture the factors are the proportions of a blend's components: each lies between its
 lower and upper bounds, 0 and 1 unless the reader sets others, and the proportions of every run
 sum to 1. The page makes three kinds of mixture design (a simplex lattice, a simplex centroid,
-and extreme vertices for a mixture with bounds) and analyses their results with a Scheffé model,
+and extreme vertices for a mixture with bounds) and analyzes their results with a Scheffé model,
 which has no intercept. A design's run sheet lists the proportions as they are weighed out.
 """
 
@@ -134,7 +134,7 @@ def test_the_run_sheet_is_the_library_s_design_in_its_randomised_order(api):
     ],
 )
 def test_each_design_is_analysed_with_the_model_it_supports(api, kind, model):
-    """A lattice of degree 2 or a centroid is analysed with the quadratic model, which leaves runs for the error."""
+    """A lattice of degree 2 or a centroid is analyzed with the quadratic model, which leaves runs for the error."""
     assert make(api, kind, 3)["model"] == model
 
 
@@ -375,7 +375,7 @@ def test_a_mixture_comes_back_from_its_workbook_as_a_mixture(api):
     back = api.ok("api_read_workbook", {"xlsx_base64": book["xlsx_base64"]})
     assert back["spec"]["design_type"] == "extreme_vertices"
     assert back["spec"]["factors"] == design["spec"]["factors"]
-    assert back["spec"]["analysis_model"] == "scheffe_linear", "the model the reader analysed with"
+    assert back["spec"]["analysis_model"] == "scheffe_linear", "the model the reader analyzed with"
     assert back["responses"] == responses
     assert back["sources"] == sources
     np.testing.assert_allclose(proportions(back), proportions(design))
@@ -421,7 +421,7 @@ def test_renaming_a_mixture_s_components_keeps_its_runs_and_its_notes(api):
 
 # --------------------------------------------------------------------------- with the other parts of Learn
 def two_responses(api) -> tuple[dict, dict]:
-    """Make a simplex lattice measuring a hardness to maximise and a cost to minimise; simulate both."""
+    """Make a simplex lattice measuring a hardness to maximize and a cost to minimize; simulate both."""
     responses = [{"name": "Hardness", "goal": "maximize", "units": "HV"}, {"name": "Cost", "goal": "minimize"}]
     design = make(api, "simplex lattice, degree 2", 3, n_replicates=2, responses=responses)
     return held_of(design), api.ok("api_simulate", {**held_of(design), "seed": 2})

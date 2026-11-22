@@ -32,7 +32,7 @@ estimates are then those of the analysis of variance, a negative one included.
 Satterthwaite's denominator degrees of freedom use the observed information of
 the variance parameters, as lmerTest does, and the exact derivatives of
 :math:`\operatorname{cov}(\hat\beta)` with respect to them. A component estimated
-at zero drops out of both, as it does in lmerTest's parametrisation, where the
+at zero drops out of both, as it does in lmerTest's parametrization, where the
 derivatives with respect to it vanish on the boundary.
 """
 
@@ -69,7 +69,7 @@ class VarianceComponentFit:
     Attributes
     ----------
     beta : np.ndarray of shape (p,)
-        Generalised least-squares estimates at the REML variance components.
+        Generalized least-squares estimates at the REML variance components.
     cov_beta : np.ndarray of shape (p, p)
         Their covariance, :math:`(X^\top V^{-1} X)^{-1}`.
     variances : np.ndarray of shape (K,)
@@ -323,7 +323,7 @@ class _Profile:
 
 
 def _minimise(profile: _Profile, psi: np.ndarray, bounded: bool = True) -> np.ndarray:
-    """Minimise the criterion over ``psi >= 0`` by projected Newton steps with the exact Hessian.
+    """Minimize the criterion over ``psi >= 0`` by projected Newton steps with the exact Hessian.
 
     Unbounded, every component is free and a step stops short of where ``V~`` would cease to
     be positive definite (the criterion is infinite there, so the line search halves the step).

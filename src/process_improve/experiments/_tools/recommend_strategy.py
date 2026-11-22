@@ -27,7 +27,7 @@ class RecommendStrategyInput(BaseModel):
     )
     responses: list[dict[str, Any]] | None = Field(
         None,
-        description="Response variables with optimisation goals.",
+        description="Response variables with optimization goals.",
     )
     budget: int | None = Field(
         None,
@@ -85,7 +85,7 @@ class RecommendStrategyInput(BaseModel):
         "Recommend a multi-stage experimental strategy given a DOE problem description. "
         "Given factors, responses, budget, constraints, domain, and prior knowledge, "
         "applies deterministic decision rules to recommend a staged experimental plan "
-        "(screening then optimisation then confirmation). "
+        "(screening then optimization then confirmation). "
         "Returns a structured strategy with stage-by-stage design types, estimated run counts, "
         "transition rules, budget allocation, assumptions, risks, and alternative approaches. "
         "Use this when the user asks 'How should I plan my experiments?' or 'What design strategy "

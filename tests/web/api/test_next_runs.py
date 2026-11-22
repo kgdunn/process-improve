@@ -70,7 +70,7 @@ def test_a_factorial_that_fits_the_interactions_is_offered_axial_runs(api):
     assert axial["label"] == "Add 6 axial runs and 2 center runs"  # the library tops the center runs up to five
     assert axial["runs"] == 8
     assert axial["model"] == "quadratic"
-    assert "face-centred central composite design" in axial["why"]
+    assert "face-centered central composite design" in axial["why"]
 
 
 def test_a_move_s_runs_are_sent_before_they_are_made_each_with_what_it_is_for(api):
@@ -191,7 +191,7 @@ def results(design: dict, truth: TrueProcess, seed: int, start: int = 0) -> list
 
 
 def curved_study(api) -> tuple[dict, list[float]]:
-    """Return a 2^3 with three center runs, aiming to maximise y, and its results on the curved process."""
+    """Return a 2^3 with three center runs, aiming to maximize y, and its results on the curved process."""
     cube = make(
         api, design_type="full_factorial", factors=FACTORS_ABC, n_center_points=3, response_info={"goal": "maximize"}
     )
@@ -208,7 +208,7 @@ def test_the_results_call_for_axial_runs_where_the_center_shows_curvature(api):
     assert called["action"] == "augment_to_rsm"
     assert called["does"] == "runs"
     assert called["label"] == "Add these 8 runs"
-    assert called["headline"].startswith("Add 8 axial and centre runs in A, B, C")
+    assert called["headline"].startswith("Add 8 axial and center runs in A, B, C")
     assert reply["waiting"] is None
     assert reply["offers"][0]["kind"] == "axial", "the ways of adding runs are still offered beside it"
 
@@ -269,7 +269,7 @@ def test_the_move_lists_the_path_s_runs_in_order_with_what_the_model_predicts_th
     assert all(round(run["settings"]["T"], 1) == run["settings"]["T"] for run in path), "as a plant sets it"
     predicted = [run["predicted"] for run in path]
     assert all(isinstance(value, float) for value in predicted)
-    assert predicted[1] > predicted[0], "the goal is to maximise: the model predicts more further along at first"
+    assert predicted[1] > predicted[0], "the goal is to maximize: the model predicts more further along at first"
 
 
 def test_the_path_s_runs_on_the_run_sheet_are_no_part_of_the_fit_or_of_the_step(api, held, simulated):

@@ -13,11 +13,11 @@ from PIL import Image, ImageDraw, ImageFont
 
 WIDTH, BAR = 760, 64
 WHITE, SOFT = (255, 255, 255), (242, 242, 240)
-# Each stage's colour in the app's light theme (--stage-* in web/style.css): Design, Run, Learn and Next.
+# Each stage's color in the app's light theme (--stage-* in web/style.css): Design, Run, Learn and Next.
 DESIGN, RUN, LEARN, NEXT = (44, 95, 124), (163, 95, 0), (30, 123, 58), (169, 50, 38)
 FONTS = Path(mpl.get_data_path()) / "fonts" / "ttf"
 
-STEPS = [  # frame, stage number, headline, detail, the stage's colour, milliseconds on screen
+STEPS = [  # frame, stage number, headline, detail, the stage's color, milliseconds on screen
     ("demo-1-plan.png", "1", "Design", "your response, its factors, and the designs that can learn it", DESIGN, 3600),
     ("demo-2-compare.png", "1", "Design", "every design for the brief, on nine measures", DESIGN, 3600),
     ("demo-3-run.png", "2", "Run", "simulate the results from a known process, or type in your own", RUN, 3200),
@@ -27,7 +27,7 @@ STEPS = [  # frame, stage number, headline, detail, the stage's colour, millisec
 
 
 def captioned(shot: Image.Image, number: str, headline: str, detail: str, colour: tuple[int, int, int]) -> Image.Image:
-    """Scale the screenshot to the GIF width and add a caption bar below it, in its stage's colour."""
+    """Scale the screenshot to the GIF width and add a caption bar below it, in its stage's color."""
     bold = ImageFont.truetype(str(FONTS / "DejaVuSans-Bold.ttf"), 21)
     regular = ImageFont.truetype(str(FONTS / "DejaVuSans.ttf"), 19)
     shot = shot.convert("RGB").resize((WIDTH, round(shot.height * WIDTH / shot.width)), Image.Resampling.LANCZOS)

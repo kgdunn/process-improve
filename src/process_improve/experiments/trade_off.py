@@ -12,7 +12,7 @@ ways, mirroring the R ``pid`` package:
 * :func:`trade_off_table` prints the whole grid at once, the Python
   counterpart of the trade-off table figure in the course notes.
 
-Unlike the R version, which looks designs up in the ``FrF2`` catalogue, the
+Unlike the R version, which looks designs up in the ``FrF2`` catalog, the
 generators here are derived by a **minimum-aberration search**: for a given
 number of runs and factors, every admissible set of generators is scored on
 its word-length pattern and the best is kept. The search reproduces the table
@@ -117,7 +117,7 @@ def _candidate_words(n_base: int) -> list[str]:
 
     These are the columns of the base factorial that an extra factor can be
     assigned to. Sorted by word length, then alphabetically, so that ties in
-    aberration are broken deterministically and in favour of the shorter,
+    aberration are broken deterministically and in favor of the shorter,
     more conventional generator.
     """
     base = _factor_names(n_base)
@@ -150,7 +150,7 @@ def minimum_aberration_generators(n_runs: int, n_factors: int) -> tuple[str, ...
 
     Every way of assigning the ``p`` extra factors to interaction columns of
     the base factorial is enumerated, scored by its word-length pattern, and
-    the best-scoring one is returned. Ties are broken in favour of the
+    the best-scoring one is returned. Ties are broken in favor of the
     generator set that comes first by word length and then alphabetically.
 
     Parameters
@@ -174,7 +174,7 @@ def minimum_aberration_generators(n_runs: int, n_factors: int) -> tuple[str, ...
     SearchLimitError
         A subclass of ``ValueError``: the design exists, but the search space
         is too large to enumerate and the design is not in the tabulated
-        minimum-aberration catalogue.
+        minimum-aberration catalog.
 
     Examples
     --------
@@ -185,7 +185,7 @@ def minimum_aberration_generators(n_runs: int, n_factors: int) -> tuple[str, ...
 
     Notes
     -----
-    A minimum-aberration design is unique only up to relabelling the factors,
+    A minimum-aberration design is unique only up to relabeling the factors,
     so a textbook may print a different but equivalent set of generators.
     """
     n_base = _check_runs(n_runs)
@@ -205,7 +205,7 @@ def minimum_aberration_generators(n_runs: int, n_factors: int) -> tuple[str, ...
 
     n_sets = math.comb(len(candidates), n_extra)
     if n_sets > _MAX_CANDIDATE_SETS:
-        # The standard minimum-aberration catalogue, checked by exhaustive search, covers
+        # The standard minimum-aberration catalog, checked by exhaustive search, covers
         # up to 11 factors and uses the same letters (A, B, ..., H, J, K, L).
         tabulated = _MIN_ABERRATION.get(n_factors, {}).get(n_runs)
         if tabulated is not None:
@@ -213,7 +213,7 @@ def minimum_aberration_generators(n_runs: int, n_factors: int) -> tuple[str, ...
         raise SearchLimitError(
             f"The design exists ({n_factors} factors fit into {n_runs} runs), but the minimum-aberration "
             f"search for it would have to score {n_sets:,} generator sets, above the limit of "
-            f"{_MAX_CANDIDATE_SETS:,}, and it is not in the tabulated catalogue. Supply the generators "
+            f"{_MAX_CANDIDATE_SETS:,}, and it is not in the tabulated catalog. Supply the generators "
             "yourself, via the `generators` argument of `generate_design`."
         )
 
@@ -408,7 +408,7 @@ def trade_off_table(
     at the cost of heavier aliasing. Blank cells are designs that do not
     exist (too many factors for that many runs). A ``"?"`` marks a design that
     exists but whose minimum-aberration generators are too costly to search
-    for and are not in the tabulated catalogue.
+    for and are not in the tabulated catalog.
 
     Parameters
     ----------

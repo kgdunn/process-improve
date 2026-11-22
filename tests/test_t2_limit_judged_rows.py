@@ -76,7 +76,7 @@ def test_the_fitted_row_limit_lies_below_the_largest_fitted_t2() -> None:
 def test_the_fitted_row_limit_gives_the_stated_rate_on_the_rows_pca_was_fitted_to() -> None:
     """Over 600 PCA fits of 20 rows of 2 normal columns, 5% of the fitted rows lie above the 95% beta limit.
 
-    With A = K the PCA scores are a rotation of the centred data, so T² is the rows' Mahalanobis
+    With A = K the PCA scores are a rotation of the centered data, so T² is the rows' Mahalanobis
     distance from their own mean, which the beta law describes exactly. The F limit flags under 1%.
     """
     rng = np.random.default_rng(978)

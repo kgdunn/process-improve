@@ -1,6 +1,6 @@
 """A study's settings in its workbook: ``api_workbook`` keeps them and ``api_read_workbook`` gives them back.
 
-The settings are the study's own: its colour map, its decimal mark, its significance level. The study's link and
+The settings are the study's own: its color map, its decimal mark, its significance level. The study's link and
 file carry them (web/campaign.js), and so does its workbook, checked as ``studySettings`` checks them.
 """
 

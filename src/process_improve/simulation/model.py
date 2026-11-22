@@ -2,7 +2,7 @@
 
 Deterministic fake-data simulator for DOE demonstrations.
 
-The simulator is fully specified by a JSON-serialisable ``private_state``
+The simulator is fully specified by a JSON-serializable ``private_state``
 dict containing:
 
 - ``seed``:             int  - base RNG seed for coefficient generation.
@@ -18,7 +18,7 @@ Given this state, :func:`materialize_model` regenerates the exact same
 response-surface coefficients on every call, across processes, across
 machines.  :func:`simulate` evaluates that surface at a given factor
 setting and adds *fresh* Gaussian noise each call so identical inputs
-yield similar-but-not-identical outputs - matching the behaviour of a
+yield similar-but-not-identical outputs - matching the behavior of a
 real physical asset.
 """
 
@@ -260,7 +260,7 @@ def _apply_hint(
 
 
 # ---------------------------------------------------------------------------
-# Coefficient materialisation
+# Coefficient materialization
 # ---------------------------------------------------------------------------
 
 

@@ -110,10 +110,10 @@ def _make_tool_handler(tool_name: str) -> Callable[..., Awaitable[str]]:
 
     ENG-30: the tool execution path is synchronous (in safe mode it blocks on a
     ``ProcessPoolExecutor`` future; otherwise it runs the tool in-process). To
-    avoid blocking the MCP server's event loop - which would serialise
+    avoid blocking the MCP server's event loop - which would serialize
     concurrent requests when the server is fronted by HTTP / SSE - the blocking
     call is offloaded to a worker thread via ``run_in_executor``. Single-call
-    behaviour is unchanged.
+    behavior is unchanged.
     """
 
     async def handler(**kwargs: Any) -> str:  # noqa: ANN401
@@ -142,7 +142,7 @@ def _build_tool(spec: dict[str, Any]) -> Tool:
     ``inputSchema`` - is exactly ``spec["input_schema"]``: parameter types,
     required vs optional, enums, bounds, and ``anyOf`` unions all survive
     (issue #506). Signature introspection of the generic ``(**kwargs)``
-    handler could not synthesise any of that.
+    handler could not synthesize any of that.
 
     Parameters
     ----------

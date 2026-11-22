@@ -4,8 +4,8 @@ Agent-callable tool wrappers for robust univariate statistics.
 
 Each function in this module is decorated with ``@tool_spec`` so it can be
 passed directly to an LLM tool-use API (e.g. Anthropic ``tools=``).
-The wrappers accept plain JSON-serialisable inputs (lists of numbers, strings,
-booleans) and always return JSON-serialisable ``dict`` results.
+The wrappers accept plain JSON-serializable inputs (lists of numbers, strings,
+booleans) and always return JSON-serializable ``dict`` results.
 
 Pydantic input contract (ENG-04 / ENG-10)
 -----------------------------------------
@@ -103,7 +103,7 @@ class RobustSummaryStatsInput(BaseModel):
     # "Give me summary statistics for [10, 12, 11, 9, 100]"
         -> ``robust_summary_stats(values=[10, 12, 11, 9, 100])``
 
-    # "Summarise this batch result using classical statistics: [5.1, 4.9, 5.0, 5.2]"
+    # "Summarize this batch result using classical statistics: [5.1, 4.9, 5.0, 5.2]"
         -> ``robust_summary_stats(values=[5.1, 4.9, 5.0, 5.2], method="classical")``
     """,
     category="univariate",
@@ -158,7 +158,7 @@ class DetectOutliersInput(BaseModel):
 @tool_spec(
     name="detect_outliers",
     description=(
-        "Detect outliers in a list of numeric values using the Generalised ESD (Extreme Studentised "
+        "Detect outliers in a list of numeric values using the Generalized ESD (Extreme Studentized "
         "Deviate) test. "
         "Returns the zero-based indices and values of any detected outliers. "
         "The robust variant (default) uses the median and MAD instead of mean and std, making the "
@@ -180,7 +180,7 @@ class DetectOutliersInput(BaseModel):
     category="univariate",
 )
 def detect_outliers(spec: DetectOutliersInput) -> dict:
-    """Detect outliers using the Generalised ESD test; see tool spec for details."""
+    """Detect outliers using the Generalized ESD test; see tool spec for details."""
     arr = np.asarray(spec.values, dtype=float)
     # The ESD statistic for the i-th suspected outlier uses t on N - i - 1
     # degrees of freedom, so at most N - 2 outliers can be tested. The previous
@@ -272,7 +272,7 @@ class MedianAbsoluteDeviationInput(BaseModel):
     scale: Literal["normal", "raw"] = Field(
         "normal",
         description=(
-            "'normal' (default): normalise so MAD ~ std for Gaussian data. "
+            "'normal' (default): normalize so MAD ~ std for Gaussian data. "
             "'raw': return the raw median of absolute deviations."
         ),
     )
@@ -283,7 +283,7 @@ class MedianAbsoluteDeviationInput(BaseModel):
     description=(
         "Compute the Median Absolute Deviation (MAD) for a list of numeric values. "
         "MAD = median(|x_i - median(x)|). "
-        "With scale='normal' (default) the result is normalised to be consistent with the "
+        "With scale='normal' (default) the result is normalized to be consistent with the "
         "standard deviation for normally distributed data (divide by ~0.6745). "
         "MAD is more robust than the standard deviation but assumes approximate symmetry. "
         "Prefer Sn (robust_scale_sn) when symmetry cannot be assumed."
@@ -293,7 +293,7 @@ class MedianAbsoluteDeviationInput(BaseModel):
     # "What is the MAD of [10, 11, 12, 10, 9, 10, 50]?"
         -> ``median_absolute_deviation(values=[10, 11, 12, 10, 9, 10, 50])``
 
-    # "Give me the raw (un-normalised) MAD"
+    # "Give me the raw (un-normalized) MAD"
         -> ``median_absolute_deviation(values=[...], scale="raw")``
     """,
     category="univariate",

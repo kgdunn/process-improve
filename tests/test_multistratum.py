@@ -108,7 +108,7 @@ def test_an_error_term_that_names_every_run_leaves_the_within_stratum_empty():
 
 
 def test_the_catalogue_reads_a_term_of_a_stratum_from_the_runs_it_prints():
-    """The catalogue's check fits the experiment's own runs, and names the stratum a term is not in."""
+    """The catalog's check fits the experiment's own runs, and names the stratum a term is not in."""
     path = reference_catalogue._CATALOGUE_DIR / "montgomery-2013.json"
     entry = next(
         e

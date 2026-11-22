@@ -1,6 +1,6 @@
 # Verifying a design
 
-Read this before handing any design to a user, and before analysing any design
+Read this before handing any design to a user, and before analyzing any design
 you did not generate.
 
 ## Why this step is not optional
@@ -12,7 +12,7 @@ properties are what determine whether the experiment can answer its question,
 and they are invisible to inspection.
 
 Vazquez, Rother and Charles-Gonzalez (2026, arXiv:2512.17113) assessed how well
-this goes when a language model writes the matrix instead of a catalogue. They
+this goes when a language model writes the matrix instead of a catalog. They
 had GPT and Gemini models construct two-level fractional factorial designs with
 8, 16 and 32 runs and 4 to 26 factors, and compared the results against the
 best-known designs on resolution and minimum aberration. The models construct
@@ -51,7 +51,7 @@ users.
 | V | Main effects and all two-factor interactions are clear of each other. Good enough to model with, not just to screen. |
 | VI+ | Effectively no aliasing among anything the user cares about. |
 
-Resolution I or II means stop. Do not analyse data from such a design as if it
+Resolution I or II means stop. Do not analyze data from such a design as if it
 were valid, and do not let it reach a lab.
 
 ## Minimum moment aberration
@@ -100,7 +100,7 @@ Pull these from `evaluate_design` when they are relevant:
 - **`d_efficiency`** / **`average_prediction_variance`** - for comparing optimal
   designs. D for estimating coefficients precisely (higher is better), I, the
   prediction variance averaged over the region, for predicting well across it
-  (lower is better). Optimisation usually wants I.
+  (lower is better). Optimization usually wants I.
 - **`degrees_of_freedom`** - a quick check that the design can actually fit
   the intended model. Zero residual degrees of freedom means no F-test, and
   the analysis will need Lenth's method.

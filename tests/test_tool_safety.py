@@ -400,7 +400,7 @@ class TestTerminateWorkers:
         timeout. That attribute is a CPython implementation detail; if a
         future Python release renames it, the blanket ``contextlib.suppress``
         in ``_terminate_workers`` would silently degrade the timeout
-        guarantee back to the pre-SEC-02 behaviour (a runaway worker would
+        guarantee back to the pre-SEC-02 behavior (a runaway worker would
         keep a CPU after ``ToolTimeoutError``).
 
         Asserting the attribute exists at the supported Python versions

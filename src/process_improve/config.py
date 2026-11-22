@@ -44,7 +44,7 @@ Why a class rather than module-level globals?
 Module-level globals are read once at import; a test that mutates
 ``os.environ`` after import has no effect. The :class:`Settings` class
 caches values on first access and exposes ``reload()`` for the test
-case. That matches what every other module's behaviour *should* be.
+case. That matches what every other module's behavior *should* be.
 
 The class deliberately does **not** depend on ``pydantic-settings``
 (or any new third-party package). ``pydantic`` is already a hard dep
@@ -106,7 +106,7 @@ def _read_env_bool(name: str, default: bool) -> bool:
     if value in _FALSE_STRINGS:
         return False
     # Raise on anything else, matching the int/float readers. The previous
-    # behaviour silently returned False for any unrecognized value, so a typo
+    # behavior silently returned False for any unrecognized value, so a typo
     # like MCP_SAFE_MODE="treu" disabled the security-relevant safe mode with
     # no error and no log line - a fail-open.
     raise ValueError(

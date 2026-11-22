@@ -89,7 +89,7 @@ class Comparisons:
     reference_rule: str = "pairwise"
 
 
-_SEED = 20_260_101  # the multivariate t's quadrature is randomised: one seed makes Dunnett's numbers repeat
+_SEED = 20_260_101  # the multivariate t's quadrature is randomized: one seed makes Dunnett's numbers repeat
 
 
 def _label(column: pd.Series, value: Any) -> str:  # noqa: ANN401 - a level as the caller gives it: a number or a name

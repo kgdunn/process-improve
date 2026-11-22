@@ -122,7 +122,7 @@ def test_a_workbook_with_no_results_yet_is_read_and_the_page_waits_for_them(page
     path.write_bytes(base64.b64decode(workbook_of(api, design)))
     upload(page, path)
     page.wait_for_function("window.__pi.count('api_read_workbook') === 1 && window.__pi.idle()")
-    assert status(page) == ("No results to analyse yet.", "ok")
+    assert status(page) == ("No results to analyze yet.", "ok")
     assert page.is_hidden("#analysis")
     assert page.locator("#design-table tbody tr").count() == design["n_runs"]
 

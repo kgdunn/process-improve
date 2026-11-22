@@ -9,7 +9,7 @@ columns, with ``s_ij = x_i' x_j``. It only works under effect sparsity, when a f
 the many factors are active, and the analysis has to search for them (stepwise
 selection, the lasso, or the Dantzig selector), not fit them all at once.
 
-Construction (Lin 1993): take a normalised Hadamard matrix of order ``N`` (first
+Construction (Lin 1993): take a normalized Hadamard matrix of order ``N`` (first
 column all +1), pick one of its other columns as the *branching column*, and keep the
 ``N / 2`` rows where it is +1. The remaining ``N - 2`` columns are balanced (half +1,
 half -1) in those rows, and nearly orthogonal. Each choice of branching column gives
@@ -47,7 +47,7 @@ _MAX_ORDER = 200
 
 
 def hadamard(order: int) -> np.ndarray | None:
-    """Return a normalised Hadamard matrix of ``order`` (first column all +1), or ``None`` if none is built here.
+    """Return a normalized Hadamard matrix of ``order`` (first column all +1), or ``None`` if none is built here.
 
     Paley's type I matrix comes first where it exists: its cyclic structure gives
     half-fractions without identical columns, where the Sylvester-type matrices for 16,
@@ -187,7 +187,7 @@ def dispatch_supersaturated(factors: list[Factor], budget: int | None = None) ->
         Hadamard order built here (every multiple of 4 up to 232). ``None`` picks the
         smallest order ``N`` with ``N - 2 >= k`` and ``N / 2 <= k`` whose half-fraction
         has no fully aliased pair of factors,
-        giving ``N / 2`` runs. A budget that forces fully aliased pairs is honoured,
+        giving ``N / 2`` runs. A budget that forces fully aliased pairs is honored,
         with a ``UserWarning`` naming the run count that avoids them.
 
     Returns
@@ -264,7 +264,7 @@ def dispatch_supersaturated(factors: list[Factor], budget: int | None = None) ->
         "n_fully_aliased_pairs": n_fully_aliased(design),
         "n_column_pairs": math.comb(k, 2),
         "note": (
-            f"{k} factors in {n_runs} runs: main effects are partially aliased. Analyse with a selection "
+            f"{k} factors in {n_runs} runs: main effects are partially aliased. Analyze with a selection "
             "method (stepwise, lasso) under effect sparsity, not by fitting every factor."
         ),
     }

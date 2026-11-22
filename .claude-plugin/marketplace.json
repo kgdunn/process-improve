@@ -12,7 +12,7 @@
     {
       "name": "doe-designer",
       "source": "./skills/doe-designer",
-      "description": "Plan, generate, verify and analyse designed experiments with the process-improve library. Generates designs from catalogues rather than from memory, and verifies the resolution of every design before it reaches a lab.",
+      "description": "Plan, generate, verify and analyze designed experiments with the process-improve library. Generates designs from catalogs rather than from memory, and verifies the resolution of every design before it reaches a lab.",
       "version": "1.0.0",
       "author": {
         "name": "Kevin Dunn",
@@ -28,7 +28,7 @@
         "fractional-factorial",
         "screening",
         "response-surface",
-        "optimisation",
+        "optimization",
         "statistics",
         "process-improvement"
       ]

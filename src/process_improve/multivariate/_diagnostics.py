@@ -1,7 +1,7 @@
 # (c) Kevin Dunn, 2010-2026. MIT License. Based on own private work over the years.
 """Post-fit diagnostics and matrix-correlation helpers (ENG-01).
 
-Functions that read a *fitted* PCA / PLS model and summarise it: variable
+Functions that read a *fitted* PCA / PLS model and summarize it: variable
 importance (VIP), squared cosine, observation contributions, the eigenvalue
 summary, supplementary-variable projection, and the RV / modified-RV matrix
 correlation coefficients. They consume model attributes only (via duck typing),
@@ -89,7 +89,7 @@ def vip(model: BaseEstimator, n_components: int | None = None) -> pd.Series:
 
     Notes
     -----
-    The ``K`` factor in the formula above normalises the scores so that
+    The ``K`` factor in the formula above normalizes the scores so that
 
     .. math::
 
@@ -175,7 +175,7 @@ def _target_projection_arrays(
 ) -> tuple[pd.DataFrame, np.ndarray, np.ndarray, np.ndarray, str]:
     """Return ``(X_aligned, t_tp, p_tp, w_tp, response_label)`` for the TP component.
 
-    The target-projection direction is the (unit-normalised) regression vector
+    The target-projection direction is the (unit-normalized) regression vector
     ``b`` for the chosen response, read from ``model.beta_coefficients_``; the
     scores are ``t = X w_tp`` and the loadings ``p = X^T t / (t^T t)``. ``X``
     is the data ``predict`` takes, moved into the model's scaled space first,
@@ -189,7 +189,7 @@ def _target_projection_arrays(
     # The TP direction must live in the SAME space as the X the scores are
     # computed from. ``beta_coefficients_`` is deliberately rescaled to raw
     # X -> raw Y units in fit(); with scale=True (the default) that vector is
-    # NOT a direction in the model's internal (scaled) space, and normalising
+    # NOT a direction in the model's internal (scaled) space, and normalizing
     # it does not repair the per-column unit mismatch. Use the scaled-space
     # regression vector (direct_weights_ @ y_loadings_.T) instead, and map X
     # into the same internal space via the model's own scaler when present.
@@ -249,7 +249,7 @@ def target_projection(model: BaseEstimator, X: DataMatrix, response: str | int |
         A fitted PLS model (must expose ``beta_coefficients_``).
     X : array-like of shape (n_samples, n_features)
         The data the model's ``predict`` takes, in the units it was fitted
-        on. A model that centres and scales ``X`` itself (``PLS(scale=True)``,
+        on. A model that centers and scales ``X`` itself (``PLS(scale=True)``,
         the default) does so here first; ``PLS(scale=False)`` does not, and is
         given ``X`` scaled as its training data was.
     response : str or int or None, default=None
@@ -376,7 +376,7 @@ def selectivity_ratio(
         A fitted PLS model (must expose ``beta_coefficients_``).
     X : array-like of shape (n_samples, n_features)
         The data the model's ``predict`` takes, in the units it was fitted
-        on. A model that centres and scales ``X`` itself (``PLS(scale=True)``,
+        on. A model that centers and scales ``X`` itself (``PLS(scale=True)``,
         the default) does so here first; ``PLS(scale=False)`` does not, and is
         given ``X`` scaled as its training data was.
     response : str or int or None, default=None
@@ -578,14 +578,14 @@ def _contribution_inputs(model: BaseEstimator, X: DataMatrix) -> tuple[pd.DataFr
 
     ``X`` is the data ``transform`` and ``diagnose`` take, and is read through the
     model's own ``_scaled_rows``, as they read it (#1125): checked against the fit,
-    its columns in the fitted order, centred and scaled when the model does that
+    its columns in the fitted order, centered and scaled when the model does that
     itself (``PLS(scale=True)``), and 0 in a column the fit left out (#1098), so
     that column contributes 0 (#1114).
 
     ``R`` generates the scores (``T = X @ R``) and ``P`` reconstructs the X-block
     (``X_hat = T @ P.T``). For PCA both are the loadings; for PLS ``R`` is the
     direct (rotated) weights ``direct_weights_`` and ``P`` is ``x_loadings_``.
-    PLS is recognised by the presence of ``direct_weights_``. OPLS, which has
+    PLS is recognized by the presence of ``direct_weights_``. OPLS, which has
     neither, gives its own through ``_contribution_matrices`` (#1144).
     """
     if not hasattr(model, "scores_"):
@@ -598,7 +598,7 @@ def _contribution_inputs(model: BaseEstimator, X: DataMatrix) -> tuple[pd.DataFr
         is_pls = hasattr(model, "direct_weights_")
         P = np.asarray(model.x_loadings_ if is_pls else model.loadings_)
         R = np.asarray(model.direct_weights_ if is_pls else model.loadings_)
-    # An array's columns are taken by position, labelled as fitted, as they always were here: a frame
+    # An array's columns are taken by position, labeled as fitted, as they always were here: a frame
     # lets _scaled_rows do that without sklearn's warning that the rows carry no feature names. A frame
     # passes through pd.DataFrame with its labels and values as they are.
     return model._scaled_rows(pd.DataFrame(X)), R, P
@@ -717,10 +717,10 @@ def cumulative_block_t2(scores: np.ndarray) -> np.ndarray:
     Each component is scaled by the scores' second moment about zero,
     ``sum(t**2) / (n - 1)`` over the ``n`` rows that have a score, which is how
     ``explained_variance_`` scales the super scores, so a block's T² and the super T²
-    follow one convention. T² measures the distance from the model's centre, the
+    follow one convention. T² measures the distance from the model's center, the
     origin of the score space, so the spread it is scaled by is the spread about that
     origin too. The block scores used to be scaled by their variance about their own
-    mean instead, which differs as soon as missing data leaves them off-centre, and
+    mean instead, which differs as soon as missing data leaves them off-center, and
     which a single row without a score turned into NaN, so that every row's T² in the
     block went unscaled. A component with no spread in the block is left out by
     :func:`_t2_score_sd`, as from every other T² (#1028).
@@ -765,7 +765,7 @@ def t2_contributions(
     so that :math:`T = XR`). Summed over the variables this telescopes to
     :math:`\sum_a t_{ia}^2 / s_a^2`, i.e. the observation's :math:`T^2`. The
     values are signed; a large magnitude flags a variable that drives the
-    observation away from the model centre. This is the standard MSPC
+    observation away from the model center. This is the standard MSPC
     diagnostic (Westerhuis, Gurden and Smilde, 2000). A component whose score
     standard deviation is ~0 contributes nothing, as it adds nothing to the
     stored ``hotellings_t2_``.
@@ -791,7 +791,7 @@ def t2_contributions(
         A fitted PCA or PLS model.
     X : array-like of shape (n_samples, n_features)
         The data the model's ``transform`` and ``diagnose`` take, in the units
-        it was fitted on. A model that centres and scales ``X`` itself
+        it was fitted on. A model that centers and scales ``X`` itself
         (``PLS(scale=True)``, the default) does so here first; ``PCA`` and
         ``PLS(scale=False)`` do not, and are given ``X`` scaled as their
         training data was, for example with :class:`MCUVScaler`.
@@ -809,7 +809,7 @@ def t2_contributions(
         complete. ``None`` takes the one the model's ``transform`` and
         ``diagnose`` use. See :meth:`PCA.project`.
     ridge : float, default=0.0
-        Regularisation for the ``"tsr"`` and ``"pmp"`` estimators, as in
+        Regularization for the ``"tsr"`` and ``"pmp"`` estimators, as in
         :meth:`PCA.project`.
 
     Returns
@@ -906,7 +906,7 @@ def spe_contributions(
         A fitted PCA or PLS model.
     X : array-like of shape (n_samples, n_features)
         The data the model's ``transform`` and ``diagnose`` take, in the units
-        it was fitted on. A model that centres and scales ``X`` itself
+        it was fitted on. A model that centers and scales ``X`` itself
         (``PLS(scale=True)``, the default) does so here first; ``PCA`` and
         ``PLS(scale=False)`` do not, and are given ``X`` scaled as their
         training data was, for example with :class:`MCUVScaler`.
@@ -920,7 +920,7 @@ def spe_contributions(
         complete. ``None`` takes the one the model's ``transform`` and
         ``diagnose`` use. See :meth:`PCA.project`.
     ridge : float, default=0.0
-        Regularisation for the ``"tsr"`` and ``"pmp"`` estimators, as in
+        Regularization for the ``"tsr"`` and ``"pmp"`` estimators, as in
         :meth:`PCA.project`.
 
     Returns
@@ -1015,7 +1015,7 @@ def score_contributions(
 
     where :math:`R` is the score-generating matrix (``loadings_`` for PCA,
     ``direct_weights_`` for PLS, so that :math:`T = XR`). This is the
-    contribution of Miller, Swanson and Heckler (1994); the generalisation from
+    contribution of Miller, Swanson and Heckler (1994); the generalization from
     PCA loadings to any latent-variable model's score-generating weights follows
     Westerhuis, Gurden and Smilde (2000).
 
@@ -1047,7 +1047,7 @@ def score_contributions(
         A fitted PCA or PLS model.
     X : array-like of shape (n_samples, n_features)
         The data the model's ``transform`` and ``diagnose`` take, in the units
-        it was fitted on. A model that centres and scales ``X`` itself
+        it was fitted on. A model that centers and scales ``X`` itself
         (``PLS(scale=True)``, the default) does so here first; ``PCA`` and
         ``PLS(scale=False)`` do not, and are given ``X`` scaled as their
         training data was, for example with :class:`MCUVScaler`.
@@ -1073,7 +1073,7 @@ def score_contributions(
         complete. ``None`` takes the one the model's ``transform`` and
         ``diagnose`` use. See :meth:`PCA.project`.
     ridge : float, default=0.0
-        Regularisation for the ``"tsr"`` and ``"pmp"`` estimators, as in
+        Regularization for the ``"tsr"`` and ``"pmp"`` estimators, as in
         :meth:`PCA.project`.
     **deprecated
         Rejected. Captures ``t_end``, ``components`` and ``weighted`` so that a
@@ -1152,7 +1152,7 @@ def group_contributions(
 
     The common cases have their own arguments. With ``group`` alone the weights
     are :math:`1/n_G` over the group, comparing its mean against the model
-    centre. With ``group`` and ``reference`` they are :math:`+1/n_G` and
+    center. With ``group`` and ``reference`` they are :math:`+1/n_G` and
     :math:`-1/n_H`, so the contributions sum to the difference in average score,
     which is the level-shift diagnostic of the paper's Figure 9. Pass ``weights``
     directly for anything else: the paper suggests the first-order orthogonal
@@ -1170,7 +1170,7 @@ def group_contributions(
         A fitted PCA or PLS model.
     X : array-like of shape (n_samples, n_features)
         The data the model's ``transform`` and ``diagnose`` take, in the units
-        it was fitted on. A model that centres and scales ``X`` itself
+        it was fitted on. A model that centers and scales ``X`` itself
         (``PLS(scale=True)``, the default) does so here first; ``PCA`` and
         ``PLS(scale=False)`` do not, and are given ``X`` scaled as their
         training data was, for example with :class:`MCUVScaler`.
@@ -1184,7 +1184,7 @@ def group_contributions(
         is given.
     reference : sequence, optional
         Index labels selecting the observations to compare against. ``None``
-        (default) compares the group against the model centre.
+        (default) compares the group against the model center.
     component : int, default=1
         **1-based** component index whose score is decomposed.
     weights : sequence, optional
@@ -1314,8 +1314,8 @@ def _meda_index(cross: np.ndarray, modelled: np.ndarray, scale: np.ndarray, *, s
 def _seriation_order(matrix: np.ndarray) -> np.ndarray:
     """Order rows and columns so that strongly related variables sit next to each other.
 
-    Average-linkage clustering on the distance ``1 - |m|`` (symmetrised), with the
-    leaves put in the order that maximises the similarity of neighbours (Bar-Joseph,
+    Average-linkage clustering on the distance ``1 - |m|`` (symmetrized), with the
+    leaves put in the order that maximizes the similarity of neighbors (Bar-Joseph,
     Gifford and Jaakkola, 2001), so each block of related variables is contiguous.
     Two variables have only one order, up to reversal.
     """
@@ -1364,7 +1364,7 @@ def meda(model: BaseEstimator, X: DataMatrix, *, signed: bool = True, seriate: b
         at fewer components, fit a model with fewer.
     X : array-like of shape (n_samples, n_features)
         The data the model's ``transform`` and ``diagnose`` take, in the units
-        it was fitted on. A model that centres and scales ``X`` itself
+        it was fitted on. A model that centers and scales ``X`` itself
         (``PLS(scale=True)``, the default) does so here first; ``PCA`` and
         ``PLS(scale=False)`` do not, and are given ``X`` scaled as their
         training data was, for example with :class:`MCUVScaler`. Usually the
@@ -1384,7 +1384,7 @@ def meda(model: BaseEstimator, X: DataMatrix, *, signed: bool = True, seriate: b
     Returns
     -------
     pd.DataFrame
-        The K x K map, rows and columns labelled by variable. It is symmetric
+        The K x K map, rows and columns labeled by variable. It is symmetric
         for PCA, and close to symmetric for PLS.
 
     Examples
@@ -1484,7 +1484,7 @@ def omeda(
 
     This is the MEDA index with the dummy in place of a second variable. A
     positive value means the variable is higher in ``group`` than in ``reference``
-    (or than the model centre, with no reference), a negative value that it is
+    (or than the model center, with no reference), a negative value that it is
     lower. The size grows with the difference and with how well the model
     reproduces it. The dummy sums the observations rather than averaging them, so
     a comparison of unequal groups leans towards the larger one, as in the
@@ -1496,7 +1496,7 @@ def omeda(
         A fitted PCA or PLS model; every fitted component is used.
     X : array-like of shape (n_samples, n_features)
         The data the model's ``transform`` and ``diagnose`` take, in the units
-        it was fitted on. A model that centres and scales ``X`` itself
+        it was fitted on. A model that centers and scales ``X`` itself
         (``PLS(scale=True)``, the default) does so here first; ``PCA`` and
         ``PLS(scale=False)`` do not, and are given ``X`` scaled as their
         training data was, for example with :class:`MCUVScaler`. A missing
@@ -1511,7 +1511,7 @@ def omeda(
         given.
     reference : sequence, optional
         Index labels, or a boolean mask, selecting the observations to compare
-        against. ``None`` (default) compares the group against the model centre.
+        against. ``None`` (default) compares the group against the model center.
     weights : sequence, optional
         One weight per row of ``X``: a general dummy vector, for comparisons
         other than two groups. Mutually exclusive with ``group`` / ``reference``.
@@ -1662,7 +1662,7 @@ def project_variables(model: BaseEstimator, supplementary_data: DataMatrix) -> p
 
 
 def _column_centred_array(data: DataMatrix, name: str) -> np.ndarray:
-    """Coerce *data* to a 2-D float array with every column mean-centred."""
+    """Coerce *data* to a 2-D float array with every column mean-centered."""
     arr = np.asarray(data, dtype=float)
     if arr.ndim == 1:
         arr = arr[:, np.newaxis]
@@ -1697,7 +1697,7 @@ def rv_coefficient(X: DataMatrix, Y: DataMatrix) -> float:
 
     The RV coefficient (Robert and Escoufier, 1976) measures how much common
     structure two matrices, measured on the *same observations*, share. It is a
-    multivariate generalisation of the squared Pearson correlation: it compares
+    multivariate generalization of the squared Pearson correlation: it compares
     the observation-by-observation configuration matrices :math:`XX^T` and
     :math:`YY^T` rather than individual variables.
 
@@ -1719,8 +1719,8 @@ def rv_coefficient(X: DataMatrix, Y: DataMatrix) -> float:
 
     Notes
     -----
-    Each column is mean-centred internally, since the RV coefficient is defined
-    on centred data. The blocks are **not** scaled; scale the columns yourself
+    Each column is mean-centered internally, since the RV coefficient is defined
+    on centered data. The blocks are **not** scaled; scale the columns yourself
     (for example with :class:`MCUVScaler`) when the variables have different
     units.
 
@@ -1773,7 +1773,7 @@ def rv2_coefficient(X: DataMatrix, Y: DataMatrix) -> float:
 
     Notes
     -----
-    Each column is mean-centred internally but the blocks are **not** scaled;
+    Each column is mean-centered internally but the blocks are **not** scaled;
     scale the columns yourself (for example with :class:`MCUVScaler`) when the
     variables have different units.
 

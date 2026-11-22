@@ -77,7 +77,7 @@ def started(page) -> None:
 
 
 def test_a_design_comes_back_and_is_analysed_again_under_pyodide(own_context, app_url):
-    """IndexedDB keeps the design and its results; the page opened again analyses them in its own Pyodide.
+    """IndexedDB keeps the design and its results; the page opened again analyzes them in its own Pyodide.
 
     A browser of its own, so the module's shared page keeps the worked example the other tests read.
     """

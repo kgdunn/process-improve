@@ -1,6 +1,6 @@
 """Contributions take the same ``X`` as the model's ``predict`` / ``transform`` / ``diagnose`` (#1125).
 
-A model that centres and scales ``X`` itself (``PLS(scale=True)``, the default, and ``PLSDA`` and
+A model that centers and scales ``X`` itself (``PLS(scale=True)``, the default, and ``PLSDA`` and
 ``PRM``, which inherit it) applies that preprocessing before it decomposes a row, so the training
 data, in the units the model was fitted on, reproduces the stored ``hotellings_t2_``, ``spe_`` and
 ``scores_``. A model that scales nothing (``PCA``, ``PLS(scale=False)``) is given data that is
@@ -35,7 +35,7 @@ N_COMPONENTS = 2
 def raw() -> tuple[pd.DataFrame, pd.DataFrame]:
     """Thirty rows on two latent directions, in units far from 0 and 1, and one response.
 
-    Each column is offset by 50 and spread over a different unit, so a model's centring and
+    Each column is offset by 50 and spread over a different unit, so a model's centering and
     scaling changes every value: a contribution that skipped it would be far off.
     """
     rng = np.random.default_rng(0)
@@ -124,7 +124,7 @@ def test_opls_contributions_split_the_scores_transform_gives_new_rows(raw: tuple
     new = X.iloc[:4] * 1.1
     scores = model.transform(new)["t_predictive"]
     np.testing.assert_allclose(model.score_contributions(new).sum(axis=1), scores, rtol=1e-9)
-    for contributions in (model.t2_contributions(new), model.spe_contributions(new)):  # labelled as X is
+    for contributions in (model.t2_contributions(new), model.spe_contributions(new)):  # labeled as X is
         assert (list(contributions.index), list(contributions.columns)) == (list(new.index), list("abcde"))
     shift = model.group_contributions(new, group=new.index[:2], reference=new.index[2:]).sum()
     assert shift == pytest.approx(scores.iloc[:2].mean() - scores.iloc[2:].mean(), rel=1e-9)
@@ -194,7 +194,7 @@ def blocks(raw: tuple[pd.DataFrame, pd.DataFrame]) -> dict[str, pd.DataFrame]:
 def test_multiblock_models_take_raw_blocks(
     kind: str, blocks: dict[str, pd.DataFrame], raw: tuple[pd.DataFrame, pd.DataFrame]
 ) -> None:
-    """MBPCA and MBPLS always centre and scale each block, and their contributions take the raw blocks.
+    """MBPCA and MBPLS always center and scale each block, and their contributions take the raw blocks.
 
     The training blocks reproduce the stored block SPE and super scores, and new rows reproduce
     what ``diagnose`` reports for them.
@@ -215,10 +215,10 @@ def test_multiblock_models_take_raw_blocks(
 
 @pytest.mark.parametrize("kind", ["AdaptivePCA", "AdaptivePLS"])
 def test_adaptive_models_take_the_rows_transform_takes(kind: str, raw: tuple[pd.DataFrame, pd.DataFrame]) -> None:
-    """An adaptive model centres and scales a row with its current centre and spread, for contributions too."""
+    """An adaptive model centers and scales a row with its current center and spread, for contributions too."""
     X, y = raw
     model = AdaptivePCA(N_COMPONENTS).fit(X) if kind == "AdaptivePCA" else AdaptivePLS(N_COMPONENTS).fit(X, y)
-    model.partial_fit(X.iloc[:5] + 1.0, None if kind == "AdaptivePCA" else y.iloc[:5])  # the centre moves
+    model.partial_fit(X.iloc[:5] + 1.0, None if kind == "AdaptivePCA" else y.iloc[:5])  # the center moves
     new = X.iloc[5:9]
     scores = model.transform(new)
     np.testing.assert_allclose(score_contributions(model, new, component=2).sum(axis=1), scores.iloc[:, 1], rtol=1e-9)
@@ -229,7 +229,7 @@ def test_adaptive_models_take_the_rows_transform_takes(kind: str, raw: tuple[pd.
 def test_a_training_row_with_nothing_observed_is_decomposed_as_fit_scored_it(
     raw: tuple[pd.DataFrame, pd.DataFrame],
 ) -> None:
-    """``fit`` places a row with no observed value at the centre; so do the contributions and ``project``.
+    """``fit`` places a row with no observed value at the center; so do the contributions and ``project``.
 
     Its scores and T2 are 0, and so are the sums of its contributions, which are NaN at every
     cell, as at any missing cell. Before #1125 the contributions and ``project`` refused it. It

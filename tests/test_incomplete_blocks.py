@@ -1,9 +1,9 @@
 """Balanced incomplete block designs: intrablock, interblock and combined estimates (#789 B7).
 
 Montgomery's Example 4.5 works the adjusted totals, Yates's interblock estimates and the combined
-estimates of four catalysts in four batches of three. Davies's tyre test and rubber Youden square,
-and Box, Hunter and Hunter's wear Youden square analysed as a BIBD (Table 8D.4), print further sums
-and totals. Each is read from the reference catalogue.
+estimates of four catalysts in four batches of three. Davies's tire test and rubber Youden square,
+and Box, Hunter and Hunter's wear Youden square analyzed as a BIBD (Table 8D.4), print further sums
+and totals. Each is read from the reference catalog.
 """
 
 from __future__ import annotations
@@ -88,7 +88,7 @@ def test_the_intrablock_estimates_are_the_sum_coded_coefficients(catalyst):
 
 # --------------------------------------------------------------------------- Davies and Box, Hunter and Hunter
 def test_davies_tyre_road_test():
-    """Four compounds on four tyres of three: the total 61,603 and the tyres unadjusted 39,123; C's effect 30.9."""
+    """Four compounds on four tires of three: the total 61,603 and the tires unadjusted 39,123; C's effect 30.9."""
     found = bibd_analysis(runs("davies-1956", "davies-tyre-road-test"), "Compound", "Tyre", "Wear")
     assert (found["block_size"], found["replicates"], found["concurrences"]) == (3, 3, 2)
     assert round(found["sums_of_squares"]["total"]) == 61603
@@ -121,7 +121,7 @@ def test_box_hunter_and_hunter_s_wear_youden_square_as_a_bibd():
         assert 4 * found["adjusted_treatment_totals"][label] == pytest.approx(q)
 
 
-# --------------------------------------------------------------------------- the estimates' behaviour
+# --------------------------------------------------------------------------- the estimates' behavior
 def test_large_block_differences_leave_the_combined_estimates_at_the_intrablock_ones():
     """With the blocks far apart, the block totals carry little information about the treatments."""
     table = runs("montgomery-2013", "montgomery-catalyst-bibd").astype({"y": float})

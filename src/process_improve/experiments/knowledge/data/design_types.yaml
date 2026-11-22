@@ -348,7 +348,7 @@
       is confined to the second-order block, so screening and response-surface
       goals can be pursued in a single design with a flexible run count.
     expert: >
-      OMARS designs generalise definitive screening designs: the DSD
+      OMARS designs generalize definitive screening designs: the DSD
       (conference-matrix foldover) is the minimal member of the OMARS family.
       The full family is obtained by enumeration, trading off run size against
       second-order aliasing, projection, and estimation efficiency. This

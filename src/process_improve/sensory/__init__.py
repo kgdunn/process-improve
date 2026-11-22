@@ -6,9 +6,9 @@ This subpackage provides a small, generic pipeline for descriptive panel
 data: validate the data, identify and (optionally) correct panel anomalies,
 and relate the panel attributes back to the product. For now the product is
 described by **observational** descriptors (measured covariates of products
-whose formulation is unknown), and the relationship is analysed by PLS as
+whose formulation is unknown), and the relationship is analyzed by PLS as
 association rather than causation. A **designed** mode (controlled experimental
-runs, analysed as factor effects) is stubbed and planned for a later release.
+runs, analyzed as factor effects) is stubbed and planned for a later release.
 
 The public entry points are :func:`validate_descriptive` and
 :func:`analyze_descriptive`. Agent-callable wrappers live in

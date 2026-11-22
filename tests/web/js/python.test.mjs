@@ -97,7 +97,7 @@ describe("the results", () => {
     assert.match(resultsCode(unitless, [1, 2]), /y = runs\["Yield"\]  # Hardness$/);
   });
 
-  test("a centre at zero, a negative one, and a half-range of one, written plainly", () => {
+  test("a center at zero, a negative one, and a half-range of one, written plainly", () => {
     const factors = [
       { name: "A", low: -1, high: 1 },
       { name: "B", low: -10, high: -6 },
@@ -284,7 +284,7 @@ describe("the best settings", () => {
   const goal = { response: "Yield", goal: "maximize", low: 35.925, high: 87.975 };
   const best = { coded: { T: 1, P: -1, S: 1 }, search: { held: {}, goal } };
 
-  test("the optimiser on step 3's model, with the goal's limits as the page set them", () => {
+  test("the optimizer on step 3's model, with the goal's limits as the page set them", () => {
     const code = bestCode({ ...best, spec: undefined }, { ...spec, factors: FACTORS }, "quadratic");
     assert.match(code, /^import pandas as pd\nfrom process_improve\.experiments import analyze_experiment, optimize_responses\n/);
     assert.match(code, /goal = \{"response": "Yield", "goal": "maximize", "low": 35\.925, "high": 87\.975\}/);
@@ -402,7 +402,7 @@ describe("a study judged at a level of its own", () => {
   });
 });
 
-describe("a study's colour map", () => {
+describe("a study's color map", () => {
   afterEach(() => setColourMap(undefined));
   const blend = { response: "y", factors: ["A", "B", "C"].map((name) => ({ name, low: 0, high: 1 })) };
   const scale = () => ownFigureCode("ternary", "The blends", blend).match(/"colorscale": (colorscale\([^)]*\))/)[1];

@@ -1,5 +1,5 @@
 # (c) Kevin Dunn, 2010-2026. MIT License.
-r"""Variance dispersion: how a design's prediction variance spreads over spheres about its centre.
+r"""Variance dispersion: how a design's prediction variance spreads over spheres about its center.
 
 The scaled prediction variance of a design of :math:`N` runs at a point :math:`x` (in coded units) is
 
@@ -9,7 +9,7 @@ The scaled prediction variance of a design of :math:`N` runs at a point :math:`x
 
 with :math:`f(x)` the model's terms at :math:`x` and :math:`X` the model matrix of the runs. A
 variance dispersion graph plots its minimum, average and maximum over the sphere of each radius
-:math:`r` about the centre (Myers, Montgomery and Anderson-Cook; Montgomery, section 11.4). A
+:math:`r` about the center (Myers, Montgomery and Anderson-Cook; Montgomery, section 11.4). A
 design is *rotatable* when :math:`v` is the same at every point of each sphere, so that the
 minimum and the maximum meet: a rotatable central composite design, or a Box-Behnken design in
 four or seven factors.
@@ -72,7 +72,7 @@ def variance_dispersion(
     n_directions: int = 2000,
     random_state: int | np.random.Generator | None = 42,
 ) -> dict[str, Any]:
-    r"""Return the minimum, average and maximum scaled prediction variance on spheres about the centre.
+    r"""Return the minimum, average and maximum scaled prediction variance on spheres about the center.
 
     Parameters
     ----------
@@ -85,7 +85,7 @@ def variance_dispersion(
         polynomials of degree 3 or less in the factors.
     radii : int or Sequence[float]
         The radii of the spheres: a number of them, evenly spaced from 0 to the largest distance of
-        a run from the centre, or the radii themselves.
+        a run from the center, or the radii themselves.
     n_directions : int
         The directions sampled on each sphere, the same on every sphere, before the minimum and the
         maximum are refined.
@@ -101,7 +101,7 @@ def variance_dispersion(
         - ``spread``: the maximum less the minimum, 0 on every sphere of a rotatable design;
         - ``rotatable``: True when the spread is within ``ROTATABLE_TOLERANCE`` of the mean on every
           sphere;
-        - ``design_radius``: the largest distance of a run from the centre;
+        - ``design_radius``: the largest distance of a run from the center;
         - ``n_runs`` and ``n_terms``: :math:`N`, and the model's columns.
 
     Raises
@@ -154,7 +154,7 @@ def _numeric_design(design_matrix: pd.DataFrame | DesignResult, model: str | Non
     design_df, names, _ = _separate_run_columns(design_df, names, model)
     labels = [name for name in names if not pd.api.types.is_numeric_dtype(design_df[name])]
     if labels:
-        msg = f"Spheres about the centre need numeric factors; {labels} are categorical."
+        msg = f"Spheres about the center need numeric factors; {labels} are categorical."
         raise ValueError(msg)
     settings = np.abs(design_df[names].to_numpy(dtype=float))
     if not np.all(np.isfinite(settings)):
@@ -162,8 +162,8 @@ def _numeric_design(design_matrix: pd.DataFrame | DesignResult, model: str | Non
         raise ValueError(msg)
     if settings.max() > max(_CODED_LIMIT_FLOOR, 2 ** (len(names) / 4), np.sqrt(len(names))):
         warnings.warn(
-            f"variance_dispersion expects factor settings in coded units, centred on 0, but a setting reaches "
-            f"|x| = {settings.max():g}. In actual units the spheres are about the wrong centre; pass the "
+            f"variance_dispersion expects factor settings in coded units, centered on 0, but a setting reaches "
+            f"|x| = {settings.max():g}. In actual units the spheres are about the wrong center; pass the "
             "DesignResult, or code the columns first.",
             category=UserWarning,
             stacklevel=user_stacklevel(),

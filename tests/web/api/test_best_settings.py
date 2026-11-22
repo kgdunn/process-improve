@@ -91,7 +91,7 @@ def confirmed(held: dict, responses: list, at: dict, results: list) -> tuple[dic
 # --------------------------------------------------------------------------- the three goals, on known surfaces
 @pytest.fixture(scope="module")
 def square(api) -> dict:
-    """Make a face-centred CCD in two factors, each from -1 to +1, so a setting is its own coded value."""
+    """Make a face-centered CCD in two factors, each from -1 to +1, so a setting is its own coded value."""
     return design_of(api, design_type="ccd", factors=factors_named("A", "B"))
 
 
@@ -323,11 +323,11 @@ def test_limits_on_the_settings_are_kept_and_named_when_the_best_is_on_one(api):
         ["T + 25 * P + 5 * F <= 290"],
         ["T + 25*P <= 250", "T * F <= 3600"],
     ],
-    ids=["straight", "curved", "centre ruled out", "straight and curved"],
+    ids=["straight", "curved", "center ruled out", "straight and curved"],
 )
 @pytest.mark.parametrize("goal", ["maximize", "minimize"])
 def test_the_best_settings_and_the_confirmation_runs_keep_to_every_limit(api, limits, goal):
-    """To the optimiser's own tolerance, a millionth in each limit's units: the best on a limit is on it."""
+    """To the optimizer's own tolerance, a millionth in each limit's units: the best on a limit is on it."""
     held = design_of(api, design_type="d_optimal", factors=FACTORS, constraints=[{"expression": e} for e in limits])
     responses = api.ok("api_simulate", {**held, "scenario": "random", "seed": 3})["responses"]
     best = best_of(api, held, responses, goal)

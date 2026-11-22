@@ -5,7 +5,7 @@ Once you have a candidate design, the next question is: *"How good is it for
 the model I intend to fit?"*  The :func:`~process_improve.experiments.evaluate_design`
 function answers this by computing a complete, model-aware set of quality
 metrics from the design matrix and a chosen model.  A single call can fully
-characterise a response-surface design: its efficiency, where it predicts well
+characterize a response-surface design: its efficiency, where it predicts well
 or badly, how its coefficients are correlated, and what bias it carries from
 terms left out of the model.
 
@@ -62,7 +62,7 @@ The Metrics
 Optimality and efficiency
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-These summarise the information matrix :math:`X^\top X` for the fitted model.
+These summarize the information matrix :math:`X^\top X` for the fitted model.
 
 - ``d_efficiency`` - :math:`100 \cdot \det(X^\top X)^{1/p} / N`; overall
   information content (higher is better).
@@ -129,11 +129,11 @@ variance, as JMP reports them.
 Term correlation
 ~~~~~~~~~~~~~~~~~
 
-``correlation`` summarises the pairwise correlation among the *second-order*
+``correlation`` summarizes the pairwise correlation among the *second-order*
 terms (pure quadratics and two-factor interactions).  Because the
 :math:`x_i^2` columns have a non-zero mean, a naive Pearson correlation is
 inflated by that shared offset and depends on the coding.  The metric instead
-residualises each second-order column against the intercept-and-main-effect
+residualizes each second-order column against the intercept-and-main-effect
 block first, giving a coding-invariant measure.  It returns ``max_abs_r``,
 ``mean_abs_r``, the full ``matrix``, and ``by_pair``: the largest and the mean
 :math:`|r|`, and the number of pairs, for each kind of pair Jones and Nachtsheim
@@ -165,7 +165,7 @@ and Nachtsheim's Table 4):
 Alias (bias) matrix
 ~~~~~~~~~~~~~~~~~~~~~
 
-``alias_matrix`` generalises the two-level alias structure to any design and
+``alias_matrix`` generalizes the two-level alias structure to any design and
 model.  Given the fitted model :math:`X_1` and a set of potential extra terms
 :math:`X_2` (by default the two-factor interactions *not* already in the
 model), it computes
@@ -252,7 +252,7 @@ hypotheses, a linear effect, a quadratic effect or an interaction, each tested a
 main effects (hypotheses 1 to 3) or in the full quadratic model of two factors (4 to 6). It
 averages each test's power over every factor or pair of factors, at Table 7's coefficients of
 1, 2 and 3 times sigma unless ``effect_size`` is given, and it ignores ``model``. A test that a
-design cannot make is marked ``"aliased"`` (every square of a two-level design with centre runs
+design cannot make is marked ``"aliased"`` (every square of a two-level design with center runs
 has the same column) or ``"not estimable"``:
 
 .. code-block:: python
@@ -435,7 +435,7 @@ its information matrix :math:`\mathbf{M} = \mathbf{X}^T\mathbf{X}`:
 
 No design is best on every row. The two twenty-seven-run designs have the same size:
 the Box-Behnken design has the smaller average variances, the smaller max
-:math:`|r|` and more power for a quadratic, while the face-centred CCD has the
+:math:`|r|` and more power for a quadratic, while the face-centered CCD has the
 smaller worst cases and more power for a main effect. The eleven-run DSD spends fewer
 runs, and every measure that improves with runs is weaker for it, with two degrees of
 freedom left to estimate the error. Which row matters depends on what the experiment
@@ -472,7 +472,7 @@ Testing an analysis on a known process
 
 :class:`~process_improve.experiments.TrueProcess` holds a second-order model in coded
 units and a noise standard deviation. Its runs can be simulated for any design and
-analysed as if they had come from the plant, so the estimates can be set beside the
+analyzed as if they had come from the plant, so the estimates can be set beside the
 truth before any experiment is spent:
 
 .. code-block:: python
@@ -551,10 +551,10 @@ found that are not true, and the share in which nothing stood out from the noise
 from 200 studies is within about 0.07 of its limit (95%). The 12-run Plackett-Burman design
 finds the process in half of the studies: the ``A:C`` interaction biases every main effect
 outside it, and with no runs to spare for error, nothing stands out in two studies of five.
-Three centre runs give it the degrees of freedom to see the interaction. The false alarms are
+Three center runs give it the degrees of freedom to see the interaction. The false alarms are
 the price of testing every term at 0.05: a design that tests more terms raises more of them. A true term counts as found when
 the analysis finds it, or a term the design makes identical to it: ``D`` for ``A:B`` in a
-resolution III fraction whose generator is ``D = AB``, or the curvature at the centre runs
+resolution III fraction whose generator is ``D = AB``, or the curvature at the center runs
 for a square. The design can do no better than that, so it is no false alarm.
 
 With ``goal="maximize"`` (or ``"minimize"``, or ``"target"`` with a ``target``), each study

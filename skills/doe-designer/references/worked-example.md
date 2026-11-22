@@ -10,7 +10,7 @@ think of seven things that might matter and can afford about 40 runs.
 
 Established by asking:
 
-- **Response**: Yield, in percent. Maximise. Measurement repeatability about
+- **Response**: Yield, in percent. Maximize. Measurement repeatability about
   1 percentage point.
 - **Factors**: Temperature (150-180 C), Time (30-90 min), Catalyst
   (0.5-2.0 %), Pressure (1-3 bar), Stir (200-600 rpm), pH (5-8),
@@ -20,7 +20,7 @@ Established by asking:
 - **Prior knowledge**: none firm. Temperature is suspected to matter.
 
 Seven factors and no firm prior knowledge means this is a screening problem,
-not an optimisation problem. Do not reach for a response surface here.
+not an optimization problem. Do not reach for a response surface here.
 
 ## 2. Strategy
 
@@ -33,7 +33,7 @@ Returned a three-stage plan:
 | Stage | Design | Runs | Purpose |
 |---|---|---|---|
 | 1. Screening | Definitive screening design, 4 center points | 20 | Find the vital few among 7 factors, and test for curvature |
-| 2. Optimisation (conditional) | CCD, 3 center points, face-centred | 17 | Quadratic surface on the survivors, only if screening calls for it |
+| 2. Optimization (conditional) | CCD, 3 center points, face-centered | 17 | Quadratic surface on the survivors, only if screening calls for it |
 | 3. Confirmation | 3 replicates at the optimum | 3 | Check the prediction holds |
 
 Stage 2 comes back with `conditional: true` and a `run_if` saying when it is
@@ -43,7 +43,7 @@ plan therefore needs 23 runs (`minimum_total_runs`) or 40 (`total_estimated_runs
 It also returned transition rules worth quoting to the user, because they say
 in advance what to do with each outcome: 0-1 significant factors means the
 ranges were too narrow (or the measurement system is the problem); 2-5 means
-proceed to optimisation; 6+ means split the factors into subgroups; curvature
+proceed to optimization; 6+ means split the factors into subgroups; curvature
 detected at the center points means augment to a CCD.
 
 We chose a 16-run resolution IV fractional factorial for stage 1 instead of
@@ -62,7 +62,7 @@ python scripts/doe_tool.py call generate_design --input design_spec.json --outpu
 
 with `design_type: "fractional_factorial"`, `resolution: 4`,
 `n_center_points: 0`. Returned 16 runs, 7 factors, declared resolution 4, with
-both `design_coded` and `design_actual` (real units) plus a randomised
+both `design_coded` and `design_actual` (real units) plus a randomized
 `run_order`.
 
 ## 4. Verify
@@ -99,7 +99,7 @@ Hand over `design_actual` in real units, ordered by `run_order`, with an empty
 Yield column. Stress that the order is deliberate and should not be
 rearranged for convenience: it is what protects the results against drift.
 
-## 6. Analyse
+## 6. Analyze
 
 ```bash
 python scripts/doe_tool.py call analyze_experiment --input analysis_spec.json --output analysis.json
@@ -204,6 +204,6 @@ python scripts/doe_tool.py call generate_design --input '{
   "design_type": "ccd", "n_center_points": 3, "alpha": "rotatable"}'
 ```
 
-Then analyse with `model: "quadratic"`, add `lack_of_fit` and
-`curvature_test`, optimise with `optimize_responses`, and confirm the
+Then analyze with `model: "quadratic"`, add `lack_of_fit` and
+`curvature_test`, optimize with `optimize_responses`, and confirm the
 predicted optimum with three replicates checked by `confirmation_test`.

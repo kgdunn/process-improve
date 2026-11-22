@@ -1,6 +1,6 @@
 """(c) Kevin Dunn, 2010-2026. MIT License.
 
-Preconditions for panel analysis: can this attribute be modelled at all?
+Preconditions for panel analysis: can this attribute be modeled at all?
 
 Every model in this subpackage assumes the attribute behaves like an intensity
 that assessors read off a linear scale, and that what separates assessors is how
@@ -62,7 +62,7 @@ def _require_panel(panel: pd.DataFrame, caller: str) -> None:
         )
     if len(panel) == 0:
         raise ValueError(
-            f"{caller} was given a panel with no rows, so there is nothing to analyse. "
+            f"{caller} was given a panel with no rows, so there is nothing to analyze. "
             "This usually means an upstream filter (an attribute list, a panelist "
             "exclusion, a product subset) removed everything; check that filter rather "
             "than this call."
@@ -90,7 +90,7 @@ def boundary_occupancy(
     An attribute pinned against a scale bound violates the Mixed Assessor
     Model's premise that assessors compress or expand a linear scale: no scaling
     difference is expressible in a region where everyone records the same value.
-    Use this before modelling to decide whether an attribute can be treated as
+    Use this before modeling to decide whether an attribute can be treated as
     an intensity at all, and :func:`detection_rate` when it cannot.
 
     Floor, ceiling and exact-zero occupancy are reported separately because they
@@ -270,7 +270,7 @@ def assessor_variance_equality(panel: pd.DataFrame) -> pd.DataFrame:
 
     Method: take residuals as score minus the product mean, within each
     attribute, which removes the genuine product effects that would otherwise
-    dominate the spread. Then apply Levene's test (median-centred, i.e. the
+    dominate the spread. Then apply Levene's test (median-centered, i.e. the
     Brown-Forsythe variant, for robustness against non-normal residuals) across
     assessors.
 

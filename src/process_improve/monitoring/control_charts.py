@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 #: Consistency constant for the bounded biweight rho with cutoff k = 2.52,
 #: c_k = 1 / E[rho_norm(Z)] for Z ~ N(0, 1), where rho_norm is the biweight
-#: rho normalised to a maximum of 1. Computed via numerical integration
+#: rho normalized to a maximum of 1. Computed via numerical integration
 #: (scipy.integrate.quad of rho_norm(z) * phi(z); E = 0.3061160, so
 #: c_k = 3.266736). This makes E[rho(Z)] = 1, the condition for the scale
 #: estimates built from rho to be consistent for sigma on Gaussian data.
@@ -419,7 +419,7 @@ class ControlChart:
             variant (str, optional): Four variants are accepted: ``'hw'`` (the default),
                 ``'xbar.no.subgroup'``, ``'ewma'`` and ``'cusum'``. Any other value raises
                 ``ValueError`` at construction time.
-                The variant string is compared case-insensitively (it is normalised
+                The variant string is compared case-insensitively (it is normalized
                 via ``.strip().lower()`` on assignment), so ``'HW'``, ``'hw'``, and
                 ``'Hw'`` are all equivalent.
 
@@ -770,7 +770,7 @@ class ControlChart:
         The `style` attribute ('regular' | 'robust') switches how the average and standard
         deviation are calculated. A ``target`` or ``s`` given to ``calculate_limits`` is kept,
         and only a missing one is estimated. The robust ``s`` is the MAD about the data's own
-        median, so a given target away from the centre of the data does not inflate it.
+        median, so a given target away from the center of the data does not inflate it.
 
         Control chart limits assume the data are normally distributed and independent. In
         particular, this last assumption can have consequences if not actually met. Limits may be

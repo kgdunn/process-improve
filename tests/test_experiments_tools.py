@@ -215,7 +215,7 @@ class TestGenerateDesign:
         assert "alpha" in result
 
     def test_dataclass_metadata_is_returned_as_plain_json(self) -> None:
-        """The OMARS search report is a dataclass; the tool hands it back as a JSON-serialisable dict."""
+        """The OMARS search report is a dataclass; the tool hands it back as a JSON-serializable dict."""
         result = execute_tool_call(
             "generate_design",
             {
@@ -392,7 +392,7 @@ class TestAnalyzeExperiment:
         assert "error" not in result
 
     def test_residuals_are_checked_in_the_run_order_the_rows_carry(self) -> None:
-        """A RunOrder column reaches residual_diagnostics through the tool, and its result serialises."""
+        """A RunOrder column reaches residual_diagnostics through the tool, and its result serializes."""
         y = [28.0, 36.0, 18.0, 31.0, 27.5, 36.5, 17.5, 31.5]
         settings = [(-1, -1), (1, -1), (-1, 1), (1, 1)] * 2
         orders = [5, 2, 8, 3, 1, 7, 4, 6]
@@ -526,7 +526,7 @@ def test_negative_seed_is_rejected_by_the_schema(tool: str, args: dict) -> None:
 
 class TestOptimizeResponses:
     def test_stationary_point_quadratic(self) -> None:
-        """Stationary-point optimisation on a small quadratic model."""
+        """Stationary-point optimization on a small quadratic model."""
         result = execute_tool_call(
             "optimize_responses",
             {
@@ -584,7 +584,7 @@ class TestOptimizeResponses:
         assert result["desirability"]["optimal_coded"]["A"] == pytest.approx(2.0, abs=1e-4)
 
     def test_search_bounds_default_is_the_cube(self) -> None:
-        """Omitting it leaves the previous behaviour in place."""
+        """Omitting it leaves the previous behavior in place."""
         result = self._rising_plane_call()
         assert result["desirability"]["optimal_coded"]["A"] == pytest.approx(1.0, abs=1e-4)
 
@@ -856,7 +856,7 @@ class TestTradeOffTable:
         assert cell["resolution"] is None
 
     def test_output_is_json_serialisable(self) -> None:
-        """Tool output crosses the MCP boundary, so it must serialise."""
+        """Tool output crosses the MCP boundary, so it must serialize."""
         result = execute_tool_call("trade_off_table", {"runs": [8, 16], "factors": [4, 5]})
         assert json.loads(json.dumps(result)) == result
 
@@ -909,7 +909,7 @@ def test_generate_design_tool_enforces_constraints_and_returns_the_region() -> N
     assert out["metadata"]["region"]["constraints"][0]["expression"] == "3*T + 5*D <= 600"
     import json
 
-    json.dumps(out)  # JSON-serialisable for MCP transport
+    json.dumps(out)  # JSON-serializable for MCP transport
 
 
 def test_region_round_trips_through_the_tools() -> None:

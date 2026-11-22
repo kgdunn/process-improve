@@ -1,4 +1,4 @@
-"""Simulating the results: ``api_simulate``, which Run calls while the reader practises.
+"""Simulating the results: ``api_simulate``, which Run calls while the reader practices.
 
 A known process, written over the reader's own factors in coded units, plus noise drawn from
 the seed: so the analysis can be set beside the truth, and simulating again draws the same

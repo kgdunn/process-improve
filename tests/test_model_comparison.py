@@ -25,7 +25,7 @@ def etch() -> pd.DataFrame:
 
 @pytest.fixture
 def filtration() -> pd.DataFrame:
-    """Montgomery's filtration 2^4 (Table 6.10) with its four centre runs: 20 runs."""
+    """Montgomery's filtration 2^4 (Table 6.10) with its four center runs: 20 runs."""
     corners = [(a, b, c, d) for d in (-1, 1) for c in (-1, 1) for b in (-1, 1) for a in (-1, 1)]
     runs = pd.DataFrame([*corners, *[(0, 0, 0, 0)] * 4], columns=["A", "B", "C", "D"])
     runs["y"] = [45, 71, 48, 65, 68, 60, 80, 65, 43, 100, 45, 104, 75, 86, 70, 96, 73, 75, 66, 69]

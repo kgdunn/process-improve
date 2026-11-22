@@ -1,7 +1,7 @@
 """Response-surface plots: contour, 3D surface, prediction variance.
 
 These plots evaluate a fitted model over a 2D grid of two factors
-(holding others at their centre or ``hold_values``).  They answer
+(holding others at their center or ``hold_values``).  They answer
 questions like Q47 ("How do I draw a contour plot?") and Q121
 ("BBD contour plots and optimal salt/temperature/time").
 
@@ -91,7 +91,7 @@ def _build_coef_map(coefficients: list[dict[str, Any]]) -> dict[str, float]:
 
 
 def _extent(plot: BasePlot, factor: str) -> float:
-    """Return how far the grid reaches along ``factor`` from the centre, in coded units (#799).
+    """Return how far the grid reaches along ``factor`` from the center, in coded units (#799).
 
     It is ``plot.extent`` when given (one number, or one per factor), else the largest
     absolute coded value of the factor over ``design_data``, and at least 1: a composite
@@ -126,7 +126,7 @@ def _compute_grid(
     n_grid : int
         Grid resolution per axis.
     extents : tuple[float, float]
-        How far the grid reaches from the centre along x and along y, in coded units.
+        How far the grid reaches from the center along x and along y, in coded units.
 
     Returns
     -------
@@ -161,7 +161,7 @@ def _limit_slack(
     ``axes`` names the factors along x and y, and ``grid`` holds their values; rows follow
     the y values and columns the x values, as in a plot's ``z_matrix``. The grid and
     ``hold_values`` are in coded units, which the region's factor ranges define; a factor
-    of the region that is neither plotted nor held is at the centre of its range.
+    of the region that is neither plotted nor held is at the center of its range.
     A straight limit's slack is its signed distance from its boundary, linear over the
     grid, so a contour of it at zero is drawn straight. Where a curved limit cannot be
     evaluated (``sqrt`` or ``log`` of a negative number) or is infinite, the setting
@@ -288,7 +288,7 @@ class ContourPlot(BasePlot):
     """Contour plot of the response surface for two factors.
 
     Evaluates the fitted model on a grid of two factors, holding
-    remaining factors at their centre (or at ``hold_values``).  When
+    remaining factors at their center (or at ``hold_values``).  When
     ``design_data`` is also provided the experimental points are
     overlaid as a scatter layer with hover text giving every factor
     level and the observed response.  Replicated points are jittered
@@ -477,7 +477,7 @@ class ContourPlot(BasePlot):
         except ValueError as err:
             raise ValueError(f"{problem}: {err}") from err
         failed = result["canonical_analysis"].get("error") or result["stationary_point"].get("error")
-        if failed:  # a first-order model has no second-order part to analyse
+        if failed:  # a first-order model has no second-order part to analyze
             raise ValueError(f"{problem}: {failed}")
         return result
 
@@ -621,7 +621,7 @@ class ContourPlot(BasePlot):
 
 
 def _zero_reference_lines(x_centre: float = 0.0, y_centre: float = 0.0) -> list[Annotation]:
-    """Solid black axes through the centre of the design, coded 0 (issue #5)."""
+    """Solid black axes through the center of the design, coded 0 (issue #5)."""
     style = {"color": "#111111", "dash": "solid", "width": 1}
     return [
         Annotation(

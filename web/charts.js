@@ -1,6 +1,6 @@
 // Charts: Plotly.js, loaded once from jsDelivr at the version the Python plotly package
 // names, drawing the library's figures and the page's coefficient chart in the page's
-// colours. Every chart sits beside a table that holds its numbers, so a CDN that cannot
+// colors. Every chart sits beside a table that holds its numbers, so a CDN that cannot
 // be reached costs the picture, not the result. Nothing runs against the document until a
 // chart is built or drawn, so tests/web/js imports this module under Node.
 
@@ -8,7 +8,7 @@ import { confidencePercent, decimalMark, marked as inMark } from "./numbers.js";
 
 const CDN = (version) => `https://cdn.jsdelivr.net/npm/plotly.js-dist-min@${version}/plotly.min.js`;
 /**
- * Plotly's settings for a chart. A card has no toolbar, which sat over its legend and its colour bar's title: a
+ * Plotly's settings for a chart. A card has no toolbar, which sat over its legend and its color bar's title: a
  * figure's own window (figure.js) has one, with room for it. Two of Plotly's buttons are never shown. The one to
  * save an image saves the shape on the screen: the window saves the figure in a shape the reader chooses. The
  * one to share a chart sends it to Plotly's servers, and a study's data stays in the reader's browser.
@@ -39,7 +39,7 @@ export function loadPlotly(version) {
 }
 
 /**
- * The colours a figure is being made in, while it is: a figure whose colours are the page's own reads them with
+ * The colors a figure is being made in, while it is: a figure whose colors are the page's own reads them with
  * palette() as it is made, and an image of it for a report or a file is made in the light theme's (chartImage).
  */
 let making = null;
@@ -52,7 +52,7 @@ function madeIn(colours, make) {
   }
 }
 
-/** The page's colours, read from its CSS, so the charts follow the light and dark themes. */
+/** The page's colors, read from its CSS, so the charts follow the light and dark themes. */
 export function palette() {
   if (making) return making;
   const css = getComputedStyle(document.documentElement);
@@ -72,7 +72,7 @@ export function palette() {
 /**
  * The true values' marker: a diamond with a white face and a dark edge, as the book draws a mark
  * that sits on bars. It reads on the orange and the blue bars, and on a light or a dark page,
- * where any one colour would be too like one of them.
+ * where any one color would be too like one of them.
  */
 export const TRUE_MARKER = { symbol: "diamond", size: 12, color: "#ffffff", line: { width: 1.5, color: "#1a1a1a" } };
 
@@ -150,8 +150,8 @@ export function reportShape(layout, height, bar = 0) {
 }
 
 /**
- * Restyle a figure's layout for the room it is drawn in: the page's colours, its size, no title, the legend
- * below. ``width`` is the room's, in pixels, where it is known, and ``bar`` the part of it a colour bar takes:
+ * Restyle a figure's layout for the room it is drawn in: the page's colors, its size, no title, the legend
+ * below. ``width`` is the room's, in pixels, where it is known, and ``bar`` the part of it a color bar takes:
  * each axis title is then wrapped to fit its axis, and a scene in three dimensions is seen whole. ``free`` is
  * for a figure in a window of its own, whose shape is the reader's to give: its axes fill the room.
  */
@@ -182,7 +182,7 @@ export function pageLayout(layout, height, colours = palette(), { width = 0, bar
     margin,
     // No box around the legend: the library's own figures draw one, in black on a white page.
     legend: { orientation: "h", x: 0, y: -0.22, bgcolor: "rgba(0,0,0,0)", borderwidth: 0, ...(layout.legend || {}) },
-    // What the pointer rests on is named in the page's own colours: the library's label is white, for a white page.
+    // What the pointer rests on is named in the page's own colors: the library's label is white, for a white page.
     hoverlabel: { bgcolor: colours.panel, bordercolor: colours.line, font: { color: colours.fg, size: 12 } },
     separators,
     template: { ...layout.template, data: { ...layout.template?.data, contour: [contourDefaults(colours)] } },
@@ -210,11 +210,11 @@ export function pageLayout(layout, height, colours = palette(), { width = 0, bar
   return restyled;
 }
 
-/** The kinds of trace that show their values on a colour bar beside the plot. */
+/** The kinds of trace that show their values on a color bar beside the plot. */
 const SCALED = new Set(["contour", "heatmap", "surface"]);
 const hasBar = (trace) => SCALED.has(trace.type) && trace.showscale !== false;
 
-/** The width a colour bar takes from the plot, as pageData() draws it: the bar, its numbers and its title. */
+/** The width a color bar takes from the plot, as pageData() draws it: the bar, its numbers and its title. */
 const BAR = 64;
 
 // ---------------------------------------------------------------- one run, marked wherever it is drawn
@@ -324,7 +324,7 @@ function listenForRuns(div) {
 let lastPress = { run: null, at: 0 };
 
 /**
- * A figure's traces as the page draws them: a colour bar is narrow, with its title along its side. Plotly's own
+ * A figure's traces as the page draws them: a color bar is narrow, with its title along its side. Plotly's own
  * is wide, with its title on top, and takes a third of a card's width from the plot.
  */
 export function pageData(data, colours = LIGHT) {
@@ -397,7 +397,7 @@ function dressed(shown, height, colours, width) {
 }
 
 /**
- * What each chart on the page was drawn from, so it can be drawn again: in the new colours when the theme
+ * What each chart on the page was drawn from, so it can be drawn again: in the new colors when the theme
  * changes, and to fit when its room does.
  */
 const drawn = new Map();
@@ -408,7 +408,7 @@ const roomOf = (div, shown) => `${div.clientWidth}x${shown.height ?? div.clientH
 
 /**
  * Watches every chart's room. Plotly draws a chart at the width its box has at that moment and leaves it there,
- * so the first chart of a row, drawn before its neighbour was added, stayed a whole row wide; and one drawn while
+ * so the first chart of a row, drawn before its neighbor was added, stayed a whole row wide; and one drawn while
  * its part of the page was hidden had no width to take. A chart whose room changes is drawn again to fit it.
  */
 let rooms = null;
@@ -440,7 +440,7 @@ async function refit(div, shown) {
 
 /**
  * Draw a figure into a div. ``figure`` is the figure, or a function that makes it, for one whose
- * colours are the page's own (palette()): it is made again whenever the chart is redrawn. A ``height`` of null
+ * colors are the page's own (palette()): it is made again whenever the chart is redrawn. A ``height`` of null
  * fills the div's own height. With ``toolbar``, Plotly's buttons to zoom and turn the figure are shown.
  * ``python`` gives the code that draws the figure with the library, for the figure's own window to show.
  */
@@ -565,7 +565,7 @@ function offerWindow(div) {
   head.append(button);
 }
 
-/** The light theme's colours, as style.css gives them: a report is read on white, whatever theme the page shows. */
+/** The light theme's colors, as style.css gives them: a report is read on white, whatever theme the page shows. */
 export const LIGHT = {
   fg: "#1d1d1f",
   muted: "#5f6368",
@@ -623,7 +623,7 @@ export function reportSize(div) {
   return reportShape(figure.layout || {}, shown.height ?? div.clientHeight, bar);
 }
 
-/** Draw every chart on the page again, in the colours of the theme it shows now. */
+/** Draw every chart on the page again, in the colors of the theme it shows now. */
 export async function redrawAll() {
   for (const [div, shown] of drawn) {
     if (div.isConnected) await react(div, shown);
@@ -644,7 +644,7 @@ async function react(div, shown) {
     // In the window a drag zooms, or turns a scene, whatever it does on the card: a box dragged there to choose
     // points (the catalog's map) chooses nothing here, and Plotly leaves it drawn until a double click.
     delete layout.dragmode;
-    // The toolbar has a row of its own above the plot, in the page's colours.
+    // The toolbar has a row of its own above the plot, in the page's colors.
     const { muted, accent } = palette();
     layout.margin = { ...layout.margin, t: Math.max(layout.margin.t, 36) };
     layout.modebar = { bgcolor: "rgba(0,0,0,0)", color: muted, activecolor: accent };
@@ -654,7 +654,7 @@ async function react(div, shown) {
 }
 
 /**
- * Give two contour figures one colour scale and one set of contour levels, so the fitted
+ * Give two contour figures one color scale and one set of contour levels, so the fitted
  * surface and the true one can be read against each other.
  */
 export function shareContourScale(...figures) {
@@ -759,7 +759,7 @@ export function coefficientFigure(coefficients, simulated, colours = palette(), 
   };
 }
 
-/** The book's colours for a coefficient's sign: the colourblind-safe Okabe-Ito orange and blue. */
+/** The book's colors for a coefficient's sign: the colorblind-safe Okabe-Ito orange and blue. */
 export const SIGN_COLOURS = { positive: "#E69F00", negative: "#0072B2" };
 
 /** Where a curve is drawn across a factor's range, in coded units: from its low end to its high end. */
@@ -992,8 +992,8 @@ export function paretoFigure(coefficients, simulated, lenth = null, colours = pa
 // ---------------------------------------------------------------- a mixture's pictures
 /**
  * The Scientific colour maps a study's surfaces and maps are drawn in (Crameri, F., 2018, Scientific colour maps,
- * Zenodo, doi:10.5281/zenodo.1243862; MIT licence, copyright (c) Fabio Crameri): nine colours each, dark for one
- * end and light for the other. Mirrors COLOUR_MAPS of the library's visualization/colors.py, which says how each
+ * Zenodo, doi:10.5281/zenodo.1243862; MIT license, copyright (c) Fabio Crameri): nine colors each, dark for one
+ * end and light for the other. Mirrors COLOR_MAPS of the library's visualization/colors.py, which says how each
  * is sampled; tests/web/page/test_parity.py holds the two equal.
  */
 export const COLOUR_MAPS = {
@@ -1003,11 +1003,11 @@ export const COLOUR_MAPS = {
   grayC: ["#131313", "#2f2f2f", "#474747", "#5e5e5e", "#747474", "#898989", "#a0a0a0", "#bbbbbb", "#dcdcdc"],
 };
 
-/** The map of a study that chose none; mirrors the library's DEFAULT_COLOUR_MAP. */
+/** The map of a study that chose none; mirrors the library's DEFAULT_COLOR_MAP. */
 export const DEFAULT_COLOUR_MAP = "batlow";
 
-/** What the Settings list calls each map; its colours are drawn beside its name. */
-export const COLOUR_MAP_WORDS = { batlow: "Batlow", devon: "Devon", lajolla: "La Jolla", grayC: "Grey" };
+/** What the Settings list calls each map; its colors are drawn beside its name. */
+export const COLOUR_MAP_WORDS = { batlow: "Batlow", devon: "Devon", lajolla: "La Jolla", grayC: "Gray" };
 
 let chosenMap = DEFAULT_COLOUR_MAP;
 let flipped = false;
@@ -1035,7 +1035,7 @@ export function rampOf(name, dark = false) {
 
 /**
  * The Scientific colour maps for a value with a sign (Crameri, 2018, as above), blue for negative and red for
- * positive: vik, near white at zero, and berlin, near black at zero. Mirrors the library's DIVERGING_COLOUR_MAPS.
+ * positive: vik, near white at zero, and berlin, near black at zero. Mirrors the library's DIVERGING_COLOR_MAPS.
  */
 export const DIVERGING_COLOUR_MAPS = {
   vik: ["#001261", "#034481", "#307da6", "#94bed2", "#ece5e0", "#dbaa8d", "#c27041", "#912d06", "#590008"],
@@ -1051,7 +1051,7 @@ export function divergingRamp(dark = false) {
 /** The library's own ramp for a surface, by which the page knows a surface in a figure from Python. */
 export const SURFACE = rampOf(DEFAULT_COLOUR_MAP);
 
-/** How light a colour written as #rgb or #rrggbb is: 0 for black, 1 for white. */
+/** How light a color written as #rgb or #rrggbb is: 0 for black, 1 for white. */
 export function lightness(hex) {
   const digits = hex.length === 4 ? [...hex.slice(1)].map((digit) => digit + digit).join("") : hex.slice(1);
   const [red, green, blue] = [0, 2, 4].map((at) => parseInt(digits.slice(at, at + 2), 16) / 255);
@@ -1064,17 +1064,17 @@ export const isDark = (colours) => lightness(colours.fg) > 0.5;
 /** The ramp to draw in ``colours``: the chosen map, a low value fading into the page. */
 export const rampFor = (colours) => rampOf(chosenMap, isDark(colours) !== flipped);
 
-/** A map's colours from a low value to a high one, as the charts on the page draw it now: the Settings show them. */
+/** A map's colors from a low value to a high one, as the charts on the page draw it now: the Settings show them. */
 export const shownColours = (name) => rampOf(name, isDark(palette()) !== flipped).map(([, hex]) => hex);
 
 /** A run's marker on a surface: a white face and a dark edge, which read on its light and its dark blues alike. */
 const RUN_MARKER = { symbol: "circle", size: 10, color: "#ffffff", line: { width: 1.5, color: "#1a1a1a" } };
 
-/** A quantity's name with its units, as an axis or a colour bar shows it. */
+/** A quantity's name with its units, as an axis or a color bar shows it. */
 const withUnits = (name, units) => (units ? `${name} (${units})` : name);
 
 /**
- * The lowest and highest response a ternary plot colours: over the fitted values, and the true ones when the
+ * The lowest and highest response a ternary plot colors: over the fitted values, and the true ones when the
  * results were simulated, so the fitted and the true surface share one scale.
  */
 export function ternaryRange(ternary) {
@@ -1084,8 +1084,8 @@ export function ternaryRange(ternary) {
 
 /**
  * A mixture of three components over its triangle (``ternary``, as api_plots gives it): each blend of the grid
- * coloured by the response, the ``fitted`` one or the ``true`` one, and the runs marked on top. Each corner is
- * a pure component, labelled with its name; ``range`` is the colour scale's ends, shared by the fitted and the
+ * colored by the response, the ``fitted`` one or the ``true`` one, and the runs marked on top. Each corner is
+ * a pure component, labeled with its name; ``range`` is the color scale's ends, shared by the fitted and the
  * true surface. ``best``, the best blend's proportions by component, puts a star there.
  */
 export function ternaryFigure(
@@ -1164,7 +1164,7 @@ export function ternaryFigure(
   };
 }
 
-/** Okabe and Ito's colourblind-safe colours, one per component of a Cox trace plot. */
+/** Okabe and Ito's colorblind-safe colors, one per component of a Cox trace plot. */
 const COMPONENT_COLOURS = ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00"];
 
 /** What the star on a mixture's pictures marks. */
@@ -1173,7 +1173,7 @@ export const BEST_BLEND = "Best blend";
 /**
  * A mixture of four components or more, along each component's Cox direction (``cox``, as api_plots gives it):
  * the fitted response as the component's share moves from the reference blend, the others keeping their
- * proportions to each other, a line per component; with the true process, its response dotted in the same colour.
+ * proportions to each other, a line per component; with the true process, its response dotted in the same color.
  * Drawn through the best blend (``cox.through`` is "best"), the lines cross there, at its prediction ``best``,
  * where a star marks it.
  */
@@ -1300,7 +1300,7 @@ export function levelsFigure(comparison, { response, units = "", factorUnits = "
 // Only a colon between two names is a product, so a sentence's own colons are left alone.
 export const prettyTerm = (term) => term.replace(/I\((\w+) \*\* 2\)/g, "$1²").replace(/(\w):(?=\w)/g, "$1·");
 
-/** Plotly's default sequence of trace colours, so a curve's colour can be fixed whatever else is drawn. */
+/** Plotly's default sequence of trace colors, so a curve's color can be fixed whatever else is drawn. */
 const PLOTLY_COLOURS = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"];
 
 /**
@@ -1310,8 +1310,8 @@ const PLOTLY_COLOURS = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "
  */
 export function fdsFigure(fds, { region = false, hidden = new Set() } = {}) {
   const over = region ? "the settings you can run" : "the cube"; // with limits, the curves are over what they leave
-  // A design the reader hides is not drawn. Plotly would then hand its colour to the next curve, so each curve's
-  // colour is fixed by its place in the list, in Plotly's own sequence.
+  // A design the reader hides is not drawn. Plotly would then hand its color to the next curve, so each curve's
+  // color is fixed by its place in the list, in Plotly's own sequence.
   const data = Object.entries(fds).map(([label, curve], i) => ({
     type: "scatter",
     mode: "lines",
@@ -1355,11 +1355,11 @@ export function correlationFigure(terms, matrix, k, colours = palette()) {
         y: labels,
         z: matrix,
         // A correlation has a sign: blue for two terms that move opposite ways, red for two that move together,
-        // and the colour of the page for none.
+        // and the color of the page for none.
         zmin: -1,
         zmax: 1,
         colorscale: divergingRamp(isDark(colours)),
-        // The colours need their key now that they have a sign: the bar, marked at -1, 0 and +1.
+        // The colors need their key now that they have a sign: the bar, marked at -1, 0 and +1.
         showscale: true,
         colorbar: { tickvals: [-1, 0, 1], ticktext: ["-1", "0", "+1"], len: 0.6, title: { text: "r" } },
         hovertemplate: "%{y} with %{x}: r = %{z:.2f}<extra></extra>",
@@ -1377,7 +1377,7 @@ export function correlationFigure(terms, matrix, k, colours = palette()) {
 // ---------------------------------------------------------------- the best settings for the response's goal
 /**
  * The best settings' marker on a response surface: a star with a white face and a dark edge, as the true values'
- * diamond, so it reads on every colour of the surface, on a light page or a dark one.
+ * diamond, so it reads on every color of the surface, on a light page or a dark one.
  */
 export const BEST_MARKER = { symbol: "star", size: 18, color: "#ffffff", line: { width: 1.5, color: "#1a1a1a" } };
 
@@ -1461,7 +1461,7 @@ export function sensitivityFigure(sensitivity, { label, units = "" }, colours = 
 }
 
 // ---------------------------------------------------------------- the settings that balance the responses
-/** A colour of the page's, ``#2c5f7c``, as an rgba with this opacity, for a shading that lets the lines through. */
+/** A color of the page's, ``#2c5f7c``, as an rgba with this opacity, for a shading that lets the lines through. */
 export function withAlpha(colour, alpha) {
   const hex = String(colour).trim().replace(/^#/, "");
   const full = hex.length === 3 ? [...hex].map((c) => c + c).join("") : hex;
@@ -1470,7 +1470,7 @@ export function withAlpha(colour, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-/** Each response's line on the overlay, in turn: a colour of the page's and a dash, so a line reads without its colour. */
+/** Each response's line on the overlay, in turn: a color of the page's and a dash, so a line reads without its color. */
 export const RESPONSE_DASHES = ["solid", "dash", "dot", "dashdot", "longdash"];
 export const responseColours = (colours) => [colours.accent, colours.warn, colours.ok, colours.error, colours.fg];
 
@@ -1528,7 +1528,7 @@ export function boundaryDrawn(surface) {
 
 /**
  * The overlay of the responses' acceptable ranges over two factors, the others at the balanced settings: shaded where
- * every response is acceptable (a desirability above 0), each response's acceptable boundary a labelled line, greyed
+ * every response is acceptable (a desirability above 0), each response's acceptable boundary a labeled line, grayed
  * where a limit on the settings rules the setting out, and a star at the balanced settings. ``overlay`` is
  * bootstrap.balance's, in coded units, ticked with the factors' own settings; ``responses`` are the reply's, for each
  * response's words and range; ``axes`` names each axis with its units. The settings that give a target draw the same
@@ -1594,7 +1594,7 @@ export function overlayFigure(overlay, responses, axes, colours = palette(), { s
     });
   });
   // The lines of equal chance that a new run meets a specification, where the overlay has that chance: each line that
-  // crosses the settings drawn, in the page's own colour, the surest solid.
+  // crosses the settings drawn, in the page's own color, the surest solid.
   const chanced = (overlay.probability?.flat() ?? []).filter((v) => v !== null);
   const chances = (overlay.chances ?? []).filter((chance) => chanced.some((v) => v >= chance) && chanced.some((v) => v < chance));
   chances.forEach((chance, i) => {
@@ -1608,7 +1608,7 @@ export function overlayFigure(overlay, responses, axes, colours = palette(), { s
       showlegend: false,
       autocontour: false,
       // One level is drawn as the first of two, the second beyond any chance.
-      // Only the surest line is labelled: the line of an even chance lies on a window's own end, which has its label.
+      // Only the surest line is labeled: the line of an even chance lies on a window's own end, which has its label.
       contours: { coloring: "none", start: chance, end: chance + 2, size: 2, showlabels: i === chances.length - 1, labelformat: ".0%", labelfont: { size: 11, color: colours.fg } },
       line: { color: colours.fg, width: 2, dash: CHANCE_DASHES[CHANCE_DASHES.length - chances.length + i] },
       hovertemplate: "Chance a new run meets every window: %{z:.0%}<extra></extra>",
@@ -1674,7 +1674,7 @@ export function overlayFigure(overlay, responses, axes, colours = palette(), { s
 
 /**
  * The overlay of the responses' acceptable ranges over the triangle of a mixture's three components: the blends where
- * every response is acceptable shaded, each response's acceptable boundary a line in its colour and dash, and a star
+ * every response is acceptable shaded, each response's acceptable boundary a line in its color and dash, and a star
  * at the balanced blend. ``overlay`` is bootstrap.balance's for a mixture: its grid of blends, each response's
  * prediction there and its boundary as segments of line; ``responses`` are the reply's, for each response's words.
  *
@@ -1786,7 +1786,7 @@ export function goalAxis(response) {
  * The trade-off between two responses, ``across`` and ``up`` (each a response of the balance: its ``name``,
  * ``label``, ``units``, ``goal`` and ``target``). ``tried`` holds, for each candidate setting kept, its place among
  * the candidates (``at``), its two predictions, whether it is far from the runs and the words of its settings; a
- * candidate is a point, paler when it is far from the runs, and coloured by ``colour`` (its ``label``, ``units`` and a
+ * candidate is a point, paler when it is far from the runs, and colored by ``colour`` (its ``label``, ``units`` and a
  * value for each candidate kept) when one is given. ``front`` is the best trade-off among them, as their places in
  * ``tried``. ``runs`` are the runs made, each with its number and its two results; ``balanced`` and ``chosen`` the
  * two predictions at the balanced settings and at the settings the reader chose (with ``spread``, half of each
@@ -1930,14 +1930,14 @@ export function mapFigure(surface, { label, units = "", axes, at, best = null },
   };
 }
 
-/** The colour of a campaign's round on its charts: Okabe and Ito's, in turn. */
+/** The color of a campaign's round on its charts: Okabe and Ito's, in turn. */
 const roundColour = (round) => COMPONENT_COLOURS[(round - 1) % COMPONENT_COLOURS.length];
 
 /** What a campaign's charts call the line of the best result so far, and a round's own range. */
 export const CAMPAIGN_MARKS = { best: "Best so far", target: "Target", range: "its ranges" };
 
 /**
- * Every run of a campaign in the order they were made (campaign.js campaignRuns): a mark each, coloured by its
+ * Every run of a campaign in the order they were made (campaign.js campaignRuns): a mark each, colored by its
  * round, with the best result so far as a stepped line (campaign.js bestSoFar gives ``best``; nulls draw none) and
  * the target as a level line when the goal is one. ``words`` is the response's ``label`` and ``units``, with its
  * ``goal`` and ``target``.
@@ -1978,7 +1978,7 @@ export function campaignRunsFigure(runs, best, { label, units = "", goal = "", t
 }
 
 /**
- * The map of a campaign over two factors: every run of every round where it was made, coloured by its round, and
+ * The map of a campaign over two factors: every run of every round where it was made, colored by its round, and
  * each round's model as contours inside that round's own ranges and nowhere else. ``rounds`` holds, for each round
  * drawn, its ``round``, the runs' places ``x`` and ``y``, and its ``surface`` over its own ranges (best.js
  * surfaceOf: ``x``, ``y`` and ``z``), or null for a round with no model to draw. A box marks each round's ranges.
@@ -1996,7 +1996,7 @@ export function campaignMapFigure(rounds, { label, units = "", axes }, colours =
     name: `Round ${one.round}: ${label}`,
     meta: { round: one.round },
     colorscale: SURFACE,
-    zmin: least, // one scale for every round, so a colour is one value of the response wherever it is
+    zmin: least, // one scale for every round, so a color is one value of the response wherever it is
     zmax: most,
     showscale: i === 0,
     colorbar: { title: { text: withUnits(label, units), side: "right" }, thickness: 12, len: 0.8 },
@@ -2015,7 +2015,7 @@ export function campaignMapFigure(rounds, { label, units = "", axes }, colours =
     marker: { size: 9, color: roundColour(one.round), line: { width: 1.5, color: colours.panel } },
     hovertemplate: `Round ${one.round}<br>${axes[0].name}: %{x:.4g}<br>${axes[1].name}: %{y:.4g}<extra></extra>`,
   }));
-  // Each round's ranges as a box in its colour: where its model is drawn, and where it says nothing.
+  // Each round's ranges as a box in its color: where its model is drawn, and where it says nothing.
   const shapes = drawn.map((one) => ({
     type: "rect",
     x0: one.surface.x[0],

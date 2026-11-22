@@ -114,7 +114,7 @@ ModelFactory = Callable[[], Any]
 #: Degrees of freedom charged per PLS component by CV-ANOVA (Eriksson, Trygg and Wold, 2008).
 CV_ANOVA_DF_PER_COMPONENT = 2
 
-#: Permutations evaluated per vectorised batch in the covariance permutation test.
+#: Permutations evaluated per vectorized batch in the covariance permutation test.
 _PERMUTATION_BATCH = 256
 
 
@@ -140,7 +140,7 @@ def _as_frames(X: DataMatrix, Y: DataMatrix | pd.Series) -> tuple[pd.DataFrame, 
     Missing cells (NaN) are allowed, as ``fit`` allows them (#1114). A row whose Y is
     entirely missing is kept; it helps fit the X side and is left out of every Y-based
     criterion. A row whose X is entirely missing is fitted as ``fit`` fits it, at the
-    centre with no weight; held out, it has no prediction and no SPE, as ``predict`` and
+    center with no weight; held out, it has no prediction and no SPE, as ``predict`` and
     ``diagnose`` give it none, and is left out of every held-out criterion. A column that
     is entirely missing is left out of every model, with the warning ``fit`` gives.
     """
@@ -169,7 +169,7 @@ def _held_out_responses(X: pd.DataFrame, Y: pd.DataFrame) -> np.ndarray:
 
 
 def _check_fold_coverage(X: pd.DataFrame, Y: pd.DataFrame, splits: list[tuple[np.ndarray, np.ndarray]]) -> None:
-    """Every training fold needs two observed values per column to centre and scale it.
+    """Every training fold needs two observed values per column to center and scale it.
 
     A column with no observed value at all is not counted: every model leaves it out.
     """
@@ -225,7 +225,7 @@ def _partition_splits(
 def _component_cap(splits: list[tuple[np.ndarray, np.ndarray]], K: int, requested: int | None) -> int:
     """Largest component count every fold can fit, capped by ``requested``.
 
-    Centring inside a fold removes one degree of freedom, so a fold with ``n`` training
+    Centering inside a fold removes one degree of freedom, so a fold with ``n`` training
     rows supports at most ``n - 1`` components (the cap ``select_n_components`` uses).
     """
     min_train = min(len(train) for train, _ in splits)
@@ -280,12 +280,12 @@ def _fit_folds(
     Without ``global_model`` (``"local"`` scope) each training fold is autoscaled with its
     own :class:`MCUVScaler`, exactly as :meth:`PLS.select_n_components` does. With it
     (``"global"`` scope) the fold models are fitted on the training rows in the space of
-    ``global_model``, the model fitted to all rows, without re-centring them, which is the
+    ``global_model``, the model fitted to all rows, without re-centering them, which is the
     default of the published Procrustes cross-validation; ``make_model`` must then build an
     estimator with ``scale=False``.
 
-    Either way a fold model may centre and scale its rows again (``PLS(scale=True)``, or
-    :class:`PRM`, which always centres at its robust centre), so the held-out rows are
+    Either way a fold model may center and scale its rows again (``PLS(scale=True)``, or
+    :class:`PRM`, which always centers at its robust center), so the held-out rows are
     taken into its space, and Y back out of it, through both scalings (#1029).
     """
     _check_fold_coverage(X, Y, splits)
@@ -318,10 +318,10 @@ def _fit_folds(
 
 
 def _correlation_about_origin(x: np.ndarray, y: np.ndarray) -> float:
-    """Correlation about zero (uncentred), NaN when either vector is zero.
+    """Correlation about zero (uncentered), NaN when either vector is zero.
 
-    Held-out rows are centred on their training fold's means, the reference the model
-    predicts from; re-centring them on their own means would hide an offset. About the
+    Held-out rows are centered on their training fold's means, the reference the model
+    predicts from; re-centering them on their own means would hide an offset. About the
     origin, the correlation is also unchanged when a fold flips the sign of a component
     (t and u flip together). On training scores, which have zero mean, it equals the
     Pearson correlation.
@@ -550,7 +550,7 @@ def _covariance_permutation_pvalues(
 
     Component ``a`` is tested on the blocks deflated by the ``a - 1`` components before
     it. The statistic is the largest singular value of :math:`\mathbf{X}_a^\top
-    \mathbf{Y}_a`, the covariance that NIPALS maximises; the null permutes the rows of
+    \mathbf{Y}_a`, the covariance that NIPALS maximizes; the null permutes the rows of
     the deflated :math:`\mathbf{Y}_a` while :math:`\mathbf{X}_a` stays fixed. Because
     :math:`\mathbf{X}_a` is orthogonal to the earlier scores, this is the Freedman-Lane
     scheme. A test on the undeflated :math:`\mathbf{X}^\top\mathbf{Y}` could not reach
@@ -1023,7 +1023,7 @@ def _pseudo_validation_set(
         raise ValueError(f"n_components must lie in [1, {cap}] for these folds; got {settings.n_components}.")
 
     fold_kwargs = (
-        {**pls_kwargs, "scale": False, "warn_on_uncentred": False} if settings.scope == "global" else pls_kwargs
+        {**pls_kwargs, "scale": False, "warn_on_uncentered": False} if settings.scope == "global" else pls_kwargs
     )
     model = estimator(n_components=A, **pls_kwargs).fit(X_df, Y_df)
     # A component fitted after Y is exhausted has a Y-loading of 0, so no D ratio, and its NaN

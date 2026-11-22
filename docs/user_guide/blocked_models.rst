@@ -64,5 +64,5 @@ a little, as it includes the shifts' own estimation error.
 A run that alone carries a term (the only run at a factor's new level) cannot
 be left out: ``selection["runs_alone"]`` names it, and a form whose terms the
 data cannot separate is marked not ``estimable`` and never chosen. Code the
-factors before fitting when a form's meaning depends on their centre and scale;
+factors before fitting when a form's meaning depends on their center and scale;
 a categorical factor can be written ``C(F, Sum)`` for effects coding.

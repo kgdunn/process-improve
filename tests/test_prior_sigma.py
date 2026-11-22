@@ -1,7 +1,7 @@
 """Standard errors from an error standard deviation known before the runs (#789 B6).
 
 Each printed value comes from a source that takes sigma from past records or earlier
-experiments, not from the runs' residual. They are entries of the reference catalogue,
+experiments, not from the runs' residual. They are entries of the reference catalog,
 read here from its data.
 """
 
@@ -23,7 +23,7 @@ pytestmark = pytest.mark.dataset
 
 
 def _runs(source: str, name: str) -> pd.DataFrame:
-    """Return an entry's runs from the reference catalogue."""
+    """Return an entry's runs from the reference catalog."""
     catalogue = resources.files("process_improve.datasets.experiments") / "reference_catalogue" / source
     entry = next(e for e in json.loads(catalogue.read_text(encoding="utf-8"))["experiments"] if e["name"] == name)
     return pd.DataFrame(entry["runs"]["rows"], columns=entry["runs"]["columns"])
@@ -35,7 +35,7 @@ def _rows(result: dict, key: str = "coefficients") -> dict[str, dict]:
 
 @pytest.fixture(scope="module")
 def first_order() -> pd.DataFrame:
-    """BHH Table 15.1: a 2^2 factorial with three centre runs, in coded units."""
+    """BHH Table 15.1: a 2^2 factorial with three center runs, in coded units."""
     runs = _runs("box-hunter-hunter-1978.json", "bhh-rsm-first-order-and-steepest-ascent")
     return runs.iloc[:7][["time", "temperature", "y"]]
 
@@ -184,7 +184,7 @@ class TestWhatKeepsTheResidual:
             assert json.dumps(known[key], sort_keys=True) == json.dumps(given[key], sort_keys=True), key
 
     def test_predictions_use_it(self, first_order: pd.DataFrame) -> None:
-        """At the centre the fitted value has variance sigma²/7, and a new run sigma² more."""
+        """At the center the fitted value has variance sigma²/7, and a new run sigma² more."""
         known = analyze_experiment(
             first_order,
             response_column="y",

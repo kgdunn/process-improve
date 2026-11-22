@@ -1,6 +1,6 @@
 # Security & Robustness Audit
 
-This document catalogues exploitable holes and robustness defects found in
+This document catalogs exploitable holes and robustness defects found in
 `process-improve`, grouped so that each entry (or logically connected group)
 can become a single GitHub issue, be fixed with a regression test, and then be
 struck off here.
@@ -378,7 +378,7 @@ therefore ranked under two models:
 - **Fix:** Introduced `_decode_highlight_style(key)` which wraps `json.loads`
   and re-raises as a `ValueError` with the offending key and an example of the
   expected format. All four call sites now use it. Regression test:
-  `test_highlight_key_must_be_json` (parametrised over score/spe/t2).
+  `test_highlight_key_must_be_json` (parametrized over score/spe/t2).
 
 ## SEC-35 - Blanket `setattr(**kwargs)` in `ControlChart.calculate_limits` [RESOLVED]
 - **Status:** Fixed in v1.26.1. `**kwargs` is now validated against an allowlist
@@ -432,7 +432,7 @@ therefore ranked under two models:
 
 These are lower-priority maintenance / contribution-health items surfaced
 during the v1.26.1 audit pass. They are documented here rather than fixed in the
-same change because each is a maintainer judgement call.
+same change because each is a maintainer judgment call.
 
 - **`CODE_OF_CONDUCT.md`** (done, v1.26.1). Adopted the Contributor Covenant 2.1
   with the maintainer as the enforcement contact, referenced from

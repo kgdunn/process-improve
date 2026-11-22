@@ -17,7 +17,7 @@ lab.
 
 So: never trust a design matrix that was typed rather than generated. Run it
 through this script. It reports the resolution actually implied by the matrix,
-independent of whatever the matrix was labelled, and fails loudly when the
+independent of whatever the matrix was labeled, and fails loudly when the
 design is worse than asked for.
 
 Usage
@@ -75,7 +75,7 @@ _MEANING = {
     4: "Main effects are clear of each other and of two-factor interactions, but some pairs "
     "of two-factor interactions are aliased with each other. The standard screening choice.",
     5: "Main effects and two-factor interactions are all clear of each other. Interactions are "
-    "aliased only with three-factor interactions. Suitable for modelling, not just screening.",
+    "aliased only with three-factor interactions. Suitable for modeling, not just screening.",
 }
 
 

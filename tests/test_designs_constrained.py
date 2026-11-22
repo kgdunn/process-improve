@@ -399,7 +399,7 @@ class TestCriteria:
         assert Criterion.d().value(info["d"]) >= Criterion.d().value(info["i"]) - 1e-9
 
     def test_i_optimal_constrained_design_has_the_lower_average_prediction_variance(self) -> None:
-        """The I-optimal design minimises the region-average variance that evaluate_design reports."""
+        """The I-optimal design minimizes the region-average variance that evaluate_design reports."""
         common = {"budget": 10, "constraints": [HEAT], "model_type": "quadratic"}
         d_design = generate_design([TEMP, DOSE], design_type="d_optimal", **common)
         i_design = generate_design([TEMP, DOSE], design_type="i_optimal", **common)

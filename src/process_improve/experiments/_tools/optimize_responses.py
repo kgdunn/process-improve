@@ -34,7 +34,7 @@ class OptimizeResponsesInput(BaseModel):
     goals: list[dict[str, Any]] | None = Field(
         None,
         description=(
-            "Per-response optimisation goals. Each entry: response (str, matched against the model's "
+            "Per-response optimization goals. Each entry: response (str, matched against the model's "
             "response_name so the two lists need not be in the same order), "
             "goal ('maximize'|'minimize'|'target'|'in_range'), low, high, optional target, "
             "weight, weight_high, importance. Required for 'desirability' method. "
@@ -54,7 +54,7 @@ class OptimizeResponsesInput(BaseModel):
         "pareto_front",
     ] = Field(
         "desirability",
-        description="Optimisation method (default: 'desirability').",
+        description="Optimization method (default: 'desirability').",
     )
     factor_ranges: dict[str, dict[str, float]] | None = Field(
         None,
@@ -77,7 +77,7 @@ class OptimizeResponsesInput(BaseModel):
         ge=1,
         description=(
             "Number of steps along a path: the steepest ascent/descent steps, or the radii reported "
-            "by ridge analysis over and above the centre (default 10)."
+            "by ridge analysis over and above the center (default 10)."
         ),
     )
     response_importance: list[float] | None = Field(
@@ -171,10 +171,10 @@ def _as_bounds(
     description=(
         "Find optimal factor settings for one or multiple responses from fitted experimental models. "
         "Supports several methods: 'desirability' (Derringer-Suich desirability functions for single or "
-        "multi-response optimisation), 'steepest_ascent' / 'steepest_descent' (move along the gradient "
+        "multi-response optimization), 'steepest_ascent' / 'steepest_descent' (move along the gradient "
         "of a first-order model), 'stationary_point' (locate the optimum of a second-order model), "
         "'canonical_analysis' (eigenvalue decomposition to classify the response surface shape), "
-        "'ridge_analysis' (trace the best point on spheres of increasing radius from the centre, which is "
+        "'ridge_analysis' (trace the best point on spheres of increasing radius from the center, which is "
         "what to use when the stationary point falls outside the region the experiment covered, or is a "
         "saddle), and 'pareto_front' (the set of non-dominated compromises across two or more responses, "
         "when the trade-off itself is the thing worth seeing rather than one desirability-weighted point). "
@@ -204,7 +204,7 @@ def _as_bounds(
                        {"response": "cost", "goal": "minimize", "low": 10, "high": 40}],
                 method="desirability")``
 
-    # "Maximise yield, but keep the molecular weight between 3200 and 3400"
+    # "Maximize yield, but keep the molecular weight between 3200 and 3400"
         -> ``optimize_responses(fitted_models=[yield_model, mn_model],
                 goals=[{"response": "yield", "goal": "maximize", "low": 70, "high": 80},
                        {"response": "mn", "goal": "in_range", "low": 3200, "high": 3400}],

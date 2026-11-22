@@ -32,7 +32,7 @@ How It Works
 The multi-block / hierarchical / consensus formulation of Westerhuis,
 Kourti & MacGregor (1998):
 
-1. Each X-block is preprocessed independently (mean-centred and
+1. Each X-block is preprocessed independently (mean-centered and
    unit-variance scaled with :class:`~process_improve.multivariate.methods.MCUVScaler`).
 2. Each block is divided by ``sqrt(K_b)`` (where ``K_b`` is the number
    of variables in block ``b``) so blocks of unequal width contribute
@@ -227,7 +227,7 @@ If you cross-check ``process_improve`` against R's ``mixOmics::nipals``
 implementation facts are worth knowing up front; both are captured
 and pinned in ``tests/test_pca_nipals_mixomics_crosscheck.py``.
 
-**Score normalisation differs deterministically.** Both packages use
+**Score normalization differs deterministically.** Both packages use
 unit-norm loadings (``||p_k|| = 1``), but they scale the scores
 differently:
 

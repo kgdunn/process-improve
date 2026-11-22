@@ -101,16 +101,16 @@ def hotellings_t2_limit(
 ) -> float:
     """Return the Hotelling's T2 value at the given level of confidence.
 
-    The rows a model was fitted to and new rows need different limits (#978). Both the centre and
+    The rows a model was fitted to and new rows need different limits (#978). Both the center and
     the spread of the scores are estimated from the ``N`` fitted rows. A fitted row took part in
-    both, so it sits closer to the centre and cannot look extreme: its T² never exceeds
+    both, so it sits closer to the center and cannot look extreme: its T² never exceeds
     ``(N - 1)^2 / N``. A new row took part in neither. For ``A`` components:
 
     - ``judged_rows="fitted"``: ``((N - 1)^2 / N) * Beta(A/2, (N - A - 1)/2)``, the law of a fitted
       row's T² (Tracy, Young and Mason, 1992).
     - ``judged_rows="new"``: ``A (N^2 - 1) / (N (N - A)) * F(A, N - A)``, the law of a new row's T².
 
-    Both are exact when the ``A`` scores are a fixed set of normal variables whose centre and
+    Both are exact when the ``A`` scores are a fixed set of normal variables whose center and
     spread are estimated from the ``N`` rows. The loadings of a PCA or a PLS model are estimated
     from the same rows, so for its scores each is an approximation that improves as ``N`` grows.
 
@@ -237,7 +237,7 @@ def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95, weights: n
     spread (a perfect-fit training set where ``A == K``, or an all-equal SPE
     column), the approximation degenerates. In that case
     the limit falls back to ``sqrt(center_spe)``: there is no spread to
-    bound, so any value above the centre is by construction out of family.
+    bound, so any value above the center is by construction out of family.
     See SEC-21 (#270), sub-item 3.
 
     The degeneracy test is on the coefficient of variation of the squared
@@ -262,13 +262,13 @@ def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95, weights: n
         variance_spe = float(weighted_variance(values, weights))
     # A perfect-fit training set (A == K) or all-equal SPE values produces
     # ``variance_spe == 0`` or ``center_spe == 0``, which would divide by
-    # zero below and yield NaN limits silently. Return the centre as the
-    # limit -- there is no spread to bound, so anything above the centre
+    # zero below and yield NaN limits silently. Return the center as the
+    # limit -- there is no spread to bound, so anything above the center
     # is by definition out of family. SEC-21 (#270) sub-item 3.
     #
     # The degeneracy test must be RELATIVE. ``variance_spe`` is in SPE^4
     # units and ``center_spe`` in SPE^2, so comparing either against the
-    # absolute ``epsqrt`` (the previous behaviour) made the test depend on
+    # absolute ``epsqrt`` (the previous behavior) made the test depend on
     # the units of the data: SPE values a thousand times smaller tripped the
     # guard despite having exactly the same relative spread, and the returned
     # "95% limit" was then the RMS SPE, which around 42 percent of the
@@ -428,7 +428,7 @@ def ellipse_coordinates(  # noqa: PLR0913 - judged_rows, the rows the ellipse ju
     # so the T2 limit is computed for 2 components: for new rows
     # 2 (N^2 - 1) / (N (N - 2)) * F(alpha; 2, N - 2), the convention used in
     # Wold's texts, and for fitted rows ((N - 1)^2 / N) * Beta(1, (N - 3) / 2).
-    # Using the full model's A here (the previous behaviour)
+    # Using the full model's A here (the previous behavior)
     # draws a strictly larger ellipse (~42% too wide per axis at A=5, N=50;
     # ~2x the area), silently hiding genuine outliers.
     # ``n_components`` is still used above to bound the score indices.

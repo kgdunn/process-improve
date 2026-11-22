@@ -47,7 +47,7 @@ What it does
       Factorial, response surface, definitive screening, OMARS, optimal and mixture designs
       from one ``generate_design`` call, and the analysis of the results.
 
-      :doc:`Plan an experimental programme <user_guide/doe_strategy>`
+      :doc:`Plan an experimental program <user_guide/doe_strategy>`
 
    .. container:: pi-card
 

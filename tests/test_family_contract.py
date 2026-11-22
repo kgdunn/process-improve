@@ -16,7 +16,7 @@ written once is checked on every member, and a member added later is checked too
    ``None``, an int and a ``numpy.random.Generator``, say so in its signature, and give the same result
    twice for the same int. A seed that goes by another name is a gap.
 
-Kinds 3 (behaviour rules), 4 (shapes and names), 7 (input containers), 8 (plots) and 9 (output schema)
+Kinds 3 (behavior rules), 4 (shapes and names), 7 (input containers), 8 (plots) and 9 (output schema)
 come with the sweep of #1149.
 
 The gaps known today are listed here, each with its issue. The lists are a ratchet, as
@@ -870,7 +870,7 @@ def _edge_cells() -> list:
 def test_a_bad_input_gets_the_familys_answer_from_every_member(case_name: str, name: str) -> None:
     """A result, or the family's error: never a raw numpy error, a ``RuntimeWarning`` or a NaN prediction.
 
-    The #1142 pattern: a guard lands in one estimator, and a sibling keeps the old behaviour. Each cell
+    The #1142 pattern: a guard lands in one estimator, and a sibling keeps the old behavior. Each cell
     is run with ``RuntimeWarning`` as an error, and a fitted model is applied to complete new rows.
     """
     case, member = CASES[case_name], FAMILY[name]

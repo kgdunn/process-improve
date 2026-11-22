@@ -2,7 +2,7 @@
 
 Montgomery's Example 11.4 (Section 11.5, Table 11.17) prints JMP's Gaussian process fitted to ten
 runs of a computational fluid dynamics model. JMP fitted the design points to the digits that
-Table 11.18 shows; the catalogue holds them as Table 11.16 prints them, to three decimals. So the
+Table 11.18 shows; the catalog holds them as Table 11.16 prints them, to three decimals. So the
 estimates here agree with the printed ones only to within what that rounding moves them, and the
 likelihood the search reaches is at least the likelihood at the printed theta, on the same runs.
 """
@@ -144,7 +144,7 @@ def test_the_box_averages_are_the_closed_form_integrals(theta):
     runs = np.random.default_rng(2).uniform(0, 1, size=8)
     means, covariances = gaussian_process._moments(runs, theta, 0.0, 1.0)
 
-    def average(rate: float, centre: np.ndarray) -> np.ndarray:  # of exp(-rate (t - centre)^2) over [0, 1]
+    def average(rate: float, centre: np.ndarray) -> np.ndarray:  # of exp(-rate (t - center)^2) over [0, 1]
         root = np.sqrt(rate)
         return np.sqrt(np.pi) / (2 * root) * (special.erf(root * (1 - centre)) - special.erf(-root * centre))
 

@@ -1,6 +1,6 @@
 // The chart of a field's published experiments, on the field's page and in the planning panel: a mark for each size
 // and kind of design, placed by its factors (across) and its runs (up, doubling at each line). Each kind has a shape
-// of its own, so the kinds are told apart without their colours. A field's page writes its points into the svg's
+// of its own, so the kinds are told apart without their colors. A field's page writes its points into the svg's
 // data-field-points, which this module draws on load; the panel calls drawFieldChart itself, with the reader's plan.
 
 const NS = "http://www.w3.org/2000/svg";
@@ -8,7 +8,7 @@ const NS = "http://www.w3.org/2000/svg";
 /** The chart's frame, in the units of its viewBox. */
 export const FRAME = { width: 360, height: 248, left: 38, right: 14, top: 26, bottom: 42 };
 
-/** The most factors drawn apart: a design with more is drawn at the edge, labelled "9+". */
+/** The most factors drawn apart: a design with more is drawn at the edge, labeled "9+". */
 export const MOST_FACTORS = 9;
 
 /** The runs at each line of the vertical axis, doubling; fewer or more are drawn at the bottom or the top. */

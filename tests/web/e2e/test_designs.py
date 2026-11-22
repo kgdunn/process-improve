@@ -1,7 +1,7 @@
 """Making the run sheet from the plan: what the page sends, and how it shows what comes back.
 
 Each design type the page offers is made from the plan; the run sheet must list exactly the
-runs Python made, in their randomised order, and the summary must say what the design is. The
+runs Python made, in their randomized order, and the summary must say what the design is. The
 design the Design tab already made for the brief is taken as it is, not made again. A refusal reaches the
 status line; the library's warnings are listed under the design.
 """

@@ -28,7 +28,7 @@ from tests._multiblock_oracles import (
 
 
 def _preprocess(matrix: np.ndarray) -> np.ndarray:
-    """Mean-centre and unit-variance scale (ddof=1) - matches MCUVScaler."""
+    """Mean-center and unit-variance scale (ddof=1) - matches MCUVScaler."""
     centred = matrix - matrix.mean(axis=0, keepdims=True)
     scale = centred.std(axis=0, ddof=1, keepdims=True)
     scale[scale == 0] = 1.0

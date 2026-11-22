@@ -2,7 +2,7 @@
 """Resampling utilities for the multivariate estimators (ENG-01).
 
 Holds :class:`Resampler`, which rebuilds an estimator across jackknife,
-bootstrap or fractional resamples of a :class:`DataFrameDict` and summarises the
+bootstrap or fractional resamples of a :class:`DataFrameDict` and summarizes the
 spread of a chosen parameter.
 """
 

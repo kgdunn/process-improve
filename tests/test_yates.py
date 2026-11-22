@@ -19,7 +19,7 @@ from process_improve.experiments import reference_catalogue, reverse_yates, yate
 
 @pytest.fixture(scope="module")
 def pilot() -> pd.DataFrame:
-    """Return the pilot plant's runs as the catalogue holds them: coded, in standard order, each an average."""
+    """Return the pilot plant's runs as the catalog holds them: coded, in standard order, each an average."""
     path = reference_catalogue._CATALOGUE_DIR / "box-hunter-hunter-1978.json"
     entry = next(
         e for e in json.loads(path.read_text(encoding="utf-8"))["experiments"] if e["name"] == "bhh-pilot-plant-2-3"

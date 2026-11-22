@@ -4,7 +4,7 @@ A maximin Latin hypercube spreads its runs through the factors' ranges for no mo
 factor's range is cut into as many equal steps as there are runs, one run sits in each step, and the
 runs are placed so the nearest two are as far apart as the search could make them. The page rounds each
 setting to a tenth of its step, so it can be set and stays in its step, opens on ten runs a factor, and
-analyses the runs with the model the study aims to learn.
+analyzes the runs with the model the study aims to learn.
 """
 
 from __future__ import annotations
@@ -58,7 +58,7 @@ def test_each_setting_is_rounded_to_a_tenth_of_its_step_and_stays_in_it(api):
 
 
 def test_a_space_filling_design_s_runs_spread_further_apart_than_a_d_optimal_design_s(api):
-    """The point of it: no two runs close, where a D-optimal design repeats its corners and centres."""
+    """The point of it: no two runs close, where a D-optimal design repeats its corners and centers."""
 
     def nearest(design: dict) -> float:
         x = run_sheet(design)[NAMES].to_numpy(float)

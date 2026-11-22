@@ -135,7 +135,7 @@ class TestCentreRuns:
         assert region.feasible(new).all()
         actual = [125 + 25 * new[0][0], 40 + 20 * new[0][1]]
         assert actual == pytest.approx([430 / 3, 160 / 3], abs=0.1), "the triangle's centroid"
-        assert "the centre of the box breaks T + D >= 190" in result["explanation"]
+        assert "the center of the box breaks T + D >= 190" in result["explanation"]
         assert "fit a model with squared terms instead" in result["explanation"]
 
     def test_the_centre_runs_stay_at_the_centre_when_it_is_allowed(self) -> None:
@@ -149,7 +149,7 @@ class TestCentreRuns:
         region = DesignRegion(FACTORS, ["T + D >= 190"])
         monkeypatch.setattr(DesignRegion, "centroid", lambda _self: None)
         corner = pd.DataFrame({"T": [1.0, 1.0, 0.5], "D": [0.0, 1.0, 1.0]})
-        with pytest.raises(ValueError, match="No setting of the region was found to place the centre runs at"):
+        with pytest.raises(ValueError, match="No setting of the region was found to place the center runs at"):
             augment_design(corner, "add_center_points", region=region)
 
 
@@ -184,12 +184,12 @@ class TestRunsTheLimitsRuleOut:
             augment_design(CUBE, "replicate", region=DesignRegion(FACTORS, [LIMIT]))
 
     def test_the_upgraded_design_s_centre_runs_are_checked_too(self) -> None:
-        """Three axial runs and the five centre runs fall in the corner the limit cuts off; each setting once."""
+        """Three axial runs and the five center runs fall in the corner the limit cuts off; each setting once."""
         corner = pd.DataFrame({"T": [1.0, 1.0, 0.5], "D": [0.0, 1.0, 1.0]})
         with pytest.raises(ValueError, match=r"upgrade_to_rsm would add 8 run\(s\) outside the region") as refused:
             augment_design(corner, "upgrade_to_rsm", region=DesignRegion(FACTORS, ["T + D >= 190"]))
         assert str(refused.value).count("breaks T + D >= 190") == 4
-        assert "(T = 125, D = 40) breaks" in str(refused.value), "the centre"
+        assert "(T = 125, D = 40) breaks" in str(refused.value), "the center"
 
     def test_many_settings_are_listed_five_at_a_time(self) -> None:
         """Eight runs at T of 0.25 to 1 (coded), all inside T >= 125; their eight mirror images all outside."""

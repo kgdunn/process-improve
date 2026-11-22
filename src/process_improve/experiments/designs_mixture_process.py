@@ -10,7 +10,7 @@ process factor ``z_k``, a square ``z_k^2``, or the cubic difference ``x_i x_j (x
 of a full cubic Scheffé model. A categorical process factor of ``L`` levels is an atom of
 ``L - 1`` sum-to-zero columns, and a term's columns are the products of its atoms'
 columns. The model matrix
-the design engine optimises and the formula recorded for
+the design engine optimizes and the formula recorded for
 :func:`~process_improve.experiments.evaluate_design` and
 :func:`~process_improve.experiments.analyze_experiment` are both built from that list,
 so they cannot disagree.
@@ -55,7 +55,7 @@ constrained simplex (the extreme vertices, edge points, face centroids and centr
 every candidate process setting (the grid of
 :func:`~process_improve.experiments.designs_constrained.build_candidates`), by the
 Fedorov exchange the other optimal designs use. The I- and G-criteria average and
-maximise over points drawn uniformly from the mixture-process
+maximize over points drawn uniformly from the mixture-process
 :class:`~process_improve.experiments.region.DesignRegion`.
 """
 

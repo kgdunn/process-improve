@@ -102,7 +102,7 @@ def _resolve_columns_to_align(
     number, so a dtype test alone does not catch it. Including it is not harmless: on the
     dryer data it takes almost no weight itself (0.000051) but moves the others
     substantially, ``JacketTemperatureSP`` from 0.132 to 0.472, because it joins the
-    distance the alignment minimises and the normalisation that follows.
+    distance the alignment minimizes and the normalization that follows.
 
     An explicit ``columns_to_align`` naming a non-numeric column raises rather than
     quietly dropping it, since the caller asked for it by name. A constant column named
@@ -397,7 +397,7 @@ class BatchScaler(TransformerMixin, BaseEstimator):
 
     Each tag is mapped to roughly ``[0, 1]`` by subtracting a per-tag minimum and
     dividing by a per-tag range, both aggregated across the batches seen in
-    :meth:`fit`. That is a different normalisation from mean-centring to unit variance:
+    :meth:`fit`. That is a different normalization from mean-centering to unit variance:
     it preserves the shape of a trajectory within its own operating range, which is what
     the alignment distance needs.
 
@@ -682,7 +682,7 @@ def _accumulate_deviations(
         Number of columns being aligned.
     batch_weighting : str, optional
         How much each batch contributes, resolved by :func:`_batch_weights`. The default
-        ``"equal"`` gives every batch a weight of exactly 1.0, which is the behaviour
+        ``"equal"`` gives every batch a weight of exactly 1.0, which is the behavior
         this function had before batch weighting existed.
 
     Returns
@@ -792,10 +792,10 @@ def _tags_that_vary(batches: dict[str, pd.DataFrame], columns_to_align: list) ->
 
     Kassidas et al. weight each tag by the reciprocal of its summed squared deviation from the
     average trajectory. A tag that holds one value through every batch has no deviation, so its
-    weight was unbounded: after normalising it took all of the weight (``[0, 0, 3]`` for three
+    weight was unbounded: after normalizing it took all of the weight (``[0, 0, 3]`` for three
     tags), and the convergence test, which measures the change in the weights, followed only that
     tag. A tag that holds one value within each batch, but a different one between batches, adds
-    the same amount to every cell of the distance matrix, which only favours a shorter warping
+    the same amount to every cell of the distance matrix, which only favors a shorter warping
     path. Neither says anything about timing, so it gets zero weight, as a block with no variance
     does in the multivariate estimators (#1184). It is still aligned and returned.
 
@@ -931,7 +931,7 @@ def batch_dtw(  # noqa: PLR0915
             settings = {"band": sakoe_chiba(window=0.1)}   # 10% of the batch duration
             settings = {"band": itakura(max_slope=2.0)}
 
-        A constraint speeds up the dynamic programme, from ``O(n_ref * n_test)`` to
+        A constraint speeds up the dynamic program, from ``O(n_ref * n_test)`` to
         ``O(window * n_test)``, which matters because every batch is re-aligned on
         every iteration. It also changes the result: a corridor that excludes the true
         warp changes the aligned trajectories, so the iterated average converges to a
@@ -1071,7 +1071,7 @@ def batch_dtw(  # noqa: PLR0915
         # the last multiple below the maximum, while `maximum - delta` does not, so a
         # delta of 0.3 or 7 put the two axes' endpoints in different places. Two asserts
         # caught that as a bare AssertionError, and `python -O` strips asserts, so under
-        # optimisation it silently extrapolated instead (#197). Sharing the endpoints
+        # optimization it silently extrapolated instead (#197). Sharing the endpoints
         # makes any delta work and leaves nothing to assert.
         sequence = np.linspace(new_time_axis[0], new_time_axis[-1], synced.shape[0])
 
@@ -1137,7 +1137,7 @@ def _refuse_missing_values(batches: dict, columns_to_align: list, caller: str) -
     Raise when a tag to resample has a missing value, naming every such batch and tag (#1184).
 
     One NaN made the whole tag NaN under the default cubic interpolation, and a linear one
-    spread it to the neighbouring samples. Interpolating over the observed samples instead
+    spread it to the neighboring samples. Interpolating over the observed samples instead
     would bridge a gap of any length without a word. :func:`batch_dtw` refuses a missing
     value in the same way, and :func:`~process_improve.batch.fill_gaps` fills the short gaps
     and says which ones it left.
@@ -1332,7 +1332,7 @@ def find_reference_batch(
 
     Each PCA fits at most ``n - 2`` components to ``n`` batches, since with ``n - 1`` it passes
     through every batch and cannot rank them. One batch is its own reference. Two batches, once
-    centred and scaled, are mirror images, so the one of average length comes first. A missing
+    centered and scaled, are mirror images, so the one of average length comes first. A missing
     value in ``columns_to_align`` is refused, as in :func:`resample_to_reference`.
 
     Parameters
@@ -1390,7 +1390,7 @@ def find_reference_batch(
     # Starts with the average duration batch.
     initial_reference_id = find_average_length(batches, settings)
     if len(batches) < 3:
-        # One batch is its own reference. Two batches, once centred and scaled, are mirror images,
+        # One batch is its own reference. Two batches, once centered and scaled, are mirror images,
         # so a PCA gives them the same T2 and SPE: the batch the search starts from comes first.
         ranked = pd.Index([initial_reference_id, *(key for key in batches if key != initial_reference_id)])
         _refuse_more_than_the_candidates(requested, len(ranked))

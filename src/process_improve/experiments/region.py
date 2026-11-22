@@ -7,7 +7,7 @@ the same region can drive the three places it matters:
 
 - :func:`~process_improve.experiments.generate_design` places runs inside it;
 - :func:`~process_improve.experiments.evaluate_design` averages (I-efficiency) and
-  maximises (G-efficiency) the prediction variance over it, not over the full box;
+  maximizes (G-efficiency) the prediction variance over it, not over the full box;
 - :func:`~process_improve.experiments.optimize_responses` searches for an optimum
   inside it, so the recommended settings are ones the plant can run.
 
@@ -330,7 +330,7 @@ class DesignRegion:
             fails, however the limit is scaled and whatever its units: ``X <= 0.5e-9`` on a
             range of ``1e-9`` is judged as ``X <= 0.5`` on a range of 1. For a curved
             limit it is ``tol`` times the largest size the limit takes over the box, at its
-            corners and its centre; for one that compares numbers only, and for a mixture,
+            corners and its center; for one that compares numbers only, and for a mixture,
             ``tol`` in the limit's own units. The corners the region reports
             (:meth:`vertices`, :meth:`shadow`, :meth:`slice_polygon`) pass, whose rounding
             (see :meth:`vertices`) moves a coordinate by at most ``1e-10`` in coded units,
@@ -942,7 +942,7 @@ class DesignRegion:
         return self.names.index(x), self.names.index(y)
 
     def _coded_point(self, at: Mapping[str, float] | None, skip: tuple[int, int]) -> np.ndarray:
-        """Return the coded point at the values ``at`` (actual units), each factor not given at its centre."""
+        """Return the coded point at the values ``at`` (actual units), each factor not given at its center."""
         point = np.zeros(len(self.names))
         for name, value in (at or {}).items():
             if name not in self.names:
@@ -1319,7 +1319,7 @@ class DesignRegion:
         ``"TK + 0.01*P <= 340"`` gives ``0.01`` and not ``0.00999999999999``; where the
         expression is affine over the box only (``abs(T)`` with ``T`` positive), it is read
         off a fit there. A coefficient whose effect over the box is below ``1e-9`` of the
-        largest is set to zero, its factor held at the centre of its range, where its term's
+        largest is set to zero, its factor held at the center of its range, where its term's
         value joins the bound; and every number is rounded to 12 significant figures, so
         floating-point residue such as ``1.65e-14`` or ``250.00000000000009`` does not
         appear.
@@ -1395,7 +1395,7 @@ class DesignRegion:
             coef, rhs = exact
             effect = np.abs(coef) * half
             dropped = effect <= _SNAP * effect.max(initial=0.0)
-            # A term dropped for its effect is held at its factor's centre, as the fit below and the coded rows
+            # A term dropped for its effect is held at its factor's center, as the fit below and the coded rows
             # behind vertices() hold it: its value there moves into the bound. (Held at zero, it moved the bound
             # of A + B <= 6 with A from 1 to 1 + 1e-9 from 4.9999999995 to 6.)
             rhs -= float(coef[dropped] @ centre[dropped])
@@ -1470,7 +1470,7 @@ class DesignRegion:
             counter-clockwise from the one with the smallest ``x``; two points when the
             shadow is a segment, one when it is a point, none when the region is empty.
             Or ``{"kind": "mask", "x": [...], "y": [...], "z": [[0 or 1, ...], ...]}``:
-            the 40 cell centres along each axis, and ``z[i][j]`` for the cell at
+            the 40 cell centers along each axis, and ``z[i][j]`` for the cell at
             ``(x[j], y[i])``.
 
         Raises
@@ -1515,7 +1515,7 @@ class DesignRegion:
             Two different numeric factors.
         at : Mapping[str, float] or None
             Values (actual units) of the other numeric factors; a factor not given is held
-            at the centre of its range, and entries for ``x`` and ``y`` are ignored. A
+            at the center of its range, and entries for ``x`` and ``y`` are ignored. A
             value outside a factor's range leaves nothing to run.
 
         Returns
@@ -1634,7 +1634,7 @@ class DesignRegion:
             two arrays from ``np.meshgrid`` (or a row and a column) give a grid.
         at : Mapping[str, float] or None
             Values (actual units) of the other numeric factors, each one not given held at
-            the centre of its range; entries for ``x`` and ``y`` are ignored.
+            the center of its range; entries for ``x`` and ``y`` are ignored.
 
         Returns
         -------
@@ -1853,7 +1853,7 @@ def _constant(evaluate: Callable[[], Any]) -> _Exact | None:
 
 
 def _lp_extreme(c: np.ndarray, a: np.ndarray, b: np.ndarray) -> np.ndarray | None:
-    """Return the point of ``{x in [-1, 1]^k : a @ x <= b}`` minimising ``c @ x``, or None when there is none."""
+    """Return the point of ``{x in [-1, 1]^k : a @ x <= b}`` minimizing ``c @ x``, or None when there is none."""
     k = len(c)
     if k == 0:
         return np.zeros(0) if np.all(b >= -_TOL) else None

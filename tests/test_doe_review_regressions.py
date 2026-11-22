@@ -1,6 +1,6 @@
 """Regression tests for the bugs found reviewing the constrained-DOE work (#624, #632-#635).
 
-Each test reproduces a reviewer's failure scenario and checks the corrected behaviour.
+Each test reproduces a reviewer's failure scenario and checks the corrected behavior.
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ class TestAutoSelectFallsBackWhenNoSupersaturatedDesignExists:
 class TestFixedRunsThatCannotSupportTheModel:
     @pytest.mark.parametrize("design_type", ["d_optimal", "i_optimal", "a_optimal", "e_optimal"])
     def test_a_budget_short_of_the_missing_rank_is_refused(self, design_type: str) -> None:
-        """Three identical centre runs span 1 of 6 quadratic coefficients: 5 free runs are needed, not 3 (#957)."""
+        """Three identical center runs span 1 of 6 quadratic coefficients: 5 free runs are needed, not 3 (#957)."""
         centre = pd.DataFrame({"X1": [0.0] * 3, "X2": [0.0] * 3})
         options = {"design_type": design_type, "model_type": "quadratic", "fixed_runs": centre}
         with pytest.raises(ValueError, match=r"span only 1 of the 6 model coefficients.*budget >= 8, not 6"):
@@ -60,7 +60,7 @@ class TestFixedRunsThatCannotSupportTheModel:
 
 @pytest.mark.usefixtures("no_pyoptex")
 def test_fixed_runs_stay_first_in_the_run_sheet() -> None:
-    """Runs already performed are not shuffled into the new runs; the new runs are still randomised."""
+    """Runs already performed are not shuffled into the new runs; the new runs are still randomized."""
     fixed = pd.DataFrame({"X1": [0.0, 1.0], "X2": [0.0, -1.0], "X3": [0.0, 1.0]})
     result = generate_design(_continuous(3, 0, 10), design_type="d_optimal", budget=10, fixed_runs=fixed)
     first_two = result.design[["X1", "X2", "X3"]].iloc[:2].to_numpy(dtype=float)
@@ -258,7 +258,7 @@ class TestManyFactorsOnTheBuiltInEngine:
         ("k", "model", "criterion", "expected"),
         [
             (5, "quadratic", "d_optimal", (5, False)),
-            (6, "quadratic", "d_optimal", (3, False)),  # 4 levels would drop the centre
+            (6, "quadratic", "d_optimal", (3, False)),  # 4 levels would drop the center
             (6, "quadratic", "i_optimal", (4, False)),
             (7, "quadratic", "i_optimal", (3, False)),  # 5^7 = 78,125 points used to be listed
             (10, "quadratic", "d_optimal", (3, True)),
@@ -326,7 +326,7 @@ class TestSpecialCubicForFiveOrMoreComponents:
 class TestInputsAreValidatedUpFront:
     @pytest.mark.parametrize("model_type", ["linear", "cubic", "scheffe_quadratic"])
     def test_unknown_model_type_for_process_factors(self, model_type: str) -> None:
-        """An unknown model was floored as interactions but optimised as main effects."""
+        """An unknown model was floored as interactions but optimized as main effects."""
         with pytest.raises(ValueError, match="main_effects, interactions, quadratic"):
             generate_design(_continuous(4), design_type="d_optimal", budget=8, model_type=model_type)
 

@@ -10,7 +10,7 @@
   <meta name="theme-color" content="#f5f6f4" media="(prefers-color-scheme: light)" data-scheme="light">
   <meta name="theme-color" content="#141517" media="(prefers-color-scheme: dark)" data-scheme="dark">
   <script>
-    /* The colour mode chosen with the switch (here or in the app), put on the page before it is drawn. */
+    /* The color mode chosen with the switch (here or in the app), put on the page before it is drawn. */
     try {
       const mode = localStorage.getItem("factorial-mode");
       const chosen = mode === "light" || mode === "dark";
@@ -44,7 +44,7 @@
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 4.5h16v11H10l-4.5 4v-4H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8 8.5h8M8 11.5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span class="feedback-button__long">Provide critical feedback please</span><span class="feedback-button__medium">Feedback appreciated</span><span class="feedback-button__short">Feedback</span></button>
     </div>
     <!-- Light, dark, or the system's, in turn, as the start page's switch does: its icon shows the mode now. -->
-    <button type="button" id="mode" class="mode-switch" title="light/dark" aria-label="Colour mode: the system's">
+    <button type="button" id="mode" class="mode-switch" title="light/dark" aria-label="Color mode: the system's">
       <svg data-for="auto" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3.5a8.5 8.5 0 0 0 0 17z" fill="currentColor"/></svg>
       <svg data-for="light" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></g></svg>
       <svg data-for="dark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.5 14.2A8.5 8.5 0 1 1 9.8 3.5a6.8 6.8 0 0 0 10.7 10.7z" fill="currentColor"/></svg>
@@ -118,7 +118,7 @@
   <section class="map-how" id="how" aria-labelledby="how-title"></section>
 </main>
 <script src="../map.js" type="module"></script>
-<!-- The colour-mode switch and the footer every page shares (site.js). -->
+<!-- The color-mode switch and the footer every page shares (site.js). -->
 <script src="../site.js" type="module"></script>
 </body>
 </html>

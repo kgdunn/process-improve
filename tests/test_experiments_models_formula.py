@@ -142,7 +142,7 @@ class TestValidateFormulaAllowNumpy:
     @pytest.mark.parametrize(
         "formula",
         [
-            "y ~ np.load(A)",  # not in the curated allowlist (deserialises pickles)
+            "y ~ np.load(A)",  # not in the curated allowlist (deserializes pickles)
             "y ~ np.fromfile(A)",
             "y ~ np.__class__",  # dunder via attribute
             "y ~ os.system(A)",  # non-np module

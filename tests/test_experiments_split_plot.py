@@ -27,7 +27,7 @@ from process_improve.experiments.analysis import analyze_experiment
 
 
 def _corrosion() -> pd.DataFrame:
-    """Return the corrosion data, with temperature as a three-level category, as the book analyses it."""
+    """Return the corrosion data, with temperature as a three-level category, as the book analyzes it."""
     return datasets.corrosion().astype({"Temperature": str})
 
 
@@ -173,7 +173,7 @@ class TestAgainstMixedLM:
 #: Reference values from R: the data, the script that computes them and its README.
 _LMER_FIXTURE = Path(__file__).parent / "fixtures" / "split_plot_lmer"
 
-#: lme4 estimates by numerical optimisation, which agrees with the closed form here to
+#: lme4 estimates by numerical optimization, which agrees with the closed form here to
 #: about 2e-7, so this leaves a wide margin; Kenward-Roger's df are exact.
 _R_RTOL = 1e-5
 
@@ -296,7 +296,7 @@ class TestBoundary:
     """A whole-plot variance estimated as zero gives exactly the OLS fit."""
 
     def test_no_whole_plot_variation_gives_ols(self) -> None:
-        """With the noise centred within every whole plot, eta is 0 and the fit is ordinary least squares."""
+        """With the noise centered within every whole plot, eta is 0 and the fit is ordinary least squares."""
         df = _unbalanced_split_plot()
         rng = np.random.default_rng(3)
         noise = rng.normal(0, 1.0, len(df))
@@ -390,7 +390,7 @@ class TestAnalyzeExperiment:
         assert reml_p["Coating"] < 0.05 < ols_p["Coating"]
 
     def test_coefficients_carry_their_stratum_and_df(self, corrosion: pd.DataFrame) -> None:
-        """Each coefficient is labelled in sum coding, with its own df: 3 for temperature, 9 for coating."""
+        """Each coefficient is labeled in sum coding, with its own df: 3 for temperature, 9 for coating."""
         coefficients = {row["term"]: row for row in _analyse(corrosion)["split_plot"]["coefficients"]}
         assert coefficients["Temperature[S.360]"]["stratum"] == "whole_plot"
         assert coefficients["Temperature[S.360]"]["df"] == pytest.approx(3.0)

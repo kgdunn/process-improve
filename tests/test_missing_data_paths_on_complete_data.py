@@ -46,7 +46,7 @@ def _full_mask_scores(model, x: np.ndarray, method: str) -> np.ndarray:
 
 @pytest.fixture(scope="module")
 def dryer_scaled() -> pd.DataFrame:
-    """Return the bundled dryer batches, aligned and unfolded batchwise, centred and scaled: no missing cells."""
+    """Return the bundled dryer batches, aligned and unfolded batchwise, centered and scaled: no missing cells."""
     batches = load_dryer()
     tags = [c for c in next(iter(batches.values())).columns if c != "ClockTime"]
     aligned = resample_to_reference({k: v[tags] for k, v in batches.items()}, columns_to_align=tags, reference_batch=1)
@@ -59,7 +59,7 @@ def dryer_scaled() -> pd.DataFrame:
 
 @pytest.fixture(scope="module")
 def dryer_quality(dryer_scaled: pd.DataFrame) -> pd.DataFrame:
-    """Return a two-column quality block driven by the trajectories, centred and scaled."""
+    """Return a two-column quality block driven by the trajectories, centered and scaled."""
     rng = np.random.default_rng(3)
     x = dryer_scaled.to_numpy()
     y = x @ rng.normal(size=(x.shape[1], 2)) / np.sqrt(x.shape[1]) + 0.1 * rng.normal(size=(x.shape[0], 2))

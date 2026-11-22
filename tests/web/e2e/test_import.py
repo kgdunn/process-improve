@@ -1,6 +1,6 @@
 """A table of the reader's own in the page: pasted or chosen as a file, its columns checked, and opened as a study.
 
-The study is one of runs as given, so Run lists the table's runs with their results and Learn analyses them.
+The study is one of runs as given, so Run lists the table's runs with their results and Learn analyzes them.
 """
 
 from __future__ import annotations

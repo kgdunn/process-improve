@@ -49,7 +49,7 @@ def dispatch_ccd(  # noqa: PLR0913
         Axial distance: ``"rotatable"`` (``F ** 0.25`` for ``F`` cube runs),
         ``"face_centered"`` (1), ``"inscribed"`` (axial runs at +/-1, the cube
         shrunk inside a rotatable design), ``"spherical"`` (``k ** 0.5`` for ``k``
-        factors, the distance of the cube's corners, so every run but the centre
+        factors, the distance of the cube's corners, so every run but the center
         runs lies on one sphere), ``"orthogonal"`` (the default: the
         distance that makes the quadratic columns mutually orthogonal, see
         :func:`orthogonal_alpha`), or a positive number used as the distance
@@ -71,7 +71,7 @@ def dispatch_ccd(  # noqa: PLR0913
         Desired minimum cube resolution, used only when ``cube="fractional"``
         and *generators* is not given.
     n_replicates : int
-        How many times the cube and axial runs will be replicated (the centre runs
+        How many times the cube and axial runs will be replicated (the center runs
         are not), which the orthogonal axial distance depends on.
     n_blocks : int or None
         Blocks the design will be run in: the axial runs in one, the cube runs in the
@@ -89,12 +89,12 @@ def dispatch_ccd(  # noqa: PLR0913
         ``alpha_rule``, how alpha was chosen (``"orthogonal"``, ``"rotatable"``,
         ``"face_centered"``, ``"inscribed"``, ``"spherical"``, ``"orthogonal_blocks"``
         or ``"user"``);
-        and ``axial_portion``, which rows are the axial runs and their centre runs.
+        and ``axial_portion``, which rows are the axial runs and their center runs.
 
     Raises
     ------
     ValueError
-        If fewer than two factors are given, or *alpha* or *cube* is not recognised.
+        If fewer than two factors are given, or *alpha* or *cube* is not recognized.
 
     Notes
     -----
@@ -126,7 +126,7 @@ def dispatch_ccd(  # noqa: PLR0913
         meta = {"alpha_value": distance, "face": _geometry(distance), "alpha_rule": rule}
     else:
         coded_matrix, meta = _full_ccd(k, n_center_points, alpha, n_replicates)
-    # Rows run cube, cube centre runs, axial runs, axial centre runs; mark the axial portion.
+    # Rows run cube, cube center runs, axial runs, axial center runs; mark the axial portion.
     axial = np.arange(len(coded_matrix)) >= len(cube_runs) + n_center_points // 2
     return coded_matrix, {**meta, **cube_meta, "axial_portion": axial.tolist()}
 
@@ -142,12 +142,12 @@ def _full_ccd(k: int, n_center_points: int, alpha: str | float | None, n_replica
         kind = orthogonal_alpha(r * 2**k, r * (2**k + 2 * k) + n_center_points, n_axial_replicates=r)
 
     if isinstance(kind, float):
-        # An axial distance ccdesign cannot take: build the 2^k cube, the 2k axial runs and the centre runs here.
+        # An axial distance ccdesign cannot take: build the 2^k cube, the 2k axial runs and the center runs here.
         cube_runs = np.array(list(itertools.product((-1.0, 1.0), repeat=k)))[:, ::-1]
         coded_matrix = _stack_ccd(cube_runs, kind, n_center_points)
         return coded_matrix, {"alpha_value": kind, "face": _geometry(kind), "alpha_rule": rule}
 
-    # Centre runs are split between the cube and axial blocks, as ccdesign does.
+    # Center runs are split between the cube and axial blocks, as ccdesign does.
     n_center_cube = n_center_points // 2
     face = {"faced": "faced", "inscribed": "inscribed"}.get(kind, "circumscribed")
     coded_matrix = ccdesign(k, center=(n_center_cube, n_center_points - n_center_cube), alpha="rotatable", face=face)
@@ -169,15 +169,15 @@ def orthogonal_alpha(n_cube_runs: int, n_runs: int, n_axial_replicates: int = 1)
     """Axial distance that makes the quadratic columns of a central composite design mutually orthogonal.
 
     ``alpha = (F * (sqrt(N) - sqrt(F)) ** 2 / (4 * s ** 2)) ** (1 / 4)`` for ``F`` cube runs,
-    each axial point run ``s`` times, and ``N`` runs in all, centre runs included (Box and
+    each axial point run ``s`` times, and ``N`` runs in all, center runs included (Box and
     Hunter 1957; Myers, Montgomery and Anderson-Cook, *Response Surface Methodology*,
-    section 7.4, for ``s = 1``). With it the centred squared columns are orthogonal, so the
+    section 7.4, for ``s = 1``). With it the centered squared columns are orthogonal, so the
     quadratic coefficients are estimated independently of one another.
 
     The squares of two factors are both non-zero only on the cube runs, so their
-    product sums to ``F``; each has the sum ``F + 2 s alpha**2``; the centred columns
+    product sums to ``F``; each has the sum ``F + 2 s alpha**2``; the centered columns
     are orthogonal when ``F N = (F + 2 s alpha**2) ** 2``. A design replicated whole
-    (``F``, ``s`` and ``N`` all times ``r``) keeps its alpha; one whose centre runs are
+    (``F``, ``s`` and ``N`` all times ``r``) keeps its alpha; one whose center runs are
     not replicated has relatively fewer of them, and a smaller alpha.
 
     Parameters
@@ -185,7 +185,7 @@ def orthogonal_alpha(n_cube_runs: int, n_runs: int, n_axial_replicates: int = 1)
     n_cube_runs : int
         Runs in the cube (factorial) portion, full or fractional, replicates included.
     n_runs : int
-        Every run of the design: cube, axial and centre runs.
+        Every run of the design: cube, axial and center runs.
     n_axial_replicates : int
         How many times each of the ``2k`` axial points is run.
 
@@ -198,7 +198,7 @@ def orthogonal_alpha(n_cube_runs: int, n_runs: int, n_axial_replicates: int = 1)
     return float((n_cube_runs * gap**2 / (4 * n_axial_replicates**2)) ** 0.25)
 
 
-#: Box and Hunter's (1957) rules for the number of centre runs of a rotatable central composite design.
+#: Box and Hunter's (1957) rules for the number of center runs of a rotatable central composite design.
 CENTER_POINT_RULES = ("uniform_precision", "orthogonal")
 
 
@@ -211,10 +211,10 @@ def ccd_center_points(
     radius: float | None = None,
     rounded: bool = True,
 ) -> int | float:
-    r"""Return the number of centre runs of a rotatable central composite design by Box and Hunter's rule.
+    r"""Return the number of center runs of a rotatable central composite design by Box and Hunter's rule.
 
     In a rotatable CCD, with ``alpha = F ** 0.25`` for ``F`` cube runs, the variance of a prediction
-    depends only on its distance from the centre. The centre runs set how it changes with that
+    depends only on its distance from the center. The center runs set how it changes with that
     distance, through the design's pure fourth moment
 
     .. math::
@@ -222,17 +222,17 @@ def ccd_center_points(
         \lambda_4 = \frac{N F}{r\,(F + 2\sqrt{F})^2},
 
     with ``N`` runs in all, of which ``r (F + 2k)`` are the cube and axial runs (the design run
-    ``r`` times, its centre runs once) for ``k`` factors (Box and Hunter 1957; Myers, Montgomery and
+    ``r`` times, its center runs once) for ``k`` factors (Box and Hunter 1957; Myers, Montgomery and
     Anderson-Cook, *Response Surface Methodology*, section 7.4).
 
-    - ``"uniform_precision"``: the variance at the centre equals the variance one unit from it, in
+    - ``"uniform_precision"``: the variance at the center equals the variance one unit from it, in
       Box and Hunter's unit of distance: the root mean square of a factor over the runs. That needs
       :math:`\lambda_4 = (k + 3 + \sqrt{9k^2 + 14k - 7}) / (4(k + 2))`.
-    - ``"orthogonal"``: :math:`\lambda_4 = 1`, which makes the centred squared columns orthogonal,
+    - ``"orthogonal"``: :math:`\lambda_4 = 1`, which makes the centered squared columns orthogonal,
       so the quadratic coefficients are estimated independently of one another. The number is then
       :math:`r(4\sqrt{F} + 4 - 2k)`.
 
-    With a *radius* :math:`\rho`, ``"uniform_precision"`` makes the variance at the centre equal to the
+    With a *radius* :math:`\rho`, ``"uniform_precision"`` makes the variance at the center equal to the
     variance at that distance instead, in the coded units of the cube at :math:`\pm 1`. Box and Draper
     (2007, Exercise 15.3) write the variance of a rotatable design as
     :math:`V(\rho) = P + (2Q + 1/B)\rho^2 + R\rho^4`, with :math:`B` the sum of squares of a factor's
@@ -253,16 +253,16 @@ def ccd_center_points(
     n_replicates : int
         ``r``, how many times the cube and axial runs are run.
     radius : float or None
-        For ``"uniform_precision"`` only: the distance from the centre, in the cube's coded units, at
-        which the variance equals the variance at the centre. ``None`` takes Box and Hunter's unit.
+        For ``"uniform_precision"`` only: the distance from the center, in the cube's coded units, at
+        which the variance equals the variance at the center. ``None`` takes Box and Hunter's unit.
     rounded : bool
         True rounds to the nearest whole run, at least 1. False returns the real solution, as a source
-        prints it; below 0 it says that no number of centre runs meets the rule.
+        prints it; below 0 it says that no number of center runs meets the rule.
 
     Returns
     -------
     int or float
-        The number of centre runs: an ``int`` when *rounded*, else a ``float``.
+        The number of center runs: an ``int`` when *rounded*, else a ``float``.
 
     Raises
     ------
@@ -277,7 +277,7 @@ def ccd_center_points(
     >>> ccd_center_points("uniform_precision", 16, 4), ccd_center_points("orthogonal", 16, 4)
     (7, 12)
 
-    Box and Draper's Exercise 15.3, three factors: the same variance at the centre and one unit out:
+    Box and Draper's Exercise 15.3, three factors: the same variance at the center and one unit out:
 
     >>> round(ccd_center_points("uniform_precision", 8, 3, radius=1.0, rounded=False), 2)
     4.58
@@ -306,23 +306,23 @@ def blocking_alpha(
 ) -> float:
     """Axial distance at which a CCD's cube and axial blocks are orthogonal to the squares too.
 
-    ``alpha**2 = F (2 k s + c_a) / (2 s (F + c_c))`` for ``F`` cube runs and ``c_c`` centre
+    ``alpha**2 = F (2 k s + c_a) / (2 s (F + c_c))`` for ``F`` cube runs and ``c_c`` center
     runs in the cube blocks, ``k`` factors whose ``2k`` axial points are each run ``s``
-    times, and ``c_a`` centre runs in the axial block (Box and Hunter 1957; Montgomery,
+    times, and ``c_a`` center runs in the axial block (Box and Hunter 1957; Montgomery,
     *Design and Analysis of Experiments*, section 11.4). Each block then holds the same
     share of every factor's sum of squares as of the runs. With two factors, a 2^2 cube
-    and three centre runs in each block it is ``sqrt(2)``, rotatable too.
+    and three center runs in each block it is ``sqrt(2)``, rotatable too.
 
     Parameters
     ----------
     n_cube_runs : int
         Runs in the cube portion, replicates included.
     n_center_cube : int
-        Centre runs in the cube blocks.
+        Center runs in the cube blocks.
     n_factors : int
         Number of factors ``k``.
     n_center_axial : int
-        Centre runs in the axial block.
+        Center runs in the axial block.
     n_axial_replicates : int
         How many times each axial point is run.
 
@@ -338,12 +338,12 @@ def blocking_alpha(
 def blocking_center_points(
     alpha: float, n_cube_runs: int, n_center_cube: int, n_factors: int, n_axial_replicates: int = 1
 ) -> float:
-    """Return the centre runs in the axial block at which a CCD's blocks are orthogonal for a chosen axial distance.
+    """Return the center runs in the axial block at which a CCD's blocks are orthogonal for a chosen axial distance.
 
     The inverse of :func:`blocking_alpha`: ``c_a = 2 s alpha**2 (F + c_c) / F - 2 k s`` for ``F`` cube runs and
-    ``c_c`` centre runs in the cube blocks, ``k`` factors whose ``2k`` axial points are each run ``s`` times. It
+    ``c_c`` center runs in the cube blocks, ``k`` factors whose ``2k`` axial points are each run ``s`` times. It
     is real: a whole, non-negative number of runs is one the design can have at that alpha, and a negative one
-    says that no number of axial-block centre runs blocks it orthogonally (Box and Draper 2007, Section 15.3 and
+    says that no number of axial-block center runs blocks it orthogonally (Box and Draper 2007, Section 15.3 and
     Exercise 15.8). With ``s`` replicates of the star run as ``s`` blocks, each holds ``c_a / s`` of them.
 
     Parameters
@@ -353,7 +353,7 @@ def blocking_center_points(
     n_cube_runs : int
         Runs in the cube portion, replicates included.
     n_center_cube : int
-        Centre runs in the cube blocks.
+        Center runs in the cube blocks.
     n_factors : int
         Number of factors ``k``.
     n_axial_replicates : int
@@ -362,7 +362,7 @@ def blocking_center_points(
     Returns
     -------
     float
-        The centre runs in the axial block or blocks, all together.
+        The center runs in the axial block or blocks, all together.
 
     Raises
     ------
@@ -371,8 +371,8 @@ def blocking_center_points(
 
     Examples
     --------
-    Box and Draper's Exercise 15.8: three factors, the cube in two blocks of four with two centre runs each, the
-    star run twice at the rotatable alpha 2**0.5. The star blocks need no centre run:
+    Box and Draper's Exercise 15.8: three factors, the cube in two blocks of four with two center runs each, the
+    star run twice at the rotatable alpha 2**0.5. The star blocks need no center run:
 
     >>> blocking_center_points(2**0.5, 8, 4, 3, n_axial_replicates=2)
     0.0
@@ -392,7 +392,7 @@ def all_bias_distance(
     When a first-order model is fitted but the true surface has curvature, the squared bias of the
     fitted values, averaged over a region of interest, is smallest when the design's second moments
     equal the region's (Box and Draper 2007, Section 6.2 and Appendix 6B). With ``n_a`` cube runs at
-    +/- ``a`` on each factor and ``n_0`` centre runs that sets ``a**2 = (1 + n_0 / n_a) m``, where
+    +/- ``a`` on each factor and ``n_0`` center runs that sets ``a**2 = (1 + n_0 / n_a) m``, where
     ``m`` is the region's pure second moment: ``1 / (k + 2)`` over the unit sphere in ``k`` factors,
     and ``1 / 3`` over the cube of side 2. The variance of the fitted values is smallest with the
     corners far apart instead, so a design meant to balance the two is spread a little wider, by
@@ -405,7 +405,7 @@ def all_bias_distance(
     n_cube_runs : int
         ``n_a``, the runs of the two-level factorial or fraction.
     n_center_points : int
-        ``n_0``, the runs at the centre.
+        ``n_0``, the runs at the center.
     region : {"spherical", "cuboidal"}
         The region of interest: the sphere of radius 1, or the cube from -1 to 1 on each factor.
     expand : float
@@ -423,7 +423,7 @@ def all_bias_distance(
 
     Examples
     --------
-    Two factors, four cube runs and two centre runs in the unit sphere (Box and Draper's Table 6B.1):
+    Two factors, four cube runs and two center runs in the unit sphere (Box and Draper's Table 6B.1):
 
     >>> round(all_bias_distance(2, 4, 2), 3)
     0.612
@@ -442,7 +442,7 @@ def all_bias_distance(
 
 
 def all_bias_ccd(n_factors: int, n_cube_runs: int, region: str = "spherical", expand: float = 1.0) -> dict[str, float]:
-    """Return the centre runs and distances of an all-bias central composite design.
+    """Return the center runs and distances of an all-bias central composite design.
 
     A composite design fitted with a second-order model, when the true surface is of third order,
     has the smallest squared bias averaged over the region when its moments up to order 5 equal the
@@ -455,7 +455,7 @@ def all_bias_ccd(n_factors: int, n_cube_runs: int, region: str = "spherical", ex
       ``b = (2 N / 45)**0.25``;
 
     with ``N = n_a + 2k + n_0``. To build the design, run a central composite design with
-    ``alpha = axial_distance / cube_distance`` and the rounded centre runs, and multiply its coded
+    ``alpha = axial_distance / cube_distance`` and the rounded center runs, and multiply its coded
     settings by ``cube_distance``.
 
     Parameters
@@ -473,7 +473,7 @@ def all_bias_ccd(n_factors: int, n_cube_runs: int, region: str = "spherical", ex
     Returns
     -------
     dict[str, float]
-        ``n_center_points``, the real number of centre runs, which can be below 0;
+        ``n_center_points``, the real number of center runs, which can be below 0;
         ``n_center_points_rounded_up``, the whole number to run, at least 0; ``cube_distance``, ``a``;
         and ``axial_distance``, ``b``, both times *expand*.
 
@@ -525,7 +525,7 @@ def optimum_spread(weight: str = "uniform", variance_share: float = 0.5) -> floa
 
     A straight line fitted to a curve that is in truth quadratic has an error, averaged over the
     region with a weight function, of variance :math:`V` and squared bias :math:`B`. For a design
-    symmetric about the centre, with second moment :math:`m_2` against the weight function's
+    symmetric about the center, with second moment :math:`m_2` against the weight function's
     :math:`\mu_2` and :math:`t = m_2 / \mu_2` (Box and Draper 2007, Section 13.5, Eq. 13.5.8):
 
     .. math::
@@ -641,7 +641,7 @@ def _resolve_fractional_axial_distance(
         Total number of center points, which count towards the run total in
         :func:`orthogonal_alpha`.
     n_replicates : int
-        How many times the cube and axial runs will be replicated (the centre runs are not).
+        How many times the cube and axial runs will be replicated (the center runs are not).
 
     Returns
     -------
@@ -743,9 +743,9 @@ def _fractional_cube(
 
 
 def _stack_ccd(cube: np.ndarray, axial_distance: float, n_center_points: int) -> np.ndarray:
-    """Stack a CCD: the cube, half the centre runs, the ``2k`` axial runs, the other centre runs.
+    """Stack a CCD: the cube, half the center runs, the ``2k`` axial runs, the other center runs.
 
-    The centre runs are split between the cube and axial portions as ``ccdesign`` does,
+    The center runs are split between the cube and axial portions as ``ccdesign`` does,
     so each portion can be a block of its own.
     """
     k = cube.shape[1]
@@ -762,11 +762,11 @@ def _cyclic_blocks(base: tuple[int, ...], k: int) -> tuple[tuple[int, ...], ...]
 
 
 #: Box and Behnken's (1960) blocks, Table 4: each block carries a two-level factorial in the
-#: factors it names, with every other factor at its centre. Factors are numbered from 0 here,
+#: factors it names, with every other factor at its center. Factors are numbered from 0 here,
 #: from 1 in the paper. Six, nine, ten, twelve and sixteen factors use partially balanced
 #: designs (two pairs of factors can meet in a different number of blocks); seven and eleven
 #: use balanced ones. Seven factors are written cyclically on the Fano plane, the published
-#: table up to a relabelling of the factors; the others are as printed. Pairing every two
+#: table up to a relabeling of the factors; the others are as printed. Pairing every two
 #: factors, as ``bbdesign`` does for any k, gives the published design for three to five
 #: factors but more runs from six on: 60, 84 and 144 instead of 48, 56 and 120 at 6, 7 and 9.
 _BOX_BEHNKEN_BLOCKS: dict[int, tuple[tuple[int, ...], ...]] = {
@@ -820,7 +820,7 @@ def dispatch_box_behnken(
     Three to five factors: a two-level factorial in every pair of factors
     (``bbdesign``), which is the published design. Six, seven, nine, ten, eleven, twelve
     and sixteen factors: the published blocks in ``_BOX_BEHNKEN_BLOCKS`` (48, 56, 120,
-    160, 176, 192 and 384 runs plus centre points). Box and Behnken published no design
+    160, 176, 192 and 384 runs plus center points). Box and Behnken published no design
     for eight, thirteen to fifteen, or more than sixteen factors: these pair every two
     factors, and ``metadata["construction"]`` says ``"all_pairs"``.
 
@@ -891,7 +891,7 @@ def dsd_run_count(n_factors: int, n_categorical: int = 0, categorical_method: st
 
     ``2m + 1`` for the conference order ``m`` of :func:`dsd_conference_order`: the familiar
     ``2k + 1`` for even ``k`` and ``2k + 3`` for odd ``k``, except where the order steps up.
-    Two-level categorical factors (counted in ``n_factors``) need two centre runs instead
+    Two-level categorical factors (counted in ``n_factors``) need two center runs instead
     of one (Jones and Nachtsheim 2013), and four with the ORTH-augment method
     (``categorical_method="orth"``) when there are two or more of them.
 
@@ -906,7 +906,7 @@ def dsd_run_count(n_factors: int, n_categorical: int = 0, categorical_method: st
 
 
 #: Jones and Nachtsheim's (2011) definitive screening designs of ``2k + 1`` runs for an odd number
-#: ``k`` of factors, from their Figure 1: one word per run, ``+`` and ``-`` for +1 and -1, the centre
+#: ``k`` of factors, from their Figure 1: one word per run, ``+`` and ``-`` for +1 and -1, the center
 #: run last. No conference matrix has an odd order, so the authors found these by coordinate exchange;
 #: they keep the fold-over structure, but their main effects are correlated.
 _DSD_2011_ODD: dict[int, str] = {
@@ -946,7 +946,7 @@ CATEGORICAL_METHODS = ("dsd", "orth")
 
 
 def _dsd_centre_runs(n_categorical: int, categorical_method: str) -> int:
-    """Return a DSD's centre runs: one, two with categorical factors, four for ORTH-augment's two or more."""
+    """Return a DSD's center runs: one, two with categorical factors, four for ORTH-augment's two or more."""
     if categorical_method not in CATEGORICAL_METHODS:
         msg = f"categorical_method must be one of {CATEGORICAL_METHODS}; got {categorical_method!r}."
         raise ValueError(msg)
@@ -956,7 +956,7 @@ def _dsd_centre_runs(n_categorical: int, categorical_method: str) -> int:
 
 
 def _dsd_order_for_budget(k: int, extra: int, budget: int | None) -> int:
-    """Conference order for ``k`` factors and ``extra`` centre runs: the minimal one, or the largest within ``budget``.
+    """Conference order for ``k`` factors and ``extra`` center runs: the minimal one, or the largest within ``budget``.
 
     Columns beyond ``k`` are fake factors (Jones and Nachtsheim 2017): they are not run as
     factors, but the foldover keeps them orthogonal to everything, so they give the
@@ -1005,8 +1005,8 @@ def dispatch_dsd(
     Two-level categorical factors use the DSD-augment method of Jones and Nachtsheim
     (2013): a categorical factor takes a conference-matrix column like any other, its
     two zeros (one in each half of the foldover) become ``+z`` and ``-z``, and the
-    single centre run becomes two, with the categorical factors at ``+b`` and ``-b``.
-    The signs are chosen to maximise the determinant of the main-effects information
+    single center run becomes two, with the categorical factors at ``+b`` and ``-b``.
+    The signs are chosen to maximize the determinant of the main-effects information
     matrix. Every main effect stays orthogonal to every second-order effect, and the
     continuous main effects stay orthogonal to each other. Resolving the zeros costs
     some orthogonality between a categorical main effect and the other main effects:
@@ -1020,8 +1020,8 @@ def dispatch_dsd(
     that the main effects are no longer clear of the second-order effects: each is
     partly aliased with some quadratic effects and two-factor interactions (the
     paper's Table 5). A categorical factor's two zeros both become ``+1``, which leaves
-    it orthogonal to the other columns of the foldover but adds 2 to its sum; centre
-    runs balance it. One categorical factor takes two centre runs at ``-1``. Two to
+    it orthogonal to the other columns of the foldover but adds 2 to its sum; center
+    runs balance it. One categorical factor takes two center runs at ``-1``. Two to
     four take four, whose categorical settings are the columns of a 4 x 4 block with
     one ``+1`` in each column and each row, orthogonal to each other. More than four
     reuse the block's columns in turn, so a categorical factor is correlated only with
@@ -1117,7 +1117,7 @@ _MAX_EXHAUSTIVE_CATEGORICAL = 7
 
 
 def _dsd_augment(folded: np.ndarray, categorical: list[int]) -> np.ndarray:
-    """Jones and Nachtsheim's (2013) DSD-augment: resolve the categorical columns' zeros and add two centre runs."""
+    """Jones and Nachtsheim's (2013) DSD-augment: resolve the categorical columns' zeros and add two center runs."""
     n_half, k = folded.shape[0] // 2, folded.shape[1]
     zero_rows = [int(np.flatnonzero(folded[:n_half, j] == 0)[0]) for j in categorical]
     c = len(categorical)
@@ -1139,13 +1139,13 @@ def _dsd_augment(folded: np.ndarray, categorical: list[int]) -> np.ndarray:
     return best
 
 
-#: The categorical settings of ORTH-augment's four centre runs, a column per categorical factor
+#: The categorical settings of ORTH-augment's four center runs, a column per categorical factor
 #: in turn: each column sums to -2 and the columns are orthogonal.
 _ORTH_CENTRE_BLOCK = np.array([[-1, -1, -1, 1], [-1, -1, 1, -1], [-1, 1, -1, -1], [1, -1, -1, -1]], dtype=float)
 
 
 def _orth_augment(folded: np.ndarray, categorical: list[int]) -> np.ndarray:
-    """Jones and Nachtsheim's (2013) ORTH-augment: categorical zeros set to +1, and centre runs to balance them."""
+    """Jones and Nachtsheim's (2013) ORTH-augment: categorical zeros set to +1, and center runs to balance them."""
     n_half, k = folded.shape[0] // 2, folded.shape[1]
     design = folded.copy()
     for j in categorical:

@@ -134,7 +134,7 @@ class TestInteractionTerms:
 
     def test_constants_replay_onto_held_out_rows(self) -> None:
         parents = self._parents()
-        # Standardise on the training rows, as a real nested pipeline would, so
+        # Standardize on the training rows, as a real nested pipeline would, so
         # the held-out rows never touch the parents' own constants either.
         train_raw, test_raw = parents.iloc[:40], parents.iloc[40:]
         centre, spread = train_raw.mean(), train_raw.std(ddof=1)
@@ -149,7 +149,7 @@ class TestInteractionTerms:
 
     def test_unscaled_parents_warn(self) -> None:
         raw = pd.DataFrame({"a": [1.0, 2.0, 3.0, 4.0], "b": [100.0, 250.0, 90.0, 300.0]})
-        with pytest.warns(SpecificationWarning, match="does not look centred"):
+        with pytest.warns(SpecificationWarning, match="does not look centered"):
             interaction_terms(raw, [("a", "b")])
 
     def test_standardised_parents_do_not_warn(self) -> None:

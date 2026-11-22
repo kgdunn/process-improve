@@ -5,12 +5,12 @@ numbers``). We throw arbitrary float lists at it via the
 ``execute_tool_call`` dispatch path (matching what the MCP server
 would do) and assert:
 
-1. The call returns a dict that JSON-serialises cleanly.
+1. The call returns a dict that JSON-serializes cleanly.
 2. Or it raises one of the documented exception types -- never an
    uncaught ``Exception`` (which would carry library-internal
    strings into the MCP response; see SEC-18 / #267).
 
-When generalising to every registered tool, walk
+When generalizing to every registered tool, walk
 ``_TOOL_REGISTRY``, derive a hypothesis strategy from each tool's
 ``input_schema``, and apply the same assertion.
 """
@@ -50,7 +50,7 @@ _finite_floats = st.floats(allow_nan=False, allow_infinity=False, width=64)
 )
 def test_robust_scale_sn_does_not_leak_unexpected_exceptions(values: list[float]) -> None:
     """No matter what finite-float list we send, the dispatch path
-    returns either a JSON-serialisable result or a documented error.
+    returns either a JSON-serializable result or a documented error.
     """
     try:
         result = execute_tool_call("robust_scale_sn", {"values": values})

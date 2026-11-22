@@ -467,7 +467,7 @@ WORDS = """() => { const on = [...document.querySelectorAll('#feedback span')]
     .filter((s) => getComputedStyle(s).display !== 'none');
   return { read: on.filter((s) => getComputedStyle(s).position !== 'absolute').map((s) => s.textContent).join(' | '),
            named: on.map((s) => s.textContent).join(' | ') }; }"""
-# The button, its words and the header's other parts, as boxes: for whether the words are cut or lie on a neighbour.
+# The button, its words and the header's other parts, as boxes: for whether the words are cut or lie on a neighbor.
 FITS = """() => { const button = document.querySelector('#feedback'), box = (e) => e.getBoundingClientRect();
   const row = button.closest('.feedback-slot').parentElement, b = box(button);
   const beside = [...row.children].filter((c) => !c.contains(button)).map((c) => box(c.querySelector('h1') || c));

@@ -861,8 +861,8 @@ def _coded(result: object) -> pd.DataFrame:
 
 # A 25-run OMARS design for five factors, reproducing the published reference
 # row (A=2.34, E=0.93, max|r|=0.00, I=0.51, G=0.84).  It is the conference-matrix
-# foldover [C; -C; C; -C; 0] (a doubled DSD core plus one centre run) and is
-# verified by ``is_omars``.  The enumerated OMARS catalogue is not shipped with
+# foldover [C; -C; C; -C; 0] (a doubled DSD core plus one center run) and is
+# verified by ``is_omars``.  The enumerated OMARS catalog is not shipped with
 # the package; constructive generation of OMARS designs for small factor counts
 # is planned, at which point this hand-embedded fixture can be replaced.
 _OMARS_25 = pd.DataFrame(
@@ -933,7 +933,7 @@ class TestEOptimality:
 
 
 class TestCorrelation:
-    """Test the residualised second-order correlation summary."""
+    """Test the residualized second-order correlation summary."""
 
     def test_keys_present(self) -> None:
         """Correlation result exposes max/mean |r|, matrix, and terms."""
@@ -975,7 +975,7 @@ _DAVIES = pd.DataFrame(
      (1, -1, -1, 1, -1), (1, -1, 1, -1, 1), (1, 1, -1, -1, 1), (1, 1, 1, 1, -1)],
     columns=["x1", "x2", "x3", "x4", "x5"],
 )  # fmt: skip
-#: A 2^2 with three centre runs (Box, Hunter and Hunter, Table 15.1).
+#: A 2^2 with three center runs (Box, Hunter and Hunter, Table 15.1).
 _FIRST_ORDER = pd.DataFrame(
     [(-1, -1), (1, -1), (-1, 1), (1, 1), (0, 0), (0, 0), (0, 0)], columns=["time", "temperature"]
 )
@@ -998,7 +998,7 @@ class TestAliasMatrixWithTheSquares:
         assert alias.loc[["x1", "x2", "x3", "x4", "x5"], squares].abs().max().max() == pytest.approx(0.0)
 
     def test_centre_runs_dilute_the_squares_in_the_mean(self) -> None:
-        """A 2^2 with three centre runs: the mean carries 4/7 of each square."""
+        """A 2^2 with three center runs: the mean carries 4/7 of each square."""
         alias = _alias(_FIRST_ORDER, "time + temperature", "quadratic")
         assert alias.loc["Intercept", ["I(time ** 2)", "I(temperature ** 2)"]].tolist() == pytest.approx([4 / 7] * 2)
 
@@ -1556,9 +1556,9 @@ class TestExactRegionValues:
 def _wind_tunnel_design() -> pd.DataFrame:
     """Dr. Cavendish's split-plot design in Goos and Jones (2011), Figure 10.2: 10 whole plots of 5 runs.
 
-    The ride heights (x1, x2) are the hard-to-change factors, set on a 3^2 factorial with its centre
-    twice. A corner whole plot runs the 2^2 in yaw and grille (x3, x4) plus its centre, an edge whole
-    plot the four axial points plus the centre, and the two centre whole plots run the centre five times.
+    The ride heights (x1, x2) are the hard-to-change factors, set on a 3^2 factorial with its center
+    twice. A corner whole plot runs the 2^2 in yaw and grille (x3, x4) plus its center, an edge whole
+    plot the four axial points plus the center, and the two center whole plots run the center five times.
     """
     runs = []
     for a in (-1, 0, 1):

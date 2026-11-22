@@ -76,7 +76,7 @@ def test_the_settings_found_keep_to_the_limits_on_the_settings(api):
     by = {s["name"]: s["value"] for s in found["settings"]}
     assert by["T"] + 25 * by["P"] <= 215 + 1e-6
     assert found["reached"]
-    assert found["overlay"]["runnable"] is not None, "the chart greys what the limit rules out"
+    assert found["overlay"]["runnable"] is not None, "the chart grays what the limit rules out"
     # A target only settings past the limit give: the answer stays inside, and says the target is not reached.
     past = found_for(api, held, {"Cost": 22.0})  # t + p <= -0.4 inside the limit, and 22 needs 3 t + p near 2
     by = {s["name"]: s["value"] for s in past["settings"]}

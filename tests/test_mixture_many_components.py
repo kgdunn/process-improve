@@ -34,7 +34,7 @@ def _buckets(per_bucket: int, cap: float, minimum: float | None = None) -> tuple
 
 @pytest.fixture
 def few_programmes(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Solve 128 linear programmes, not 1024: enough for these regions, and fast."""
+    """Solve 128 linear programs, not 1024: enough for these regions, and fast."""
     monkeypatch.setattr(engine, "_SAMPLED_VERTICES", 128)
 
 

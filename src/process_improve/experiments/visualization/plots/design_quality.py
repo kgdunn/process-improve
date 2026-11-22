@@ -435,9 +435,9 @@ class CorrelationMapPlot(BasePlot):
 
     One row and one column per term, in three blocks divided by lines: the main
     effects, the squares, then the two-factor interactions, whether or not a model
-    includes them. The colours run from blue at -1, through near white at 0, to red
-    at +1: a strongly coloured cell off the diagonal is a pair of terms the design
-    finds hard to tell apart, and its colour says whether the two move the same way
+    includes them. The colors run from blue at -1, through near white at 0, to red
+    at +1: a strongly colored cell off the diagonal is a pair of terms the design
+    finds hard to tell apart, and its color says whether the two move the same way
     or opposite ways. A blank row and column is a term that does not vary in the
     design (each square of a two-level design), so it has no correlation. The
     largest size among the squares and interactions is the "max |r|" of

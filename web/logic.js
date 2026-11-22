@@ -100,7 +100,7 @@ export function tradeOffCell(runs, k) {
 /** What a cell shows: Full, its resolution in roman numerals, or nothing. */
 export const cellText = (cell) => (cell === FULL ? "Full" : cell === null ? "" : ROMAN[cell]);
 
-/** The band a cell is coloured by: the full factorial or resolution V and above, IV, III; null for no design. */
+/** The band a cell is colored by: the full factorial or resolution V and above, IV, III; null for no design. */
 export const cellBand = (cell) => (cell === null ? null : cell === FULL || cell >= 5 ? "high" : cell === 4 ? "iv" : "iii");
 
 /**
@@ -321,7 +321,7 @@ const KINDS = {
 export const holds = (model, aim) => (KINDS[aim] ?? []).every((kind) => (KINDS[model] ?? []).includes(kind));
 
 /**
- * The model a new run sheet's results are analysed with: "" for the design's own when it holds what
+ * The model a new run sheet's results are analyzed with: "" for the design's own when it holds what
  * the study aims to learn; else the aim's, when the design can fit it (``fits``, as the comparison
  * found), as a named model or, for main effects and squares, as their terms; else the design's own.
  */
@@ -359,7 +359,7 @@ export const MIXTURES = ["simplex_lattice", "simplex_centroid", "extreme_vertice
 /** Whether a design type is a mixture's. */
 export const isMixture = (designType) => MIXTURES.includes(designType);
 
-/** The models a mixture is analysed with; mirrors bootstrap.MIXTURE_MODELS. */
+/** The models a mixture is analyzed with; mirrors bootstrap.MIXTURE_MODELS. */
 export const MIXTURE_MODELS = ["scheffe_linear", "scheffe_quadratic", "scheffe_special_cubic"];
 
 /** A component's bound as the form sends it: a blank box is the bound's default, 0 for the lower and 1 for the upper. */
@@ -544,7 +544,7 @@ export function responseName(label, factorNames = []) {
 }
 
 /** What the reader can want of the response, as the response card words it; the keys are bootstrap.GOALS. */
-export const GOALS = { maximize: "Maximise", minimize: "Minimise", target: "Hit a target", learn: "Just learn" };
+export const GOALS = { maximize: "Maximize", minimize: "Minimize", target: "Hit a target", learn: "Just learn" };
 
 // ---------------------------------------------------------------- several responses
 /** The most responses a study measures; mirrors bootstrap.MAX_RESPONSES. */
@@ -669,7 +669,7 @@ export function joinResults(names, first, more = {}) {
 /**
  * What Learn says of the runs that have some of their results and not all, with several responses: ``runs`` are
  * their numbers, as the run sheet's Run order gives them, and each response is fitted to the runs that have its
- * result: the one analysed, named ``label``, to ``fitted`` runs.
+ * result: the one analyzed, named ``label``, to ``fitted`` runs.
  */
 export function partialSentence(runs, label, fitted) {
   const one = runs.length === 1;
@@ -678,7 +678,7 @@ export function partialSentence(runs, label, fitted) {
 }
 
 /**
- * The responses as a study's title names them: one as responseTitle does ("Yield (%), maximise"), several by
+ * The responses as a study's title names them: one as responseTitle does ("Yield (%), maximize"), several by
  * their names ("Yield, Cost and Purity").
  */
 export function responsesTitle(responses) {
@@ -719,13 +719,13 @@ export function responseColumns(labels, factorNames = [], kept = []) {
 export const withUnits = (name, units) => (units ? `${name} (${units})` : name);
 
 /**
- * The response as the study's title names it: "Yield (%), maximise", "Purity (%), target 99.5",
+ * The response as the study's title names it: "Yield (%), maximize", "Purity (%), target 99.5",
  * "Hardness", or the column's name for a design made before the page asked for more.
  */
 export function responseTitle(info, name = DEFAULT_RESPONSE) {
   const head = withUnits(info?.label || name || DEFAULT_RESPONSE, info?.units ?? "");
-  if (info?.goal === "maximize") return `${head}, maximise`;
-  if (info?.goal === "minimize") return `${head}, minimise`;
+  if (info?.goal === "maximize") return `${head}, maximize`;
+  if (info?.goal === "minimize") return `${head}, minimize`;
   if (info?.goal === "target") return isFiniteNumber(info.target) ? `${head}, target ${info.target}` : `${head}, on target`;
   return head;
 }
@@ -1222,7 +1222,7 @@ export function fittedFormula(coefficients) {
   return [...(coefficients.some((c) => c.block) ? [BLOCK] : []), ...terms].join(" + ");
 }
 
-/** Each transform a response can be analysed with, as a sentence names it; mirrors the words of bootstrap.TRANSFORMS. */
+/** Each transform a response can be analyzed with, as a sentence names it; mirrors the words of bootstrap.TRANSFORMS. */
 export const TRANSFORM_WORDS = { log: "log", sqrt: "square root", inverse: "inverse" };
 
 /**
@@ -1239,11 +1239,11 @@ export function boxCoxSentence(hint, label) {
   if (hint.suggests) {
     if (hint.suggests === hint.current) return null;
     const words = TRANSFORM_WORDS[hint.suggests];
-    return { words: `${said}: it points to the ${words} of ${label}.`, apply: hint.suggests, button: `Analyse its ${words}` };
+    return { words: `${said}: it points to the ${words} of ${label}.`, apply: hint.suggests, button: `Analyze its ${words}` };
   }
   if (low <= 1 && 1 <= high) {
     if (!hint.current) return null;
-    return { words: `${said}: ${label} needs no transform.`, apply: "", button: `Analyse ${label} as measured` };
+    return { words: `${said}: ${label} needs no transform.`, apply: "", button: `Analyze ${label} as measured` };
   }
   return { words: `${said}: it points to a power of ${label} this page does not offer.`, apply: null, button: "" };
 }
@@ -1451,7 +1451,7 @@ export const CHARTS = {
     title: "Fitted response surface",
     glossary: "response-surface",
     /**
-     * With limits on the settings the surface is greyed where a setting cannot be run, and when the
+     * With limits on the settings the surface is grayed where a setting cannot be run, and when the
      * center of the ranges cannot be run, the others are held at a central setting that can (``held``,
      * in their own units).
      */
@@ -1461,7 +1461,7 @@ export const CHARTS = {
         ? `, with ${listNames(held.map((h) => `${h.name} at ${inUnits(h.value, units[h.name])}`))}, since the center of ` +
           "the ranges cannot be run"
         : ", with the others at their center";
-      const grey = shaded ? "; grey: settings outside your limits" : "";
+      const grey = shaded ? "; gray: settings outside your limits" : "";
       return `Drawn over ${pair.join(" and ")}, ${pairWords(chosen)}${others}${grey}; the dots are the runs.`;
     },
   },
@@ -1478,9 +1478,9 @@ export const CHARTS = {
      */
     caption: (_, { starred = false, blendHeld = null } = {}) =>
       blendHeld
-        ? `Each point is a blend, coloured by the fitted response, with ${heldWords(blendHeld)}; the other three share the ` +
+        ? `Each point is a blend, colored by the fitted response, with ${heldWords(blendHeld)}; the other three share the ` +
           `rest, and each corner is where one of them takes all of it${starred ? ". The star is the best blend" : ""}.`
-        : "Each corner is a pure component and each point a blend, coloured by the fitted response, over the blends the " +
+        : "Each corner is a pure component and each point a blend, colored by the fitted response, over the blends the " +
           `bounds allow; the white dots are the runs${starred ? ", and the star the best blend" : ""}.`,
   },
   true_ternary: {
@@ -2077,8 +2077,8 @@ export function insertAt(text, start, end, piece) {
 }
 
 /**
- * A percent to ``digits`` decimals, a half to the even neighbour. Rounding a half up writes an eighth and
- * the seven eighths it leaves as 13% and 88%; to the even neighbour they are 12% and 88%, so a share and
+ * A percent to ``digits`` decimals, a half to the even neighbor. Rounding a half up writes an eighth and
+ * the seven eighths it leaves as 13% and 88%; to the even neighbor they are 12% and 88%, so a share and
  * what it leaves always sum to 100%.
  */
 function evenPercent(percent, digits) {
@@ -2190,7 +2190,7 @@ export const cornersBeyond = (k) =>
 
 /**
  * The rows of the table of corners a reader's filters leave: each factor ``"low"``, ``"high"`` or
- * ``"any"`` (the default), by column. The centre is no corner, and is left to the caller.
+ * ``"any"`` (the default), by column. The center is no corner, and is left to the caller.
  */
 export function filterCorners(rows, columns, factors, filters = {}) {
   const ends = Object.fromEntries(factors.map((f) => [f.name, f]));
@@ -2247,8 +2247,8 @@ export function cornersWords(rows, probes, factors) {
   return parts.join(", and ");
 }
 
-// ---------------------------------------------------------------- colour mode
-/** The colour modes the switch in the header offers: the system's, light and dark, as the book's does. */
+// ---------------------------------------------------------------- color mode
+/** The color modes the switch in the header offers: the system's, light and dark, as the book's does. */
 export const MODES = ["auto", "light", "dark"];
 
 /**
@@ -2263,7 +2263,7 @@ export function nextMode(current, systemDark) {
 /** The theme a mode shows, given whether the system is dark. */
 export const shownTheme = (mode, systemDark) => (mode === "auto" ? (systemDark ? "dark" : "light") : mode);
 
-// ---------------------------------------------------------------- the numbers a catalogue study's source prints
+// ---------------------------------------------------------------- the numbers a catalog study's source prints
 /**
  * One part of a term as a key: "A²" and "I(A ** 2)" as "A^2", "C(diet, Sum)" as "diet", anything else as it is.
  * Mirrors build_web_app.term_part, which wrote the parts a printed number is read by.
@@ -2337,7 +2337,7 @@ export function printedValue(result, read, runs) {
 }
 
 /**
- * Whether a number agrees with the one printed, to within the source's rounding, as the catalogue holds it
+ * Whether a number agrees with the one printed, to within the source's rounding, as the catalog holds it
  * (reference_catalogue._agrees): within ``allowed`` of ``target``, or beyond it on the side a bound such as "< 0.001"
  * gives.
  */

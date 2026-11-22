@@ -74,7 +74,7 @@ class TestMinimumRuns:
 
     @pytest.mark.parametrize("k", list(range(3, 26)))
     def test_only_the_quad_threshold_is_even(self, k):
-        """Satd and Full need one centre run; Quad first arrives with two, one past Satd."""
+        """Satd and Full need one center run; Quad first arrives with two, one past Satd."""
         assert omars_minimum_runs(k, "satd") % 2 == 1
         assert omars_minimum_runs(k, "full") % 2 == 1
         assert omars_minimum_runs(k, "quad") == omars_minimum_runs(k, "satd") + 1
@@ -164,7 +164,7 @@ class TestSingleCell:
 
     @pytest.mark.parametrize(("n_runs", "label"), [(10, "Quad df=1"), (20, "Quad df=11"), (22, "Full df=7")])
     def test_an_even_budget_is_a_design(self, n_runs, label):
-        """A foldover with no centre run, or with two, has an even run count."""
+        """A foldover with no center run, or with two, has an even run count."""
         result = get_omars_trade_off_table_entry(n_runs, 4, display=False)
         assert result.exists
         assert result.label == label
@@ -180,14 +180,14 @@ class TestSingleCell:
             assert even.error_df == odd.error_df + 1
 
     def test_one_run_past_saturated_is_quad_with_one_df(self):
-        """A definitive screening design with a second centre run can test its model."""
+        """A definitive screening design with a second center run can test its model."""
         result = get_omars_trade_off_table_entry(10, 4, display=False)
         assert result.capability == "quad"
         assert result.model == "main_quadratic"
         assert result.error_df == 1
 
     def test_even_budget_agrees_with_the_generated_design(self):
-        """The table and generate_omars agree on a 22-run, two-centre foldover."""
+        """The table and generate_omars agree on a 22-run, two-center foldover."""
         factors = [Factor(name=c, low=-1, high=1) for c in "ABCD"]
         design = generate_omars(factors, n_runs=22, center_runs=2, model="full_second_order", random_state=0)
         coded = design.design[design.factor_names].to_numpy(float)
@@ -444,7 +444,7 @@ class TestAnchorEntry:
         assert omars_anchor_entry("bbd", k).label == label
 
     def test_an_even_run_count_is_a_design_here_too(self):
-        """A Box-Behnken design carries six centre runs from five factors upwards.
+        """A Box-Behnken design carries six center runs from five factors upwards.
 
         Its total is then even, and both the budget and the named design report a design.
         """

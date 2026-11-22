@@ -19,7 +19,7 @@ and variance components agree, and this package's df equal pbkrtest's Kenward-Ro
 they come from the expected information, as Kenward and Roger's do. lmerTest's
 Satterthwaite df use the observed information instead, and are a little larger there.
 
-lme4 estimates by numerical optimisation, which agrees with this package's closed-form
+lme4 estimates by numerical optimization, which agrees with this package's closed-form
 fit to about 2e-7; the test allows 1e-5.
 
 ## Regenerating

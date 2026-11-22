@@ -59,7 +59,7 @@ from ..multivariate._common import user_stacklevel
 logger = logging.getLogger(__name__)
 
 #: Savitzky-Golay needs a window strictly longer than its polynomial order, and
-#: an odd one so the fitted point sits at the window's centre.
+#: an odd one so the fitted point sits at the window's center.
 _MIN_WINDOW = 3
 #: Relative size below which a fit counts as having left the data where it was.
 #: LOWESS reproduces its input to rounding, not bit-for-bit, when the robustness
@@ -119,7 +119,7 @@ def fill_gaps(
         carries that time. ``"pchip"`` is shape-preserving cubic: smoother than
         linear, and unlike a plain cubic it will not overshoot into an impossible
         value such as a negative concentration. ``"nearest"`` holds the closer of
-        the two ends, which is the old behaviour, restricted to interior gaps.
+        the two ends, which is the old behavior, restricted to interior gaps.
     limit : int or None
         The longest run of consecutive missing samples that may be filled.
         Anything longer stays ``NaN``, because the estimators in this package
@@ -141,7 +141,7 @@ def fill_gaps(
         The filled batches, and a report indexed by batch identifier with one
         column per treated variable holding ``"filled/remaining"`` counts, plus
         ``n_samples``. The report is the point: it says how much of the data
-        being modelled was measured and how much was interpolated.
+        being modeled was measured and how much was interpolated.
 
     Raises
     ------
@@ -297,7 +297,7 @@ def _warn_about_smoothing(shortened: list[str], collapsed: list[str], window: in
             f"outliers are essentially zero, so the 6*median(|residual|) scale is zero and every weight "
             f"degenerates; lowess then returns the column untouched. They were smoothed with iterations=0 "
             f"instead, which smooths but does not reject outliers. Pass method='savgol', or check whether "
-            f"those columns are flat-lined or heavily quantised.",
+            f"those columns are flat-lined or heavily quantized.",
             UserWarning,
             stacklevel=user_stacklevel(),
         )

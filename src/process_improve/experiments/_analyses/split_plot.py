@@ -17,7 +17,7 @@ whole-plot effects come out too small and those of the subplot effects too large
 With one variance component the REML likelihood, profiled over :math:`\sigma^2`, is a
 function of :math:`\eta` alone, and :math:`H^{-1}` has a closed form whole plot by whole
 plot, so the fit is a bounded one-dimensional search rather than a general mixed-model
-optimiser. For a balanced design it reproduces the classical split-plot ANOVA exactly.
+optimizer. For a balanced design it reproduces the classical split-plot ANOVA exactly.
 
 Tests use Satterthwaite's denominator degrees of freedom, from the REML expected
 information of :math:`(\sigma^2_{wp}, \sigma^2)` and the exact derivatives of
@@ -171,7 +171,7 @@ class RemlFit(_WaldTests):
     Attributes
     ----------
     beta : np.ndarray of shape (p,)
-        Generalised least-squares estimates at the REML variance components.
+        Generalized least-squares estimates at the REML variance components.
     cov_beta : np.ndarray of shape (p, p)
         Their covariance, :math:`(X^\top V^{-1} X)^{-1}`.
     sigma2_wp, sigma2 : float
@@ -213,7 +213,7 @@ class RemlFit(_WaldTests):
 def _gls(
     eta: float, y: np.ndarray, X: np.ndarray, Z: np.ndarray
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Generalised least squares at the variance ratio ``eta``.
+    """Generalized least squares at the variance ratio ``eta``.
 
     Returns ``(H^-1, X' H^-1 X, beta, residuals)``. Whole plot by whole plot,
     ``(I + eta J)^-1 = I - eta / (1 + eta n_i) J`` for a whole plot of ``n_i`` runs.
@@ -253,8 +253,8 @@ def _score(eta: float, y: np.ndarray, X: np.ndarray, Z: np.ndarray) -> float:
 def _reml_ratio(y: np.ndarray, X: np.ndarray, Z: np.ndarray) -> float:
     """Return the REML estimate of ``eta``, zero allowed.
 
-    A grid search finds the neighbourhood of the minimum deviance; the root of its
-    derivative there is then found to machine precision. Minimising the deviance
+    A grid search finds the neighborhood of the minimum deviance; the root of its
+    derivative there is then found to machine precision. Minimizing the deviance
     directly would stop at about the square root of machine precision, since the
     deviance is flat at its minimum.
     """
@@ -778,13 +778,13 @@ def _add_predictions(
 
 @dataclass(frozen=True)
 class SplitPlotSpec:
-    """How :func:`run_split_plot` analyses the runs.
+    """How :func:`run_split_plot` analyzes the runs.
 
     Attributes
     ----------
     whole_plot : str or tuple[str, ...]
         The column of the runs that labels each run's whole plot; or several columns, each
-        labelling the groups of one of several crossed random effects, as the rows and the
+        labeling the groups of one of several crossed random effects, as the rows and the
         columns of a two-way split-plot (strip-plot) design do.
     alpha : float
         Significance level of the tests and the confidence intervals.
@@ -807,7 +807,7 @@ class SplitPlotSpec:
 def run_split_plot(
     df: pd.DataFrame, formula: str, spec: SplitPlotSpec, new_points: pd.DataFrame | None = None
 ) -> dict[str, Any]:
-    """Analyse a split-plot experiment by REML, with Satterthwaite's or Kenward and Roger's degrees of freedom.
+    """Analyze a split-plot experiment by REML, with Satterthwaite's or Kenward and Roger's degrees of freedom.
 
     Parameters
     ----------
@@ -890,7 +890,7 @@ def _whole_plot_blups(fit: RemlFit, y: np.ndarray, X: np.ndarray, labels: np.nda
 def _run_crossed(
     df: pd.DataFrame, y: np.ndarray, X: pd.DataFrame, spec: SplitPlotSpec, new_points: pd.DataFrame | None
 ) -> dict[str, Any]:
-    """Analyse runs with several crossed random effects, as :func:`run_split_plot` does with one.
+    """Analyze runs with several crossed random effects, as :func:`run_split_plot` does with one.
 
     The result has one variance component, one error df and one set of BLUPs per grouping,
     named by its column, beside the residual's; a term's stratum is the first grouping within

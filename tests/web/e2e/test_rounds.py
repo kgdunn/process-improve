@@ -26,7 +26,7 @@ from tests.web.e2e._page import (
 )
 from tests.web.e2e.test_study_files import BANNER, opened_page
 
-TITLE = "Yield, maximise: Box-Behnken in T, P and F"
+TITLE = "Yield, maximize: Box-Behnken in T, P and F"
 
 
 def rounds(page: Any) -> list[list[str]]:  # noqa: ANN401 - a Playwright Page
@@ -45,7 +45,7 @@ def next_of(page: Any) -> Any:  # noqa: ANN401
 
 
 def start_study(page: Any) -> None:  # noqa: ANN401
-    """Make a Box-Behnken study that maximises Yield, and simulate its results: they call for a study further on."""
+    """Make a Box-Behnken study that maximizes Yield, and simulate its results: they call for a study further on."""
     open_question(page)
     page.fill("#response", "Yield")
     page.select_option("#response-goal", "maximize")
@@ -77,14 +77,14 @@ def test_next_is_the_fourth_stage_and_holds_what_the_results_call_for(page):
     assert red not in tabs.locator(".step").evaluate_all(
         "(all) => all.slice(0, 3).map((one) => getComputedStyle(one).backgroundColor)"
     )
-    assert page.locator("#learn-to-next").evaluate(colour.format("backgroundColor")) == red, "it wears Next's colour"
+    assert page.locator("#learn-to-next").evaluate(colour.format("backgroundColor")) == red, "it wears Next's color"
     page.click("#learn-to-next")
     assert page.get_attribute("#workspace", "data-phase") == "next"
     probe = (
         "(one) => { one.style.color = 'var(--stage)'; const c = getComputedStyle(one).color;"
         " one.style.color = ''; return c; }"
     )
-    assert page.locator("#h-next-stage").evaluate(probe) == red, "the stage it leads to has the same colour to give"
+    assert page.locator("#h-next-stage").evaluate(probe) == red, "the stage it leads to has the same color to give"
     assert page.get_attribute("#go-next", "aria-selected") == "true"
     assert page.is_visible("#step-next #next")
     assert page.text_content("#h-next-stage") == "What comes next"
@@ -103,7 +103,7 @@ def test_before_any_analysis_next_says_what_it_will_hold(blank_page):
     page = blank_page
     page.click("#go-next")
     assert page.is_visible("#next-empty")
-    assert page.text_content("#next-empty") == "What the results call for is here once Learn has analysed them."
+    assert page.text_content("#next-empty") == "What the results call for is here once Learn has analyzed them."
     assert page.is_hidden("#next")
     assert page.is_hidden("#rounds")
 
@@ -276,7 +276,7 @@ def test_every_run_is_drawn_in_the_order_made_with_the_best_result_so_far(two_ro
     results = [value for _, values in drawn["runs"] for value in values]
     best = drawn["best"]
     assert len(best) == 30
-    assert best == [max(results[: i + 1]) for i in range(30)], "the highest so far: the study maximises Yield"
+    assert best == [max(results[: i + 1]) for i in range(30)], "the highest so far: the study maximizes Yield"
     listed = rounds(page)
     assert listed[1][3].startswith(f"{max(drawn['runs'][1][1]):.4g}"), "the round's own best is in its row"
 

@@ -674,7 +674,7 @@ def _pyoptex_blocker(criterion: str, req: _OptimalRequest) -> str | None:
 
 
 def _dispatch_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray, dict]:
-    """Route a D-, I-, A- or E-optimal request to the backend that can honour it.
+    """Route a D-, I-, A- or E-optimal request to the backend that can honor it.
 
     - Mixture factors go to the constrained-simplex engine with a Scheffé model, and
       mixture components beside process factors to the mixture-process engine.
@@ -684,7 +684,7 @@ def _dispatch_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray,
       candidate exchange
       (:func:`~process_improve.experiments.designs_constrained.constrained_optimal_design`),
       which handles every criterion, constraints, candidate sets, categorical factors and
-      fixed runs. When the split-plot search cannot honour the request (see
+      fixed runs. When the split-plot search cannot honor the request (see
       :func:`_split_plot_refusal`), ``hard_to_change`` is ignored and recorded.
     - pyoptex's coordinate exchange runs for ``backend="pyoptex"``.
     """
@@ -803,7 +803,7 @@ def dispatch_d_optimal(  # noqa: PLR0913
     backend: str = "auto",
     n_blocks: int | None = None,
 ) -> tuple[np.ndarray, dict]:
-    """Generate a D-optimal design (maximises ``det(X'X)``, the precision of the coefficients jointly)."""
+    """Generate a D-optimal design (maximizes ``det(X'X)``, the precision of the coefficients jointly)."""
     req = _OptimalRequest(
         factors,
         budget,
@@ -831,7 +831,7 @@ def dispatch_i_optimal(  # noqa: PLR0913
     backend: str = "auto",
     n_blocks: int | None = None,
 ) -> tuple[np.ndarray, dict]:
-    """Generate an I-optimal design (minimises the average prediction variance over the region)."""
+    """Generate an I-optimal design (minimizes the average prediction variance over the region)."""
     req = _OptimalRequest(
         factors,
         budget,
@@ -859,7 +859,7 @@ def dispatch_a_optimal(  # noqa: PLR0913
     backend: str = "auto",
     n_blocks: int | None = None,
 ) -> tuple[np.ndarray, dict]:
-    """Generate an A-optimal design (minimises the summed variance of the coefficients)."""
+    """Generate an A-optimal design (minimizes the summed variance of the coefficients)."""
     req = _OptimalRequest(
         factors,
         budget,

@@ -295,7 +295,7 @@ describe("the filters", () => {
     assert.deepEqual(ids(sorted(CATALOG.designs, "title")), ["lib-ccd-k3", "dsd-categorical", "pilot-plant"]);
   });
 
-  test("the catalogue's order lists designs with their runs ahead of comparisons and entries without runs", () => {
+  test("the catalog's order lists designs with their runs ahead of comparisons and entries without runs", () => {
     const list = [
       design({ id: "comparison", family: "comparison", glyph: "fp" }),
       design({ id: "no-runs", glyph: "" }),
@@ -538,7 +538,7 @@ describe("the picture and the words", () => {
     assert.deepEqual(decodeGlyph("", 3), []);
   });
 
-  test("settings are coloured as the book colours a run matrix", () => {
+  test("settings are colored as the book colors a run matrix", () => {
     assert.equal(settingColour(-1), "#0072b2");
     assert.equal(settingColour(0), "#ededed");
     assert.equal(settingColour(1), "#d55e00");
@@ -661,7 +661,7 @@ describe("what a design is copied as", () => {
     assert.match(code, /design = generate_design\(\n {4}factors,\n {4}design_type="ccd",\n {4}n_center_points=3,\n {4}alpha="face_centered",\n\)/);
   });
 
-  test("a published design is its entry in the reference catalogue", () => {
+  test("a published design is its entry in the reference catalog", () => {
     const code = pythonCode(CATALOG.designs[0], { listed: "experiments", factors: [{ name: "T" }], coded_runs: [[-1]] });
     assert.match(code, /from process_improve\.experiments\.reference_catalogue import \(\n {4}reference_experiments,\n\)/);
     assert.match(code, /entries = reference_experiments\("bhh"\)\nby_name = \{item\["name"\]: item for item in entries\}\nentry = by_name\["pilot-plant"\]/);
@@ -778,7 +778,7 @@ describe("a design's projections", () => {
   test("runs that land on one setting are counted once, with their number", () => {
     const points = projected(CCD, [0, 1]);
     assert.equal(points.length, 9, "a 3-by-3 grid");
-    assert.equal(points.find((p) => p.point[0] === 0 && p.point[1] === 0).count, 5, "two face runs and three centre runs");
+    assert.equal(points.find((p) => p.point[0] === 0 && p.point[1] === 0).count, 5, "two face runs and three center runs");
   });
 
   test("a central composite design fits the quadratic in any two factors; a two-level design does not", () => {
@@ -816,7 +816,7 @@ describe("a design's correlations", () => {
     assert.equal(largestSecondOrderR(map), 0, "AB is C and AC is B: aliased with main effects, not with each other");
   });
 
-  test("a full factorial's terms are uncorrelated; the face-centred CCD's are as compare_designs finds", () => {
+  test("a full factorial's terms are uncorrelated; the face-centered CCD's are as compare_designs finds", () => {
     assert.equal(largestSecondOrderR(correlationMap(CUBE, ["A", "B", "C"])), 0);
     const ccd = correlationMap(CCD, ["A", "B", "C"]);
     assert.ok(ccd.matrix.flat().every((r) => r !== null), "every term varies in a CCD");

@@ -12,7 +12,7 @@ export const MODES = ["replace", "add", "remove", "toggle"];
 /** The set operations a reader can combine two saved sets with. */
 export const OPERATIONS = ["union", "intersection", "difference", "symmetric"];
 
-/** Colours given to saved sets in turn: the Okabe-Ito palette, which reads apart with every colour vision. */
+/** Colors given to saved sets in turn: the Okabe-Ito palette, which reads apart with every color vision. */
 export const SET_COLOURS = ["#E69F00", "#56B4E9", "#009E73", "#CC79A7", "#0072B2", "#D55E00", "#F0E442"];
 
 /** A row or column id as the store holds it: text, whatever the table's index holds. */
@@ -42,7 +42,7 @@ export class Selection {
   #picked = { rows: new Set(), cols: new Set() };
   #hovered = { rows: null, cols: null };
   #excluded = new Set();
-  #sets = new Map(); // name -> { rows: Set, colour }
+  #sets = new Map(); // name -> { rows: Set, color }
   #listeners = new Set();
   #changed = new Set();
   #scheduled = false;
@@ -140,7 +140,7 @@ export class Selection {
     return this.#excluded.has(idOf(id));
   }
 
-  /** Save rows under a name (by default the rows selected now), with the next colour unless one is given. */
+  /** Save rows under a name (by default the rows selected now), with the next color unless one is given. */
   saveSet(name, ids = this.#picked.rows, colour = null) {
     const label = String(name).trim();
     if (!label) throw new Error("A saved set needs a name.");
@@ -155,7 +155,7 @@ export class Selection {
     if (this.#sets.delete(String(name))) this.#notify("sets");
   }
 
-  /** Rename a saved set, keeping its rows, its colour and its place. */
+  /** Rename a saved set, keeping its rows, its color and its place. */
   renameSet(name, newName) {
     const old = String(name);
     const label = String(newName).trim();
@@ -166,7 +166,7 @@ export class Selection {
     this.#notify("sets");
   }
 
-  /** The saved sets, in the order they were saved: [{ name, rows, colour }], each rows a new set. */
+  /** The saved sets, in the order they were saved: [{ name, rows, color }], each rows a new set. */
   sets() {
     return [...this.#sets].map(([name, { rows, colour }]) => ({ name, rows: new Set(rows), colour }));
   }

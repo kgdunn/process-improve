@@ -114,7 +114,7 @@ class TestParseTerm:
 
         Newer statsmodels emits the ``np.power`` form. If the regex misses it,
         a quadratic term silently falls through to the linear branch and the
-        downstream surface / optimisation produces wrong predictions.
+        downstream surface / optimization produces wrong predictions.
         """
         assert _parse_term("np.power(A, 2)") == ("A", "A")
         assert _parse_term("power(A, 2)") == ("A", "A")
@@ -501,7 +501,7 @@ class TestRidgeSystems:
         }
 
     def test_a_flat_axis_beside_both_signs_is_a_ridge_of_saddle_centres(self) -> None:
-        """Box and Draper's Table 11.1 (E): a line of minimax centres along C, through (1, 0, c)."""
+        """Box and Draper's Table 11.1 (E): a line of minimax centers along C, through (1, 0, c)."""
         out = optimize_responses([self._saddle_with_a_flat_axis(0.0)], method="canonical_analysis")
         assert out["canonical_analysis"]["classification"] == "stationary_ridge"
         assert out["canonical_analysis"]["ridge_of"] == "minimax"
@@ -510,7 +510,7 @@ class TestRidgeSystems:
         assert point["predicted_response"] == pytest.approx(6.0)
 
     def test_a_saddle_that_drifts_along_its_flat_axis_is_still_a_saddle(self) -> None:
-        """With a slope along C there is no line of centres, and no stationary point."""
+        """With a slope along C there is no line of centers, and no stationary point."""
         out = optimize_responses([self._saddle_with_a_flat_axis(1.0)], method="canonical_analysis")
         assert out["canonical_analysis"]["classification"] == "saddle_point"
         assert "ridge_of" not in out["canonical_analysis"]
@@ -589,12 +589,12 @@ class TestSteepestPath:
         assert dv["B"] < 0
 
     def test_step_count(self) -> None:
-        """Steps list has n_steps+1 entries (including step 0 at centre)."""
+        """Steps list has n_steps+1 entries (including step 0 at center)."""
         result = _steepest_path(_linear_2f_coeffs(), FACTOR_NAMES_2F, n_steps=5)
         assert len(result["steps"]) == 6
 
     def test_first_step_is_center(self) -> None:
-        """Step 0 is at the design centre (all coded values zero)."""
+        """Step 0 is at the design center (all coded values zero)."""
         result = _steepest_path(_linear_2f_coeffs(), FACTOR_NAMES_2F)
         step0 = result["steps"][0]
         assert step0["step"] == 0
@@ -633,7 +633,7 @@ class TestSteepestPath:
 
 
 class TestDesirabilityMaximize:
-    """Verify one-sided maximise desirability function."""
+    """Verify one-sided maximize desirability function."""
 
     def test_below_low(self) -> None:
         """Value below low bound gives d=0."""
@@ -655,7 +655,7 @@ class TestDesirabilityMaximize:
 
 
 class TestDesirabilityMinimize:
-    """Verify one-sided minimise desirability function."""
+    """Verify one-sided minimize desirability function."""
 
     def test_below_low(self) -> None:
         """Value below low bound gives d=1."""
@@ -802,12 +802,12 @@ class TestCompositeDesirability:
 
 
 # ---------------------------------------------------------------------------
-# Desirability optimisation (end-to-end)
+# Desirability optimization (end-to-end)
 # ---------------------------------------------------------------------------
 
 
 class TestOptimizeDesirability:
-    """Verify end-to-end desirability optimisation via scipy."""
+    """Verify end-to-end desirability optimization via scipy."""
 
     def test_single_response_maximize(self) -> None:
         """Single-response maximize yields positive composite desirability."""
@@ -824,7 +824,7 @@ class TestOptimizeDesirability:
         assert d_result["composite_desirability"] > 0.0
 
     def test_two_response_desirability(self) -> None:
-        """Two-response optimisation returns predictions for both responses."""
+        """Two-response optimization returns predictions for both responses."""
         model1 = {
             "response_name": "yield",
             "coefficients": _quadratic_2f_coeffs(),
@@ -865,7 +865,7 @@ class TestOptimizeDesirability:
         assert "optimal_actual" in d_result
 
     def test_result_values_are_plain_python_floats(self) -> None:
-        """Settings print as 189.47, not np.float64(189.47), and serialise without conversion."""
+        """Settings print as 189.47, not np.float64(189.47), and serialize without conversion."""
         model = {"response_name": "yield", "coefficients": _quadratic_2f_coeffs(), "factor_names": FACTOR_NAMES_2F}
         goals = [{"response": "yield", "goal": "maximize", "low": 30.0, "high": 50.0}]
         out = optimize_responses([model], goals=goals, method="desirability", factor_ranges=FACTOR_RANGES_2F)
@@ -885,7 +885,7 @@ class TestOptimizeDesirability:
 
         The previous implementation hard-coded ``np.random.default_rng(42)``
         inside the multi-start loop, which meant callers could not get
-        reproducible *or* truly-random behaviour from a different seed.
+        reproducible *or* truly-random behavior from a different seed.
         The fix moves the seed onto the public ``optimize_responses`` /
         ``_grid_search_desirability`` signature.
         """
@@ -935,7 +935,7 @@ class TestOptimizeDesirability:
 
 
 class TestDesirabilityOptimumLocation:
-    """Pin down where the optimiser lands, not just that it produced a number.
+    """Pin down where the optimizer lands, not just that it produced a number.
 
     The other desirability tests assert only that keys are present and that the
     composite is above zero, which a badly wrong optimum would also satisfy.
@@ -955,7 +955,7 @@ class TestDesirabilityOptimumLocation:
         }
 
     def test_single_response_lands_on_the_known_corner(self) -> None:
-        """Maximising a plane drives both factors to the corner that maximises it."""
+        """Maximizing a plane drives both factors to the corner that maximizes it."""
         model = self._plane("y", intercept=0.0, slope_a=1.0, slope_b=-1.0)
         goals = [{"response": "y", "goal": "maximize", "low": -2.0, "high": 2.0}]
         out = optimize_responses([model], goals=goals, method="desirability")["desirability"]
@@ -991,7 +991,7 @@ class TestDesirabilityOptimumLocation:
         assert out["optimal_coded"]["B"] == pytest.approx(0.35, abs=1e-3)
 
     def test_unreachable_limits_warn_and_report_the_closest_setting(self) -> None:
-        """When no setting in the box gives D > 0, say so, and report the nearest miss rather than the centre."""
+        """When no setting in the box gives D > 0, say so, and report the nearest miss rather than the center."""
         model = self._plane("y", intercept=0.0, slope_a=1.0, slope_b=1.0)
         goals = [{"response": "y", "goal": "maximize", "low": 5.0, "high": 6.0}]
         with pytest.warns(UserWarning, match="composite desirability is 0") as record:
@@ -1085,7 +1085,7 @@ class TestGoalMatching:
 
     @pytest.mark.parametrize("method", ["desirability", "pareto_front"])
     def test_mismatched_names_raise_instead_of_pairing_by_position(self, method: str) -> None:
-        """'Yield' is not 'yield': pairing by position would minimise yield and maximise cost."""
+        """'Yield' is not 'yield': pairing by position would minimize yield and maximize cost."""
         goals = [
             {"response": "Cost", "goal": "minimize", "low": -1.0, "high": 1.0},
             {"response": "yield", "goal": "maximize", "low": -1.0, "high": 1.0},
@@ -1205,7 +1205,7 @@ class TestIntervalsAtOptimum:
         return model, ols_result
 
     def test_no_intervals_without_fitted_results(self) -> None:
-        """Behaviour is unchanged when the fitted objects are not supplied."""
+        """Behavior is unchanged when the fitted objects are not supplied."""
         model, _ = self._fit()
         goals = [{"response": "y", "goal": "maximize", "low": 30.0, "high": 50.0}]
         out = optimize_responses([model], goals=goals, method="desirability")["desirability"]
@@ -1287,7 +1287,7 @@ class TestSearchBounds:
         return [{"response": "y", "goal": "maximize", "low": -2.0, "high": 2.0}]
 
     def test_default_is_the_factorial_cube(self) -> None:
-        """Unchanged behaviour when nothing is passed."""
+        """Unchanged behavior when nothing is passed."""
         out = optimize_responses([self._rising_plane()], goals=self._goals(), method="desirability")
         assert out["desirability"]["optimal_coded"]["A"] == pytest.approx(1.0, abs=1e-4)
 
@@ -1380,7 +1380,7 @@ class TestSearchBounds:
 class TestFormerStubs:
     """Both methods were stubs returning ``status: "stub"`` until #208.
 
-    The behaviour they now have is covered in
+    The behavior they now have is covered in
     ``tests/test_optimization_ridge_pareto.py``; these only pin that the stub
     reply is gone, so nothing downstream is still branching on it.
     """
@@ -1505,12 +1505,12 @@ class TestDispatcher:
         "method", ["stationary_point", "canonical_analysis", "steepest_ascent", "steepest_descent", "ridge_analysis"]
     )
     def test_single_response_method_refuses_several_models(self, method: str) -> None:
-        """These methods analysed fitted_models[0] and silently ignored the rest."""
+        """These methods analyzed fitted_models[0] and silently ignored the rest."""
         models = [
             {"response_name": name, "coefficients": _quadratic_2f_coeffs(), "factor_names": FACTOR_NAMES_2F}
             for name in ("y1", "y2")
         ]
-        with pytest.raises(ValueError, match=f"method='{method}' analyses one response; got 2 models"):
+        with pytest.raises(ValueError, match=f"method='{method}' analyzes one response; got 2 models"):
             optimize_responses(models, method=method)
 
     @pytest.mark.parametrize("missing", ["factor_names", "coefficients"])
@@ -1551,7 +1551,7 @@ class TestToolWrapper:
     """Verify the @tool_spec wrapper for optimize_responses."""
 
     def test_tool_returns_dict(self) -> None:
-        """Tool wrapper returns a JSON-serialisable dict."""
+        """Tool wrapper returns a JSON-serializable dict."""
         from process_improve.tool_spec import execute_tool_call
 
         result = execute_tool_call(
@@ -1601,7 +1601,7 @@ class TestToolWrapper:
 
 
 class TestCodedHandoff:
-    """The optimiser evaluates models at coded settings, so it needs coded coefficients."""
+    """The optimizer evaluates models at coded settings, so it needs coded coefficients."""
 
     MAXIMISE = ({"goal": "maximize", "low": 10, "high": 25},)
 
@@ -1710,14 +1710,14 @@ class TestCanonicalForms:
         assert np.allclose(vectors @ origin, -np.array(form["offsets"]))
 
     def test_the_ridge_form_of_a_ridge(self) -> None:
-        """BHH's ridge: the origin nearest the centre, 87.38, and a slope of 1.31 along the ridge."""
+        """BHH's ridge: the origin nearest the center, 87.38, and a slope of 1.31 along the ridge."""
         form = _canonical_analysis(self._bhh(), FACTOR_NAMES_2F)["ridge_form"]
         assert form["origin_response"] == pytest.approx(87.377, abs=5e-4)
         assert abs(form["linear"]) == pytest.approx(1.309, abs=5e-4)
         assert abs(form["offsets"][0]) == pytest.approx(0.058, abs=5e-4)
 
     def test_a_maximum_has_no_slope_along_its_smallest_axis_after_centring(self) -> None:
-        """Where a stationary point exists, the canonical axes are centred on it: y = y_s + sum lambda W^2."""
+        """Where a stationary point exists, the canonical axes are centered on it: y = y_s + sum lambda W^2."""
         coefficients = _quadratic_2f_coeffs()
         result = _canonical_analysis(coefficients, FACTOR_NAMES_2F)
         point = optimize_responses(
@@ -1763,7 +1763,7 @@ class TestCanonicalForms:
 
     @pytest.mark.parametrize("coefficients", [_quadratic_2f_coeffs(), _saddle_2f_coeffs(), _bhh()])
     def test_the_rotated_form_reproduces_the_model(self, coefficients: list[dict]) -> None:
-        """Box and Draper's A form: y = b0 + sum theta_i X_i + sum lambda_i X_i^2, the axes through the centre."""
+        """Box and Draper's A form: y = b0 + sum theta_i X_i + sum lambda_i X_i^2, the axes through the center."""
         result = _canonical_analysis(coefficients, FACTOR_NAMES_2F)
         form, vectors = result["rotated_form"], np.array(result["eigenvectors"])
         b0 = coefficients[0]["coefficient"]
@@ -1771,7 +1771,7 @@ class TestCanonicalForms:
             axes = vectors @ x
             value = b0 + np.dot(form["linear"], axes) + np.dot(result["eigenvalues"], axes**2)
             assert value == pytest.approx(self._predict(coefficients, x))
-        if "canonical_axes" in result:  # X_iS is minus the constant of the axis centred on the stationary point
+        if "canonical_axes" in result:  # X_iS is minus the constant of the axis centered on the stationary point
             constants = [axis["constant"] for axis in result["canonical_axes"]]
             assert form["stationary_point"] == pytest.approx([-c for c in constants])
             assert form["stationary_point_distance"] == pytest.approx(np.linalg.norm(constants))
@@ -1833,7 +1833,7 @@ class TestCanonicalForms:
 class TestFeasibleRegion:
     """The settings at which every response is predicted inside its window, and how surely a new run is."""
 
-    #: y = 50 + 10 A, as the optimiser takes a model. A test that changes it works on a copy.
+    #: y = 50 + 10 A, as the optimizer takes a model. A test that changes it works on a copy.
     LINE = MappingProxyType(
         {
             "response_name": "y",

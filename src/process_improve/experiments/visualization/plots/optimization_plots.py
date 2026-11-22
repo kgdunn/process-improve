@@ -1,6 +1,6 @@
-"""Optimisation plots: desirability contour, overlay, ridge trace, steepest ascent.
+"""Optimization plots: desirability contour, overlay, ridge trace, steepest ascent.
 
-These plots support multi-response optimisation workflows.  They
+These plots support multi-response optimization workflows.  They
 consume fitted model coefficients, desirability goals, and constraint
 specifications from :func:`~process_improve.experiments.optimization.optimize_responses`.
 """
@@ -160,7 +160,7 @@ class DesirabilityContourPlot(BasePlot):
         """
         responses = self._get_optimization_responses()
         if not responses:
-            return ChartSpec(title="Desirability Contour - no optimisation data")
+            return ChartSpec(title="Desirability Contour - no optimization data")
 
         factors = self.factors_to_plot or self._get_factor_names()
         if len(factors) < 2:
@@ -428,9 +428,9 @@ class RidgeTracePlot(BasePlot):
     """Ridge trace plot for response-surface models.
 
     Traces the optimal predicted response and factor settings along
-    spheres of increasing radius from the design centre.  Useful for
+    spheres of increasing radius from the design center.  Useful for
     understanding how the optimum shifts as we move further from the
-    centre of the design space.
+    center of the design space.
 
     Data sources
     ------------
@@ -469,7 +469,7 @@ class RidgeTracePlot(BasePlot):
 
         for r in radii:
             if r == 0 or np.allclose(b_mat, 0):
-                # At the centre, and for a model with no curvature to trace.
+                # At the center, and for a model with no curvature to trace.
                 x_r = np.zeros(len(factors))
             else:
                 x_r, _mu = _ridge_point(b_vec, eigenvalues, eigenvectors, float(r), maximise=True)
@@ -496,7 +496,7 @@ class RidgeTracePlot(BasePlot):
         resp_panel = PanelSpec(
             layers=[resp_layer],
             title="Response vs Radius",
-            x_title="Radius from Centre",
+            x_title="Radius from Center",
             y_title="Predicted Response",
         )
 
@@ -522,7 +522,7 @@ class RidgeTracePlot(BasePlot):
         factor_panel = PanelSpec(
             layers=factor_layers,
             title="Factor Settings vs Radius",
-            x_title="Radius from Centre",
+            x_title="Radius from Center",
             y_title="Coded Factor Level",
         )
 
@@ -578,9 +578,9 @@ class RidgeTracePlot(BasePlot):
 
 @register_plot("steepest_ascent_path")
 class SteepestAscentPathPlot(BasePlot):
-    """Steepest ascent (or descent) path visualisation.
+    """Steepest ascent (or descent) path visualization.
 
-    Shows the trajectory from the design centre along the steepest
+    Shows the trajectory from the design center along the steepest
     ascent direction derived from a first-order model.  Displays both
     the path in factor space and the predicted response along the path.
 
@@ -717,7 +717,7 @@ class SteepestAscentPathPlot(BasePlot):
         if norm == 0:
             return None
 
-        # Normalise direction
+        # Normalize direction
         direction_norm = {f: v / norm for f, v in direction_vec.items()}
 
         # Generate steps

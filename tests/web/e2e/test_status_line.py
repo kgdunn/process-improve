@@ -50,7 +50,7 @@ def come(page) -> dict:
 
 
 def answered(page) -> dict:
-    """Let Python answer: the results are analysed and the line says so, for five seconds. Return where the page is."""
+    """Let Python answer: the results are analyzed and the line says so, for five seconds. Return where the page is."""
     page.evaluate("window.__pi.release('api_simulate')")
     settled(page)
     where = page.evaluate(WHERE)
@@ -65,7 +65,7 @@ def test_the_page_under_the_bar_holds_still_as_the_line_comes_and_as_it_goes(she
     assert before["y"] == 500, "the page is long enough to be there"
 
     # The line comes, and later it goes: each time the page is as it was just before. (Between the two the results
-    # are analysed, and the brief says more.)
+    # are analyzed, and the brief says more.)
     with_line = come(page)
     shown = answered(page)
     after = gone(page)

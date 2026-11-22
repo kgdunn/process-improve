@@ -5,7 +5,7 @@
 empty. Before #343 it inherited ``dict.__eq__`` / ``dict.__ne__``, which
 compared the (always-empty) base and therefore reported *every* instance as
 equal regardless of the data it held. The equality tests pin the value-based
-behaviour.
+behavior.
 """
 
 from __future__ import annotations

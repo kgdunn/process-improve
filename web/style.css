@@ -1,5 +1,5 @@
-/* The palette is the package's: the README banner's navy runs and red centre runs, on a neutral ground.
-   Every text colour meets WCAG AA (4.5:1) on both the page and a panel, in both themes. */
+/* The palette is the package's: the README banner's navy runs and red center runs, on a neutral ground.
+   Every text color meets WCAG AA (4.5:1) on both the page and a panel, in both themes. */
 /* The typeface of the headings and of the answer: Outfit, a variable font served from the app's own files
    (vendor/outfit), so they look the same on every device and with no network. Until it has loaded, and where it
    cannot, the device's own font stands in. Everything else is in the device's own font: body text, tables and
@@ -34,8 +34,8 @@
   --mark-run: #2c5f7c;
   --mark-centre: #a93226;
   --mark-edge: #a6a49e;
-  /* The four stages of a study, each a colour: Design, Run, Learn and what comes next. They are hues the page has
-     already (the accent, the two marks of state and the mark's centre run), so a theme that sets those sets these.
+  /* The four stages of a study, each a color: Design, Run, Learn and what comes next. They are hues the page has
+     already (the accent, the two marks of state and the mark's center run), so a theme that sets those sets these.
      The welcome teaches them, the bar's numbers wear them, and the mark is drawn in them. */
   --stage-plan: var(--accent);
   --stage-run: var(--warn);
@@ -49,7 +49,7 @@
   --band-iii: #f5d0cc;
   --band-iii-away: #fbebe9;
   /* The states of the reproduction page and of a book's page: a printed number matches, differs for a known reason,
-     or differs for one not known yet. Checked as a set for colour-blind readers on the panel, in both themes. They
+     or differs for one not known yet. Checked as a set for color-blind readers on the panel, in both themes. They
      are no grade of a source, so none is green. */
   --state-match: #1f6fb2;
   --state-known: #b87700;
@@ -67,8 +67,8 @@
   --map-guide: #b45f0b;
   --map-context: #8e4482;
   --map-bubble: #efece4;
-  /* The other textbooks read against the map: a second and a third, each with its own colour for what it also states.
-     While they are shown the kinds give up their colours, so these two only have to stand apart from each other, from
+  /* The other textbooks read against the map: a second and a third, each with its own color for what it also states.
+     While they are shown the kinds give up their colors, so these two only have to stand apart from each other, from
      this book's own neutral (--muted), from what all the books state (--fg) and from the accent. */
   --map-book2: #b668c8;
   --map-book3: #d46423;
@@ -172,11 +172,11 @@ h1 {
   letter-spacing: -0.01em;
 }
 /* The mark and the name at the start of the bar, as the package's social card sets its own name: a bold serif. They
-   are a link home that keeps the bar's colours. */
+   are a link home that keeps the bar's colors. */
 .brand__home { flex: none; display: flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; border-radius: var(--corner); }
 .brand__home:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
 .studybar h1 { font-size: 1.3rem; }
-/* Feedback, before the colour-mode switch. Its slot takes the width its row has left over, and that width picks the
+/* Feedback, before the color-mode switch. Its slot takes the width its row has left over, and that width picks the
    button's words: the longest of the three that fit, and the icon alone when none does. */
 .feedback-slot {
   flex: 1 1 0; min-width: 38px; align-self: flex-start; display: flex; justify-content: flex-end;
@@ -207,7 +207,7 @@ span.feedback-button__short { display: block; position: absolute; width: 1px; he
   span.feedback-button__medium { display: none; }
   span.feedback-button__long { display: block; }
 }
-/* The colour-mode switch, an icon at the row's end as the book has it: the mode now, and a press for the next. */
+/* The color-mode switch, an icon at the row's end as the book has it: the mode now, and a press for the next. */
 .mode-switch {
   align-self: flex-start; flex: none; padding: 8px; border: none; background: none;
   color: var(--muted); line-height: 0; border-bottom: 2px solid transparent; border-radius: var(--corner) var(--corner) 0 0;
@@ -220,7 +220,7 @@ span.feedback-button__short { display: block; position: absolute; width: 1px; he
 .mark { flex: none; width: 30px; height: 30px; }
 .mark__edges { fill: none; stroke: var(--mark-edge); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 .mark__runs circle, .mark__centre { stroke: var(--bg); stroke-width: 1.6; }
-/* The corners in the first three stages' colours, opposite corners alike, and the centre run in the fourth: as
+/* The corners in the first three stages' colors, opposite corners alike, and the center run in the fourth: as
    tools/branding/app_mark.py draws the browser's icon. */
 .mark__runs circle:nth-child(3n + 1) { fill: var(--stage-plan); }
 .mark__runs circle:nth-child(3n + 2) { fill: var(--stage-run); }
@@ -231,7 +231,7 @@ span.feedback-button__short { display: block; position: absolute; width: 1px; he
   margin: 0 6px 0 0; color: var(--muted); font-style: italic; white-space: nowrap;
   font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "DejaVu Serif", serif;
 }
-/* "prove" in Improve: upright in the italic line, bold, in the red of the mark's centre run. */
+/* "prove" in Improve: upright in the italic line, bold, in the red of the mark's center run. */
 .tagline b { color: var(--mark-centre); font-style: normal; font-weight: 700; }
 h2 { display: flex; align-items: center; gap: 10px; font-size: 1.3rem; margin: 0 0 12px; }
 h3 { font-size: 1.05rem; margin: 20px 0 8px; }
@@ -313,7 +313,7 @@ section {
 .equation { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; overflow-wrap: anywhere; }
 .row { display: flex; flex-wrap: wrap; gap: 16px; margin: 12px 0; }
 .row > label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; min-width: 0; max-width: 100%; }
-/* Practising: the process and its noise side by side. A browser draws a list shorter than a box to type in, so
+/* Practicing: the process and its noise side by side. A browser draws a list shorter than a box to type in, so
    the two are given one height, and sit on one line with their labels on one line above them. */
 #panel-simulate .row { align-items: flex-end; }
 #panel-simulate .row select, #panel-simulate .row input { height: 2.4rem; }
@@ -395,7 +395,7 @@ input, select {
   border: 1px solid var(--line); border-radius: var(--corner); padding: 6px 8px; max-width: 100%;
 }
 /* A slider is drawn by the page, the same in every browser and in both themes: a thin line for its range and a round
-   handle in the accent colour, with the panel's edge round it. The browser's own slider took the box, the edge and
+   handle in the accent color, with the panel's edge round it. The browser's own slider took the box, the edge and
    the padding every input has, and on a dark page some browsers drew it as two thick pale bars with no handle to be
    seen. The input keeps its height, so the handle is as easy to catch with a finger. The concept map's slider adds
    a fill up to its handle (map.js). */
@@ -538,7 +538,7 @@ table.data th:first-child, table.data td:first-child { text-align: left; }
 table.data th { padding: 0; }
 /* A column's look: the ends of an interval step back, and the estimate between them stands out. */
 /* A run marked on the charts is marked in its row too (app.js markRows): a row a run can be pressed to mark it. The
-   colour is mixed with the panel's, and so is opaque: a first cell that stays put as the table scrolls covers the
+   color is mixed with the panel's, and so is opaque: a first cell that stays put as the table scrolls covers the
    cells that pass under it. */
 table.data tr[data-run] > td { cursor: pointer; }
 table.data tr.run-marked > td, #analysis .scroll > table.data tr.run-marked > td:first-child {
@@ -572,7 +572,7 @@ th[aria-sort="descending"] button.sort::after { content: " ▼"; color: var(--ac
 .drop.over { border-color: var(--accent); color: var(--fg); }
 .drop input { display: block; margin: 0 auto 8px; }
 /* A file box's own button is the browser's, which keeps a light face on a dark page with the page's light text on
-   it: it takes the page's colours, in both themes. */
+   it: it takes the page's colors, in both themes. */
 input[type="file"] { color: var(--fg); }
 input[type="file"]::file-selector-button {
   margin-right: 10px; padding: 6px 12px; border: 1px solid var(--line); border-radius: var(--corner);
@@ -606,7 +606,7 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 /* A banner while the worked example is the copy computed when the page was built, and the welcome of a first visit. */
 .banner p { margin: 4px 0; }
 /* The welcome of a first visit: a greeting, three ways in, and the round trip of a study as four steps in the
-   stages' colours. It is no card: it is the page's own first screen, with the blank question under it. */
+   stages' colors. It is no card: it is the page's own first screen, with the blank question under it. */
 .welcome {
   display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 28px 56px; align-items: center;
   max-width: 1120px; margin: 0 auto; padding: clamp(22px, 5vw, 56px) 4px clamp(20px, 4vw, 44px);
@@ -654,7 +654,7 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 #demo-banner:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 16px; }
 #demo-banner .actions { margin: 0; }
 
-/* The bar: the mark and the name, the study's stages, a new study, feedback and the colour mode, kept in
+/* The bar: the mark and the name, the study's stages, a new study, feedback and the color mode, kept in
    reach while the page scrolls, with the status line under them. It opens the page, so it takes back the room main
    leaves above. The bar and its rule span the window; a border image drawn outside the box does not widen the page. */
 .studybar {
@@ -715,8 +715,8 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 /* The line the points sit on, drawn up to each stage after the first. */
 .phases [role="tab"] + [role="tab"]::before { content: ""; flex: none; width: 18px; height: 2px; margin-right: 4px; background: var(--line); }
 .phases [role="tab"]:hover { color: var(--fg); }
-/* Each stage has its colour (--stage-*): its point wears it whether the stage is on show or not. The stage on show
-   has the larger point and its name in bold, so colour is never the one sign of it. */
+/* Each stage has its color (--stage-*): its point wears it whether the stage is on show or not. The stage on show
+   has the larger point and its name in bold, so color is never the one sign of it. */
 #go-plan { --stage: var(--stage-plan); }
 #go-run { --stage: var(--stage-run); }
 #go-learn { --stage: var(--stage-learn); }
@@ -777,9 +777,9 @@ section { scroll-margin-top: 120px; }
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner); padding: 16px; margin: 0 0 16px;
 }
 .card h2, .pane h2 { margin-bottom: 4px; }
-/* The stage on show gives its colour to the points chosen in it, to the tab chosen inside it and to the button a
+/* The stage on show gives its color to the points chosen in it, to the tab chosen inside it and to the button a
    reader presses there, so every screen says which stage it is. A button that leads to the next stage wears that
-   stage's colour. */
+   stage's color. */
 .workspace[data-phase="plan"] { --stage: var(--stage-plan); }
 .workspace[data-phase="run"] { --stage: var(--stage-run); }
 .workspace[data-phase="learn"] { --stage: var(--stage-learn); }
@@ -818,7 +818,7 @@ section { scroll-margin-top: 120px; }
 .learn-check { margin: 0; font-size: 0.95rem; }
 .learn-check > summary { display: flex; align-items: baseline; gap: 10px; cursor: pointer; font-weight: 600; color: var(--fg); list-style: none; }
 .learn-check > summary::-webkit-details-marker { display: none; }
-/* The point says what the check found by its shape, so its colour is not the only sign. */
+/* The point says what the check found by its shape, so its color is not the only sign. */
 .learn-check > summary::before { content: ""; flex: none; width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; }
 .learn-check[data-state="ok"] > summary::before { background: var(--ok); }
 .learn-check[data-state="look"] > summary::before { background: var(--warn); border-radius: 1px; transform: rotate(45deg); }
@@ -830,7 +830,7 @@ section { scroll-margin-top: 120px; }
 .learn-check .link { padding: 2px 0; }
 
 /* The ladder: designs as points on one line, each a step that adds runs to the one before. The step the form stands
-   on is filled in the stage's colour, as a choice is. */
+   on is filled in the stage's color, as a choice is. */
 .ladder { margin: 0 0 14px; }
 .ladder .hint { margin: 0 0 8px; }
 .ladder__steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 0; }
@@ -888,7 +888,7 @@ section { scroll-margin-top: 120px; }
 .goal { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 4px 0 8px; padding: 0; border: none; }
 .goal legend { padding: 0; margin-bottom: 4px; font-size: 0.9rem; }
 .goal label, .aim { display: inline-flex; align-items: center; gap: 6px; font-size: 0.95rem; cursor: pointer; }
-/* A choice is a point: a ring until it is chosen, then filled in the stage's colour, as a run is on a design. */
+/* A choice is a point: a ring until it is chosen, then filled in the stage's color, as a run is on a design. */
 input[type="radio"], .terms input[type="checkbox"] {
   appearance: none; flex: none; width: 18px; height: 18px; margin: 0; padding: 0; border: 2px solid var(--muted);
   border-radius: 50%; background: var(--panel); cursor: pointer;
@@ -914,7 +914,7 @@ label.inline { display: flex; flex-direction: column; gap: 4px; font-size: 0.9re
 .curve-explain svg { display: block; width: 100%; height: auto; max-height: 6.8em; }
 .curve-explain .axes { fill: none; stroke: var(--line); }
 .curve-explain text { font-size: 9px; fill: var(--muted); }
-/* Okabe and Ito's colourblind-safe colours, one per run; lighter on the dark theme. */
+/* Okabe and Ito's colorblind-safe colors, one per run; lighter on the dark theme. */
 .curve-explain { --run1: #0072b2; --run2: #d55e00; --run3: #009e73; }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .curve-explain { --run1: #56b4e9; --run2: #e69f00; --run3: #3cc79a; }
@@ -958,7 +958,7 @@ label.inline { display: flex; flex-direction: column; gap: 4px; font-size: 0.9re
 #limits-summary .error { display: block; }
 
 /* The corners of the ranges, to mark those that cannot be run: a corner a limit rules out already is ticked and
-   greyed, one marked is tinted, and each proposal is a card like a limit's, its text in the limits' type. */
+   grayed, one marked is tinted, and each proposal is a card like a limit's, its text in the limits' type. */
 .corners h3 { font-size: 0.98rem; margin: 18px 0 4px; }
 .corner-filters { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 8px 0; font-size: 0.9rem; }
 .corner-filters label { display: inline-flex; align-items: center; gap: 6px; }
@@ -1073,8 +1073,8 @@ table.pick td.stands { text-align: left; color: var(--muted); min-width: 11em; }
 .design-card { margin: 18px 0 0; padding: 14px 0 0; border-top: 1px solid var(--line); }
 .design-card h3 { margin-top: 0; }
 
-/* The trade-off of a fraction: runs down, factors across, each cell coloured by its resolution's band. The column
-   of the brief's factors is in full colour and takes a pick; the others are muted. The pressed cell is the form's. */
+/* The trade-off of a fraction: runs down, factors across, each cell colored by its resolution's band. The column
+   of the brief's factors is in full color and takes a pick; the others are muted. The pressed cell is the form's. */
 .trade-off { margin: 0 0 8px; }
 .trade-off .hint { margin: 4px 0; }
 .trade-off .scroll { margin: 6px 0; }
@@ -1273,7 +1273,7 @@ table.compare .unfit.first { border-left: 1px dashed var(--line); }
 /* The rows of switches and of "Use this design" sit close under the designs' names. */
 table.compare tr.shows th, table.compare tr.uses th { padding-top: 2px; padding-bottom: 2px; vertical-align: middle; }
 table.compare tr.uses .link { white-space: nowrap; }
-/* A design the reader hides: after a thick line, in light grey and unshaded. Its switch stays as it is. */
+/* A design the reader hides: after a thick line, in light gray and unshaded. Its switch stays as it is. */
 table.compare .set-aside { color: color-mix(in srgb, var(--muted) 55%, transparent); }
 table.compare .set-aside .link { color: inherit; }
 table.compare .parted { border-left: 4px solid var(--muted); }
@@ -1536,7 +1536,7 @@ details.fold > :last-child { margin-bottom: 12px; }
 .feat-body h4 { margin: 16px 0 4px; font-size: 1rem; }
 .feat-body ul { padding-left: 20px; }
 .feat-body [hidden], .feat-cards [hidden] { display: none; }
-/* The charts, each a card with its picture above its words. A picture is drawn in the light colours on no ground
+/* The charts, each a card with its picture above its words. A picture is drawn in the light colors on no ground
    of its own, so it takes the page's; in the dark it is turned over, which is how the app draws the same chart. */
 .feat-body ul.feat-pictures { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 10px;
   margin: 8px 0; padding: 0; list-style: none; font-size: 0.9rem; line-height: 1.4; }
@@ -1624,7 +1624,7 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
 .level-limit select, .level-limit input { min-width: 0; max-width: 11em; }
 .level-limit input { width: 6.5em; }
 .limits-levels { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 8px 0 4px; }
-/* A study's settings: each colour map is a choice with its colours beside its name. */
+/* A study's settings: each color map is a choice with its colors beside its name. */
 .settings__group { border: 0; padding: 0; margin: 12px 0; min-width: 0; }
 .settings__group legend { padding: 0; font-weight: 600; margin-bottom: 6px; }
 .settings__maps { display: grid; gap: 6px; }
@@ -1682,7 +1682,7 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
 .catalog__map rect[class^="fill-"], .sizemap__cell rect, .sizemap__mark { fill: var(--cell); }
 .sizemap .out { opacity: 0.3; }
 .sizemap__cell:focus-visible rect, .sizemap__mark:focus-visible { stroke: var(--fg); stroke-width: 2.5; }
-/* A count is drawn over the lines, ringed in its cell's own colour, so a line never hides a number. */
+/* A count is drawn over the lines, ringed in its cell's own color, so a line never hides a number. */
 .sizemap text.sizemap__count { fill: var(--ink); stroke: var(--cell); stroke-width: 4px; stroke-linejoin: round; paint-order: stroke; pointer-events: none; }
 /* A pale cell's count is in the page's quiet ink, with no ring: the ring would be darker than the cell. */
 .sizemap text.sizemap__count.out { fill: var(--muted); stroke: none; opacity: 1; }
@@ -1691,7 +1691,7 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
 .sizemap__row[aria-expanded="true"] rect { fill: var(--accent); stroke: var(--accent); }
 .sizemap .sizemap__row[aria-expanded="true"] text { fill: var(--accent-fg); }
 .sizemap__row:focus-visible rect { stroke: var(--fg); stroke-width: 2.5; }
-/* The two lines of the fewest runs, in the red of the banner's centre runs: over the cells, under their counts. */
+/* The two lines of the fewest runs, in the red of the banner's center runs: over the cells, under their counts. */
 .sizemap__line { fill: none; stroke: var(--mark-centre); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; pointer-events: none; }
 .sizemap__line--under { stroke: var(--panel); stroke-width: 6; }
 .sizemap__line--main { stroke-dasharray: 1 6; }
@@ -1828,11 +1828,11 @@ tr.row--outside td { background: color-mix(in srgb, var(--warn) 16%, transparent
 }
 
 /* Reproduced from the books (catalog/reproduced/index.html): how many printed numbers the library gives as its
-   sources print them. A state's colour always comes with its name, and text keeps the ink colours. */
+   sources print them. A state's color always comes with its name, and text keeps the ink colors. */
 main.reproduced { max-width: 1080px; }
 main.reproduced h1 { margin: 8px 0; font-size: 2rem; }
 .reproduced__status.error { color: var(--error); }
-/* The states a printed number is in: a square in the state's colour, hatched for the options of a quiz that are
+/* The states a printed number is in: a square in the state's color, hatched for the options of a quiz that are
    wrong on purpose and empty for the numbers not in Factorial yet, which are apart from the rest. */
 [data-state="match"] { --state: var(--state-match); }
 [data-state="known"] { --state: var(--state-known); }
@@ -1979,7 +1979,7 @@ main.reproduced .shelf { margin: 32px 0 0; padding: 0; background: none; border:
 .reproduced__filters select { max-width: 16em; }
 .reproduced__try { margin: 0 0 4px; }
 .reproduced__try .link { padding: 2px 4px; }
-/* A state's list of cases has no coloured edge: the state's mark stands before its name. */
+/* A state's list of cases has no colored edge: the state's mark stands before its name. */
 .statelist { margin: 10px 0; border: 1px solid var(--line); border-radius: var(--corner); background: var(--bg); }
 .statelist > summary {
   display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 10px 12px; color: var(--fg);
@@ -2266,7 +2266,7 @@ main.map .lede { margin: 0; }
   .map-legend svg { width: 24px; height: 24px; }
 }
 /* Comparing books, on one line: a switch, then the key to the rings, which is a ring and each book's name beside its
-   colour, in the order the sectors go round. Where the line is too short for both, the key goes under the switch. */
+   color, in the order the sectors go round. Where the line is too short for both, the key goes under the switch. */
 .map-books { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; font-size: 0.9rem; margin-top: -6px; }
 .map-books[hidden] { display: none; }
 .map-bookkey { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; min-height: 36px; }
@@ -2287,7 +2287,7 @@ main.map .lede { margin: 0; }
 }
 .map-backed { font-size: 0.85rem; color: var(--muted); }
 }
-/* An idea's card has no coloured edge: a point in its family's colour stands before its name, as a run does. */
+/* An idea's card has no colored edge: a point in its family's color stands before its name, as a run does. */
 .map-card { margin: 0; display: grid; gap: 6px; min-width: 0; }
 .map-card h2 { margin: 0; font-size: 1.35rem; }
 .map-card h2::before {
@@ -2445,7 +2445,7 @@ dialog.import { width: min(860px, 100vw - 32px); }
 .bench .actions { margin: 10px 0 0; }
 .bench .actions button { min-height: 44px; }
 table.runs input[data-response]:disabled { background: none; border-style: dashed; }
-/* The top line every page beside the app shares (site.js): the way back, and the colour-mode switch at its end. */
+/* The top line every page beside the app shares (site.js): the way back, and the color-mode switch at its end. */
 .site-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 /* A page's own closing words, over the footer every page shares. */
 .page-note { margin-top: 28px; color: var(--muted); font-size: 0.92rem; }

@@ -101,7 +101,7 @@ class TestFullFactorial:
 
 
 class TestDefinitiveScreening:
-    """Jones and Nachtsheim (2011): foldover of a conference matrix plus a centre run."""
+    """Jones and Nachtsheim (2011): foldover of a conference matrix plus a center run."""
 
     @pytest.mark.parametrize("k", [4, 5, 9, 10, 14, 16, 21, 26, 27])
     def test_defining_properties(self, k: int) -> None:
@@ -196,7 +196,7 @@ class TestCentralComposite:
 
     @staticmethod
     def _squares_orthogonal(x: np.ndarray) -> bool:
-        """Whether the centred squared columns are mutually orthogonal: quadratic coefficients uncorrelated."""
+        """Whether the centered squared columns are mutually orthogonal: quadratic coefficients uncorrelated."""
         q = x**2 - (x**2).mean(axis=0)
         gram = q.T @ q
         return bool(np.allclose(gram - np.diag(np.diag(gram)), 0, atol=1e-9))
@@ -205,7 +205,7 @@ class TestCentralComposite:
         ("k", "cube", "n_center"), [(2, "full", 3), (3, "full", 3), (4, "full", 4), (5, "fractional", 6)]
     )
     def test_orthogonal(self, k: int, cube: str, n_center: int) -> None:
-        """alpha='orthogonal' used the orthogonal-blocking distance (1.886 for k=3 with 3 centre runs, not 1.353)."""
+        """alpha='orthogonal' used the orthogonal-blocking distance (1.886 for k=3 with 3 center runs, not 1.353)."""
         result = generate_design(_factors(k), "ccd", alpha="orthogonal", cube=cube, n_center_points=n_center)
         assert self._squares_orthogonal(_coded(result, k))
 
@@ -398,7 +398,7 @@ class TestDSD2011OddFactors:
         x = _coded(result, k)
         corners = _corners(x)
         assert len(corners) == 2 * k
-        assert np.all((corners == 0).sum(axis=1) == 1)  # one factor at its centre in each fold-over run
+        assert np.all((corners == 0).sum(axis=1) == 1)  # one factor at its center in each fold-over run
         assert {tuple(-run) for run in corners} == {tuple(run) for run in corners}
         second = np.column_stack([x[:, i] * x[:, j] for i in range(k) for j in range(i, k)])
         assert np.abs(x.T @ second).max() == 0  # main effects orthogonal to every second-order effect
@@ -408,7 +408,7 @@ class TestDSD2011OddFactors:
 
     @pytest.mark.parametrize("k", [5, 7, 9, 11])
     def test_the_designs_are_the_reference_catalogue_s(self, k: int) -> None:
-        """The library's copy of Figure 1 and the catalogue's, each read from the paper, are the same runs."""
+        """The library's copy of Figure 1 and the catalog's, each read from the paper, are the same runs."""
         entry = next(d for d in reference_designs("jones-nachtsheim-2011") if d["name"].endswith(f"-{k}-factors"))
         printed = np.array([row[1:] for row in entry["runs"]["rows"]], dtype=float)
         with warnings.catch_warnings():
