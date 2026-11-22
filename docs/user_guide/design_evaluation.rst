@@ -435,7 +435,7 @@ its information matrix :math:`\mathbf{M} = \mathbf{X}^T\mathbf{X}`:
 
 No design is best on every row. The two twenty-seven-run designs have the same size:
 the Box-Behnken design has the smaller average variances, the smaller max
-:math:`|r|` and more power for a quadratic, while the face-centred CCD has the
+:math:`|r|` and more power for a quadratic, while the face-centered CCD has the
 smaller worst cases and more power for a main effect. The eleven-run DSD spends fewer
 runs, and every measure that improves with runs is weaker for it, with two degrees of
 freedom left to estimate the error. Which row matters depends on what the experiment

@@ -75,9 +75,7 @@ def test_the_charts_read_on_a_light_page_and_a_dark_one_and_without_their_colour
         for k, v in api.ok("api_plots", {**held, "responses": simulated["responses"]})["figures"].items()
     }
     surface, runs = figures["contour"]["data"]
-    assert runs["marker"]["color"] == "#ffffff", (
-        "a run has a white face and a dark edge, on every color of the surface"
-    )
+    assert runs["marker"]["color"] == "#ffffff", "a run has a white face and a dark edge, on every color of the surface"
     assert runs["marker"]["line"]["color"] == "#1a1a1a"
     assert runs["opacity"] == 1
     assert "marker" not in surface

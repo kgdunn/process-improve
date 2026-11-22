@@ -63,7 +63,7 @@ The method
 ----------
 
 Every design produced here is a **foldover** :math:`[H; -H; 0]`: a half-design
-:math:`H`, its mirror image :math:`-H`, and a single centre run.  The foldover
+:math:`H`, its mirror image :math:`-H`, and a single center run.  The foldover
 structure makes three of the four OMARS-defining conditions hold automatically,
 which is what keeps the construction tractable.
 

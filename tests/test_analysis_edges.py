@@ -417,7 +417,7 @@ def test_a_model_the_library_cannot_fit_leaves_only_the_runs():
 
 def test_a_projection_onto_a_missing_entry_or_another_shape_is_said_so():
     entry = _plane()
-    with pytest.raises(KeyError, match="The catalog has no entry 'no-such-design'"):
+    with pytest.raises(KeyError, match="The catalogue has no entry 'no-such-design'"):
         reference_catalogue._reproduce(entry, {"value": "x"}, {"kind": "projection", "of": "no-such-design"}, None)
     check = {"kind": "projection", "columns": ["x1", "x2"], "into": ["x1"]}
     found = reference_catalogue._reproduce(entry, {"value": "x"}, check, None)

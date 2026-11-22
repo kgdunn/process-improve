@@ -6,15 +6,15 @@ body:
     attributes:
       value: |
         The [design catalog](https://factori.al/catalog/) lists the designed experiments of the reference
-        catalogue (`process_improve.experiments.reference_catalogue`). An entry holds the source's runs and
-        every number the source prints for them, with the page each is printed on. It enters the catalogue
+        catalog (`process_improve.experiments.reference_catalogue`). An entry holds the source's runs and
+        every number the source prints for them, with the page each is printed on. It enters the catalog
         once the library recomputes those numbers: each one agrees with the source, or the entry records
         why it does not (the source's rounding, a misprint, or another method).
 
         Copy the numbers as the source prints them, without correcting them. A number that does not
         reproduce is worth as much as one that does: the catalog lists it among the errata. If you know why
         a number differs (a misprint, the source's rounding, another method), or that the library cannot
-        compute it yet, say so beside it: the catalogue records the cause of each such number.
+        compute it yet, say so beside it: the catalog records the cause of each such number.
   - type: input
     id: source
     attributes:

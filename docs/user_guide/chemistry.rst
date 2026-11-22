@@ -12,7 +12,7 @@ The order is fixed
 
 .. code-block:: text
 
-    trim  ->  transform  ->  centre  ->  scale
+    trim  ->  transform  ->  center  ->  scale
 
 Trim first, because a compound detected in two of forty products has no
 concentration worth transforming. Transform before centering, because the range

@@ -12,7 +12,7 @@ in `docs/user_guide/case_studies/batch/`.
 | --- | --- |
 | `prepare_fixture.py` | Reads the two archived `.mat` files, writes the three reference files below, and writes the `sbr-batch-reactor.xlsx` workbook that is hosted on openmv.net. Needs `scipy` and `openpyxl`; it is not run in CI. |
 | `reference_scores.csv` | Scores T (53 x 2) of the legacy batch PCA: `batch_id, t1, t2`. |
-| `reference_loadings.csv` | Loadings P (1800 x 2) of the legacy batch PCA, labelled `tag, sequence, p1, p2`. |
+| `reference_loadings.csv` | Loadings P (1800 x 2) of the legacy batch PCA, labeled `tag, sequence, p1, p2`. |
 | `reference_metadata.json` | Provenance (repository, commit, blob SHAs), the name mapping, the legacy model settings, and the R2 values the legacy unit test asserts. |
 
 The pytest cross-check (`tests/batch/test_sbr_reference.py`) downloads the
@@ -47,7 +47,7 @@ Two details of the MATLAB layout matter when comparing:
 
 - MATLAB unfolds time-major: all nine tags at sample 0, then all nine tags
   at sample 1, and so on. Row `k * 9 + j` of the loadings is tag `j` at
-  sample `k`. `reference_loadings.csv` carries that labelling explicitly so
+  sample `k`. `reference_loadings.csv` carries that labeling explicitly so
   the comparison can reindex onto `process_improve`'s tag-major
   `(tag, sequence)` column order.
 - The two feed-flow trajectories are constant in the simulation. Their

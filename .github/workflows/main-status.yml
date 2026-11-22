@@ -35,5 +35,5 @@ jobs:
         latest=$(gh api "repos/$REPO/actions/workflows/run-tests.yml/runs?branch=main&status=completed&per_page=50" \
           --jq '[.workflow_runs[] | select(.event != "pull_request" and .conclusion != "cancelled")][0]
                 | "\(.conclusion) \(.html_url)"')
-        echo "The latest run of the tests on main that was not cancelled: $latest"
+        echo "The latest run of the tests on main that was not canceled: $latest"
         [ "${latest%% *}" = success ]
