@@ -25,8 +25,17 @@ Quick start::
         query="funnel shaped residuals",
         topic="troubleshooting",
     )
+
+The book's own graph of terms, with the line of the book behind every term and link, is
+:class:`ConceptGraph`, queried in Cypher (it needs ``pip install relate-db``)::
+
+    from process_improve.experiments.knowledge import ConceptGraph
+
+    with ConceptGraph() as graph:
+        graph.query("MATCH (:Term {id: 'curvature'})-[:REMEDIED_BY]->(fix) RETURN fix.name AS remedy")
 """
 
 from process_improve.experiments.knowledge.api import doe_knowledge
+from process_improve.experiments.knowledge.concept_graph import ConceptGraph
 
-__all__ = ["doe_knowledge"]
+__all__ = ["ConceptGraph", "doe_knowledge"]
