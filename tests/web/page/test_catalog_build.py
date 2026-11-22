@@ -608,3 +608,11 @@ def test_the_reproduction_holds_each_case_its_tier_and_the_sources_it_names(repr
         held = [n for n in case["differs"] if n["cause"] not in data["library_right"]]
         assert (case["tier"] == "reproduced") == (case["tier"] is not None and not held), case["id"]
         assert len(case["missing"]) == case["unchecked"].get("library_gap", 0), case["id"]
+
+
+def test_the_reproduction_names_what_each_number_it_shows_is_and_nothing_more(build_script, reproduction_file):
+    """The plain name of each quantity its numbers that differ or wait on the library are of, as the build has it."""
+    data = json.loads(reproduction_file.read_text(encoding="utf-8"))
+    shown = {n["what"] for c in data["cases"] for n in [*c["differs"], *c["missing"]]} - {"other"}
+    assert set(data["quantities"]) == shown, "a name for each, and only those the cases use"
+    assert data["quantities"] == {what: build_script.quantity_names()[what] for what in shown}

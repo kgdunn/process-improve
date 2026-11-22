@@ -48,15 +48,9 @@
   --band-iv-away: #fbf2e0;
   --band-iii: #f5d0cc;
   --band-iii-away: #fbebe9;
-  /* The reproduction page's tiers, best first: validated as a set for colour-blind readers on the panel. */
-  --tier-reproduced: #1e7b3a;
-  --tier-within_1: #1f6fb2;
-  --tier-within_5: #b87700;
-  --tier-not_reproduced: #b3261e;
-  --misprint: #7b4fa6; /* a book's example with a misprint, beside the tiers: its status names it too */
-  /* The reproduction page's states: a printed number matches, differs for a known reason, or differs for one not
-     known yet. Checked as a set for colour-blind readers on the panel, in both themes. They are no grade of a
-     source, so none is green. */
+  /* The states of the reproduction page and of a book's page: a printed number matches, differs for a known reason,
+     or differs for one not known yet. Checked as a set for colour-blind readers on the panel, in both themes. They
+     are no grade of a source, so none is green. */
   --state-match: #1f6fb2;
   --state-known: #b87700;
   --state-open: #b3261e;
@@ -102,11 +96,6 @@
     --band-iv-away: #2c2619;
     --band-iii: #5a2a25;
     --band-iii-away: #30201e;
-    --tier-reproduced: #3a9a5c;
-    --tier-within_1: #5a8ee0;
-    --tier-within_5: #ad8a1e;
-    --tier-not_reproduced: #e0587e;
-    --misprint: #b48fe0;
     --state-match: #5a8ee0;
     --state-known: #ad8a1e;
     --state-open: #e0587e;
@@ -147,11 +136,6 @@
   --band-iv-away: #2c2619;
   --band-iii: #5a2a25;
   --band-iii-away: #30201e;
-  --tier-reproduced: #3a9a5c;
-  --tier-within_1: #5a8ee0;
-  --tier-within_5: #ad8a1e;
-  --tier-not_reproduced: #e0587e;
-  --misprint: #b48fe0;
   --state-match: #5a8ee0;
   --state-known: #ad8a1e;
   --state-open: #e0587e;
@@ -1841,15 +1825,9 @@ tr.row--outside td { background: color-mix(in srgb, var(--warn) 16%, transparent
 }
 
 /* Reproduced from the books (catalog/reproduced/index.html): how many printed numbers the library gives as its
-   sources print them. A state's colour, and a tier's, always comes with its name, and text keeps the ink colours. */
+   sources print them. A state's colour always comes with its name, and text keeps the ink colours. */
 main.reproduced { max-width: 1080px; }
 main.reproduced h1 { margin: 8px 0; font-size: 2rem; }
-[data-tier="reproduced"] { --tier: var(--tier-reproduced); }
-[data-tier="within_1"] { --tier: var(--tier-within_1); }
-[data-tier="within_5"] { --tier: var(--tier-within_5); }
-[data-tier="not_reproduced"] { --tier: var(--tier-not_reproduced); }
-[data-tier="misprint"] { --tier: var(--misprint); }
-[data-tier="unexplained"] { --tier: var(--tier-not_reproduced); }
 .reproduced__status.error { color: var(--error); }
 /* The states a printed number is in: a square in the state's colour, hatched for the options of a quiz that are
    wrong on purpose and empty for the numbers not in Factorial yet, which are apart from the rest. */
@@ -1986,17 +1964,6 @@ main.reproduced .shelf { margin: 32px 0 0; padding: 0; background: none; border:
   .shelf__row > summary .shelf__numbers { display: none; }
   .shelf__row > summary .statebar { grid-column: 1 / -1; grid-row: 2; }
 }
-/* In the lists of cases a tier is told by its mark and its name alone: the page's colours are the states'. */
-main.reproduced #numbers [data-tier] { --tier: var(--muted); }
-.tierbar { display: flex; gap: 2px; height: 14px; margin: 0 0 14px; }
-.tierbar__part { min-width: 3px; background: var(--tier); }
-.tierbar__part:first-child { border-radius: var(--corner) 0 0 var(--corner); }
-.tierbar__part:last-child { border-radius: 0 4px 4px 0; }
-.tierchip {
-  display: inline-grid; place-items: center; min-width: 2.6em; padding: 0 6px; border-radius: var(--corner);
-  border: 1px solid var(--tier); background: color-mix(in srgb, var(--tier) 18%, var(--panel)); color: var(--fg);
-  font-size: 0.78rem; font-weight: 700; line-height: 1.6; white-space: nowrap;
-}
 .table-scroll { position: relative; overflow-x: auto; }
 .missing { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .missing__item { margin: 0; border: 1px solid var(--line); border-radius: var(--corner); background: var(--bg); }
@@ -2009,18 +1976,15 @@ main.reproduced #numbers [data-tier] { --tier: var(--muted); }
 .reproduced__filters select { max-width: 16em; }
 .reproduced__try { margin: 0 0 4px; }
 .reproduced__try .link { padding: 2px 4px; }
-/* A tier's list has no coloured edge: a point in the tier's colour stands before its name. */
-.tierlist { margin: 10px 0; border: 1px solid var(--line); border-radius: var(--corner); background: var(--bg); }
-.tierlist__name::before {
-  content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 50%; background: var(--tier);
-}
-.tierlist > summary {
+/* A state's list of cases has no coloured edge: the state's mark stands before its name. */
+.statelist { margin: 10px 0; border: 1px solid var(--line); border-radius: var(--corner); background: var(--bg); }
+.statelist > summary {
   display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 10px 12px; color: var(--fg);
   scroll-margin-top: 12px;
 }
-.tierlist__name { font-weight: 700; }
-.tierlist__means { flex-basis: 100%; margin: 0; font-size: 0.86rem; }
-.tierlist__body { padding: 0 12px 12px; }
+.statelist__name { font-weight: 700; }
+.statelist__means { flex-basis: 100%; margin: 0; font-size: 0.86rem; }
+.statelist__body { padding: 0 12px 12px; }
 .group h3 { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; font-size: 1rem; }
 .cases { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .case { margin: 0; border: 1px solid var(--line); border-radius: var(--corner); background: var(--panel); }
@@ -2042,8 +2006,8 @@ main.reproduced #numbers [data-tier] { --tier: var(--muted); }
   font-size: 0.8rem; white-space: nowrap;
 }
 .number__error {
-  padding: 0 8px; border-radius: var(--corner); border: 1px solid var(--tier);
-  background: color-mix(in srgb, var(--tier) 18%, var(--panel)); color: var(--fg);
+  padding: 0 8px; border-radius: var(--corner); border: 1px solid var(--muted);
+  background: color-mix(in srgb, var(--muted) 18%, var(--panel)); color: var(--fg);
   font-size: 0.8rem; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums;
 }
 .number__values { display: flex; flex-wrap: wrap; gap: 2px 20px; margin: 6px 0 0; font-size: 0.88rem; }
@@ -2054,7 +2018,6 @@ main.reproduced #numbers [data-tier] { --tier: var(--muted); }
 .number__reason { margin: 6px 0 0; color: var(--muted); font-size: 0.86rem; }
 .group .more { margin: 8px 0 0; }
 @media (forced-colors: active) {
-  .tierbar__part, .tierbar__key, .book-status::before { background: CanvasText; }
   [data-state]:is(.statekey, .statebar__part, .wholebar__part, .reason__bar) { background: CanvasText; }
 }
 
@@ -2128,9 +2091,9 @@ main.field-page section { background: none; border: 0; border-radius: 0; padding
 
 /* A book's page (catalog/books/<source>/, written by the build) and the list of books. */
 .book-page__by { margin: 16px 0 0; color: var(--muted); }
-.book-page .tierbar { height: 10px; margin: 12px 0 6px; }
-.book-page .field-chart__legend { margin: 0 0 12px; }
-.tierbar__key { display: inline-block; flex: none; width: 12px; height: 12px; border-radius: 3px; background: var(--tier); }
+/* A source's bar is its printed numbers by state, as its row on the reproduction page draws them. */
+.book-page .statebar { margin: 12px 0 6px; }
+.book-page > .states { margin: 0 0 4px; }
 .book-page__jump {
   display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); margin: 16px 0 8px;
   border: 1px solid var(--line); border-radius: var(--corner); overflow: hidden;
@@ -2143,11 +2106,14 @@ main.field-page section { background: none; border: 0; border-radius: 0; padding
 .book-section { margin: 28px 0 0; scroll-margin-top: 12px; }
 .book-section h2 { margin: 0 0 4px; font-size: 1.2rem; }
 .book-section > .hint { margin: 0 0 10px; }
-.field-list .tierbar { height: 10px; margin: 8px 0 4px; }
+.field-list .statebar { margin: 8px 0 4px; }
 .field-list a.book-row { flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; }
 .book-example { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.book-status { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 0.86rem; font-weight: 600; }
-.book-status::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--tier); }
+/* An example's state, in the words and the mark of the reproduction page; a long name takes two lines. */
+.book-status {
+  flex: none; display: inline-flex; align-items: baseline; gap: 7px; max-width: 11em; font-size: 0.86rem;
+  font-weight: 600;
+}
 .book-group { margin: 0 0 8px; border: 1px solid var(--line); border-radius: var(--corner); background: var(--panel); }
 .book-group summary { min-height: 44px; display: flex; align-items: center; padding: 0 14px; cursor: pointer; font-weight: 600; }
 .book-group .field-list { padding: 0 8px 8px; }

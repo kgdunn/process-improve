@@ -1,43 +1,13 @@
 // The rules of the reproduction page (catalog/reproduced/index.html), apart from the page: the states a
-// printed number is in and the reasons it is no match, what the page counts, the tiers a case falls in,
-// which cases a search keeps, and what the address keeps. catalog/reproduction.json, which the build
-// writes, holds every case.
+// printed number and a case are in and the reasons a number is no match, what the page counts, how far off the
+// numbers that differ are, which cases a search keeps, and what the address keeps. catalog/reproduction.json,
+// which the build writes, holds every case.
 
 /**
- * The tiers, best first, as the library's REPRODUCTION_TIERS has them. ``mark`` names a tier beside
- * its colour, so a reader who cannot tell the colours apart still can the tiers.
+ * The tiers, best first, as the library's REPRODUCTION_TIERS has them: the page counts the numbers that differ
+ * within each one's limit (sizes), and lists cases by their state, not by tier.
  */
-export const TIERS = [
-  {
-    key: "reproduced",
-    label: "Fully reproduced",
-    mark: "✓",
-    means:
-      "Every number the library recomputes agrees with the source to its last printed digit, apart from those the " +
-      "source prints in error and quiz options its answer key marks wrong.",
-  },
-  {
-    key: "within_1",
-    label: "Within 1%",
-    mark: "<1%",
-    means: "A number differs by more than the source's rounding, and none by more than 1% of the printed value.",
-  },
-  {
-    key: "within_5",
-    label: "Within 5%",
-    mark: "<5%",
-    means: "The largest difference is more than 1% and at most 5% of the printed value.",
-  },
-  {
-    key: "not_reproduced",
-    label: "Unable to reproduce",
-    mark: "✕",
-    means:
-      "A number differs by more than 5%, or a result that is not a number (an alias chain, a list of runs) differs.",
-  },
-];
-
-export const TIER_KEYS = TIERS.map((tier) => tier.key);
+export const TIER_KEYS = ["reproduced", "within_1", "within_5", "not_reproduced"];
 
 /**
  * The causes the catalogue records, as the page names them: why a number differs from its source, and why
@@ -89,6 +59,33 @@ export const REASONS = [
   { cause: "library_gap", state: "gap" },
 ].map((reason) => ({ ...reason, name: CAUSES.differs[reason.cause] ?? CAUSES.unchecked[reason.cause] }));
 
+/** The state of a number that differs, from its cause: a cause the page does not know is a reason not known yet. */
+const stateOf = (number) => REASONS.find((reason) => reason.cause === number.cause)?.state ?? "open";
+
+/**
+ * The state a case is in, which its list is named by, and a book's page names an example by (``example_state`` in
+ * scripts/build_web_app.py): that of its number that comes last in the order of STATES, the bar's order. So a case
+ * matches the book only when every number recomputed does, and a reason not known yet is never hidden behind a
+ * known one. Its numbers not in the library yet are apart from those recomputed: they leave it as it is.
+ */
+export function caseState(c) {
+  const order = STATES.map((state) => state.key);
+  return c.differs.map(stateOf).reduce((last, state) => (order.indexOf(state) > order.indexOf(last) ? state : last), "match");
+}
+
+/** A list of cases for each state a case can be in (caseState), with what puts a case in it. */
+export const CASE_STATES = [
+  { key: "match", means: "Every number Factorial worked again matches the book." },
+  { key: "known", means: "A number differs, and the reason is known for each one that does." },
+  {
+    key: "quiz",
+    means: "A number is a multiple-choice option that is wrong on purpose. Any other that differs has a known reason.",
+  },
+  { key: "open", means: "A number differs, and the reason is not known yet." },
+].map((state) => ({ ...state, label: STATES.find((s) => s.key === state.key).label }));
+
+const CASE_KEYS = CASE_STATES.map((state) => state.key);
+
 /**
  * Count the printed numbers of ``cases``: those recomputed (``checked``), those of them that match, and
  * for each cause of REASONS those that are no match. A number not in the library yet is counted from
@@ -137,10 +134,11 @@ const FITS = 14;
 /**
  * The numbers of ``cases`` that are no match for one ``cause`` and fit an example's box (a list of runs or
  * an alias chain does not): what the source prints (``printed``) and the library's value (``found``, null
- * for a number not in the library yet), with where it is printed and what it is. They come one source after another in turn, so the next example is
- * from another source.
+ * for a number not in the library yet), with where it is printed and what it is, by its plain name in ``names``
+ * (the JSON's ``quantities``). They come one source after another in turn, so the next example is from another
+ * source.
  */
-export function examples(cases, cause) {
+export function examples(cases, cause, names = {}) {
   const fits = (value) => typeof value === "string" && value.length <= FITS && A_NUMBER.test(value);
   const lists = new Map();
   for (const c of cases) {
@@ -149,8 +147,7 @@ export function examples(cases, cause) {
       const found = cause === "library_gap" ? null : number.found;
       if (!number.where || !fits(number.printed) || !(found === null || fits(found))) continue;
       if (!lists.has(c.source)) lists.set(c.source, []);
-      // The catalogue calls a quantity it has no name for "other", and says what it is in its term.
-      const what = String((number.what === "other" ? number.term : number.what) ?? "").replaceAll("_", " ");
+      const what = number.what === "other" ? String(number.term ?? "") : quantityName(number.what, names);
       lists.get(c.source).push({ source: c.source, where: number.where, what, printed: number.printed, found });
     }
   }
@@ -199,18 +196,27 @@ export function formatError(error) {
   return `${Number(value.toPrecision(2))}%`;
 }
 
-/** The quantity a number is, in a few words: what it is and of which term. */
-export const quantity = (number) =>
-  [String(number.what ?? "").replaceAll("_", " "), number.term].filter((part) => part).join(": ");
+/**
+ * What a number is, by its plain name in ``names`` (the JSON's ``quantities``, which the build takes from
+ * web/quantities.json), or by the catalogue's own word where it has none.
+ */
+export const quantityName = (what, names = {}) => names[what] ?? String(what ?? "").replaceAll("_", " ");
+
+/**
+ * The quantity a number is, in a few words, as ``_quantity`` in scripts/build_web_app.py names it: what it is and
+ * of which term. The catalogue calls a quantity it has no name for "other", and says what it is in its term.
+ */
+export const quantity = (number, names = {}) =>
+  [number.what === "other" ? "" : quantityName(number.what, names), number.term].filter((part) => part).join(": ");
 
 /**
  * The text a search reads of a case: its title, id, kind, source, each differing number with its reason and
  * the name of its cause, and the reason of each number the library cannot compute yet.
  */
-function haystack(c, sources) {
+function haystack(c, sources, names) {
   const source = sources[c.source] ?? {};
-  const numbers = c.differs.map((n) => `${quantity(n)} ${n.reason} ${n.where} ${CAUSES.differs[n.cause] ?? ""}`);
-  const missing = (c.missing ?? []).map((n) => `${quantity(n)} ${n.reason}`);
+  const numbers = c.differs.map((n) => `${quantity(n, names)} ${n.reason} ${n.where} ${CAUSES.differs[n.cause] ?? ""}`);
+  const missing = (c.missing ?? []).map((n) => `${quantity(n, names)} ${n.reason}`);
   return [c.title, c.id, c.kind, c.source, source.short, source.title, ...numbers, ...missing].join(" ").toLowerCase();
 }
 
@@ -218,8 +224,9 @@ function haystack(c, sources) {
  * The cases a reader's filters keep: every word of ``query`` in the case's text, its ``source``, the
  * ``form`` of its source and its ``kind`` where chosen. A case with no recomputed number is kept only
  * when ``all`` is asked for: it is no reproduction, though it may hold numbers the library cannot compute yet.
+ * ``names`` are the plain names of the quantities (see quantity), which the search reads.
  */
-export function filterCases(cases, sources, { query = "", source = "", form = "", kind = "" } = {}, { all = false } = {}) {
+export function filterCases(cases, sources, { query = "", source = "", form = "", kind = "" } = {}, { all = false, names = {} } = {}) {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   return cases.filter(
     (c) =>
@@ -227,7 +234,7 @@ export function filterCases(cases, sources, { query = "", source = "", form = ""
       (!source || c.source === source) &&
       (!form || sources[c.source]?.form === form) &&
       (!kind || kindOf(c) === kind) &&
-      (!words.length || words.every((word) => haystack(c, sources).includes(word))),
+      (!words.length || words.every((word) => haystack(c, sources, names).includes(word))),
   );
 }
 
@@ -241,12 +248,12 @@ export function kinds(cases) {
   return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 }
 
-/** Counts of cases by tier and of printed numbers, recomputed (``numbers``) and agreeing (``agree``), from none. */
-const blank = () => ({ total: 0, tiers: Object.fromEntries(TIER_KEYS.map((key) => [key, 0])), numbers: 0, agree: 0 });
+/** Counts of cases by state and of printed numbers, recomputed (``numbers``) and agreeing (``agree``), from none. */
+const blank = () => ({ total: 0, states: Object.fromEntries(CASE_KEYS.map((key) => [key, 0])), numbers: 0, agree: 0 });
 
 function count(into, c) {
   into.total += 1;
-  into.tiers[c.tier] += 1;
+  into.states[caseState(c)] += 1;
   into.numbers += c.checked;
   into.agree += c.checked - c.differs.length;
 }
@@ -259,7 +266,7 @@ export const SOURCE_ORDERS = {
 };
 
 /**
- * Each source's counts: its cases by tier, and its printed numbers recomputed and agreeing (see
+ * Each source's counts: its cases by state, and its printed numbers recomputed and agreeing (see
  * ``blank``), with its name, year and form, in the ``order`` of SOURCE_ORDERS (oldest first unless told).
  */
 export function bySource(cases, sources, order = "year") {
@@ -286,7 +293,7 @@ export function byForm(rows, forms) {
       out.total += row.total;
       out.numbers += row.numbers;
       out.agree += row.agree;
-      for (const key of TIER_KEYS) out.tiers[key] += row.tiers[key];
+      for (const key of CASE_KEYS) out.states[key] += row.states[key];
     }
     return out;
   };
@@ -297,10 +304,13 @@ export function byForm(rows, forms) {
   return { groups, totals: sum(rows) };
 }
 
-/** The cases of one tier, grouped by source in the order of ``order`` (source keys), each group worst case first. */
-export function groupByTier(cases, tier, order) {
+/**
+ * The cases with a recomputed number in one state (caseState), grouped by source in the order of ``order``
+ * (source keys), each group worst case first.
+ */
+export function groupByState(cases, state, order) {
   const groups = new Map(order.map((key) => [key, []]));
-  for (const c of cases) if (c.tier === tier) groups.get(c.source)?.push(c);
+  for (const c of cases) if (c.tier && caseState(c) === state) groups.get(c.source)?.push(c);
   const worst = (c) => (c.worst === null ? Infinity : c.worst);
   return [...groups]
     .filter(([, list]) => list.length)
@@ -367,7 +377,7 @@ export function fromHash(text, sources = {}, forms = {}) {
     source: Object.hasOwn(sources, read("source")) ? read("source") : "",
     form: Object.hasOwn(forms, read("form")) ? read("form") : "",
     kind: read("kind").slice(0, 40),
-    open: [...new Set(read("open").split(",").filter((key) => TIER_KEYS.includes(key)))],
+    open: [...new Set(read("open").split(",").filter((key) => CASE_KEYS.includes(key)))],
     focus: AN_ID.test(read("focus")) ? read("focus") : "",
   };
 }

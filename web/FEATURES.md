@@ -1026,8 +1026,15 @@ What a careful reader, or an organisation, asks before using a tool.
     cascade of reasons: the book rounds sooner, a misprint or slip in the book, another
     method, a multiple-choice option that is wrong on purpose, a reason not known yet, and a
     method Factorial does not have yet. Each reason shows one number as an example, and "See
-    another" shows the next. A row for each source opens onto its own counts. "Search every
-    case" lists the cases, and each number of a case that differs.
+    another" shows the next; a number is named in plain words, such as "a sum of squares" or
+    "an F ratio". A row for each source opens onto its own counts and its own page. "Search
+    every case" lists the cases under the bar's names: matches the book, differs and we know
+    why, multiple choice wrong on purpose, and differs with the reason not known yet. A case is
+    listed under the last of these that one of its numbers is under, so it matches only when
+    every number does. Each number of a case that differs is listed with why. A source's own
+    page uses the same names and colours: a bar of every number it prints, each of its
+    examples under its name, the misprints found in it, and what Factorial cannot compute yet.
+    "Search the book's cases" there opens that source's cases here.
 - **[The concept map](map/).** 237 ideas of designed experiments and 490 links between them,
   in 13 topics, each with its definition, the book's line and a link into the book. It has
   three depths to choose from, side by side: Beginner, Intermediate and Adventurous.

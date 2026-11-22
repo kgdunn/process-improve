@@ -1,34 +1,33 @@
 // The reproduction page (catalog/reproduced/index.html, at factori.al/catalog/reproduced/): it reads
 // catalog/reproduction.json once and draws how many printed numbers Factorial gives as its sources print them:
 // one bar of them all, the reasons the others are no match as a cascade, each with an example, and a row for
-// each source. Behind "Search every case" are the cases, in a list for each tier, and what the library lacks.
+// each source. Behind "Search every case" are the cases, in a list for each state, and what the library lacks.
 // The rules are in reproduced-logic.js; this module draws them. No Python runs here.
 
 import { element } from "./catalog-views.js";
 import {
+  CASE_STATES,
   CAUSES,
   DEFAULT_VIEW,
   REASONS,
   STATES,
-  TIERS,
   byForm,
   bySource,
   byState,
+  caseState,
   cascade,
   examples,
-  libraryRight,
   missingByReason,
   filterCases,
   formatError,
   fromHash,
-  groupByTier,
+  groupByState,
   kindOf,
   kinds,
   percent,
   quantity,
   sizes,
   tally,
-  tierOf,
   toHash,
 } from "./reproduced-logic.js";
 
@@ -47,7 +46,7 @@ let sourceOrder = "year";
 let shelfForm = "";
 /** The sources whose rows are open: at first the one the page has a table of its book for. */
 const openRows = new Set();
-/** Draws a tier's list into its box, once: the page calls it when it opens a tier itself, not waiting for the toggle. */
+/** Draws a state's list into its box, once: the page calls it when it opens a list itself, not waiting for the toggle. */
 const fillers = new Map();
 
 const count = (n) => n.toLocaleString("en");
@@ -57,15 +56,11 @@ const sourceName = (key) => {
   return source.year ? `${source.short ?? key} (${source.year})` : (source.short ?? key);
 };
 
-/** A tier's chip: its mark, which names it apart from its colour, on its colour. */
-const chip = (tier, text = TIERS.find((t) => t.key === tier).mark) =>
-  element("span", { class: "tierchip", "data-tier": tier, text });
-
 /** A state's mark: a square in its colour, hatched or empty for the two states that have no colour. */
 const stateKey = (state) => element("span", { class: "statekey", "data-state": state, "aria-hidden": "true" });
 
 /** The cases the reader's search, source and kind keep. */
-const shown = () => filterCases(data.cases, data.sources, view);
+const shown = () => filterCases(data.cases, data.sources, view, { names: data.quantities });
 
 /** The causes the library is right about, from the JSON (see libraryRight). */
 const right = () => data.library_right;
@@ -112,7 +107,7 @@ function flip(box) {
  * "See another" puts the next number of the reason in the box, and after the last the first again.
  */
 function exampleOf(step) {
-  const list = examples(data.cases, step.cause);
+  const list = examples(data.cases, step.cause, data.quantities);
   if (!list.length) return null;
   const box = element("div", { class: "example__box", "aria-live": "polite" });
   let at = 0;
@@ -223,7 +218,7 @@ function shelfRow(row) {
       "div",
       { class: "shelf__body" },
       element("ul", { class: "states" }, ...facts.map(([state, n, name]) => stateLine(state, n, name))),
-      element("p", { class: "hint", text: `Cases that match in every number: ${count(row.tiers.reproduced)} of ${count(row.total)}.` }),
+      element("p", { class: "hint", text: `Cases that match in every number: ${count(row.states.match)} of ${count(row.total)}.` }),
       table?.dataset.source === row.key ? table.content.cloneNode(true) : null,
       element("p", {}, element("a", { href: `../books/${row.key}/`, text: "Every example of this source, with each difference" })),
     ),
@@ -251,27 +246,27 @@ function drawShelf() {
   $("#books-section").hidden = rows.length === 0;
 }
 
-/** Open the cases when the address names a search, a source, a kind, a tier or a case: a book's page leads here. */
+/** Open the cases when the address names a search, a source, a kind, a list or a case: a book's page leads here. */
 function openCases() {
   if (view.query || view.source || view.form || view.kind || view.open.length || view.focus) $("#numbers").open = true;
 }
 
 // ---------------------------------------------------------------- the lists of cases
 function numberCard(number) {
-  const tier = libraryRight(number, right()) ? "reproduced" : tierOf(number.error, data.tiers);
   const printed = Array.isArray(number.printed) ? JSON.stringify(number.printed) : number.printed;
+  const what = quantity(number, data.quantities);
   return element(
     "li",
     { class: "number" },
     element(
       "div",
       { class: "number__head" },
-      element("span", { class: "number__what", text: quantity(number) || "A printed number" }),
+      element("span", { class: "number__what", text: what ? `${what[0].toUpperCase()}${what.slice(1)}` : "A printed number" }),
       element(
         "span",
         { class: "number__tags" },
         element("span", { class: "number__cause", "data-cause": number.cause, text: CAUSES.differs[number.cause] ?? "" }),
-        element("span", { class: "number__error", "data-tier": tier, text: formatError(number.error) }),
+        element("span", { class: "number__error", text: formatError(number.error) }),
       ),
     ),
     element(
@@ -301,14 +296,15 @@ function caseItem(c) {
       element(
         "span",
         { class: "case__facts" },
-        c.tier === "reproduced" ? chip("reproduced") : element("span", { class: "number__error", "data-tier": c.tier, text: `worst ${formatError(c.worst)}` }),
+        // How far its worst number is off, leaving out those the library is right about (the case's tier).
+        c.tier === "reproduced" ? null : element("span", { class: "number__error", text: `worst ${formatError(c.worst)}` }),
         element("span", { text: facts }),
         element("span", { class: "case__kind", text: kindOf(c) }),
       ),
     ),
     body,
   );
-  // The numbers are drawn when the case opens: a tier can list hundreds of cases.
+  // The numbers are drawn when the case opens: a list can hold hundreds of cases.
   item.addEventListener("toggle", () => {
     if (item.open && !body.childElementCount) {
       body.append(
@@ -331,7 +327,7 @@ function caseItem(c) {
 
 async function copyLink(c) {
   const url = new URL(location.href);
-  url.hash = toHash({ ...DEFAULT_VIEW, open: [c.tier], focus: c.id });
+  url.hash = toHash({ ...DEFAULT_VIEW, open: [caseState(c)], focus: c.id });
   try {
     await navigator.clipboard.writeText(url.href);
     $("#count").textContent = `A link to "${c.title}" is copied.`;
@@ -362,40 +358,40 @@ function sourceGroup({ source, cases }) {
 }
 
 function drawLists(cases) {
-  // The cases of a tier are grouped by source in the order of the table by source: by form, then oldest first.
+  // The cases of a state are grouped by source in the order of the table by source: by form, then oldest first.
   const order = byForm(bySource(data.cases, data.sources), data.forms).groups.flatMap((g) => g.rows.map((row) => row.key));
   $("#lists").replaceChildren(
-    ...TIERS.map((t) => {
-      const n = cases.filter((c) => c.tier === t.key).length;
-      const body = element("div", { class: "tierlist__body" });
+    ...CASE_STATES.map((s) => {
+      const n = cases.filter((c) => caseState(c) === s.key).length;
+      const body = element("div", { class: "statelist__body" });
       const box = element(
         "details",
-        { class: "tierlist", id: `tier-${t.key}`, "data-tier": t.key },
+        { class: "statelist", id: `state-${s.key}`, "data-state": s.key },
         element(
           "summary",
           {},
-          chip(t.key),
-          element("span", { class: "tierlist__name", text: t.label }),
+          stateKey(s.key),
+          element("span", { class: "statelist__name", text: s.label }),
           element("span", { class: "badge", text: plural(n, "case") }),
-          element("span", { class: "tierlist__means hint", text: t.means }),
+          element("span", { class: "statelist__means hint", text: s.means }),
         ),
         body,
       );
       const fill = () => {
         if (body.childElementCount) return;
-        const groups = groupByTier(cases, t.key, order);
-        body.append(...(groups.length ? groups.map(sourceGroup) : [element("p", { class: "hint", text: "No case your filters keep is in this tier." })]));
+        const groups = groupByState(cases, s.key, order);
+        body.append(...(groups.length ? groups.map(sourceGroup) : [element("p", { class: "hint", text: "No case your filters keep is in this list." })]));
       };
-      fillers.set(t.key, fill);
+      fillers.set(s.key, fill);
       box.addEventListener("toggle", () => {
         if (box.open) fill();
         const open = new Set(view.open);
-        if (box.open) open.add(t.key);
-        else open.delete(t.key);
-        view.open = TIERS.map((tier) => tier.key).filter((key) => open.has(key));
+        if (box.open) open.add(s.key);
+        else open.delete(s.key);
+        view.open = CASE_STATES.map((state) => state.key).filter((key) => open.has(key));
         history.replaceState(null, "", toHash(view) || location.pathname);
       });
-      if (view.open.includes(t.key)) {
+      if (view.open.includes(s.key)) {
         box.open = true;
         fill();
       }
@@ -404,13 +400,13 @@ function drawLists(cases) {
   );
 }
 
-/** Open the case the address names, with its tier, and bring it into view. */
+/** Open the case the address names, with its list, and bring it into view. */
 function focusCase() {
   const c = data.cases.find((x) => x.id === view.focus && x.tier);
   if (!c) return;
-  const box = $(`#tier-${c.tier}`);
+  const box = $(`#state-${caseState(c)}`);
   box.open = true;
-  fillers.get(c.tier)();
+  fillers.get(caseState(c))();
   let item = $(`#case-${CSS.escape(c.id)}`);
   for (let i = 0; !item && i < 50; i += 1) {
     const more = [...box.querySelectorAll(".more")].find((button) => !button.hidden && button.closest(".group").querySelector("h3").textContent.startsWith(sourceName(c.source)));
@@ -462,7 +458,7 @@ function missingItem(group) {
 
 /** The list of what the library lacks, for the cases the reader's filters keep, those with a recomputed number or not. */
 function drawMissing() {
-  const groups = missingByReason(filterCases(data.cases, data.sources, view, { all: true }));
+  const groups = missingByReason(filterCases(data.cases, data.sources, view, { all: true, names: data.quantities }));
   const numbers = groups.reduce((n, g) => n + g.numbers, 0);
   $("#missing-count").textContent = groups.length
     ? `${plural(numbers, "printed number")}, for ${plural(groups.length, "reason")}.`
@@ -483,7 +479,7 @@ function draw() {
   $("#clear").hidden = !(view.query || view.source || view.form || view.kind);
   const all = data.cases.filter((c) => c.tier).length;
   $("#count").textContent =
-    cases.length === all ? `${plural(all, "case")}, in four tiers.` : `${plural(cases.length, "case")} of ${count(all)} kept.`;
+    cases.length === all ? `${plural(all, "case")}, in four lists.` : `${plural(cases.length, "case")} of ${count(all)} kept.`;
 }
 
 function setView(next) {
@@ -525,7 +521,7 @@ function wire() {
   // A word of the reasons the catalogue records: the search keeps the cases whose numbers differ for it.
   for (const button of document.querySelectorAll(".try")) {
     button.addEventListener("click", () => {
-      const open = TIERS.slice(1).map((t) => t.key);
+      const open = CASE_STATES.slice(1).map((s) => s.key);
       setView({ ...view, query: button.textContent, open, focus: "" });
     });
   }

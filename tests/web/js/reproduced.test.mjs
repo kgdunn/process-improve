@@ -1,11 +1,12 @@
-// web/reproduced-logic.js: the states a printed number is in and the reasons it is no match, what the
-// reproduction page counts, the tiers a case and a number fall in, which cases a search keeps, and what its
-// address keeps.
+// web/reproduced-logic.js: the states a printed number and a case are in and the reasons a number is no match,
+// what the reproduction page counts, the tiers a number that differs falls in, which cases a search keeps, the
+// plain names of the quantities, and what its address keeps.
 
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import {
+  CASE_STATES,
   CAUSES,
   DEFAULT_VIEW,
   REASONS,
@@ -15,6 +16,7 @@ import {
   byForm,
   bySource,
   byState,
+  caseState,
   cascade,
   examples,
   missingByReason,
@@ -22,10 +24,11 @@ import {
   filterCases,
   formatError,
   fromHash,
-  groupByTier,
+  groupByState,
   kinds,
   percent,
   quantity,
+  quantityName,
   sizes,
   tally,
   tierOf,
@@ -41,6 +44,8 @@ const SOURCES = {
 
 const number = (error, reason = "a misprint", cause = "method") => ({ what: "coefficient", term: "x1", printed: "1", found: "1.1", error, where: "p. 1", reason, cause });
 const RIGHT = ["incorrect_option", "source_error"];
+/** Plain names of quantities, as the JSON's ``quantities`` holds them (from web/quantities.json). */
+const NAMES = { coefficient: "a coefficient", anova_sum_sq: "a sum of squares", f_regression: "an F ratio" };
 const CASES = [
   { id: "a", title: "Isatin yield", source: "lenth", kind: "example", checked: 20, tier: "reproduced", worst: 0, differs: [] },
   { id: "b", title: "Tensile strength", source: "lenth", kind: "example", checked: 50, tier: "not_reproduced", worst: null, differs: [number(null, "an alias chain misprinted"), number(0.03)] },
@@ -81,6 +86,18 @@ describe("the states and the reasons", () => {
     assert.deepEqual(REASONS.map((r) => r.state), ["known", "known", "known", "known", "quiz", "open", "gap"]);
   });
 
+  test("a case is in the state of its number that comes last in the bar's order", () => {
+    const of = (...causes) => caseState({ differs: causes.map((cause) => number(0.1, "a reason", cause)) });
+    assert.equal(of(), "match", "no number differs");
+    assert.equal(of("source_error", "method"), "known");
+    assert.equal(of("source_error", "incorrect_option"), "quiz");
+    assert.equal(of("incorrect_option", "unexplained", "source_rounding"), "open", "a reason not known yet is never hidden");
+    assert.equal(of("a cause the page does not know"), "open");
+    assert.equal(caseState(CASES[5]), "known", "a misprint differs, though the library is right about it");
+    assert.equal(caseState(CASES[4]), "match", "numbers not in the library yet leave a case's state as it is");
+    assert.deepEqual(CASE_STATES.map((s) => [s.key, s.label]), STATES.slice(0, 4).map((s) => [s.key, s.label]), "every state but gap");
+  });
+
   test("every cause of a difference is a reason, by the name the page gives the cause", () => {
     assert.deepEqual(new Set(REASONS.map((r) => r.cause)), new Set([...Object.keys(CAUSES.differs), "library_gap"]));
     assert.equal(REASONS.find((r) => r.cause === "incorrect_option").name, "Multiple choice: wrong on purpose");
@@ -101,10 +118,11 @@ describe("the states and the reasons", () => {
       { ...CASES[0], differs: [number(0.1), { ...number(0.1), printed: ["a", "b"] }, { ...number(0.1), found: "x1, x2" }, { ...number(0.1), printed: "7", found: "8" }] },
       { ...CASES[2], differs: [{ ...number(0.1), what: "other", term: "mode", printed: "3", found: "4" }] },
     ];
-    const found = examples(cases, "method");
+    const found = examples(cases, "method", NAMES);
     assert.deepEqual(found.map((e) => [e.source, e.printed, e.found]), [["lenth", "1", "1.1"], ["davies", "3", "4"], ["lenth", "7", "8"]]);
-    assert.deepEqual(found[0], { source: "lenth", where: "p. 1", what: "coefficient", printed: "1", found: "1.1" });
+    assert.deepEqual(found[0], { source: "lenth", where: "p. 1", what: "a coefficient", printed: "1", found: "1.1" });
     assert.equal(found[1].what, "mode", "a quantity the catalogue has no name for is named by its term");
+    assert.equal(examples(cases, "method")[0].what, "coefficient", "the catalogue's own word, where no name is given");
     assert.deepEqual(examples(CASES, "unexplained"), []);
   });
 
@@ -129,6 +147,14 @@ describe("the words", () => {
     assert.equal(quantity({ what: "lack_of_fit_ss", term: null }), "lack of fit ss");
     assert.equal(quantity({ what: "coefficient", term: "x1" }), "coefficient: x1");
   });
+
+  test("a quantity is named by its plain name, and one the catalogue calls other by its term alone", () => {
+    assert.equal(quantity({ what: "anova_sum_sq", term: "Error" }, NAMES), "a sum of squares: Error");
+    assert.equal(quantity({ what: "f_regression", term: null }, NAMES), "an F ratio");
+    assert.equal(quantity({ what: "other", term: "mode" }, NAMES), "mode");
+    assert.equal(quantity({ what: "other", term: null }, NAMES), "");
+    assert.equal(quantityName("lack_of_fit_ss", NAMES), "lack of fit ss", "no name: the catalogue's own word");
+  });
 });
 
 describe("the search", () => {
@@ -142,6 +168,12 @@ describe("the search", () => {
   test("reads the name of a cause, and what the library cannot compute yet", () => {
     assert.deepEqual(ids(filterCases(CASES, SOURCES, { query: "slip in the book" })), ["f"]);
     assert.deepEqual(ids(filterCases(CASES, SOURCES, { query: "irls" }, { all: true })), ["e", "f"]);
+  });
+
+  test("reads a quantity by its plain name", () => {
+    const cases = [{ ...CASES[2], differs: [{ ...number(0.004), what: "anova_sum_sq", term: "Error" }] }, CASES[3]];
+    assert.deepEqual(ids(filterCases(cases, SOURCES, { query: "squares" }, { names: NAMES })), ["c"]);
+    assert.deepEqual(ids(filterCases(cases, SOURCES, { query: "squares" })), [], "no names: the catalogue's own words");
   });
 
   test("reads the title, the source's name and the reasons, every word of it", () => {
@@ -158,9 +190,9 @@ describe("the search", () => {
 });
 
 describe("the sources and the lists", () => {
-  test("each source counts its cases by tier and its numbers that agree, the oldest first", () => {
+  test("each source counts its cases by state and its numbers that agree, the oldest first", () => {
     const rows = bySource(CASES, SOURCES);
-    assert.deepEqual(rows.map((r) => [r.key, r.form, r.total, r.tiers.reproduced]), [["davies", "book", 3, 1], ["lenth", "paper", 2, 1]]);
+    assert.deepEqual(rows.map((r) => [r.key, r.form, r.total, r.states.match]), [["davies", "book", 3, 0], ["lenth", "paper", 2, 1]]);
     assert.deepEqual([rows[1].numbers, rows[1].agree], [70, 68]);
     assert.deepEqual(bySource(CASES, SOURCES, "name").map((r) => r.key), ["davies", "lenth"]);
   });
@@ -173,7 +205,7 @@ describe("the sources and the lists", () => {
   test("the sources group by the form of their source, each group with its totals, and all of them", () => {
     const { groups, totals } = byForm(bySource(CASES, SOURCES), FORMS);
     assert.deepEqual(groups.map((g) => [g.form, g.label, g.rows.map((r) => r.key)]), [["book", "Books", ["davies"]], ["paper", "Journal papers", ["lenth"]]]);
-    assert.deepEqual(groups[1].totals, { total: 2, tiers: { reproduced: 1, within_1: 0, within_5: 0, not_reproduced: 1 }, numbers: 70, agree: 68 });
+    assert.deepEqual(groups[1].totals, { total: 2, states: { match: 1, known: 1, quiz: 0, open: 0 }, numbers: 70, agree: 68 });
     assert.equal(totals.total, 5);
     assert.equal(totals.numbers, 100);
     assert.equal(totals.agree, 100 - 5);
@@ -183,12 +215,13 @@ describe("the sources and the lists", () => {
     assert.deepEqual(filterCases(CASES, SOURCES, { form: "paper" }).map((c) => c.id), ["a", "b"]);
   });
 
-  test("a tier's list groups its cases by source, the worst first", () => {
+  test("a state's list groups its cases by source, the worst first", () => {
     const more = [...CASES, { ...CASES[2], id: "c2", worst: 0.009 }];
     assert.deepEqual(
-      groupByTier(more, "within_1", ["lenth", "davies"]).map((g) => [g.source, g.cases.map((c) => c.id)]),
-      [["davies", ["c2", "c"]]],
+      groupByState(more, "known", ["lenth", "davies"]).map((g) => [g.source, g.cases.map((c) => c.id)]),
+      [["lenth", ["b"]], ["davies", ["d", "c2", "c", "f"]]],
     );
+    assert.deepEqual(groupByState(more, "match", ["lenth", "davies"]).map((g) => g.cases.map((c) => c.id)), [["a"]], "not e: nothing recomputed");
   });
 });
 
@@ -210,14 +243,14 @@ describe("the causes", () => {
 describe("the address", () => {
   test("keeps the view, leaving out what is at its default", () => {
     assert.equal(toHash(DEFAULT_VIEW), "");
-    const view = { query: "misprint", source: "lenth", form: "paper", kind: "example", open: ["within_1", "not_reproduced"], focus: "b" };
-    assert.equal(toHash(view), "#q=misprint&src=lenth&form=paper&kind=example&open=within_1%2Cnot_reproduced&case=b");
+    const view = { query: "misprint", source: "lenth", form: "paper", kind: "example", open: ["known", "open"], focus: "b" };
+    assert.equal(toHash(view), "#q=misprint&src=lenth&form=paper&kind=example&open=known%2Copen&case=b");
     assert.deepEqual(fromHash(toHash(view), SOURCES, FORMS), view);
   });
 
   test("ignores what it does not know", () => {
-    const read = fromHash("#src=nobody&form=pamphlet&open=within_1,everything&case=<script>", SOURCES, FORMS);
-    assert.deepEqual(read, { ...DEFAULT_VIEW, open: ["within_1"] });
+    const read = fromHash("#src=nobody&form=pamphlet&open=known,within_1,everything&case=<script>", SOURCES, FORMS);
+    assert.deepEqual(read, { ...DEFAULT_VIEW, open: ["known"] }, "a tier an older link names is no list now");
     assert.deepEqual(TIER_KEYS, ["reproduced", "within_1", "within_5", "not_reproduced"]);
   });
 });
