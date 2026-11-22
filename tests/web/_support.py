@@ -44,6 +44,8 @@ APP_SOURCES = (
     "about.html",
     "features.html",
     "features.js",
+    "validation.html",
+    "catalog/checked.json",
     "catalog/index.html",
     "catalog.js",
     "catalog-logic.js",

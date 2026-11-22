@@ -2445,6 +2445,67 @@ dialog.import { width: min(860px, 100vw - 32px); }
 .bench .actions { margin: 10px 0 0; }
 .bench .actions button { min-height: 44px; }
 table.runs input[data-response]:disabled { background: none; border-style: dashed; }
+/* Validation (validation.html): what Factorial is checked against, in one screen. The books and the other software
+   sit side by side and stack on a phone; a count is set in the serif of a headline; the differences found are a
+   panel of three lines; and the grid of design types marks each package with a point. */
+main.validation { max-width: 1040px; }
+.validation__eyebrow, .validation__count, .validation__found strong {
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "DejaVu Serif", serif;
+}
+.validation__eyebrow { margin: 32px 0 0; color: var(--muted); font-style: italic; font-size: 1.05rem; }
+.validation h1 { max-width: 16em; font-size: clamp(2.1rem, 5vw, 3.25rem); line-height: 1.08; text-wrap: balance; }
+.validation .lede { max-width: 38em; font-size: 1.15rem; }
+.validation__pair { display: flex; flex-wrap: wrap; gap: 32px 64px; margin: 40px 0; }
+.validation__pair > div { flex: 1 1 340px; min-width: 0; }
+.validation__pair p { margin: 0 0 10px; }
+.validation h2.feat-step { margin-top: 0; color: var(--muted); }
+p.validation__count { font-size: 1.85rem; line-height: 1.2; }
+.validation__list { margin: 14px 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.validation__list > * { display: flex; gap: 20px; margin: 0; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.validation__list > li { display: block; }
+.validation__list dt { flex: 0 0 64px; color: var(--muted); }
+.validation__list dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+/* A link on a line of its own is a target a finger can press. */
+.validation__pair p > a:only-child, .validation__more > a:not(.button) { display: inline-block; padding: 10px 0; }
+main.validation section { margin: 0 0 40px; padding: 28px 32px; }
+.validation section > h2 { display: block; margin: 0 0 12px; font-size: 1.6rem; line-height: 1.2; letter-spacing: -0.01em;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "DejaVu Serif", serif; }
+.validation__found ul { margin: 0; padding: 0; list-style: none; }
+.validation__found li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 24px; margin: 0; padding: 14px 0;
+  border-top: 1px solid var(--line); }
+.validation__found li:last-child { padding-bottom: 0; }
+.validation__found strong { flex: 0 0 96px; font-size: 1.85rem; font-weight: 400; line-height: 1.1; color: var(--accent); }
+.validation__found span { flex: 1 1 320px; }
+/* A package's mark: a point for the same design, a ring where it differs, so the two are told apart without colour. */
+.validation__mark { display: inline-block; flex: none; box-sizing: border-box; width: 11px; height: 11px; margin-right: 7px;
+  border-radius: 50%; border: 2px solid var(--state); }
+.validation__mark[data-state="match"] { background: var(--state); }
+.validation__grid .states { margin: 12px 0 16px; }
+.validation__grid .states .validation__mark { margin-right: 0; }
+.validation__grid table { width: 100%; border-collapse: collapse; }
+.validation__grid th, .validation__grid td { padding: 12px 16px 12px 0; text-align: left; vertical-align: top;
+  border-bottom: 1px solid var(--line); }
+.validation__grid thead th { padding-top: 0; color: var(--muted); font-size: 0.85rem; font-weight: 600; }
+.validation__grid tbody th { font-weight: 600; }
+.validation__grid td:nth-child(2), .validation__grid td[colspan] { color: var(--muted); }
+.validation__grid td ul { margin: 0; padding: 0; list-style: none; }
+.validation__grid td li { margin: 0 0 2px; white-space: nowrap; }
+.validation__grid table + .hint { margin-top: 16px; }
+.validation__grid .hint { margin: 6px 0 0; }
+.validation__more { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; margin: 0; }
+.validation__more .button { padding: 12px 22px; }
+/* On a phone each design type is a block of its own: its name, then what it was checked against, each under its
+   column's name, so no row is wider than the screen. */
+@media (max-width: 640px) {
+  main.validation section { padding: 20px 16px; }
+  .validation__grid thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .validation__grid tr, .validation__grid tbody th, .validation__grid td { display: block; padding-right: 0; }
+  .validation__grid tr { padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .validation__grid tbody th, .validation__grid td { padding: 2px 0; border: 0; }
+  .validation__grid td[data-head]::before { content: attr(data-head) ": "; color: var(--muted); font-size: 0.85rem; }
+  .validation__grid td li { display: inline-block; margin-right: 12px; white-space: normal; }
+  .validation__grid td ul { display: inline; }
+}
 /* The top line every page beside the app shares (site.js): the way back, and the colour-mode switch at its end. */
 .site-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 /* A page's own closing words, over the footer every page shares. */

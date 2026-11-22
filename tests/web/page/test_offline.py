@@ -129,7 +129,7 @@ def test_the_copy_holds_every_module_the_page_loads_on_demand():
 def test_the_copy_holds_the_small_pages_the_footer_leads_to():
     """The app's page never loads its other pages, so a copy made of what a visit loaded left their links dead offline.
 
-    Only the live tier saw it. The two small ones are named to the copy, each with the files it asks for that the
+    Only the live tier saw it. The three small ones are named to the copy, each with the files it asks for that the
     copy does not hold already: what opens the app is kept first, and the app's styles are loaded by every visit.
     """
 
@@ -137,7 +137,7 @@ def test_the_copy_holds_the_small_pages_the_footer_leads_to():
         return set(re.findall(r'"([\w./-]+)"', re.search(line, source("offline.js")).group()))
 
     kept, opening = named(r"const linked = .*"), named(r"const opening = .*")
-    pages = ("features.html", "technical-details-how-factorial-works.html")
+    pages = ("features.html", "technical-details-how-factorial-works.html", "validation.html")
     asks = re.compile(r'(?:src=|from |fetch\(|read\()"(?:\./)?([\w./-]+)"')
     asked = {file for page in pages for file in asks.findall(source(page))}
     assert {"features.js", "FEATURES.md", "favicon.svg", "runtime.json", "wheels/manifest.json"} <= asked

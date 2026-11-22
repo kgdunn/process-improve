@@ -9,12 +9,20 @@ from __future__ import annotations
 
 import pytest
 
-PAGES = ["technical-details-how-factorial-works.html", "features.html", "catalog/", "catalog/reproduced/", "map/"]
+PAGES = [
+    "technical-details-how-factorial-works.html",
+    "features.html",
+    "validation.html",
+    "catalog/",
+    "catalog/reproduced/",
+    "map/",
+]
 LINKS = [
     "Factorial, the app",
     "What Factorial does",
     "Catalog of experimental designs",
     "Validation & technical accuracy",
+    "Reproduced from the books",
     "Experimental design concept map",
     "See behind the scenes: how Factorial works",
     "process-improve, the Python package",
@@ -36,12 +44,13 @@ def test_each_page_ends_in_the_same_footer_with_the_same_links_in_the_same_order
     links = page.locator(".site-foot a")
     assert links.all_text_contents() == LINKS
     hrefs = links.evaluate_all("(all) => all.map((one) => one.href)")
-    assert hrefs[:6] == [
+    assert hrefs[:7] == [
         f"{site}{path}"
         for path in (
             "",
             "features.html",
             "catalog/",
+            "validation.html",
             "catalog/reproduced/",
             "map/",
             "technical-details-how-factorial-works.html",
@@ -79,13 +88,13 @@ def test_the_mode_chosen_on_one_page_is_the_mode_of_the_next(reproduced_context,
     chosen = page.evaluate("document.documentElement.dataset.theme")
     page.click('.site-foot a:has-text("Validation & technical accuracy")')
     page.wait_for_selector(".site-foot a")
-    assert page.url == f"{site}catalog/reproduced/"
+    assert page.url == f"{site}validation.html"
     assert page.evaluate("document.documentElement.dataset.theme") == chosen
 
 
-def test_the_app_links_to_the_textbooks_answers_in_its_footer(page, site):
-    link = page.locator('footer.foot a[href="catalog/reproduced/"]')
-    assert link.text_content() == "Validation & technical accuracy"
+def test_the_app_links_to_validation_and_to_the_textbooks_answers_in_its_footer(page, site):
+    assert page.locator('footer.foot a[href="validation.html"]').text_content() == "Validation & technical accuracy"
+    assert page.locator('footer.foot a[href="catalog/reproduced/"]').text_content() == "Reproduced from the books"
     footer = page.locator("footer.foot nav a")
     assert footer.all_text_contents() == LINKS, "the same links as every other page's footer, in its order"
 
