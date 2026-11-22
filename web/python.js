@@ -1023,7 +1023,7 @@ function blendOverlayCode(overlay, spec) {
     '    inside = {"maximize": above, "minimize": below}.get(goal["goal"], above & below)',
     "    acceptable &= inside",
     `    figure.add_scatterternary(${on("inside")}, mode="markers", name=goal["response"], marker={"size": 4}, opacity=0.5)`,
-    `figure.add_scatterternary(${on("acceptable")}, mode="markers", name="Every response acceptable", marker={"size": 8, "color": "grey"})`,
+    `figure.add_scatterternary(${on("acceptable")}, mode="markers", name="Every response acceptable", marker={"size": 8, "color": "gray"})`,
     'best = balanced["optimal_coded"]  # the balanced blend, starred as on the page',
     `figure.add_scatterternary(a=[best[${a}]], b=[best[${b}]], c=[best[${c}]], mode="markers", name="Balanced blend",`,
     '                          marker={"symbol": "star", "size": 18, "color": "white", "line": {"color": "#1a1a1a", "width": 1.5}})',
