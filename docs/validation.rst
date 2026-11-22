@@ -112,7 +112,7 @@ Of the 5,556 numbers that are not recomputed, 2,219 have nothing to recompute (a
 count the source states), 1,555 need a function the library does not have yet, 1,073 depend on
 data the source does not print, and 709 are computed but not yet read by a check.
 
-`Reproduced from the books <https://factori.al/catalog/reproduced/>`_ shows these counts as they
+`Reproduced from the books <https://factori.al/catalog/reproduced/>`__ shows these counts as they
 stand today, for the whole catalogue and for each source, with an example of every cause.
 :ref:`design-catalog` describes the records, and
 :func:`~process_improve.experiments.reference_catalogue.reproduce_reference_catalogue` returns
@@ -153,7 +153,145 @@ from those two packages is where they differ, because each difference was traced
 source. The R packages, dexpy, OApackage and definitive-screening-design share no code with
 process-improve.
 
-@@PACKAGE_SECTIONS@@
+.. _validation-frf2:
+
+FrF2 and DoE.base (R)
+~~~~~~~~~~~~~~~~~~~~~
+
+FrF2 2.3-5 built the two-level full and fractional factorials, the Plackett-Burman designs and
+the blocked designs. DoE.base 1.2-5 built the factorials with more than two levels and the
+orthogonal arrays. Ulrike Groemping maintains both.
+
+- **Fractional factorials and Plackett-Burman designs.** No difference: FrF2 gives every number
+  that process-improve gives as printed.
+- **Blocks.** FrF2's default blocking confounds interactions of the same orders as the sources
+  for every blocked full factorial, and the same alias classes for the blocked fractions of Box
+  and Draper (2007), Table 5.14.
+- **Minimum aberration.** For the 30 sizes from 8 to 128 runs that both packages build, the two
+  designs have the same word length pattern. For 69 larger sizes FrF2's catalogue has a design
+  and process-improve's search stops at its limit (A12 in `issue 788 <https://github.com/kgdunn/process-improve/issues/788>`__).
+- **Orthogonal arrays.** DoE.base's arrays have the size and the levels of Taguchi's L8, L9,
+  L12, L16 and L27, but not the layout of the printed tables, so the checks that compare runs
+  differ. Their equivalence was not tested.
+- **Not built.** A Plackett-Burman design of 136 runs (Schmidt and Launsby, 2000) and a
+  factorial of one factor.
+
+Two things were found in FrF2 on the way:
+
+1. Permitting two-factor interactions to be aliased with blocks gives a blocking that confounds
+   one, where the default confounds none. The same holds for 64 runs in 4 blocks.
+
+   .. code-block:: r
+
+      library(FrF2)
+      d1 <- FrF2(32, 5, blocks = 2, randomize = FALSE)
+      d2 <- FrF2(32, 5, blocks = 2, alias.block.2fis = TRUE, randomize = FALSE)
+      design.info(d1)$aliased.with.blocks  # "none": the blocks confound ABCDE
+      design.info(d2)$aliased.with.blocks  # "AE"
+
+2. ``pb()`` stops with an internal error above 100 runs, where its help asks only for a
+   multiple of 4.
+
+   .. code-block:: r
+
+      pb(104)
+      # Error in pb.list[[2]][[which(pb.list[[1]] == nruns)]] :
+      #   attempt to select less than one element in get1index
+
+.. _validation-rsm:
+
+rsm (R)
+~~~~~~~
+
+rsm 2.10.6 built the central composite and Box-Behnken designs. Russell Lenth maintains it.
+
+- **Box-Behnken designs.** No difference.
+- **Central composite designs.** Run counts and axial distances agree: on full and fractional
+  cubes, for a rotatable, a spherical or a given distance, and in blocks.
+- **Centre runs in each block.** rsm takes them block by block (``n0``), and so gives axial
+  distances of NIST 5.3.3.6.4 that process-improve does not, because it takes one total (A11 in
+  `issue 788 <https://github.com/kgdunn/process-improve/issues/788>`__).
+- **A rotatable distance on a small cube.** rsm declines ``alpha = "rotatable"`` when the cube is
+  below resolution V, where no distance makes the design rotatable. Box and Draper (2007) print
+  the fourth root of the cube's run count for such cubes, and process-improve gives that number.
+- **The word "orthogonal".** rsm's ``alpha = "orthogonal"`` is the distance for orthogonal
+  blocking. Davies (1956) uses the word for the distance that makes the quadratic terms
+  orthogonal, which is the one process-improve gives for his designs.
+
+.. _validation-daewr:
+
+daewr (R)
+~~~~~~~~~
+
+daewr 1.2-11 built the definitive screening designs, with ``DefScreen``. John Lawson maintains
+it.
+
+- **4, 6, 8 and 10 factors.** No difference.
+- **5, 7, 9, 11 and 12 factors.** ``DefScreen`` returns the designs of Jones and Nachtsheim
+  (2011) run for run, which process-improve does not. process-improve builds these sizes from a
+  conference matrix (Xiao, Lin and Bai, 2012): 2m + 3 runs for an odd number of factors m, the
+  run count later sources print, and 25 runs for 12 factors. The checks of run counts, and of
+  the measures that follow from them, therefore differ.
+- **Not built.** Designs for 3 factors, and for more than 12.
+
+One thing was found in daewr: for 5, 7, 9, 11 and 12 factors the main effects of its designs are
+correlated, where the conference-matrix designs are orthogonal.
+
+.. code-block:: r
+
+   library(daewr)
+   for (m in 4:12) {
+     d <- as.matrix(DefScreen(m = m, c = 0, center = 0, randomize = FALSE))
+     r <- cor(d); diag(r) <- 0
+     cat(m, "factors:", nrow(d), "runs, largest |r| =", round(max(abs(r)), 3), "\n")
+   }
+   #  5 factors: 11 runs, largest |r| = 0.25
+   #  7 factors: 15 runs, largest |r| = 0.167
+   #  9 factors: 19 runs, largest |r| = 0.125
+   # 11 factors: 23 runs, largest |r| = 0.3
+   # 12 factors: 25 runs, largest |r| = 0.182
+   # 4, 6, 8 and 10 factors: 0
+
+.. _validation-pydoe:
+
+pydoe and pyDOE3 (Python)
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+pyDOE3 1.6.2 is the release process-improve's basic arrays were copied from; it is archived.
+pydoe 1.6.0 continues it, and Saud Zahir maintains it. Each difference below was traced to a
+printed source and reported to pydoe with an example that reproduces it, and a fix is proposed
+for each.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 64 18 18
+
+   * - Difference
+     - Issue
+     - Fix proposed
+   * - ``bbdesign``: from 6 factors on, not the designs Box and Behnken published
+     - `186 <https://github.com/pydoe/pydoe/issues/186>`__
+     - `190 <https://github.com/pydoe/pydoe/pull/190>`__
+   * - ``small_composite_design``: from 5 factors on, the full quadratic model cannot be fitted
+     - `187 <https://github.com/pydoe/pydoe/issues/187>`__
+     - `191 <https://github.com/pydoe/pydoe/pull/191>`__
+   * - ``ccdesign`` and ``star``: the axial distance on a fractional cube uses the run count of
+       the full cube
+     - `188 <https://github.com/pydoe/pydoe/issues/188>`__
+     - `189 <https://github.com/pydoe/pydoe/pull/189>`__
+   * - ``pbdesign``: no design for 28, 36, 44 and other run counts, and a 24-run design that
+       is the 12-run design doubled
+     - `192 <https://github.com/pydoe/pydoe/issues/192>`__
+     - `196 <https://github.com/pydoe/pydoe/pull/196>`__
+   * - Orthogonal arrays: two names that do not describe their arrays, an L64 that is not
+       orthogonal, and no L18 with one two-level column
+     - `193 <https://github.com/pydoe/pydoe/issues/193>`__
+     - `195 <https://github.com/pydoe/pydoe/pull/195>`__
+   * - ``fracfact_by_res``: resolution V returned where the same runs give resolution VI or VII
+     - `194 <https://github.com/pydoe/pydoe/issues/194>`__
+     - `197 <https://github.com/pydoe/pydoe/pull/197>`__
+
+@@OTHER_PYTHON_SECTIONS@@
 
 .. _validation-analysis:
 
@@ -242,7 +380,30 @@ What the comparisons found
    * - Where
      - Finding
      - Record
-@@FINDINGS_ROWS@@
+   * - The sources
+     - 909 printed numbers that a source misprints or works out wrongly, each with the value
+       its own data give.
+     - `Reproduced from the books <https://factori.al/catalog/reproduced/>`__
+   * - pydoe
+     - Six differences from the printed sources, in ``bbdesign``, ``small_composite_design``,
+       ``ccdesign``, ``pbdesign``, the orthogonal arrays and ``fracfact_by_res``.
+     - :ref:`validation-pydoe`
+   * - FrF2
+     - A blocking that confounds a two-factor interaction where the default confounds none,
+       and an internal error of ``pb()`` above 100 runs.
+     - :ref:`validation-frf2`
+   * - daewr
+     - Definitive screening designs with correlated main effects for 5, 7, 9, 11 and 12
+       factors.
+     - :ref:`validation-daewr`
+   * - process-improve
+     - No way to give the centre runs of each block of a central composite design, and a
+       minimum-aberration search that stops where published designs exist.
+     - A11 and A12 in `issue 788 <https://github.com/kgdunn/process-improve/issues/788>`__
+   * - process-improve
+     - 1,555 printed numbers that need a function the library does not have yet, 275 that
+       differ for a cause not known yet, and 1 that differs for a bug or limit of the library.
+     - `The catalogue's tracking issue <https://github.com/kgdunn/process-improve/issues/804>`__
 
 .. _validation-limits:
 
