@@ -72,8 +72,8 @@ class RobustRegressionInput(BaseModel):
             "Bootstrap resamples behind the intervals. By default 999 up to 197 points, then fewer as the "
             "points grow (156 at 500 points), down to 39 from 1,000 points up; fewer resamples give rougher "
             "intervals. Above 1,000 points each resample still costs time in proportion to the square of the "
-            "number of points. More resamples than fit in the tool's time limit are refused: at most 999 up to "
-            "300 points, 89 at 1,000 and 39 at 1,500. The output reports the number drawn."
+            "number of points. More resamples than fit in the tool's time limit are refused: at most 1,000 below "
+            "300 points, 999 at 300, 89 at 1,000 and 39 at 1,500. The output reports the number drawn."
         ),
     )
     random_state: int = Field(0, ge=0, le=2**31 - 1, description="Seed; the same seed reproduces the intervals.")
