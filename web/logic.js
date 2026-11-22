@@ -1519,9 +1519,12 @@ export const CHARTS = {
   main_effects: {
     title: "Average result at each setting",
     more: true,
-    caption:
-      "The average of the runs made at each setting of a factor, whatever the others were at. The model is not used: " +
-      "these are your results.",
+    caption: (_, { averaged = false } = {}) =>
+      "The average of the runs made at each setting of a factor, whatever the others were at: these are your results." +
+      (averaged
+        ? " The bar at each is the model's interval for the mean at that setting, with the other factors averaged over " +
+          "the runs: an average far outside its bar is one the model does not account for."
+        : ""),
   },
   interaction: {
     title: "Interaction of the two factors",
@@ -1578,8 +1581,12 @@ export const CAPTIONS = Object.fromEntries(
 /** The charts under "More charts", in their order. */
 export const MORE_CHARTS = Object.keys(CHARTS).filter((key) => CHARTS[key].more);
 
-/** A chart's height on the page, in pixels. */
-export const chartHeight = (key) => CHARTS[key]?.height ?? 340;
+/** The height of a chart on a row of its own (``wide``) in a room wider than a phone's: its scene as tall as that. */
+const WIDE_HEIGHT = 540;
+
+/** A chart's height on the page, in pixels, in a room ``width`` wide: a wide one is taller where the room is wide. */
+export const chartHeight = (key, width = 0) =>
+  CHARTS[key]?.wide && width > 600 ? WIDE_HEIGHT : (CHARTS[key]?.height ?? 340);
 
 /** The most times each run of a design is made: bootstrap.MAX_REPLICATES. */
 export const MAX_REPLICATES = 10;

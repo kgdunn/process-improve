@@ -26,6 +26,8 @@ import {
   contourDefaults,
   REPORT_WIDTH,
   reportShape,
+  lineNames,
+  NAME_LINES,
   targetName,
   windowName,
   overlayFigure,
@@ -100,6 +102,37 @@ describe("a chart's image in a report (#1242)", () => {
 
   test("a figure in three dimensions is about as wide as it is tall", () => {
     assert.deepEqual(reportShape({ scene: {} }, 420, 64), { width: 484, height: 420 });
+  });
+});
+
+describe("a chart's lines named where they end (#1242)", () => {
+  const line = (name, y, color) => ({ type: "scatter", mode: "lines", name, x: [-1, 0, 1], y, line: { color } });
+  const asked = { meta: NAME_LINES };
+
+  test("each line named just above its right end, in its colour, with a halo in the page's colour", () => {
+    const data = [line("T", [1, 2, 3], "#2563EB"), line("P", [5, 4, 9], "#DC2626")];
+    const notes = lineNames(data, asked, 300, 600, LIGHT);
+    assert.deepEqual(notes.map((n) => [n.text, n.x, n.y, n.font.color]), [["T", 1, 3, "#2563EB"], ["P", 1, 9, "#DC2626"]]);
+    assert.ok(notes.every((n) => n.xanchor === "right" && n.yanchor === "bottom" && !n.showarrow));
+    assert.ok(notes.every((n) => n.font.shadow.split(", ").every((part) => part.endsWith(` 1px ${LIGHT.panel}`))));
+  });
+
+  test("two names that would sit on one another are moved apart by a line of text", () => {
+    const notes = lineNames([line("A", [0, 5], "#000"), line("B", [10, 5.01], "#111")], asked, 100, 600);
+    const at = notes.map((n) => n.y * (100 / 10) + n.yshift);
+    assert.ok(Math.abs(at[1] - at[0]) >= 14);
+  });
+
+  test("only for a figure that asks, with four lines or fewer, in a room wide enough for their names", () => {
+    const four = ["A", "B", "C", "D"].map((name, i) => line(name, [i, i + 1], "#000"));
+    assert.equal(lineNames(four, asked, 300, 365).length, 4, "a card two to a row on a desk");
+    assert.deepEqual(lineNames([...four, line("E", [0, 9], "#000")], asked, 300, 600), [], "five crowd one another");
+    assert.deepEqual(lineNames(four, {}, 300, 600), [], "a figure that does not ask");
+    const long = [line("Temperature = 150", [0, 1], "#000")];
+    assert.deepEqual(lineNames(long, asked, 300, 365), [], "a name that would cover a third of the plot");
+    assert.equal(lineNames(long, asked, 300, 720).length, 1, "in a report's image");
+    const band = { ...line("", [0, 1], "#000"), meta: "interval", showlegend: false };
+    assert.equal(lineNames([band, ...four.slice(0, 2)], asked, 300, 600).length, 2, "a band is no line to name");
   });
 });
 

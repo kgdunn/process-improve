@@ -6191,6 +6191,41 @@ def _interval_bands(figure: dict, fitted: _FittedModel, transform: str | None) -
     )
 
 
+def _average_intervals(figure: dict, fitted: _FittedModel, runs: pd.DataFrame) -> None:
+    """Draw the model's interval for the mean at each setting of the chart of the average result at each setting.
+
+    The average of the results at a setting holds whatever the other factors were at in those runs, so their own
+    spread is too wide an interval for it. The model's is the least-squares mean's (:meth:`_FittedModel.averaged`):
+    a bar at each setting, in the line's colour seen through, on the model's scale as the averages are (#1242).
+    A fit that uses every run has no estimate of the error, and its averages have no bars.
+    """
+    codes = {word: code for code, word in SETTING_WORDS.items()}  # each setting's coded value, from its word
+    bars = []
+    for line in figure["data"]:
+        if line.get("name") not in fitted.names:
+            continue
+        coded = [codes.get(x, x) for x in line["x"]]
+        if not all(isinstance(code, int | float) for code in coded):
+            continue
+        means = [fitted.averaged(line["name"], float(code), runs) for code in coded]
+        if any(half is None for _, half in means):
+            return
+        xs = [part for x in line["x"] for part in (x, x, None)]
+        ys = [part for mean, half in means for part in (mean - half, mean + half, None)]
+        bar = {"type": "scatter", "mode": "lines", "x": xs, "y": ys, "meta": INTERVAL, "hoverinfo": "skip"}
+        bar.update(
+            showlegend=False,
+            legendgroup=line["name"],
+            line={"width": 8, "color": _seen_through(line["line"]["color"], 0.3)},
+        )
+        bars.append(bar)
+        line["legendgroup"] = line["name"]
+    if bars:
+        key = {"type": "scatter", "mode": "lines", "x": [None], "y": [None], "name": interval_words(), "meta": INTERVAL}
+        key.update(line={"width": 8, "color": _seen_through("", 0.4)}, hoverinfo="skip")
+        figure["data"] = [*bars, *figure["data"], key]
+
+
 class _Figures:
     """The figures of one analysis, drawn with the library's plots from its runs (``rows``, in coded units).
 
@@ -6227,6 +6262,8 @@ class _Figures:
         _name_runs(dressed, kind, results, self.order)
         if kind == "perturbation":
             _interval_bands(dressed, self.fitted, scale)
+        if kind == "main_effects":
+            _average_intervals(dressed, self.fitted, pd.DataFrame(self.rows))
         if kind == "contour":
             runs = _runs_on_surface(self.rows, options["factors_to_plot"], self.order)
             for trace in dressed["data"]:
@@ -6640,7 +6677,12 @@ def _dress_prediction_variance(figure: dict, w: dict) -> None:
             trace["colorbar"] = {"title": {"text": "Relative variance"}}
 
 
+#: A figure's layout ``meta`` that asks the page to name its lines where they end, beside the legend: charts.NAME_LINES.
+NAME_LINES = "name-lines"
+
+
 def _dress_perturbation(figure: dict, w: dict) -> None:
+    figure["layout"]["meta"] = NAME_LINES
     for trace in figure["data"]:
         trace["y"] = [_put_back(v, w["transform"]) for v in np.asarray(trace["y"], float).tolist()]
     _titled(figure["layout"], "xaxis", "Each factor's setting", tickvals=[-1, 0, 1], ticktext=["Low", "Center", "High"])
@@ -6649,6 +6691,7 @@ def _dress_perturbation(figure: dict, w: dict) -> None:
 
 def _dress_main_effects(figure: dict, w: dict) -> None:
     layout = figure["layout"]
+    layout["meta"] = NAME_LINES
     for trace in figure["data"]:
         trace["x"] = [SETTING_WORDS.get(float(v), v) for v in trace["x"]]
     for note in layout.get("annotations", []):
@@ -6659,6 +6702,7 @@ def _dress_main_effects(figure: dict, w: dict) -> None:
 
 def _dress_interaction(figure: dict, w: dict) -> None:
     lines, across = w["drawn"]
+    figure["layout"]["meta"] = NAME_LINES
     for trace in figure["data"]:
         trace["x"] = [_setting_words(across, float(v)) for v in trace["x"]]
         trace["name"] = f"{lines['name']} = {_setting_words(lines, float(trace['name'].rsplit('=', 1)[1]))}"
@@ -8532,6 +8576,20 @@ class _FittedModel:
         mean = self.t * math.sqrt(self.mse * leverage)
         single = self.t * math.sqrt(self.mse * (1 + leverage))
         return predicted, [predicted - mean, predicted + mean], [predicted - single, predicted + single], leverage
+
+    def averaged(self, name: str, setting: float, runs: pd.DataFrame) -> tuple[float, float | None]:
+        """Return the mean at one setting of a column with the others averaged over ``runs``, and half its interval.
+
+        It is the least-squares mean: the model's prediction at each run with ``name`` moved to ``setting``,
+        averaged over the runs, so that the other factors, their squares and their products are at the averages
+        the runs give them, which is what the average of the results at that setting has under it (#1242).
+        Without residual degrees of freedom there is no interval, and its half is None.
+        """
+        row = _model_matrix(runs[self.names].assign(**{name: setting}), self.terms, self.names).mean(axis=0)
+        mean = float(row @ self.beta)
+        if self.mse is None or self.t is None:
+            return mean, None
+        return mean, self.t * math.sqrt(self.mse * float(row @ self.inverse @ row))
 
     def along(self, name: str, settings: np.ndarray) -> tuple[np.ndarray, np.ndarray | None]:
         """Return the prediction as one column moves over ``settings``, and half the width of its confidence interval.

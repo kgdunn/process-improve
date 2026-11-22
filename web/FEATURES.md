@@ -611,7 +611,8 @@ Nine charts come with the analysis. Eight more are one press away, under More ch
 - **Each factor's effect on the prediction.** One line for each factor, with a 95% band.
   *More charts.*
   ![](chart-pictures/perturbation.webp)
-- **Average result at each setting.** *More charts.*
+- **Average result at each setting.** With the model's interval for the mean at each setting,
+  the other factors averaged over the runs. *More charts.*
   ![](chart-pictures/main_effects.webp)
 - **Interaction of the two factors.** Whether one factor's effect depends on the other.
   *More charts.*
@@ -646,6 +647,8 @@ Also:
     back. On a touch screen a drag on a card scrolls the page, except on a figure in three
     dimensions, which it turns.
 - **Step through the figures.** Use the window's arrows or the left and right keys.
+- **Lines named where they end.** A chart of four lines or fewer names each line at its end, in
+  its colour, beside the legend, where its card is wide enough.
 - **Save or copy a figure.** Take an image file, or an image on the clipboard to paste, for a
   report or a slide.
   - *Details:* A PNG or an SVG in the shape shown, under its title: on white in the light

@@ -318,6 +318,21 @@ def test_on_a_dark_page_a_surface_is_dark_where_the_response_is_low_and_saved_as
     assert [colour.lower() for colour in saved] == [LIGHT_ENDS[0], "#1d1d1f"]
 
 
+def test_a_chart_of_a_few_lines_names_each_where_it_ends_beside_the_legend(page):
+    """With four lines or fewer, each line's name sits at its end, in its colour, and the legend stays (#1242)."""
+    open_more(page)
+    named = """(plot) => (plot.layout.annotations || []).filter((note) => note.xanchor === 'right' && note.font?.color)
+                 .map((note) => [note.text, note.font.color])"""
+    lines = """(plot) => plot.data.filter((t) => t.name && t.meta === undefined && t.showlegend !== false)
+                 .map((t) => [t.name, t.line.color])"""
+    for chart in ("perturbation", "main_effects"):
+        plot = page.locator(f"figure[data-chart={chart}] .plot")
+        assert sorted(plot.evaluate(named)) == sorted(plot.evaluate(lines)), chart
+        assert plot.evaluate("(plot) => plot._fullLayout.showlegend"), "the legend stays"
+    # "Temperature = 150" would cover a third of a card's plot: the legend alone names the interaction's lines.
+    assert page.locator("figure[data-chart=interaction] .plot").evaluate(named) == []
+
+
 def test_a_figure_saved_on_a_dark_background_is_in_the_dark_theme_s_colours(page, tmp_path):
     """A figure for a dark slide: the window's "Dark background" saves it as the dark page draws it (#1242)."""
     open_more(page)

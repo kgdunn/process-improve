@@ -5561,6 +5561,7 @@ async function drawCharts(request, mine, given = null) {
     limits.chosen = Boolean(plots.contour_chosen);
     // The bands around the lines of each factor's effect, which its caption says how to read: none without error left.
     limits.banded = Boolean(figures.perturbation?.data.some((trace) => trace.meta === "interval"));
+    limits.averaged = Boolean(figures.main_effects?.data.some((trace) => trace.meta === "interval"));
     const captions = plots.held_best ? { ...CAPTIONS, contour: bestContourCaption } : CAPTIONS;
     const captioned = (key) => {
       const caption = typeof captions[key] === "function" ? captions[key](plots.contour_factors, limits) : captions[key];
@@ -5663,7 +5664,7 @@ function moreCharts(keys, figures, captioned, version, python) {
     for (const key of keys) {
       const card = captioned(key);
       grid.append(card.card);
-      await draw(card.plot, figures[key], version, chartHeight(key), { python: python(key) });
+      await draw(card.plot, figures[key], version, chartHeight(key, grid.clientWidth), { python: python(key) });
     }
   };
   box.addEventListener("toggle", () => {

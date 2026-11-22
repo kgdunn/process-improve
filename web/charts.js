@@ -340,6 +340,47 @@ export function pageData(data, colours = LIGHT) {
 /** Whether a figure from Python holds the library's ramp for a surface, which the page keeps a copy of. */
 const isSurfaceRamp = (scale) => JSON.stringify(scale ?? null).toLowerCase() === JSON.stringify(SURFACE).toLowerCase();
 
+/** A figure's layout ``meta`` asking for its lines to be named where they end: bootstrap.NAME_LINES. */
+export const NAME_LINES = "name-lines";
+
+/** The most lines a chart names on the plot: past four, the names crowd one another and the legend does better. */
+const NAMED_LINES = 4;
+
+/** How many times its longest name a plot must be wide to name its lines: narrower, the names would cover it. */
+const NAMES_ROOM = 3;
+
+/** The least distance between two names on the plot, in pixels: a line of their text. */
+const NAME_GAP = 14;
+
+/**
+ * The names of a chart's lines on the plot, beside the legend (#1242): each just above its line's right end, in
+ * the line's colour, with a halo in the page's colour so that it reads over the plot. For a figure that asks for
+ * them (``layout.meta``, NAME_LINES) with four lines or fewer, in a room ``width`` wide enough for them. ``high``
+ * is the plot's height in pixels: two names nearer than a line of text are moved apart.
+ */
+export function lineNames(data, layout, high, width, colours = LIGHT) {
+  if (layout.meta !== NAME_LINES) return [];
+  const lines = data.filter(
+    (t) => t.name && t.meta === undefined && t.showlegend !== false && /lines/.test(t.mode ?? "lines") && t.x?.length,
+  );
+  if (!lines.length || lines.length > NAMED_LINES) return [];
+  const longest = 7 * Math.max(...lines.map((t) => String(t.name).length)); // pixels, near enough at 12 px
+  if (!(width - MARGIN.l - MARGIN.r >= NAMES_ROOM * longest)) return [];
+  const values = data.flatMap((t) => (t.y ?? []).filter(Number.isFinite));
+  const span = Math.max(...values) - Math.min(...values);
+  const pixels = span > 0 ? high / span : 0; // near enough: Plotly pads its range a little
+  const halo = ["1px 1px", "-1px -1px", "1px -1px", "-1px 1px"].map((at) => `${at} 1px ${colours.panel}`).join(", ");
+  const ends = lines.map((t) => ({ t, x: t.x.at(-1), y: t.y.at(-1) })).sort((a, b) => a.y - b.y);
+  let under = -Infinity;
+  return ends.map(({ t, x, y }) => {
+    const at = Math.max(y * pixels, under + NAME_GAP);
+    under = at;
+    const font = { size: 12, color: t.line?.color ?? t.marker?.color, shadow: halo };
+    const yshift = 2 + at - y * pixels;
+    return { x, y, text: t.name, showarrow: false, xanchor: "right", yanchor: "bottom", yshift, font };
+  });
+}
+
 /**
  * A chart as the page draws it in a room ``width`` pixels by ``height``, in ``colours``: its traces and its
  * layout. A chart with Plotly's toolbar is the one in a figure's own window, where the reader gives it its shape.
@@ -349,6 +390,8 @@ function dressed(shown, height, colours, width) {
   const data = pageData(figure.data, colours);
   const room = { width, bar: data.some(hasBar) ? BAR : 0, free: shown.toolbar };
   const layout = pageLayout(figure.layout || {}, height, colours, room);
+  const named = lineNames(data, figure.layout || {}, height - layout.margin.t - layout.margin.b, width, colours);
+  if (named.length) layout.annotations = [...(layout.annotations ?? []), ...named];
   shown.shapes = layout.shapes ?? []; // the figure's own, which the ring of a marked run is drawn after
   return { data, layout: { ...layout, shapes: [...shown.shapes, ...runRings(data, marked, colours.warn)] } };
 }
