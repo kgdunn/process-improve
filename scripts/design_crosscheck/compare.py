@@ -15,9 +15,11 @@ this file for the environment each library needs.
 """
 
 import contextlib
+import functools
 import importlib
 import itertools
 import json
+import operator
 import os
 import random
 import re
@@ -413,15 +415,39 @@ def _signed_generators(names: list[str], generators: list[str]) -> tuple[list[li
     return positions, signs, order, len(base)
 
 
-def _block_words(m: np.ndarray, labels: np.ndarray, names: list[str]) -> list[str]:
-    """Return the factor products that are constant within every block: the effects confounded with blocks."""
-    words = []
-    for size in range(1, len(names) + 1):
-        for cols in itertools.combinations(range(len(names)), size):
+def _block_words(m: np.ndarray, labels: np.ndarray, names: list[str], asked: list[str] | None) -> list[str]:
+    """Return the effects confounded with blocks: the factor products that are constant within every block.
+
+    In a fraction a block effect is an alias class, so one word stands for each class, as a source prints
+    it: the word the request asked for when the class holds one (a product of the block generators), and
+    the shortest word otherwise. A word that is constant over the whole design is in the defining relation,
+    not a block effect.
+    """
+    k = len(names)
+    constant = {}  # word, as a bit mask -> whether it is constant over the whole design
+    for size in range(1, k + 1):
+        for cols in itertools.combinations(range(k), size):
             prod = np.prod(m[:, list(cols)], axis=1)
             if all(np.ptp(prod[labels == b]) == 0 for b in np.unique(labels)):
-                words.append("".join(names[c] for c in cols))
-    return words
+                constant[sum(1 << c for c in cols)] = np.ptp(prod) == 0
+    defining = [0] + [word for word, whole in constant.items() if whole]
+    masks = [sum(1 << names.index(c) for c in word) for word in asked or []]
+    wanted = {
+        functools.reduce(operator.xor, group)
+        for r in range(1, len(masks) + 1)
+        for group in itertools.combinations(masks, r)
+    }
+    seen, chosen = set(), []
+    for word, whole in constant.items():
+        if whole or word in seen:
+            continue
+        alias_class = {word ^ d for d in defining}
+        seen |= alias_class
+        chosen.append(min(alias_class, key=lambda w: (w not in wanted, w.bit_count(), w)))
+    return [
+        "".join(names[c] for c in range(k) if word >> c & 1)
+        for word in sorted(chosen, key=lambda w: (w.bit_count(), w))
+    ]
 
 
 def _r_ccd(k: int, opts: dict, names: list[str], nc: int) -> tuple[np.ndarray, float, np.ndarray | None]:
@@ -535,7 +561,8 @@ def r_generate_design(factors, design_type=None, **opts):  # noqa: C901, PLR0912
     if blocks is not None:
         result.blocks = blocks.tolist()
         two_level = design_type != "ccd"
-        result.metadata["blocking"] = {"confounded_with": _block_words(m, blocks, names) if two_level else []}
+        words = _block_words(m, blocks, names, opts.get("block_generators")) if two_level else []
+        result.metadata["blocking"] = {"confounded_with": words}
     return result
 
 
