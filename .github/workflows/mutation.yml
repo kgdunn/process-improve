@@ -110,13 +110,19 @@ jobs:
       - name: Mutate the modules in [tool.mutmut] and rerun their tests
         env:
           PATTERNS: ${{ matrix.shard.patterns }}
+          # One BLAS thread in each of the four test runs on four cores, so a mutant's run takes the
+          # time mutmut measured for its tests, and the timeout of 3 times that holds.
+          OPENBLAS_NUM_THREADS: 1
+          OMP_NUM_THREADS: 1
+          MKL_NUM_THREADS: 1
         run: |
           set -f
           # shellcheck disable=SC2086 # one argument per pattern
           uv run --with mutmut==3.8.1 mutmut run --max-children 4 $PATTERNS
-      # A mutant whose tests overrun mutmut's CPU limit (about 30 times their usual time) made the
-      # code loop or slow down, which the tests noticed: mutmut's own score counts it as killed, and
-      # so does this gate. Whether one times out depends on the runner's speed, not on the tests.
+      # A mutant whose tests overrun 3 times their usual time (`timeout_multiplier` in pyproject.toml)
+      # made the code loop or slow down, which the tests noticed: mutmut's own score counts it as
+      # killed, and so does this gate. Whether one times out depends on the runner's speed, not on
+      # the tests.
       - name: Fail on any mutant the tests do not catch
         run: |
           uv run --with mutmut==3.8.1 mutmut export-cicd-stats
