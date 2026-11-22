@@ -14,6 +14,7 @@ import itertools
 import json
 import math
 import re
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -33,6 +34,8 @@ from process_improve.multivariate import FPCA
 
 CHECKS = list(reference_catalogue._each_check())
 FITS = reference_catalogue._Fits()
+#: The plain name the reproduction pages of factori.al give each quantity they show a number of.
+QUANTITIES = Path(__file__).resolve().parents[1] / "web" / "quantities.json"
 SEARCHED = {"omars_ilp"}  # designs built by search take seconds each: check what they would show more cheaply
 
 
@@ -82,6 +85,22 @@ def test_a_difference_is_an_incorrect_option_exactly_where_the_answer_key_marks_
         if check.get("disagreement"):
             keyed = (expected.get("where") or {}).get("answer_key") == "incorrect"
             assert (check["cause"] == "incorrect_option") == keyed, f"{entry['name']}: {expected['what']}"
+
+
+def test_every_number_a_reproduction_page_shows_has_a_plain_name_for_what_it_is():
+    """A number that differs, or one the library has no function for yet, is shown on factori.al by its quantity.
+
+    The pages name it by ``web/quantities.json`` ("a sum of squares", not ``anova_sum_sq``), except a quantity the
+    catalogue calls "other", which its term names.
+    """
+    names = json.loads(QUANTITIES.read_text(encoding="utf-8"))
+    shown = {
+        expected["what"]
+        for *_, expected, check in CHECKS
+        if (check.get("disagreement") if "kind" in check else check.get("cause") == "library_gap")
+    }
+    unnamed = sorted(shown - set(names) - {"other"}, key=str)
+    assert not unnamed, f"give each a plain name in web/quantities.json: {unnamed}"
 
 
 def test_the_report_has_a_row_for_every_check():

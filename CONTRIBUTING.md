@@ -604,11 +604,14 @@ page: the library's value is the right one. So when two causes fit, choose
 the one that does not clear the library (`unexplained` or `method` before
 `source_error`).
 
-A number that agrees has no `cause`. `tests/test_reference_catalogue.py` fails
-on a case that breaks these rules. Run it before you push:
+A number that agrees has no `cause`. The pages of factori.al show each number that
+differs, and each `library_gap`, by what it is in plain words: `web/quantities.json`
+names each `what` ("a sum of squares" for `anova_sum_sq`). A `what` new to those
+numbers needs a name there. `tests/test_reference_catalogue.py` fails on a case
+that breaks these rules. Run it before you push:
 
 ```bash
-uv run pytest tests/test_reference_catalogue.py --no-cov -k "cause or incorrect_option"
+uv run pytest tests/test_reference_catalogue.py --no-cov -k "cause or incorrect_option or plain_name"
 ```
 
 **A response measured as a curve** (a time course, a profile or a spectrum per run) is one
@@ -703,12 +706,14 @@ number is.
    `changelog.d/` under its heading in `## [Unreleased]` and deletes it.
 2. Read the headings under `[Unreleased]` and pick the level from the
    table above.
-3. In one commit, with the result of step 1: set `pyproject.toml` `version`,
+3. If the app at https://factori.al/ looks different since the last release, make the README's
+   `docs/_static/readme/app-demo.gif` again, as `tools/branding/README.md` says, and commit it.
+4. In one commit, with the result of step 1: set `pyproject.toml` `version`,
    set `CITATION.cff` `version` to the identical value and `date-released`
    to today, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, open a
    fresh empty `## [Unreleased]` above it, and add the compare link to the
    footer.
-4. Once that commit is on main, tag it and push the tag with `tools/tag_release.sh X.Y.Z`. The
+5. Once that commit is on main, tag it and push the tag with `tools/tag_release.sh X.Y.Z`. The
    script finds the commit of main that first carried the version, checks `pyproject.toml`,
    `CITATION.cff` and `CHANGELOG.md` on it, checks that the tag is new, then tags that commit and
    pushes the tag. Each check prints its result, and the script stops at the first that fails.

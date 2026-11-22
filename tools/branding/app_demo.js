@@ -2,8 +2,9 @@
 //
 //   node tools/branding/app_demo.js OUT_DIR
 //
-// Writes demo-1-plan.png, demo-2-compare.png, demo-3-run.png and demo-4-learn.png to OUT_DIR. It runs the
-// live app at https://factori.al/, or the one APP_URL names (a local build, before a change is deployed).
+// Writes demo-1-plan.png, demo-2-compare.png, demo-3-run.png, demo-4-learn.png and demo-5-next.png to OUT_DIR, in
+// the light theme whatever the machine's. It runs the live app at https://factori.al/, or the one APP_URL names (a
+// local build, before a change is deployed).
 // Needs Playwright. PLAYWRIGHT_PROXY, if set, routes the browser through that proxy; the local server is
 // reached directly.
 const path = require("path");
@@ -30,7 +31,11 @@ async function capture(page, phase, name) {
 (async () => {
   const browser = await chromium.launch({ args });
   // Wide enough for the brief's column beside the phase on show.
-  const page = await browser.newPage({ viewport: { width: 1180, height: 860 }, deviceScaleFactor: 2 });
+  const page = await browser.newPage({
+    viewport: { width: 1180, height: 860 },
+    deviceScaleFactor: 2,
+    colorScheme: "light", // the README shows the light theme, on GitHub's light and dark pages alike
+  });
   await page.goto(`${APP}?example=worked`, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => !document.querySelector("#generate").disabled, null, { timeout: 400000 });
 
@@ -56,9 +61,10 @@ async function capture(page, phase, name) {
   await page.click("#compare-close");
 
   await page.click("#go-run");
-  await page.click("#truth summary");
+  await page.click("#truth-toggle"); // the true process, beside the simulated results
   await capture(page, "run", "demo-3-run.png");
   await capture(page, "learn", "demo-4-learn.png");
+  await capture(page, "next", "demo-5-next.png");
   await browser.close();
 })().catch((e) => {
   console.error(e);

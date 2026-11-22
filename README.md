@@ -32,7 +32,7 @@ pip install process-improve
 
 ## Try it without installing anything
 
-<a href="https://factori.al/"><img width="600" alt="The designed-experiments app in a browser tab: the yield of a reactor and the factors that may change it, the designs that can learn its curvature compared on nine measures, a Box-Behnken run sheet with results simulated from a known process, and the fitted coefficients beside the true ones" src="https://raw.githubusercontent.com/kgdunn/process-improve/main/docs/_static/readme/app-demo.gif"></a>
+<a href="https://factori.al/"><img width="600" alt="The designed-experiments app in a browser tab: the yield of a reactor and the factors that may change it, the designs that can learn its curvature compared on nine measures, a Box-Behnken run sheet with results simulated from a known process, the fitted coefficients beside the true ones, and what the results call for next" src="https://raw.githubusercontent.com/kgdunn/process-improve/main/docs/_static/readme/app-demo.gif"></a>
 
 [Factorial](https://factori.al/), the designed-experiments app, runs
 this package inside your browser tab (Pyodide / WebAssembly). Say what you will measure, with

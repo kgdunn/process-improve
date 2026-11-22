@@ -1,9 +1,10 @@
 """A page per book: how closely Factorial gives a source's answers, written by the build from the reproduction.
 
 ``write_books`` writes ``catalog/books/<source>/index.html`` for each source with a case, and the list of them. Each
-page says in words how closely Factorial gives the source's answers, lists its examples in page order with how each
-one fares, the numbers the source misprints with what it prints beside what its own data give, and what Factorial
-cannot compute yet. Each example opens on the reproduction page, which shows its numbers.
+page says in words how closely Factorial gives the source's answers, draws its printed numbers as a bar by state, lists
+its examples in page order with the state of each, the numbers the source misprints with what it prints beside what its
+own data give, and what Factorial cannot compute yet. The states, their words and their colours are those of the
+reproduction page, which each example opens on.
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.web._support import WEB
+from tests.web._support import WEB, javascript, source
 
 
 def case(name: str, tier: str | None, *, source: str = "montgomery-2013", differs=(), missing=(), **change) -> dict:
@@ -28,7 +29,7 @@ def case(name: str, tier: str | None, *, source: str = "montgomery-2013", differ
         "tier": tier,
         "worst": 0,
         "differs": list(differs),
-        "unchecked": {},
+        "unchecked": {"library_gap": len(missing)} if missing else {},
         "missing": list(missing),
         **change,
     }
@@ -98,22 +99,66 @@ def written(build_script, tmp_path_factory) -> Path:
 
 
 @pytest.mark.parametrize(
-    ("name", "says"),
+    ("name", "state"),
+    [("etching", "known"), ("golf", "match"), ("cement", "known"), ("watershed", "open"), ("power", "match")],
+)
+def test_an_example_is_in_the_state_of_its_numbers_as_on_the_reproduction_page(build_script, name, state):
+    """A misprint differs, though the library is right about it; numbers not in Factorial yet leave the state be."""
+    assert build_script.example_state(next(c for c in MONTGOMERY if c["id"] == name)) == state
+
+
+@pytest.mark.parametrize(
+    ("causes", "state"),
     [
-        ("etching", ("Misprint found", "misprint")),
-        ("golf", ("Matches", "reproduced")),
-        ("cement", ("Close", "within_5")),
-        ("watershed", ("Not yet explained", "unexplained")),
+        (["source_error", "method"], "known"),
+        (["source_error", "incorrect_option"], "quiz"),
+        (["incorrect_option", "unexplained", "source_rounding"], "open"),
+        (["a cause the page does not know"], "open"),
     ],
 )
-def test_an_example_is_named_by_how_closely_factorial_gives_its_answers(build_script, name, says):
-    """A difference with no known reason comes first; a misprint is named where Factorial gives every answer."""
-    assert build_script.example_status(next(c for c in MONTGOMERY if c["id"] == name)) == says
+def test_an_example_takes_the_state_of_its_number_last_in_the_bar_s_order(build_script, causes, state):
+    """A reason not known yet is never hidden behind a known one."""
+    held = case("x", "within_1", differs=[differs(cause) for cause in causes])
+    assert build_script.example_state(held) == state
 
 
-def test_a_misprint_does_not_hide_how_far_an_example_differs(build_script):
-    held = case("x", "within_1", differs=[differs("source_error"), differs("method")])
-    assert build_script.example_status(held) == ("Very close", "within_1")
+def test_a_source_s_numbers_are_counted_by_state_as_the_reproduction_page_counts_them(build_script):
+    checked = sum(c["checked"] for c in MONTGOMERY)
+    assert build_script.number_states(MONTGOMERY) == {"match": checked - 3, "known": 2, "open": 1, "gap": 3}
+
+
+def test_the_states_are_the_reproduction_page_s_in_its_words_and_order(build_script, node):
+    """A book's page names each state as the reproduction page does, and puts each cause under the same state."""
+    states, reasons = javascript(node, source("reproduced-logic.js"), [("STATES", []), ("REASONS", [])])
+    assert [(s["key"], s["label"]) for s in states] == list(build_script.STATES.items())
+    assert {r["cause"]: r["state"] for r in reasons if r["cause"] != "library_gap"} == build_script.CAUSE_STATE
+
+
+def test_a_book_s_page_and_the_reproduction_page_count_and_name_alike(build_script, node):
+    """Both pages read a case alike, in web/reproduced-logic.js and in the build.
+
+    Each example is in the state ``caseState`` gives it, a source's numbers are counted as ``byState`` counts them,
+    and each quantity is named as ``quantity`` names it, from the same table of names.
+    """
+    mixed = case("mixed", "within_1", differs=[differs("source_error"), differs("incorrect_option")])
+    cases = [*MONTGOMERY, mixed]
+    module = source("reproduced-logic.js")
+    *states, tallied = javascript(node, module, [*(("caseState", [c]) for c in cases), ("tally", [cases])])
+    assert states == [build_script.example_state(c) for c in cases]
+    (counted,) = javascript(node, module, [("byState", [tallied])])
+    assert {k: n for k, n in counted.items() if n} == build_script.number_states(cases)
+
+    names = build_script.quantity_names()
+    numbers = [
+        *(n for c in cases for n in [*c["differs"], *c["missing"]]),
+        {"what": "anova_sum_sq", "term": "Error"},
+        {"what": "f_regression", "term": None},
+        {"what": "other", "term": "mode"},
+        {"what": "a_word_with_no_name", "term": "A"},
+    ]
+    named = javascript(node, module, [("quantity", [n, names]) for n in numbers])
+    assert [build_script._sentence_case(n) for n in named] == [build_script._quantity(n) for n in numbers]
+    assert named[-4:] == ["a sum of squares: Error", "an F ratio", "mode", "a word with no name: A"]
 
 
 @pytest.mark.parametrize(
@@ -190,15 +235,34 @@ def test_a_book_s_page_lists_its_examples_in_page_order_each_opening_its_numbers
     assert "Problem 2 8" not in page.split('id="not-yet"')[0], "an example with no number checked is not listed"
     assert 'href="../../../catalog/reproduced/#src=montgomery-2013&amp;case=etching"' in page
     assert "Example · pp. 66-129" in page
-    assert '<span class="book-status" data-tier="misprint">Misprint found</span>' in page
-    assert 'href="../../../catalog/reproduced/#src=montgomery-2013">Show the numbers</a>' in page
+    key = '<span class="statekey" data-state="{}" aria-hidden="true"></span>'
+    assert f'<span class="book-status">{key.format("known")}Differs, and we know why</span>' in page
+    assert f'<span class="book-status">{key.format("open")}Differs, reason not known yet</span>' in page
+    assert f'<span class="book-status">{key.format("match")}Matches the book</span>' in page
+    assert """href="../../../catalog/reproduced/#src=montgomery-2013">Search the book's cases</a>""" in page
+
+
+def test_a_book_s_bar_and_legend_are_its_numbers_in_the_reproduction_page_s_states(build_script, written):
+    """The bar of a source's row there, in its words and colours: what the book prints, from a match to a gap."""
+    page = (written / "books" / "montgomery-2013" / "index.html").read_text(encoding="utf-8")
+    bar = page.split('<div class="statebar" aria-hidden="true">')[1].split("</div>")[0]
+    parts = [("match", "17"), ("known", "2"), ("open", "1"), ("gap", "3")]
+    assert re.findall(r'data-state="(\w+)" style="flex-grow: (\d+)"', bar) == parts
+    legend = page.split('<ul class="states">')[1].split("</ul>")[0]
+    assert re.findall(r"</span>([^<]+)</li>", legend) == [build_script.STATES[state] for state, _ in parts]
+    for old in ("data-tier", "tierbar", "Very close", "Misprint found", "Not yet explained", "Show the numbers"):
+        assert old not in page, f"a book's page speaks in the reproduction page's states, not in tiers: {old}"
+    listed = (written / "books" / "index.html").read_text(encoding="utf-8")
+    legend = listed.split('<ul class="states">')[1].split("</ul>")[0]
+    assert re.findall(r"</span>([^<]+)</li>", legend) == list(build_script.STATES.values()), "every state"
+    assert listed.count('<div class="statebar" aria-hidden="true">') == 2, "a bar for each source"
 
 
 def test_a_book_s_misprints_set_what_it_prints_beside_what_its_data_give(written):
     page = (written / "books" / "montgomery-2013" / "index.html").read_text(encoding="utf-8")
     misprints = page.split('id="misprints"')[1].split("</section>")[0]
     assert misprints.count('class="misprint"') == 1, "only the misprints, not the other differences"
-    assert "Std error: treatment mean" in misprints
+    assert "A standard error: treatment mean" in misprints, "the quantity by its plain name"
     assert "<span>Book <strong>8.13</strong></span><span>Data <strong>8.17</strong></span>" in misprints
     assert html.escape("A misprint: MSE is 333.70") in misprints
 
