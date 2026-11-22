@@ -118,10 +118,10 @@ const EYE = { x: 1.65, y: 1.65, z: 1.1 };
 const SCENE_SHAPE = 0.9;
 
 /**
- * A contour's lines and their numbers, where a figure states none: the lines in the page's own colour, the numbers
- * in its ink with a halo in the page's colour. A ramp runs from as light as the page to as dark as its ink, so a
- * black line is lost on its darkest bands, and a line in the page's colour only on the band that fades into the
- * page (#1242); no one colour of number reads on every band, but with a halo one does. These are defaults of the
+ * A contour's lines and their numbers, where a figure states none: the lines in the page's own color, the numbers
+ * in its ink with a halo in the page's color. A ramp runs from as light as the page to as dark as its ink, so a
+ * black line is lost on its darkest bands, and a line in the page's color only on the band that fades into the
+ * page (#1242); no one color of number reads on every band, but with a halo one does. These are defaults of the
  * figure, not settings of each trace: Plotly keeps the levels it chose in a trace's own ``contours``, and a copy
  * of that with a font added would be drawn again without them.
  */
@@ -137,9 +137,9 @@ const MARGIN = { l: 56, r: 16, t: 12, b: 52 };
 export const REPORT_WIDTH = 720;
 
 /**
- * The size of a figure's image in a report, from its ``layout``, its ``height`` on the page and the room its colour
+ * The size of a figure's image in a report, from its ``layout``, its ``height`` on the page and the room its color
  * bar takes (``bar``): as wide as the report for a figure that fills its room. A surface with equal axes keeps its
- * plot square, so at that width it is drawn small in the middle with its colour bar far to its right: its image is
+ * plot square, so at that width it is drawn small in the middle with its color bar far to its right: its image is
  * as wide as the square and the bar. A figure in three dimensions is about as wide as it is tall (#1242).
  */
 export function reportShape(layout, height, bar = 0) {
@@ -354,7 +354,7 @@ const NAME_GAP = 14;
 
 /**
  * The names of a chart's lines on the plot, beside the legend (#1242): each just above its line's right end, in
- * the line's colour, with a halo in the page's colour so that it reads over the plot. For a figure that asks for
+ * the line's color, with a halo in the page's color so that it reads over the plot. For a figure that asks for
  * them (``layout.meta``, NAME_LINES) with four lines or fewer, in a room ``width`` wide enough for them. ``high``
  * is the plot's height in pixels: two names nearer than a line of text are moved apart.
  */
@@ -577,7 +577,7 @@ export const LIGHT = {
   error: "#b3261e",
 };
 
-/** The dark theme's colours, as style.css gives them: a figure saved for a dark slide or page (#1242). */
+/** The dark theme's colors, as style.css gives them: a figure saved for a dark slide or page (#1242). */
 export const DARK = {
   fg: "#e8e8e6",
   muted: "#a0a4a8",

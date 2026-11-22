@@ -607,14 +607,15 @@ class ContourPlot(BasePlot):
             x=Encoding(field="x"),
             y=Encoding(field="y"),
             name="Experimental runs",
-            color="#111827",
-            opacity=0.55,
+            # A white face and a dark edge, which read on every color of the surface's ramp (#1242).
+            color="#ffffff",
+            opacity=1.0,
             style={
-                "size": 9,
+                "size": 8,
                 "symbol": "circle",
                 "hover_field": "hover",
-                "edge_color": "#111111",
-                "edge_width": 1,
+                "edge_color": "#1a1a1a",
+                "edge_width": 1.5,
             },
         )
 

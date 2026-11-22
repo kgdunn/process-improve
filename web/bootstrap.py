@@ -6196,7 +6196,7 @@ def _average_intervals(figure: dict, fitted: _FittedModel, runs: pd.DataFrame) -
 
     The average of the results at a setting holds whatever the other factors were at in those runs, so their own
     spread is too wide an interval for it. The model's is the least-squares mean's (:meth:`_FittedModel.averaged`):
-    a bar at each setting, in the line's colour seen through, on the model's scale as the averages are (#1242).
+    a bar at each setting, in the line's color seen through, on the model's scale as the averages are (#1242).
     A fit that uses every run has no estimate of the error, and its averages have no bars.
     """
     codes = {word: code for code, word in SETTING_WORDS.items()}  # each setting's coded value, from its word
@@ -6604,8 +6604,6 @@ def _dressed(figure: dict, kind: str, spec: dict, pair: list[str], transform: st
                 if transform is not None:
                     z = np.asarray(trace["z"], dtype=float).tolist()
                     trace["z"] = [[_put_back(v, transform) for v in row] for row in z]
-            elif trace.get("mode") == "markers":  # the runs: on every colour of the surface, on a light or a dark page
-                trace.update(marker=RUN_MARKER, opacity=1.0)
         layout.update(LEGEND_ABOVE)
     elif kind == "residuals_vs_fitted":
         title("xaxis", _with_units(f"Fitted {scaled}", scale_units))
@@ -6630,9 +6628,6 @@ STATED_OPTIONS = ("factors_to_plot", "hold_values")
 
 #: A legend above the plot, where it meets neither the axis title under the plot nor, in a narrow card, the plot.
 LEGEND_ABOVE = {"legend": {"y": 1.02, "yanchor": "bottom"}, "margin": {"t": 40}}
-
-#: A run on a response surface: a white face and a dark edge, which read on every colour of the surface.
-RUN_MARKER = {"color": "#ffffff", "size": 8, "symbol": "circle", "line": {"color": "#1a1a1a", "width": 1.5}}
 
 #: The pattern of each line of a chart that draws one line for each factor or setting, in the lines' order.
 LINE_DASHES = ("solid", "dash", "dot", "dashdot", "longdash", "longdashdot")

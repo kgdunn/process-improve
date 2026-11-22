@@ -1225,7 +1225,7 @@ table.runs input.setting { width: 5.5em; }
 .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin: 16px 0 0; }
 .chart { margin: 0; min-width: 0; border: 1px solid var(--line); border-radius: var(--corner); padding: 10px 12px 12px; }
 .chart.wide { grid-column: 1 / -1; }
-/* A figure in three dimensions on a row of its own: its scene as tall as the card, with its colour bar beside it. */
+/* A figure in three dimensions on a row of its own: its scene as tall as the card, with its color bar beside it. */
 .chart[data-chart="surface_3d"] .plot, .chart[data-chart="cube"] .plot { max-width: 680px; margin-inline: auto; }
 .chart h3 { margin: 0 0 6px; font-size: 0.98rem; }
 /* A card's title, with the views it can show at the right: the coefficients' estimates, or the book's Pareto plot. */

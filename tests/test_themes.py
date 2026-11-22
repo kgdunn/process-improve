@@ -15,6 +15,7 @@ from process_improve.multivariate.methods import PCA, MCUVScaler
 from process_improve.multivariate.plots import score_plot, spe_plot
 from process_improve.visualization.themes import (
     DEFAULT_THEME,
+    THEME_JOURNAL,
     THEME_NAMES,
     register_themes,
     set_theme,
@@ -165,3 +166,26 @@ def test_plot_template_is_overridable(fitted_pca: PCA) -> None:
     """The `template` setting overrides the default per call."""
     fig = spe_plot(fitted_pca, settings={"template": "pi_economist"})
     assert fig.layout.template.layout.plot_bgcolor == "#D9E9F1"
+
+
+def test_a_theme_draws_slim_color_bars_and_contour_numbers_with_a_halo() -> None:
+    """A color bar is thin with its title along its side; a contour's numbers have a halo in the paper's color.
+
+    A wide bar with its title on top takes the plot's room, and dark numbers are lost on a ramp's darkest bands
+    (#1242).
+    """
+    register_themes()
+    for name in THEME_NAMES:
+        template = pio.templates[name]
+        for kind in ("contour", "heatmap", "surface"):
+            bar = getattr(template.data, kind)[0].colorbar
+            assert (bar.thickness, bar.outlinewidth, bar.title.side) == (12, 0, "right"), (name, kind)
+        font = template.data.contour[0].contours.labelfont
+        assert font.color == template.layout.font.color, name
+        assert font.shadow.count(f"1px {template.layout.paper_bgcolor}") == 4, name
+
+
+def test_the_journal_theme_draws_no_box_around_the_legend() -> None:
+    """The default theme's legend has no border: a black box drew more ink than the plot it names (#1242)."""
+    register_themes()
+    assert pio.templates[THEME_JOURNAL].layout.legend.borderwidth == 0

@@ -648,11 +648,11 @@ Also:
     dimensions, which it turns.
 - **Step through the figures.** Use the window's arrows or the left and right keys.
 - **Lines named where they end.** A chart of four lines or fewer names each line at its end, in
-  its colour, beside the legend, where its card is wide enough.
+  its color, beside the legend, where its card is wide enough.
 - **Save or copy a figure.** Take an image file, or an image on the clipboard to paste, for a
   report or a slide.
   - *Details:* A PNG or an SVG in the shape shown, under its title: on white in the light
-    theme's colours, whatever the page shows, or on the dark theme's background when "Dark
+    theme's colors, whatever the page shows, or on the dark theme's background when "Dark
     background" is ticked, for a dark slide.
 - **The Python that draws it.** Each of the 17 charts shows code that runs as it is, and so
   do the other figures.
@@ -708,7 +708,7 @@ Also:
     SHA-256) and a link that opens the same study. It ends with "Terms used": each word the
     report used that the page defines, with its meaning, since paper has no word to press.
     The software versions are at its foot. A chart's image takes a shape that suits it: a
-    surface with equal axes as wide as its square plot and its colour bar, a figure in three
+    surface with equal axes as wide as its square plot and its color bar, a figure in three
     dimensions about as wide as it is tall, the others 720 pixels wide.
 - **A link to a study.** It carries the results or leaves them out. Whoever opens it has the
   same study, and the study in the link reaches no server.

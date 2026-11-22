@@ -319,7 +319,7 @@ def test_on_a_dark_page_a_surface_is_dark_where_the_response_is_low_and_saved_as
 
 
 def test_a_chart_of_a_few_lines_names_each_where_it_ends_beside_the_legend(page):
-    """With four lines or fewer, each line's name sits at its end, in its colour, and the legend stays (#1242)."""
+    """With four lines or fewer, each line's name sits at its end, in its color, and the legend stays (#1242)."""
     open_more(page)
     named = """(plot) => (plot.layout.annotations || []).filter((note) => note.xanchor === 'right' && note.font?.color)
                  .map((note) => [note.text, note.font.color])"""
@@ -333,7 +333,7 @@ def test_a_chart_of_a_few_lines_names_each_where_it_ends_beside_the_legend(page)
     assert page.locator("figure[data-chart=interaction] .plot").evaluate(named) == []
 
 
-def test_a_figure_saved_on_a_dark_background_is_in_the_dark_theme_s_colours(page, tmp_path):
+def test_a_figure_saved_on_a_dark_background_is_in_the_dark_theme_s_colors(page, tmp_path):
     """A figure for a dark slide: the window's "Dark background" saves it as the dark page draws it (#1242)."""
     open_more(page)
     page.evaluate(
@@ -350,7 +350,7 @@ def test_a_figure_saved_on_a_dark_background_is_in_the_dark_theme_s_colours(page
         """() => { const { data, layout } = window.__saved;
           return [layout.paper_bgcolor, layout.title.font.color, data[0].colorscale[0][1]]; }"""
     )
-    assert [colour.lower() for colour in saved] == ["#1c1e21", "#e8e8e6", DARK_ENDS[0]]
+    assert [color.lower() for color in saved] == ["#1c1e21", "#e8e8e6", DARK_ENDS[0]]
 
 
 def rgb(colour: str) -> str:
@@ -381,7 +381,7 @@ def test_the_numbers_on_a_surface_s_lines_have_a_halo_in_the_page_s_colour(page,
         assert drawn[0] == rgb(ink)
         assert drawn[1].count(rgb(panel)) == 4, "the browser draws it"
         line = plot.evaluate("(plot) => plot._fullData[0].line.color")
-        assert line == panel, "the lines between the bands in the page's colour, not black on its dark bands (#1242)"
+        assert line == panel, "the lines between the bands in the page's color, not black on its dark bands (#1242)"
 
 
 def test_the_reader_chooses_the_two_factors_the_surface_is_drawn_over(page):

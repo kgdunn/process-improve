@@ -93,7 +93,7 @@ describe("a chart's image in a report (#1242)", () => {
     assert.deepEqual(reportShape({ xaxis: {}, yaxis: {} }, 340), { width: REPORT_WIDTH, height: 340 });
   });
 
-  test("a surface with equal axes is as wide as its square plot and its colour bar", () => {
+  test("a surface with equal axes is as wide as its square plot and its color bar", () => {
     const { width, height } = reportShape({ xaxis: {}, yaxis: { scaleanchor: "x" } }, 340, 64);
     assert.equal(height, 340);
     assert.equal(width - 56 - 16 - 64, 340 - 12 - 52, "the plot as wide as it is tall");
@@ -109,7 +109,7 @@ describe("a chart's lines named where they end (#1242)", () => {
   const line = (name, y, color) => ({ type: "scatter", mode: "lines", name, x: [-1, 0, 1], y, line: { color } });
   const asked = { meta: NAME_LINES };
 
-  test("each line named just above its right end, in its colour, with a halo in the page's colour", () => {
+  test("each line named just above its right end, in its color, with a halo in the page's color", () => {
     const data = [line("T", [1, 2, 3], "#2563EB"), line("P", [5, 4, 9], "#DC2626")];
     const notes = lineNames(data, asked, 300, 600, LIGHT);
     assert.deepEqual(notes.map((n) => [n.text, n.x, n.y, n.font.color]), [["T", 1, 3, "#2563EB"], ["P", 1, 9, "#DC2626"]]);
@@ -692,7 +692,7 @@ describe("a surface's colours, on a light page and on a dark one", () => {
       const [labels, ...others] = pageLayout({}, 300, colours).template.data.contour;
       assert.deepEqual(others, []);
       assert.deepEqual(labels, contourDefaults(colours));
-      assert.equal(labels.line.color, colours.panel, "the lines between the bands in the page's colour (#1242)");
+      assert.equal(labels.line.color, colours.panel, "the lines between the bands in the page's color (#1242)");
       const { color, shadow } = labels.contours.labelfont;
       assert.equal(color, colours.fg);
       assert.equal(shadow.split(", ").length, 4, "a shadow to each corner");
@@ -976,7 +976,7 @@ test("a report's charts take the light theme's colours, as style.css gives them"
   for (const [name, colour] of Object.entries(LIGHT)) assert.match(light, new RegExp(`--${name}: ${colour};`), name);
 });
 
-test("a figure saved on a dark background takes the dark theme's colours, as style.css gives them", () => {
+test("a figure saved on a dark background takes the dark theme's colors, as style.css gives them", () => {
   const css = readFileSync(new URL("../../../web/style.css", import.meta.url), "utf8");
   const start = css.indexOf(':root[data-theme="dark"] {');
   const dark = css.slice(start, css.indexOf("}", start));
