@@ -378,55 +378,58 @@ kept with the tests. A change that moves one of them fails the test.
 
 .. list-table::
    :header-rows: 1
-   :widths: 24 28 30 18
+   :widths: 28 32 40
 
    * - Method
      - Reference
      - What is compared
-     - Test
    * - Split-plot analysis by REML
      - lme4 1.1-36, lmerTest 3.1-3 and pbkrtest 0.5-3 (R 4.4.2)
      - Variance components, estimates, standard errors, Satterthwaite and Kenward-Roger
        degrees of freedom, Type III F-tests
-     - ``test_experiments_split_plot.py``
    * - Mixed assessor model of a sensory panel
      - SensMixed 2.1-0 (R 3.4.4)
      - Every Type I test of every attribute of the TVbo panel: F, sums of squares, degrees
        of freedom and p
-     - ``test_sensory_mam_reml.py``
    * - PCA with missing values (NIPALS)
      - mixOmics 6.34.0
      - Scores, loadings and eigenvalues
-     - ``test_pca_nipals_mixomics_crosscheck.py``
    * - Partial robust M-regression
      - chemometrics 1.4.4
      - Coefficients, intercept and observation weights
-     - ``test_multivariate_prm.py``
    * - PCA and PLS
      - SIMCA-P 14.1
      - Scores, loadings, R2, the squared prediction error (DModX) and Hotelling's T2, on the
        LDPE data among others
-     - ``test_multivariate.py``
    * - PCA and PLS
      - scikit-learn
      - The same fit as ``PCA`` and ``PLSRegression``
-     - ``test_sklearn_compat.py``
    * - Batch PCA
      - A MATLAB latent-variable toolkit
      - Scores, loadings and R2 on simulated styrene-butadiene rubber batches
-     - ``batch/test_sbr_reference.py``
    * - Control charts
      - qcc (R)
      - Centre line, standard deviation and limits of the individuals chart
-     - ``test_monitoring.py``
    * - Least squares, t-tests and analysis of variance
      - R (``lm``, ``t.test``), statsmodels, SciPy
      - Coefficients, standard errors, p-values, sums of squares, adjusted p-values
-     - ``test_regression.py``, ``test_univariate.py``, ``test_analysis.py``
    * - Generalized linear models, Gaussian processes, REML and least squares means
      - JMP, Minitab, SAS and Design-Expert output, as textbooks print it
      - The tables of Montgomery (2013) and Goos and Jones (2011)
-     - The reference catalogue
+
+The tests, in the order of the table, are in ``tests/``:
+``test_experiments_split_plot.py``,
+``test_sensory_mam_reml.py``,
+``test_pca_nipals_mixomics_crosscheck.py``,
+``test_multivariate_prm.py``,
+``test_multivariate.py``,
+``test_sklearn_compat.py``,
+``batch/test_sbr_reference.py``,
+``test_monitoring.py``,
+``test_regression.py``,
+``test_univariate.py``,
+``test_analysis.py``.
+The last row is checked through the reference catalogue.
 
 The R values are recomputed in a Docker image with dated snapshots of CRAN (``tools/r``), so a
 fixture can be made again with the same versions.
