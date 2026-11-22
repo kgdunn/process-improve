@@ -83,7 +83,7 @@ def test_start_my_first_experiment_puts_the_reader_at_the_question(fresh_page):
 def test_the_welcome_offers_the_worked_example(fresh_page):
     page = fresh_page
     page.click("#welcome-example")
-    page.wait_for_function("document.querySelector('#study-title').textContent === 'Yield (%), maximise'")
+    page.wait_for_function("document.querySelector('#study-title').textContent === 'Yield (%), maximize'")
     assert page.get_attribute("#workspace", "data-phase") == "learn", "at what the example found"
     assert page.is_hidden("#welcome")
     assert page.is_visible("#demo-banner")
@@ -115,7 +115,7 @@ def test_a_question_begun_under_the_welcome_is_kept_and_the_next_visit_is_not_a_
 def test_the_worked_example_from_the_menu_comes_without_the_welcome(fresh_page):
     page = fresh_page
     study_menu(page, "#show-example")
-    page.wait_for_function("document.querySelector('#study-title').textContent === 'Yield (%), maximise'")
+    page.wait_for_function("document.querySelector('#study-title').textContent === 'Yield (%), maximize'")
     assert page.is_visible("#demo-banner")
     assert page.is_hidden("#welcome"), "the welcome is a first visit's"
 

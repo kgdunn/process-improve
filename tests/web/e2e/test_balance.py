@@ -65,8 +65,8 @@ def test_the_balance_says_how_good_it_is_and_where_to_run(practised):
         "c.querySelector('input, select')?.value ?? c.textContent))"
     )
     assert [row[:2] for row in goals] == [
-        ["Yield (%)", "Maximise"],
-        ["Cost ($/kg)", "Minimise"],
+        ["Yield (%)", "Maximize"],
+        ["Cost ($/kg)", "Minimize"],
         ["Purity (%)", "Target 63%"],
     ]
     assert [row[4:] for row in goals] == [["3", "even"]] * 3, "each counts alike, and evenly, until the reader says"
