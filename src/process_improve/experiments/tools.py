@@ -47,6 +47,7 @@ from process_improve.experiments._tools.suggest_next_runs import suggest_next_ru
 from process_improve.experiments._tools.fit_gaussian_process import fit_gaussian_process_tool
 from process_improve.experiments._tools.variance_components import variance_components_tool
 from process_improve.experiments._tools.multistratum_anova import multistratum_anova_tool
+from process_improve.experiments._tools.query_concept_graph import query_concept_graph_tool
 
 __all__ = [
     "analyze_experiment_tool",
@@ -62,6 +63,7 @@ __all__ = [
     "get_experiments_tool_specs",
     "multistratum_anova_tool",
     "optimize_responses_tool",
+    "query_concept_graph_tool",
     "read_run_sheet_tool",
     "recommend_next_step_tool",
     "recommend_strategy_tool",
