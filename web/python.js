@@ -911,13 +911,53 @@ export function comparisonFigureCode({ asked = null, limits = [], label = null }
 }
 
 /**
+ * "How tightly to hold each component", after the best blend's code (blendCode), which leaves the blend as ``at`` and
+ * the Scheffé model as ``analysis`` (#1242): each of ``names`` moved by 5% of its range along its Cox direction, the
+ * others keeping their proportions to each other so that the blend still sums to 1, and the change in the prediction.
+ */
+function blendSensitivityCode(names, spec) {
+  const bound = (side) => names.map((name) => spec.factors.find((f) => f.name === name)[side]);
+  return [
+    "import plotly.graph_objects as go",
+    "",
+    '# The figure "How tightly to hold each component": how much the prediction changes when one component moves 5%',
+    "# of its range from the best blend, along its Cox direction: the others keep their proportions to each other, so",
+    "# the blend still sums to 1. A component alone in the blend leaves the others to share the change equally.",
+    'fitted = {c["term"]: c["coefficient"] for c in analysis["coefficients"]}',
+    "blend = at.iloc[0]",
+    `names = ${repr(names)}`,
+    `low, high = ${repr(bound("low"))}, ${repr(bound("high"))}`,
+    "rows = []",
+    "for name, lowest, highest in zip(names, low, high, strict=True):",
+    "    others = [n for n in blend.index if n != name]",
+    "    rest = 1 - blend[name]  # what the other components share",
+    "    for change in (-0.05 * (highest - lowest), 0.05 * (highest - lowest)):",
+    "        moved = blend.copy()",
+    "        moved[others] = blend[others] * (rest - change) / rest if rest > 1e-9 else (rest - change) / len(others)",
+    "        moved[name] = blend[name] + change",
+    "        rows.append(moved)",
+    "moved = pd.DataFrame(rows)",
+    `here = ${blended("at", "fitted")}.iloc[0]`,
+    `change = (${blended("moved", "fitted")} - here).tolist()  # lowered, then raised, for each component in turn`,
+    "figure = go.Figure(",
+    "    [",
+    '        go.Bar(name="Lowered 5% of its range", y=names, x=change[0::2], orientation="h"),',
+    '        go.Bar(name="Raised 5% of its range", y=names, x=change[1::2], orientation="h"),',
+    "    ]",
+    ")",
+    ...shown(`Change in the prediction: ${axisWords(spec)}`, "Component"),
+  ].join("\n");
+}
+
+/**
  * "How tightly to hold each factor", after the best settings' code (bestCode), which leaves the settings as ``at``
  * and the prediction there as ``prediction``: each of ``names``, the numeric factors the model holds, moved alone
  * by 5% of its range, 0.1 in coded units, and the change in the prediction. Null for a mixture, whose components
  * do not move alone.
  */
 export function sensitivityCode(names, spec, model, complete = true) {
-  if (isMixture(spec) || !names.length) return null;
+  if (!names.length) return null;
+  if (isMixture(spec)) return blendSensitivityCode(names, spec);
   const transform = transformOf(spec);
   const fitted = fittedTo(spec, complete);
   const back = (value) => (transform ? `(${SCALES[transform].back})(${value})` : value);
@@ -942,6 +982,58 @@ export function sensitivityCode(names, spec, model, complete = true) {
 }
 
 /**
+ * The overlay of the responses' acceptable blends over the triangle of three components (#1242), after the balance's
+ * code (balanceCode), which leaves each response's ``models`` entry and ``goals`` entry and the ``balanced`` blend:
+ * each response's Scheffé model over the grid of blends the page draws, 40 steps a side, and where it is acceptable,
+ * a desirability above 0. The blends where every response is acceptable are shaded and the balanced blend starred.
+ * Of four components or more the triangle is of three (``overlay.components``), the others held as the page holds
+ * them (``overlay.held``).
+ */
+function blendOverlayCode(overlay, spec) {
+  const held = overlay.held ?? null;
+  const names = overlay.components;
+  const [a, b, c] = names.map(repr);
+  const bound = (side) => names.map((name) => spec.factors.find((f) => f.name === name)[side]);
+  const on = (rows) => `a=grid[${a}][${rows}], b=grid[${b}][${rows}], c=grid[${c}][${rows}]`;
+  return [
+    "import numpy as np",
+    "import pandas as pd",
+    "import plotly.graph_objects as go",
+    "",
+    `# The figure of the acceptable blends over the triangle of ${names.join(", ")}: each response's Scheffé model`,
+    "# above, over a grid of blends the components' lower and upper proportions allow, 40 steps a side. A response to",
+    "# maximize is acceptable above its low end, one to minimize below its high end, one with a target between them.",
+    ...(held
+      ? [`held = ${repr(held)}  # the other components, held at the balanced blend`, "share = 1 - sum(held.values())  # what the three on the triangle share"]
+      : ["share = 1"]),
+    `low, high = np.array(${repr(bound("low"))}), np.array(${repr(bound("high"))})`,
+    "steps = 40",
+    "lattice = np.array([(i, j, steps - i - j) for i in range(steps + 1) for j in range(steps + 1 - i)]) / steps",
+    `grid = pd.DataFrame(low + (share - low.sum()) * lattice, columns=${repr(names)})`,
+    "grid = grid[(grid <= high + 1e-9).all(axis=1)]",
+    ...(held ? ["grid = grid.assign(**held)"] : []),
+    "acceptable = pd.Series(True, index=grid.index)  # where every response is acceptable",
+    "figure = go.Figure()",
+    'by_response = {goal["response"]: goal for goal in goals}',
+    "for model in models:",
+    '    goal = by_response[model["response_name"]]',
+    '    fitted = {c["term"]: c["coefficient"] for c in model["coefficients"]}',
+    `    response = ${blended("grid", "fitted")}`,
+    '    above, below = response > goal.get("low", -np.inf), response < goal.get("high", np.inf)',
+    '    inside = {"maximize": above, "minimize": below}.get(goal["goal"], above & below)',
+    "    acceptable &= inside",
+    `    figure.add_scatterternary(${on("inside")}, mode="markers", name=goal["response"], marker={"size": 4}, opacity=0.5)`,
+    `figure.add_scatterternary(${on("acceptable")}, mode="markers", name="Every response acceptable", marker={"size": 8, "color": "grey"})`,
+    'best = balanced["optimal_coded"]  # the balanced blend, starred as on the page',
+    `figure.add_scatterternary(a=[best[${a}]], b=[best[${b}]], c=[best[${c}]], mode="markers", name="Balanced blend",`,
+    '                          marker={"symbol": "star", "size": 18, "color": "white", "line": {"color": "#1a1a1a", "width": 1.5}})',
+    "axes = {axis: {\"title\": {\"text\": name}} for axis, name in zip((\"aaxis\", \"baxis\", \"caxis\"), " + `${repr(names)})}`,
+    'figure.update_layout(ternary={**axes, "sum": share})  # each point in the recipe\'s own proportions',
+    "figure.show()",
+  ].join("\n");
+}
+
+/**
  * The overlay of the responses' acceptable ranges, after the balance's code (balanceCode), which leaves each
  * response's ``models`` entry, its ``goals`` entry and the ``balanced`` settings: the library's overlay plot over
  * the two factors the page draws (``overlay.x`` and ``overlay.y``), the others held at the balanced settings. A
@@ -949,7 +1041,8 @@ export function sensitivityCode(names, spec, model, complete = true) {
  * Null for a mixture, whose overlay is over its triangle.
  */
 export function overlayCode(overlay, spec) {
-  if (isMixture(spec) || overlay?.kind === "ternary" || !overlay) return null;
+  if (overlay?.kind === "ternary") return blendOverlayCode(overlay, spec);
+  if (isMixture(spec) || !overlay) return null;
   return [
     "import plotly.graph_objects as go",
     "from process_improve.experiments import visualize_doe",
