@@ -6201,9 +6201,7 @@ def _average_intervals(figure: dict, fitted: _FittedModel, runs: pd.DataFrame) -
     """
     codes = {word: code for code, word in SETTING_WORDS.items()}  # each setting's coded value, from its word
     bars = []
-    for line in figure["data"]:
-        if line.get("name") not in fitted.names:  # a factor of several levels is not drawn as a line of settings
-            continue
+    for line in figure["data"]:  # each a factor with numeric settings: one of several levels is not drawn
         means = [fitted.averaged(line["name"], float(codes.get(x, x)), runs) for x in line["x"]]
         if any(half is None for _, half in means):
             return
