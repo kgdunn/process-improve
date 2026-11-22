@@ -110,12 +110,12 @@ def test_every_chart_has_a_button_that_opens_it_in_a_window_of_its_own(page):
     expand(page, "main_effects")
     assert page.text_content("#figure-title") == card.locator("h3").text_content() == "Average result at each setting"
     assert page.text_content("dialog.figure .figure__caption") == card.locator("figcaption").text_content()
-    names = "(plot) => plot.data.map((trace) => trace.name)"
+    names = "(plot) => plot.data.filter((trace) => trace.meta !== 'interval').map((trace) => trace.name)"
     assert (
         page.locator("dialog.figure .plot").evaluate(names)
         == card.locator(".plot").evaluate(names)
         == ["Temperature", "Pressure", "Flow"]
-    )
+    ), "the lines, not the intervals around their averages"
     assert page.locator("dialog.figure .plot").get_attribute("aria-label") == "Average result at each setting"
 
     page.keyboard.press("Escape")

@@ -59,7 +59,7 @@ def test_the_further_charts_are_in_the_reader_s_words_and_units(api, held, simul
     }
     assert figures["surface_3d"]["layout"]["scene"]["xaxis"]["ticktext"] == ["150", "175", "200"]
     assert figures["perturbation"]["layout"]["yaxis"]["title"]["text"] == "Predicted Yield (%)"
-    assert figures["main_effects"]["data"][0]["x"] == ["Low", "Middle", "High"]
+    assert lines_of(figures["main_effects"])[0]["x"] == ["Low", "Middle", "High"]
     assert figures["interaction"]["data"][0]["x"] == ["1", "2", "3"], "the settings of P, in bar"
     corners = next(t for t in figures["cube"]["data"] if t["name"] == "Vertices")
     assert corners["mode"] == "markers+text"
@@ -88,7 +88,9 @@ def test_the_charts_read_on_a_light_page_and_a_dark_one_and_without_their_colour
         assert figures[key]["layout"]["legend"]["y"] > 1
     assert {trace["mode"] for trace in lines_of(figures["perturbation"])} == {"lines"}, "a curve: no marks along it"
     for key in ("main_effects", "interaction"):
-        assert {trace["mode"] for trace in figures[key]["data"]} == {"lines+markers"}, f"{key}: a mark at each average"
+        assert {trace["mode"] for trace in lines_of(figures[key])} == {"lines+markers"}, (
+            f"{key}: a mark at each average"
+        )
 
 
 def lines_of(figure: dict) -> list[dict]:
