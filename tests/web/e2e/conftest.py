@@ -151,6 +151,17 @@ def _book(route: Any, book_files: dict[str, Any]) -> None:  # noqa: ANN401 - a P
         route.fulfill(status=404, body="Not Found")
 
 
+@pytest.fixture(autouse=True)
+def _rated_pace(bootstrap: ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Time every search at nothing, so the page keeps the rated waits on any runner.
+
+    The comparison times its searches and the page scales later waits by how much slower the device searched
+    (#1298). Here the device is the test's own process, so a loaded runner would change the waits a test reads.
+    A test of the pace sets its own ``_timed``.
+    """
+    monkeypatch.setattr(bootstrap, "_timed", lambda spec: (bootstrap.make_design(spec), 0.0))
+
+
 @pytest.fixture
 def console() -> Console:
     """Collect what the page writes to its console as an error; declare expected ones with ``allow``."""

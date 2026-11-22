@@ -1090,6 +1090,10 @@ def test_a_history_kept_before_the_count_was_stored_numbers_on_from_it(
     fresh = pickle.loads(pickle.dumps(fresh))  # noqa: S301 - a model this test pickled
     fresh.update(X.iloc[92].to_numpy())
     assert list(fresh.spe_.index) == [0]
+    # One never fitted has neither, and is read back as it was
+    unfitted = pickle.loads(pickle.dumps(AdaptivePCA(n_components=2)))  # noqa: S301 - a model this test pickled
+    assert unfitted.get_params() == AdaptivePCA(n_components=2).get_params()
+    assert not hasattr(unfitted, "_next_label")
 
 
 @pytest.mark.parametrize("cls", [AdaptivePCA, AdaptivePLS])
@@ -1098,6 +1102,12 @@ def test_no_component_is_refused_by_name(synthetic_pls_data: tuple[pd.DataFrame,
     X, Y = synthetic_pls_data
     with pytest.raises(ValueError, match=r"^n_components must be >= 1; got 0\.$"):
         cls(n_components=0).fit(X) if cls is AdaptivePCA else cls(n_components=0).fit(X, Y)
+
+
+def test_adaptive_pca_names_a_count_of_no_component_before_it_reads_the_data() -> None:
+    """The setting is checked first, so an X with no column is not what the caller hears about."""
+    with pytest.raises(ValueError, match=r"^n_components must be >= 1; got 0\.$"):
+        AdaptivePCA(n_components=0).fit(pd.DataFrame(index=range(10)))
 
 
 @pytest.mark.parametrize("cls", [AdaptivePCA, AdaptivePLS])
@@ -1867,3 +1877,22 @@ def test_a_column_with_no_observed_value_is_named_and_left_out(
         got, expected = with_value.update(row), without.update(other)
         assert (got.spe, got.hotellings_t2) == (expected.spe, expected.hotellings_t2)
     assert with_value.mx_[2] == centre[2]
+    # Read at 0 once scaled, the column adds nothing to a row's SPE: the model fitted without it gives the same
+    dropped = X.drop(columns=X.columns[2])
+    reference = estimator(n_components=2).fit(*((dropped,) if estimator is AdaptivePCA else (dropped, y)))
+    for row in rows:
+        reference.update(np.delete(row, 2))
+    np.testing.assert_allclose(without.spe_, reference.spe_, rtol=1e-9)
+
+
+@pytest.mark.parametrize("estimator", [AdaptivePCA, AdaptivePLS])
+def test_a_model_pickled_before_columns_were_left_out_reads_every_column(
+    estimator: type, synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]
+) -> None:
+    """A model pickled before #1098 kept no record of a column left out, and left none out."""
+    X, y = synthetic_pls_data
+    model = estimator(n_components=2).fit(*((X,) if estimator is AdaptivePCA else (X, y)))
+    rows = X.iloc[:5].to_numpy()
+    expected = model.transform(rows)
+    del model._unobserved_columns
+    pd.testing.assert_frame_equal(model.transform(rows), expected)

@@ -1829,7 +1829,11 @@ class TPLS(RegressorMixin, BaseEstimator):
             check_variance_left("Y", next(iter(self.y_mats.values())), pc_a, y_size)
             milliseconds_start = time.time()
 
-            passes = self._iterate_component(pc_a + 1, pmap_f, damp=False)
+            passes = self._iterate_component(
+                pc_a + 1,
+                pmap_f,
+                damp=False,  # pragma: no mutate - None is as falsy as False
+            )
             if not passes["converged"]:
                 # The loop is not a power iteration: u can swing to and fro about the fixed point, or between two
                 # states for ever, as the super weight swings between the blocks with t_f's size, 1/|r|, once D is
@@ -1976,11 +1980,13 @@ class TPLS(RegressorMixin, BaseEstimator):
             if converged:
                 break
             u_super_i = _step_towards(u_prior, u_next, step)
-            if damp and u_before is not None and 2 * _turn(u_before, u_super_i) < _turn(u_prior, u_super_i):
+            if damp and u_before is not None:
                 # Two passes turned u less than half as far as one: it swings. A shorter step keeps the fixed
                 # point and damps the swing; each swing found halves the step.
-                step /= 2
-                u_super_i = _step_towards(u_prior, u_next, step)
+                two_passes, half_of_one = _turn(u_before, u_super_i), _turn(u_prior, u_super_i) / 2
+                if two_passes < half_of_one:  # pragma: no mutate - differs from <= only at exact equality
+                    step /= 2
+                    u_super_i = _step_towards(u_prior, u_next, step)
             u_before = u_prior
 
         return {
@@ -2053,7 +2059,8 @@ def _step_towards(u_prior: np.ndarray, u_next: np.ndarray, step: float) -> np.nd
     if step == 1:
         return u_next
     before, after = _unit(u_prior), _unit(u_next)
-    mixed = (1 - step) * np.copysign(1.0, before @ after) * before + step * after
+    turned = np.copysign(1.0, before @ after) * before  # pragma: no mutate - a sign, 1 or -1, which / reads the same
+    mixed = (1 - step) * turned + step * after
     return (mixed * float(np.linalg.norm(u_next)) / _nz(float(np.linalg.norm(mixed)))).reshape(u_next.shape)
 
 

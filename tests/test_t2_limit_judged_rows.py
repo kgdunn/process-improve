@@ -234,7 +234,11 @@ def test_the_rest_of_the_family_takes_judged_rows() -> None:
     y = pd.DataFrame({"y": x.to_numpy() @ [1.0, 0.5, 0.0, -1.0] + 0.1 * rng.normal(size=30)})
     pls = PLS(n_components=2).fit(x, y)
     assert pls.hotellings_t2_limit(judged_rows="fitted") == pytest.approx(beta_limit_by_hand(0.95, 2, 30))
-    assert pls.detect_outliers(judged_rows="fitted") is not None
+    fitted_records = pls.detect_outliers(conf_level=0.8, judged_rows="fitted")
+    assert fitted_records
+    for record in fitted_records:  # the beta limit, not the F limit for new rows that None gives until 3.0
+        assert record["hotellings_t2_limit"] == pytest.approx(beta_limit_by_hand(0.8, 2, 30))
+        assert "hotellings_t2_limit_note" not in record
     with pytest.warns(FutureWarning) as caught:  # the records carry the warning's text, as PCA's do
         records = pls.detect_outliers(conf_level=0.8)
     assert records

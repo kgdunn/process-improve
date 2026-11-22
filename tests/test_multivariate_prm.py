@@ -22,7 +22,7 @@ from sklearn.pipeline import Pipeline
 from process_improve.multivariate._common import epsqrt
 from process_improve.multivariate._prm import _column_medians, _residual_weights, _robust_scaler
 from process_improve.multivariate._robust import fair_weights, l1_median
-from process_improve.multivariate.methods import PLS, PRM, MCUVScaler
+from process_improve.multivariate.methods import PLS, PRM, MCUVScaler, NotEnoughVarianceError
 
 
 def _cost(centre: np.ndarray, X: np.ndarray) -> float:
@@ -553,6 +553,15 @@ class TestPRMRejectsWhatItCannotHandle:
         with pytest.raises(AttributeError, match="not fitted yet"):
             PRM(n_components=2).outlier_summary()
 
+    @pytest.mark.parametrize("scale", [False, True])
+    def test_an_x_with_no_spread_is_refused_in_the_familys_words(self, scale: bool) -> None:
+        """An X with no spread has no unit for its distances: refused as PLS refuses it, with no warning first."""
+        X, y = _dataset(seed=0)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            with pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in X: every column is constant"):
+                PRM(n_components=2, scale=scale).fit(X * 0.0 + 2.0, y)
+
 
 class TestRobustScalingByHand:
     """The centre and spread PRM fixes once, worked by hand."""
@@ -657,6 +666,24 @@ class TestPRMScaling:
             np.testing.assert_allclose(other.predict(X_in).to_numpy() / factor, model.predict(X).to_numpy(), atol=1e-12)
             np.testing.assert_allclose(other.robust_weights_, model.robust_weights_, atol=1e-12)
         assert model.robust_weights_[:3].max() < 0.1
+
+    @pytest.mark.parametrize("unit", [1.0, 1e-9])
+    def test_a_constant_target_leaves_the_fit_of_the_others_as_it_was(self, unit: float) -> None:
+        """A constant target has no residual, so it changes no weight, whatever the units of the others (#1092).
+
+        Unscaled, its unit of 1 was read as Y's: beside a target in units 1e9 times smaller it raised the
+        floor of the convergence test a billionfold, and the loop stopped after 3 iterations, not 9.
+        """
+        rng = np.random.default_rng(0)
+        X = pd.DataFrame(rng.normal(size=(30, 4)), columns=list("abcd"))
+        y = pd.DataFrame({"y": X.to_numpy() @ [1.0, -0.5, 0.2, 0.0] + rng.normal(0, 0.3, 30)})
+        y.iloc[:3] += 5.0
+        alone = PRM(n_components=2, scale=False).fit(X, y * unit)
+        with pytest.warns(UserWarning, match=r"^Block Y has columns with no variance"):
+            beside = PRM(n_components=2, scale=False).fit(X, (y * unit).assign(stuck=3.0))
+        assert beside.n_weight_iter_ == alone.n_weight_iter_
+        np.testing.assert_allclose(beside.robust_weights_, alone.robust_weights_, rtol=1e-12)
+        np.testing.assert_allclose(beside.predict(X)["y"] / unit, alone.predict(X)["y"] / unit, rtol=1e-9)
 
     def test_the_intercept_of_each_target_is_its_median_residual(self) -> None:
         X, y = _dataset(seed=0, n_bad=N_BAD)

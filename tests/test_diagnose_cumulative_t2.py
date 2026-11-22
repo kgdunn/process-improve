@@ -148,3 +148,14 @@ def test_the_old_field_warns_once_on_read_and_returns_what_it_did(case: tuple) -
         by_get = result.get("hotellings_t2")
     assert by_key is old
     assert by_get is old
+
+
+def test_a_row_with_nothing_observed_has_no_t2_in_the_old_field_either() -> None:
+    """PLS's old Series is NaN there, as the new frame is, where a sum that skipped the NaN scores gave 0 (#1144)."""
+    rows = X.iloc[:3].copy()
+    rows.iloc[1] = np.nan
+    result = PLS(n_components=2).fit(X, Y).diagnose(rows)
+    with pytest.warns(DeprecationWarning, match="cumulative_hotellings_t2"):
+        old = result.hotellings_t2
+    assert old.isna().tolist() == [False, True, False]
+    assert result.cumulative_hotellings_t2.isna().to_numpy().tolist() == [[False, False], [True, True], [False, False]]

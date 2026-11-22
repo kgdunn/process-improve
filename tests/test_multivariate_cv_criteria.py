@@ -46,6 +46,7 @@ from process_improve.multivariate._cv_criteria import (
     _permutation_summary,
     _procrustes_scores,
     _recommendations,
+    _refitted_score_correlation_null,
     _score_correlation_null,
     _swapped_pairs,
     _weight_angles,
@@ -573,6 +574,26 @@ def test_prm_null_passes_on_no_warning_from_its_permuted_fits() -> None:
     assert caught(2) == from_the_data
 
 
+class _WarnsOnFit(PLS):
+    """A PLS whose every fit warns twice: once about the specification, once about something else."""
+
+    def fit(self, X: pd.DataFrame, Y: pd.DataFrame, sample_weight: np.ndarray | None = None) -> _WarnsOnFit:
+        warnings.warn("about the specification", SpecificationWarning, stacklevel=2)
+        warnings.warn("about something else", RuntimeWarning, stacklevel=2)
+        super().fit(X, Y, sample_weight=sample_weight)
+        return self
+
+
+def test_the_refitted_null_sets_aside_only_the_specification_warnings_of_its_fits() -> None:
+    """A warning of another kind from a permuted fit says something about the data, and reaches the caller (#1087)."""
+    X, Y = _two_component_data(n=20)
+    splits = _partition_splits(4, X, Y, rng=np.random.default_rng(0), random_state=0)
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        _refitted_score_correlation_null(lambda: _WarnsOnFit(n_components=2), X, Y, splits, [np.arange(20)[::-1]])
+    assert [str(warning.message) for warning in record] == ["about something else"] * 4
+
+
 def test_pseudo_validation_t2_leaves_out_a_component_with_no_spread() -> None:
     """The held-out T2 counts only the components the full-data model's T2 counts (#1029).
 
@@ -766,6 +787,13 @@ def test_gaps_fit_takes_are_taken(where: str) -> None:
     assert np.isfinite(result.press).all()
     assert np.isfinite(result.table["pv_spe_alarm_rate"]).all()
     assert pv.local_spe.isna().to_numpy().tolist() == [where == "x_row" and i == 3 for i in range(30)]
+    if where == "x_row":  # its response helps centre the folds it trains, and has no prediction to judge
+        y = Y.to_numpy()
+        baseline = sum(
+            float(np.sum(np.delete(y[test] - y[train].mean(axis=0), np.flatnonzero(test == 3), axis=0) ** 2))
+            for train, test in result.cv_splits
+        )
+        assert result.press_baseline == pytest.approx(baseline, rel=1e-12)
     if where == "x_column":  # a held-out row is complete without the column: its limits are those of X without it
         without = compare_cv_criteria(X.drop(columns="x2"), Y, random_state=0)
         np.testing.assert_allclose(result.spe_limits.to_numpy(), without.spe_limits.to_numpy(), rtol=1e-10, atol=1e-12)

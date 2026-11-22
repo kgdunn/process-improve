@@ -484,7 +484,10 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         """
         weights, loadings = self.orthogonal_weights_.to_numpy(), self.orthogonal_loadings_.to_numpy()
         if weights.shape[1]:
-            weights = weights @ safe_inverse(loadings.T @ weights, what="(P_o' @ W_o)")
+            weights = weights @ safe_inverse(
+                loadings.T @ weights,
+                what="(P_o' @ W_o)",  # pragma: no mutate - fit inverted this matrix, so it is not singular here
+            )
         return np.hstack([self._osc_filter @ self._w_p, weights]), np.hstack([self._p_p, loadings])
 
     def _prepare(self, X: DataMatrix) -> tuple[np.ndarray, pd.Index | None]:
@@ -503,7 +506,8 @@ def _check_variance_left(remaining: np.ndarray, size: float, extracted: int) -> 
 
     Relative to the norm ``size`` of the X fitted, so data in small units are not taken for none.
     """
-    if np.linalg.norm(remaining) <= epsqrt * size:
+    floor = epsqrt * size
+    if np.linalg.norm(remaining) <= floor:  # pragma: no mutate - differs from < only at exact equality
         raise NotEnoughVarianceError(
             "There is no variance left in the data array for X: cannot compute any more components beyond "
             f"component {extracted}."

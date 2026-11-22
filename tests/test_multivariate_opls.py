@@ -303,6 +303,20 @@ class TestComponentCount:
             OPLS(n_orthogonal_components=3).fit(X, y).predict(X), PLS(n_components=4).fit(X, y).predict(X), atol=1e-8
         )
 
+    def test_an_x_of_rank_three_runs_out_at_the_fourth_orthogonal_component(self) -> None:
+        """An X of rank 3 has three directions: a fourth orthogonal component finds none, as a fourth PLS one does."""
+        rng = np.random.default_rng(1)
+        X = pd.DataFrame(rng.normal(size=(10, 3)) @ rng.normal(size=(3, 8)))
+        y = pd.DataFrame(X.to_numpy() @ rng.normal(size=8))
+        message = (
+            r"^There is no variance left in the data array for X: cannot compute any more components beyond "
+            r"component 3\.$"
+        )
+        with pytest.raises(NotEnoughVarianceError, match=message):
+            PLS(n_components=4).fit(X, y)
+        with pytest.raises(NotEnoughVarianceError, match=message):
+            OPLS(n_orthogonal_components=4).fit(X, y)
+
     def test_data_in_small_units_keep_their_components(self, cheese: tuple[pd.DataFrame, pd.DataFrame]) -> None:
         """No variance left is judged against X's own size, so a millionth of the units fits the same model."""
         X, y = cheese

@@ -205,7 +205,8 @@ def _partition_splits(
             raise ValueError(f"cv must be >= 2 when given as an int; got {cv}.")
         # Both callers resolve random_state with check_random_state first, which refuses a bool.
         seed = int(random_state) if isinstance(random_state, (int, np.integer)) else int(rng.integers(2**31))
-        splits = _shuffled_folds(cv if isinstance(cv, int) else int(cv), X, Y, random_state=seed)
+        n_folds = cv if isinstance(cv, int) else int(cv)  # pragma: no mutate - _shuffled_folds reads it by int() too
+        splits = _shuffled_folds(n_folds, X, Y, random_state=seed)
     else:
         splits = list(check_cv(cv).split(X, Y))
     counts = np.zeros(X.shape[0])
@@ -658,10 +659,11 @@ def _procrustes_scores(model: Any, folds: list[_Fold]) -> tuple[np.ndarray, np.n
         d_ratios[k] = d
         # A row with nothing observed has no score and no SPE, as diagnose gives it none (#1114)
         scored = np.where(_rows_with_data(fold.x_test), 1.0, np.nan)[:, np.newaxis]
-        pv_scores[fold.test] = local_scores * d * scored
+        pv_scores[fold.test] = local_scores * d * scored  # pragma: no mutate - 1 or NaN, which / reads the same
         for a in range(A):
             residual = fold.x_test - local_scores[:, : a + 1] @ x_loadings[:, : a + 1].T
-            squared_spe[fold.test, a] = np.nansum(residual**2, axis=1) * scored[:, 0]  # observed cells only
+            squared = np.nansum(residual**2, axis=1)  # observed cells only
+            squared_spe[fold.test, a] = squared * scored[:, 0]  # pragma: no mutate - 1 or NaN, which / reads the same
     return pv_scores, squared_spe, d_ratios
 
 

@@ -445,6 +445,17 @@ _EIGHT = pd.DataFrame({"a": np.arange(8.0)}, index=[f"p{i}" for i in range(8)])
 _ZERO_TO_SEVEN = pd.DataFrame({"u": np.arange(8.0)}, index=_EIGHT.index)
 
 
+def _shuffles(**kwargs: int) -> tuple[list[list[float]], pd.DataFrame]:
+    """Return the order of the response in each call of ``check_predictive_signal``, and its table."""
+    seen: list[list[float]] = []
+
+    def recorder(_x: pd.DataFrame, y: pd.DataFrame) -> np.ndarray:
+        seen.append(y["u"].tolist())
+        return y.to_numpy() + 1.0
+
+    return seen, check_predictive_signal(_EIGHT, _ZERO_TO_SEVEN, recorder, **kwargs)
+
+
 class TestPermutationQ2ByHand:
     """Each number of the table, from Q2 values set by hand."""
 
@@ -543,19 +554,20 @@ class TestPermutationQ2ByHand:
             pd.testing.assert_index_equal(index, _EIGHT.index)
 
     def test_the_defaults_are_500_permutations_from_seed_0(self) -> None:
-        def shuffles(**kwargs: int) -> tuple[list[list[float]], pd.DataFrame]:
-            seen: list[list[float]] = []
-
-            def recorder(_x: pd.DataFrame, y: pd.DataFrame) -> np.ndarray:
-                seen.append(y["u"].tolist())
-                return y.to_numpy() + 1.0
-
-            return seen, check_predictive_signal(_EIGHT, _ZERO_TO_SEVEN, recorder, **kwargs)
-
-        default_order, table = shuffles()
+        default_order, table = _shuffles()
         assert table["n_permutations"].iloc[0] == 500
-        assert default_order == shuffles(n_perm=500, random_state=0)[0]
-        assert default_order != shuffles(n_perm=500, random_state=1)[0]
+        assert default_order == _shuffles(n_perm=500, random_state=0)[0]
+        assert default_order != _shuffles(n_perm=500, random_state=1)[0]
+
+    def test_seed_is_deprecated_in_full_and_still_draws_the_shuffles_it_names(self) -> None:
+        """``seed`` is the former name of ``random_state``: the same number gives the same shuffles (#1149)."""
+        with pytest.warns(
+            DeprecationWarning,
+            match=r"^process_improve\.multivariate\.methods\.check_predictive_signal\(seed=\.\.\.\) is deprecated "
+            r"since 2\.7\.0 and will be removed in 3\.0; use random_state=\.\.\. instead\.$",
+        ):
+            by_seed = _shuffles(n_perm=20, seed=3)[0]
+        assert by_seed == _shuffles(n_perm=20, random_state=3)[0]
 
     def test_a_non_frame_is_refused_in_full(self) -> None:
         with pytest.raises(TypeError, match=r"^x and y must both be pandas DataFrames, one row per product\.$"):

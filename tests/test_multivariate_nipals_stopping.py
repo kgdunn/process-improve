@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from process_improve.multivariate import _tpls as tpls_module
 from process_improve.multivariate._common import resolve_loop_settings
 from process_improve.multivariate.methods import (
     MBPCA,
@@ -140,6 +141,44 @@ def test_a_tpls_component_that_cycles_is_damped_until_it_converges() -> None:
     assert fits[0].fitting_statistics["iterations"][0] < 200
     for fit in fits[1:]:
         np.testing.assert_allclose(fit.t_scores_super, fits[0].t_scores_super, rtol=0, atol=0)
+
+
+def test_half_a_damped_step_turns_u_half_way_at_the_size_of_the_passs_result() -> None:
+    """From (-3, 0), turned to the result's side as (3, 0), half way to (2, -2) is 22.5 degrees down (#1163).
+
+    It has the length of the pass's result, 2 sqrt 2, and a whole step is that result itself.
+    """
+    result = np.array([[2.0], [-2.0]])
+    stepped = tpls_module._step_towards(np.array([[-3.0], [0.0]]), result, 0.5)
+    half_way = 2 * np.sqrt(2.0) * np.array([[np.cos(np.pi / 8)], [-np.sin(np.pi / 8)]])
+    np.testing.assert_allclose(stepped, half_way, rtol=1e-14)
+    assert tpls_module._step_towards(np.array([[-3.0], [0.0]]), result, 1.0) is result
+
+
+def test_a_damped_pass_whose_scores_are_not_finite_is_refused_at_its_component(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The damped run refuses scores that are not finite as the first run does, naming the component it fits.
+
+    No data set is known to give them only once damped, so a shortened step is made to return NaN.
+    """
+    whole_step = tpls_module._step_towards
+    monkeypatch.setattr(
+        tpls_module,
+        "_step_towards",
+        lambda u_prior, u_next, step: whole_step(u_prior, u_next, step) if step == 1 else np.full_like(u_next, np.nan),
+    )
+    d_matrix, blocks = _two_groups(seed=110)
+    with pytest.raises(NotEnoughVarianceError, match=r"^TPLS cannot fit component 1: its scores are not finite"):
+        TPLS(n_components=1, d_matrix=d_matrix, max_iter=200).fit(blocks)
+
+
+def test_the_tpls_warning_names_each_component_that_did_not_converge_from_1() -> None:
+    """Counted from 1, as the components are named everywhere else: one pass allowed leaves both unconverged."""
+    with pytest.warns(
+        SpecificationWarning,
+        match=r"^TPLS NIPALS did not converge within max_iter=1 for component\(s\) \[1, 2\]; results for those "
+        r"components may be unreliable\.$",
+    ):
+        TPLS(n_components=2, d_matrix={"g": PROPERTIES}, max_iter=1).fit(T_SHAPED)
 
 
 def test_the_imputation_warning_of_pls_names_the_callers_line() -> None:

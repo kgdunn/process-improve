@@ -527,6 +527,8 @@ pytest_add_cli_args_test_selection = [
     "tests/test_multivariate_sample_weight.py",
     "tests/test_multivariate_inversion.py",
     "tests/test_multivariate_inversion_worked_example.py",
+    # The only tests of PLS._inversion_probe, through optimal_inversion and affine_model.
+    "tests/test_optimal_inversion.py",
     "tests/test_multivariate_feature_names.py",
     "tests/test_sklearn_compat.py",
     "tests/test_multivariate_robustness.py",

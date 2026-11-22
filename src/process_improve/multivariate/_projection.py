@@ -373,7 +373,11 @@ def project_rows(  # noqa: PLR0913 - mirrors operator_for_pattern
             if singular == "raise":
                 raise
             # An operator of NaN gives these rows NaN for everything that follows from their scores.
-            op = Bunch(matrix=np.full((A, int(mask.sum())), np.nan), condition_number=np.inf)
+            nan_operator = np.full(
+                (A, int(mask.sum())),
+                np.nan,  # pragma: no mutate - only guides reads it, a float array, which reads None as NaN
+            )
+            op = Bunch(matrix=nan_operator, condition_number=np.inf)
             unestimated += len(row_ids)
             estimable = False  # pragma: no mutate - NaN scores either way; see below
         if estimable:
