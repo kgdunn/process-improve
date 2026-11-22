@@ -299,6 +299,15 @@ def test_a_design_the_library_makes_says_what_its_kind_was_checked_against(conte
     link = note.locator("a")
     assert link.text_content() == "How Factorial is checked"
     assert link.get_attribute("href") == f"{site}validation.html"
+    # No source prints the face-centred composite design: it counts and lists the packages alone.
+    page.keyboard.press("Escape")
+    composite = checked["designs"]["ccd"]["factors"]["3"]["packages"]
+    badges = page.locator(".result", has=page.locator(f".result__title[data-id='{CCD}']")).locator(".badge")
+    assert {"no source prints it", f"checked: {len(composite)} package"} <= set(badges.all_text_contents())
+    page.click(f".result__title[data-id='{CCD}']")
+    page.wait_for_function("document.querySelector('#detail-title').textContent.includes('composite')")
+    assert page.locator("#detail-body .detail__against h4").all_text_contents() == ["In other software"]
+    assert "as the books print it" not in page.text_content("#detail-body .detail__checked")
     page.keyboard.press("Escape")
     page.click(f".result__title[data-id='{OMARS}']")
     page.wait_for_function("document.querySelector('#detail-title').textContent.includes('OMARS')")

@@ -1032,7 +1032,8 @@ What a careful reader, or an organisation, asks before using a tool.
     prints it, projects its runs onto two or three factors, and draws its correlation map. A
     design the library makes itself has a "Checked" note: the sources that print a design of
     its kind and size, the other packages that build it as the library does, and a link to
-    the page on validation. Its card counts them. Up
+    the page on validation. Its card counts them. A design no source prints names the
+    packages alone. Up
     to four designs are compared side by side. More than 1,100 designs open in Factorial with
     one click. There is a page for each of 30 fields and for each source, a list of errata, a
     feed, and forms to propose a published design or share a case study.

@@ -656,7 +656,11 @@ describe("what a design withstands, in words", () => {
     const note = checkedAgainst(checked, ccd());
     assert.deepEqual(note, { sources: ["a"], packages: [{ name: "rsm", language: "R" }, { name: "dexpy", language: "Python" }] });
     assert.equal(checkedBadge(note), "checked: 1 source, 2 packages");
-    assert.ok(checkedAgainst(checked, ccd({ collection: "generated", regenerable: null })), "a design the library generates");
+    const generated = checkedAgainst(checked, ccd({ collection: "generated", regenerable: null, in_source: true }));
+    assert.deepEqual(generated, note, "a design the library generates, which a source prints too");
+    const unprinted = checkedAgainst(checked, ccd({ collection: "generated", regenerable: null, in_source: false }));
+    assert.deepEqual(unprinted.sources, [], "one no source prints names no sources: they print others of its kind");
+    assert.equal(checkedBadge(unprinted), "checked: 2 packages");
     assert.equal(checkedAgainst(checked, ccd({ regenerable: false })), null, "not a published design the library does not make");
     assert.equal(checkedAgainst(checked, ccd({ regenerable: null })), null, "nor one it was not asked to make");
     assert.equal(checkedAgainst(checked, ccd({ n_factors: 4 })), null, "nor a size that was not compared");

@@ -850,7 +850,7 @@ const SOURCES_SHOWN = 4;
 /**
  * "Checked", under a design's three cells: what its kind, at its size, was compared with. The sources that print
  * such a design are beside the other packages that build it as the library does, and a link leads to the page that
- * says how. Null for a design with no such note (checkedAgainst).
+ * says how. A design no source prints lists the packages alone. Null for a design with no such note (checkedAgainst).
  */
 function checkedNote(design) {
   const note = checkedAgainst(checked, design);
@@ -862,15 +862,17 @@ function checkedNote(design) {
     "section",
     { class: "detail__cell detail__checked", "aria-labelledby": "detail-checked" },
     element("h3", { id: "detail-checked", text: "Checked" }),
-    element("p", { text: "Factorial builds this kind of design, at this size, as the books print it and as other software builds it." }),
+    element("p", { text: `Factorial builds this kind of design, at this size, ${names.length ? "as the books print it and " : ""}as other software builds it.` }),
     element(
       "div",
       { class: "detail__against" },
-      list(
-        "In print",
-        ...names.slice(0, SOURCES_SHOWN).map((text) => element("li", { text })),
-        more > 0 ? element("li", { class: "hint", text: `and ${more} more` }) : null,
-      ),
+      names.length
+        ? list(
+            "In print",
+            ...names.slice(0, SOURCES_SHOWN).map((text) => element("li", { text })),
+            more > 0 ? element("li", { class: "hint", text: `and ${more} more` }) : null,
+          )
+        : null,
       list("In other software", ...note.packages.map((one) => element("li", {}, one.name, element("span", { class: "hint", text: ` (${one.language})` })))),
     ),
     element("p", {}, element("a", { href: app("validation.html"), text: "How Factorial is checked" })),
