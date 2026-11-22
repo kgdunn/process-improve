@@ -641,6 +641,7 @@ describe("words and numbers", () => {
     assert.match(CAPTIONS.contour(["T", "P"]), /over T and P, the two factors with the largest main effects/);
     assert.match(CAPTIONS.contour(["F", "T"], { chosen: true }), /over F and T, the two factors you chose/);
     assert.deepEqual([chartHeight("contour"), chartHeight("cube")], [340, 420]);
+    assert.deepEqual([chartHeight("cube", 1200), chartHeight("cube", 360), chartHeight("contour", 1200)], [540, 420, 340], "a scene on a row of its own, on a desk");
     for (const key of MORE_CHARTS) {
       assert.ok(TITLES[key], `${key} has a heading`);
       const caption = typeof CAPTIONS[key] === "function" ? CAPTIONS[key](["T", "P"]) : CAPTIONS[key];

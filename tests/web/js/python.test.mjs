@@ -147,11 +147,22 @@ describe("the code of one figure", () => {
     assert.match(code, /design_data=X\[done\]\.assign\(\*\*\{"Yield": np\.log\(y\[done\]\)\}\)\.to_dict\("records"\)/);
   });
 
-  test("says what it leaves out for a study with limits on its settings", () => {
+  test("shades the settings a study's limits rule out, as the page does, from step 1's limits (#1242)", () => {
     const limited = { response: "y", constraints: [{ expression: "T + P <= 1" }] };
-    const note = /# The page also shades the settings your limits rule out; this figure is of every setting\./;
-    assert.match(figureCode("Fitted response surface", surface, "T + P", true, limited), note);
-    assert.doesNotMatch(figureCode("Fitted response surface", surface, "T + P", true, { response: "y", constraints: [] }), note);
+    const shaded = figureCode("Fitted response surface", { ...surface, region_given: {} }, "T + P", true, limited);
+    assert.match(shaded, /^from process_improve\.experiments import DesignRegion, analyze_experiment, visualize_doe$/m);
+    assert.match(shaded, /^ {4}region=DesignRegion\(factors, constraints\),/m);
+    assert.doesNotMatch(shaded, /region_given/, "the levels are the region's, not an argument of the plot");
+    const atLevel = figureCode("Fitted response surface", { ...surface, region_given: { RM: "A" } }, "T + P", true, limited);
+    assert.match(atLevel, /region=DesignRegion\(factors, constraints\)\.given\(\*\*\{"RM": "A"\}\),/);
+    assert.doesNotMatch(figureCode("Fitted response surface", surface, "T + P", true, limited), /DesignRegion/, "a surface the page draws unshaded");
+  });
+
+  test("numbers each residual by its run's place in the run order, as the page does (#1242)", () => {
+    const code = figureCode("Residuals in the order the runs were made", { plot_type: "residuals_vs_order", run_order: [3, 1, 4] }, "T + P", false);
+    assert.match(code, /^run_order = \[3, 1, 4\]$/m);
+    assert.match(code, /design_data=X\[done\]\.assign\(\*\*\{"y": y\[done\]\}, RunOrder=run_order\)/);
+    assert.doesNotMatch(code, /run_order=\[/, "no argument of the plot");
   });
 
   test("follows the analysis's code as one script, each import once", () => {

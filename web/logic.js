@@ -1519,9 +1519,12 @@ export const CHARTS = {
   main_effects: {
     title: "Average result at each setting",
     more: true,
-    caption:
-      "The average of the runs made at each setting of a factor, whatever the others were at. The model is not used: " +
-      "these are your results.",
+    caption: (_, { averaged = false } = {}) =>
+      "The average of the runs made at each setting of a factor, whatever the others were at: these are your results." +
+      (averaged
+        ? " The bar at each is the model's interval for the mean at that setting, with the other factors averaged over " +
+          "the runs: an average far outside its bar is one the model does not account for."
+        : ""),
   },
   interaction: {
     title: "Interaction of the two factors",
@@ -1529,18 +1532,6 @@ export const CHARTS = {
     caption: (pair) =>
       `One line for each setting of ${pair[0]}, over the settings of ${pair[1]}: averages of your results. Lines that ` +
       `are not parallel indicate that the effect of ${pair[1]} depends on ${pair[0]}.`,
-  },
-  surface_3d: {
-    title: "Fitted response surface, in three dimensions",
-    more: true,
-    height: 420,
-    caption: (pair) => `The surface above, over ${pair.join(" and ")}, as a shape to turn: drag it.`,
-  },
-  cube: {
-    title: "Predictions at the corners",
-    more: true,
-    height: 420,
-    caption: "The model's prediction at each combination of the low and high settings of three factors: drag to turn it.",
   },
   normal_probability: {
     title: "Residuals against the normal distribution",
@@ -1561,6 +1552,22 @@ export const CHARTS = {
       "The variance of a prediction, relative to the noise of one run, over the same two factors. It depends on where " +
       "the runs are, not on their results: predictions are firmest where it is lowest.",
   },
+  // A figure in three dimensions is small on a card two to a row: it takes a row of its own, after the cards that
+  // share theirs, so that none of those stands beside a gap (#1242).
+  surface_3d: {
+    title: "Fitted response surface, in three dimensions",
+    more: true,
+    wide: true,
+    height: 420,
+    caption: (pair) => `The surface above, over ${pair.join(" and ")}, as a shape to turn: drag it.`,
+  },
+  cube: {
+    title: "Predictions at the corners",
+    more: true,
+    wide: true,
+    height: 420,
+    caption: "The model's prediction at each combination of the low and high settings of three factors: drag to turn it.",
+  },
 };
 
 /** Each chart's heading, and what each shows and how to read it: read from CHARTS. */
@@ -1574,8 +1581,12 @@ export const CAPTIONS = Object.fromEntries(
 /** The charts under "More charts", in their order. */
 export const MORE_CHARTS = Object.keys(CHARTS).filter((key) => CHARTS[key].more);
 
-/** A chart's height on the page, in pixels. */
-export const chartHeight = (key) => CHARTS[key]?.height ?? 340;
+/** The height of a chart on a row of its own (``wide``) in a room wider than a phone's: its scene as tall as that. */
+const WIDE_HEIGHT = 540;
+
+/** A chart's height on the page, in pixels, in a room ``width`` wide: a wide one is taller where the room is wide. */
+export const chartHeight = (key, width = 0) =>
+  CHARTS[key]?.wide && width > 600 ? WIDE_HEIGHT : (CHARTS[key]?.height ?? 340);
 
 /** The most times each run of a design is made: bootstrap.MAX_REPLICATES. */
 export const MAX_REPLICATES = 10;

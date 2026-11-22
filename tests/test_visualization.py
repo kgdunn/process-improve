@@ -1091,6 +1091,13 @@ class TestRegionShading:
         names = [layer.name for layer in plot.to_spec().panels[0].layers]
         assert names == ["Response", "Cannot be run", "Experimental runs"]
         data = plot.to_plotly()["data"]
+        runs = data[2]
+        # A white face and a dark edge read on every color of the ramp, where a dark dot is lost (#1242).
+        assert (runs["marker"]["color"], runs["marker"]["line"]["color"], runs["opacity"]) == (
+            "#ffffff",
+            "#1a1a1a",
+            1.0,
+        )
         assert [trace["type"] for trace in data] == ["contour", "contour", "scatter"]
         assert data[0]["name"] == "Response", "the response stays data[0]"
         shading = data[1]

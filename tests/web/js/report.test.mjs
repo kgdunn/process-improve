@@ -194,6 +194,8 @@ describe("the study's tables", () => {
       html,
       '<figure><h4>Residuals</h4><img src="data:image/png;base64,AA==" alt="Residuals"><figcaption>No pattern.</figcaption></figure>',
     );
+    const square = chartsHtml([{ title: "Surface", caption: "", src: "data:image/png;base64,AA==", width: 412 }]);
+    assert.match(square, /<img [^>]*width="412">/, "shown at the width it was drawn for, not stretched (#1242)");
   });
 });
 

@@ -233,11 +233,11 @@ MORE_TITLES = [
     "Each factor's effect on the prediction",
     "Average result at each setting",
     "Interaction of the two factors",
-    "Fitted response surface, in three dimensions",
-    "Predictions at the corners",
     "Residuals against the normal distribution",
     "Residuals in the order the runs were made",
     "Where the predictions are least certain",
+    "Fitted response surface, in three dimensions",
+    "Predictions at the corners",
 ]
 
 
@@ -256,7 +256,12 @@ def test_more_charts_are_drawn_when_their_heading_is_opened(page):
     assert page.locator("#more-charts figure h3").all_text_contents() == MORE_TITLES
     assert all(caption.endswith(".") for caption in page.locator("#more-charts figcaption").all_text_contents())
     kinds = [traces[0]["type"] for traces in plots(page, "#more-charts")]
-    assert kinds == ["scatter", "scatter", "scatter", "surface", "scatter3d", "scatter", "scatter", "contour"]
+    assert kinds == ["scatter", "scatter", "scatter", "scatter", "scatter", "contour", "surface", "scatter3d"]
+    rows = page.locator("#more-charts figure.chart").evaluate_all(
+        "(cards) => cards.map((card) => [card.dataset.chart, Math.round(card.getBoundingClientRect().top)])"
+    )
+    alone = [key for key, top in rows if [t for _, t in rows].count(top) == 1]
+    assert alone == ["surface_3d", "cube"], "a figure in three dimensions has a row of its own, the others two to a row"
 
 
 def test_each_factor_s_effect_is_drawn_with_the_band_of_its_interval_which_its_caption_explains(page):
@@ -313,6 +318,41 @@ def test_on_a_dark_page_a_surface_is_dark_where_the_response_is_low_and_saved_as
     assert [colour.lower() for colour in saved] == [LIGHT_ENDS[0], "#1d1d1f"]
 
 
+def test_a_chart_of_a_few_lines_names_each_where_it_ends_beside_the_legend(page):
+    """With four lines or fewer, each line's name sits at its end, in its color, and the legend stays (#1242)."""
+    open_more(page)
+    named = """(plot) => (plot.layout.annotations || []).filter((note) => note.xanchor === 'right' && note.font?.color)
+                 .map((note) => [note.text, note.font.color])"""
+    lines = """(plot) => plot.data.filter((t) => t.name && t.meta === undefined && t.showlegend !== false)
+                 .map((t) => [t.name, t.line.color])"""
+    for chart in ("perturbation", "main_effects"):
+        plot = page.locator(f"figure[data-chart={chart}] .plot")
+        assert sorted(plot.evaluate(named)) == sorted(plot.evaluate(lines)), chart
+        assert plot.evaluate("(plot) => plot._fullLayout.showlegend"), "the legend stays"
+    # "Temperature = 150" would cover a third of a card's plot: the legend alone names the interaction's lines.
+    assert page.locator("figure[data-chart=interaction] .plot").evaluate(named) == []
+
+
+def test_a_figure_saved_on_a_dark_background_is_in_the_dark_theme_s_colors(page, tmp_path):
+    """A figure for a dark slide: the window's "Dark background" saves it as the dark page draws it (#1242)."""
+    open_more(page)
+    page.evaluate(
+        """() => { const save = Plotly.toImage;
+          Plotly.toImage = (figure, ...how) => { window.__saved = figure; return save(figure, ...how); }; }"""
+    )
+    page.click("figure[data-chart=contour] .expand")
+    page.wait_for_function("document.querySelector('dialog.figure .plot.js-plotly-plot')")
+    page.check("dialog.figure [data-part=dark]")
+    with page.expect_download() as svg:
+        page.click("dialog.figure [data-do=svg]")
+    svg.value.save_as(tmp_path / "figure.svg")
+    saved = page.evaluate(
+        """() => { const { data, layout } = window.__saved;
+          return [layout.paper_bgcolor, layout.title.font.color, data[0].colorscale[0][1]]; }"""
+    )
+    assert [color.lower() for color in saved] == ["#1c1e21", "#e8e8e6", DARK_ENDS[0]]
+
+
 def rgb(colour: str) -> str:
     """Return a colour written ``#rrggbb`` as a browser writes it in a computed style."""
     return "rgb({}, {}, {})".format(*(int(colour[at : at + 2], 16) for at in (1, 3, 5)))
@@ -340,6 +380,8 @@ def test_the_numbers_on_a_surface_s_lines_have_a_halo_in_the_page_s_colour(page,
         drawn = labels.first.evaluate("(label) => [getComputedStyle(label).fill, getComputedStyle(label).textShadow]")
         assert drawn[0] == rgb(ink)
         assert drawn[1].count(rgb(panel)) == 4, "the browser draws it"
+        line = plot.evaluate("(plot) => plot._fullData[0].line.color")
+        assert line == panel, "the lines between the bands in the page's color, not black on its dark bands (#1242)"
 
 
 def test_the_reader_chooses_the_two_factors_the_surface_is_drawn_over(page):

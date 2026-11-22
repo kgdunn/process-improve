@@ -14,6 +14,7 @@ import {
   SUREST_BLEND,
   BEST_MARKER,
   LIGHT,
+  DARK as DARK_THEME,
   GREYED,
   MOVES,
   RESPONSE_DASHES,
@@ -22,7 +23,11 @@ import {
   blendOverlayFigure,
   boundaryName,
   chanceName,
-  contourLabels,
+  contourDefaults,
+  REPORT_WIDTH,
+  reportShape,
+  lineNames,
+  NAME_LINES,
   targetName,
   windowName,
   overlayFigure,
@@ -82,6 +87,54 @@ import {
 } from "../../../web/charts.js";
 
 const COLOURS = { fg: "#111", muted: "#666", line: "#ddd", accent: "#06c" };
+
+describe("a chart's image in a report (#1242)", () => {
+  test("a figure that fills its room is as wide as the report, at its height on the page", () => {
+    assert.deepEqual(reportShape({ xaxis: {}, yaxis: {} }, 340), { width: REPORT_WIDTH, height: 340 });
+  });
+
+  test("a surface with equal axes is as wide as its square plot and its color bar", () => {
+    const { width, height } = reportShape({ xaxis: {}, yaxis: { scaleanchor: "x" } }, 340, 64);
+    assert.equal(height, 340);
+    assert.equal(width - 56 - 16 - 64, 340 - 12 - 52, "the plot as wide as it is tall");
+    assert.ok(width < REPORT_WIDTH);
+  });
+
+  test("a figure in three dimensions is about as wide as it is tall", () => {
+    assert.deepEqual(reportShape({ scene: {} }, 420, 64), { width: 484, height: 420 });
+  });
+});
+
+describe("a chart's lines named where they end (#1242)", () => {
+  const line = (name, y, color) => ({ type: "scatter", mode: "lines", name, x: [-1, 0, 1], y, line: { color } });
+  const asked = { meta: NAME_LINES };
+
+  test("each line named just above its right end, in its color, with a halo in the page's color", () => {
+    const data = [line("T", [1, 2, 3], "#2563EB"), line("P", [5, 4, 9], "#DC2626")];
+    const notes = lineNames(data, asked, 300, 600, LIGHT);
+    assert.deepEqual(notes.map((n) => [n.text, n.x, n.y, n.font.color]), [["T", 1, 3, "#2563EB"], ["P", 1, 9, "#DC2626"]]);
+    assert.ok(notes.every((n) => n.xanchor === "right" && n.yanchor === "bottom" && !n.showarrow));
+    assert.ok(notes.every((n) => n.font.shadow.split(", ").every((part) => part.endsWith(` 1px ${LIGHT.panel}`))));
+  });
+
+  test("two names that would sit on one another are moved apart by a line of text", () => {
+    const notes = lineNames([line("A", [0, 5], "#000"), line("B", [10, 5.01], "#111")], asked, 100, 600);
+    const at = notes.map((n) => n.y * (100 / 10) + n.yshift);
+    assert.ok(Math.abs(at[1] - at[0]) >= 14);
+  });
+
+  test("only for a figure that asks, with four lines or fewer, in a room wide enough for their names", () => {
+    const four = ["A", "B", "C", "D"].map((name, i) => line(name, [i, i + 1], "#000"));
+    assert.equal(lineNames(four, asked, 300, 365).length, 4, "a card two to a row on a desk");
+    assert.deepEqual(lineNames([...four, line("E", [0, 9], "#000")], asked, 300, 600), [], "five crowd one another");
+    assert.deepEqual(lineNames(four, {}, 300, 600), [], "a figure that does not ask");
+    const long = [line("Temperature = 150", [0, 1], "#000")];
+    assert.deepEqual(lineNames(long, asked, 300, 365), [], "a name that would cover a third of the plot");
+    assert.equal(lineNames(long, asked, 300, 720).length, 1, "in a report's image");
+    const band = { ...line("", [0, 1], "#000"), meta: "interval", showlegend: false };
+    assert.equal(lineNames([band, ...four.slice(0, 2)], asked, 300, 600).length, 2, "a band is no line to name");
+  });
+});
 
 describe("terms as the page writes them", () => {
   test("squares and products", () => {
@@ -638,7 +691,8 @@ describe("a surface's colours, on a light page and on a dark one", () => {
     for (const colours of [LIGHT, DARK]) {
       const [labels, ...others] = pageLayout({}, 300, colours).template.data.contour;
       assert.deepEqual(others, []);
-      assert.deepEqual(labels, contourLabels(colours));
+      assert.deepEqual(labels, contourDefaults(colours));
+      assert.equal(labels.line.color, colours.panel, "the lines between the bands in the page's color (#1242)");
       const { color, shadow } = labels.contours.labelfont;
       assert.equal(color, colours.fg);
       assert.equal(shadow.split(", ").length, 4, "a shadow to each corner");
@@ -652,7 +706,7 @@ describe("a surface's colours, on a light page and on a dark one", () => {
     const { template } = pageLayout({ template: own }, 300, DARK);
     assert.deepEqual(template.layout, own.layout);
     assert.deepEqual(template.data.scatter, own.data.scatter);
-    assert.deepEqual(template.data.contour, [contourLabels(DARK)]);
+    assert.deepEqual(template.data.contour, [contourDefaults(DARK)]);
     assert.deepEqual(own.data, { scatter: [{ mode: "lines" }] }, "the figure it was drawn from is left as it was");
   });
 
@@ -920,6 +974,14 @@ test("a report's charts take the light theme's colours, as style.css gives them"
   const start = css.indexOf(":root {");
   const light = css.slice(start, css.indexOf("}", start));
   for (const [name, colour] of Object.entries(LIGHT)) assert.match(light, new RegExp(`--${name}: ${colour};`), name);
+});
+
+test("a figure saved on a dark background takes the dark theme's colors, as style.css gives them", () => {
+  const css = readFileSync(new URL("../../../web/style.css", import.meta.url), "utf8");
+  const start = css.indexOf(':root[data-theme="dark"] {');
+  const dark = css.slice(start, css.indexOf("}", start));
+  for (const [name, colour] of Object.entries(DARK_THEME)) assert.match(dark, new RegExp(`--${name}: ${colour};`), name);
+  assert.ok(isDark(DARK_THEME));
 });
 
 describe("a campaign's two charts: every run in order, and every run where it was made", () => {

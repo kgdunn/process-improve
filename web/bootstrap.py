@@ -6191,6 +6191,36 @@ def _interval_bands(figure: dict, fitted: _FittedModel, transform: str | None) -
     )
 
 
+def _average_intervals(figure: dict, fitted: _FittedModel, runs: pd.DataFrame) -> None:
+    """Draw the model's interval for the mean at each setting of the chart of the average result at each setting.
+
+    The average of the results at a setting holds whatever the other factors were at in those runs, so their own
+    spread is too wide an interval for it. The model's is the least-squares mean's (:meth:`_FittedModel.averaged`):
+    a bar at each setting, in the line's color seen through, on the model's scale as the averages are (#1242).
+    A fit that uses every run has no estimate of the error, and its averages have no bars.
+    """
+    codes = {word: code for code, word in SETTING_WORDS.items()}  # each setting's coded value, from its word
+    bars = []
+    for line in figure["data"]:  # each a factor with numeric settings: one of several levels is not drawn
+        means = [fitted.averaged(line["name"], float(codes.get(x, x)), runs) for x in line["x"]]
+        if any(half is None for _, half in means):
+            return
+        xs = [part for x in line["x"] for part in (x, x, None)]
+        ys = [part for mean, half in means for part in (mean - half, mean + half, None)]
+        bar = {"type": "scatter", "mode": "lines", "x": xs, "y": ys, "meta": INTERVAL, "hoverinfo": "skip"}
+        bar.update(
+            showlegend=False,
+            legendgroup=line["name"],
+            line={"width": 8, "color": _seen_through(line["line"]["color"], 0.3)},
+        )
+        bars.append(bar)
+        line["legendgroup"] = line["name"]
+    if bars:
+        key = {"type": "scatter", "mode": "lines", "x": [None], "y": [None], "name": interval_words(), "meta": INTERVAL}
+        key.update(line={"width": 8, "color": _seen_through("", 0.4)}, hoverinfo="skip")
+        figure["data"] = [*bars, *figure["data"], key]
+
+
 class _Figures:
     """The figures of one analysis, drawn with the library's plots from its runs (``rows``, in coded units).
 
@@ -6211,6 +6241,7 @@ class _Figures:
         """Draw the library's plot ``kind`` of ``results`` as the page's figure ``key``, on a transform's ``scale``."""
         from process_improve.experiments.visualization.plots import create_plot  # noqa: PLC0415 - imports plotly
 
+        given = options.pop("region_given", None)
         rows = self.rows
         if kind == "residuals_vs_order":  # each residual at its run's own number, which the library reads from here
             rows = [{**row, "RunOrder": number} for row, number in zip(rows, self.order, strict=True)]
@@ -6226,6 +6257,8 @@ class _Figures:
         _name_runs(dressed, kind, results, self.order)
         if kind == "perturbation":
             _interval_bands(dressed, self.fitted, scale)
+        if kind == "main_effects":
+            _average_intervals(dressed, self.fitted, pd.DataFrame(self.rows))
         if kind == "contour":
             runs = _runs_on_surface(self.rows, options["factors_to_plot"], self.order)
             for trace in dressed["data"]:
@@ -6234,6 +6267,10 @@ class _Figures:
                     trace.update(customdata=runs, meta=DRAWS_RUNS, text=words)
         self.drawn[key] = json.dumps(dressed, cls=self.plotly.utils.PlotlyJSONEncoder)
         self.asked[key] = {"plot_type": kind, **{name: options[name] for name in STATED_OPTIONS if name in options}}
+        if given is not None:  # the code builds the region from step 1's limits, at the levels the page holds
+            self.asked[key]["region_given"] = given
+        if kind == "residuals_vs_order":  # the code numbers each residual as the page does, not by its place (#1242)
+            self.asked[key]["run_order"] = list(self.order)
 
 
 def plots(request: dict) -> dict:
@@ -6517,12 +6554,14 @@ def _limits_shading(
     # and so the limits allow, or the first allowed.
     region = _region_at(whole, spec, hold or {})
     assert region is not None  # there are limits, so there is a region
+    given = _labels_at(whole, spec, hold or {})  # the levels it is at, for the code that draws the surface (#1242)
     if region.feasible(np.zeros((1, len(region.names))))[0]:
-        return {"region": region}, []
+        return {"region": region, "region_given": given}, []
     centroid = region.centroid() or {}
     others = [f for f in factors if f.type != "categorical" and f.name not in pair]
     hold = {f.name: (centroid[f.name] - (f.low + f.high) / 2) / ((f.high - f.low) / 2) for f in others}
-    return {"region": region, "hold_values": hold}, [{"name": f.name, "value": centroid[f.name]} for f in others]
+    shading = {"region": region, "region_given": given, "hold_values": hold}
+    return shading, [{"name": f.name, "value": centroid[f.name]} for f in others]
 
 
 def _ticks(factor: dict) -> dict[str, Any]:
@@ -6560,8 +6599,6 @@ def _dressed(figure: dict, kind: str, spec: dict, pair: list[str], transform: st
                 if transform is not None:
                     z = np.asarray(trace["z"], dtype=float).tolist()
                     trace["z"] = [[_put_back(v, transform) for v in row] for row in z]
-            elif trace.get("mode") == "markers":  # the runs: on every colour of the surface, on a light or a dark page
-                trace.update(marker=RUN_MARKER, opacity=1.0)
         layout.update(LEGEND_ABOVE)
     elif kind == "residuals_vs_fitted":
         title("xaxis", _with_units(f"Fitted {scaled}", scale_units))
@@ -6586,9 +6623,6 @@ STATED_OPTIONS = ("factors_to_plot", "hold_values")
 
 #: A legend above the plot, where it meets neither the axis title under the plot nor, in a narrow card, the plot.
 LEGEND_ABOVE = {"legend": {"y": 1.02, "yanchor": "bottom"}, "margin": {"t": 40}}
-
-#: A run on a response surface: a white face and a dark edge, which read on every colour of the surface.
-RUN_MARKER = {"color": "#ffffff", "size": 8, "symbol": "circle", "line": {"color": "#1a1a1a", "width": 1.5}}
 
 #: The pattern of each line of a chart that draws one line for each factor or setting, in the lines' order.
 LINE_DASHES = ("solid", "dash", "dot", "dashdot", "longdash", "longdashdot")
@@ -6633,7 +6667,12 @@ def _dress_prediction_variance(figure: dict, w: dict) -> None:
             trace["colorbar"] = {"title": {"text": "Relative variance"}}
 
 
+#: A figure's layout ``meta`` that asks the page to name its lines where they end, beside the legend: charts.NAME_LINES.
+NAME_LINES = "name-lines"
+
+
 def _dress_perturbation(figure: dict, w: dict) -> None:
+    figure["layout"]["meta"] = NAME_LINES
     for trace in figure["data"]:
         trace["y"] = [_put_back(v, w["transform"]) for v in np.asarray(trace["y"], float).tolist()]
     _titled(figure["layout"], "xaxis", "Each factor's setting", tickvals=[-1, 0, 1], ticktext=["Low", "Center", "High"])
@@ -6642,6 +6681,7 @@ def _dress_perturbation(figure: dict, w: dict) -> None:
 
 def _dress_main_effects(figure: dict, w: dict) -> None:
     layout = figure["layout"]
+    layout["meta"] = NAME_LINES
     for trace in figure["data"]:
         trace["x"] = [SETTING_WORDS.get(float(v), v) for v in trace["x"]]
     for note in layout.get("annotations", []):
@@ -6652,6 +6692,7 @@ def _dress_main_effects(figure: dict, w: dict) -> None:
 
 def _dress_interaction(figure: dict, w: dict) -> None:
     lines, across = w["drawn"]
+    figure["layout"]["meta"] = NAME_LINES
     for trace in figure["data"]:
         trace["x"] = [_setting_words(across, float(v)) for v in trace["x"]]
         trace["name"] = f"{lines['name']} = {_setting_words(lines, float(trace['name'].rsplit('=', 1)[1]))}"
@@ -6690,13 +6731,13 @@ MORE_CHARTS: dict[str, _Chart] = {
     "perturbation": _Chart("perturbation", _dress_perturbation, legend_above=True),
     "main_effects": _Chart("main_effects", _dress_main_effects, legend_above=True),
     "interaction": _Chart("interaction", _dress_interaction, legend_above=True),
-    "surface_3d": _Chart("surface_3d", _dress_surface_3d, on_surface=True),
-    "cube": _Chart("cube_plot", _dress_cube, scaled=False),
     "normal_probability": _Chart(
         "normal_probability", _dress_residuals("Expected, were the residuals normally distributed")
     ),
     "residuals_order": _Chart("residuals_vs_order", _dress_residuals("Run, in the order made")),
     "prediction_variance": _Chart("prediction_variance", _dress_prediction_variance, scaled=False, on_surface=True),
+    "surface_3d": _Chart("surface_3d", _dress_surface_3d, on_surface=True),
+    "cube": _Chart("cube_plot", _dress_cube, scaled=False),
 }
 
 #: Each further chart by the library's name for its plot, as a figure's dressing knows it.
@@ -8525,6 +8566,20 @@ class _FittedModel:
         mean = self.t * math.sqrt(self.mse * leverage)
         single = self.t * math.sqrt(self.mse * (1 + leverage))
         return predicted, [predicted - mean, predicted + mean], [predicted - single, predicted + single], leverage
+
+    def averaged(self, name: str, setting: float, runs: pd.DataFrame) -> tuple[float, float | None]:
+        """Return the mean at one setting of a column with the others averaged over ``runs``, and half its interval.
+
+        It is the least-squares mean: the model's prediction at each run with ``name`` moved to ``setting``,
+        averaged over the runs, so that the other factors, their squares and their products are at the averages
+        the runs give them, which is what the average of the results at that setting has under it (#1242).
+        Without residual degrees of freedom there is no interval, and its half is None.
+        """
+        row = _model_matrix(runs[self.names].assign(**{name: setting}), self.terms, self.names).mean(axis=0)
+        mean = float(row @ self.beta)
+        if self.mse is None or self.t is None:
+            return mean, None
+        return mean, self.t * math.sqrt(self.mse * float(row @ self.inverse @ row))
 
     def along(self, name: str, settings: np.ndarray) -> tuple[np.ndarray, np.ndarray | None]:
         """Return the prediction as one column moves over ``settings``, and half the width of its confidence interval.

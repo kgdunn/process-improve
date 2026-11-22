@@ -59,7 +59,7 @@ def test_the_further_charts_are_in_the_reader_s_words_and_units(api, held, simul
     }
     assert figures["surface_3d"]["layout"]["scene"]["xaxis"]["ticktext"] == ["150", "175", "200"]
     assert figures["perturbation"]["layout"]["yaxis"]["title"]["text"] == "Predicted Yield (%)"
-    assert figures["main_effects"]["data"][0]["x"] == ["Low", "Middle", "High"]
+    assert lines_of(figures["main_effects"])[0]["x"] == ["Low", "Middle", "High"]
     assert figures["interaction"]["data"][0]["x"] == ["1", "2", "3"], "the settings of P, in bar"
     corners = next(t for t in figures["cube"]["data"] if t["name"] == "Vertices")
     assert corners["mode"] == "markers+text"
@@ -88,7 +88,9 @@ def test_the_charts_read_on_a_light_page_and_a_dark_one_and_without_their_colour
         assert figures[key]["layout"]["legend"]["y"] > 1
     assert {trace["mode"] for trace in lines_of(figures["perturbation"])} == {"lines"}, "a curve: no marks along it"
     for key in ("main_effects", "interaction"):
-        assert {trace["mode"] for trace in figures[key]["data"]} == {"lines+markers"}, f"{key}: a mark at each average"
+        assert {trace["mode"] for trace in lines_of(figures[key])} == {"lines+markers"}, (
+            f"{key}: a mark at each average"
+        )
 
 
 def lines_of(figure: dict) -> list[dict]:
@@ -344,3 +346,25 @@ def test_a_design_without_limits_is_drawn_as_before(api, held, simulated):
     contour = json.loads(result["figures"]["contour"])
     assert all(trace.get("name") != "Cannot be run" for trace in contour["data"])
     assert (result["shaded"], result["held"]) == (False, [])
+
+
+def test_each_average_has_the_model_s_interval_for_the_mean_at_its_setting(api):
+    """The bar at each setting is the least-squares mean's interval: the others averaged over the runs (#1242)."""
+    statsmodels = pytest.importorskip("statsmodels.api")
+    design = api.ok("api_make_design", {"design_type": "full_factorial", "factors": FACTORS})
+    held = held_of(design)
+    y = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 3})["responses"]
+    plots = api.ok("api_plots", {**held, "responses": y, "model": "main_effects"})
+    figure = json.loads(plots["figures"]["main_effects"])
+    bars = {
+        trace["legendgroup"]: trace for trace in figure["data"] if trace.get("meta") == "interval" and trace["x"][0]
+    }
+    x = coded(run_sheet(design), FACTORS)[[f["name"] for f in FACTORS]]
+    fit = statsmodels.OLS(np.asarray(y, dtype=float), statsmodels.add_constant(x)).fit()
+    words = {"Low": -1.0, "Middle": 0.0, "High": 1.0}
+    assert set(bars) == {f["name"] for f in FACTORS}
+    for name, bar in bars.items():
+        for at, (low, high) in zip(bar["x"][::3], zip(bar["y"][::3], bar["y"][1::3], strict=True), strict=True):
+            row = statsmodels.add_constant(x.assign(**{name: words[at]}), has_constant="add").mean().to_frame().T
+            expected = fit.get_prediction(row).conf_int(alpha=0.05)[0]
+            np.testing.assert_allclose([low, high], expected, rtol=1e-9, err_msg=f"{name} at {at}")
