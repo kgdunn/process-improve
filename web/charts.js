@@ -118,14 +118,35 @@ const EYE = { x: 1.65, y: 1.65, z: 1.1 };
 const SCENE_SHAPE = 0.9;
 
 /**
- * The numbers on a contour's lines, where a figure states no font for them: in the page's ink, with a halo in the
- * page's own colour. A ramp runs from as light as the page to as dark as its ink, so no one colour reads on every
- * band; with a halo, one does. It is a default of the figure, not a setting of each trace: Plotly keeps the levels
- * it chose in a trace's own ``contours``, and a copy of that with a font added would be drawn again without them.
+ * A contour's lines and their numbers, where a figure states none: the lines in the page's own colour, the numbers
+ * in its ink with a halo in the page's colour. A ramp runs from as light as the page to as dark as its ink, so a
+ * black line is lost on its darkest bands, and a line in the page's colour only on the band that fades into the
+ * page (#1242); no one colour of number reads on every band, but with a halo one does. These are defaults of the
+ * figure, not settings of each trace: Plotly keeps the levels it chose in a trace's own ``contours``, and a copy
+ * of that with a font added would be drawn again without them.
  */
-export function contourLabels(colours) {
+export function contourDefaults(colours) {
   const halo = ["1px 1px", "-1px -1px", "1px -1px", "-1px 1px"].map((at) => `${at} 1px ${colours.panel}`).join(", ");
-  return { contours: { labelfont: { color: colours.fg, shadow: halo } } };
+  return { contours: { labelfont: { color: colours.fg, shadow: halo } }, line: { color: colours.panel } };
+}
+
+/** The room around a figure's plot, where the figure states none: its axes' numbers and titles. */
+const MARGIN = { l: 56, r: 16, t: 12, b: 52 };
+
+/** The width of a chart's image in a report, in CSS pixels, for a figure that fills whatever room it is given. */
+export const REPORT_WIDTH = 720;
+
+/**
+ * The size of a figure's image in a report, from its ``layout``, its ``height`` on the page and the room its colour
+ * bar takes (``bar``): as wide as the report for a figure that fills its room. A surface with equal axes keeps its
+ * plot square, so at that width it is drawn small in the middle with its colour bar far to its right: its image is
+ * as wide as the square and the bar. A figure in three dimensions is about as wide as it is tall (#1242).
+ */
+export function reportShape(layout, height, bar = 0) {
+  if (layout.scene) return { width: height + bar, height };
+  if (!layout.xaxis?.scaleanchor && !layout.yaxis?.scaleanchor) return { width: REPORT_WIDTH, height };
+  const margin = { ...MARGIN, ...(layout.margin || {}) };
+  return { width: height - margin.t - margin.b + margin.l + margin.r + bar, height };
 }
 
 /**
@@ -135,7 +156,7 @@ export function contourLabels(colours) {
  * for a figure in a window of its own, whose shape is the reader's to give: its axes fill the room.
  */
 export function pageLayout(layout, height, colours = palette(), { width = 0, bar = 0, free = false } = {}) {
-  const margin = { l: 56, r: 16, t: 12, b: 52, ...(layout.margin || {}) };
+  const margin = { ...MARGIN, ...(layout.margin || {}) };
   // Plotly writes an axis's and a pointer's numbers itself: its decimal mark, then the mark between thousands.
   const separators = decimalMark() === "comma" ? ", " : ".,";
   const axis = (given, room = 0) => {
@@ -164,7 +185,7 @@ export function pageLayout(layout, height, colours = palette(), { width = 0, bar
     // What the pointer rests on is named in the page's own colours: the library's label is white, for a white page.
     hoverlabel: { bgcolor: colours.panel, bordercolor: colours.line, font: { color: colours.fg, size: 12 } },
     separators,
-    template: { ...layout.template, data: { ...layout.template?.data, contour: [contourLabels(colours)] } },
+    template: { ...layout.template, data: { ...layout.template?.data, contour: [contourDefaults(colours)] } },
     xaxis: axis(layout.xaxis, width && width - margin.l - margin.r - bar),
     yaxis: axis(layout.yaxis, height - margin.t - margin.b),
   };
@@ -513,25 +534,50 @@ export const LIGHT = {
   error: "#b3261e",
 };
 
+/** The dark theme's colours, as style.css gives them: a figure saved for a dark slide or page (#1242). */
+export const DARK = {
+  fg: "#e8e8e6",
+  muted: "#a0a4a8",
+  line: "#34373b",
+  panel: "#1c1e21",
+  accent: "#7fb0ea",
+  warn: "#e2a95a",
+  ok: "#7fd49a",
+  error: "#f2877f",
+};
+
 /**
- * A chart the page drew, as an image on white in the light theme's axes and text, for a report or a file: a data
- * URL. It is ``width`` CSS pixels wide and ``height`` tall (its height on the page, when none is given), and drawn
- * ``scale`` times that for print. With a ``title``, the image carries it, as one that leaves the page must. Null
- * for a div no chart was drawn in.
+ * A chart the page drew, as an image for a report or a file: a data URL. It is on white in the light theme's axes
+ * and text, or in the theme of ``colours`` (DARK, say). It is ``width`` CSS pixels wide and ``height`` tall (its
+ * height on the page, when none is given), and drawn ``scale`` times that for print. With a ``title``, the image
+ * carries it, as one that leaves the page must. Null for a div no chart was drawn in.
  */
-export async function chartImage(div, width = 720, { height = null, title = "", format = "png", scale = 2 } = {}) {
+export async function chartImage(
+  div,
+  width = REPORT_WIDTH,
+  { height = null, title = "", format = "png", scale = 2, colours = LIGHT } = {},
+) {
   const shown = drawn.get(div);
   if (!shown || !window.Plotly) return null;
   const tall = height ?? shown.height ?? div.clientHeight;
-  const { data, layout: fitted } = dressed(shown, tall, LIGHT, width);
-  const layout = { ...fitted, width, autosize: false, paper_bgcolor: "#ffffff", plot_bgcolor: "#ffffff" };
+  const { data, layout: fitted } = dressed(shown, tall, colours, width);
+  const layout = { ...fitted, width, autosize: false, paper_bgcolor: colours.panel, plot_bgcolor: colours.panel };
   if (title) {
     const head = 34; // room for the title, above a legend that sits over the plot
     layout.margin = { ...layout.margin, t: layout.margin.t + head };
     layout.title = { text: title, x: 0.01, xanchor: "left", y: 1, yref: "container", yanchor: "top", pad: { t: 10 } };
-    layout.title.font = { size: 16, color: LIGHT.fg };
+    layout.title.font = { size: 16, color: colours.fg };
   }
   return window.Plotly.toImage({ data, layout }, { format, width, height: tall, scale });
+}
+
+/** The size of the image of the chart drawn in ``div``, as a report shows it (reportShape). */
+export function reportSize(div) {
+  const shown = drawn.get(div);
+  if (!shown) return { width: REPORT_WIDTH, height: null };
+  const figure = madeIn(LIGHT, shown.make);
+  const bar = (figure.data || []).some(hasBar) ? BAR : 0;
+  return reportShape(figure.layout || {}, shown.height ?? div.clientHeight, bar);
 }
 
 /** Draw every chart on the page again, in the colours of the theme it shows now. */

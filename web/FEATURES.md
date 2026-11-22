@@ -616,16 +616,16 @@ Nine charts come with the analysis. Eight more are one press away, under More ch
 - **Interaction of the two factors.** Whether one factor's effect depends on the other.
   *More charts.*
   ![](chart-pictures/interaction.webp)
-- **Fitted response surface, in three dimensions.** *More charts.*
-  ![](chart-pictures/surface_3d.webp)
-- **Predictions at the corners.** *More charts.*
-  ![](chart-pictures/cube.webp)
 - **Residuals against the normal distribution.** *More charts.*
   ![](chart-pictures/normal_probability.webp)
 - **Residuals in the order the runs were made.** To see a drift over time. *More charts.*
   ![](chart-pictures/residuals_order.webp)
 - **Where the predictions are least certain.** *More charts.*
   ![](chart-pictures/prediction_variance.webp)
+- **Fitted response surface, in three dimensions.** A row of its own. *More charts.*
+  ![](chart-pictures/surface_3d.webp)
+- **Predictions at the corners.** A row of its own. *More charts.*
+  ![](chart-pictures/cube.webp)
 
 Also:
 
@@ -648,8 +648,9 @@ Also:
 - **Step through the figures.** Use the window's arrows or the left and right keys.
 - **Save or copy a figure.** Take an image file, or an image on the clipboard to paste, for a
   report or a slide.
-  - *Details:* A PNG or an SVG in the shape shown, on white under its title. An image saved
-    from a dark page has the light theme's colours.
+  - *Details:* A PNG or an SVG in the shape shown, under its title: on white in the light
+    theme's colours, whatever the page shows, or on the dark theme's background when "Dark
+    background" is ticked, for a dark slide.
 - **The Python that draws it.** Each of the 17 charts shows code that runs as it is, and so
   do the other figures.
   - *Details:* The library's own call for the eleven charts the library draws, and Plotly's
@@ -703,7 +704,9 @@ Also:
   - *Details:* An .html file. A stamp gives the seed, a fingerprint of the study (its
     SHA-256) and a link that opens the same study. It ends with "Terms used": each word the
     report used that the page defines, with its meaning, since paper has no word to press.
-    The software versions are at its foot.
+    The software versions are at its foot. A chart's image takes a shape that suits it: a
+    surface with equal axes as wide as its square plot and its colour bar, a figure in three
+    dimensions about as wide as it is tall, the others 720 pixels wide.
 - **A link to a study.** It carries the results or leaves them out. Whoever opens it has the
   same study, and the study in the link reaches no server.
   - *Details:* The study is packed after the `#`, which a browser sends to no server.

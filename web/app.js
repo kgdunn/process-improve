@@ -19,6 +19,7 @@ import {
   coxFigure,
   curveFigure,
   chartImage,
+  reportSize,
   draw,
   fdsFigure,
   levelsFigure,
@@ -3954,9 +3955,11 @@ async function chartsWithin(root) {
   const charts = [];
   for (const card of root.querySelectorAll("figure.chart")) {
     if (!shownWithin(card, root)) continue;
-    const src = await chartImage(card.querySelector(".plot"));
+    const plot = card.querySelector(".plot");
+    const { width, height } = reportSize(plot);
+    const src = await chartImage(plot, width, { height });
     const title = card.querySelector("h3, h4")?.textContent ?? "";
-    if (src) charts.push({ title, caption: card.querySelector("figcaption")?.textContent ?? "", src });
+    if (src) charts.push({ title, caption: card.querySelector("figcaption")?.textContent ?? "", src, width });
   }
   return charts;
 }
@@ -5561,7 +5564,7 @@ async function drawCharts(request, mine, given = null) {
     const captions = plots.held_best ? { ...CAPTIONS, contour: bestContourCaption } : CAPTIONS;
     const captioned = (key) => {
       const caption = typeof captions[key] === "function" ? captions[key](plots.contour_factors, limits) : captions[key];
-      return chartCard(key, caption);
+      return chartCard(key, caption, CHARTS[key].wide);
     };
     const python = (key) => figurePython(key, plots);
     // The figures of this analysis, in the order the page has them: a notebook of the study ends with their code.

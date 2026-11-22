@@ -489,31 +489,36 @@ export function analyseCode(model, complete = true, spec = null, vifModel = null
  * Lenth's margins for the half-normal plot of the effects, the fit and its residuals for every other figure.
  */
 export function figureCode(title, options, model, complete = true, spec = null) {
+  // The residuals against the run order carry each run's number, which the library reads from the runs as RunOrder;
+  // a surface of a study with limits, the levels its region is at (none without a limit for some levels).
+  const { run_order: order, region_given: given, ...asked } = options;
   const transform = transformOf(spec);
   const X = complete ? "X" : "X[done]";
   const y = onScale(complete ? "y" : "y[done]", transform);
   const response = repr(spec?.response ?? "y");
-  const lenth = options.plot_type === "half_normal";
-  const recolour = SURFACE_PLOTS.has(options.plot_type) && colourArgs() !== "";
+  const lenth = asked.plot_type === "half_normal";
+  const recolour = SURFACE_PLOTS.has(asked.plot_type) && colourArgs() !== "";
   return [
     "import plotly.graph_objects as go",
-    "from process_improve.experiments import analyze_experiment, visualize_doe",
+    `from process_improve.experiments import ${given ? "DesignRegion, " : ""}analyze_experiment, visualize_doe`,
     ...(recolour ? ["from process_improve.visualization.colors import colorscale"] : []),
     "",
     `# The figure "${title}", as the library draws it: under its own titles, with each factor in`,
     "# coded units, from -1 at its low setting to +1 at its high. The page puts the axes in your own units.",
-    // shortcut: the region of a study with limits is not written out, so the code draws the whole cube; #1242.
-    ...(spec?.constraints?.length ? ["# The page also shades the settings your limits rule out; this figure is of every setting."] : []),
     "drawn = analyze_experiment(",
     lenth
       ? `    ${X}, ${y}, model=${repr(model)}, analysis_type=["effects", "lenth_method"],`
       : `    ${X}, ${y}, model=${repr(model)}, analysis_type=["coefficients", "residual_diagnostics"], coding="actual",`,
     ...argLine(levelArg(), 4),
     ")",
+    ...(order ? ["# Each run's number in the order the runs were made, as the run sheet lists it.", `run_order = ${repr(order)}`] : []),
     "chart = visualize_doe(",
-    ...Object.entries(options).map(([name, value]) => `    ${name}=${repr(value)},`),
+    ...Object.entries(asked).map(([name, value]) => `    ${name}=${repr(value)},`),
+    ...(given
+      ? [`    region=DesignRegion(factors, constraints)${Object.keys(given).length ? `.given(**${repr(given)})` : ""},  # shades the settings your limits rule out`]
+      : []),
     "    analysis_results=drawn,",
-    `    design_data=${X}.assign(**{${response}: ${y}}).to_dict("records"),`,
+    `    design_data=${X}.assign(**{${response}: ${y}}${order ? ", RunOrder=run_order" : ""}).to_dict("records"),`,
     `    response_column=${response},`,
     '    backend="plotly",',
     ...argLine(confidenceArg(), 4),

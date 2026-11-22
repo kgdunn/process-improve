@@ -6211,6 +6211,7 @@ class _Figures:
         """Draw the library's plot ``kind`` of ``results`` as the page's figure ``key``, on a transform's ``scale``."""
         from process_improve.experiments.visualization.plots import create_plot  # noqa: PLC0415 - imports plotly
 
+        given = options.pop("region_given", None)
         rows = self.rows
         if kind == "residuals_vs_order":  # each residual at its run's own number, which the library reads from here
             rows = [{**row, "RunOrder": number} for row, number in zip(rows, self.order, strict=True)]
@@ -6234,6 +6235,10 @@ class _Figures:
                     trace.update(customdata=runs, meta=DRAWS_RUNS, text=words)
         self.drawn[key] = json.dumps(dressed, cls=self.plotly.utils.PlotlyJSONEncoder)
         self.asked[key] = {"plot_type": kind, **{name: options[name] for name in STATED_OPTIONS if name in options}}
+        if given is not None:  # the code builds the region from step 1's limits, at the levels the page holds
+            self.asked[key]["region_given"] = given
+        if kind == "residuals_vs_order":  # the code numbers each residual as the page does, not by its place (#1242)
+            self.asked[key]["run_order"] = list(self.order)
 
 
 def plots(request: dict) -> dict:
@@ -6517,12 +6522,14 @@ def _limits_shading(
     # and so the limits allow, or the first allowed.
     region = _region_at(whole, spec, hold or {})
     assert region is not None  # there are limits, so there is a region
+    given = _labels_at(whole, spec, hold or {})  # the levels it is at, for the code that draws the surface (#1242)
     if region.feasible(np.zeros((1, len(region.names))))[0]:
-        return {"region": region}, []
+        return {"region": region, "region_given": given}, []
     centroid = region.centroid() or {}
     others = [f for f in factors if f.type != "categorical" and f.name not in pair]
     hold = {f.name: (centroid[f.name] - (f.low + f.high) / 2) / ((f.high - f.low) / 2) for f in others}
-    return {"region": region, "hold_values": hold}, [{"name": f.name, "value": centroid[f.name]} for f in others]
+    shading = {"region": region, "region_given": given, "hold_values": hold}
+    return shading, [{"name": f.name, "value": centroid[f.name]} for f in others]
 
 
 def _ticks(factor: dict) -> dict[str, Any]:
@@ -6690,13 +6697,13 @@ MORE_CHARTS: dict[str, _Chart] = {
     "perturbation": _Chart("perturbation", _dress_perturbation, legend_above=True),
     "main_effects": _Chart("main_effects", _dress_main_effects, legend_above=True),
     "interaction": _Chart("interaction", _dress_interaction, legend_above=True),
-    "surface_3d": _Chart("surface_3d", _dress_surface_3d, on_surface=True),
-    "cube": _Chart("cube_plot", _dress_cube, scaled=False),
     "normal_probability": _Chart(
         "normal_probability", _dress_residuals("Expected, were the residuals normally distributed")
     ),
     "residuals_order": _Chart("residuals_vs_order", _dress_residuals("Run, in the order made")),
     "prediction_variance": _Chart("prediction_variance", _dress_prediction_variance, scaled=False, on_surface=True),
+    "surface_3d": _Chart("surface_3d", _dress_surface_3d, on_surface=True),
+    "cube": _Chart("cube_plot", _dress_cube, scaled=False),
 }
 
 #: Each further chart by the library's name for its plot, as a figure's dressing knows it.

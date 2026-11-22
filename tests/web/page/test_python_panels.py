@@ -36,6 +36,9 @@ from tests.web._support import (
 from tests.web.api.test_book_examples import catalogue
 from tests.web.api.test_charts import _limited
 from tests.web.api.test_contract import curved
+from tests.web.api.test_level_limits import UP_TO
+from tests.web.api.test_level_limits import made as level_limited
+from tests.web.api.test_level_limits import results as level_results
 
 #: Best settings for the worked example as the catalogue gives it, its factors named in full: coded, as the page
 #: sends them. The tests that make the example themselves, not through the shared fixtures, read the page's names.
@@ -1481,6 +1484,11 @@ def test_a_figure_s_code_leaves_out_the_runs_still_to_do_and_fits_on_the_scale_t
     residuals = figure(plots["plot_options"]["residuals"], analysis["formula"], False, held["spec"])
     assert_same_figure(residuals, json.loads(plots["figures"]["residuals"]), "residuals", values=("x", "y"))
     assert len(residuals.data[0].y) == len(responses) - 2, "a residual for each run that has a result"
+    # Each residual at its run's number in the run order, as the page draws it, not at its place among the results.
+    in_order = figure(plots["plot_options"]["residuals_order"], analysis["formula"], False, held["spec"])
+    shown_in_order = json.loads(plots["figures"]["residuals_order"])
+    assert_same_figure(in_order, shown_in_order, "residuals_order", values=("x", "y"))
+    assert sorted(in_order.data[0].x) != list(range(1, len(responses) - 1)), "the runs still to do keep their numbers"
     # The page puts a prediction back in the response's units; the library draws it on the scale it is fitted on.
     effect = figure(plots["plot_options"]["perturbation"], analysis["formula"], False, held["spec"])
     shown = [t for t in json.loads(plots["figures"]["perturbation"])["data"] if t.get("meta") != "interval"]
@@ -1537,8 +1545,8 @@ def test_at_a_level_of_the_study_s_own_the_half_normal_plot_s_code_draws_the_pag
 
 
 @pytest.mark.slow
-def test_a_figure_s_code_for_a_study_with_limits_draws_the_surface_over_every_setting(api, node, monkeypatch):
-    """The page shades the settings the limits rule out; the code says it does not, and draws the same surface."""
+def test_a_figure_s_code_for_a_study_with_limits_shades_what_they_rule_out_as_the_page_does(api, node, monkeypatch):
+    """The code builds the region from step 1's limits, and its surface shades the settings the page shades (#1242)."""
     design, responses = _limited(api, "T + 25 * P <= 250")
     held = held_of(design)
     analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
@@ -1550,15 +1558,44 @@ def test_a_figure_s_code_for_a_study_with_limits_draws_the_surface_over_every_se
         ("analyseCode", [analysis["formula"], True]),
     )
     options = plots["plot_options"]["contour"]
-    assert options == {"plot_type": "contour", "factors_to_plot": ["T", "P"]}, "the region is not one of them"
+    assert options == {"plot_type": "contour", "factors_to_plot": ["T", "P"], "region_given": {}}
     code = panel(node, *steps, ("figureCode", ["A figure", options, analysis["formula"], True, held["spec"]]))
-    assert "# The page also shades the settings your limits rule out" in code
+    assert "region=DesignRegion(factors, constraints)," in code
     drawn = figure_drawn(node, monkeypatch, steps, options, analysis["formula"], True, held["spec"])
     shown = json.loads(plots["figures"]["contour"])["data"]
-    assert [trace["name"] for trace in shown if trace["name"] not in {t.name for t in drawn.data}] == ["Cannot be run"]
-    np.testing.assert_allclose(
-        np.asarray(drawn.data[0].z, dtype=float), np.asarray(shown[0]["z"], dtype=float), atol=1e-9
+    assert len(drawn.data) == len(shown), "the shaded settings too"
+    for mine, theirs in zip(drawn.data, shown, strict=True):
+        for name in ("x", "y", "z"):
+            if theirs.get(name) is not None:
+                np.testing.assert_allclose(
+                    np.asarray(mine[name], dtype=float), np.asarray(theirs[name], dtype=float), atol=1e-9
+                )
+
+
+@pytest.mark.slow
+def test_a_figure_s_code_shades_a_limit_for_one_level_at_the_level_the_surface_is_held_at(api, node, monkeypatch):
+    """A limit that holds at one level of a categorical factor: the code's region is the page's, at that level."""
+    design = level_limited(api, [UP_TO])
+    held = held_of(design)
+    responses = level_results(design)
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    plots = api.ok("api_plots", {**held, "responses": responses})
+    options = plots["plot_options"]["contour"]
+    assert options["region_given"] == {"RM": "A"}, "held at the first level, where the limit holds"
+    steps = (
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, responses]),
+        ("analyseCode", [analysis["formula"], True]),
     )
+    drawn = figure_drawn(node, monkeypatch, steps, options, analysis["formula"], True, held["spec"])
+    shown = json.loads(plots["figures"]["contour"])["data"]
+    assert len(drawn.data) == len(shown), "the shaded settings too"
+    for mine, theirs in zip(drawn.data, shown, strict=True):
+        for name in ("x", "y", "z"):
+            if theirs.get(name) is not None:
+                np.testing.assert_allclose(
+                    np.asarray(mine[name], dtype=float), np.asarray(theirs[name], dtype=float), atol=1e-9
+                )
 
 
 def test_a_surface_s_code_draws_it_in_the_study_s_colour_map(api, node, monkeypatch):

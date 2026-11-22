@@ -191,12 +191,15 @@ export function runSheetHtml(design, results, marks) {
   return any ? `${sheet}\n<p class="hint">A result in italics was simulated.</p>` : sheet;
 }
 
-/** The charts, each {title, caption, src}: a figure with its heading, its image and its caption. */
+/**
+ * The charts, each {title, caption, src, width}: a figure with its heading, its image and its caption. The image is
+ * shown at the ``width`` it was drawn for, so a figure that keeps its shape is not stretched to the page's width.
+ */
 export function chartsHtml(charts) {
   return charts
     .map(
       (c) =>
-        `<figure><h4>${escape(c.title)}</h4><img src="${escape(c.src)}" alt="${escape(c.title)}">` +
+        `<figure><h4>${escape(c.title)}</h4><img src="${escape(c.src)}" alt="${escape(c.title)}"${c.width ? ` width="${c.width}"` : ""}>` +
         `${c.caption ? `<figcaption>${escape(c.caption)}</figcaption>` : ""}</figure>`,
     )
     .join("\n");

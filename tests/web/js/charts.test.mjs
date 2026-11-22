@@ -14,6 +14,7 @@ import {
   SUREST_BLEND,
   BEST_MARKER,
   LIGHT,
+  DARK as DARK_THEME,
   GREYED,
   MOVES,
   RESPONSE_DASHES,
@@ -22,7 +23,9 @@ import {
   blendOverlayFigure,
   boundaryName,
   chanceName,
-  contourLabels,
+  contourDefaults,
+  REPORT_WIDTH,
+  reportShape,
   targetName,
   windowName,
   overlayFigure,
@@ -82,6 +85,23 @@ import {
 } from "../../../web/charts.js";
 
 const COLOURS = { fg: "#111", muted: "#666", line: "#ddd", accent: "#06c" };
+
+describe("a chart's image in a report (#1242)", () => {
+  test("a figure that fills its room is as wide as the report, at its height on the page", () => {
+    assert.deepEqual(reportShape({ xaxis: {}, yaxis: {} }, 340), { width: REPORT_WIDTH, height: 340 });
+  });
+
+  test("a surface with equal axes is as wide as its square plot and its colour bar", () => {
+    const { width, height } = reportShape({ xaxis: {}, yaxis: { scaleanchor: "x" } }, 340, 64);
+    assert.equal(height, 340);
+    assert.equal(width - 56 - 16 - 64, 340 - 12 - 52, "the plot as wide as it is tall");
+    assert.ok(width < REPORT_WIDTH);
+  });
+
+  test("a figure in three dimensions is about as wide as it is tall", () => {
+    assert.deepEqual(reportShape({ scene: {} }, 420, 64), { width: 484, height: 420 });
+  });
+});
 
 describe("terms as the page writes them", () => {
   test("squares and products", () => {
@@ -638,7 +658,8 @@ describe("a surface's colours, on a light page and on a dark one", () => {
     for (const colours of [LIGHT, DARK]) {
       const [labels, ...others] = pageLayout({}, 300, colours).template.data.contour;
       assert.deepEqual(others, []);
-      assert.deepEqual(labels, contourLabels(colours));
+      assert.deepEqual(labels, contourDefaults(colours));
+      assert.equal(labels.line.color, colours.panel, "the lines between the bands in the page's colour (#1242)");
       const { color, shadow } = labels.contours.labelfont;
       assert.equal(color, colours.fg);
       assert.equal(shadow.split(", ").length, 4, "a shadow to each corner");
@@ -652,7 +673,7 @@ describe("a surface's colours, on a light page and on a dark one", () => {
     const { template } = pageLayout({ template: own }, 300, DARK);
     assert.deepEqual(template.layout, own.layout);
     assert.deepEqual(template.data.scatter, own.data.scatter);
-    assert.deepEqual(template.data.contour, [contourLabels(DARK)]);
+    assert.deepEqual(template.data.contour, [contourDefaults(DARK)]);
     assert.deepEqual(own.data, { scatter: [{ mode: "lines" }] }, "the figure it was drawn from is left as it was");
   });
 
@@ -920,6 +941,14 @@ test("a report's charts take the light theme's colours, as style.css gives them"
   const start = css.indexOf(":root {");
   const light = css.slice(start, css.indexOf("}", start));
   for (const [name, colour] of Object.entries(LIGHT)) assert.match(light, new RegExp(`--${name}: ${colour};`), name);
+});
+
+test("a figure saved on a dark background takes the dark theme's colours, as style.css gives them", () => {
+  const css = readFileSync(new URL("../../../web/style.css", import.meta.url), "utf8");
+  const start = css.indexOf(':root[data-theme="dark"] {');
+  const dark = css.slice(start, css.indexOf("}", start));
+  for (const [name, colour] of Object.entries(DARK_THEME)) assert.match(dark, new RegExp(`--${name}: ${colour};`), name);
+  assert.ok(isDark(DARK_THEME));
 });
 
 describe("a campaign's two charts: every run in order, and every run where it was made", () => {
