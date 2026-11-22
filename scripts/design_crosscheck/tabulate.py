@@ -5,7 +5,7 @@ Run it from the repository root after compare.py, with the same ``DOE_OUT``::
     DOE_OUT=results uv run python scripts/design_crosscheck/tabulate.py
 
 It writes ``docs/validation/design_crosscheck.csv``, one row per package, and
-``docs/validation/differences_<package>.csv``, every check of that package that does not agree.
+``docs/validation/differences_<package>.csv``, every check on which that package and process-improve differ.
 """
 
 import os
@@ -62,8 +62,9 @@ def main() -> None:
                 "Not built": int(count.get("other cannot build", 0)),
             }
         )
-        differs = mine[mine["outcome"] != "agree"].drop(columns=["design_type", "built_by"])
-        differs.to_csv(DOCS / f"differences_{name}.csv", index=False)
+        differs = mine[mine["outcome"].isin(["other differs", "process-improve differs"])]
+        if len(differs):
+            differs.drop(columns=["design_type", "built_by"]).to_csv(DOCS / f"differences_{name}.csv", index=False)
     pd.DataFrame(table).to_csv(DOCS / "design_crosscheck.csv", index=False)
     print(pd.DataFrame(table).to_string(index=False))
 

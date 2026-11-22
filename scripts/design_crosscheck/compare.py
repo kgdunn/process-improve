@@ -584,7 +584,7 @@ def pydoe3_min_aberration(n_runs: int, k: int) -> list[str]:
 
 def unsupported(*_a, **_k):
     _BUILT[0] = True
-    raise Unsupported("pyDOE3 has no such construction")
+    raise Unsupported(f"{LIB} has no such construction")
 
 
 _BUILT = [False]
