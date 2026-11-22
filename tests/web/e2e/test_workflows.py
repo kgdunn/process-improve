@@ -75,7 +75,7 @@ KEPT = sorted(["Intercept", "T", "P", "T·P", "T²"])
 
 
 def strength_study(page: Any) -> np.ndarray:  # noqa: ANN401
-    """Describe a strength to maximise in the worked example's factors, make a Box-Behnken design, type its results."""
+    """Describe a strength to maximize in the worked example's factors, make a Box-Behnken design, type its results."""
     name_response(page, "Strength", "MPa", goal="maximize")
     set_factors(page, FACTORS)
     candidates_done(page)
@@ -126,7 +126,7 @@ def test_a_study_goes_from_its_brief_to_its_report(fresh_page):
     name, html = download_report(page)
     assert name == "box_behnken-15-runs-report.html"
     report = opened(page, html)
-    assert report.text_content("h1").startswith("Strength (MPa), maximise: Box-Behnken in T, P and F")
+    assert report.text_content("h1").startswith("Strength (MPa), maximize: Box-Behnken in T, P and F")
     assert "What the results say" in headings(report)
     words = report.text_content("body")
     assert "Run 4 is set aside" in words, "the report says which run the fit leaves out"
@@ -145,7 +145,7 @@ def test_a_study_is_kept_as_it_was_left_and_opens_the_same_from_a_link(open_cont
     assert saved[0]["set_aside"], "the study is kept with the run set aside"
 
     again = come_back(context)
-    assert again.text_content(BANNER).startswith("Picked up where you left off: Strength (MPa), maximise: ")
+    assert again.text_content(BANNER).startswith("Picked up where you left off: Strength (MPa), maximize: ")
     assert again.get_attribute("#workspace", "data-phase") == "learn", "a study with results opens on its analysis"
     assert [float(v) for v in results(again)] == list(typed), "every result as it was typed"
     assert terms_fitted(again) == KEPT, "the terms chosen are kept with the study"

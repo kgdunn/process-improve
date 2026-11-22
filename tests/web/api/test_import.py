@@ -48,7 +48,7 @@ def study(api, table: dict, **more: object) -> dict:
 
 
 def analysed(api, campaign: dict) -> dict:
-    """Analyse an imported study's first response, as Learn does when the study opens."""
+    """Analyze an imported study's first response, as Learn does when the study opens."""
     design = campaign["design"]
     request = {"spec": design["spec"], "columns": design["columns"], "rows": design["rows"], "model": campaign["model"]}
     return api.ok("api_analyze_runs", {**request, "responses": campaign["responses"]})
@@ -77,7 +77,7 @@ def test_in_records_where_nothing_was_set_the_last_measured_column_is_the_respon
 
 
 def exported(head: str, rows: list[str]) -> str:
-    """Return a 2^2 factorial with two centre points as a DOE program exports it: its own columns, then T, P, Y."""
+    """Return a 2^2 factorial with two center points as a DOE program exports it: its own columns, then T, P, Y."""
     runs = [(-1, -1), (1, -1), (-1, 1), (1, 1), (0, 0), (0, 0)]
     return (
         head

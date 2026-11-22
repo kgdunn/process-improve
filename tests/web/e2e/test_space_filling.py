@@ -1,4 +1,4 @@
-"""A space-filling design in the page: chosen from the design list, made, practised on and analysed.
+"""A space-filling design in the page: chosen from the design list, made, practiced on and analyzed.
 
 It is made for no model, so it opens on ten runs a factor rather than on a model's coefficients, its
 Runs box says which model Learn fits (the one the study aims to learn), and the list of designs for

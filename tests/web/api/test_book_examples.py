@@ -5,7 +5,7 @@ Improvement using Data* (https://learnche.org/pid, source in kgdunn/pid-book). I
 results are those of ``web/book-examples.json``, the examples the book links to by name, and
 are made into the campaign that link opens (``book_example`` in ``scripts/build_web_app.py``):
 the page generates the design from the factors the book gives, and each of the book's results
-is placed against its run by the run's coded settings. The page then analyses them, and every
+is placed against its run by the run's coded settings. The page then analyzes them, and every
 number the book prints must come back within the book's own rounding. A change to the app that
 would contradict the book fails here; so does a book number the app does not reproduce, and so
 does a link that would open anything other than the book's data.
@@ -66,7 +66,7 @@ class Example:
 
     ``data`` names the book's example in ``web/book-examples.json``, whose runs a link opens; or
     holds runs the book gives that no link opens, in the same shape. ``model`` and ``options``
-    change the example's model or design, where the book analyses its runs another way.
+    change the example's model or design, where the book analyzes its runs another way.
     ``printed`` maps a coefficient, by the label the page shows, to the value the book prints,
     as text: the number of decimals printed sets how close the page must come. ``lenth`` holds
     the book's Lenth margins and ``active`` the effects the book finds beyond the margin of error.
@@ -174,7 +174,7 @@ EXAMPLES = {
         {"Intercept": "89.8", "T": "-4.081", "S": "2.475", "T·S": "-0.025", "T²": "-0.05", "S²": "-1.125"},
         r_squared="0.9989",
     ),
-    # The book averages each pair of replicates and analyses the corners; the page holds both replicates.
+    # The book averages each pair of replicates and analyzes the corners; the page holds both replicates.
     "exercise: web sales": Example(
         "web-sales",
         {"Intercept": "3184", "Shipping": "-126", "Profile": "-371", "Shipping·Profile": "-181"},
@@ -308,7 +308,7 @@ EXAMPLES = {
 
 
 def test_every_example_a_link_opens_is_checked_against_the_book():
-    """A name in the catalogue is a link the book may print: each must open runs a case here checks."""
+    """A name in the catalog is a link the book may print: each must open runs a case here checks."""
     checked = {example.data for example in EXAMPLES.values() if isinstance(example.data, str)}
     assert checked == set(catalogue())
 
@@ -326,10 +326,10 @@ def coefficient(analysis: dict, label: str) -> float:
 
 @pytest.fixture(scope="module")
 def analysis_of(api, build_script) -> Callable[[str], dict]:
-    """Analyse an example, once per module, as the page does once its link has opened it.
+    """Analyze an example, once per module, as the page does once its link has opened it.
 
     ``book_example`` makes the design through the page's entry point and puts the book's results
-    against its runs, as the build does for the link; the page then analyses what the link opens.
+    against its runs, as the build does for the link; the page then analyzes what the link opens.
     """
 
     @cache
@@ -407,9 +407,9 @@ def test_the_note_the_analysis_makes(analysis_of, name):
 
 # --------------------------------------------------------------------------- the book's own record of it
 def _reference_runs(name: str) -> list[tuple]:
-    """Return the runs of the book's experiment in the reference catalogue, as printed, with the first response.
+    """Return the runs of the book's experiment in the reference catalog, as printed, with the first response.
 
-    The settings are those the book prints (1.41, say, where the reference catalogue recomputes with the square
+    The settings are those the book prints (1.41, say, where the reference catalog recomputes with the square
     root of 2 it stands for): the page matches each result to a run of the design it makes by them.
     """
     experiment = next(e for e in reference_catalogue.reference_experiments("pid-book") if e["name"] == name)
@@ -420,9 +420,9 @@ def _reference_runs(name: str) -> list[tuple]:
 
 @pytest.mark.parametrize("name", list(catalogue()))
 def test_every_example_a_link_opens_is_in_the_reference_catalogue(name):
-    """The runs a link opens are runs the book prints, as the reference catalogue records them.
+    """The runs a link opens are runs the book prints, as the reference catalog records them.
 
-    The reference catalogue's experiment of the same name holds every run the book prints, and every number it
+    The reference catalog's experiment of the same name holds every run the book prints, and every number it
     prints for them, each with its file and line; ``tests/test_reference_catalogue.py`` reproduces those
     numbers. A link may open fewer runs than the book prints (the four corners without the baseline),
     but none the book does not.

@@ -353,7 +353,7 @@ def test_a_blend_that_is_no_blend_of_the_components_is_refused(api, plotly):
 
 
 # --------------------------------------------------------------------------- the balance of several responses
-#: A cost to minimise beside the hardness of SURFACE: B is the cheapest component, and A with C costs less together.
+#: A cost to minimize beside the hardness of SURFACE: B is the cheapest component, and A with C costs less together.
 COST = {"A": 20.0, "B": 10.0, "C": 15.0, "A:B": 8.0, "A:C": -6.0}
 
 #: The two responses, as the brief describes them.

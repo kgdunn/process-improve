@@ -138,7 +138,7 @@ def test_learn_greys_the_settings_outside_the_limits(blank_page):
     reveal(page, "#charts")
     page.wait_for_function("document.querySelectorAll('#charts .js-plotly-plot').length >= 3", timeout=30_000)
     caption = page.locator("#charts figcaption").first.text_content()
-    assert "since the center of the ranges cannot be run; grey: settings outside your limits;" in caption
+    assert "since the center of the ranges cannot be run; gray: settings outside your limits;" in caption
 
 
 def test_a_limit_typed_with_a_phone_s_signs_is_read_as_typed(blank_page):

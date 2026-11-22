@@ -1,4 +1,4 @@
-"""A study's settings, in the browser: the colour map its charts are drawn in, kept with the study."""
+"""A study's settings, in the browser: the color map its charts are drawn in, kept with the study."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import Any
 
 from tests.web.e2e._page import generate, practise, reveal, saved_studies, settled
 
-#: The colour a contour chart gives its lowest value, on a light page, in each map: the map's light end.
+#: The color a contour chart gives its lowest value, on a light page, in each map: the map's light end.
 LOW = {"batlow": "#faccfa", "devon": "#eae8fb", "lajolla": "#fffecb", "grayC": "#dcdcdc"}
 CONTOUR = "document.querySelector('figure[data-chart=contour] .plot')?.data?.find((t) => Array.isArray(t.colorscale))"
 
@@ -18,7 +18,7 @@ def lowest(page: Any) -> str:  # noqa: ANN401 - a Playwright Page
 
 
 def choose_map(page: Any, name: str, *, keep: bool | None = None) -> None:  # noqa: ANN401 - a Playwright Page
-    """Choose a colour map in Settings, as a reader does from the Studies menu, and close the settings."""
+    """Choose a color map in Settings, as a reader does from the Studies menu, and close the settings."""
     page.click("#study-button")
     page.click("#menu-settings")
     page.wait_for_selector("#settings-dialog[open]")
@@ -36,7 +36,7 @@ def test_the_charts_are_drawn_in_batlow_until_another_map_is_chosen(page):
     page.click("#study-button")
     page.click("#menu-settings")
     names = page.locator("#colour-maps .settings__choice").all_text_contents()
-    assert names == ["Batlow", "Devon", "La Jolla", "Grey"]
+    assert names == ["Batlow", "Devon", "La Jolla", "Gray"]
     assert page.is_checked('#colour-maps input[value="batlow"]')
     assert not page.is_checked("#settings-keep")
     for name in ("devon", "lajolla", "grayC"):
@@ -89,7 +89,7 @@ def test_the_switch_on_the_chosen_map_s_line_flips_it_and_the_study_keeps_that(b
     page.locator("#colour-map-flipped").check(force=True)  # the box is under its drawn switch
     page.wait_for_function(f"{CONTOUR}?.colorscale[0][1]?.toLowerCase() === '#011959'")
     after = page.locator("#colour-maps .settings__swatch").first.evaluate("(bar) => bar.style.background")
-    assert after != before, "the bar shows the colours from low to high as the charts now draw them"
+    assert after != before, "the bar shows the colors from low to high as the charts now draw them"
     assert page.evaluate("document.activeElement.id") == "colour-map-flipped", "the keyboard stays on the switch"
     kept = saved_studies(
         page, lambda studies: bool(studies) and studies[0].get("settings", {}).get("colour_map_flipped")

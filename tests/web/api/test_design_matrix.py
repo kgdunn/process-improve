@@ -1,16 +1,16 @@
 """Every design the browser app offers, checked through the page's own code path.
 
-``web/bootstrap.py`` builds the designs the page shows and analyses the runs a reader
+``web/bootstrap.py`` builds the designs the page shows and analyzes the runs a reader
 fills in. These tests drive it as the page does, over the factor counts and options
 each design takes, and check what makes each design the design it claims to be,
 rather than pinned numbers:
 
 - the run sheet: settings inside the ranges entered (or at the stated axial distance),
-  a randomised permutation of the standard order, the same sheet for the same seed;
+  a randomized permutation of the standard order, the same sheet for the same seed;
 - the design's defining structure: corners, resolution and generators, fold-over,
   orthogonality, axial distance, published run counts, full rank;
 - a round trip: a known model in the design's own terms plus small noise, written into
-  the downloaded workbook and analysed as uploaded, recovers the coefficients, and the
+  the downloaded workbook and analyzed as uploaded, recovers the coefficients, and the
   coefficients, standard errors, R^2, adjusted and predicted R^2, residual sum of squares
   and lack-of-fit F equal an independent numpy least-squares fit.
 
@@ -144,11 +144,11 @@ def test_design(api, design_type: str, k: int, options: dict) -> None:
     x = coded(sheet, spec["factors"]).to_numpy()
     n = len(sheet)
 
-    # The sheet: the runs in a randomised order, numbered 1..n, each with its standard-order place.
+    # The sheet: the runs in a randomized order, numbered 1..n, each with its standard-order place.
     assert sheet["Run order"].tolist() == list(range(1, n + 1))
     assert sorted(sheet["Std order"]) == list(range(1, n + 1))
     if n >= 6:
-        assert sheet["Std order"].tolist() != list(range(1, n + 1)), "the runs are randomised"
+        assert sheet["Std order"].tolist() != list(range(1, n + 1)), "the runs are randomized"
     # The same seed gives the same sheet.
     assert api.ok("api_make_design", spec)["rows"] == result["rows"]
     # The facts the page states match the runs.
@@ -279,7 +279,7 @@ STRUCTURE = {
 
 # --------------------------------------------------------------------------- the round trip
 def _round_trip(api, result: dict, x: np.ndarray) -> None:
-    """Fill the workbook with a known model plus small noise, analyse it as uploaded, and check the fit."""
+    """Fill the workbook with a known model plus small noise, analyze it as uploaded, and check the fit."""
     k = x.shape[1]
     terms = model_terms(k, result["model"])
     matrix = model_matrix(x, terms)

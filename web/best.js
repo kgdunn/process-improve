@@ -246,7 +246,7 @@ export function ascentSentence(best, factors) {
   return `A next study could move the ranges along the ${climb(best)}: ${steps.map((s) => `${s.name} ${way(s)} ${s.size}`).join(", ")}.`;
 }
 
-/** The way the goal improves fastest, as a sentence names it: the steepest descent to minimise or to come down to a target, else the steepest ascent. */
+/** The way the goal improves fastest, as a sentence names it: the steepest descent to minimize or to come down to a target, else the steepest ascent. */
 export const climb = (best) =>
   best.goal === "minimize" || (best.goal === "target" && best.predicted > best.target) ? "steepest descent" : "steepest ascent";
 
@@ -333,7 +333,7 @@ export function noGoalSentence(best, { label }, { blend = false } = {}) {
   if (best.goal === "target") {
     return `Type the target for ${label} in the brief, and the page finds the ${blend ? "blend that reaches" : "settings that reach"} it.`;
   }
-  return `Set a goal for ${label} in the brief, to maximise, minimise or hit a target, and the page finds the best ${blend ? "blend" : "settings"} here.`;
+  return `Set a goal for ${label} in the brief, to maximize, minimize or hit a target, and the page finds the best ${blend ? "blend" : "settings"} here.`;
 }
 
 /** What the panel says when no term of the model changes the response; of a mixture's blends with ``blend``. */
@@ -439,7 +439,7 @@ export function bestContourCaption(pair, { shaded = false, held = [], factors = 
   const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
   const at = (h) => (typeof h.value === "string" ? `${h.name} at ${h.value}` : `${h.name} at ${withUnit(h.value, units[h.name])}`);
   const others = held.length ? `, with ${listed(held.map(at))}, ${held.length === 1 ? "its best setting" : "their best settings"}` : "";
-  const grey = shaded ? "; grey: settings outside your limits" : "";
+  const grey = shaded ? "; gray: settings outside your limits" : "";
   const star = starred ? "; the star marks the best settings" : "";
   const which = chosen ? "the two factors you chose" : "the two factors with the largest main effects"; // logic.pairWords
   return `Drawn over ${pair.join(" and ")}, ${which}${others}${grey}${star}; the dots are the runs.`;
@@ -569,10 +569,10 @@ export const IMPORTANCE = 3;
 /** A desirability as the page writes it: two decimals, enough to compare one response's with another's. */
 export const dWords = (d) => marked(Number(d).toFixed(2));
 
-/** A response's goal as the balance's table says it: "Maximise", "Minimise", or "Target 63%". */
+/** A response's goal as the balance's table says it: "Maximize", "Minimize", or "Target 63%". */
 export function goalWords(r) {
-  if (r.goal === "maximize") return "Maximise";
-  if (r.goal === "minimize") return "Minimise";
+  if (r.goal === "maximize") return "Maximize";
+  if (r.goal === "minimize") return "Minimize";
   return `Target ${withUnit(r.target, r.units)}`;
 }
 
@@ -662,14 +662,14 @@ export function balanceWhere(b) {
 
 /**
  * The caption of the overlay of the acceptable ranges: the two factors drawn and why, where the others are held,
- * and what the shading, the lines, the grey and the star mean. ``factors`` are the spec's, for their units.
+ * and what the shading, the lines, the gray and the star mean. ``factors`` are the spec's, for their units.
  */
 export function overlayCaption(overlay, factors = [], responses = []) {
   const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
   const at = (h) => (typeof h.value === "string" ? `${h.name} at ${h.value}` : `${h.name} at ${withUnit(h.value, units[h.name])}`);
   const held = overlay.held ?? [];
   const others = held.length ? `, with ${listed(held.map(at))}, ${held.length === 1 ? "its balanced setting" : "their balanced settings"}` : "";
-  const grey = overlay.runnable ? "; grey: settings outside your limits" : "";
+  const grey = overlay.runnable ? "; gray: settings outside your limits" : "";
   const { everywhere, nowhere } = missedBoundaries(overlay, responses);
   const missed = (labels, said) => (labels.length ? ` No line for ${listed(labels)}: ${labels.length === 1 ? "it is" : "they are"} ${said}.` : "");
   const narrow = everywhere.length ? " Narrow a range in the table to draw its boundary." : "";
@@ -1027,7 +1027,7 @@ export function profileRange(profiles, within = null) {
 }
 
 /**
- * A profile's line as the pieces it is drawn in: each a run of neighbouring points that are all within the runs, or
+ * A profile's line as the pieces it is drawn in: each a run of neighboring points that are all within the runs, or
  * all beyond them (``beyond``), which the page draws dashed. A piece beyond the runs starts and ends at the points
  * within them that it joins, so the line has no gap.
  */
@@ -1137,7 +1137,7 @@ export function whatIfSentences(responses, broken = []) {
 // ---------------------------------------------------------------- the trade-offs between the responses
 /**
  * How far a response's value falls short of what its goal asks for, to compare two values by: the smaller, the
- * better. To maximise, a larger value is better; to minimise, a smaller one; for a target, one nearer the target.
+ * better. To maximize, a larger value is better; to minimize, a smaller one; for a target, one nearer the target.
  */
 export const shortfall = (goal, value) =>
   goal.goal === "maximize" ? -value : goal.goal === "minimize" ? value : Math.abs(value - goal.target);
@@ -1248,7 +1248,7 @@ export function solveSentences(solved, { held = "", units = "", label = solved.r
 
 /**
  * The caption of the chart of the settings that give the targets: the two factors drawn and where the others are held,
- * what a line, the star, the dots and the grey mean, and the responses with no line, which no setting drawn brings to
+ * what a line, the star, the dots and the gray mean, and the responses with no line, which no setting drawn brings to
  * its target. ``overlay`` and ``responses`` are bootstrap.target_settings'; ``factors`` the spec's, for their units.
  */
 export function targetCaption(overlay, factors = [], responses = []) {
@@ -1268,7 +1268,7 @@ export function targetCaption(overlay, factors = [], responses = []) {
     .filter(({ z, levels }) => !(levels[0] > Math.min(...z.flat()) && levels[0] < Math.max(...z.flat())))
     .map((surface) => label[surface.name] ?? surface.name);
   const missed = undrawn.length ? ` No line for ${listed(undrawn)}: no ${one} drawn brings ${undrawn.length === 1 ? "it to its target" : "them to their targets"}.` : "";
-  const grey = overlay.runnable ? " Grey: settings outside your limits." : "";
+  const grey = overlay.runnable ? " Gray: settings outside your limits." : "";
   return `${where} ${lines} The star marks the ${blend ? "blend" : "settings"} found, and the dots your runs.${grey}${missed}`;
 }
 
@@ -1359,7 +1359,7 @@ export function surestSentence(found, factors, units = {}, { blend = false } = {
 
 /**
  * The caption of the chart of a specification: the two factors drawn and where the others are held, and what the
- * shading, the lines, the lines of equal chance, the star, the dots and the grey mean.
+ * shading, the lines, the lines of equal chance, the star, the dots and the gray mean.
  */
 export function windowCaption(overlay, factors = []) {
   const blend = overlay.kind === "ternary"; // a mixture's chart is over the triangle of its three components
@@ -1373,13 +1373,13 @@ export function windowCaption(overlay, factors = []) {
   const chance = chances.length
     ? ` Inside the line of ${Math.round(100 * Math.max(...chances))}%, a new run meets every window at least that often: the fit's doubt and the noise are counted.`
     : "";
-  const grey = overlay.runnable ? " Grey: settings outside your limits." : "";
+  const grey = overlay.runnable ? " Gray: settings outside your limits." : "";
   // A triangle of three of four components or more draws no runs: one is on it only if it holds the others alike.
   const dots = overlay.runs?.length ? ", and the dots your runs" : "";
   const surest = overlay.at ? ` The star marks the blend at which a new run is surest to meet them${dots}.` : dots ? " The dots are your runs." : "";
   const star = blend ? surest : " The star marks the settings What if holds, and the dots your runs.";
   return (
     `${blend ? triangleWords(overlay) : `Drawn over ${overlay.x} and ${overlay.y}${others}.`} Shaded where every response is predicted inside its window; each ` +
-    `coloured line is the end of a response's window.${chance}${star}${grey}`
+    `colored line is the end of a response's window.${chance}${star}${grey}`
   );
 }

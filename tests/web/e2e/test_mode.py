@@ -1,8 +1,8 @@
-"""The colour-mode switch in the header.
+"""The color-mode switch in the header.
 
 The switch cycles the system's mode, light and dark, as the book's does: the first press always
 changes the page. The choice is kept in this browser, put on the page before it is drawn, and the
-charts are drawn again in its colours.
+charts are drawn again in its colors.
 """
 
 from __future__ import annotations
@@ -33,20 +33,20 @@ def shown_icon(page) -> list[str]:
 
 
 def chart_text_colour(page) -> str:
-    """Return the colour of the first chart's axis text: the page's --muted when it was drawn."""
+    """Return the color of the first chart's axis text: the page's --muted when it was drawn."""
     return page.evaluate("getComputedStyle(document.querySelector('#charts .js-plotly-plot .xtick text')).fill")
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 1280, "height": 900}, "color_scheme": "light"}])
 def test_the_switch_cycles_the_system_s_mode_dark_and_light_as_the_book_s_does(page):
-    assert mode(page) == ["auto", None, "Colour mode: the system's"]
+    assert mode(page) == ["auto", None, "Color mode: the system's"]
     assert shown_icon(page) == ["auto"]
     assert page.get_attribute("#mode", "title") == "light/dark"
     assert background(page) == LIGHT_BG
     light_axes = chart_text_colour(page)
 
     page.click("#mode")
-    assert mode(page) == ["dark", "dark", "Colour mode: dark"], "the first press changes the page"
+    assert mode(page) == ["dark", "dark", "Color mode: dark"], "the first press changes the page"
     assert shown_icon(page) == ["dark"]
     assert background(page) == DARK_BG
     page.wait_for_function(
@@ -54,10 +54,10 @@ def test_the_switch_cycles_the_system_s_mode_dark_and_light_as_the_book_s_does(p
     )
 
     page.click("#mode")
-    assert mode(page) == ["light", "light", "Colour mode: light"]
+    assert mode(page) == ["light", "light", "Color mode: light"]
     assert background(page) == LIGHT_BG
     page.click("#mode")
-    assert mode(page) == ["auto", None, "Colour mode: the system's"]
+    assert mode(page) == ["auto", None, "Color mode: the system's"]
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 1280, "height": 900}, "color_scheme": "light"}])

@@ -275,7 +275,7 @@ def test_the_catalog_links_to_the_forms_for_proposing_a_design_and_sharing_a_cas
     """Each link names an issue form the repository holds, which asks for what an entry needs.
 
     A published design needs its source and where its runs are printed; a case study of one's own needs
-    the responses, how the runs were done, and the licence the data are shared under.
+    the responses, how the runs were done, and the license the data are shared under.
     """
     import yaml
 

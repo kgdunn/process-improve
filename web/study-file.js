@@ -144,7 +144,7 @@ export async function readStudyFile(text, now = Date.now()) {
 }
 
 /**
- * A file name from a study's title: "Yield (%), maximise: CCD in T, P and F" becomes "yield-maximise-ccd-in-t-p-and-f".
+ * A file name from a study's title: "Yield (%), maximize: CCD in T, P and F" becomes "yield-maximise-ccd-in-t-p-and-f".
  * A long title is cut after the last whole word that fits in 60 characters, so that no word is left half written.
  */
 export function fileStem(title) {

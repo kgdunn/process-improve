@@ -84,7 +84,7 @@ def test_the_equation_names_the_response_as_the_reader_does(api):
 
 
 def test_practice_results_are_on_the_reader_s_scale(api, bootstrap):
-    """The process is centred on the typical value, and its effects are its sizes in noise units times the noise."""
+    """The process is centered on the typical value, and its effects are its sizes in noise units times the noise."""
     plain = api.ok("api_simulate", {**held_of(_design(api)), "scenario": "reactor", "seed": 3})
     scaled = api.ok(
         "api_simulate",
@@ -101,7 +101,7 @@ def test_practice_results_are_on_the_reader_s_scale(api, bootstrap):
 
 
 def test_the_worked_example_s_description_leaves_its_results_as_the_reactor_gives_them(api, demo, held, simulated):
-    """Typical 62 and noise 1 are the reactor's own centre and noise: the example's numbers do not move."""
+    """Typical 62 and noise 1 are the reactor's own center and noise: the example's numbers do not move."""
     info = demo["design"]["response_info"]
     bare = {**held, "spec": {k: v for k, v in held["spec"].items() if k != "response_info"}}
     plain = api.ok("api_simulate", {**bare, "scenario": demo["scenario"], "sigma": demo["sigma"], "seed": demo["seed"]})

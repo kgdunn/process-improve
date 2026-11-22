@@ -121,7 +121,7 @@ def view(page) -> str:
 def test_on_a_phone_every_term_is_labelled_and_the_legend_clears_the_axis(page, first_paint):
     terms = [c["label"] for c in first_paint["analysis"]["coefficients"] if c["term"] != "Intercept"]
     shown = term_labels(page)
-    assert sorted(shown) == sorted(terms), "every term labelled, none skipped for want of room"
+    assert sorted(shown) == sorted(terms), "every term labeled, none skipped for want of room"
     legend = coefficient_plot(page).locator(".legend").bounding_box()
     title = coefficient_plot(page).locator(".xtitle").bounding_box()
     assert legend["y"] + legend["height"] <= title["y"], "the legend sits above the plot, the axis title below"
@@ -215,7 +215,7 @@ def test_with_no_degrees_of_freedom_the_pareto_plot_draws_lenth_s_margins(blank_
 
 
 def test_charts_drawn_while_learn_was_hidden_fit_its_width(blank_page):
-    """Results typed in Run are analysed and drawn there and then; showing Learn fits each chart to its card."""
+    """Results typed in Run are analyzed and drawn there and then; showing Learn fits each chart to its card."""
     page = blank_page
     generate(page, design_type="box_behnken")
     type_results(page, {run: 60 + (run % 5) for run in range(15)})
@@ -282,7 +282,7 @@ def test_each_factor_s_effect_is_drawn_with_the_band_of_its_interval_which_its_c
     )
 
 
-#: The first and the last colour of each chart's ramp, for the charts drawn in bands or shades of the response.
+#: The first and the last color of each chart's ramp, for the charts drawn in bands or shades of the response.
 ENDS = """() => Object.fromEntries([...document.querySelectorAll('#charts figure.chart')].flatMap((card) => {
   const ramp = card.querySelector('.plot').data?.find((trace) => Array.isArray(trace.colorscale))?.colorscale;
   return ramp ? [[card.dataset.chart, [ramp[0][1], ramp.at(-1)[1]].map((colour) => colour.toLowerCase())]] : [];
@@ -354,13 +354,13 @@ def test_a_figure_saved_on_a_dark_background_is_in_the_dark_theme_s_colors(page,
 
 
 def rgb(colour: str) -> str:
-    """Return a colour written ``#rrggbb`` as a browser writes it in a computed style."""
+    """Return a color written ``#rrggbb`` as a browser writes it in a computed style."""
     return "rgb({}, {}, {})".format(*(int(colour[at : at + 2], 16) for at in (1, 3, 5)))
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
 def test_the_numbers_on_a_surface_s_lines_have_a_halo_in_the_page_s_colour(page, scheme):
-    """A ramp runs from as light as the page to as dark as its ink: no one colour reads on every band without it."""
+    """A ramp runs from as light as the page to as dark as its ink: no one color reads on every band without it."""
     page.emulate_media(color_scheme=scheme)
     open_more(page)
     ink, panel = page.evaluate(

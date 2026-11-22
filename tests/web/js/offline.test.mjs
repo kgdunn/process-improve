@@ -45,7 +45,7 @@ const START = startFiles(listing);
 const LATER = laterFiles(listing);
 
 /** Where working offline helps, as the whole copy says it. */
-const WHERE = "for example when travelling, or in a factory or laboratory without internet";
+const WHERE = "for example when traveling, or in a factory or laboratory without internet";
 
 describe("the files the copy is made of", () => {
   test("a release's are the interpreter, its library, the lock file, and each package with all it depends on, once", () => {
@@ -140,7 +140,7 @@ describe("what the footer says of the copy", () => {
     assert.equal(copyWords("opens", { size: 170 }).said, "Works offline, except charts and Excel files. Factorial's tools are saved on this device (about 170 MB).");
     assert.equal(
       copyWords("whole", { size: 190 }).said,
-      "Works fully offline, for example when travelling, or in a factory or laboratory without internet. Factorial's tools are saved on this device (about 190 MB).",
+      "Works fully offline, for example when traveling, or in a factory or laboratory without internet. Factorial's tools are saved on this device (about 190 MB).",
     );
     assert.equal(copyWords("none", { size: 10 }).said, "Needs internet. Factorial's tools are not saved on this device.");
   });
@@ -267,7 +267,7 @@ describe("a first visit", () => {
   test("copies what Python started from, the charts and Excel files and the page's own files, and says it works fully offline", () => {
     assert.deepEqual(browser.caches.held(KEPT).sort(), [...START, ...LATER].sort());
     assert.deepEqual(browser.caches.held(APP).sort(), [...SHELL].sort(), "not the wheel's folder, a reader's report, or a file the server refused");
-    assert.deepEqual(page.seen, ["Works fully offline, for example when travelling, or in a factory or laboratory without internet. Factorial's tools are saved on this device."], "one thing said, and nothing while it was made");
+    assert.deepEqual(page.seen, ["Works fully offline, for example when traveling, or in a factory or laboratory without internet. Factorial's tools are saved on this device."], "one thing said, and nothing while it was made");
     assert.deepEqual([page.box.hidden, page.keep.hidden, page.remove.hidden], [false, true, false], "one button: to remove it");
   });
 
@@ -296,7 +296,7 @@ describe("a first visit", () => {
 
   test("says what the copy takes of the device's storage, to the nearest ten MB, in a browser that says", async () => {
     const page = await new Browser().visit({ usage: 169_400_000 });
-    assert.equal(page.said.textContent, "Works fully offline, for example when travelling, or in a factory or laboratory without internet. Factorial's tools are saved on this device (about 170 MB).");
+    assert.equal(page.said.textContent, "Works fully offline, for example when traveling, or in a factory or laboratory without internet. Factorial's tools are saved on this device (about 170 MB).");
   });
 
   test("is followed by visits that copy nothing again", async () => {
@@ -316,7 +316,7 @@ describe("the whole copy", () => {
     assert.deepEqual(browser.downloaded(before).sort(), [...LATER].sort());
     assert.deepEqual(page.seen.slice(1), [
       "Adding charts and Excel files, about 12 MB...",
-      "Works fully offline, for example when travelling, or in a factory or laboratory without internet. Factorial's tools are saved on this device.",
+      "Works fully offline, for example when traveling, or in a factory or laboratory without internet. Factorial's tools are saved on this device.",
     ]);
     assert.deepEqual([page.keep.hidden, page.remove.hidden], [true, false]);
     assert.match((await browser.visit({ saveData: true })).said.textContent, /^Works fully offline, /, "and it stays whole, unasked");
@@ -419,7 +419,7 @@ describe("a copy that cannot be finished", () => {
     assert.deepEqual([page.keep.textContent, page.keep.hidden, page.remove.hidden], ["Try again", false, false]);
     browser.network.files.set(`${RELEASE}numpy.whl`, "numpy");
     await page.keep.onclick();
-    assert.deepEqual(page.seen.slice(1), ["Saving Factorial for offline use...", "Works fully offline, for example when travelling, or in a factory or laboratory without internet. Factorial's tools are saved on this device."]);
+    assert.deepEqual(page.seen.slice(1), ["Saving Factorial for offline use...", "Works fully offline, for example when traveling, or in a factory or laboratory without internet. Factorial's tools are saved on this device."]);
   });
 
   test("can be removed, with the worker that was to serve it", async () => {
@@ -512,7 +512,7 @@ describe("a reader who removes the copy", () => {
     assert.deepEqual(browser.network.asked.slice(before), [], "nothing is read, and nothing copied");
     assert.equal(later.said.textContent, "Needs internet. Factorial's tools are not saved on this device.");
     await later.keep.onclick();
-    assert.deepEqual(later.seen.slice(-2), ["Saving Factorial for offline use...", "Works fully offline, for example when travelling, or in a factory or laboratory without internet. Factorial's tools are saved on this device."]);
+    assert.deepEqual(later.seen.slice(-2), ["Saving Factorial for offline use...", "Works fully offline, for example when traveling, or in a factory or laboratory without internet. Factorial's tools are saved on this device."]);
     assert.match((await browser.visit()).said.textContent, /^Works fully offline, /, "and it is kept from then on");
   });
 });

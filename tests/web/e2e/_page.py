@@ -254,7 +254,7 @@ def generate(page: Any, **settings: object) -> None:  # noqa: ANN401
 
 
 def practise(page: Any) -> None:  # noqa: ANN401
-    """Simulate the run sheet's results from a known process, as a reader practising would; wait for the analysis."""
+    """Simulate the run sheet's results from a known process, as a reader practicing would; wait for the analysis."""
     reveal(page, "#panel-simulate")
     page.click("#tab-simulate")
     page.click("#simulate")

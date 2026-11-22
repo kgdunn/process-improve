@@ -2,11 +2,11 @@
 // Every function here returns a figure ({ data, layout }) and touches nothing else, so tests/web/mva runs it
 // under Node; web/mva/link.js draws the figures and turns the reader's clicks and lassos into selections.
 //
-// A point is { id, x, y, label?, colour?, size?, symbol?, hover? }. `id` names the row (or the column) in the
-// selection store; `colour` is a number (a colour scale) or a category (a palette); `size` a number, drawn with
+// A point is { id, x, y, label?, color?, size?, symbol?, hover? }. `id` names the row (or the column) in the
+// selection store; `colour` is a number (a color scale) or a category (a palette); `size` a number, drawn with
 // the marker's area in proportion; `symbol` a category. A state is what Selection.snapshot() returns.
 
-/** Colours for categories: Okabe-Ito, which reads apart with every colour vision; black last. */
+/** Colors for categories: Okabe-Ito, which reads apart with every color vision; black last. */
 export const CATEGORY_COLOURS = [
   "#0072B2",
   "#E69F00",
@@ -30,10 +30,10 @@ export const CATEGORY_SYMBOLS = [
   "star",
 ];
 
-/** The colours of a contribution's sign: one hue each way, as in the designed-experiments app. */
+/** The colors of a contribution's sign: one hue each way, as in the designed-experiments app. */
 export const SIGN_COLOURS = { positive: "#E69F00", negative: "#0072B2" };
 
-/** The page's colours when the caller passes none: the light theme. */
+/** The page's colors when the caller passes none: the light theme. */
 export const LIGHT = { fg: "#1a1a1a", muted: "#666666", line: "#d0d0d0", bg: "#ffffff", accent: "#0072B2" };
 
 /** Marker diameters, in pixels: the usual one, the smallest and largest a size encoding draws. */
@@ -82,7 +82,7 @@ export function markerSizes(values, { min = MARKER.min, max = MARKER.max } = {})
   });
 }
 
-/** The categories of a list of values, in the order they first appear, each with its colour and symbol. */
+/** The categories of a list of values, in the order they first appear, each with its color and symbol. */
 export function categories(values) {
   const seen = [];
   for (const v of values) if (v !== null && v !== undefined && !seen.includes(String(v))) seen.push(String(v));
@@ -95,7 +95,7 @@ export function categories(values) {
 
 /**
  * Which points carry a label: the hovered one, the selected ones, and the most extreme of the rest, up to
- * `limit` in all. Extreme is the distance from the centre in units of each axis's spread, so a label goes
+ * `limit` in all. Extreme is the distance from the center in units of each axis's spread, so a label goes
  * where a reader looks first. `labels` is "auto", "all" or "none".
  */
 export function chooseLabels(points, state, { labels = "auto", limit = 12 } = {}) {
@@ -118,8 +118,8 @@ export function chooseLabels(points, state, { labels = "auto", limit = 12 } = {}
 }
 
 /**
- * Where each labelled point's label goes: on the side away from its nearest neighbours, so a label never sits
- * on another point. Returns one Plotly textposition per point (unlabelled points get "middle right").
+ * Where each labeled point's label goes: on the side away from its nearest neighbors, so a label never sits
+ * on another point. Returns one Plotly textposition per point (unlabeled points get "middle right").
  */
 export function labelPositions(points, labelled, { neighbours = 5 } = {}) {
   const sx = spread(points.map((p) => p.x));
@@ -133,7 +133,7 @@ export function labelPositions(points, labelled, { neighbours = 5 } = {}) {
       .sort((a, b) => a.d - b.d)
       .slice(0, neighbours);
     if (!near.length) return POSITIONS[0];
-    // Push away from the neighbours, the nearest weighing most; with none in the way, away from the centre.
+    // Push away from the neighbors, the nearest weighing most; with none in the way, away from the center.
     let dx = 0;
     let dy = 0;
     for (const { j, d } of near) {
@@ -156,9 +156,9 @@ const spread = (values) => {
 };
 
 /**
- * Each point's look: colour, diameter, symbol (hollow when excluded), opacity (faded while something else is
- * selected), and outline (dark around a selected point). `encode` names how points carry colour, size and
- * symbol: { colour: "number" | "category" | null, size: bool, symbol: bool }.
+ * Each point's look: color, diameter, symbol (hollow when excluded), opacity (faded while something else is
+ * selected), and outline (dark around a selected point). `encode` names how points carry color, size and
+ * symbol: { color: "number" | "category" | null, size: bool, symbol: bool }.
  */
 export function pointStyles(points, state, encode, colours = LIGHT) {
   const anySelected = state.selected.size > 0;
@@ -187,14 +187,14 @@ export function pointStyles(points, state, encode, colours = LIGHT) {
   });
 }
 
-/** Each row in a saved set, with the colour of the last set it is in. */
+/** Each row in a saved set, with the color of the last set it is in. */
 const setMembership = (sets) => {
   const out = new Map();
   for (const { rows, colour } of sets ?? []) for (const id of rows) out.set(id, colour);
   return out;
 };
 
-/** A function from a value to its colour: Viridis-like for numbers, the category palette for categories. */
+/** A function from a value to its color: Viridis-like for numbers, the category palette for categories. */
 function colourScale(values, kind, colours) {
   if (kind === "category") {
     const cats = categories(values);
@@ -207,7 +207,7 @@ function colourScale(values, kind, colours) {
   return (v) => (Number.isFinite(v) ? viridis((v - lo) / span) : colours.muted);
 }
 
-/** A colour of the Viridis scale, which keeps its order in grey and with every colour vision; t in [0, 1]. */
+/** A color of the Viridis scale, which keeps its order in gray and with every color vision; t in [0, 1]. */
 export function viridis(t) {
   const stops = ["#440154", "#3b528b", "#21918c", "#5ec962", "#fde725"];
   const x = Math.min(1, Math.max(0, t)) * (stops.length - 1);
@@ -229,12 +229,12 @@ export const plain = (text) =>
  *
  * options: {
  *   xTitle, yTitle,            the axis titles (componentTitle writes a score plot's)
- *   colourTitle, sizeTitle,    what the colour and size encode, for the legend and the colour bar
+ *   colourTitle, sizeTitle,    what the color and size encode, for the legend and the color bar
  *   labels: "auto" | "all" | "none", maxLabels,
  *   ellipse: { x: [], y: [], name },   the T² ellipse, or any closed curve
  *   origin: true,              dashed lines through zero
  *   annotations: [{ id, text }],       an arrow at a point, with its text
- *   height, colours
+ *   height, colors
  * }
  */
 export function scatterFigure(points, state, options = {}) {
@@ -324,7 +324,7 @@ export function scatterFigure(points, state, options = {}) {
   };
 }
 
-/** Legend entries for the colour categories: one empty trace each, so the legend shows what each colour is. */
+/** Legend entries for the color categories: one empty trace each, so the legend shows what each color is. */
 function categoryKeys(values, title, type) {
   return categories(values).map((c, k) => ({
     type,
@@ -388,10 +388,10 @@ function pointAnnotations(points, wanted, colours) {
 }
 
 /**
- * A bar per item, linked by id: contributions, loadings of one component, VIP. Bars take the colour of their
+ * A bar per item, linked by id: contributions, loadings of one component, VIP. Bars take the color of their
  * sign; a selected item is outlined, the rest faded while one is selected.
  *
- * items: [{ id, value, label? }]; options: { yTitle, limits: [{ value, label }], sort: bool, height, colours }
+ * items: [{ id, value, label? }]; options: { yTitle, limits: [{ value, label }], sort: bool, height, colors }
  */
 export function barFigure(items, state, options = {}) {
   const colours = options.colours ?? LIGHT;
@@ -437,7 +437,7 @@ export function barFigure(items, state, options = {}) {
  * A line per series in run order, with the rows of a group marked: the raw data behind a contribution bar, or a
  * T² or SPE chart against its limits. Rows are linked by id; an excluded row is hollow.
  *
- * series: [{ name, ids: [], y: [] }]; options: { group: Set of ids, limits: [{ value, label }], yTitle, colours }
+ * series: [{ name, ids: [], y: [] }]; options: { group: Set of ids, limits: [{ value, label }], yTitle, colors }
  */
 export function sequenceFigure(series, state, options = {}) {
   const colours = options.colours ?? LIGHT;
@@ -501,7 +501,7 @@ export function sequenceFigure(series, state, options = {}) {
   };
 }
 
-/** The colour of R², the fit to the rows the model saw, beside Q²'s accent: R² is the reference, Q² the answer. */
+/** The color of R², the fit to the rows the model saw, beside Q²'s accent: R² is the reference, Q² the answer. */
 export const R2_COLOUR = "#b8b8b8";
 
 /**

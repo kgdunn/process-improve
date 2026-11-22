@@ -61,7 +61,7 @@ const loaded = (runtime) => [...runtime.packages, ...runtime.fitting];
 
 /**
  * The files Python starts from and fits a model with: the Pyodide release with the packages every visit loads, the
- * wheel, the page's Python. A page that opens without a network designs and analyses there.
+ * wheel, the page's Python. A page that opens without a network designs and analyzes there.
  */
 export function startFiles({ scope, lock, runtime, manifest }) {
   const python = [manifest.wheel, manifest.glue].filter(Boolean).map((file) => `${scope}wheels/${file}`);
@@ -126,7 +126,7 @@ const TRY_AGAIN = "Try again";
  */
 export function copyWords(state, { reason = "", exact = true, size = null } = {}) {
   const saved = size ? `Factorial's tools are saved on this device (about ${size} MB).` : "Factorial's tools are saved on this device.";
-  const where = "for example when travelling, or in a factory or laboratory without internet";
+  const where = "for example when traveling, or in a factory or laboratory without internet";
   return {
     none: { said: "Needs internet. Factorial's tools are not saved on this device.", keep: KEEP_PAGE, remove: false },
     copying: { said: "Saving Factorial for offline use...", keep: null, remove: false },

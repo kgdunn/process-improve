@@ -107,7 +107,7 @@ def test_a_design_s_detail_opens_on_the_design_its_source_and_its_use(context, s
     assert facts == ["3 factors (1 categorical)", "8 runs", "Estimates two-factor interactions"]
     text = " ".join(page.text_content("#detail-body").split())
     assert "Box, G. E. P., Hunter, W. G. and Hunter, J. S. (1978)" in text
-    assert "recomputed" not in text, "how the catalogue checks an entry is not the reader's concern"
+    assert "recomputed" not in text, "how the catalog checks an entry is not the reader's concern"
     assert "The library makes this design" not in text
     family = page.locator("#detail-body details.detail__family")
     assert family.locator("summary").text_content() == "About this design type: Full factorial"
@@ -232,12 +232,12 @@ def test_a_word_of_an_application_s_name_finds_its_designs(book_context, site):
 
 
 def test_a_design_whose_runs_differ_in_leverage_lists_it_beside_each_run(context, site):
-    """The face-centred CCD leans on its corners more than on its centre: a leverage column, and the heaviest named."""
+    """The face-centered CCD leans on its corners more than on its center: a leverage column, and the heaviest named."""
     page = open_catalog(context, site, f"#d={CCD}")
     page.wait_for_selector("#detail[open] table.runs-table")
     words = page.text_content("#detail-body .detail__leverage")
     assert re.match(r"\d+ runs carry the most weight, with leverage 0\.\d\d; the least is 0\.\d\d\. ", words), words
-    assert page.locator("#detail-body canvas").count() == 0, "colours and leverage sit in the table, not beside it"
+    assert page.locator("#detail-body canvas").count() == 0, "colors and leverage sit in the table, not beside it"
     heads = page.locator("table.runs-table thead th").all_text_contents()
     assert (heads[0], heads[-1]) == ("Run", "Leverage")
     cells = page.locator("table.runs-table tbody tr").first.locator("td")
@@ -310,7 +310,7 @@ def test_a_comparison_of_two_methods_opens_in_factorial_with_its_results(context
     settled(page)
     column = headers(page).index("method")
     assert [run[column] for run in run_sheet(page)] == ["A"] * 10 + ["B"] * 10
-    assert page.get_attribute("#workspace", "data-phase") == "learn", "the source's results, analysed"
+    assert page.get_attribute("#workspace", "data-phase") == "learn", "the source's results, analyzed"
 
 
 def test_a_design_the_page_does_not_make_opens_with_its_runs_as_given(context, site):
@@ -341,7 +341,7 @@ def test_a_blocked_design_opens_in_factorial_in_its_blocks(blocked_context, site
     settled(page)
     column = headers(page).index("Block")
     assert sorted({run[column] for run in run_sheet(page)}) == ["1", "2"]
-    assert page.get_attribute("#workspace", "data-phase") == "learn", "the source's results, analysed"
+    assert page.get_attribute("#workspace", "data-phase") == "learn", "the source's results, analyzed"
     anova = page.locator("#statistician > .scroll table").last.locator("tbody tr td:first-child").all_text_contents()
     assert "Block" in anova
     assert "The blocks are fitted as a fixed effect" in page.text_content("#analysis")
@@ -370,7 +370,7 @@ def test_a_published_design_opens_in_factorial_with_the_source_s_results(context
     page.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
     settled(page)
     assert len(run_sheet(page)) == 8
-    assert page.get_attribute("#workspace", "data-phase") == "learn", "the source's results, analysed"
+    assert page.get_attribute("#workspace", "data-phase") == "learn", "the source's results, analyzed"
     title = page.text_content("#study-title")
     assert title != "y", "a response known only by its column name does not name the study"
     assert page.text_content("#campaign-banner").startswith(f"Opened from the catalog: {title}, ")
@@ -498,7 +498,7 @@ def test_a_row_of_the_map_opens_into_its_families_and_a_mark_lists_its_size(cont
     assert page.locator("#map [data-unfold='3']").get_attribute("aria-expanded") == "true", "the row stays open"
     assert page.locator("#map .sizemap__family").count() == 2, "and keeps the lanes of its other families"
     assert page.locator("#map .sizemap__mark.out").count() == 1, "whose marks are pale"
-    # A press beside a mark, in its lane, is one on the nearest: marks of neighbouring sizes are a few pixels apart.
+    # A press beside a mark, in its lane, is one on the nearest: marks of neighboring sizes are a few pixels apart.
     page.locator("#map .sizemap__lane[data-row='3'][data-lane='0']").click(position={"x": 4, "y": 4})
     counted(page, "2 of 5")
     assert "runs=8-8" in page.url
@@ -678,7 +678,7 @@ def test_a_design_s_projections_say_what_any_two_or_three_factors_estimate(conte
         "A label such as 3\u00d7 counts the runs at a point; a point with no label holds one run."
     )
     assert page.locator(".projection__point").count() == 15
-    assert page.locator(".projection__count").all_text_contents() == ["3\u00d7"], "the centre's runs, as a count"
+    assert page.locator(".projection__count").all_text_contents() == ["3\u00d7"], "the center's runs, as a count"
     page.click(".explorer__picks [data-column='2']")
     assert text.text_content().startswith(
         "In A and B, the runs sit at 9 distinct settings and estimate the full quadratic"

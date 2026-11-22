@@ -13,7 +13,7 @@ def test_the_notes_of_an_empty_run_and_an_empty_learn_lead_to_the_stage_they_nam
     assert page.get_attribute("#workspace", "data-phase") == "plan"
     generate(page)
     page.click("#go-learn")
-    assert page.text_content("#analyse-empty") == "No results yet: enter them in Run, or practise with simulated ones."
+    assert page.text_content("#analyse-empty") == "No results yet: enter them in Run, or practice with simulated ones."
     page.click("#analyse-empty button")
     assert page.get_attribute("#workspace", "data-phase") == "run"
 

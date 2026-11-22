@@ -17,7 +17,7 @@ ENTRIES = [
     "New study",
     "Your studies 0",
     "Open the worked example",
-    "Analyse data you have",
+    "Analyze data you have",
     "Catalog of experimental designs",
     "Share or download this study",
     "View its report",
@@ -41,7 +41,7 @@ def test_a_first_visit_is_welcomed_over_a_blank_question(fresh_page):
     assert page.locator("#welcome button").all_text_contents() == [
         "Start my first experiment",
         "See a finished one",
-        "Analyse data you have",
+        "Analyze data you have",
     ]
     assert page.locator("#welcome .welcome__promise li").all_text_contents() == [
         "Free, with nothing to install",
@@ -58,8 +58,8 @@ def test_the_welcome_shows_a_study_s_four_steps_each_in_its_stage_s_colour(fresh
     steps = page.locator("#welcome .welcome__steps li")
     assert [text.split(" ", 1)[0] for text in steps.all_text_contents()] == ["Design", "Run", "Learn", "Next"]
     colours = steps.evaluate_all("(all) => all.map((one) => getComputedStyle(one, '::before').backgroundColor)")
-    assert len(set(colours)) == 4, "a colour a step"
-    # The bar's stages wear the same colours, on show or not, and the mark is drawn in them.
+    assert len(set(colours)) == 4, "a color a step"
+    # The bar's stages wear the same colors, on show or not, and the mark is drawn in them.
     bar = page.locator("#studybar [role=tab] .step").evaluate_all(
         "(all) => all.map((one) => getComputedStyle(one).backgroundColor)"
     )

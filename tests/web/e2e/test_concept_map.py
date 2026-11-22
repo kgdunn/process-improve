@@ -522,7 +522,7 @@ def test_above_the_map_one_row_of_switches_and_one_row_of_kinds(context, site):
 # own box. For each: its type size; how far its middle is from its own line (`off`) and from the nearer of its link's
 # two terms (`near`), in type sizes; whether it stands above its line, as the text reads, and whether that line is
 # steep there; whether it is inside the map; and whether its link leaves the map. Then the pairs
-# of labels whose text overlaps, as slanted boxes, and the labels that a line in a strong colour runs through: a line
+# of labels whose text overlaps, as slanted boxes, and the labels that a line in a strong color runs through: a line
 # of the selected term, or, with the other textbooks shown, one that another textbook states.
 DRAWN = """() => { const cy = window.conceptMap.cy, z = cy.zoom(), pan = cy.pan();
   const wide = cy.width(), high = cy.height();
@@ -582,14 +582,14 @@ def test_link_labels_read_each_lit_link_s_verb_and_are_remembered(context, site)
         "() => { const lit = window.conceptMap.cy.edges('.link.hl').filter((e) => e.visible()); "
         "return [lit.length, lit.filter((e) => e.hasClass('mute')).length]; }"
     )
-    assert shown, "the selected term's links are labelled"
-    assert len(shown) + held == lit, "each drawn link is labelled, or held back where its label would land on a term"
+    assert shown, "the selected term's links are labeled"
+    assert len(shown) + held == lit, "each drawn link is labeled, or held back where its label would land on a term"
     assert all(hl and label == verb and verb and arrow == "triangle" for hl, label, verb, arrow, _ in shown)
-    assert all(solid for *_, solid in shown), "the labels are solid, italic and in the accent colour"
+    assert all(solid for *_, solid in shown), "the labels are solid, italic and in the accent color"
     page.click("#zin")
     _settled(page)
     closer = page.evaluate(DRAWN)["labels"]
-    assert closer, "zoomed in, links are still labelled"
+    assert closer, "zoomed in, links are still labeled"
     assert all(label["inside"] for label in closer), "each on the map, though its link may now leave it"
     page.reload()
     page.wait_for_function("() => window.conceptMap && document.querySelector('#card h2')")
@@ -756,7 +756,7 @@ def test_a_link_label_with_its_middle_taken_slides_along_its_line(context, site)
     )
     _settled(page)
     labels = page.evaluate(DRAWN)["labels"]
-    assert labels, "some links are labelled"
+    assert labels, "some links are labeled"
     assert all(label["inside"] for label in labels), "each label is on the map"
     assert all(label["near"] > 0.5 for label in labels), f"and clear of both its terms: {labels}"
     # The test takes a middle itself: whether the drawing takes one changes with every drawing. A label with no room
@@ -766,7 +766,7 @@ def test_a_link_label_with_its_middle_taken_slides_along_its_line(context, site)
     for link in page.evaluate(LONG_FIRST):
         before = _label(page, link, take=False)
         if before is None or math.dist((before["x"], before["y"]), here) > 2 * before["size"]:
-            continue  # not labelled, or not beside its line's middle: that is taken already
+            continue  # not labeled, or not beside its line's middle: that is taken already
         moved = _label(page, link, take=True)
         if moved is not None:
             break
@@ -783,7 +783,7 @@ def _read_clearly(page: Any, where: str) -> list[dict[str, Any]]:  # noqa: ANN40
     drawn = page.evaluate(DRAWN)
     assert all(label["inside"] for label in drawn["labels"]), f"{where}: a label is off the map"
     assert drawn["overlaps"] == [], f"{where}: two labels overlap"
-    assert drawn["through"] == [], f"{where}: a line in a strong colour runs through a label"
+    assert drawn["through"] == [], f"{where}: a line in a strong color runs through a label"
     return drawn["labels"]
 
 
@@ -817,12 +817,12 @@ def test_a_link_label_is_beside_its_line_on_the_map_and_clear_of_labels_and_stro
             _settled(page)
     assert len(labels) > 20, "the views do draw labels"
     assert bool(unselected) != others, "with no term selected too, unless the books are compared: no link is drawn then"
-    # On its line, the line ran through the gaps between the label's words, in the label's own colour.
+    # On its line, the line ran through the gaps between the label's words, in the label's own color.
     assert all(label["off"] > 0.8 for label in labels + unselected), "each label is off its own line"
     assert all(label["above"] for label in labels + unselected), "and above it, as the text reads"
     assert any(label["steep"] for label in labels), "on a steep line"
     assert any(not label["steep"] for label in labels), "as on a flat one"
-    # A selected term keeps its links to terms off the map: each is labelled on the part of its line that can be seen.
+    # A selected term keeps its links to terms off the map: each is labeled on the part of its line that can be seen.
     assert any(label["leaves"] for label in labels), "a link that leaves the map carries its label on the map"
 
 
@@ -854,7 +854,7 @@ def test_a_tap_on_a_link_of_the_selected_term_reads_it_and_keeps_the_term(contex
     assert page.text_content("#card h2") == "Full factorial", "the selected term stays selected"
 
 
-# Where a term sits in the drawing, and the map's view; and a neighbour of the selected term well inside the map.
+# Where a term sits in the drawing, and the map's view; and a neighbor of the selected term well inside the map.
 WHERE = """(i) => { const cy = window.conceptMap.cy;
   return { at: { ...cy.getElementById(i).position() }, pan: { ...cy.pan() }, zoom: cy.zoom(), scrolled: scrollY }; }"""
 NEIGHBOUR = """() => { const cy = window.conceptMap.cy;
@@ -1202,11 +1202,11 @@ def _others(graph: dict[str, Any], count: int) -> dict[str, Any]:
 
 TWO_OTHERS = _others(GRAPH, 2)
 GRAPHS = {"as copied": GRAPH, "one other": _others(GRAPH, 1), "two others": TWO_OTHERS}
-# Each colour of the page asked for by name, as [red, green, blue].
+# Each color of the page asked for by name, as [red, green, blue].
 COLOURS = """(names) => names.map((name) => { const i = document.createElement('i'); i.style.color = `var(${name})`;
   document.body.append(i); const c = getComputedStyle(i).color.match(/[\\d.]+/g).slice(0, 3).map(Number); i.remove();
   return c; })"""
-# The colour drawn on the map at each point, once each is nearer the colour wanted there than any other a ring is drawn
+# The color drawn on the map at each point, once each is nearer the color wanted there than any other a ring is drawn
 # in, or the map has had 90 frames to draw it: after a move Cytoscape draws from a coarser copy first. "Nearer", as a
 # thin rim's edge is blended with what is beside it.
 INKS = """([points, indices, palette]) => new Promise((done) => {
@@ -1253,7 +1253,7 @@ def _on_ring(at: dict[str, float], radius: float, sector: int, sectors: int, alo
 
 
 def _not_as_wanted(page: Any, places: list[tuple[str, dict[str, float], int]], palette: list[list[int]]) -> list[str]:  # noqa: ANN401
-    """Return each place, of (what it is, where, which colour of the palette is wanted there), drawn in another."""
+    """Return each place, of (what it is, where, which color of the palette is wanted there), drawn in another."""
     seen = page.evaluate(INKS, [[where for _, where, _ in places], [wanted for _, _, wanted in places], palette])
     return [
         f"{what}: drawn {got}, wanted {palette[wanted]}"
@@ -1287,7 +1287,7 @@ def test_compared_with_other_books_a_topic_s_ring_is_filled_by_the_share_of_its_
         for sector, share in enumerate(shares):
             for along in (0.04, 0.2, 0.4, 0.6, 0.8, 0.96):
                 if abs(along - share) < 0.05:
-                    continue  # too near where the colour ends to say which is drawn there
+                    continue  # too near where the color ends to say which is drawn there
                 # The middle of the rim: 9 px wide on a large topic, 7.5% of the topic's width on a small one.
                 where = _on_ring(at, at["w"] / 2 - min(4.5, 0.0375 * at["w"]), sector, len(shares), along)
                 name = at["name"]
@@ -1325,7 +1325,7 @@ def test_zoomed_in_each_term_carries_a_ring_with_a_sector_for_each_book_this_boo
                 continue
             has = [True] + [b in terms[term["id"]] for b in books]
             sampled[term["id"]] = has
-            # Its ring is outside the term: the ring's middle is 0.94 of the term's width from the term's centre.
+            # Its ring is outside the term: the ring's middle is 0.94 of the term's width from the term's center.
             middles = [_on_ring(term, 0.94 * term["w"], k, len(has), 0.5) for k in range(len(has))]
             places += [(f"{term['id']}, sector {k}", middles[k], k if h else len(has)) for k, h in enumerate(has)]
         assert not _not_as_wanted(page, places, palette)
@@ -1370,8 +1370,8 @@ def test_compared_with_other_books_only_the_selected_term_s_links_are_drawn_in_a
     assert page.text_content("#card .map-backed") == f"Also in {_in_books(terms[term])}"
     off = page.evaluate(HOW_DRAWN)
     assert off["links"] > off["lit"] > 0, "until the books are compared every link is drawn, the term's own lit"
-    assert off["line"] == off["accent"], "in the accent colour"
-    assert off["term"]["fill"] == off["term"]["kind"], "and a term has the colour of its kind"
+    assert off["line"] == off["accent"], "in the accent color"
+    assert off["term"]["fill"] == off["term"]["kind"], "and a term has the color of its kind"
     assert off["icon"]["fill"] == off["icon"]["kind"], "as its shape has above the map"
     read = """(id) => { window.conceptMap.cy.getElementById(id).emit('mouseover');
       return document.querySelector('#striptext').textContent; }"""
@@ -1381,8 +1381,8 @@ def test_compared_with_other_books_only_the_selected_term_s_links_are_drawn_in_a
     _settled(page)
     on = page.evaluate(HOW_DRAWN)
     assert on["links"] == on["lit"] == off["lit"], "then the selected term's links alone"
-    assert on["line"] == on["muted"], "in a neutral: colour now says which book has a term"
-    assert on["term"]["fill"] == on["muted"] != on["term"]["kind"], "the kinds keep their shapes, not their colours"
+    assert on["line"] == on["muted"], "in a neutral: color now says which book has a term"
+    assert on["term"]["fill"] == on["muted"] != on["term"]["kind"], "the kinds keep their shapes, not their colors"
     assert on["icon"]["fill"] == on["muted"] != on["icon"]["kind"], "above the map too"
     said = page.evaluate(read, f"l{link}")
     assert said.endswith(f"(also in {_in_books(links[link])})"), "a link read out says who else states it"
@@ -1414,7 +1414,7 @@ def test_the_key_names_the_books_in_the_order_of_the_sectors_and_a_topic_s_card_
     assert page.get_attribute("#bookkey", "aria-label") == f"Each ring, clockwise from the top: {', '.join(names)}"
     inks = [f"rgb({','.join(str(v) for v in ink)})" for ink in page.evaluate(COLOURS, RING_INKS[: len(names)])]
     key = page.evaluate(KEY)
-    assert key["sectors"] == key["swatches"] == inks, "a sector for each book, in its colour, beside its name"
+    assert key["sectors"] == key["swatches"] == inks, "a sector for each book, in its color, beside its name"
     assert key["faint"], "the key waits for the switch"
     page.click(SWITCH)
     assert not page.evaluate(KEY)["faint"]
@@ -1764,7 +1764,7 @@ def test_the_names_of_a_selected_term_s_neighbours_take_a_clear_place_by_their_t
         _settled(page)
     _select(page, name)
     names = page.evaluate(NAMES)
-    assert names["wanted"] >= 4, "the term's neighbours are named"
+    assert names["wanted"] >= 4, "the term's neighbors are named"
     assert names["pairs"] == [], "and no name lies on another"
     assert [name for name in names["moved"] if name["wanted"]], "which took a name above or beside its term"
     assert all(name["there"] for name in names["moved"]), "where the name is then drawn"
@@ -1777,7 +1777,7 @@ def test_the_names_of_a_selected_term_s_neighbours_take_a_clear_place_by_their_t
 @FONTS
 @pytest.mark.parametrize("others", [False, True], ids=["this book alone", "compared with the other textbooks"])
 def test_where_no_place_by_a_term_is_clear_its_name_lands_on_as_little_as_it_can(context, site, others, wide_font):
-    """Nine neighbours close around one term: five pairs of names lay on each other while a name kept its place."""
+    """Nine neighbors close around one term: five pairs of names lay on each other while a name kept its place."""
     if wide_font:
         _in_a_wide_font(context)
     page = _open(context, site)
@@ -1819,7 +1819,7 @@ def test_while_books_are_compared_a_small_topic_s_name_is_beside_it_where_there_
 ):
     """A name wider than its topic covered the sides of the topic's ring: five of them, on a phone.
 
-    The counts are those of the map as it is laid out now: a topic that its neighbours close in on every side has no
+    The counts are those of the map as it is laid out now: a topic that its neighbors close in on every side has no
     clear place for its name, and how many are closed in changes when the graph, and so the layout, does.
     """
     if wide_font:

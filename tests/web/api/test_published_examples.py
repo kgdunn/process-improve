@@ -1,13 +1,13 @@
 """Designed experiments from published sources other than the book, as the page opens them.
 
 ``web/published-examples.json`` lists the examples Factorial opens from ``?example=<name>``. Each
-is an experiment of the same name in the reference catalogue
+is an experiment of the same name in the reference catalog
 (``process_improve.experiments.reference_catalogue``), which holds the source's citation, where
 each example and each printed number sits, and every number the source prints;
 ``tests/test_reference_catalogue.py`` reproduces those numbers with the library. Here each example
-is checked to open the catalogue experiment's runs and results, and every printed number the page
+is checked to open the catalog experiment's runs and results, and every printed number the page
 itself shows (coefficients, effects, R², Q², the residual error, a fraction's generators and aliases)
-is checked through the page's entry point, as the page analyses the campaign its link opens.
+is checked through the page's entry point, as the page analyzes the campaign its link opens.
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ EXAMPLES = catalogue()
 def test_every_example_is_in_the_reference_catalogue():
     sources = reference_sources()
     for name, entry in EXAMPLES.items():
-        assert name in REFERENCE, f"{name}: no experiment of this name in the reference catalogue"
+        assert name in REFERENCE, f"{name}: no experiment of this name in the reference catalog"
         assert REFERENCE[name]["source"] == entry["source"], name
         assert sources[entry["source"]]["url"].startswith("https://doi.org/"), name
         assert re.search(r"\bpp?\. \d", entry["where"]), f"{name}: where says no page"
@@ -61,7 +61,7 @@ def test_the_page_opens_the_catalogue_s_runs_and_results(name):
     factors = [{k: f[k] for k in ("name", "low", "high", "units")} for f in reference["factors"]]
     assert entry["design"]["factors"] == factors
     runs = reference["runs"]
-    assert runs["coded"], "the reference keeps these runs in coded units, as the page's catalogue does"
+    assert runs["coded"], "the reference keeps these runs in coded units, as the page's catalog does"
     columns = [f["name"] for f in reference["factors"]] + [r["name"] for r in reference["responses"]]
     at = [runs["columns"].index(c) for c in columns]
     assert entry["runs"] == [[row[i] for i in at] for row in runs["rows"]]
@@ -70,7 +70,7 @@ def test_the_page_opens_the_catalogue_s_runs_and_results(name):
 # --------------------------------------------------------------------------- what the page shows
 @pytest.fixture(scope="module")
 def analysis_of(api, build_script) -> Callable[[str], dict]:
-    """Analyse an example, once per module, as the page does once its link has opened it."""
+    """Analyze an example, once per module, as the page does once its link has opened it."""
 
     @cache
     def analysis(name: str) -> dict:

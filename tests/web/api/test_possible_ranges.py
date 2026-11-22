@@ -59,7 +59,7 @@ def test_a_design_keeps_its_possible_ranges_and_notes_the_runs_past_them(api):
         "api_make_design",
         {"design_type": "ccd", "alpha": "face_centered", "factors": FACTORS, "possible": {"P": [0.5, None]}},
     )
-    assert not any(" past what it can be, " in n for n in face["facts"]["notes"]), "a face-centred design stays inside"
+    assert not any(" past what it can be, " in n for n in face["facts"]["notes"]), "a face-centered design stays inside"
 
 
 def test_a_highest_possible_setting_is_noted_as_at_most(api):

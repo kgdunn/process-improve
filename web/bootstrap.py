@@ -5,7 +5,7 @@ public functions at the bottom; each takes and returns a JSON string, so only
 plain text crosses the JavaScript boundary and no ``PyProxy`` has to be kept
 alive or destroyed on the JavaScript side.
 
-The page has no state of its own. Everything needed to analyse a campaign
+The page has no state of its own. Everything needed to analyze a campaign
 travels inside the ``.xlsx`` workbook the reader holds: the run sheet, and a
 hidden sheet with the design specification (factors, ranges, design type).
 
@@ -73,7 +73,7 @@ from process_improve.univariate import (
     bartlett_test,
     dunnett_value,
     kruskal_wallis_test,
-    least_favourable_means,
+    least_favorable_means,
     one_way_power,
     one_way_sample_size,
     randomization_interval,
@@ -305,7 +305,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
 #: The library's MaxPro design is not offered: its search ends at slightly other settings under WebAssembly than
 #: natively, so the Python the page shows would not make the page's own run sheet.
 #: The space-filling designs (``designs_space_filling.py``): their runs spread through the ranges for no model in
-#: particular, so the comparison of designs for a model leaves them out, and Learn analyses one with the model the
+#: particular, so the comparison of designs for a model leaves them out, and Learn analyzes one with the model the
 #: study aims to learn. A maximin Latin hypercube keeps each factor's settings apart as well as the runs.
 SPACE_FILLING = ("maximin_lhs", "sobol")
 
@@ -390,7 +390,7 @@ MIXTURES: dict[str, dict[str, Any]] = {
 #: The library's design type for every mixture design.
 MIXTURE = "mixture"
 
-#: The models a mixture is analysed with, as ``analyze_experiment`` names them: the Scheffé models, which have no
+#: The models a mixture is analyzed with, as ``analyze_experiment`` names them: the Scheffé models, which have no
 #: intercept, since the proportions sum to 1. Each is named in a sentence by its words.
 MIXTURE_MODELS = ("scheffe_linear", "scheffe_quadratic", "scheffe_special_cubic")
 MIXTURE_WORDS = {
@@ -422,7 +422,7 @@ PARTS = {2: "two", 3: "three", 4: "four", 5: "five"}
 #: the studies saved before then. A study's report names its seed (report.js's RUN_ORDER_SEED).
 RUN_ORDER_SEED = 42
 
-#: Designs whose non-centre runs all lie on one sphere (Box-Behnken at any size, a
+#: Designs whose non-center runs all lie on one sphere (Box-Behnken at any size, a
 #: rotatable CCD at 2 or 4 factors), so without a center run the squared terms sum
 #: to a constant and the quadratic model cannot be fitted.
 NEEDS_CENTER_RUN = {"box_behnken": None, "ccd": "rotatable"}
@@ -479,7 +479,7 @@ LEVEL_JOIN = "_L"
 #: Batch is in ``Supplier + Supplier:Batch``, so the term holds Batch's effect within each supplier.
 INDICATOR_JOIN = "_I"
 
-#: The levels a Taguchi array can run each numeric factor at: low and high, or low, centre and high.
+#: The levels a Taguchi array can run each numeric factor at: low and high, or low, center and high.
 #: The array is the smallest standard one with a column for every factor (``dispatch_taguchi``).
 TAGUCHI_LEVELS = (2, 3)
 
@@ -520,7 +520,7 @@ NOTE_LENGTH = 80
 #: The functions a limit can use, as the library reads them.
 LIMIT_FUNCTIONS = ("abs", "sqrt", "exp", "log", "log10")
 
-#: The most numeric factors whose corners the page lists for marking: 2**8 = 256 settings, and the centre.
+#: The most numeric factors whose corners the page lists for marking: 2**8 = 256 settings, and the center.
 PROBE_FACTORS = 8
 
 #: The most factors of a study with limits on the settings. The region lists its corners exactly up to 16 factors
@@ -550,10 +550,10 @@ RESOLUTIONS = (3, 4, 5)
 DEFAULT_RESOLUTION = 4
 
 #: From this resolution a fraction keeps two-factor interactions clear of main
-#: effects and of each other, so it can be analysed with them.
+#: effects and of each other, so it can be analyzed with them.
 INTERACTIONS_CLEAR_FROM = 5
 
-#: Terms whose centred columns have a correlation this close to 1 are fully aliased.
+#: Terms whose centered columns have a correlation this close to 1 are fully aliased.
 ALIAS_TOLERANCE = 1e-9
 
 #: Below this many effects, Lenth's pseudo standard error rests on fewer than about two
@@ -595,7 +595,7 @@ INTERACTION_MODELS = ("interactions", "quadratic")
 #: to see how the factors act on it, with no setting to aim for.
 GOALS = ("maximize", "minimize", "target", "learn")
 
-#: The transforms a response can be analysed with, as ``analysis_transforms`` names them, with the scale each
+#: The transforms a response can be analyzed with, as ``analysis_transforms`` names them, with the scale each
 #: fits on and the least a result may be. Each is increasing, so a goal and an acceptable range mean the same on
 #: the model's scale as on the response's, and the search for the best settings is unchanged. That is why
 #: ``inverse`` fits -1/y: its tests are 1/y's, and the Box-Cox transform of lambda -1 is 1 - 1/y for the same
@@ -691,7 +691,7 @@ SCENARIOS: dict[str, dict[str, Any]] = {
 
 #: Processes a mixture's results can be simulated from, as a Scheffé quadratic model in the proportions. ``pure``
 #: is the response of each pure component, the components taken in the order the reader entered them, as a size
-#: in noise standard deviations from the scenario's ``centre``; a component it does not name gives the centre.
+#: in noise standard deviations from the scenario's ``centre``; a component it does not name gives the center.
 #: ``blends`` are the two-component blending terms, in noise standard deviations: positive where a blend gives
 #: more than the average of its two pure components (synergy), negative where it gives less (antagonism).
 MIXTURE_SCENARIOS: dict[str, dict[str, Any]] = {
@@ -1336,10 +1336,10 @@ def _check_bounds(design_type: str, components: list[Factor]) -> None:
 
 
 def _mixture_model(model: object) -> str:
-    """Read the model a mixture is analysed with: one of :data:`MIXTURE_MODELS`."""
+    """Read the model a mixture is analyzed with: one of :data:`MIXTURE_MODELS`."""
     if model not in MIXTURE_MODELS:
         raise ValueError(
-            f"A mixture is analysed with the linear, quadratic or special cubic blending model, not {model!r}."
+            f"A mixture is analyzed with the linear, quadratic or special cubic blending model, not {model!r}."
         )
     return str(model)
 
@@ -1781,7 +1781,7 @@ def catalogue(_: dict) -> dict:
 
 
 def make_design(spec: dict) -> dict:
-    """Generate a design and return its runs, in randomised order and in the factors' own units.
+    """Generate a design and return its runs, in randomized order and in the factors' own units.
 
     Each response has an empty column for the reader to fill in. The workbook of the runs is written when the
     reader asks for it (:func:`workbook`), so making a design needs nothing that reads or writes one.
@@ -1850,7 +1850,7 @@ def make_design(spec: dict) -> dict:
 def _made_runs(result: Any, factors: list[Factor], design_type: str, kwargs: dict[str, Any]) -> pd.DataFrame:  # noqa: ANN401
     """Lay out the runs the library made as the run sheet lists them, before the responses' columns.
 
-    The library returns the runs already randomised, and ``run_order[i]`` is the standard-order
+    The library returns the runs already randomized, and ``run_order[i]`` is the standard-order
     position of its i-th run: the sheet keeps the rows as they come, under their "Std order" and
     "Run order", with their block first when they come in blocks. A space-filling design's settings
     are rounded to what can be set (:func:`_round_spread`). A categorical factor's settings are its
@@ -2072,7 +2072,7 @@ def _given_whole_plots(raw: object, runs: pd.DataFrame, blocks: list[int]) -> tu
 
 
 def _mixture_design(spec: dict) -> dict:
-    """Make a mixture design: its runs are blends, in proportions that sum to 1, in randomised order.
+    """Make a mixture design: its runs are blends, in proportions that sum to 1, in randomized order.
 
     The run sheet lists each component's proportion as it is to be weighed out. The design's
     model is the Scheffé model it supports: linear for a lattice of degree 1, else quadratic, and
@@ -2400,7 +2400,7 @@ def _for_response(spec: dict, name: object) -> dict[str, Any]:
 
     The analysis, its charts and the best settings read the response from ``response`` and
     ``response_info``. ``name`` is the column of the response the page asks about; None asks about the
-    first. A workbook keeps the model each response was last analysed with, the first's as
+    first. A workbook keeps the model each response was last analyzed with, the first's as
     ``analysis_model`` and the others' in ``analysis_models``: the response's own is its ``analysis_model``.
     """
     if name is None or name == spec["response"]:
@@ -2416,7 +2416,7 @@ def _for_response(spec: dict, name: object) -> dict[str, Any]:
 
 
 def _transform_of(spec: dict) -> str | None:
-    """Return the transform a specification's response, its ``response``, is analysed with: a key of TRANSFORMS."""
+    """Return the transform a specification's response, its ``response``, is analyzed with: a key of TRANSFORMS."""
     return (spec.get("analysis_transforms") or {}).get(spec["response"])
 
 
@@ -2470,7 +2470,7 @@ def _scaled(runs: pd.DataFrame, response: dict, transform: str) -> dict[str, Any
         run = runs.loc[bad.index[0], "Run order"] if "Run order" in runs.columns else bad.index[0] + 1
         raise ValueError(
             f"{words} every result {_least(transform)}, and run {int(run)} has {bad.iloc[0]:g}. "
-            "Analyse it as it is, or with another transform."
+            "Analyze it as it is, or with another transform."
         )
     runs[response["name"]] = _to_model_scale(results, transform)
     if "target" not in response:
@@ -2501,15 +2501,15 @@ def _check_factor_count(design_type: str, n_factors: int) -> None:
 
 
 def _designed_model(design_type: str, resolution: int | None, factors: list[Factor], aim: str | None = None) -> str:
-    """Name the model a design is analysed with when the reader does not choose one.
+    """Name the model a design is analyzed with when the reader does not choose one.
 
     A fraction keeps two-factor interactions clear of main effects and of each other
-    only from resolution V, so below that it is analysed for its main effects. A Taguchi
+    only from resolution V, so below that it is analyzed for its main effects. A Taguchi
     array estimates the main effects, and with a numeric factor at three levels (``factors``
     as the library made the design) each numeric factor's square too. A space-filling design
-    is made for no model, so it is analysed with the smallest model that holds the study's
+    is made for no model, so it is analyzed with the smallest model that holds the study's
     ``aim``, as an optimal design is made for. One factor has no interaction, so its design is
-    analysed for its main effect.
+    analyzed for its main effect.
     """
     if len(factors) == 1:
         return "main_effects"
@@ -2527,7 +2527,7 @@ def _library_arguments(factors: list[Factor], kwargs: dict[str, Any]) -> tuple[l
 
     The options are what the specification stores. Each one is a keyword argument of the
     library but ``n_levels``, a Taguchi array's levels: at three, each numeric factor is given
-    its low, centre and high values as its ``levels``, which the library reads as a
+    its low, center and high values as its ``levels``, which the library reads as a
     three-level factor, and a categorical factor keeps its two labels.
     """
     asked = {key: value for key, value in kwargs.items() if key != "n_levels"}
@@ -2898,7 +2898,7 @@ def _whole_plots_sentence(hard: list[str], n_plots: int) -> str:
 def _aliased_groups(coded: np.ndarray, names: list[str], several: Collection[str] = ()) -> list[list[str]]:
     """Group the main effects and two-factor interactions the design cannot tell apart.
 
-    Two terms are fully aliased when their centred columns are parallel, so the data
+    Two terms are fully aliased when their centered columns are parallel, so the data
     determine only their sum (or difference). A partial correlation, such as the 1/3
     between a main effect and an interaction in a 12-run Plackett-Burman design, is not
     aliasing in this sense. Each group lists its main effect first. A categorical factor of
@@ -2965,7 +2965,7 @@ def _levels_sentence(factor: dict, coded: np.ndarray, *, given: bool = False) ->
 def _relation_of_runs(coded: np.ndarray, names: list[str]) -> tuple[list[str], int]:
     """Return the defining relation of runs that make a regular two-level fraction, and its number of words.
 
-    Each run must be a corner of the cube or its centre. The corners make a regular fraction 2^(k-p) when they
+    Each run must be a corner of the cube or its center. The corners make a regular fraction 2^(k-p) when they
     are 2^(k-p) distinct runs on which the product of some of the factors' columns is the same run for run:
     each such product is a word of the relation, ``A·B·C·D``, or ``-A·B·C·D`` where it is -1 on every run, and
     there are 2^p - 1 of them. A full factorial has none, and nor has a design that is no such fraction, such
@@ -3181,11 +3181,11 @@ def analyze(request: dict) -> dict:
     Factors are coded to -1 / +1 from the ranges stored in the workbook, so the
     coefficients are comparable with each other whatever the factors' units.
     Rows with an empty response are left out and reported, so a partly filled
-    workbook can be analysed as the runs come in.
+    workbook can be analyzed as the runs come in.
     """
     runs, stored, _ = _read_workbook(base64.b64decode(request["xlsx_base64"]))
     # A workbook can arrive from anywhere: its specification is checked as data. ``response`` names the response to
-    # analyse, by its column; the first without it.
+    # analyze, by its column; the first without it.
     checked = _checked_spec(stored)
     runs, _ = _on_model_scale(runs, checked)
     spec = _for_response(checked, request.get("response"))
@@ -4081,7 +4081,7 @@ def _dunnett_critical(runs: np.ndarray, control_runs: int, df: int) -> float:
 
 
 def _level(factor: dict, setting: float, values: np.ndarray, runs: list[int]) -> dict[str, Any]:
-    """Summarise one level's results: its runs, their average, standard deviation and the interval for the average."""
+    """Summarize one level's results: its runs, their average, standard deviation and the interval for the average."""
     name = _level_at(factor, setting) if _categorical(factor) else _actual(factor, setting)
     n = len(values)
     sd = float(values.std(ddof=1)) if n > 1 else None
@@ -4415,7 +4415,7 @@ def _fit_estimable(
     over them, so ``T`` aliased with ``P:F`` would read half of what the data say about
     their sum. The library reports those groups as alias chains and the terms that move
     with the intercept as confounded with the mean; the model is then refitted with one
-    term per chain, the chain's leader, labelled with the whole chain. A design that
+    term per chain, the chain's leader, labeled with the whole chain. A design that
     still cannot fit the model is refused. With no runs to spare for the error, the
     effects of an orthogonal two-level design are judged with Lenth's method.
 
@@ -4490,7 +4490,7 @@ def _vifs(coded: pd.DataFrame, out: dict[str, Any], names: list[str]) -> dict[st
     A term's VIF is how many times larger the variance of its coefficient is than it would be
     were the term's column uncorrelated with the others over the runs fitted: 1 for the terms of
     an orthogonal design. It is ``evaluate_design``'s, on the same runs and the same terms: the
-    diagonal of (X'X)^-1 times each column's centred sum of squares, the intercept left out.
+    diagonal of (X'X)^-1 times each column's centered sum of squares, the intercept left out.
     There a block contrast is named ``Block[S.1]``, ``Block[S.2]``, ..., where the fit names it
     ``Block1``, ``Block2``, ...; both take the blocks in the same order. A model the runs cannot
     fit by ``evaluate_design``'s reckoning of the rank has no VIF.
@@ -4846,7 +4846,7 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
     most = MAX_GIVEN_BLOCKS if spec["design_type"] == GIVEN else MAX_BLOCKS
     names = [f.name for f in factors]
     labelled = tuple(f.name for f in factors if f.type == "categorical")
-    chosen = [spec["analysis_model"]] if "analysis_model" in spec else []  # last analysed with, as a workbook keeps
+    chosen = [spec["analysis_model"]] if "analysis_model" in spec else []  # last analyzed with, as a workbook keeps
     if "analysis_models" in spec:  # and those of the other responses, by their columns
         others = spec["analysis_models"]
         if not isinstance(others, dict) or not set(others) <= {r["name"] for r in responses[1:]}:
@@ -4921,7 +4921,7 @@ def _checked_curve(raw: object) -> dict[str, Any]:
 
 
 def _checked_transforms(spec: dict, responses: list[dict[str, Any]]) -> dict[str, str]:
-    """Check the transform each response is analysed with, by its column: a key of :data:`TRANSFORMS`.
+    """Check the transform each response is analyzed with, by its column: a key of :data:`TRANSFORMS`.
 
     A response renamed since keeps no transform, rather than stopping every reply: the name is dropped.
     """
@@ -4929,11 +4929,11 @@ def _checked_transforms(spec: dict, responses: list[dict[str, Any]]) -> dict[str
     if raw is None:
         return {}
     if not isinstance(raw, dict) or not all(t is None or t in TRANSFORMS for t in raw.values()):
-        raise ValueError("A response is analysed as it is, or as its log, square root or inverse.")
+        raise ValueError("A response is analyzed as it is, or as its log, square root or inverse.")
     names = {r["name"] for r in responses}
     kept = {str(name): t for name, t in raw.items() if t is not None and name in names}
     if kept and _mixture(spec):
-        raise ValueError("A mixture's responses are analysed as they are on this page.")
+        raise ValueError("A mixture's responses are analyzed as they are on this page.")
     return kept
 
 
@@ -5010,7 +5010,7 @@ def _design_runs(runs: pd.DataFrame) -> pd.DataFrame:
     gives what the model predicts there. Fitted to it, the model would be judged on a run it was
     made to fit, so every fit leaves the confirmation runs out, as if they were not on the sheet.
     A run on the path of steepest ascent is made past the ranges, where this study's model does
-    not reach: it belongs to the next study, which is centred on the best of them.
+    not reach: it belongs to the next study, which is centered on the best of them.
     """
     apart = _confirming(runs) | _on_path(runs)
     if apart.all():
@@ -5119,8 +5119,8 @@ def _scenario_process(
     A term over a factor the reader does not have is left out, and so is the square of a categorical
     factor, which takes one value, +1, at both of its levels. A scenario's effects are sizes in
     noise standard deviations; given the response's ``typical`` value and run-to-run ``noise``,
-    the process is centred on the one and its effects scaled by the other, so practice results
-    look like the reader's own. Without them the scenario's own centre and a noise of 1 are kept.
+    the process is centered on the one and its effects scaled by the other, so practice results
+    look like the reader's own. Without them the scenario's own center and a noise of 1 are kept.
 
     ``place`` is the response's place in the brief, 0 for the first. The first response follows the
     scenario, with the noise the reader chose (``sigma``); a later one follows it moved to other factors
@@ -5310,7 +5310,7 @@ def analyze_runs(request: dict) -> dict:
     """Fit the model to the runs the page holds, with the responses typed or simulated there.
 
     ``truth``, the process the results were simulated from, adds each coefficient's true value.
-    ``response`` names the response to analyse, by its column; the first without it. Each response
+    ``response`` names the response to analyze, by its column; the first without it. Each response
     is fitted to the runs that have its result, so a run with some of its results in counts for those.
     ``set_aside`` lists the run orders the reader set aside from this fit, which come with no result:
     a refusal for too few runs then says which runs are set aside, and which are still to do.
@@ -5905,7 +5905,7 @@ _SETTING_NAME = re.compile(r"[a-z][a-z_]{0,31}")
 
 
 def _study_settings(value: object) -> dict[str, Any]:
-    """Check a study's settings, such as its colour map, as ``studySettings`` in web/campaign.js checks them.
+    """Check a study's settings, such as its color map, as ``studySettings`` in web/campaign.js checks them.
 
     Each is a short text, a number, or true or false, under a name in small letters. One this page does not
     know is kept as it came, so a later page's workbook opens and is saved whole. The significance level is the
@@ -6004,12 +6004,12 @@ def _marks_column(runs: pd.DataFrame, spec: dict) -> str | None:
 
 
 def workbook(request: dict) -> dict:
-    """Write the page's runs and responses to a workbook the page can analyse again.
+    """Write the page's runs and responses to a workbook the page can analyze again.
 
     Simulated responses are marked, in the ``MARKS`` column and in the stored
     specification, so the workbook says which values were measured. The model the reader
     analyses with, ``model``, is kept as the specification's ``analysis_model``, so the
-    workbook is analysed the same way when it comes back; with several responses, ``models``
+    workbook is analyzed the same way when it comes back; with several responses, ``models``
     holds each later response's, by its column, kept as ``analysis_models``.
 
     A run is marked simulated when every result it holds is: ``sources`` holds the first
@@ -6024,7 +6024,7 @@ def workbook(request: dict) -> dict:
         else:
             _checked_model(request["model"], [f["name"] for f in spec["factors"]], _categorical_names(spec))
         spec = {**spec, "analysis_model": request["model"]}
-    if models := request.get("models"):  # each later response's, but one analysed as designed, as for the first
+    if models := request.get("models"):  # each later response's, but one analyzed as designed, as for the first
         chosen = {name: m for name, m in models.items() if m} if isinstance(models, dict) else models
         spec = _checked_spec({**spec, "analysis_models": chosen})
     runs = _runs_frame(request, spec)
@@ -6149,7 +6149,7 @@ def interval_words() -> str:
 
 
 def _seen_through(colour: str, alpha: float = 0.16) -> str:
-    """Return a colour as the fill of a band around a line of that colour: the same, seen through."""
+    """Return a color as the fill of a band around a line of that color: the same, seen through."""
     if not re.fullmatch(r"#[0-9a-fA-F]{6}", colour):
         return f"rgba(128,128,128,{alpha})"
     red, green, blue = (int(colour[at : at + 2], 16) for at in (1, 3, 5))
@@ -6277,7 +6277,7 @@ def plots(request: dict) -> dict:
     """Draw the analysis of the page's runs with the library's plots, as Plotly figures.
 
     The response surface of the fitted model over the two factors with the largest
-    main effects, the others held at their centre; the true surface beside it when the
+    main effects, the others held at their center; the true surface beside it when the
     results were simulated; the residuals against the fitted values; and, for a
     saturated two-level design, the half-normal plot of the effects with Lenth's
     margins. Each figure is JSON text, for Plotly.js at the version ``plotly_js`` names.
@@ -6286,13 +6286,13 @@ def plots(request: dict) -> dict:
     instead (``contour_chosen`` says so, and ``axes`` lists the factors to choose from).
     Beside those, the page's further charts: the same surface in three dimensions and the
     variance of a prediction over it; each factor's effect on the prediction with the others
-    at their centre (``perturbation``); the runs' averages at each setting (``main_effects``)
+    at their center (``perturbation``); the runs' averages at each setting (``main_effects``)
     and at each pair of settings of the surface's two factors (``interaction``), for factors
     at three settings or fewer; the predictions at the corners of three factors (``cube``);
     and the residuals against the normal distribution and against the order of the runs.
 
     With limits on the settings, the surfaces are ``shaded`` where a setting cannot be run;
-    when the centre of the ranges cannot be run either, the other factors are held at a
+    when the center of the ranges cannot be run either, the other factors are held at a
     central setting that can, which ``held`` lists in their own units.
 
     ``plot_options`` holds, for each figure drawn from the analysis, what the library was asked
@@ -6530,7 +6530,7 @@ def _shading(
     """Return what a response surface needs to shade the settings that cannot be run, and where it holds the others.
 
     Without limits on the settings, nothing. With them, the region, and the coded values the
-    factors not plotted are held at: their centre when the centre of the ranges can be run, as
+    factors not plotted are held at: their center when the center of the ranges can be run, as
     without limits, else a central setting that can be (see ``DesignRegion.centroid``), which is
     listed in the factors' own units for the caption to say.
     """
@@ -6577,7 +6577,7 @@ def _dressed(figure: dict, kind: str, spec: dict, pair: list[str], transform: st
 
     The library draws in coded units and names the axes for any reader: the factors by their
     names, the fitted values as "Fitted Values". Here a response surface's axes are the two
-    factors with their units, ticked at their own low, middle and high settings, its colours
+    factors with their units, ticked at their own low, middle and high settings, its colors
     are the response with its units, and the residuals and effects are in the response's units.
     A model fitted on a ``transform``'s scale has its surface put back in the response's units (the
     median there), and its residuals and effects named on that scale, which has no units.
@@ -6758,8 +6758,8 @@ def _dressed_more(figure: dict, kind: str, spec: dict, drawn: list[str], transfo
     _BY_PLOT[kind].dress(figure, {**words, "drawn": [factors[name] for name in drawn]})
     if _BY_PLOT[kind].legend_above:
         figure["layout"].update(LEGEND_ABOVE)
-        # Each line has a pattern of its own as well as a colour, so the lines are told apart in print and by a
-        # reader who does not see the colours apart; and a mark at each average, which is all the runs give.
+        # Each line has a pattern of its own as well as a color, so the lines are told apart in print and by a
+        # reader who does not see the colors apart; and a mark at each average, which is all the runs give.
         for trace, dash in zip(figure["data"], itertools.cycle(LINE_DASHES), strict=False):
             trace["line"] = {**trace.get("line", {}), "dash": dash}
             trace["hovertemplate"] = "%{y:.4g}"
@@ -7100,7 +7100,7 @@ def _relabelled_spec(spec: dict, after: list[dict], names: dict[str, str]) -> di
     """Write a specification again with its factors renamed: the factors, the limits, and the models a workbook keeps.
 
     The limits on the settings are written with the new names all at once, so a swap works; so are the
-    terms a workbook was last analysed with, for the first response and each later one.
+    terms a workbook was last analyzed with, for the first response and each later one.
     """
 
     def terms_renamed(chosen: object) -> object:
@@ -7205,7 +7205,7 @@ def _relabelled_blocking(note: str, names: dict[str, str]) -> str:
 
 # --------------------------------------------------------------------------- comparing designs
 #: The options each design is compared with: the page's own defaults, so a design in the
-#: comparison is the one Design would make. The CCD is face-centred, to keep its runs
+#: comparison is the one Design would make. The CCD is face-centered, to keep its runs
 #: inside the ranges the other designs are scored over.
 COMPARE_OPTIONS: dict[str, dict[str, Any]] = {
     "full_factorial": {"n_center_points": 3},
@@ -7345,7 +7345,7 @@ def _level_plan(request: dict, factors: list[Factor], model: str) -> dict[str, A
 
     The change is the reader's smallest change worth finding, over the run-to-run noise, or two noise standard
     deviations without them, as designs are compared (:func:`_effect_size`), between two of the factor's levels,
-    the others midway, where it is hardest to find (``least_favourable_means``). The power is the one-way analysis
+    the others midway, where it is hardest to find (``least_favorable_means``). The power is the one-way analysis
     of variance's (``one_way_power``), which for two levels is the two-sided t-test's, and the model's test of the
     factor. ``n`` is the fewest runs at each level that reach :data:`LEVEL_POWER`, or :data:`MAX_LEVEL_RUNS` when
     none does (``reached`` says which). None for more factors, or for a numeric factor the study aims to see curve,
@@ -7356,7 +7356,7 @@ def _level_plan(request: dict, factors: list[Factor], model: str) -> dict[str, A
     info = _response_info(request.get("response_info"))
     k = len(factors[0].levels or []) if factors[0].type == "categorical" else 2
     difference = 2 * _effect_size({key: info.get(key) for key in ("noise", "smallest_change")})
-    means = least_favourable_means(difference, k)
+    means = least_favorable_means(difference, k)
     try:
         n = int(one_way_sample_size(LEVEL_POWER, 1.0, means, max_n=MAX_LEVEL_RUNS, alpha=significance())["n"])
     except ValueError:  # no number of runs the page makes reaches it
@@ -7569,7 +7569,7 @@ def _powers(request: dict) -> dict[str, Any]:
     design is scored on the model the reader aims to learn, over the columns it is fitted on: its spare
     runs, and, for each kind of term, the power of the F test of the term the hardest to find. A term of a
     factor of several levels is tested over its contrasts together; the change it is to find is the
-    reader's, between two of its levels, the others on the average (see :func:`_least_favourable`). The reply
+    reader's, between two of its levels, the others on the average (see :func:`_least_favorable`). The reply
     has the comparison's shape, so Design lists the designs as it lists any.
     """
     effect = _effect_size(request)
@@ -7595,7 +7595,7 @@ def _powers(request: dict) -> dict[str, Any]:
                 kind = "quadratic" if term.startswith("I(") else "interaction" if ":" in term else "main"
                 members = _expanded_terms([term], spec, aimed)
                 index = [expanded.index(m) + 1 for m in members]  # after the intercept
-                b = _least_favourable(members, spec, effect)
+                b = _least_favorable(members, spec, effect)
                 found = _group_power(b, inverse[np.ix_(index, index)], df)
                 power[kind] = found if power[kind] is None else min(power[kind], found)  # type: ignore[type-var]
         sized = f"{item['label']} [n={n}]"
@@ -7622,7 +7622,7 @@ def _powers(request: dict) -> dict[str, Any]:
     }
 
 
-def _least_favourable(members: list[str], spec: dict, effect: float) -> np.ndarray:
+def _least_favorable(members: list[str], spec: dict, effect: float) -> np.ndarray:
     """Return the coefficients of a term's columns at the change worth finding, where it is hardest to find.
 
     A numeric or two-level factor's coefficient of ``effect`` noise standard deviations is the change, as
@@ -7730,13 +7730,13 @@ def limits(request: dict) -> dict:
     - ``linear``, its straight form ``low <= lhs <= high`` for a bound box to edit, else null.
 
     Over every limit that can be read: ``kept``, the share of the ranges left; ``empty``;
-    ``center_allowed``, whether the centre of the ranges can still be run; ``bounds``, each factor
+    ``center_allowed``, whether the center of the ranges can still be run; ``bounds``, each factor
     whose range they narrow at an end, by more than :data:`NARROWED` of it (null with a curved
     limit, where the narrowing is not exact, or with nothing left); ``refusal``, the sentence
     making a design would refuse them with, or null; and ``picture``, the region on each pair of
     numeric factors (see :func:`_picture`; ``every_pair`` asks for every pair).
 
-    ``probes`` are the corners of the numeric factors' ranges, then their centre, with the limits
+    ``probes`` are the corners of the numeric factors' ranges, then their center, with the limits
     that rule out each (see :func:`_probes`). ``marked`` lists the rows the reader marked "cannot
     run", and ``proposals`` the straight limit proposed for each group of them (see
     :func:`_proposals`); ``cuts`` asks for a proposal rebuilt through a cut on each factor, which
@@ -7887,10 +7887,10 @@ def _limits_refusal(entries: list[dict], read: list[int], factors: list[Factor],
 
 
 def _probes(numeric: list[Factor]) -> tuple[np.ndarray, np.ndarray] | None:
-    """Return the settings the page lists for marking, coded and in actual units: the corners, then the centre.
+    """Return the settings the page lists for marking, coded and in actual units: the corners, then the center.
 
     The corners of the numeric factors' ranges come in ``itertools.product`` order, the first factor
-    changing slowest and each factor's low end before its high end; the centre of the ranges is
+    changing slowest and each factor's low end before its high end; the center of the ranges is
     last. None without numeric factors, or with more than :data:`PROBE_FACTORS`.
     """
     k = len(numeric)
@@ -7969,7 +7969,7 @@ def _proposals(
     One straight cut removes corners that hang together along the edges of the box, so the
     marked corners are grouped by those edges and each group gets its own limit: the cut of
     :func:`~process_improve.experiments.separating_constraint` between the group and the
-    settings neither marked nor ruled out, the other groups counting neither way. The centre,
+    settings neither marked nor ruled out, the other groups counting neither way. The center,
     which no edge joins to a corner, goes with the first group that one cut can rule out
     together with it, or else is a group of its own.
     """
@@ -8026,7 +8026,7 @@ def _inseparable(exc: NotSeparableError, group: list[int], runnable: list[int], 
     """Say why no straight cut rules out a group of marked settings and keeps the others.
 
     A corner of the box lies between no other settings of the box, so the setting to blame, when
-    there is one, is the centre: marked, between corners that can be run, or runnable, between
+    there is one, is the center: marked, between corners that can be run, or runnable, between
     marked corners.
     """
     if centre in [group[i] for i in exc.inside_can]:
@@ -8154,7 +8154,7 @@ def _picture(
     and the shadow is a mask. Every pair
     is shown up to :data:`PICTURE_EVERY_PAIR` numeric factors, or with ``every_pair``; from more,
     the pairs of the factors the limits name. ``center`` is where the page holds the other factors
-    when it looks inside: the centre of the ranges when it can be run, else a central setting
+    when it looks inside: the center of the ranges when it can be run, else a central setting
     that can be, and null when none can.
     """
     numeric = [f for f in factors if f.type != "categorical"]
@@ -8284,7 +8284,7 @@ def _trace(runnable: Callable[[np.ndarray, np.ndarray], np.ndarray], numeric: li
 def _runnable_at(
     region: DesignRegion, numeric: list[Factor], x: str, y: str, held: dict[str, float] | None = None
 ) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
-    """Return the region's test of settings of ``x`` and ``y``, the others held at ``held`` (else at their centre)."""
+    """Return the region's test of settings of ``x`` and ``y``, the others held at ``held`` (else at their center)."""
     names = [f.name for f in numeric]
     ix, iy = names.index(x), names.index(y)
     given = held or {}
@@ -8362,10 +8362,10 @@ NUDGE = 0.05
 CONFIRMATION_RUNS = 3
 
 #: Within this, in coded units, of an end of its range a factor is at that end, and of a limit's boundary the best
-#: settings are on that limit. The optimiser stops on a bound or a limit to far better than this.
+#: settings are on that limit. The optimizer stops on a bound or a limit to far better than this.
 AT_EDGE = 1e-5
 
-#: How many combinations of the categorical factors' levels the optimiser searches in full: the best of them, judged
+#: How many combinations of the categorical factors' levels the optimizer searches in full: the best of them, judged
 #: first at :data:`LEVEL_SAMPLE` settings of the numeric factors and every corner of their ranges. One search takes
 #: about a tenth of a second in the browser, so a study with many categorical factors still answers at once.
 SEARCHED_LEVELS = 3
@@ -8379,13 +8379,13 @@ LEVEL_COMBINATIONS = 4096
 LEVEL_CORNERS = 256
 
 #: The best settings are a stationary point when no slope there is above this share of the model's spread: the
-#: optimiser stops far closer to a flat point than this.
+#: optimizer stops far closer to a flat point than this.
 STATIONARY = 1e-4
 
 #: A factor whose slope is below this share of the largest is left out of the way the prediction improves fastest.
 SHARE = 0.01
 
-#: How far past a limit, in its own units, the optimiser accepts its settings as inside it (the library's
+#: How far past a limit, in its own units, the optimizer accepts its settings as inside it (the library's
 #: ``_within_region``): the best settings on a limit lie on it to this, and so do the confirmation runs made there.
 ON_LIMIT = 1e-6
 
@@ -8720,7 +8720,7 @@ def _held_at(coefficients: list[dict], held: dict[str, float]) -> list[dict]:
 
     Each term loses the columns held, its coefficient multiplied by their values, and the terms that
     are then the same are added together, in the order each first appears. The code the page shows
-    (``web/python.js``) holds them in the same way, so both hand the optimiser the same model.
+    (``web/python.js``) holds them in the same way, so both hand the optimizer the same model.
     """
     model: dict[str, float] = {}
     for c in coefficients:
@@ -8780,7 +8780,7 @@ def _goal(goal: str, target: float | None, model: list[dict], response: str) -> 
     the blends, every term of a Scheffé model is between 0 and 1, and its intercept is 0, so the same
     holds of it.
     Limits twice that far out leave every prediction strictly inside them, where the desirability
-    is a straight line: rising with the prediction to maximise it, falling to minimise it, and for
+    is a straight line: rising with the prediction to maximize it, falling to minimize it, and for
     a target, with limits as far out on each side, falling with the distance from the target.
     """
     intercept = next((c["coefficient"] for c in model if c["term"] == "Intercept"), 0.0)
@@ -8862,7 +8862,7 @@ def _search(
 
 
 def _sample(k: int, region: DesignRegion | None) -> np.ndarray:
-    """Return settings of ``k`` numeric factors, coded, to judge each combination of levels at: corners, centre, random.
+    """Return settings of ``k`` numeric factors, coded, to judge each combination of levels at: corners, center, random.
 
     Every corner of the ranges up to 8 factors (a model without squares is best at one of them), the
     centre, and :data:`LEVEL_SAMPLE` settings drawn at random, from a fixed seed, so a study is judged
@@ -8882,7 +8882,7 @@ def _sample(k: int, region: DesignRegion | None) -> np.ndarray:
 
 
 def _centre(numeric: list[dict], region: DesignRegion | None) -> np.ndarray:
-    """Return the centre of the ranges, coded, or a central setting the limits allow when they rule the centre out."""
+    """Return the center of the ranges, coded, or a central setting the limits allow when they rule the center out."""
     x = np.zeros(len(numeric))
     if region is None or region.feasible(x[None, :])[0]:
         return x
@@ -8895,9 +8895,9 @@ def _centre(numeric: list[dict], region: DesignRegion | None) -> np.ndarray:
 def _unmodelled_at_centre(
     x: np.ndarray, names: list[str], in_model: set[str], region: DesignRegion | None
 ) -> np.ndarray:
-    """Hold each numeric factor the model leaves out at the centre of its range, where the limits allow it.
+    """Hold each numeric factor the model leaves out at the center of its range, where the limits allow it.
 
-    The prediction does not depend on such a factor, so the optimiser may stop anywhere along it.
+    The prediction does not depend on such a factor, so the optimizer may stop anywhere along it.
     """
     x = x.copy()
     for i, name in enumerate(names):
@@ -9121,7 +9121,7 @@ def _practical(spec: dict, point: dict[str, float], region: DesignRegion | None)
 
     A numeric setting is rounded to a thousandth of its range's order of magnitude (0.01 degC for a
     range of 50 degC), and kept inside its range; when the rounding takes the settings outside the
-    limits, it is done again a digit finer, up to 12 digits. Inside means as the optimiser means it,
+    limits, it is done again a digit finer, up to 12 digits. Inside means as the optimizer means it,
     to :data:`ON_LIMIT`: the best settings on a limit are on it to that. A categorical factor's
     setting is its level.
     """
@@ -9297,7 +9297,7 @@ def _blend_fit(runs: pd.DataFrame, spec: dict, model: str) -> _FittedModel:
 
 
 def _on_bounds(found: dict[str, float], names: list[str], low: np.ndarray, high: np.ndarray) -> np.ndarray:
-    """Return the optimiser's blend, each proportion within :data:`PROPORTION_TOLERANCE` of a bound put on it.
+    """Return the optimizer's blend, each proportion within :data:`PROPORTION_TOLERANCE` of a bound put on it.
 
     SLSQP keeps to the bounds, and stops on one to rounding (3e-17 for a component a blend leaves
     out), so a proportion at its bound is the bound itself, as the page shows it.
@@ -9470,7 +9470,7 @@ DESIRABILITY_KEYS = ("response", "goal", "target", "low", "high", "weight", "imp
 def balance(request: dict) -> dict:
     """Find the settings that balance the responses with a goal, by their overall desirability, on the fitted models.
 
-    Each response with a goal (maximise, minimise, or a target typed) is fitted with its own model
+    Each response with a goal (maximize, minimize, or a target typed) is fitted with its own model
     (``models``, by its column; the design's without one) to the runs that have its result. Its goal
     becomes a Derringer-Suich desirability d, from 0 (not acceptable) to 1 (as good as it gets), over
     an acceptable range (``low`` to ``high``), with an ``importance`` from 1 to 5 and a ``shape``, how
@@ -9774,11 +9774,11 @@ def target_settings(request: dict) -> dict:
     without those the limits on the settings rule out, at each combination of the categorical factors'
     levels, and every response is predicted at each. Settings give the targets when each response is
     predicted within :data:`TARGET_NEAR` of the range of its results from its target. Of the settings that
-    do, the answer is the one nearest the centre of the ranges, which is where the runs of most designs
+    do, the answer is the one nearest the center of the ranges, which is where the runs of most designs
     are gathered; when none does, it is the one whose predictions miss by least. From there a
     least-squares step moves the numeric factors to meet the targets exactly where the models can, staying
     by that setting and inside the ranges. It is kept when the limits allow where it ends and no response
-    within reach of its target is moved out of it. A numeric factor in no response's model is at its centre.
+    within reach of its target is moved out of it. A numeric factor in no response's model is at its center.
 
     The reply lists each response's target, its prediction at the answer with its 95% intervals and
     whether it is within reach of its target (``given``); whether every one is (``reached``); the settings,
@@ -9894,7 +9894,7 @@ def _target_blend(request: dict, whole: dict) -> dict:
 
     It is :func:`target_settings` for a mixture. :data:`TARGET_DRAWN` blends are drawn evenly from the region
     of blends (each component between its bounds, the proportions summing to 1), and every response is
-    predicted at each. Of the blends that give the targets, the answer is the one nearest the centre of the
+    predicted at each. Of the blends that give the targets, the answer is the one nearest the center of the
     region, the average of the blends drawn; when none does, it is the one whose predictions miss by least.
     From there a least-squares step moves the blend to meet the targets exactly where the models can, staying
     by it, inside the bounds and summing to 1; it is kept when no response within reach of its target is
@@ -10028,7 +10028,7 @@ def _start_of_those_tried(
 ) -> tuple[dict[str, Any], int]:
     """Return the setting to start from, of those tried at each combination of levels, and how many give the targets.
 
-    Of the settings that give the targets, it is the nearest the centre of the ranges; with none, the one whose
+    Of the settings that give the targets, it is the nearest the center of the ranges; with none, the one whose
     predictions miss by least. ``missed`` gives how far each response is predicted from its target at each
     setting, in units of its reach: settings give the targets when none is further than 1.
     """
@@ -10281,7 +10281,7 @@ def solve_for(request: dict) -> dict:
 
 
 def _point_of(raw: object, spec: dict, but: str) -> dict[str, float]:
-    """Return the settings the page sends as a point, every factor coded; the factor ``but`` is at its centre."""
+    """Return the settings the page sends as a point, every factor coded; the factor ``but`` is at its center."""
     if not isinstance(raw, dict):
         raise ValueError("The page sent settings this page did not write.")  # noqa: TRY004
     point = {}
@@ -10718,7 +10718,7 @@ def _window_overlay(
 def _window_goal(name: str, low: float | None, high: float | None, spread: float) -> dict[str, Any]:
     """Return a window as the overlay takes a goal: bounded below, above, or on both sides.
 
-    A window open at one end is a goal to maximise or to minimise, whose boundary is its one end; the other
+    A window open at one end is a goal to maximize or to minimize, whose boundary is its one end; the other
     end, which only ranks the factors to draw over, is the spread of the response's results away.
     """
     if high is None:
@@ -10825,9 +10825,9 @@ def _words(response: dict) -> str:
 def _balance_goal(response: dict, results: pd.Series, raw: object) -> dict[str, Any]:
     """Return a response's desirability goal: the reader's acceptable range, importance and shape, else the defaults.
 
-    The default range is the results' own, the least to the greatest: for a response to maximise, the
-    worst result scores 0 and the best 1, and for one to minimise the other way round. For a target it
-    is centred on the target and reaches the result farthest from it, so every result is inside it. A
+    The default range is the results' own, the least to the greatest: for a response to maximize, the
+    worst result scores 0 and the best 1, and for one to minimize the other way round. For a target it
+    is centered on the target and reaches the result farthest from it, so every result is inside it. A
     range the results cannot span, all of them alike, is widened by :data:`FLAT_RANGE` of their size.
     ``default_low`` and ``default_high`` keep the defaults beside the range used.
     """
@@ -10883,7 +10883,7 @@ def _balance_search(
     Each categorical factor some model holds is held at each of its levels, and the block contrasts at 0,
     the average block, as for the best settings (see :func:`_search`): every combination of levels is
     judged at a sample of settings, and the :data:`SEARCHED_LEVELS` best are searched in full with the
-    library's optimiser. Returns ``x``, ``levels``, ``held``, each response's ``models`` with the levels
+    library's optimizer. Returns ``x``, ``levels``, ``held``, each response's ``models`` with the levels
     held, and ``D``.
     """
     from process_improve.experiments import optimize_responses  # noqa: PLC0415 - loaded when the balance is asked for
@@ -11023,7 +11023,7 @@ def _overlay(
     The two factors are those that move the responses' desirabilities most: each factor's main effects,
     summed over the responses, each over its acceptable range's width. Over a grid of their coded
     settings, each response's prediction (``z``) and the levels its acceptable boundary is at (``levels``:
-    the low end to maximise, the high end to minimise, both for a target); ``acceptable``, 1 where every
+    the low end to maximize, the high end to minimize, both for a target); ``acceptable``, 1 where every
     response has a desirability above 0; and ``runnable``, 1 where the limits on the settings allow the
     setting, or None without limits. ``at`` is the balanced settings, coded; ``ticks`` mark each axis
     with the factor's own settings; ``held`` lists the other factors at the balanced settings, in their
@@ -11359,7 +11359,7 @@ def functional(request: dict) -> dict:
 
     Each run's curve (``curves``: a list per run of one value per point of the study's ``curve``, a blank
     where it was not read, or null for a run not measured yet) is reduced by functional PCA, and each kept
-    score modelled against the factors with :func:`~process_improve.experiments.analyze_functional_experiment`.
+    score modeled against the factors with :func:`~process_improve.experiments.analyze_functional_experiment`.
     The runs are coded and the model made estimable as Learn fits a response (:func:`_fit_estimable`), so a
     curve is predicted from the same columns as the what-if panel predicts a response from (``factors``, as
     :func:`predictors` sends them), and a curve is predicted for the average block.
@@ -11383,7 +11383,7 @@ def functional(request: dict) -> dict:
     if spec.get("curve") is None:
         raise ValueError("This study measures no curve: describe the curve each run gives, then paste the curves.")
     if _mixture(spec):
-        raise ValueError("A mixture's curves are not analysed on this page yet.")
+        raise ValueError("A mixture's curves are not analyzed on this page yet.")
     grid = np.asarray(spec["curve"]["argument"]["values"])
     runs = _runs_frame(request, spec)
     sent = _curves_sent(request.get("curves"), len(runs), grid.size)
@@ -11535,7 +11535,7 @@ def _setting_of(factor: dict, settings: dict) -> float:
 #: - ``foldover``: every run of a two-level design again with each setting switched to its other end, which
 #:   separates every main effect from the two-factor interactions it is aliased with;
 #: - ``axial``: runs on the faces of the ranges and at the center, which turn a two-level design that fits the
-#:   interactions into a face-centred central composite design that fits the full quadratic model;
+#:   interactions into a face-centered central composite design that fits the full quadratic model;
 #: - ``center``: runs at the center of the ranges, to test for curvature and estimate the noise;
 #: - ``optimal``: runs chosen for the model the study aims to learn (D-optimal), the runs made so far kept;
 #: - ``replicate``: every run again, to estimate the noise from the repeats.
@@ -11655,7 +11655,7 @@ RECOMMENDED = "recommended"
 def _recommended_runs(request: dict, whole: dict, design: pd.DataFrame) -> dict[str, Any] | None:
     """Make the runs the results call for, as :func:`_extension` makes an extension's; None when they call for none.
 
-    They are a block of their own, a later round of the study, except centre runs, whose block
+    They are a block of their own, a later round of the study, except center runs, whose block
     would be the curvature they are added to test.
     """
     found = _next_step(request, whole)
@@ -11680,7 +11680,7 @@ def _recommended(request: dict, whole: dict) -> tuple[dict[str, Any] | None, str
     """Return what the results call for next, as the page shows it, and why there is nothing to show instead.
 
     The decision is :func:`~process_improve.experiments.next_step.recommend_next_step`'s, for the
-    response the page analyses, toward its goal, from every run of the design that has a result.
+    response the page analyzes, toward its goal, from every run of the design that has a result.
     The latest :data:`CONFIRMATION_RUNS` confirmation runs are judged as confirmation runs; any
     made before them missed (else the study would have stopped) and are runs of the study, in its
     latest block. A study whose runs are in blocks has a shift fitted for each.
@@ -12181,7 +12181,7 @@ def _model_rank(coded: np.ndarray, kinds: list[str], model: str) -> tuple[int, i
 
 
 def _largest_model(coded: np.ndarray, kinds: list[str], blocks: list[int] | None = None) -> str:
-    """Return the largest of :data:`MODELS` the runs estimate in full, as a design of runs as given is analysed.
+    """Return the largest of :data:`MODELS` the runs estimate in full, as a design of runs as given is analyzed.
 
     Runs in blocks estimate a model beside the blocks' effects, which take a column for each block after the first.
     Past :data:`MAX_INTERACTION_FACTORS` factors it is the main effects model, as the page models no interactions there.
@@ -12248,12 +12248,12 @@ def _extension(spec: dict, design: pd.DataFrame, kind: str) -> dict[str, Any] | 
             "why": (
                 "The runs are at two levels, so the model cannot hold the squares that curvature needs. Axial runs "
                 f"on the faces of the ranges{', with runs at the center,' if n_center else ''} make the design a "
-                "face-centred central composite design, which fits the full quadratic model."
+                "face-centered central composite design, which fits the full quadratic model."
             ),
             "said": (
                 "Runs {first} to {last} are axial runs on the faces of the ranges"
                 + (" and runs at the center" if n_center else "")
-                + ": with the runs before, a face-centred central composite design."
+                + ": with the runs before, a face-centered central composite design."
             ),
         }
     elif kind == "center":
@@ -12488,6 +12488,6 @@ def warm(payload: str = "{}") -> str:
     Start-up leaves out the packages a model is fitted with (:data:`ON_DEMAND`), so the page is ready as soon as a
     design can be made. The worker fetches them once it is, and then calls this: the library's analysis code is
     imported here, so a first fit waits for nothing, and the reply names statsmodels beside the packages the
-    catalogue found at the start, for a report to name.
+    catalog found at the start, for a report to name.
     """
     return _reply(_fitting, payload)

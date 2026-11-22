@@ -2,7 +2,7 @@
 
 The library chooses the smallest standard array with a column for each factor; the page runs each
 numeric factor at two levels, or at three (``n_levels``), and a categorical factor at its two labels.
-The array is analysed for its main effects, and at three levels for the numeric factors' squares too,
+The array is analyzed for its main effects, and at three levels for the numeric factors' squares too,
 and the analysis says once that the interactions are aliased with them.
 """
 

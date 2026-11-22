@@ -30,7 +30,7 @@ def opened(api, text: str, **roles: str) -> dict:
 
 
 def analysed(api, campaign: dict) -> dict:
-    """Analyse a study's response with the model it opens on, as Learn does."""
+    """Analyze a study's response with the model it opens on, as Learn does."""
     design = campaign["design"]
     request = {"spec": design["spec"], "columns": design["columns"], "rows": design["rows"]}
     return api.ok("api_analyze_runs", {**request, "model": campaign["model"], "responses": campaign["responses"]})

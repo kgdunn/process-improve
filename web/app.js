@@ -491,7 +491,7 @@ const python = pythonLine({
   onRefusal: (fn, error) => (pythonErrors = keepError(pythonErrors, `${fn}: ${error}`)),
   onCrash: (message) => pythonFailed(`Could not start Python: ${message || "worker.js did not load"}`),
   onStopped: () => setStatus("Stopped. Python is starting again...", "busy"),
-  // What a model is fitted with came after the start, so the catalogue named what Python ran on without it.
+  // What a model is fitted with came after the start, so the catalog named what Python ran on without it.
   onWarm(runtime) {
     if (runtime) state.runtime = runtime;
     resolveWarm();
@@ -602,7 +602,7 @@ function toast(text, state = "ok") {
 const newTrade = () => ({ tried: null, across: null, up: null, colour: "", limits: {}, chosen: null, levels: {}, choose: null });
 
 /**
- * What a study keeps of its trade-off chart (campaign.js tradeKept): the axes, the colour, the limits typed, the
+ * What a study keeps of its trade-off chart (campaign.js tradeKept): the axes, the color, the limits typed, the
  * levels drawn at and the settings chosen. Nothing before the chart is drawn, so a study with none keeps its format.
  */
 function keptTrade() {
@@ -638,9 +638,9 @@ const state = {
   marks: {}, // where each result came from, as results holds them: "simulated", "entered" or null
   curves: null, // each run's curve, when the study reads one (its spec's curve): a list per run, or null until read
   shown: null, // the column of the response Learn analyses: the first, or the one its tabs show
-  models: {}, // the model each response is analysed with, by its column, as modelChoice gives one
+  models: {}, // the model each response is analyzed with, by its column, as modelChoice gives one
   simulation: null, // what api_simulate returned: the true process, its noise and seed
-  practising: false, // the reader chose to practise with simulated results
+  practising: false, // the reader chose to practice with simulated results
   practiceRound: false, // the results on the page are a practice round's: simulated by one press in Design
   analysis: null,
   triangles: {}, // for a response's column, the three components of four or more its triangle is drawn over
@@ -652,7 +652,7 @@ const state = {
   best: null, // the best settings for the response's goal, on the fitted model: what api_best_settings returned
   balance: null, // the settings that balance the responses with a goal: what api_balance returned
   // The trade-offs between them: what api_trade_offs returned (tried), the two responses on the chart's axes and the
-  // one it is coloured by, each response's two limits, and the candidate setting or the alternative the reader chose.
+  // one it is colored by, each response's two limits, and the candidate setting or the alternative the reader chose.
   trade: newTrade(),
   // The settings that give a target: each response's target as typed, what api_target_settings returned (found),
   // and the two factors the reader chose to draw its chart over.
@@ -666,7 +666,7 @@ const state = {
   next: null, // the next step, {design, key, offers, notes, recommendation, waiting}: what api_next_runs returned for it
   suggested: null, // the runs a model of every run suggested, {design, n, result}: what api_suggest_runs returned
   widened: false, // the study was started with its ranges widened, nothing having stood out in the study before
-  settings: {}, // the study's own settings, as the study keeps them (campaign.js studySettings): its colour map
+  settings: {}, // the study's own settings, as the study keeps them (campaign.js studySettings): its color map
   buildsOn: [], // the study this one was started from, as the study keeps it (its builds_on): the round before
   goals: {}, // what the reader set of each response's goal in the balance, by its column: low, high, importance, shape
   comparison: null, // the designs that can learn the brief: what api_candidates returned, and the brief's key
@@ -720,7 +720,7 @@ const several = () => studyResponses().length > 1;
 /** How many runs the run sheet holds, confirmation runs too. */
 const runCount = () => state.design?.rows.length ?? 0;
 
-/** The model a response is analysed with: Learn's form for the one it shows, else the one chosen for it before. */
+/** The model a response is analyzed with: Learn's form for the one it shows, else the one chosen for it before. */
 const modelOf = (name) => (name === state.shown ? modelChoice() : (state.models[name] ?? ""));
 
 /** Each response's model, by its column, as a study keeps them. */
@@ -1278,7 +1278,7 @@ function moveChip(tr, chip, before) {
 /**
  * The chips' keys, clicks and drags: Enter, a comma or leaving the box adds what is typed; a pasted list adds a chip
  * per line or comma; Backspace in the empty box goes to the last chip; on a chip, Delete or Backspace removes it, an
- * arrow key goes to its neighbour, and Alt with an arrow key moves it; a chip dragged onto another goes before it.
+ * arrow key goes to its neighbor, and Alt with an arrow key moves it; a chip dragged onto another goes before it.
  */
 function wireChips(tr) {
   const chips = tr.querySelector(".level-chips");
@@ -1696,7 +1696,7 @@ async function renameRunSheet() {
  */
 function showRenamed({ spec, simulation, ...design }, names) {
   const titled = state.campaign && state.campaign.title === titleOf(state.design.spec);
-  // Python renames the factors, and the terms a workbook was analysed with; the rest of the spec stays the page's.
+  // Python renames the factors, and the terms a workbook was analyzed with; the rest of the spec stays the page's.
   const terms = spec.analysis_model ? { analysis_model: spec.analysis_model } : {};
   const others = spec.analysis_models ? { analysis_models: spec.analysis_models } : {};
   const limits = spec.constraints ? { constraints: spec.constraints } : {};
@@ -1757,7 +1757,7 @@ function showAim() {
   for (const radio of document.querySelectorAll('input[name="aim"]')) radio.disabled = mixture || (many && radio.value !== "main_effects");
   if (mixture) {
     box.append(
-      "A mixture is analysed with a Scheffé model of its blends, which its design sets: these aims are for factors with ranges.",
+      "A mixture is analyzed with a Scheffé model of its blends, which its design sets: these aims are for factors with ranges.",
     );
     return;
   }
@@ -2393,9 +2393,9 @@ function madeRunSheet(design, warnings, key) {
 }
 
 /**
- * Make a new set of runs the study: no results yet, nothing simulated, nothing analysed. It is
+ * Make a new set of runs the study: no results yet, nothing simulated, nothing analyzed. It is
  * saved in this browser as a study of its own, unless it follows a design made on this page that
- * holds no result the reader typed in: trying one design after another while practising keeps one
+ * holds no result the reader typed in: trying one design after another while practicing keeps one
  * entry in Your studies, not one per try. A study opened from the list or from a link is never
  * replaced. The worked example passes ``save: false``.
  */
@@ -3033,7 +3033,7 @@ function renderComparison(result, made, notes, hidden) {
 /**
  * Put the detailed comparison's columns in order, and write and shade its values. The designs shown come first:
  * those that fit the model, then those that cannot, after a dashed line. The designs hidden follow a thick line, in
- * light grey. Each row is printed and shaded over the designs shown that fit the model (see comparedRow), so hiding
+ * light gray. Each row is printed and shaded over the designs shown that fit the model (see comparedRow), so hiding
  * a row's best passes its bold to the next. With `slide`, each column moves from where it was to where it now is.
  */
 function arrangeComparison(t, result, hidden, { slide = false } = {}) {
@@ -3470,7 +3470,7 @@ function sayLearnEmpty(text) {
 /**
  * A practice round of the plan: make its run sheet, simulate its results from the process Run's practice panel holds,
  * and open Learn on them. The reader sees what the plan can and cannot tell before a run is spent. The study is then
- * as one practised on: Learn says it is a practice round until a result is typed or the simulated ones are cleared.
+ * as one practiced on: Learn says it is a practice round until a result is typed or the simulated ones are cleared.
  */
 async function practiceRound() {
   if (!(await mayReplaceRunSheet())) return;
@@ -3512,7 +3512,7 @@ function runNumbers() {
 // ---------------------------------------------------------------- each run's curve
 /**
  * Show the box the curves are pasted into, under the run sheet: the curve's words, and how many runs have theirs.
- * A mixture's curves are not analysed on this page, so its run sheet has no box.
+ * A mixture's curves are not analyzed on this page, so its run sheet has no box.
  */
 function renderCurves() {
   const box = $("#curves");
@@ -3557,7 +3557,7 @@ function curveWordsChanged() {
   setCurve({ ...words, argument: { ...along, values: curve.argument.values } }, state.curves);
 }
 
-/** Set the study's curve and each run's, or take both away (null), then show, save and analyse what changed. */
+/** Set the study's curve and each run's, or take both away (null), then show, save and analyze what changed. */
 function setCurve(curve, curves) {
   const { curve: _, ...spec } = state.design.spec;
   state.design = { ...state.design, spec: curve ? { ...spec, curve } : spec };
@@ -3607,7 +3607,7 @@ function pasteResults(e) {
 }
 
 /**
- * Offer the processes to simulate from, and the models to analyse with, that the run sheet takes: a mixture's
+ * Offer the processes to simulate from, and the models to analyze with, that the run sheet takes: a mixture's
  * (its blends, and the Scheffé models), or those for factors with ranges. A choice the run sheet does not take
  * gives way to the first that it does; the model the design was made for is every run sheet's.
  */
@@ -3796,7 +3796,7 @@ async function downloadWorkbook() {
   if (!state.design) return;
   const [first, ...more] = resultNames();
   // Each response's model, unless it is the one the design was made for, is kept in the workbook, so the results are
-  // analysed the same way when it comes back.
+  // analyzed the same way when it comes back.
   const models = Object.fromEntries(more.map((name) => [name, asked(modelOf(name))]).filter(([, model]) => model));
   // Named before Python answers: a new study started meanwhile has no run sheet to name it by (#1169).
   const name = `${state.design.spec.design_type}-${runCount()}-runs.xlsx`;
@@ -4241,7 +4241,7 @@ async function readUpload(file) {
   await analyseRuns();
 }
 
-// ---------------------------------------------------------------- analyse step
+// ---------------------------------------------------------------- analyze step
 let analysisTimer = null;
 let ticket = 0;
 /**
@@ -4250,7 +4250,7 @@ let ticket = 0;
  */
 let analysisSaid = 0;
 
-/** Analyse a moment after the last keystroke, rather than on every one. */
+/** Analyze a moment after the last keystroke, rather than on every one. */
 function scheduleAnalysis() {
   clearTimeout(analysisTimer);
   analysisTimer = setTimeout(() => {
@@ -4259,8 +4259,8 @@ function scheduleAnalysis() {
   }, 700);
 }
 
-/** What Learn says while there is nothing to analyse. */
-const NOTHING_TO_LEARN = "No results yet: enter them in Run, or practise with simulated ones.";
+/** What Learn says while there is nothing to analyze. */
+const NOTHING_TO_LEARN = "No results yet: enter them in Run, or practice with simulated ones.";
 
 /** What Learn says of results that wait for Python to start: a study opened with its results is such a one. */
 const RESULTS_WAITING = "Your results are in. Their analysis follows once Python has started.";
@@ -4289,7 +4289,7 @@ function clearAnalysis() {
 /**
  * What Python is asked for one response's analysis, its charts and its best settings: the runs, every response's
  * results, the response's own model, and the process it was simulated from while some of its results are. A study
- * of one response asks as it always has; with several, ``response`` names the one analysed.
+ * of one response asks as it always has; with several, ``response`` names the one analyzed.
  */
 function analysisRequest(name = state.shown) {
   return {
@@ -4321,7 +4321,7 @@ function chosenControl() {
 }
 
 /**
- * Analyse the response Learn shows: its fit, its best settings and its charts. With two responses or more given a
+ * Analyze the response Learn shows: its fit, its best settings and its charts. With two responses or more given a
  * goal, the balance of them follows, whichever response is shown.
  */
 async function analyseRuns() {
@@ -4331,7 +4331,7 @@ async function analyseRuns() {
     clearWhatIf();
     clearTarget();
     clearWindow();
-    setStatus("No results to analyse yet.");
+    setStatus("No results to analyze yet.");
     return;
   }
   renderPicker();
@@ -4351,7 +4351,7 @@ async function analyseRuns() {
     return;
   }
   const mine = ++ticket;
-  setStatus("Analysing...", "busy");
+  setStatus("Analyzing...", "busy");
   const analysing = statusTicket;
   const request = analysisRequest();
   const reply = await call("api_analyze_runs", request);
@@ -4395,7 +4395,7 @@ function renderAnalysis(reply) {
   $("#learn-report").hidden = !reply.ok;
   renderBadges();
   if (!reply.ok) {
-    setStatus("The results could not be analysed.", "error");
+    setStatus("The results could not be analyzed.", "error");
     showBoxCox(null);
     homeTerms(); // out of the fold that goes, so the reader can still change the model that could not be fitted
     out.replaceChildren(...asideParts(), el("p", "error", reply.error), ...warningList(reply.warnings), reportResult());
@@ -4414,7 +4414,7 @@ function renderAnalysis(reply) {
   // The terms fitted, which the design can estimate, from the runs that have a result.
   showPython("analyse", analyseCode(r.formula ?? r.model, designComplete() && !asideRuns().length, shownSpec(), vif ? fittedFormula(r.coefficients) : null, comparedOf(r)));
   const mixture = isMixture(r.spec?.design_type);
-  $("#transform-choice").hidden = mixture; // a mixture's responses are analysed as measured
+  $("#transform-choice").hidden = mixture; // a mixture's responses are analyzed as measured
   state.simpler = null; // what an earlier search found goes with the analysis it was of
   $("#transform").value = r.transform ?? "";
   showBoxCox(boxCoxSentence(r.box_cox, responseWords(shownSpec()).label));
@@ -5018,7 +5018,7 @@ function comparisonWords() {
 
 /**
  * A study of one factor, its levels compared (``r.comparison``, as the analysis gives it): the difference between
- * the two levels and how sure it is, in a sentence; each level's runs summarised; and the difference tested four
+ * the two levels and how sure it is, in a sentence; each level's runs summarized; and the difference tested four
  * ways, each test's name a word the glossary opens, or three ways within pairs for runs in blocks of two. The
  * model's equation and coefficients follow, as for any study.
  */
@@ -5078,7 +5078,7 @@ const SEVERAL_TERMS = { "one-way analysis of variance": "one-way-anova", "Tukey'
 
 /**
  * A categorical factor's three levels or more compared (``c.several``, as the analysis gives it): whether their averages
- * differ at all, in a sentence; each level's runs summarised; every pair of levels by Tukey's intervals; and each level
+ * differ at all, in a sentence; each level's runs summarized; every pair of levels by Tukey's intervals; and each level
  * against the control by Dunnett's, the control a level the reader picks. Each test's name opens what it is.
  */
 function severalParts(c) {
@@ -5145,7 +5145,7 @@ function checkParts(c) {
   ];
 }
 
-/** Each level's runs summarised, a row a level: how many, their average, standard deviation and the average's interval. */
+/** Each level's runs summarized, a row a level: how many, their average, standard deviation and the average's interval. */
 function levelTable(c) {
   return table(
     ["Level", "Runs", "Average", "Std. dev.", `${confidencePercent()} interval`],
@@ -5252,7 +5252,7 @@ function pickResponse(name) {
 }
 
 /**
- * Analyse a response as measured ("") or on a transform's scale (a key of bootstrap.TRANSFORMS). The specification
+ * Analyze a response as measured ("") or on a transform's scale (a key of bootstrap.TRANSFORMS). The specification
  * keeps the choice, as ``analysis_transforms``, so every reply, saved study and workbook has it.
  */
 function setTransform(name, transform) {
@@ -5374,7 +5374,7 @@ function setModel(model) {
 
 /**
  * Stand the terms above the analysis, where they are before the first one, on show while the model is the reader's
- * own. With no fold to hold them (nothing analysed yet, or a model that could not be fitted) they are still in
+ * own. With no fold to hold them (nothing analyzed yet, or a model that could not be fitted) they are still in
  * reach there, so a model too large for the runs can be made smaller.
  */
 function homeTerms() {
@@ -5544,7 +5544,7 @@ async function drawCharts(request, mine, given = null) {
     // A mixture's best blend is starred on its triangle, or where its Cox traces, drawn through it, cross.
     const blend = plots.held_best && blendStudy() && state.best?.settings ? state.best : null;
     const starred = plots.held_best && (blend !== null || starBest(figures, plots.contour_factors));
-    // A mixture's response over its blends is drawn here, in the page's colours: a triangle for three components,
+    // A mixture's response over its blends is drawn here, in the page's colors: a triangle for three components,
     // else the trace along each component's Cox direction.
     const words = { response: responseWords().label, units: responseWords().units };
     const { ternary, cox } = plots;
@@ -5825,7 +5825,7 @@ function clearBest() {
   $("#next").hidden = true; // the next step follows the analysis; findNext shows it again with the next one
   $("#to-next").hidden = true;
   $("#next-empty").hidden = false;
-  renderRounds(); // the rounds are the study's, analysed or not: with no study on the page they go too
+  renderRounds(); // the rounds are the study's, analyzed or not: with no study on the page they go too
   hidePython("best");
 }
 
@@ -6128,7 +6128,7 @@ async function removeConfirmationRuns() {
 let balanceTicket = 0;
 let balanceTimer = null;
 
-/** The responses the balance can weigh: those to maximise or minimise, and those with a target typed. */
+/** The responses the balance can weigh: those to maximize or minimize, and those with a target typed. */
 const aimedResponses = () =>
   studyResponses().filter((r) => r.goal === "maximize" || r.goal === "minimize" || (r.goal === "target" && Number.isFinite(r.target)));
 
@@ -6374,7 +6374,7 @@ async function drawTradeChart() {
   }
 }
 
-/** The reader picked what the chart shows: another response on an axis, or what the points are coloured by. */
+/** The reader picked what the chart shows: another response on an axis, or what the points are colored by. */
 function tradeViewChanged(event) {
   if (!state.trade.tried) return;
   if (event?.target?.classList.contains("trade-level")) {
@@ -8234,7 +8234,7 @@ function calledFor(step) {
 /**
  * The runs along the path of steepest ascent (or descent): the step's own (``path``, bootstrap._path_runs), before
  * they are on the run sheet, with the button that adds them; then the run sheet's, with their results, where the
- * path stands (campaign.js pathVerdict) and the new study centred on the best of them. They are made in the path's
+ * path stands (campaign.js pathVerdict) and the new study centered on the best of them. They are made in the path's
  * order, and the path is left at the first run that does worse than the run before it.
  */
 function pathPart(path, stopped = false) {
@@ -8285,7 +8285,7 @@ function pathPart(path, stopped = false) {
     const runOf = (i) => design.rows[at[i]][order] ?? at[i] + 1;
     part.append(said("", pathWords(verdict, runOf, results, info)));
     if (verdict.best !== null) {
-      button("path-study", "button", `Start a new study centred on run ${runOf(verdict.best)}`, () => startMovedStudy(centredOn(factors, settings[verdict.best])));
+      button("path-study", "button", `Start a new study centered on run ${runOf(verdict.best)}`, () => startMovedStudy(centredOn(factors, settings[verdict.best])));
     }
     button("path-remove", "link", "Take these runs off the run sheet", removePathRuns);
   }
@@ -8300,10 +8300,10 @@ function pathWords(verdict, runOf, results, info) {
   const best = `Run ${runOf(verdict.best)} is the best of them so far (${value(verdict.best)}).`;
   if (verdict.worse !== null) return `Run ${runOf(verdict.worse)} did worse than run ${runOf(verdict.best)}: stop here. ${best}`;
   if (verdict.next !== null) return `${best} Make run ${runOf(verdict.next)} next.`;
-  return `Each run did better than the one before. ${best} A new study centred there can go further.`;
+  return `Each run did better than the one before. ${best} A new study centered there can go further.`;
 }
 
-/** The factors of a new study centred on a run: each numeric factor's range as wide as it is, with the run's setting at its middle. */
+/** The factors of a new study centered on a run: each numeric factor's range as wide as it is, with the run's setting at its middle. */
 function centredOn(factors, run) {
   const clean = (x) => Number(x.toPrecision(12));
   return factors.map((f) => {
@@ -8440,7 +8440,7 @@ function offerRuns(offer) {
 /**
  * Add one way's runs to the end of the run sheet: the runs before keep their results, the runs added have none, and the
  * plan becomes the runs as given, in their blocks, so the run sheet is not out of date. While the results are practice
- * ones, the runs added are simulated from the same processes, noise and seeds, and analysed with the rest; else the
+ * ones, the runs added are simulated from the same processes, noise and seeds, and analyzed with the rest; else the
  * reader makes them, in Run.
  */
 async function addRuns(kind, more = {}) {
@@ -8605,7 +8605,7 @@ async function showBuiltExample() {
   return true;
 }
 
-/** Run the worked example again in this tab: the design made, the results simulated and analysed, live. */
+/** Run the worked example again in this tab: the design made, the results simulated and analyzed, live. */
 async function runExample() {
   const button = $("#run-example");
   if (!pythonReady) {
@@ -8623,7 +8623,7 @@ async function runExample() {
   flushSave();
   studyTicket += 1;
   setForm(example.design);
-  takeSettings(newStudySettings()); // the example is the reader's to look at, in the colours they keep
+  takeSettings(newStudySettings()); // the example is the reader's to look at, in the colors they keep
   scenarios.choose(example.scenario);
   $("#sigma").value = example.sigma;
   setModel(example.model);
@@ -9717,7 +9717,7 @@ function newStudySettings() {
   }
 }
 
-/** Put a study's settings in force: the page holds them, and the charts are drawn in its colour map from here on. */
+/** Put a study's settings in force: the page holds them, and the charts are drawn in its color map from here on. */
 function takeSettings(settings) {
   state.settings = settings;
   setColourMap(settings.colour_map, settings.colour_map_flipped === true);
@@ -9726,7 +9726,7 @@ function takeSettings(settings) {
 }
 
 /**
- * Draw the settings as the study has them. Each colour map is a choice on one line: its name, then its colours
+ * Draw the settings as the study has them. Each color map is a choice on one line: its name, then its colors
  * from a low value to a high one as the charts draw them now. The chosen map's line holds the switch that flips it.
  */
 function renderSettings() {
@@ -9742,7 +9742,7 @@ function renderSettings() {
     const swatch = el("span", "settings__swatch", "");
     swatch.style.background = `linear-gradient(to right, ${shownColours(name).join(", ")})`;
     swatch.setAttribute("role", "img");
-    swatch.setAttribute("aria-label", `The colours of ${COLOUR_MAP_WORDS[name]}, from a low value to a high one`);
+    swatch.setAttribute("aria-label", `The colors of ${COLOUR_MAP_WORDS[name]}, from a low value to a high one`);
     // Every line has the same five places, so the bars line up: the chosen map's holds the switch, the others a gap.
     const flip = choice.checked ? flipSwitch() : el("span", "settings__flip", "");
     row.append(label, flip, el("span", "settings__end", "Low"), swatch, el("span", "settings__end", "High"));
@@ -9793,7 +9793,7 @@ function settingsChanged(event) {
   } catch {
     /* storage refused: the settings hold for this study */
   }
-  renderSettings(); // the colours beside each name, and the line the switch is on, follow the choice
+  renderSettings(); // the colors beside each name, and the line the switch is on, follow the choice
   // The list is drawn anew, so the keyboard's place is put back on the control that was changed.
   const again = ["settings-keep", "decimal-mark", "significance-level"].includes(event.target.id) ? `#${event.target.id}` : event.target.type === "radio" ? '#colour-maps input[name="colour_map"]:checked' : FLIP;
   document.querySelector(again)?.focus();
@@ -9819,14 +9819,14 @@ $("#settings-close").onclick = () => $("#settings-dialog").close();
 closeOnBackdrop($("#settings-dialog"));
 $("#settings-dialog").addEventListener("change", settingsChanged);
 
-// ---------------------------------------------------------------- colour mode
+// ---------------------------------------------------------------- color mode
 const MODE_KEY = "factorial-mode";
 const MODE_NAMES = { auto: "the system's", light: "light", dark: "dark" };
 const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
 
 /**
- * Show the page in a colour mode: light, dark, or the system's (the head of index.html put the
- * reader's choice on the page before it was drawn). The charts are drawn again in its colours, and
+ * Show the page in a color mode: light, dark, or the system's (the head of index.html put the
+ * reader's choice on the page before it was drawn). The charts are drawn again in its colors, and
  * the browser's own bar follows it.
  */
 function applyMode(mode) {
@@ -9838,7 +9838,7 @@ function applyMode(mode) {
     const { scheme } = meta.dataset;
     meta.media = mode === "auto" ? `(prefers-color-scheme: ${scheme})` : scheme === mode ? "all" : "not all";
   }
-  $("#mode").setAttribute("aria-label", `Colour mode: ${MODE_NAMES[mode]}`);
+  $("#mode").setAttribute("aria-label", `Color mode: ${MODE_NAMES[mode]}`);
   redrawAll();
 }
 
@@ -9975,7 +9975,7 @@ const PLAN_OPTIONS = ["#n_center_points", "#alpha", "#alpha_value", "#resolution
 for (const id of PLAN_OPTIONS) $(id).addEventListener("input", () => (designChosen = true));
 for (const id of ["#design-type", "#n_center_points", "#n_replicates"]) $(id).addEventListener("input", markLevelRuns);
 $("#generate").onclick = async () => {
-  // While practising, the new runs are simulated from the same process, noise and seed, so the true process
+  // While practicing, the new runs are simulated from the same process, noise and seed, so the true process
   // and the analysis follow the plan as it now is.
   if (!(await mayReplaceRunSheet())) return;
   if ((await generate()) && state.practising) await simulateResults();

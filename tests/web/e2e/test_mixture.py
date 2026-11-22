@@ -1,7 +1,7 @@
 """A mixture in the browser: its components typed into the brief, its run sheet of blends, and its analysis.
 
 A reader names the components of a blend, leaves their bounds blank (0 and 1), chooses a simplex
-lattice, makes the run sheet, practises with simulated results and reads the Scheffé model's
+lattice, makes the run sheet, practices with simulated results and reads the Scheffé model's
 analysis, with the fitted response drawn over the triangle of blends.
 """
 
@@ -43,7 +43,7 @@ def charts(page) -> list[str]:
 
 
 def made_mixture(page) -> None:
-    """Type the three components, choose a simplex lattice, make its run sheet and practise on it."""
+    """Type the three components, choose a simplex lattice, make its run sheet and practice on it."""
     set_factors(page, BLEND)
     choose(page, design_type="simplex_lattice")
     generate(page)

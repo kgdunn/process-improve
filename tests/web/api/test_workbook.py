@@ -1,6 +1,6 @@
 """The workbook: ``api_workbook`` writes the runs the page holds, ``api_read_workbook`` reads one back in.
 
-Everything needed to analyse a campaign travels in the ``.xlsx`` file the reader keeps: the run
+Everything needed to analyze a campaign travels in the ``.xlsx`` file the reader keeps: the run
 sheet, and a hidden sheet with the design's specification. A workbook can arrive by e-mail, so
 what it stores is read as data and checked before anything uses it.
 """
@@ -166,7 +166,7 @@ def test_an_uploaded_workbook_must_hold_a_design_this_page_makes(api, design, ch
     api.error("api_read_workbook", {"xlsx_base64": edit_workbook(workbook_of(api, design), tamper)})
 
 
-# --------------------------------------------------------------------------- analysing a workbook
+# --------------------------------------------------------------------------- analyzing a workbook
 def test_workbook_round_trip_recovers_the_model(api):
     design = api.ok("api_make_design", {"design_type": "box_behnken", "factors": FACTORS})
     result = api.ok("api_analyze", {"xlsx_base64": fill_workbook(workbook_of(api, design), quadratic)})
@@ -301,7 +301,7 @@ def test_the_settings_kept_from_the_what_if_panel_go_through_the_workbook(api, h
 
 
 #: The round before, as a study started from another keeps it: its id, the digest of its runs then, and its title.
-BUILT_ON = [{"id": "8f1c0d2e-round-1", "sha256": "ab" * 32, "title": "Yield, maximise: Box-Behnken in T, P and F"}]
+BUILT_ON = [{"id": "8f1c0d2e-round-1", "sha256": "ab" * 32, "title": "Yield, maximize: Box-Behnken in T, P and F"}]
 
 
 def test_the_study_a_study_builds_on_goes_through_the_workbook(api, held, simulated):

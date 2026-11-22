@@ -1,6 +1,6 @@
 """The best settings for the response's goal, in Learn: where to run the process, and how far to trust the model there.
 
-The worked example maximises its yield. Learn says what the model predicts at the best settings,
+The worked example maximizes its yield. Learn says what the model predicts at the best settings,
 lists the settings and where each lies in its range, gives the two intervals and the leverage there,
 draws how tightly to hold each factor, and puts a star on the response surface, which is drawn
 through the best settings. Confirmation runs at the best settings go at the end of the run sheet,
@@ -163,7 +163,7 @@ def test_the_goal_in_the_brief_is_the_goal_searched(page):
 def test_a_goal_of_learning_says_how_to_see_the_best_settings(page):
     set_goal(page, "learn")
     assert page.text_content("#best-out") == (
-        "Set a goal for Yield in the brief, to maximise, minimise or hit a target, and the page finds the best "
+        "Set a goal for Yield in the brief, to maximize, minimize or hit a target, and the page finds the best "
         "settings here."
     )
     for hidden in ("#best-chart", "#confirm", "#py-best"):

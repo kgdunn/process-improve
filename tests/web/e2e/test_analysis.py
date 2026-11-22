@@ -53,10 +53,10 @@ def terms_fitted(page) -> list[str]:
 
 
 def test_an_analysis_dropped_for_a_new_study_does_not_leave_the_status_line_busy(page):
-    """A new study takes away the analysis on its way, and drops its reply: "Analysing..." goes with it."""
+    """A new study takes away the analysis on its way, and drops its reply: "Analyzing..." goes with it."""
     page.evaluate("window.__pi.hold('api_analyze_runs')")
     enter_results(page, {0: 70})
-    assert status(page) == ("Analysing...", "busy")
+    assert status(page) == ("Analyzing...", "busy")
     study_menu(page, "#new-study")
     page.evaluate("window.__pi.release('api_analyze_runs')")
     settled(page)
@@ -278,7 +278,7 @@ def test_a_model_the_design_cannot_fit_is_refused_in_a_sentence(page):
     generate(page, design_type="dsd", n_center_points=1)  # nine runs, simulated again
     choose(page, model="quadratic")
     settled(page)
-    assert status(page) == ("The results could not be analysed.", "error")
+    assert status(page) == ("The results could not be analyzed.", "error")
     assert "cannot fit the quadratic model" in page.text_content("#analysis p.error")
     assert page.is_hidden("#charts")
 
@@ -355,7 +355,7 @@ def test_the_terms_ticked_are_those_of_the_model_fitted(blank_page):
 
 
 def test_a_design_that_can_fit_the_aim_is_analysed_for_it(blank_page):
-    """A DSD made to learn each factor's curvature is analysed with the squares, not with its own main effects."""
+    """A DSD made to learn each factor's curvature is analyzed with the squares, not with its own main effects."""
     page = blank_page
     generate(page, design_type="dsd")
     assert page.input_value("#model") == "terms"

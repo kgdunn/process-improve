@@ -16,7 +16,7 @@ LEVELS = (0.1, 0.05, 0.01)
 
 
 def widths(api, held: dict, simulated: dict, **level: float) -> dict[str, float]:
-    """Return the width of each coefficient's interval, by its label, with the worked example analysed at ``level``."""
+    """Return the width of each coefficient's interval, by its label, with the worked example analyzed at ``level``."""
     analysis = api.ok("api_analyze_runs", {**held, "responses": simulated["responses"], **level})
     return {c["label"]: c["ci_high"] - c["ci_low"] for c in analysis["coefficients"] if c["ci_low"] is not None}
 

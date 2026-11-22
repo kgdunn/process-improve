@@ -541,7 +541,7 @@ def test_four_diets_open_with_their_runs_as_given_each_at_its_label(build_script
 
 
 def test_a_factorial_of_five_three_and_four_numbered_levels_is_made_by_the_page(build_script, several):
-    """Davies's vulcanised rubber: levels 1 to 5, 1 to 3 and 1 to 4 are labels, and the page makes the 60 runs."""
+    """Davies's vulcanized rubber: levels 1 to 5, 1 to 3 and 1 to 4 are labels, and the page makes the 60 runs."""
     with no_bytecode():
         campaign, reason, tried = build_script.published_campaign(several["davies-vulcanised-rubber-5x3x4"])
     assert (reason, tried) == ("", True)

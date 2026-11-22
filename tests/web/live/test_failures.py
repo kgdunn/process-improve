@@ -2,7 +2,7 @@
 
 Nothing at start-up comes from PyPI: Pyodide and its packages come from the CDN, and the wheel and the page's own
 Python from the app. openpyxl comes from PyPI with the first workbook, and plotly with the first chart. A network
-that reaches the CDN but not PyPI therefore still makes and analyses a design; the workbook is refused in one
+that reaches the CDN but not PyPI therefore still makes and analyzes a design; the workbook is refused in one
 line, and is written once PyPI answers.
 """
 

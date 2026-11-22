@@ -1,7 +1,7 @@
 """The settings that balance the responses, in Learn: with two responses or more given a goal.
 
-A study of a yield to maximise, a cost to minimise and a purity with a target is made, practised
-and analysed. Below the analysis of the response on show, Learn lists each response's goal in the
+A study of a yield to maximize, a cost to minimize and a purity with a target is made, practiced
+and analyzed. Below the analysis of the response on show, Learn lists each response's goal in the
 balance, to change, says how good the balance is, lists the settings and each response there with
 its desirability, names the response that holds the overall desirability down most, and draws the
 overlay of the acceptable ranges with a star at the balanced settings. Confirmation runs there are

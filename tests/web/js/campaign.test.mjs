@@ -331,7 +331,7 @@ describe("the words for a saved design", () => {
   });
 
   test("after the response it is about, when the reader described one", () => {
-    assert.equal(campaignTitle("Box-Behnken", ["T", "P", "F"], "Yield (%), maximise"), "Yield (%), maximise: Box-Behnken in T, P and F");
+    assert.equal(campaignTitle("Box-Behnken", ["T", "P", "F"], "Yield (%), maximize"), "Yield (%), maximize: Box-Behnken in T, P and F");
   });
 
   test("when it was saved", () => {
@@ -354,7 +354,7 @@ describe("the words for a saved design", () => {
 });
 
 describe("results that come back by link", () => {
-  test("the same design is recognised whatever its results, and another is not", () => {
+  test("the same design is recognized whatever its results, and another is not", () => {
     const here = campaign();
     const back = { ...campaign(), responses: [1, 2, 3, 4] };
     assert.equal(designKey(here.design), designKey(back.design));
@@ -519,7 +519,7 @@ describe("a campaign of several responses", () => {
     assert.equal(back.design.spec.responses, undefined);
   });
 
-  test("a later response without results yet has none, and is analysed as designed", () => {
+  test("a later response without results yet has none, and is analyzed as designed", () => {
     const c = three();
     delete c.more_responses;
     delete c.more_sources;
@@ -585,7 +585,7 @@ describe("a campaign of several responses", () => {
     assert.equal(progress(campaignDone(checkCampaign(three())).map((done) => (done ? true : null))), "4 runs, 1 results in");
   });
 
-  test("the same design is recognised whatever its results, and a study of one response keys as before", () => {
+  test("the same design is recognized whatever its results, and a study of one response keys as before", () => {
     const here = three();
     const back = three();
     back.more_responses = { Cost: [1, 2, 3, 4], Purity: [1, 2, 3, 4] };
@@ -1039,7 +1039,7 @@ describe("a study's trade-off chart", () => {
     const read = (trade) => () => checkCampaign({ ...campaign(), v: CAMPAIGN_VERSION, trade });
     assert.throws(read("y"), /its trade-off chart is not described/);
     assert.throws(read({ across: "Not measured" }), /across axis is no response it measures/);
-    assert.throws(read({ colour: "Not measured" }), /coloured by no response it measures/);
+    assert.throws(read({ colour: "Not measured" }), /colored by no response it measures/);
     assert.throws(read({ limits: { y: [1] } }), /the trade-off limit of y is not its two ends/);
     assert.throws(read({ levels: { T: "A" } }), /drawn at no level of T/);
     assert.throws(read({ levels: { Supplier: "C" } }), /drawn at no level of Supplier/);

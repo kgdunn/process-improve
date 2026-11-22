@@ -3,7 +3,7 @@
 The brief lists up to five responses. The specification keeps the first one as it always has
 (``response``, described by ``response_info``), so a study of one response is stored exactly as
 before, and lists them all in ``responses`` when there are more. The run sheet has a column for each;
-the workbook, the simulation and every analysis follow. Each response is analysed on its own, fitted
+the workbook, the simulation and every analysis follow. Each response is analyzed on its own, fitted
 to the runs that have its result, and the page names the response it asks about (``response``).
 """
 
@@ -211,7 +211,7 @@ def test_each_response_s_noise_is_drawn_with_its_own_seed(api, bootstrap):
 
 
 def test_a_later_response_s_numbers_put_its_practice_results_on_its_scale(api):
-    """Without its typical value and noise a later response keeps the scenario's centre and a noise of 1."""
+    """Without its typical value and noise a later response keeps the scenario's center and a noise of 1."""
     described = [RESPONSES[0], {**RESPONSES[1], "typical": 12.0, "noise": 0.5}, RESPONSES[2]]
     held = held_of(three(api, responses=described))
     simulated = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 1})
@@ -225,7 +225,7 @@ def test_a_later_response_s_numbers_put_its_practice_results_on_its_scale(api):
 def test_two_responses_of_two_factors_trade_off(api):
     """With two factors the second response's peak is the first's moved and reflected, so their best differ."""
     factors = FACTORS[:2]
-    plain = [{"name": "Yield"}, {"name": "Cost"}]  # no typical value or noise: the scenario's own centre and scale
+    plain = [{"name": "Yield"}, {"name": "Cost"}]  # no typical value or noise: the scenario's own center and scale
     spec = {"design_type": "ccd", "factors": factors, "responses": plain, "alpha": "face_centered"}
     held = held_of(api.ok("api_make_design", spec))
     simulated = api.ok("api_simulate", {**held, "scenario": "optimum", "sigma": 1.0, "seed": 1})

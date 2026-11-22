@@ -40,7 +40,7 @@ def test_the_note_on_installing_plotly_ends_whether_the_install_fails_or_works(o
     assert state == "error"
 
     own_context.unroute(PLOTLY_WHEEL)
-    page.fill("#curve-label", "Colour index")  # the curve renamed is fitted again, and the install tried again
+    page.fill("#curve-label", "Color index")  # the curve renamed is fitted again, and the install tried again
     page.press("#curve-label", "Tab")
     page.wait_for_function("window.__pi.count('api_functional') === 2 && window.__pi.idle()", timeout=120_000)
     settled(page, timeout=120_000)

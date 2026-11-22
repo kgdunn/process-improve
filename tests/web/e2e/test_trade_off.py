@@ -148,7 +148,7 @@ def test_on_a_phone_the_grid_scrolls_in_its_own_box(fresh_page):
 #: The contrast WCAG AA asks of text: 4.5 to 1.
 AA = 4.5
 
-#: Each grid cell's text and the colour behind it, the first ancestor with a background of its own.
+#: Each grid cell's text and the color behind it, the first ancestor with a background of its own.
 COLOURS = """() => {
   const behind = (e) => {
     for (; e; e = e.parentElement) {
@@ -164,7 +164,7 @@ COLOURS = """() => {
 
 
 def luminance(colour: str) -> float:
-    """Return the relative luminance of a computed ``rgb(r, g, b)`` colour, as WCAG reckons it."""
+    """Return the relative luminance of a computed ``rgb(r, g, b)`` color, as WCAG reckons it."""
     channels = [int(v) / 255 for v in colour.removeprefix("rgb(").removesuffix(")").split(", ")[:3]]
     linear = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
     return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]

@@ -2,7 +2,7 @@
 
 Each test asks one entry point for what a reader (or a workbook) could send at an edge: a label a
 spreadsheet read as TRUE, a mixture without a column, a study with no numeric factor, a confirmation
-run of a fit with no error left, limits that rule out the centre or the optimum. Where the answer is a
+run of a fit with no error left, limits that rule out the center or the optimum. Where the answer is a
 number, it is checked against one worked out here by hand or with a simpler formula.
 """
 
@@ -222,7 +222,7 @@ def test_designs_that_cannot_fit_the_aim_score_no_power(api):
     """The quadratic model in a catalyst of three levels, T and P has 12 columns.
 
     The intercept, the catalyst's 2 contrasts, T, P, their squares, T:P and the catalyst's 2 interactions with each
-    of T and P. The Taguchi array's 9 runs are too few; the full factorial's two-level T and P, with centre runs,
+    of T and P. The Taguchi array's 9 runs are too few; the full factorial's two-level T and P, with center runs,
     give T squared and P squared the same column.
     The optimal designs, which take a categorical factor too, are built for these 12 columns and fit them.
     """
@@ -339,7 +339,7 @@ def test_the_combinations_of_levels_are_judged_inside_the_limits(api):
 
 
 def test_a_model_of_labels_alone_holds_the_numeric_factors_at_a_central_setting_the_limits_allow(api):
-    """The centre breaks A + B >= 0.5, so A and B are held near the centroid of the triangle left, (0.5, 0.5).
+    """The center breaks A + B >= 0.5, so A and B are held near the centroid of the triangle left, (0.5, 0.5).
 
     The fit of S1 and S2 alone has the runs' average for its intercept: 20 plus the average of 2 A + B over the
     runs, 1, 2 and 3 at (0, 1), (1, 0) and (1, 1), which is 2. Its best, S1 at b and S2 at c, adds 3 + 1.
@@ -361,7 +361,7 @@ def limited(api, limit: str) -> dict:
 
 
 def test_a_factor_the_model_leaves_out_stays_inside_the_limits_when_its_centre_breaks_them(api):
-    """Best at A = 1, where A + B >= 1.2 needs B >= 0.2: B is not moved to its centre, 0."""
+    """Best at A = 1, where A + B >= 1.2 needs B >= 0.2: B is not moved to its center, 0."""
     held = limited(api, "A + B >= 1.2")
     responses = [10 + 3 * row[held["columns"].index("A")] for row in held["rows"]]
     best = best_of(api, held, responses, model={"terms": [["A"]]})
@@ -449,7 +449,7 @@ def test_a_response_whose_results_are_all_alike_gets_a_range_a_tenth_of_their_si
 
 
 def labels_only(api, transforms: dict | None = None) -> dict:
-    """Balance a yield to maximise and a cost to minimise over S1 and S2 alone, each run twice.
+    """Balance a yield to maximize and a cost to minimize over S1 and S2 alone, each run twice.
 
     Yield = 50 + 5 S1 + 2 S2 and Cost = 20 + S1 - 3 S2 exactly, on the labels' codes.
     """

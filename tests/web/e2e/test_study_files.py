@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 BANNER = "#campaign-banner"
 #: How a study made from the worked example's brief is titled: its response, then its design and factors.
-YIELD = "Yield (%), maximise: "
+YIELD = "Yield (%), maximize: "
 
 
 def two_studies(page) -> list[str]:
@@ -120,7 +120,7 @@ def test_a_study_s_own_file_opens_it_on_the_page_in_another_browser(page, open_c
     with page.expect_download() as download:
         button.click()
     name = download.value.suggested_filename
-    assert name == "yield-maximise-full-factorial-2-level-in-temperature.factorial.json"
+    assert name == "yield-maximize-full-factorial-2-level-in-temperature.factorial.json"
     download.value.save_as(tmp_path / name)
     other = opened_page(open_context, site)
     open_library(other)
@@ -165,7 +165,7 @@ def test_share_hands_the_study_s_file_to_the_share_sheet(open_context, site):
     page.wait_for_function("window.__shared")
     shared = page.evaluate("window.__shared")
     assert shared["title"] == title
-    assert shared["name"] == "yield-maximise-full-factorial-2-level-in-temperature.factorial.json"
+    assert shared["name"] == "yield-maximize-full-factorial-2-level-in-temperature.factorial.json"
     assert [s["study"]["title"] for s in json.loads(shared["text"])["studies"]] == [title]
 
 
