@@ -67,6 +67,7 @@ def test_the_footer_says_what_factorial_is_and_names_each_group_of_its_links(pag
                 "What Factorial does",
                 "Catalog of experimental designs",
                 "Validation & technical accuracy",
+                "Reproduced from the books",
                 "Experimental design concept map",
             ],
         ],
