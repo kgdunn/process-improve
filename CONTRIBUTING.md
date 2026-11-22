@@ -604,11 +604,14 @@ page: the library's value is the right one. So when two causes fit, choose
 the one that does not clear the library (`unexplained` or `method` before
 `source_error`).
 
-A number that agrees has no `cause`. `tests/test_reference_catalogue.py` fails
-on a case that breaks these rules. Run it before you push:
+A number that agrees has no `cause`. The pages of factori.al show each number that
+differs, and each `library_gap`, by what it is in plain words: `web/quantities.json`
+names each `what` ("a sum of squares" for `anova_sum_sq`). A `what` new to those
+numbers needs a name there. `tests/test_reference_catalogue.py` fails on a case
+that breaks these rules. Run it before you push:
 
 ```bash
-uv run pytest tests/test_reference_catalogue.py --no-cov -k "cause or incorrect_option"
+uv run pytest tests/test_reference_catalogue.py --no-cov -k "cause or incorrect_option or plain_name"
 ```
 
 **A response measured as a curve** (a time course, a profile or a spectrum per run) is one

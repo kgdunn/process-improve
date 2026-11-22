@@ -210,11 +210,16 @@ the reader chooses: by year, by name or by how many numbers it has, never by how
 reproduces. The counts describe how far the library reproduces a source, not the quality of the
 source.
 
-Behind *Search every case* the page lists the cases of each tier, and what the library lacks, the
-missing methods that would recompute the most printed numbers first. Each source also has a page of
-its own, under `Books <https://factori.al/catalog/books/>`_: how closely the library
-gives its answers, its cases in page order, the misprints found in it with the printed value beside
-the value its own data give, and the printed numbers the library has no function for yet. Each
+Behind *Search every case* the page lists the cases under the names of the bar, not by tier: those
+that match the book, those that differ for a known reason, those with a quiz option that is wrong on
+purpose, and those that differ for a reason not known yet. A case is listed under the last of these
+that one of its numbers is under. After them comes what the library lacks, the missing methods that
+would recompute the most printed numbers first. A number is named by what it is in plain words, such
+as "a sum of squares". Each source also has a page of its own, under
+`Books <https://factori.al/catalog/books/>`_, in the same names and colours: how closely the library
+gives its answers, a bar of its printed numbers as its row has them, its cases in page order with the
+name of each, the misprints found in it with the printed value beside the value its own data give,
+and the printed numbers the library has no function for yet. Each
 application has a page too, under `Fields <https://factori.al/catalog/fields/>`_: the typical size
 of its published experiments and the kinds of design they use, drawn on a chart of factors and runs.
 Factorial's planning panel shows the same chart beside the plan, for the field the reader chooses.

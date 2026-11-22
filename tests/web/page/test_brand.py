@@ -171,7 +171,7 @@ def test_the_other_pages_wear_the_app_s_look():
     """The catalog, the concept map and the multivariate page: no pill, no coloured edge, and the app's ground."""
     css = source("style.css")
     assert "999px" not in css, "a chip has the one corner every box has"
-    for edged in (".tierlist", ".map-card"):
+    for edged in (".statelist", ".map-card"):
         rule = next(line for line in css.splitlines() if line.startswith(f"{edged} {{"))
         assert "border-left" not in rule, f"{edged} is marked by a point, not by a coloured edge"
     mva = (ROOT / "web" / "mva" / "mva.css").read_text(encoding="utf-8")

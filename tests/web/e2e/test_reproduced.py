@@ -19,6 +19,14 @@ TENSILE = "lenth-example-ii-tensile-strength"
 #: The causes the page counts, in the order of its bar, as ``REASONS`` in ``web/reproduced-logic.js`` has them.
 REASONS = ("source_rounding", "source_error", "method", "library", "incorrect_option", "unexplained", "library_gap")
 
+#: The lists of cases behind "Search every case", one for each state a case can be in (``CASE_STATES``).
+LISTS = (
+    "Matches the book",
+    "Differs, and we know why",
+    "Multiple choice, wrong on purpose",
+    "Differs, reason not known yet",
+)
+
 #: A number an example's box shows, as ``A_NUMBER`` in ``web/reproduced-logic.js`` has it.
 A_NUMBER = re.compile("[-\N{MINUS SIGN}+]?[\\d,]*\\.?\\d+%?")
 
@@ -120,6 +128,8 @@ def test_the_reasons_are_a_cascade_and_each_shows_a_number_of_its_own(reproduced
     }
     assert misprint.locator(".example__box").text_content().startswith("Lenth (1989), p. ")
     assert tuple(misprint.locator(".example__values dd").all_text_contents()) in printed
+    what = misprint.locator(".example__where").text_content().split(" · ")[1]
+    assert what in reproduction["quantities"].values(), "the quantity by its plain name"
 
     lacking = page.locator("#reasons .reason[data-cause=library_gap]")
     first = lacking.locator(".example__box").text_content()
@@ -176,17 +186,23 @@ def test_the_cases_wait_behind_a_fold_and_an_address_that_names_one_opens_it(rep
     case.locator(".number").first.wait_for()
     assert page.get_attribute("#numbers", "open") is not None
     assert case.get_attribute("open") is not None
-    assert page.locator("#tier-within_1").get_attribute("open") is not None
+    assert page.locator("#state-known").get_attribute("open") is not None, "the list of the case's state"
 
 
-def test_a_tier_opens_its_list_and_a_case_shows_each_number_that_differs_and_why(reproduced_context, site):
+def test_a_state_opens_its_list_and_a_case_shows_each_number_that_differs_and_why(reproduced_context, site):
+    """The cases are listed by state, as the bar counts their numbers.
+
+    Lenth's tensile strength differs, for known reasons, and its worst difference leaves its misprints out.
+    """
     page = open_page(reproduced_context, site, cases=True)
-    page.click("#tier-within_1 > summary")
-    page.wait_for_function("location.hash.includes('open=within_1')")
+    assert tuple(page.locator("#lists .statelist__name").all_text_contents()) == LISTS
+    page.click("#state-known > summary")
+    page.wait_for_function("location.hash.includes('open=known')")
     case = page.locator(f"#case-{TENSILE}")
     assert "worst 0.25%" in case.locator("summary").text_content(), "the misprints do not hold the case back"
     case.locator("summary").click()
-    me = case.locator(".number").filter(has=page.locator(".number__what", has_text=re.compile(r"^ME:")))
+    what = re.compile(r"^A margin of error:")
+    me = case.locator(".number").filter(has=page.locator(".number__what", has_text=what))
     assert me.locator(".number__cause").text_content() == "A misprint or slip in the book"
     assert me.locator(".number__error").text_content() == "3.3%"
     assert me.locator("dd code").first.text_content() == ".56"
@@ -200,7 +216,7 @@ def test_a_source_chosen_narrows_the_cases_and_never_the_counts_above_them(repro
     """A source chosen keeps its cases in the lists; the bar and the reasons stay those of every source."""
     page = open_page(reproduced_context, site, cases=True)
     recomputed = sum(1 for c in reproduction["cases"] if c["tier"])
-    assert page.text_content("#count") == f"{recomputed} cases, in four tiers."
+    assert page.text_content("#count") == f"{recomputed} cases, in four lists."
     tally, reasons = page.text_content("#tally-value"), reason_counts(page)
     page.select_option("#source", "lenth-1989")
     page.wait_for_function("location.hash.includes('src=lenth-1989')")
@@ -212,7 +228,7 @@ def test_a_source_chosen_narrows_the_cases_and_never_the_counts_above_them(repro
     assert page.get_attribute("#numbers", "open") is not None, "an address naming a source shows its cases"
     assert page.input_value("#source") == "lenth-1989"
     page.click("#clear")
-    assert page.text_content("#count") == f"{recomputed} cases, in four tiers."
+    assert page.text_content("#count") == f"{recomputed} cases, in four lists."
 
 
 def test_what_the_library_lacks_is_listed_by_reason_with_its_cases(reproduced_context, site, reproduction):
@@ -240,8 +256,8 @@ def test_a_reason_searched_for_keeps_the_cases_whose_numbers_differ_for_it(repro
     page.click(".try:text-is('misprint')")
     page.wait_for_function("location.hash.includes('q=misprint')")
     assert page.input_value("#query") == "misprint"
-    assert page.locator(f"#case-{TENSILE}").count() == 1, "the lists of the tiers that differ open"
-    assert page.locator("#tier-reproduced .case").count() == 0
+    assert page.locator(f"#case-{TENSILE}").count() == 1, "the lists of the states that differ open"
+    assert page.locator("#state-match .case").count() == 0
     page.fill("#query", "no word of any case")
     page.wait_for_function("document.querySelector('#count').textContent.startsWith('0 cases')")
 
@@ -252,13 +268,13 @@ def test_a_form_chosen_keeps_the_cases_of_its_sources(reproduced_context, site, 
     page.select_option("#source", "form:paper")
     page.wait_for_function("location.hash.includes('form=paper')")
     recomputed = sum(1 for c in reproduction["cases"] if c["tier"])
-    assert page.text_content("#count") == f"{recomputed} cases, in four tiers."
+    assert page.text_content("#count") == f"{recomputed} cases, in four lists."
     assert page.is_visible("#clear")
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}}])
 def test_on_a_phone_the_page_never_scrolls_sideways(reproduced_context, site):
-    page = open_page(reproduced_context, site, "#open=within_1,within_5,not_reproduced")
+    page = open_page(reproduced_context, site, "#open=known,quiz,open")
     for row in page.locator("#shelf .shelf__row > summary").all():
         row.click()
     for case in page.locator(".case summary").all():

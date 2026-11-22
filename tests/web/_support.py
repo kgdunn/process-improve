@@ -140,6 +140,7 @@ APP_SOURCES = (
     "manifest.webmanifest",
     "book-examples.json",
     "published-examples.json",
+    "quantities.json",
     "mva/index.html",
     "mva/mva.css",
     "mva/app.js",

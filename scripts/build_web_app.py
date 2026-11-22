@@ -1510,10 +1510,11 @@ def write_reproduction(out_dir: Path) -> None:
     It holds each tier's largest relative difference (``null`` for the last, which has none), the causes the
     catalogue records of a difference and of a number not recomputed, those of a difference in which the
     library's value is the right one, the forms a source takes, the sources as the catalog names them with
-    the form of each, and every case (see
+    the form of each, every case (see
     :func:`~process_improve.experiments.design_catalog.catalog_reproduction`), which
-    ``catalog/reproduced/`` draws. Each source also carries its verdict (see :func:`book_verdict`), and has
-    a page of its own under ``catalog/books/`` (see :func:`write_books`). It is kept apart from
+    ``catalog/reproduced/`` draws, and the plain name of what each of their numbers that differ or are not in
+    Factorial yet is (see :data:`QUANTITIES`). Each source also carries its verdict (see :func:`book_verdict`),
+    and has a page of its own under ``catalog/books/`` (see :func:`write_books`). It is kept apart from
     :func:`write_catalog` because it recomputes the numbers that differ, which takes a minute or two.
     """
     from process_improve.experiments.design_catalog import (  # noqa: PLC0415 - the docs environment has it
@@ -1532,6 +1533,7 @@ def write_reproduction(out_dir: Path) -> None:
 
     full = reference_sources()
     cases = catalog_reproduction()
+    shown = {number["what"] for case in cases for number in [*case["differs"], *case["missing"]]}
     data = {
         "version": CATALOG_VERSION,
         "library": version("process-improve"),
@@ -1544,6 +1546,7 @@ def write_reproduction(out_dir: Path) -> None:
             for key, source in catalog_sources().items()
         },
         "cases": cases,
+        "quantities": {what: name for what, name in quantity_names().items() if what in shown},
     }
     for key, source in data["sources"].items():
         held = [case for case in cases if case["source"] == key]
@@ -1841,8 +1844,30 @@ def write_fields(folder: Path, index: dict[str, Any]) -> None:
     (folder / "fields.json").write_text(text + "\n", encoding="utf-8")
 
 
-#: How a book's page names an example by how closely Factorial gives its answers (the case's tier).
-EXAMPLE_STATUS = {"reproduced": "Matches", "within_1": "Very close", "within_5": "Close", "not_reproduced": "Differs"}
+#: The states a printed number is in, in the order of the reproduction page's bar, as ``STATES`` in
+#: web/reproduced-logic.js names them. ``gap`` is apart from the rest: its numbers are not recomputed.
+STATES = {
+    "match": "Matches the book",
+    "known": "Differs, and we know why",
+    "quiz": "Multiple choice, wrong on purpose",
+    "open": "Differs, reason not known yet",
+    "gap": "Not in Factorial yet",
+}
+
+#: The state of a number that differs, by its cause, as ``REASONS`` in web/reproduced-logic.js has it.
+CAUSE_STATE = {
+    "source_rounding": "known",
+    "source_error": "known",
+    "method": "known",
+    "library": "known",
+    "incorrect_option": "quiz",
+    "unexplained": "open",
+}
+
+#: A plain name for each quantity the catalogue records a number of (its ``what``), for the numbers a page shows:
+#: those that differ and those not in Factorial yet. ``write_reproduction`` passes the names its cases use on to
+#: the reproduction page. The catalogue's "other" has none: its term says what it is.
+QUANTITIES = WEB_SRC / "quantities.json"
 
 #: What a book's page calls its source, by the source's form.
 SOURCE_NOUN = {"book": "the book", "paper": "the paper", "other": "the source"}
@@ -1854,14 +1879,30 @@ GROUPED = 12
 LACKS = re.compile(r"\bthe library (?:has no|does not|cannot|lacks|makes no|offers no|works)\b[^;:]*", re.IGNORECASE)
 
 
-def example_status(case: dict[str, Any]) -> tuple[str, str]:
-    """Name an example on its book's page, with the key its colour is drawn from: no known reason comes first."""
-    causes = {number["cause"] for number in case["differs"]}
-    if "unexplained" in causes:
-        return "Not yet explained", "unexplained"
-    if case["tier"] == "reproduced" and "source_error" in causes:
-        return "Misprint found", "misprint"
-    return EXAMPLE_STATUS[case["tier"]], case["tier"]
+def number_state(number: dict[str, Any]) -> str:
+    """Return the state of a number that differs, from its cause; a cause not known here is a reason not known."""
+    return CAUSE_STATE.get(number["cause"], "open")
+
+
+def example_state(case: dict[str, Any]) -> str:
+    """Return the state an example is in, as ``caseState`` in web/reproduced-logic.js does.
+
+    It is the state of its number that comes last in the order of :data:`STATES`, the bar's order. So an example
+    matches the book only when every number Factorial worked again does, and a reason not known yet is never hidden
+    behind a known one. Its numbers not in Factorial yet are apart from those worked again: they leave it as it is.
+    """
+    order = list(STATES)
+    return max((number_state(n) for n in case["differs"]), key=order.index, default="match")
+
+
+def number_states(cases: list[dict[str, Any]]) -> Counter[str]:
+    """Count the printed numbers of ``cases`` by state, as ``byState(tally(cases))`` in web/reproduced-logic.js."""
+    counts: Counter[str] = Counter()
+    for case in cases:
+        counts["match"] += case["checked"] - len(case["differs"])
+        counts["gap"] += case.get("unchecked", {}).get("library_gap", 0)
+        counts.update(number_state(n) for n in case["differs"])
+    return counts
 
 
 def book_verdict(cases: list[dict[str, Any]], noun: str) -> str:
@@ -1919,9 +1960,21 @@ def missing_key(reason: str) -> str:
     return _sentence_case(clause) if len(clause.split()) >= 6 else reason
 
 
+@functools.cache
+def quantity_names() -> dict[str, str]:
+    """Return the plain name of each quantity a page shows a number of, from :data:`QUANTITIES`."""
+    return json.loads(QUANTITIES.read_text(encoding="utf-8"))
+
+
 def _quantity(number: dict[str, Any]) -> str:
-    """Name a number's quantity in a few words, as ``quantity`` in web/reproduced-logic.js does."""
-    return _sentence_case(": ".join(p for p in (str(number["what"] or "").replace("_", " "), number["term"]) if p))
+    """Name a number's quantity in a few words, as ``quantity`` in web/reproduced-logic.js does.
+
+    The words are its plain name and its term: its term alone where the catalogue calls it "other", and the
+    catalogue's own word in place of a name it has none for.
+    """
+    what = number["what"]
+    name = "" if what == "other" else quantity_names().get(what, str(what or "").replace("_", " "))
+    return _sentence_case(": ".join(p for p in (name, number["term"]) if p))
 
 
 def _pages(pages: list[int]) -> str:
@@ -1950,8 +2003,13 @@ def _rest(items: list[str], tag: str = "ul", css: str = "field-list") -> str:
     return f'<{tag} class="{css}">{"".join(items[:LISTED])}</{tag}>{rest}'
 
 
+def _state_key(state: str) -> str:
+    """Return a state's mark, as the reproduction page draws it: a square in its colour, hatched or empty for two."""
+    return f'<span class="statekey" data-state="{state}" aria-hidden="true"></span>'
+
+
 def _example_item(case: dict[str, Any], where: str, up: str) -> str:
-    status, key = example_status(case)
+    state = example_state(case)
     note = " · ".join(
         p for p in (_sentence_case(str(case["kind"] or "").replace("-", " ")), where.split("; ", maxsplit=1)[0]) if p
     )
@@ -1959,21 +2017,23 @@ def _example_item(case: dict[str, Any], where: str, up: str) -> str:
         f'<li><a class="book-row" href="{_case_link(case, up)}"><span class="book-example">'
         f'<span class="field-list__title">{html.escape(case["title"])}</span>'
         f'<span class="field-list__note">{html.escape(note)}</span></span>'
-        f'<span class="book-status" data-tier="{key}">{status}</span></a></li>'
+        f'<span class="book-status">{_state_key(state)}{STATES[state]}</span></a></li>'
     )
 
 
-def _tier_legend(tiers: list[str]) -> str:
-    keys = "".join(f'<li><span class="tierbar__key" data-tier="{t}"></span>{EXAMPLE_STATUS[t]}</li>' for t in tiers)
-    return f'<ul class="field-chart__legend">{keys}</ul>'
+def _state_legend(states: list[str]) -> str:
+    keys = "".join(f"<li>{_state_key(state)}{STATES[state]}</li>" for state in states)
+    return f'<ul class="states">{keys}</ul>'
 
 
-def _tier_bar(cases: list[dict[str, Any]], *, legend: bool = True) -> str:
-    """Draw a source's examples as a bar, by how closely Factorial gives their answers, with its legend in words."""
-    counts = Counter(case["tier"] for case in cases if case["tier"])
-    held = [tier for tier in EXAMPLE_STATUS if counts[tier]]
-    parts = "".join(f'<span class="tierbar__part" data-tier="{t}" style="flex-grow: {counts[t]}"></span>' for t in held)
-    return f'<div class="tierbar" aria-hidden="true">{parts}</div>{_tier_legend(held) if legend else ""}'
+def _state_bar(cases: list[dict[str, Any]], *, legend: bool = True) -> str:
+    """Draw a source's printed numbers as a bar by state, as its row on the reproduction page does, with its legend."""
+    counts = number_states(cases)
+    held = [state for state in STATES if counts[state]]
+    parts = "".join(
+        f'<span class="statebar__part" data-state="{s}" style="flex-grow: {counts[s]}"></span>' for s in held
+    )
+    return f'<div class="statebar" aria-hidden="true">{parts}</div>{_state_legend(held) if legend else ""}'
 
 
 def _examples(cases: list[dict[str, Any]], where: dict[str, str], up: str) -> str:
@@ -2037,7 +2097,15 @@ def book_page(source: dict[str, Any], cases: list[dict[str, Any]], where: dict[s
     noun = SOURCE_NOUN.get(source["form"], "the source")
     examples, errata, missing = _examples(cases, where, up), _misprints(cases, up), _lacking(cases)
     sections = [
-        ("examples", "Examples", "Each example, and how closely Factorial gives its answers.", examples),
+        (
+            "examples",
+            "Examples",
+            (
+                f"Each example, and how its numbers compare with {noun}. "
+                "An example matches only when every number Factorial worked again does."
+            ),
+            examples,
+        ),
         (
             "misprints",
             "Misprints",
@@ -2072,9 +2140,10 @@ def book_page(source: dict[str, Any], cases: list[dict[str, Any]], where: dict[s
   <p class="about__back"><a href="../"><img src="{up}favicon.svg" alt="" width="28" height="28"> Books</a></p>
   <p class="book-page__by">{html.escape(source["short"])} · {source["year"]}</p>
   <h1>{html.escape(source["title"])}</h1>
-  {_tier_bar(cases)}
+  {_state_bar(cases)}
+  <p class="hint">The bar holds the numbers {noun} prints that Factorial worked again, and those not in it yet.</p>
   <p class="lede">{html.escape(verdict)}</p>
-  <p><a class="button" href="{numbers}">Show the numbers</a></p>
+  <p><a class="button" href="{numbers}">Search {noun}'s cases</a></p>
   <nav class="book-page__jump" aria-label="On this page">{jump}</nav>
   {body}
 </main>
@@ -2091,7 +2160,8 @@ def books_page(sources: dict[str, dict[str, Any]], by_source: dict[str, list[dic
     for form, label in forms.items():
         items = [
             f'<li><a href="{key}/"><span class="field-list__note">{html.escape(s["short"])} · {s["year"]}</span>'
-            f'<span class="field-list__title">{html.escape(s["title"])}</span>{_tier_bar(by_source[key], legend=False)}'
+            f'<span class="field-list__title">{html.escape(s["title"])}</span>'
+            f"{_state_bar(by_source[key], legend=False)}"
             f'<span class="field-list__note">{html.escape(s["verdict"].split(". ")[0].rstrip("."))}.</span></a></li>'
             for key, s in sorted(sources.items(), key=lambda kv: kv[1]["short"])
             if s["form"] == form and by_source.get(key)
@@ -2112,7 +2182,8 @@ def books_page(sources: dict[str, dict[str, Any]], by_source: dict[str, list[dic
   <h1>Books</h1>
   <p class="lede">Choose a book to see its examples, the misprints found in it, and how closely Factorial gives its
     answers.</p>
-  {_tier_legend(list(EXAMPLE_STATUS))}
+  <p class="hint">Each bar holds the numbers a source prints that Factorial worked again, and those not in it yet.</p>
+  {_state_legend(list(STATES))}
   {"".join(groups)}
 </main>
 </body>
