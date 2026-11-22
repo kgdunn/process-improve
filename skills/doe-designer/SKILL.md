@@ -175,6 +175,7 @@ calling, rather than guessing at field names.
 |---|---|
 | `recommend_strategy` | "How should I plan this?" Staged plan from factors, budget, domain |
 | `doe_knowledge` | Definitions, design-type descriptions, diagnostics, decision logic |
+| `query_concept_graph` | How the textbook's terms connect, in Cypher: what remedies a symptom, what a method needs, how two ideas are related. Every answer carries the book line. Needs `pip install relate-db` |
 | `generate_design` | Build a design matrix |
 | `write_run_sheet` | The runs as a CSV or Excel sheet for the lab or an upload: actual or coded units, columns named or X01..Xnn, empty response columns |
 | `read_run_sheet` | A filled sheet back into the factors' names and actual units, whichever units and labels it was written in |
@@ -198,6 +199,12 @@ calling, rather than guessing at field names.
 `doe_knowledge` is the right first call whenever the user asks a conceptual
 question ("what is aliasing?", "why center points?"). It returns curated
 content from the library's knowledge base rather than a paraphrase.
+
+When the question is about how ideas connect ("what fixes curvature?", "how
+is aliasing related to steepest ascent?"), use `query_concept_graph`. Call it
+with no input first: it returns the labels, the link types and example
+queries. Quote the `evidence` of each link you use: it is the line of the
+textbook that states it.
 
 ## Reporting
 
