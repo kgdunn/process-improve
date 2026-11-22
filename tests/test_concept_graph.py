@@ -140,7 +140,7 @@ def test_no_statement_changes_the_terms(graph: ConceptGraph, statement: str) -> 
 def test_no_statement_reads_a_file(graph: ConceptGraph) -> None:
     """LOAD CSV is refused: relate reads a file only from a folder its host names, and the graph names none."""
     with pytest.raises(ValueError, match="LOAD CSV file unavailable"):
-        graph.query(f"LOAD CSV FROM 'file://{Path(__file__).as_posix()}' AS line RETURN line")
+        graph.query("LOAD CSV FROM 'pyproject.toml' AS line RETURN line")  # a file of the working directory
 
 
 def test_a_label_made_by_a_procedure_does_not_outlive_its_graph(graph: ConceptGraph) -> None:
