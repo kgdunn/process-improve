@@ -46,6 +46,9 @@ def main() -> None:
     table = []
     for name, (label, language) in PACKAGES.items():
         mine = rows[rows["built_by"] == name]
+        mine = mine[
+            ~mine["other"].str.contains("harness does not map", na=False)
+        ]  # a limit of compare.py, not the package
         # A package is compared on the kinds of design it builds at least once; a misprint both libraries
         # reproduce the same way is the catalogue's subject, not this comparison's.
         builds = mine.loc[mine["outcome"] != "other cannot build", "design_type"].unique()
