@@ -22,6 +22,8 @@ import {
   applications,
   checkIndex,
   checkLine,
+  checkedAgainst,
+  checkedBadge,
   countSentence,
   compareRefusal,
   correlationMap,
@@ -84,6 +86,8 @@ const ERRATA_SHOWN = 200;
 const TOPICS_SHOWN = 8;
 
 let catalog = null;
+/** What each kind of design was checked against (checked.json); null until read, and when it cannot be. */
+let checked = null;
 let state = structuredClone({ ...DEFAULT_STATE });
 let shown = PAGE;
 /** Resolves to the Plotly.js version once the app's manifest is read, or to null when it cannot be. */
@@ -283,6 +287,8 @@ function card(design) {
   const twins = sameDesigns(catalog, design).length;
   const elsewhere = twins ? element("span", { class: "badge", text: `same design in ${twins} more ${twins === 1 ? "place" : "places"}` }) : null;
   const gap = design.collection === "generated" && !design.in_source ? element("span", { class: "badge", text: "no source prints it" }) : null;
+  const against = checkedAgainst(checked, design);
+  const proven = against ? element("span", { class: "badge badge--checked", text: checkedBadge(against) }) : null;
   const limited = filtersOf(state).limit && design.limit_outside > 0
     ? element("span", { class: "badge badge--warn", text: `${design.limit_outside} of ${design.n_runs} runs outside the limit` })
     : null;
@@ -302,6 +308,7 @@ function card(design) {
         robust,
         projects,
         elsewhere,
+        proven,
         gap,
         limited,
         ...applications(design, catalog).map((name) => element("span", { class: "badge badge--topic", text: name })),
@@ -834,6 +841,39 @@ function detailHead(design, detail, source) {
   return element("div", { class: "detail__head" }, what, where, headCell("Use it", actions, ...said));
 }
 
+/** The sources a design's "Checked" note names before "and N more". */
+const SOURCES_SHOWN = 4;
+
+/**
+ * "Checked", under a design's three cells: what its kind, at its size, was compared with. The sources that print
+ * such a design are beside the other packages that build it as the library does, and a link leads to the page that
+ * says how. Null for a design with no such note (checkedAgainst).
+ */
+function checkedNote(design) {
+  const note = checkedAgainst(checked, design);
+  if (!note) return null;
+  const names = note.sources.map((key) => catalog.sources[key]).filter(Boolean).map((source) => `${source.short} (${source.year})`);
+  const more = names.length - SOURCES_SHOWN;
+  const list = (heading, ...items) => element("div", {}, element("h4", { text: heading }), element("ul", { class: "detail__list" }, ...items));
+  return element(
+    "section",
+    { class: "detail__cell detail__checked", "aria-labelledby": "detail-checked" },
+    element("h3", { id: "detail-checked", text: "Checked" }),
+    element("p", { text: "Factorial builds this kind of design, at this size, as the books print it and as other software builds it." }),
+    element(
+      "div",
+      { class: "detail__against" },
+      list(
+        "In print",
+        ...names.slice(0, SOURCES_SHOWN).map((text) => element("li", { text })),
+        more > 0 ? element("li", { class: "hint", text: `and ${more} more` }) : null,
+      ),
+      list("In other software", ...note.packages.map((one) => element("li", {}, one.name, element("span", { class: "hint", text: ` (${one.language})` })))),
+    ),
+    element("p", {}, element("a", { href: app("validation.html"), text: "How Factorial is checked" })),
+  );
+}
+
 /**
  * What a design's family is and where it was first published, folded under its name: it holds for every design of
  * the family, so it is there for a reader who asks and out of the way of one reading about this design.
@@ -867,7 +907,7 @@ function onTheMap(design) {
 
 function detailBody(design, detail) {
   const source = catalog.sources[design.source];
-  const body = [detailHead(design, detail, source), designType(design), onTheMap(design), ...entryNotes(detail)].filter(Boolean);
+  const body = [detailHead(design, detail, source), checkedNote(design), designType(design), onTheMap(design), ...entryNotes(detail)].filter(Boolean);
   const limit = parseLimit(state.limit);
   const outcome = limit.ok ? outcomes.get(design.id) : null;
   if (outcome) {
@@ -1248,9 +1288,14 @@ async function loadFields() {
 
 async function start() {
   try {
+    // What the designs were checked against is asked for beside the index; without it the catalog has no such note.
+    const against = fetch(app("checked.json"), { cache: "no-cache" })
+      .then((reply) => (reply.ok ? reply.json() : null))
+      .catch(() => null);
     const res = await fetch(app("catalog/index.json"), { cache: "no-cache" });
     if (!res.ok) throw new Error(`the server answered ${res.status}`);
     catalog = checkIndex(await res.json());
+    checked = await against;
   } catch (err) {
     $("#count").textContent = `The catalog could not be loaded: ${err.message}.`;
     return;

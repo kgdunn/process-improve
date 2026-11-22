@@ -69,7 +69,7 @@ APP_FILES = (
     "features.js",
     "FEATURES.md",
     "validation.html",
-    "catalog/checked.json",
+    "checked.json",
     "catalog/index.html",
     "catalog.js",
     "catalog-logic.js",

@@ -2,7 +2,7 @@
 
 The page is written by hand, for a reader who wants one screen and no table of thousands of checks. Its names and
 counts come from two places a test can read: the reference catalogue's list of sources, and
-``web/catalog/checked.json``, which ``scripts/design_crosscheck/tabulate.py`` writes from the comparison of each
+``web/checked.json``, which ``scripts/design_crosscheck/tabulate.py`` writes from the comparison of each
 design with the other packages. A source or a package that joins either one fails here until the page says so.
 """
 
@@ -16,7 +16,7 @@ from process_improve.experiments.reference_catalogue import reference_sources
 from tests.web._support import source
 
 PAGE = " ".join(source("validation.html").split())
-CHECKED = json.loads(source("catalog/checked.json"))
+CHECKED = json.loads(source("checked.json"))
 #: The grid's rows, each by the kind of design the record names it.
 ROWS = {
     "Full factorial": "full_factorial",

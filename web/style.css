@@ -1739,7 +1739,14 @@ dialog.detail { width: min(980px, 100vw - 32px); }
 .detail__cite { overflow-wrap: anywhere; }
 .detail .detail__actions { flex-direction: column; align-items: stretch; margin: 0; gap: 6px; }
 .detail__family { margin: 0 0 8px; }
-@media (max-width: 720px) { .detail__head { grid-template-columns: minmax(0, 1fr); } }
+/* "Checked", under the three cells: a tick, what the design's kind was compared with in two lists side by side, and
+   the way to the page on validation. A card's badge says the same in a line, in the tick's colour. */
+.detail__checked { margin: 0 0 10px; }
+.detail__checked h3::before { content: "\2713\00a0"; color: var(--ok); }
+.detail__against { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 8px 0 0; }
+.detail__against h4 { margin: 0 0 2px; color: var(--muted); font-size: 0.85rem; font-weight: 600; }
+.badge--checked { border-color: var(--ok); color: var(--ok); }
+@media (max-width: 720px) { .detail__head, .detail__against { grid-template-columns: minmax(0, 1fr); } }
 /* A design's runs: one table, its header kept in view as it scrolls, each coded setting tinted by its value. */
 .detail .scroll:has(> table.runs-table) { max-height: 420px; overflow: auto; }
 table.runs-table thead th { position: sticky; top: 0; background: var(--panel); }

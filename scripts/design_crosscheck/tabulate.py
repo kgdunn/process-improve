@@ -6,7 +6,7 @@ Run it from the repository root after compare.py, with the same ``DOE_OUT``::
 
 It writes ``docs/validation/design_crosscheck.csv``, one row per package,
 ``docs/validation/differences_<package>.csv``, every check on which that package and process-improve differ, and
-``web/catalog/checked.json``, which the browser app reads: for each kind of design and each number of factors, the
+``web/checked.json``, which the browser app reads: for each kind of design and each number of factors, the
 sources that print it and the packages that build it as process-improve does.
 """
 
@@ -32,7 +32,7 @@ PACKAGES = {
     "pydoe": "pydoe 1.6.0 (Python)",
     "pyDOE3": "pyDOE3 1.6.2 (Python)",
 }
-WEB = Path(__file__).resolve().parents[2] / "web" / "catalog"
+WEB = Path(__file__).resolve().parents[2] / "web"
 
 #: A package as the app names it, and its language. pyDOE3 is named but is in no design's list: pydoe is its
 #: successor, so the one line of code is listed once.
@@ -101,7 +101,7 @@ def _agreeing(rows: pd.DataFrame) -> dict[str, list[str]]:
 
 
 def write_checked(rows: pd.DataFrame) -> None:
-    """Write ``web/catalog/checked.json``: what each kind of design, at each number of factors, was checked against.
+    """Write ``web/checked.json``: what each kind of design, at each number of factors, was checked against.
 
     A kind of design lists every package that builds it as process-improve does at one size or more. A size
     lists a package only when no check of that size differs, so a design's own note in the app names no package

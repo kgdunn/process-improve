@@ -1029,7 +1029,10 @@ What a careful reader, or an organisation, asks before using a tool.
     lists its designs. The filter for the years has a strip of bars over its two boxes: a
     bar's height is the number of designs published in its five years, and a drag across the
     strip, or a press on a bar, fills the boxes. A design's page links to where its source
-    prints it, projects its runs onto two or three factors, and draws its correlation map. Up
+    prints it, projects its runs onto two or three factors, and draws its correlation map. A
+    design the library makes itself has a "Checked" note: the sources that print a design of
+    its kind and size, the other packages that build it as the library does, and a link to
+    the page on validation. Its card counts them. Up
     to four designs are compared side by side. More than 1,100 designs open in Factorial with
     one click. There is a page for each of 30 fields and for each source, a list of errata, a
     feed, and forms to propose a published design or share a case study.
