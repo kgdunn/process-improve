@@ -721,6 +721,16 @@ def test_the_best_blend_code_finds_the_page_s_best_blend(api, node, request_, go
     assert_same_fit(namespace, analysis)
     assert_same_best(namespace, best, held["spec"])
     assert sum(namespace["best"]["optimal_coded"].values()) == pytest.approx(1.0)
+    # How tightly to hold each component (#1242): its code moves each along its Cox direction, as the page does.
+    go = pytest.importorskip("plotly.graph_objects", reason="the page installs plotly for its first chart")
+    names = [s["name"] for s in best["sensitivity"]]
+    moves = javascript(node, source("python.js"), [("sensitivityCode", [names, held["spec"], analysis["formula"]])])[0]
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(go.Figure, "show", lambda *_, **__: None)
+        run(moves, namespace)
+    expected = [change for s in best["sensitivity"] for change in (s["down"], s["up"])]
+    size = max(abs(v) for v in simulation["responses"])
+    np.testing.assert_allclose(namespace["change"], expected, rtol=1e-6, atol=1e-9 * size)
 
 
 # --------------------------------------------------------------------------- several responses
@@ -1001,6 +1011,35 @@ def test_the_balance_code_finds_the_page_s_balanced_blend(api, node):
     namespace = run(code)
     assert_same_balance(namespace, balance, ["Water", "Oil", "Wax"])
     assert sum(namespace["balanced"]["optimal_coded"].values()) == pytest.approx(1.0)
+
+
+def test_the_overlay_code_of_a_mixture_shades_the_blends_the_page_shades(api, node, monkeypatch):
+    """Over the triangle, the blends where every response is acceptable are the page's, one for one (#1242)."""
+    go = pytest.importorskip("plotly.graph_objects", reason="the page installs plotly for its first chart")
+    monkeypatch.setattr(go.Figure, "show", lambda *_, **__: None)  # a reader's own window, which a test has none of
+    responses = [{"name": "Hardness", "goal": "maximize"}, {"name": "Cost", "goal": "minimize"}]
+    request = {**MIXTURES[1], "factors": components("simplex_lattice"), "responses": responses}
+    held = held_of(api.ok("api_make_design", request))
+    simulation = api.ok("api_simulate", {**held, "seed": 5})
+    results = {"Hardness": simulation["responses"], "Cost": simulation["more"]["Cost"]["responses"]}
+    goals = {"Cost": {"importance": 5}, "Hardness": {"low": float(np.median(results["Hardness"]))}}
+    sent = {"responses": results["Hardness"], "more_responses": {"Cost": results["Cost"]}}
+    balance = api.ok("api_balance", {**held, **sent, "models": {"Cost": "scheffe_linear"}, "goals": goals})
+    overlay = balance["overlay"]
+    assert overlay["kind"] == "ternary"
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, results, simulation]),
+        ("balanceCode", [balance, held["spec"]]),
+        ("overlayCode", [overlay, held["spec"]]),
+    )
+    namespace = run(code)
+    shaded = next(trace for trace in namespace["figure"].data if trace.name == "Every response acceptable")
+    page = sorted(zip(overlay["a"], overlay["b"], overlay["c"], overlay["acceptable"], strict=True))
+    accepted = [blend[:3] for blend in page if blend[3]]
+    assert 0 < len(accepted) < len(page), "some blends accepted, not all"
+    np.testing.assert_allclose(sorted(zip(shaded.a, shaded.b, shaded.c, strict=True)), accepted, atol=1e-9)
 
 
 @pytest.mark.slow
