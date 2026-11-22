@@ -224,6 +224,13 @@ def test_the_applications_of_the_fewest_designs_are_a_click_away(context, site, 
     assert chosen.is_checked(f"#topics-more input[value='{ten[-1]}']")
 
 
+def test_a_catalog_of_few_applications_lists_them_and_nothing_in_place_of_the_rest(context, site):
+    """With no more applications than the list shows there is no fold of the rest, and no stray word where it goes."""
+    page = open_catalog(context, site)
+    assert page.locator("#topics-more").count() == 0
+    assert "null" not in page.text_content("#topics")
+
+
 def test_a_word_of_an_application_s_name_finds_its_designs(book_context, site):
     page = open_catalog(book_context, site)
     page.fill("#query", "fermentation")

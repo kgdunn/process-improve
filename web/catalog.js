@@ -228,16 +228,19 @@ function buildFacets() {
     );
   });
   const rest = topics.slice(TOPICS_SHOWN);
+  // replaceChildren() writes a null out as the text "null": with no more applications, nothing is added.
   $("#topics").replaceChildren(
     ...topics.slice(0, TOPICS_SHOWN),
-    rest.length
-      ? element(
-          "details",
-          { class: "facets__more", id: "topics-more" },
-          element("summary", { text: `${rest.length} more ${rest.length === 1 ? "application" : "applications"}` }),
-          element("div", { class: "facets__list" }, ...rest),
-        )
-      : null,
+    ...(rest.length
+      ? [
+          element(
+            "details",
+            { class: "facets__more", id: "topics-more" },
+            element("summary", { text: `${rest.length} more ${rest.length === 1 ? "application" : "applications"}` }),
+            element("div", { class: "facets__list" }, ...rest),
+          ),
+        ]
+      : []),
   );
   const added = [...new Set(catalog.designs.map((d) => d.added).filter(Boolean))].sort().reverse();
   $("#added").append(...added.map((date) => element("option", { value: date, text: date })));
