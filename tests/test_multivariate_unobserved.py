@@ -447,3 +447,5 @@ def test_pls_invert_does_not_target_a_response_left_out(desired: dict) -> None:
 
     del model._unobserved_targets  # a model pickled before #1098 left no response out
     assert model.invert({"y1": 1.0, "y2": 3.0}).y_hat.notna().all()
+    with pytest.raises(ValueError, match=r"^y_desired is missing value\(s\) for target\(s\): \['y2'\]\.$"):
+        model.invert({"y1": 1.0})  # every response is a target, so each needs a value

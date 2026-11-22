@@ -23,7 +23,7 @@ import pandas as pd
 import pytest
 from sklearn.pipeline import Pipeline
 
-from process_improve.multivariate.methods import PLS, MCUVScaler
+from process_improve.multivariate.methods import PLS, MCUVScaler, NotEnoughVarianceError
 
 
 def _latent_xy(n_samples: int, n_features: int, n_factors: int, seed: int):
@@ -133,6 +133,31 @@ def test_sample_weights_count_relative_to_each_other() -> None:
     np.testing.assert_allclose(other.explained_variance_, one.explained_variance_, rtol=1e-9)
     assert other.hotellings_t2_limit(judged_rows="new") == pytest.approx(one.hotellings_t2_limit(judged_rows="new"))
     assert other.spe_limit() == pytest.approx(one.spe_limit())
+
+
+def test_rmse_is_the_root_of_the_weighted_mean_squared_residual() -> None:
+    """Each row's squared residual counts in its weight: ``sqrt(sum(w e^2) / sum(w))``, in Y's units (#1114).
+
+    Weights that differ from row to row tell this apart from any other power of the weights.
+    """
+    X, Y = _latent_xy(30, 4, 2, seed=5)
+    w = np.random.default_rng(5).uniform(0.2, 1.0, size=len(X))
+    model = PLS(n_components=2).fit(X, Y, sample_weight=w)
+    residuals = Y.to_numpy()[:, 0] - model.predictions_.to_numpy()[:, 0]
+    assert model.rmse_.iloc[0, -1] == pytest.approx(np.sqrt(w @ residuals**2 / w.sum()), rel=1e-12)
+
+
+def test_a_y_that_varies_only_in_rows_of_weight_zero_is_refused() -> None:
+    """Over the rows the fit uses Y is constant, so there is nothing to explain, as for an unweighted fit (#1149)."""
+    X, Y = _latent_xy(20, 4, 2, seed=1)
+    Y.iloc[:10] = 3.0
+    w = np.r_[np.ones(10), np.zeros(10)]
+    with pytest.raises(
+        NotEnoughVarianceError,
+        match=r"^There is no variance in Y: every response is constant or has no observed value, so there is nothing "
+        r"for X to explain\.$",
+    ):
+        PLS(n_components=1).fit(X, Y, sample_weight=w)
 
 
 def test_sample_weight_recovers_true_beta_under_heteroscedastic_noise() -> None:

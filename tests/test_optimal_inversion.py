@@ -148,6 +148,50 @@ def test_maps_that_disagree_with_the_model_are_refused(cheese: PLS, monkeypatch:
         affine_model(cheese)
 
 
+def test_the_pls_probe_reads_the_model_at_its_confidence_level_and_diagnoses_as_it_does() -> None:
+    """At 0.9, not the default 0.95, and with three components, so that the full model's T² is not the second's.
+
+    The T² limit is the one for new rows, as an input is one.
+    """
+    data = pd.read_csv(DATA / "cheddar-cheese.csv")
+    X, y = data[["Acetic", "H2S", "Lactic"]], data[["Taste"]]
+    model = PLS(n_components=3).fit(X, y)
+
+    probe = model._inversion_probe(0.9)
+
+    assert (probe.names, probe.y_names, probe.block_names) == (("Acetic", "H2S", "Lactic"), ("Taste",), ("X",))
+    assert probe.t2_limit == model.hotellings_t2_limit(0.9, judged_rows="new")
+    assert probe.block_limits == (model.spe_limit(conf_level=0.9),)
+    np.testing.assert_allclose(probe.centre, X.mean(), rtol=1e-12)
+    np.testing.assert_allclose(probe.spread, X.std(), rtol=1e-12)
+    np.testing.assert_allclose(probe.y_scale, y.std(), rtol=1e-12)
+    out = model.diagnose(X.iloc[:4])
+    scores, y_hat, residuals, t2, spe = probe.diagnose(X.iloc[:4].to_numpy())
+    np.testing.assert_array_equal(scores, out.scores)
+    np.testing.assert_array_equal(y_hat, out.y_hat)
+    np.testing.assert_array_equal(residuals[0], out.residuals)
+    np.testing.assert_array_equal(t2, out.cumulative_hotellings_t2.iloc[:, -1])
+    np.testing.assert_array_equal(spe[:, 0], out.spe)
+
+
+def test_the_pls_probe_reads_0_for_a_centre_and_1_for_a_spread_a_column_does_not_have() -> None:
+    """A column or a response with nothing observed has neither, and a model that scales nothing scales no column."""
+    data = pd.read_csv(DATA / "cheddar-cheese.csv")
+    X, y = data[["Acetic", "H2S", "Lactic"]], data[["Taste"]]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)  # the column and the response with nothing observed, named
+        probe = PLS(n_components=2).fit(X.assign(Empty=np.nan), y.assign(Unknown=np.nan))._inversion_probe(0.95)
+    np.testing.assert_allclose(probe.centre, [*X.mean(), 0.0], rtol=1e-12)
+    np.testing.assert_allclose(probe.spread, [*X.std(), 1.0], rtol=1e-12)
+    np.testing.assert_allclose(probe.y_scale, [y["Taste"].std(), 1.0], rtol=1e-12)
+
+    scaled = PLS(n_components=2, scale=False).fit(MCUVScaler().fit_transform(X), MCUVScaler().fit_transform(y))
+    probe = scaled._inversion_probe(0.95)
+    np.testing.assert_array_equal(probe.centre, np.zeros(3), strict=True)
+    np.testing.assert_array_equal(probe.spread, np.ones(3), strict=True)
+    np.testing.assert_array_equal(probe.y_scale, np.ones(1), strict=True)
+
+
 # ---------------------------------------------------------------------------------------------------------------------
 # PLS: targets, costs, windows, limits
 # ---------------------------------------------------------------------------------------------------------------------

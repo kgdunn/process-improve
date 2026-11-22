@@ -526,21 +526,28 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         x_scaler, y_scaler = self._x_scaler, self._y_scaler
         n_x, n_y = len(names), len(self.beta_coefficients_.columns)
 
+        # diagnose reads a frame's unnamed columns by position, as fitted, and gives frames of float64.
         def diagnose(rows: np.ndarray) -> tuple[np.ndarray, np.ndarray, list[np.ndarray], np.ndarray, np.ndarray]:
-            out = self.diagnose(pd.DataFrame(rows, columns=list(self._feature_names)))
-            scores, y_hat = out.scores.to_numpy(dtype=float), out.y_hat.to_numpy(dtype=float)
-            spe = out.spe.to_numpy(dtype=float)[:, None]
-            t2 = out.cumulative_hotellings_t2.iloc[:, -1].to_numpy(dtype=float)
-            return scores, y_hat, [out.residuals.to_numpy(dtype=float)], t2, spe
+            out = self.diagnose(pd.DataFrame(rows))
+            scores, y_hat = out.scores.to_numpy(), out.y_hat.to_numpy()
+            spe = out.spe.to_numpy()[:, None]
+            t2 = out.cumulative_hotellings_t2.iloc[:, -1].to_numpy()
+            return scores, y_hat, [out.residuals.to_numpy()], t2, spe
 
         return Probe(
             names=names, y_names=tuple(str(n) for n in self.beta_coefficients_.columns), groups={},
             block_names=("X",), block_limits=(float(self.spe_limit(conf_level=conf_level)),),
             score_sd=_t2_score_sd(self.scaling_factor_for_scores_.to_numpy()),
             t2_limit=float(self.hotellings_t2_limit(conf_level, judged_rows="new")),  # an input is a new row
-            y_scale=finite_or(y_scaler.scale_, 1.0) if y_scaler is not None else np.ones(n_y),
-            centre=np.nan_to_num(np.asarray(x_scaler.center_, dtype=float)) if x_scaler is not None else np.zeros(n_x),
-            spread=finite_or(x_scaler.scale_, 1.0) if x_scaler is not None else np.ones(n_x),
+            y_scale=(
+                finite_or(y_scaler.scale_, 1.0)  # pragma: no mutate - a PLS scaler's spreads are finite, not 0
+                if y_scaler is not None else np.ones(n_y)
+            ),
+            centre=np.nan_to_num(x_scaler.center_.to_numpy()) if x_scaler is not None else np.zeros(n_x),
+            spread=(
+                finite_or(x_scaler.scale_, 1.0)  # pragma: no mutate - a PLS scaler's spreads are finite, not 0
+                if x_scaler is not None else np.ones(n_x)
+            ),
             diagnose=diagnose,
         )  # fmt: skip
 
@@ -1182,8 +1189,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             r2y.append(1 - ssq(root * y_left, axis=0) / np.where(y_total > 0, y_total, np.nan))
             r2_cumulative.append(1 - ssq(root * y_left) / np.sum(y_total))
             # Over the observed cells, as the R2 is: one missing Y cell made its column NaN (#1027).
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", RuntimeWarning)  # a response with no observed value has no RMSE
+            with warnings.catch_warnings():  # a response with no observed value has no RMSE: 0 / 0
+                warnings.simplefilter("ignore", RuntimeWarning)  # pragma: no mutate - 0 / 0 warns no other kind
                 rmse.append(np.sqrt(np.nansum(cell_weight * y_left**2, axis=0) / cell_weight.sum(axis=0)))
         # A row with nothing observed has no SPE, as diagnose gives it none (#1148); fit places it at the centre.
         self._spe = np.where(_rows_with_data(unscaled_x.to_numpy())[:, np.newaxis], np.column_stack(spe), np.nan)
@@ -1405,8 +1412,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # components, as in hotellings_t2_, and the full model's, the deprecated Series (#983).
         # A row with no scores has no T², where skipping its NaN made it 0 (#1144).
         score_sd = _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())
-        standardised = scores.div(score_sd, axis="columns") ** 2
-        cumulative = standardised.cumsum(axis=1, skipna=False)
+        standardised = scores.div(score_sd) ** 2  # by column, div's default
+        cumulative = standardised.cumsum(
+            axis=1,
+            skipna=False,  # pragma: no mutate - a row's scores are NaN together, and stay NaN skipped or not
+        )
         # A Series of the scores' row labels: the DataFrame's row sums carry them.
         t2 = standardised.sum(axis=1, skipna=False).rename("Hotelling's T²")
 
@@ -1737,10 +1747,15 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             x_new = self._x_scaler.inverse_transform(x_new).to_numpy()
         # The model says nothing about a column the fit left out (#1098): no value for it, as predict gives
         # none for a response left out, rather than 0 on X's scale (#1114). A model pickled before then left none out.
-        x_new = np.where(getattr(self, "_unobserved_columns", False), np.nan, x_new)
+        left_out = getattr(
+            self,
+            "_unobserved_columns",
+            False,  # pragma: no mutate - np.where reads a condition of None as False
+        )
+        x_new = np.where(left_out, np.nan, x_new)
 
-        # Prediction at the solution (should equal y_desired up to rounding).
-        y_hat = self._in_y_units(pd.DataFrame(tau @ q_map, columns=target_names)).to_numpy()  # [1 x M]
+        # Prediction at the solution (should equal y_desired up to rounding); _in_y_units reads columns by position.
+        y_hat = self._in_y_units(pd.DataFrame(tau @ q_map)).to_numpy()  # [1 x M]
 
         # The T² diagnose would give x_new, by fit's rule for a component with no spread (#1026).
         t2 = float(np.sum((tau.ravel() / _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())) ** 2))
@@ -2077,8 +2092,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # often as it contributes to PRESS. A splitter that tests some rows
         # more than others (or not at all) is then handled exactly, rather
         # than through a whole-dataset repeat multiplier.
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", RuntimeWarning)  # a column with no observed value has no mean
+        with warnings.catch_warnings():  # a column with no observed value has no mean
+            warnings.simplefilter("ignore", RuntimeWarning)  # pragma: no mutate - nanmean warns no other kind
             y_centred_sq = (y_values - np.nanmean(y_values, axis=0)) ** 2
             x_centred_sq = (x_values - np.nanmean(x_values, axis=0)) ** 2
         tss_y = np.nansum(test_counts[:, None] * y_centred_sq, axis=0)
@@ -2933,7 +2948,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             check_whole("cv", cv)  # 5.5 or "5" was read as 5 folds without a word; refused as across the family (#1114)
             method = "kfold"
             seed = sklearn_random_state(random_state)  # KFold refuses a Generator (#1128)
-            resamples = list(_shuffled_folds(typing.cast("int", cv), X, Y, random_state=seed))
+            n_folds = typing.cast("int", cv)  # pragma: no mutate - cast returns cv, whatever type it names
+            resamples = list(_shuffled_folds(n_folds, X, Y, random_state=seed))
             desc = f"{cv}-Fold CV"
 
         # --- Collect beta coefficients (and out-of-fold predictions for CV) ---
