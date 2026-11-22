@@ -184,7 +184,7 @@ for you, because ``scale=False`` means "touch nothing".
    )
 
 Fitting un-centered on purpose
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Some fits are deliberately un-centered: a demonstration of the offset itself, or
 a test that proves some other centering check fires. There the warning is the
