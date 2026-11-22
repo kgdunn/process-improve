@@ -2,13 +2,13 @@
 r"""Run orders that are robust to a time trend: how far each effect is confounded with drift, and how to avoid it.
 
 When the runs of an experiment are made one after another, a slow drift in the process (a
-catalyst ageing, a fouling heat exchanger, an instrument warming up) adds a smooth function of
+catalyst aging, a fouling heat exchanger, an instrument warming up) adds a smooth function of
 time to every response. An effect whose column rises and falls with that function is biased by
 it. A run order is *trend robust* when the model's columns are orthogonal to the time trends:
 then the drift adds nothing to the estimated effects.
 
 The trends are the orthogonal polynomials of the run index :math:`t = 1, \dots, N`: the linear
-trend (the centred time count :math:`t - \bar t`), the quadratic trend, the cubic trend, each
+trend (the centered time count :math:`t - \bar t`), the quadratic trend, the cubic trend, each
 orthogonal to the lower ones and to the intercept. A term's exposure to a trend :math:`z` is the
 cosine of the angle between its model column :math:`x` and :math:`z`,
 
@@ -18,7 +18,7 @@ cosine of the angle between its model column :math:`x` and :math:`z`,
 
 0 when the column is orthogonal to the trend (90 degrees) and 1 when it follows it exactly. This is
 the "absolute correlation" Núñez Ares and Goos (2019) tabulate; for a column that does not average
-zero, such as a quadratic term's, it is smaller than Pearson's correlation, which centres the column
+zero, such as a quadratic term's, it is smaller than Pearson's correlation, which centers the column
 first.
 
 :func:`trend_robust_run_order` searches for an order of the runs that makes these cosines as

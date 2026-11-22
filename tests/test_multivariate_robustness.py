@@ -62,8 +62,8 @@ class TestNzHelper:
 def _blocks_with_constant_block(n: int = 15) -> dict[str, pd.DataFrame]:
     """One normal block plus one entirely-constant block.
 
-    A constant block centres to exactly zero, so its loading vector collapses
-    and the normalisation ``p_b / norm(p_b)`` would be ``0/0`` without the guard.
+    A constant block centers to exactly zero, so its loading vector collapses
+    and the normalization ``p_b / norm(p_b)`` would be ``0/0`` without the guard.
     """
     rng = np.random.default_rng(0)
     return {

@@ -75,7 +75,7 @@ RIDGE_CASES = {
         ),
         ["A", "B", "C"],
     ),
-    "hard case: stationary point at the centre": (
+    "hard case: stationary point at the center": (
         coefficients((7.0, 0.0, 0.0, -1.0, -4.0, 0.0)),
         ["A", "B"],
     ),
@@ -110,7 +110,7 @@ def test_ridge_point_is_the_optimum_on_its_sphere(case: str, direction: str) -> 
 
 
 def test_ridge_radii_and_multiplier_are_monotone() -> None:
-    """Radii ascend from the centre, and the multiplier falls as the sphere grows.
+    """Radii ascend from the center, and the multiplier falls as the sphere grows.
 
     The monotone multiplier is what makes the root-find well posed, so a break in
     it means the solver has wandered inside the spectrum and is returning saddle
@@ -151,7 +151,7 @@ def test_ridge_from_a_centred_stationary_point_follows_an_eigenvector() -> None:
     ``7 - A**2 - 4*B**2``, so the flattest direction is A and the ridge of maxima
     runs along it.
     """
-    coefs, names = RIDGE_CASES["hard case: stationary point at the centre"]
+    coefs, names = RIDGE_CASES["hard case: stationary point at the center"]
     path = _ridge_analysis(coefs, names, direction="maximize", n_radii=4, max_radius=1.0)["path"]
 
     for point in path[1:]:
@@ -263,7 +263,7 @@ def test_bad_radii_and_multipliers_are_refused(options: dict, match: str) -> Non
 # ---------------------------------------------------------------------------
 
 # Found by sweeping random quadratic pairs for a front that a weighted sum cannot
-# trace: only its two extreme points maximise any weighted sum of the responses.
+# trace: only its two extreme points maximize any weighted sum of the responses.
 NON_CONVEX_R1 = (1.75, -3.87, 3.19, 1.33, 0.77, -2.84)
 NON_CONVEX_R2 = (-0.85, 3.79, -3.72, -2.87, 1.43, -3.71)
 

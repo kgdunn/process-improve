@@ -2,7 +2,7 @@
 
 This is where a dependency with no WebAssembly build, an import that reaches for one, or a
 numerical difference under WebAssembly shows, rather than on a reader's screen. Every design
-the page offers, at three and at six factors, is generated under Pyodide and analysed from
+the page offers, at three and at six factors, is generated under Pyodide and analyzed from
 its own workbook, beside the same calls answered natively; the numbers agree to rounding. So do
 the requests the page's options make: blocks, replicates, labels for a factor's levels, a model
 of chosen terms and an axial distance typed as a number.
@@ -89,11 +89,11 @@ def test_a_design_installs_nothing_its_analysis_what_a_model_is_fitted_with_and_
 
 
 def test_the_worker_s_warm_up_names_statsmodels_among_what_the_page_runs_on(pyodide):
-    """The catalogue may come before statsmodels is in; the warm-up, which the worker makes once it is, names it."""
+    """The catalog may come before statsmodels is in; the warm-up, which the worker makes once it is, names it."""
     warmed = pyodide.ok("warm")
     assert set(warmed["packages"]) == {"numpy", "pandas", "scipy", "statsmodels"}
     assert warmed["pyodide"] == RUNTIME["pyodide"]
-    assert pyodide.ok("api_catalogue")["runtime"] == warmed, "and from then on the catalogue says the same"
+    assert pyodide.ok("api_catalogue")["runtime"] == warmed, "and from then on the catalog says the same"
 
 
 @pytest.mark.parametrize(("design_type", "k"), CASES)

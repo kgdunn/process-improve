@@ -256,7 +256,7 @@ def _component_along_x(x_def: dict[str, np.ndarray], y_def: np.ndarray, context:
 def _fit_one_component(x_def: dict[str, np.ndarray], y_def: np.ndarray, context: _MBPLSLoopContext) -> _MBPLSComponent:
     """Iterate one hierarchical NIPALS component to convergence on the deflated blocks.
 
-    The first pass always runs. A centred seed changes by about its own size in that pass,
+    The first pass always runs. A centered seed changes by about its own size in that pass,
     so a tolerance above 1 used to end the loop before it began and leave no weights.
     """
     # Deterministic start (#503): seed ``u`` from the column of the (deflated) Y block with the
@@ -283,7 +283,7 @@ def _fit_one_component(x_def: dict[str, np.ndarray], y_def: np.ndarray, context:
             x_def, _stacked_super_weights(local_w, w_s, context.sqrt_kb, context.block_names), context.block_names
         )
         # A row observed nowhere, or only where the weights are zero, has no score for this component:
-        # place it at the centre, with no weight in the regressions on t, as PCA and PLS fit an
+        # place it at the center, with no weight in the regressions on t, as PCA and PLS fit an
         # all-missing row (#1098).
         t_super = np.nan_to_num(t_super)
         if context.algo == "nipals":
@@ -455,7 +455,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
 
     Generic multi-block PLS as described by Westerhuis, Kourti & MacGregor
     (1998) and Westerhuis & Smilde (2001). Each X-block is preprocessed
-    independently (mean-centred and unit-variance scaled), then divided by
+    independently (mean-centered and unit-variance scaled), then divided by
     ``sqrt(K_b)`` so that blocks of unequal width contribute fairly to the
     super-score.
 
@@ -479,10 +479,10 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
     algorithm : str, default="auto"
         Algorithm to use for fitting the model.
 
-        - ``"auto"``: dense vectorised hierarchical NIPALS when every
+        - ``"auto"``: dense vectorized hierarchical NIPALS when every
           block (X and Y) is complete; mask-aware NIPALS when any block
           contains missing values.
-        - ``"dense"``: dense vectorised hierarchical NIPALS. Raises if
+        - ``"dense"``: dense vectorized hierarchical NIPALS. Raises if
           any block contains missing values.
         - ``"nipals"``: mask-aware hierarchical NIPALS. Always uses the
           NaN-tolerant inner-loop primitives, even when the data is
@@ -526,7 +526,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
     feature_names_in_ : np.ndarray
         Concatenated column names, one per feature, in block order.
     preproc_ : dict[str, MCUVScaler]
-        Per-block preprocessors used to mean-centre and unit-variance
+        Per-block preprocessors used to mean-center and unit-variance
         scale each X-block.
     y_preproc_ : MCUVScaler
         Preprocessor used on Y.
@@ -791,7 +791,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         algo = self.algorithm.lower()
         if algo not in self._valid_algorithms:
             raise ValueError(
-                f"Algorithm '{self.algorithm}' is not recognised. Must be one of {self._valid_algorithms}."
+                f"Algorithm '{self.algorithm}' is not recognized. Must be one of {self._valid_algorithms}."
             )
         if algo == "auto":
             algo = "nipals" if self.has_missing_data_ else "dense"
@@ -801,7 +801,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         return algo
 
     def _preprocess(self, X: dict[str, pd.DataFrame], y: pd.DataFrame) -> tuple[dict[str, np.ndarray], np.ndarray]:
-        """Centre and scale each X-block and Y independently, and return the numpy values."""
+        """Center and scale each X-block and Y independently, and return the numpy values."""
         self.preproc_: dict[str, MCUVScaler] = {name: MCUVScaler().fit(X[name]) for name in self.block_names_}
         self.y_preproc_ = MCUVScaler().fit(y)
         x_blocks_pp = {name: self.preproc_[name].transform(X[name]).to_numpy() for name in self.block_names_}
@@ -945,7 +945,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         -------
         dict[str, pd.DataFrame]
             One DataFrame per block, shape ``(n_samples, K_b)``. Values are
-            preprocessed-scale squared residuals (centred and scaled inside
+            preprocessed-scale squared residuals (centered and scaled inside
             the model). Sum across columns equals ``block_spe_[b].iloc[:, -1] ** 2``.
         """
         check_is_fitted(self, "block_loadings_")
@@ -1021,7 +1021,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
     ) -> dict[str, pd.DataFrame]:
         r"""Per-block per-variable contributions to a super-score.
 
-        The multi-block analogue of :meth:`PLS.score_contributions`. A super
+        The multi-block analog of :meth:`PLS.score_contributions`. A super
         score is a weighted sum of the (deflated, preprocessed) variables across
         every block, so it splits exactly into one term per variable:
 
@@ -1102,7 +1102,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
     ) -> dict[str, pd.Series]:
         """Per-block per-variable contributions to a group's average super score.
 
-        The multi-block analogue of :meth:`PLS.group_contributions`. See that
+        The multi-block analog of :meth:`PLS.group_contributions`. See that
         method for the definition; the only difference is that the result is
         returned one Series per X-block, and the sum over every block equals the
         group's average super score (or the difference between the two groups'
@@ -1275,7 +1275,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         Returns
         -------
         pd.DataFrame of shape (n_samples, n_targets)
-            The predicted Y, indexed by the rows of ``X`` and labelled with the fitted Y
+            The predicted Y, indexed by the rows of ``X`` and labeled with the fitted Y
             columns: ``diagnose(X).predictions``.
         """
         check_is_fitted(self, "super_weights_")
@@ -1323,7 +1323,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         :meth:`PLS.select_n_components`, and it is unaffected by there being
         several X-blocks.
 
-        Each block is centred and scaled inside :meth:`fit`, on the training
+        Each block is centered and scaled inside :meth:`fit`, on the training
         rows only, so the fold statistics never see the held-out rows.
 
         One model is fitted per fold **and** per component count, because the
@@ -1507,7 +1507,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         )
 
     def _scaled_block(self, name: str, block: pd.DataFrame) -> np.ndarray:
-        """Centre and scale one block of new rows as the fit did.
+        """Center and scale one block of new rows as the fit did.
 
         A column the fit left out, having no observed value (#1098), is read as missing, as every
         cell of it was in the fit: a value there adds nothing to a score or an SPE, and a row has
@@ -1527,7 +1527,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         )
 
     def _in_y_units(self, scaled: np.ndarray, index: pd.Index) -> pd.DataFrame:
-        """Return predictions in the scaled space on Y's original scale, labelled with its columns.
+        """Return predictions in the scaled space on Y's original scale, labeled with its columns.
 
         A response with no observed value was left out of the fit (#1098), and has no prediction: NaN.
         """

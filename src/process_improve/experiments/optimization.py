@@ -10,7 +10,7 @@ Implemented methods
 - **desirability** - Derringer-Suich desirability functions (single and
   multi-response) with ``scipy.optimize.minimize`` (SLSQP).
 - **steepest_ascent** / **steepest_descent** - Move along the gradient
-  of a first-order model from the design centre.
+  of a first-order model from the design center.
 - **stationary_point** - Locate the stationary point of a second-order
   model via ``numpy.linalg.solve``.
 - **canonical_analysis** - Eigenvalue decomposition of the *B* matrix
@@ -19,7 +19,7 @@ Implemented methods
   increasing radius, by solving Draper's secular equation for the
   Lagrange multiplier.
 - **pareto_front** - The non-dominated set over several responses, via
-  augmented Chebyshev scalarisation on a Das-Dennis weight lattice.
+  augmented Chebyshev scalarization on a Das-Dennis weight lattice.
 
 :func:`feasible_region` answers the reverse question: at which settings every
 response is predicted inside a specification window, and how surely a new run
@@ -104,7 +104,7 @@ def _parse_term(term: str) -> tuple[str, ...]:
     # ``power(A, 2)`` (newer). Both spellings appear in the wild depending on
     # the installed statsmodels / patsy version. SEC-27 (#276): if either is
     # missed, the term silently falls through to the linear branch and the
-    # downstream surface / optimisation produces wrong results.
+    # downstream surface / optimization produces wrong results.
     components: list[str] = []
     for part in term.split(":"):
         m = _POWER.fullmatch(part.strip())
@@ -329,7 +329,7 @@ def _surface_shape(
     eigenvalues are: at most ``flat_tolerance`` of the largest eigenvalue in size
     is none, so a ridge whose estimated slope is small is stationary. A flat
     direction beside curved ones of both signs, with no slope along it, is a line
-    or plane of saddle centres: a stationary ridge of ``"minimax"`` form (Box and
+    or plane of saddle centers: a stationary ridge of ``"minimax"`` form (Box and
     Draper 2007, Table 11.1 (E)).
     """
     scale = float(np.abs(eigenvalues).max())
@@ -431,8 +431,8 @@ def _find_stationary_point(
         includes ``stationary_point_actual`` when ``factor_ranges`` is provided.
         For a stationary ridge, where an eigenvalue is zero and every point
         along its eigenvector is equally good, the point reported is the one
-        nearest the design centre and ``ridge_of`` says whether the ridge is
-        one of ``"maxima"``, ``"minima"`` or saddle centres, ``"minimax"``. ``classification_note`` says when
+        nearest the design center and ``ridge_of`` says whether the ridge is
+        one of ``"maxima"``, ``"minima"`` or saddle centers, ``"minimax"``. ``classification_note`` says when
         an eigenvalue is small next to the largest though not flat, so the
         surface may be a ridge.
 
@@ -462,7 +462,7 @@ def _find_stationary_point(
 
     # Solve 2*B*x_s = -b in the eigenbasis. Along a flat direction b has no
     # component, so any step there is equally stationary; take none, which gives
-    # the stationary point nearest the centre.
+    # the stationary point nearest the center.
     curved = ~shape.flat
     x_s = eigenvectors[:, curved] @ (-0.5 * (eigenvectors[:, curved].T @ b) / eigenvalues[curved])
 
@@ -525,7 +525,7 @@ def _canonical_analysis(
         Eq. 11.1.2), the form a ridge is read in: y = y0 + theta * X_k + sum of lambda_i X_i^2,
         with X_i = v_i'(x - x0). Its axis ``k`` is that of the smallest
         eigenvalue in size, the ridge's direction, and its ``origin`` x0 is the
-        point nearest the design centre where the response stops changing
+        point nearest the design center where the response stops changing
         along every other axis that is not flat. It holds the ``origin`` (coded), the
         ``origin_response`` y0 there, the ``linear`` coefficient theta along
         the ridge, v_k'b, and each axis's ``offset``, the constant c_i of the
@@ -534,10 +534,10 @@ def _canonical_analysis(
         smallest eigenvalue is not. The one exception is a slope along a flat
         axis other than ``k``, which only a surface with several flat axes
         can have, and which the form leaves out (#971 K2). It is not Box and Draper's B canonical
-        form, which is centred on the stationary point (below).
+        form, which is centered on the stationary point (below).
 
         ``rotated_form`` is Box and Draper's A canonical form (Eq. 10.3.9), the
-        axes rotated about the design centre: y = b0 + sum of theta_i X_i + sum of
+        axes rotated about the design center: y = b0 + sum of theta_i X_i + sum of
         lambda_i X_i^2, with X_i = v_i'x. It holds the ``linear`` slope theta_i =
         v_i'b along every axis, in the order of ``eigenvalues``, and the
         ``stationary_point``, X_iS = -theta_i / (2 lambda_i) on each axis, ``None``
@@ -545,7 +545,7 @@ def _canonical_analysis(
         Draper's summary of it (Section 11.2) is there too: the ``unit_change``
         along each axis, r_i = (3 theta_i^2 + lambda_i^2)^(1/2), how much the
         response changes one unit either way along it (Eq. 11.2.5); and the
-        ``stationary_point_distance`` D from the design centre, ``None`` when an
+        ``stationary_point_distance`` D from the design center, ``None`` when an
         axis is flat.
 
         ``axis_angles`` gives, for each canonical axis in the order of
@@ -587,7 +587,7 @@ def _canonical_analysis(
         ],
         "determinant": float(np.prod(eigenvalues)),
     }
-    if not shape.drifts:  # a stationary point exists: the B canonical form's axes are centred on it
+    if not shape.drifts:  # a stationary point exists: the B canonical form's axes are centered on it
         curved = ~shape.flat
         x_s = eigenvectors[:, curved] @ (-0.5 * (eigenvectors[:, curved].T @ b) / eigenvalues[curved])
         result["canonical_axes"] = [
@@ -628,7 +628,7 @@ def _ridge_form(
     """Return Box and Draper's ridge form (Eq. 11.1.2), taking the last axis (the smallest eigenvalue) as the ridge.
 
     The origin x0 = -1/2 sum over the other curved axes of (v_i'b / lambda_i) v_i is the point nearest
-    the centre where the gradient has no component along them, so the form keeps one linear term, along
+    the center where the gradient has no component along them, so the form keeps one linear term, along
     the ridge. An axis whose eigenvalue is *flat* has no such point and is left out, as the last axis
     is (#965). *surface* is the fitted quadratic's intercept, linear vector b and matrix B.
     """
@@ -658,7 +658,7 @@ def _steepest_path(
     direction: str = "ascent",
     factor_ranges: dict[str, dict[str, float]] | None = None,
 ) -> dict[str, Any]:
-    """Return the path of steepest ascent (or descent) from the design centre, for ``optimize_responses``.
+    """Return the path of steepest ascent (or descent) from the design center, for ``optimize_responses``.
 
     :func:`~process_improve.experiments.sequential.steepest_path` sets the path out; this steps
     ``step_size``, a distance in coded units, as ``optimize_responses`` does.
@@ -675,9 +675,9 @@ def _steepest_path(
         linear coefficient, so a factor moves by ``step_size * b_j / ||b||``.
         Must be positive.
     n_steps : int
-        Number of steps to take away from the design centre (default 10).
+        Number of steps to take away from the design center (default 10).
         The returned ``steps`` list has ``n_steps + 1`` entries because it
-        also includes step 0 at the centre.
+        also includes step 0 at the center.
     direction : str
         ``"ascent"`` or ``"descent"``.
     factor_ranges : dict or None
@@ -782,7 +782,7 @@ def _align_goals_to_models(
 
     When every model names its response and every goal names one, the goals are
     reordered by name, and names that do not pair up one to one are an error:
-    pairing them by position instead would optimise each response against another
+    pairing them by position instead would optimize each response against another
     response's goal whenever the lists are in different orders. When either side
     leaves a name out, the goals are taken in list order, with a warning when there
     is more than one response, since position is then the only reading left.
@@ -841,7 +841,7 @@ def _align_goals_to_models(
 
 #: How close to 0 (coded -1) a factor with a ``min_when_used`` is taken as left out.
 _LEFT_OUT_TOL = 1e-9
-#: SLSQP iterations spent on a neighbouring set of factors before it is searched in full (if it is better by then).
+#: SLSQP iterations spent on a neighboring set of factors before it is searched in full (if it is better by then).
 _SET_SCREEN_ITERATIONS = 8
 #: A coefficient of a fitted straight constraint this small, beside its largest, is rounding and is taken as 0.
 #: Left in a gradient (as 1e-15, say), it gave the limit of an ingredient that a search leaves out a slope on the
@@ -857,7 +857,7 @@ class _SearchSpace:
     in the search's units: ``zero`` is where the factor is left out (coded -1 for a
     process factor, 0 for a mixture component). A search cannot cross from there to
     the minimum, so each one keeps the set of factors its start uses (see
-    :meth:`bounds_at`), and :func:`_best_set_of_factors` then tries the neighbouring sets.
+    :meth:`bounds_at`), and :func:`_best_set_of_factors` then tries the neighboring sets.
     """
 
     bounds: list[tuple[float, float]]
@@ -908,7 +908,7 @@ def _search_space(
 ) -> _SearchSpace:
     """Translate a search box, and optionally a :class:`DesignRegion`, into SLSQP inputs.
 
-    Without a region the search is the coded box, started from its centre and from
+    Without a region the search is the coded box, started from its center and from
     random points in it. With a box region its constraints become inequality
     constraints on top of that box. A mixture region replaces the box: its component
     bounds become the bounds, ``sum(x) = 1`` an equality constraint, and its linear
@@ -1100,7 +1100,7 @@ def _region_for_method(region: DesignRegion | None, method: str) -> DesignRegion
     """Return ``region`` for the methods that search inside one, warning and dropping it otherwise."""
     if region is not None and method not in {"desirability", "pareto_front"}:
         warnings.warn(
-            f"region is honoured by 'desirability' and 'pareto_front' only; it is ignored by {method!r}, "
+            f"region is honored by 'desirability' and 'pareto_front' only; it is ignored by {method!r}, "
             "which works over search_bounds instead.",
             UserWarning,
             stacklevel=user_stacklevel(),
@@ -1141,12 +1141,12 @@ def _best_set_of_factors(
     """Change which factors with a ``min_when_used`` are in use, one or two at a time, while that improves ``best``.
 
     A search keeps the set of factors its start uses, and the starts cover only some of
-    the sets. From the best result, the search is run again over each neighbouring set:
+    the sets. From the best result, the search is run again over each neighboring set:
     one factor left out or brought in at its minimum, and then one factor in use
     exchanged for one that is left out, which a limit on a total can require (bringing
     the second in before the first is left out may not fit under the limit, or may score
     worse on the way). A better result is taken at once, and the passes end when no
-    neighbouring set gives one. It is a local search over the sets, not a proof that no
+    neighboring set gives one. It is a local search over the sets, not a proof that no
     better set exists.
     """
 
@@ -1221,7 +1221,7 @@ class _SetSearch:
     tries the sets next to the best one. The other replaces each model by its tangent at
     the best setting, a straight line, for which the best set of factors is found exactly
     (:func:`exact_optimum`); the search then runs on the models themselves from that
-    setting. The first sees only the neighbouring sets, and the second any set, as far
+    setting. The first sees only the neighboring sets, and the second any set, as far
     as the tangents describe the models there. Neither proves the result.
     """
 
@@ -1315,7 +1315,7 @@ def _within_region(region: DesignRegion | None, factor_names: list[str], x: np.n
 def _ramp_values(y_values: Sequence[float], goals: list[dict[str, Any]]) -> np.ndarray:
     """Return the unclipped linear desirability ramps, all positive exactly where every d is.
 
-    A maximise goal contributes ``(y - low) / (high - low)``, a minimise goal
+    A maximize goal contributes ``(y - low) / (high - low)``, a minimize goal
     ``(high - y) / (high - low)``, a target goal both of its sides, and an in-range
     goal both of its margins, each over the width of the range. Unlike the
     desirabilities themselves, these keep a slope outside the acceptable limits,
@@ -1342,12 +1342,12 @@ def _closest_to_specification(
     space: _SearchSpace,
     accept: Callable[[np.ndarray], bool],
 ) -> np.ndarray | None:
-    """Return the setting that maximises the smallest unclipped ramp, a start with every d > 0 if one exists.
+    """Return the setting that maximizes the smallest unclipped ramp, a start with every d > 0 if one exists.
 
     A Derringer-Suich desirability is exactly 0, with zero gradient, wherever its
     response lies outside the acceptable limits, so a gradient search started there
     cannot leave. Tight limits can leave the region where the composite is positive
-    small enough for every random start to miss it. Maximising ``t`` subject to
+    small enough for every random start to miss it. Maximizing ``t`` subject to
     every ramp being at least ``t`` (and ``t <= 1``, beyond which every
     desirability is already 1) is smooth everywhere and reaches that region
     whenever the search finds a setting with ``t > 0``; when none exists, the
@@ -1412,7 +1412,7 @@ def _check_desirability_goals(goals: list[dict[str, Any]]) -> None:
     if not any(goal["goal"] in SCORED_GOALS for goal in goals):
         msg = (
             "Every goal is 'in_range', which only limits a response: give at least one response a goal of "
-            "'maximize', 'minimize' or 'target' to optimise."
+            "'maximize', 'minimize' or 'target' to optimize."
         )
         raise ValueError(msg)
 
@@ -1507,7 +1507,7 @@ def _optimize_desirability(  # noqa: PLR0913
     align_goals: bool = True,
     n_alternatives: int = 0,
 ) -> dict[str, Any]:
-    """Optimise composite desirability using scipy SLSQP.
+    """Optimize composite desirability using scipy SLSQP.
 
     Parameters
     ----------
@@ -1553,10 +1553,10 @@ def _optimize_desirability(  # noqa: PLR0913
         d_vals = [individual_desirability(f(x), goal) for f, goal in zip(evaluators, goals, strict=True)]
         return -overall_desirability(d_vals, goals, importances)
 
-    # Multi-start: try centre + random points.
+    # Multi-start: try center + random points.
     # SEC-33 (#282): the hard-coded ``42`` moved to the public signature
     # ``random_state=42`` (default preserves the previous deterministic
-    # behaviour). Resolved via the ENG-08 helper.
+    # behavior). Resolved via the ENG-08 helper.
     rng = check_random_state(random_state)
 
     limits = _response_limits(evaluators, goals)
@@ -1572,7 +1572,7 @@ def _optimize_desirability(  # noqa: PLR0913
     if exact is not None and exact.found.proven and space.gaps and not n_alternatives:
         results = [exact]
     else:
-        # Start from the centre of the searched region, then sample across it, so
+        # Start from the center of the searched region, then sample across it, so
         # that widening the bounds actually widens where the search looks.
         # Where factors can be left out a search keeps its start's set of them, so more sets are started from.
         n_starts = (_STARTS_OVER_SETS if space.gaps else 10) + 10 * n_alternatives
@@ -1734,7 +1734,7 @@ def _ridge_point(
     leading eigenspace the radius stays bounded as ``mu`` approaches that
     eigenvalue, so no interior multiplier exists; the optimum for any larger
     radius is the limiting point plus a step along the leading eigenvector.
-    A model whose stationary point sits at the centre (``b = 0``) is the common
+    A model whose stationary point sits at the center (``b = 0``) is the common
     instance, and its ridge runs straight along that eigenvector.
 
     Parameters
@@ -1808,7 +1808,7 @@ def _ridge_analysis(
     When a second-order model's stationary point falls outside the region the
     experiment covered, or is a saddle, it is not a usable recommendation. The
     ridge answers the question actually being asked: *given that I will move no
-    further than r from the centre, where is the best point and what does the
+    further than r from the center, where is the best point and what does the
     model predict there?* Tracing r upwards shows how fast the prediction
     improves, which factors have to move to get it, and where the returns
     flatten off.
@@ -1822,7 +1822,7 @@ def _ridge_analysis(
     direction : {"maximize", "minimize"}
         Which ridge to trace.
     n_radii : int
-        How many radii to report, over and above the centre.
+        How many radii to report, over and above the center.
     max_radius : float
         The largest radius to trace, in coded units. ``optimize_responses``
         derives it from ``search_bounds``: the factorial cube's default of
@@ -1836,8 +1836,8 @@ def _ridge_analysis(
         ``|x|``. A multiplier above the largest eigenvalue of *B* is on the ridge
         of maxima, one below the smallest on the ridge of minima (*direction* is
         not used), and one between them on one of the other stationary paths. An
-        infinite multiplier gives the centre. Its ``focus`` centres the spheres
-        on that coded point instead of the design centre (Box and Draper 2007,
+        infinite multiplier gives the center. Its ``focus`` centers the spheres
+        on that coded point instead of the design center (Box and Draper 2007,
         Section 12.4): the ridge is that of the surface written about the focus,
         ``b0 + b'f + f'Bf``, ``b + 2Bf`` and the same *B*, so each radius, and
         ``stationary_point_radius``, is the distance from the focus.
@@ -1971,7 +1971,7 @@ def _ridge_within_bounds(
 
     *at* holds the radii or the multipliers at which to report the ridge instead, and its focus.
 
-    The ridge lives on spheres around the design centre, so it can follow a box
+    The ridge lives on spheres around the design center, so it can follow a box
     only as far as its largest ``|bound|``. Bounds that differ between factors, or
     that are not symmetric about 0, are therefore not followed: each path entry
     carries ``inside_search_bounds`` instead, and a warning says so.
@@ -1989,7 +1989,7 @@ def _ridge_within_bounds(
         )
     if at.radii is None and at.multipliers is None and (len(set(box)) > 1 or box[0][0] != -box[0][1]):
         warnings.warn(
-            f"ridge_analysis traces spheres around the design centre out to radius {max_radius}, the "
+            f"ridge_analysis traces spheres around the design center out to radius {max_radius}, the "
             "largest |bound|; it cannot follow search_bounds that differ between factors or are not symmetric "
             "about 0. Path points outside the bounds have inside_search_bounds=False.",
             UserWarning,
@@ -2002,7 +2002,7 @@ def _ridge_within_bounds(
 # Pareto front
 # ---------------------------------------------------------------------------
 
-#: Weight on the augmentation term in the Chebyshev scalarisation. Small enough
+#: Weight on the augmentation term in the Chebyshev scalarization. Small enough
 #: not to distort the front, large enough to reject weakly-dominated points.
 _PARETO_AUGMENT = 1e-4
 #: Relative tolerance when deciding that one objective vector dominates another.
@@ -2014,7 +2014,7 @@ _SLSQP_OPTIONS = {"ftol": 1e-12, "maxiter": 500}
 
 
 def _objective_senses(goals: list[dict[str, Any]]) -> list[tuple[str, float | None]]:
-    """Map each goal onto ``(kind, target)``, where kind drives the scalarisation."""
+    """Map each goal onto ``(kind, target)``, where kind drives the scalarization."""
     senses: list[tuple[str, float | None]] = []
     for goal in goals:
         kind = str(goal.get("goal", "maximize")).lower()
@@ -2040,7 +2040,7 @@ def _as_utilities(
     """Turn raw predicted responses into quantities where more is always better.
 
     A ``"target"`` goal becomes the negated *squared* deviation rather than the
-    negated absolute one: both are maximised at the target and both order points
+    negated absolute one: both are maximized at the target and both order points
     identically, but the square is differentiable there, which matters because
     SLSQP has to work through this point.
     """
@@ -2101,7 +2101,7 @@ def _front_entries(
 ) -> list[dict[str, Any]]:
     """Describe each distinct front point, sorted by the first response.
 
-    Neighbouring weight vectors often land on the same solution, and duplicates
+    Neighboring weight vectors often land on the same solution, and duplicates
     say nothing about the trade-off, so they are dropped here rather than
     reported as separate options.
     """
@@ -2129,11 +2129,11 @@ def _payoff_table(
     senses: list[tuple[str, float | None]],
     n_objectives: int,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Optimise each objective alone and record what every response does there.
+    """Optimize each objective alone and record what every response does there.
 
     The diagonal of the result is the ideal point; the worst entry in each column
-    estimates the nadir. Together they set the scale each objective is normalised
-    by, so responses in different units carry equal say in the scalarisation.
+    estimates the nadir. Together they set the scale each objective is normalized
+    by, so responses in different units carry equal say in the scalarization.
 
     Returns
     -------
@@ -2162,15 +2162,15 @@ def _pareto_front(
     """Compute the Pareto front of several fitted response-surface models.
 
     Where ``"desirability"`` collapses the responses into one number and returns
-    the single point that maximises it, this returns the whole set of
+    the single point that maximizes it, this returns the whole set of
     non-dominated compromises: every setting where no response can be improved
-    without giving something up elsewhere. Choosing among them is a judgement
+    without giving something up elsewhere. Choosing among them is a judgment
     about trade-offs, and it is better made on the trade-offs themselves than on
     a weight chosen in advance.
 
-    Method: augmented weighted Chebyshev scalarisation, solved with SLSQP from
+    Method: augmented weighted Chebyshev scalarization, solved with SLSQP from
     several starts, over a Das-Dennis lattice of weights, then filtered to the
-    non-dominated set. Each response is normalised by the range of its own
+    non-dominated set. Each response is normalized by the range of its own
     payoff table, so responses in different units carry equal say.
 
     NSGA-II would be the usual choice, and is the wrong one here. It is built
@@ -2179,7 +2179,7 @@ def _pareto_front(
     evaluated in microseconds and differentiable everywhere, so a gradient
     solver reaches each front point to solver tolerance rather than to whatever
     a finite population converged to, with no random seed and no generation
-    count to tune. Chebyshev scalarisation is used rather than a weighted sum
+    count to tune. Chebyshev scalarization is used rather than a weighted sum
     because a weighted sum can only ever find points on the convex hull of the
     front, and quadratic models routinely produce non-convex fronts.
 
@@ -2299,7 +2299,7 @@ def _add_actual_units(
 ) -> dict[str, Any]:
     """Add an ``"actual"`` reading to every entry under *key*, in place.
 
-    Coded-to-actual conversion is reporting, not optimisation, so the methods
+    Coded-to-actual conversion is reporting, not optimization, so the methods
     that build these lists do not carry *factor_ranges* through their own
     signatures just to decorate their output at the end.
     """
@@ -2394,7 +2394,7 @@ def _intervals_at_point(
     return intervals
 
 
-#: Methods that analyse the surface of one fitted model.
+#: Methods that analyze the surface of one fitted model.
 _SINGLE_RESPONSE_METHODS = {
     "stationary_point",
     "canonical_analysis",
@@ -2420,7 +2420,7 @@ def _ranges_from_coding(
     """Check that each model is on the coded scale, and add the factor ranges its coding implies.
 
     ``analyze_experiment`` reports the scale of its coefficients as ``coding``, and how
-    each factor maps to -1 and +1 as ``factor_coding``. The optimiser evaluates models at
+    each factor maps to -1 and +1 as ``factor_coding``. The optimizer evaluates models at
     coded settings, so a model whose coefficients are in actual units would be searched
     over the wrong region (-1 to +1 degC, say). A coded model instead says which actual
     settings its coded optimum stands for. A model without these keys, such as one
@@ -2480,7 +2480,7 @@ def _check_fitted_models(fitted_models: list[dict[str, Any]], method: str) -> No
     ValueError
         If the list is empty, a model lacks ``"coefficients"`` or
         ``"factor_names"``, or a single-response method gets more than one model
-        (it would otherwise analyse the first and ignore the rest).
+        (it would otherwise analyze the first and ignore the rest).
     """
     if not fitted_models:
         msg = "At least one fitted model is required."
@@ -2504,8 +2504,8 @@ def _check_fitted_models(fitted_models: list[dict[str, Any]], method: str) -> No
     if method in _SINGLE_RESPONSE_METHODS and len(fitted_models) > 1:
         names = [m.get("response_name", f"model {i}") for i, m in enumerate(fitted_models)]
         msg = (
-            f"method={method!r} analyses one response; got {len(fitted_models)} models ({names}). "
-            "Call it once per response, or use 'desirability' or 'pareto_front' to optimise them together."
+            f"method={method!r} analyzes one response; got {len(fitted_models)} models ({names}). "
+            "Call it once per response, or use 'desirability' or 'pareto_front' to optimize them together."
         )
         raise ValueError(msg)
 
@@ -2653,7 +2653,7 @@ def optimize_responses(  # noqa: PLR0913
           reports them. A model without them is taken to be coded.
 
     goals : list[dict] or None
-        Per-response optimisation goals.  Each dict has keys:
+        Per-response optimization goals.  Each dict has keys:
 
         - ``"response"`` (str) - response name. Matched against each model's
           ``"response_name"``; when both sides name their responses the goals
@@ -2682,7 +2682,7 @@ def optimize_responses(  # noqa: PLR0913
           ``weight``, it has no effect on this response's own ramp.
 
     method : str
-        Optimisation method: ``"desirability"``,
+        Optimization method: ``"desirability"``,
         ``"steepest_ascent"``, ``"steepest_descent"``,
         ``"stationary_point"``, ``"canonical_analysis"``,
         ``"ridge_analysis"``, ``"pareto_front"``.
@@ -2698,7 +2698,7 @@ def optimize_responses(  # noqa: PLR0913
         coded units, between successive points on the path. Must be positive.
     n_steps : int
         Number of steps along a path: the steepest ascent/descent steps, or the
-        radii reported by ridge analysis over and above the centre.
+        radii reported by ridge analysis over and above the center.
     response_importance : list[float] or None
         Relative importance per response, overriding the per-goal
         ``"importance"`` values. Aligned with *fitted_models*.
@@ -2789,11 +2789,11 @@ def optimize_responses(  # noqa: PLR0913
         Chapter 12). Each gives the point ``x = -(B - mu I)^-1 b / 2`` and its
         radius ``|x|``; a multiplier above the largest eigenvalue of *B* is on the
         ridge of maxima, one below the smallest on the ridge of minima, whatever
-        ``ridge_direction`` says, and an infinite one gives the centre. Give
+        ``ridge_direction`` says, and an infinite one gives the center. Give
         *radii* or *multipliers*, not both.
     focus : Mapping[str, float] or None
-        For ``method="ridge_analysis"``: the coded point the spheres are centred
-        on, by factor name, in place of the design centre (Box and Draper 2007,
+        For ``method="ridge_analysis"``: the coded point the spheres are centered
+        on, by factor name, in place of the design center (Box and Draper 2007,
         Section 12.4); a factor not named is at 0. Each path entry's ``radius``
         is then its distance from the focus, and the result carries ``focus``.
 

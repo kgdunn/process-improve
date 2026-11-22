@@ -1,6 +1,6 @@
-"""Predictions and optimisation from a split-plot fit, by generalized least squares (#789 B9).
+"""Predictions and optimization from a split-plot fit, by generalized least squares (#789 B9).
 
-Goos and Jones's battery cell (Section 11.3) is a two-way split-plot design, analysed by REML with
+Goos and Jones's battery cell (Section 11.3) is a two-way split-plot design, analyzed by REML with
 its rows and columns as crossed random effects. Its least OCV is at x1 high, x4 low, x5 and x6
 high, predicted 7.42; the ordinary least-squares fit of the same model predicts 7.75 there. Their
 pastry dough (Section 7.3), run on seven days taken as random blocks, has both responses on target
@@ -101,7 +101,7 @@ def test_the_optimizer_finds_the_best_corner_from_the_split_plot_fit(battery):
 def test_the_pastry_dough_is_on_target_at_the_settings_the_book_shows(pastry):
     """At 40.6 kg/h, 22.3% and 300 rpm the fits give 12.03 and 3.99: the book's targets, 12 and 4, to its precision.
 
-    The catalogue's note gives 12.019 and 3.994 from Table 7.9's coefficients as printed, which are rounded.
+    The catalog's note gives 12.019 and 3.994 from Table 7.9's coefficients as printed, which are rounded.
     """
     point = [{"flow": (40.6 - 37.5) / 7.5, "moisture": (22.3 - 21) / 3, "speed": -1.0}]
     longitudinal = pastry_fit(pastry, "y1", point)["predictions"][0]["predicted"]

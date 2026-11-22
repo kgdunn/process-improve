@@ -1,4 +1,4 @@
-"""Edge cases of the analysis side: GLM options, split-plot fits, catalogue checks, plots and tool wrappers.
+"""Edge cases of the analysis side: GLM options, split-plot fits, catalog checks, plots and tool wrappers.
 
 Each test drives one branch the rest of the suite does not reach and checks what it does: the
 error and its message, or the number, against a value worked out by hand or by another route.
@@ -338,7 +338,7 @@ def test_an_unbounded_search_steps_back_from_a_covariance_that_is_not_positive_d
     assert out["components"]["batch"] == pytest.approx((between - within) / 4, rel=1e-9)
 
 
-# --------------------------------------------------------------------------- desirability and optimisation
+# --------------------------------------------------------------------------- desirability and optimization
 def _model(**terms: float) -> dict:
     """Return a fitted model of factors A and B from coefficients named as the terms are."""
     return {
@@ -369,7 +369,7 @@ def test_no_alternatives_are_offered_when_no_setting_is_desirable():
 
 
 def test_a_single_peak_has_no_alternative_however_many_are_asked_for():
-    """The response 3 - A^2 - B^2 peaks once, at the centre, where d = 3/4: every start ends there."""
+    """The response 3 - A^2 - B^2 peaks once, at the center, where d = 3/4: every start ends there."""
     peak = _model(**{"Intercept": 3.0, "I(A ** 2)": -1.0, "I(B ** 2)": -1.0})
     goal = [{"response": "y", "goal": "maximize", "low": 0, "high": 4}]  # d > 0 over the whole square
     found = optimize_responses([peak], goals=goal, n_alternatives=1)["desirability"]
@@ -387,9 +387,9 @@ def test_the_ridge_bracket_narrows_when_the_slope_on_the_leading_axis_is_tiny():
     assert end["predicted_response"] == pytest.approx(0.5 - 1 - 0.25, abs=1e-6)
 
 
-# --------------------------------------------------------------------------- the reference catalogue's checks
+# --------------------------------------------------------------------------- the reference catalog's checks
 def _plane() -> dict:
-    """Return a 2^2 with a centre point, y = 10 + 3 x1 - x2 exactly, x1 from 100 to 200 and x2 from 125 to 175."""
+    """Return a 2^2 with a center point, y = 10 + 3 x1 - x2 exactly, x1 from 100 to 200 and x2 from 125 to 175."""
     runs = [(-1, -1), (-1, 1), (1, -1), (1, 1), (0, 0)]
     return {
         "name": "edge-plane",
@@ -425,7 +425,7 @@ def test_a_projection_onto_a_missing_entry_or_another_shape_is_said_so():
 
 
 def test_a_design_metric_of_a_named_design_is_read_from_the_design_the_library_makes():
-    """A 2^2 full factorial with its three centre points: X'X is diag(7, 4, 4) for the main effects."""
+    """A 2^2 full factorial with its three center points: X'X is diag(7, 4, 4) for the main effects."""
     check = {
         "kind": "design_metric",
         "design": {"design_type": "full_factorial", "k": 2},
@@ -588,7 +588,7 @@ def test_a_search_that_runs_off_to_infinity_does_not_converge():
         nonlinear_regression(lambda x, a, b: np.exp(-a) * x + np.exp(-b), x, np.zeros(10), {"a": 0.0, "b": 0.0})
 
 
-@pytest.mark.slow  # two optimiser searches of the simulator: about 2.5 s under coverage
+@pytest.mark.slow  # two optimizer searches of the simulator: about 2.5 s under coverage
 def test_a_later_start_that_does_worse_does_not_replace_the_best():
     """With random_state=1 the random start ends below the nominal one, so the nominal start's optimum stands."""
     sim = BioreactorSimulator()

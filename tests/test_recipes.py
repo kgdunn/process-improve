@@ -95,7 +95,7 @@ def test_a_recipe_is_immutable_and_hashable():
 
 
 def test_select_recipe_canonicalises_the_query_only(monkeypatch: pytest.MonkeyPatch):
-    """The cue phrases are canonicalised once, when the recipe is built, not again on every query (#513)."""
+    """The cue phrases are canonicalized once, when the recipe is built, not again on every query (#513)."""
     from process_improve import recipes
 
     list_recipes()  # discover the registered recipes before counting
@@ -176,7 +176,7 @@ def test_select_analysis_recipe_tool():
     miss = execute_tool_call("select_analysis_recipe", {"query": "completely off-topic widget chatter"})
     assert miss["matched"] is False
     assert miss["recipe"] is None
-    assert miss["available"]  # the catalogue is always offered
+    assert miss["available"]  # the catalog is always offered
 
 
 def test_select_analysis_recipe_rejects_unknown_kwargs():

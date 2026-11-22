@@ -71,7 +71,7 @@ def test_runs_as_given_whose_columns_nearly_match_name_the_correlated_terms(api)
 
 
 def test_a_categorical_factor_is_coded_as_the_fit_codes_it(api):
-    """A label is -1 or +1 in the fit, and its VIF is that column's; S follows T but in the run where T is centred."""
+    """A label is -1 or +1 in the fit, and its VIF is that column's; S follows T but in the run where T is centered."""
     factors = [FACTORS[0], {"name": "S", "low": "old", "high": "new", "units": ""}, FACTORS[1]]
     runs = [[175, "old", 1], [150, "old", 3], [200, "new", 1], [200, "new", 3], [150, "old", 1], [150, "old", 3]]
     runs += [[200, "new", 1], [200, "new", 3]]

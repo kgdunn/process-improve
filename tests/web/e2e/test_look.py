@@ -1,7 +1,7 @@
 """The app's look: points on an axis, no rounded boxes, and the reader's own numbers in ink.
 
 The page is drawn with the marks an experiment already uses. A choice is a point: a ring until it is chosen, then
-filled in the stage's colour, with no box round it and no coloured edge. The four aims are levels on one axis, and
+filled in the stage's color, with no box round it and no colored edge. The four aims are levels on one axis, and
 the stages in the bar are points on one line. A check under Learn's answer is a point whose shape says what it
 found. Nothing is rounded but a point. What the reader typed or measured is in ink; what the page worked out is in
 print, and a simulated result is pencil.
@@ -21,7 +21,7 @@ from tests.web.e2e._page import enter_results, generate, open_statistician, prac
 STYLE = "(one) => getComputedStyle(one).{}"
 THEMES = pytest.mark.parametrize("context_options", [{"color_scheme": "light"}, {"color_scheme": "dark"}])
 
-#: The colour a token of the stylesheet stands for, as the browser paints it.
+#: The color a token of the stylesheet stands for, as the browser paints it.
 COLOUR_OF = """(name) => {
   const probe = document.body.appendChild(document.createElement('i'));
   probe.style.color = `var(${name})`;
@@ -32,7 +32,7 @@ COLOUR_OF = """(name) => {
 
 
 def stage_colour(page: Any, stage: str) -> str:  # noqa: ANN401 - a Playwright Page
-    """Return the colour the bar gives a stage, as its point wears it."""
+    """Return the color the bar gives a stage, as its point wears it."""
     return page.locator(f"#go-{stage} .step").evaluate(STYLE.format("backgroundColor"))
 
 
@@ -49,7 +49,7 @@ def test_a_choice_is_a_point_filled_in_its_stage_s_colour_with_no_box_and_no_edg
     boxes = page.locator(".aim").evaluate_all(
         "(all) => all.map((one) => [getComputedStyle(one).borderLeftWidth, getComputedStyle(one).boxShadow])"
     )
-    assert boxes == [["0px", "none"]] * 4, "the chosen aim has no box round it and no coloured edge"
+    assert boxes == [["0px", "none"]] * 4, "the chosen aim has no box round it and no colored edge"
     # The design chosen in the list is a point of the same kind.
     picked = page.locator("table.pick input:checked")
     assert picked.evaluate(STYLE.format("backgroundColor")) == design
@@ -62,7 +62,7 @@ def test_a_term_of_the_model_is_a_point_filled_when_it_is_in(page):
     inside = page.get_by_label("Temperature·Flow", exact=True)
     out = page.get_by_label("Temperature·Pressure·Flow", exact=True)
     assert inside.evaluate(STYLE.format("borderRadius")) == "50%"
-    assert inside.evaluate(STYLE.format("backgroundColor")) == learn, "in the model: filled in Learn's colour"
+    assert inside.evaluate(STYLE.format("backgroundColor")) == learn, "in the model: filled in Learn's color"
     assert out.evaluate(STYLE.format("backgroundColor")) != learn, "out of it: a ring"
     label = page.locator("#term-list label").first
     assert label.evaluate(STYLE.format("borderTopWidth")) == "0px", "no box round a term"
@@ -121,7 +121,7 @@ def test_a_check_is_a_point_whose_shape_says_what_it_found(page):
     assert by_state["look"]["colour"] == page.evaluate(COLOUR_OF, "--warn")
     assert by_state["ok"]["round"]
     assert not by_state["ok"]["turned"]
-    assert by_state["look"]["turned"], "a diamond: the shape says it without the colour"
+    assert by_state["look"]["turned"], "a diamond: the shape says it without the color"
 
 
 def test_the_answer_and_a_note_have_no_box_and_no_coloured_edge(page):
@@ -164,7 +164,7 @@ def test_what_the_reader_typed_is_in_ink_and_a_simulated_result_is_pencil(blank_
 
 def test_a_button_that_leads_on_wears_the_colour_of_the_stage_it_leads_to(page):
     colours = {stage: stage_colour(page, stage) for stage in ("plan", "run", "learn")}
-    assert len(set(colours.values())) == 3, "a colour a stage"
+    assert len(set(colours.values())) == 3, "a color a stage"
     background = STYLE.format("backgroundColor")
     page.click("#go-plan")
     assert page.locator("#generate").evaluate(background) == colours["run"], "Make the run sheet leads to Run"
@@ -199,15 +199,15 @@ def test_a_slider_is_drawn_by_the_page_a_thin_line_and_a_round_handle_in_the_acc
     assert drawn["face"] == "rgba(0, 0, 0, 0)", "and no box behind it"
     assert drawn["height"] == "24px", "tall enough for its handle to be caught"
     # The line and the handle are parts the browser will not describe, so they are read off the slider's picture:
-    # the row of pixels through its middle holds the accent colour, its handle, on one line for its range.
+    # the row of pixels through its middle holds the accent color, its handle, on one line for its range.
     accent = tuple(int(part) for part in re.findall(r"\d+", page.evaluate(COLOUR_OF, "--accent"))[:3])
     picture = Image.open(io.BytesIO(slider.screenshot())).convert("RGB")
     row = [picture.getpixel((x, picture.height // 2)) for x in range(picture.width)]
-    near = lambda a, b: all(abs(p - q) <= 12 for p, q in zip(a, b, strict=True))  # noqa: E731 - a colour, or one close by
-    assert sum(near(pixel, accent) for pixel in row) >= 6, "the handle, in the accent colour"
+    near = lambda a, b: all(abs(p - q) <= 12 for p, q in zip(a, b, strict=True))  # noqa: E731 - a color, or one close by
+    assert sum(near(pixel, accent) for pixel in row) >= 6, "the handle, in the accent color"
     line = max(set(row), key=row.count)
     assert row.count(line) > 0.6 * len(row), "one line for the range, under the handle"
-    assert not near(line, accent), "and the line is not the handle's colour"
+    assert not near(line, accent), "and the line is not the handle's color"
 
 
 def test_a_choice_in_the_feedback_form_is_a_round_point_not_a_sliver(page):

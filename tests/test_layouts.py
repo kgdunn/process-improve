@@ -15,7 +15,7 @@ TOXIC = {
 
 
 def _two_way(table: list[list[float]], rows: str = "row", columns: str = "column") -> pd.DataFrame:
-    """Return a two-way table, one list per row, as one run per cell, the rows and columns labelled 1, 2, ..."""
+    """Return a two-way table, one list per row, as one run per cell, the rows and columns labeled 1, 2, ..."""
     return pd.DataFrame(
         [(str(i + 1), str(j + 1), value) for i, row in enumerate(table) for j, value in enumerate(row)],
         columns=[rows, columns, "y"],

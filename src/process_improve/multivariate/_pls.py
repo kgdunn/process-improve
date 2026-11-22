@@ -35,7 +35,7 @@ from ._common import (
     DiagnoseResult,
     SelectionRule,
     SpecificationWarning,
-    UncentredDataWarning,
+    UncenteredDataWarning,
     _align_to_fit_features,
     _equal_weight_r2_total,
     _float_frame,
@@ -96,7 +96,7 @@ from .plots import (
 
 logger = logging.getLogger(__name__)
 
-# The ``md_method`` values ``fit`` recognises. Deliberately smaller than
+# The ``md_method`` values ``fit`` recognizes. Deliberately smaller than
 # ``_projection.PROJECTION_METHODS``: that tuple is the projection-time set, which also
 # offers ``"scp"``. ``"scp"`` has no fit-time meaning of its own, because it is how NIPALS
 # already scores an incomplete row during the fit, so asking for it is refused rather than
@@ -107,7 +107,7 @@ _FIT_TIME_MD_METHODS = frozenset({"nipals", "tsr", "pmp"})
 def _check_md_method(settings: dict) -> None:
     """Refuse a ``md_method`` the fit cannot carry out, before any work is done.
 
-    An unrecognised value used to fall through to NIPALS silently, so a typo, or the
+    An unrecognized value used to fall through to NIPALS silently, so a typo, or the
     projection-time name ``"scp"``, ran a different algorithm than the caller asked for.
     """
     md_method = settings["md_method"].lower()
@@ -128,23 +128,23 @@ def _format_labels(labels: list, limit: int = 4) -> str:
 
 
 def _warn_if_uncentred(X: pd.DataFrame, Y: pd.DataFrame) -> None:
-    """Warn when ``PLS(scale=False)`` is handed a block that was never centred.
+    """Warn when ``PLS(scale=False)`` is handed a block that was never centered.
 
-    With ``scale=False`` nothing is centred and no intercept is fitted, so a
+    With ``scale=False`` nothing is centered and no intercept is fitted, so a
     block carrying a non-zero mean displaces every prediction. The response is
     the damaging case: predictions come out offset by roughly the response mean,
     which drives R² and Q² large and negative on data that does contain a
     relationship. That reads as "there is nothing here", so the failure has to be
     announced rather than left to the caller to notice.
 
-    Deliberately a warning, not an automatic centring: ``scale=False`` currently
-    means "touch nothing", and quietly centring would change the numbers for
-    every caller who already centres correctly.
+    Deliberately a warning, not an automatic centering: ``scale=False`` currently
+    means "touch nothing", and quietly centering would change the numbers for
+    every caller who already centers correctly.
 
-    The category is :class:`UncentredDataWarning`, a :class:`SpecificationWarning`
-    subclass, so a caller who fits un-centred on purpose can permit this one
+    The category is :class:`UncenteredDataWarning`, a :class:`SpecificationWarning`
+    subclass, so a caller who fits un-centered on purpose can permit this one
     diagnostic without going blind to the rest. Narrower again, and touching no
-    global filter: ``PLS(..., warn_on_uncentred=False)`` skips the call to this
+    global filter: ``PLS(..., warn_on_uncentered=False)`` skips the call to this
     helper entirely.
     """
     for block, name in ((Y, "Y"), (X, "X")):
@@ -156,18 +156,18 @@ def _warn_if_uncentred(X: pd.DataFrame, Y: pd.DataFrame) -> None:
             "go large and negative and the fit reads as 'no relationship in this "
             "data' even when the relationship is strong"
             if name == "Y"
-            else "the un-centred columns act as an uncontrolled constant term, so the "
+            else "the un-centered columns act as an uncontrolled constant term, so the "
             "loadings and R2 describe the offset rather than the variation around it"
         )
         warnings.warn(
-            f"PLS(scale=False) fits no intercept and centres nothing, but column(s) "
+            f"PLS(scale=False) fits no intercept and centers nothing, but column(s) "
             f"{_format_labels(offenders)} of the {name} block have a mean that is large "
             f"relative to their own spread. The consequence is not an error: "
-            f"{symptom}. Centre both blocks first (MCUVScaler().fit_transform(...), or "
+            f"{symptom}. Center both blocks first (MCUVScaler().fit_transform(...), or "
             f"X - X.mean()), or pass scale=True and let the model do it. Fitting "
-            f"un-centred on purpose? Pass warn_on_uncentred=False to silence this for "
+            f"un-centered on purpose? Pass warn_on_uncentered=False to silence this for "
             f"this model alone.",
-            UncentredDataWarning,
+            UncenteredDataWarning,
             stacklevel=user_stacklevel(),
         )
 
@@ -236,10 +236,10 @@ def _standard_error(per_fold: np.ndarray) -> np.ndarray:
 def _fit_fold(
     model: PLS, X_train: pd.DataFrame, Y_train: pd.DataFrame, *, scale_inside_folds: bool
 ) -> tuple[tuple[np.ndarray | float, np.ndarray | float], tuple[np.ndarray | float, np.ndarray | float]]:
-    """Fit a cross-validation fold's ``model``; return the centre and scale of X and of Y in its space.
+    """Fit a cross-validation fold's ``model``; return the center and scale of X and of Y in its space.
 
-    With ``scale_inside_folds`` the training rows are autoscaled first. The model may centre
-    and scale them again (``scale=True``, or PRM's robust centre), so a block in the data's
+    With ``scale_inside_folds`` the training rows are autoscaled first. The model may center
+    and scale them again (``scale=True``, or PRM's robust center), so a block in the data's
     units is ``scaled * scale + centre`` of the same block in the model's space through both
     (#1027): the held-out rows are scored, and their predictions read, in the model's space.
     """
@@ -250,6 +250,26 @@ def _fit_fold(
         Y_train if fold_y is None else fold_y.transform(Y_train),
     )
     return _back_to_units(model._x_scaler, fold_x), _back_to_units(model._y_scaler, fold_y)
+
+
+def _former_keyword(estimator: str, former: dict[str, bool], warn_on_uncentered: bool) -> bool:
+    """Return ``warn_on_uncentered``, or ``warn_on_uncentred``, its former name, when ``former`` holds it.
+
+    The former name is taken by keyword, so the constructor's own parameters are only the current ones;
+    any other keyword is refused as a constructor refuses an unknown one.
+    """
+    unexpected = sorted(set(former) - {"warn_on_uncentred"})
+    if unexpected:
+        raise TypeError(f"{estimator}.__init__() got an unexpected keyword argument {unexpected[0]!r}")
+    if "warn_on_uncentred" not in former:
+        return warn_on_uncentered
+    warnings.warn(
+        f"process_improve.multivariate.methods.{estimator}(warn_on_uncentred=...) is deprecated since 2.7.0 and "
+        "will be removed in 3.0; use warn_on_uncentered=... instead.",
+        DeprecationWarning,
+        stacklevel=user_stacklevel(),
+    )
+    return former["warn_on_uncentred"]
 
 
 class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator):
@@ -281,12 +301,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         :class:`MCUVScaler` inside each training fold regardless of this flag.
 
         ``scale=False`` fits **no intercept**, so both blocks must already be
-        centred. A response left on its natural scale is the trap: predictions
+        centered. A response left on its natural scale is the trap: predictions
         come out offset by the response mean, and R² / Q² go large and negative
         on data that does contain a relationship. ``fit`` emits an
-        :class:`UncentredDataWarning` when either block's column means are large
-        relative to their spread; it does not centre for you, because
-        ``scale=False`` means "touch nothing". Set ``warn_on_uncentred=False``
+        :class:`UncenteredDataWarning` when either block's column means are large
+        relative to their spread; it does not center for you, because
+        ``scale=False`` means "touch nothing". Set ``warn_on_uncentered=False``
         when that fit is deliberate.
     max_iter : int, default=500
         Maximum number of iterations per component for the NIPALS algorithm.
@@ -299,26 +319,29 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     copy : None
         Deprecated since 2.4.0 and removed in 3.0; it has no effect. PLS never
         modifies the X or Y it is given, so there is nothing to copy.
-    warn_on_uncentred : bool, default=True
-        Emit the :class:`UncentredDataWarning` described under ``scale`` when
-        ``scale=False`` and a block arrives un-centred. Set it to ``False`` for
-        a fit that is un-centred on purpose (a demonstration of the offset, or a
-        test that some other centring check fires), where the diagnostic is the
+    warn_on_uncentered : bool, default=True
+        Emit the :class:`UncenteredDataWarning` described under ``scale`` when
+        ``scale=False`` and a block arrives un-centered. Set it to ``False`` for
+        a fit that is un-centered on purpose (a demonstration of the offset, or a
+        test that some other centering check fires), where the diagnostic is the
         expected outcome rather than a problem.
 
         This is the narrowest of the three opt-outs, and the one to reach for
         first. It silences the check for this model only, so an unrelated
         :class:`SpecificationWarning` raised elsewhere in the same block, or by
         this same ``fit`` call, still arrives. Filtering
-        ``UncentredDataWarning`` as a category is next narrowest; suppressing
+        ``UncenteredDataWarning`` as a category is next narrowest; suppressing
         all of ``SpecificationWarning`` is the blunt instrument, and hides
         clamped component counts and NIPALS non-convergence along with it.
 
-        Has no effect when ``scale=True``: the model centres both blocks itself,
+        Has no effect when ``scale=True``: the model centers both blocks itself,
         so the condition cannot arise. Like every constructor parameter it is
         stored verbatim and survives :func:`~sklearn.base.clone`, so a
-        deliberately un-centred fit stays quiet inside a ``Pipeline`` or a
+        deliberately un-centered fit stays quiet inside a ``Pipeline`` or a
         grid search.
+    warn_on_uncentred : bool, optional
+        The former name of ``warn_on_uncentered``, which it overrides when given:
+        deprecated since 2.7.0 and removed in 3.0.
     missing_data_settings : dict or None, default=None
         How to fit when the data has missing cells. Keys:
 
@@ -456,9 +479,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         max_iter: int = 500,
         tol: float = epsqrt,
         copy: bool | None = None,
-        warn_on_uncentred: bool = True,
+        warn_on_uncentered: bool = True,
         # Own extra inputs, for the case when there is missing data
         missing_data_settings: dict | None = None,
+        **former: bool,
     ):
         self.n_components: int = n_components
         # ``scale`` (like ``copy``) mirrors sklearn PLSRegression's constructor
@@ -471,8 +495,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         self.tol = tol
         self.copy = copy
         # Read only in fit(), and only on the scale=False branch: with scale=True
-        # the model centres both blocks itself, so there is nothing to warn about.
-        self.warn_on_uncentred = warn_on_uncentred
+        # the model centers both blocks itself, so there is nothing to warn about.
+        self.warn_on_uncentered = _former_keyword(type(self).__name__, former, warn_on_uncentered)
         self.missing_data_settings = missing_data_settings
 
     def __sklearn_tags__(self):
@@ -494,7 +518,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         """Return the output column names of :meth:`transform`.
 
         :class:`PLS`'s ``transform`` returns the X scores (T matrix),
-        labelled ``["T1", "T2", ..., "T{n_components}"]``. The
+        labeled ``["T1", "T2", ..., "T{n_components}"]``. The
         ``input_features`` argument is accepted (Pipeline introspection
         passes it through) but unused: the output column count is the
         fitted ``n_components``, not the input feature count.
@@ -516,7 +540,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     # PLS-specific predictive-importance diagnostics (need beta_coefficients_).
     target_projection = _model_method(_target_projection)
     selectivity_ratio = _model_method(_selectivity_ratio)
-    # Inversion as an optimisation: cost or targets, under rules, with each rule's shadow price.
+    # Inversion as an optimization: cost or targets, under rules, with each rule's shadow price.
     optimal_inversion = _model_method(_optimal_inversion)
     inversion_sensitivity = _model_method(_inversion_sensitivity)
 
@@ -896,11 +920,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         Y: pd.DataFrame,
         sample_weight: np.ndarray | None,
     ) -> tuple[MCUVScaler, MCUVScaler]:
-        """Build the (X, Y) centring / scaling pair that ``fit`` will use.
+        """Build the (X, Y) centering / scaling pair that ``fit`` will use.
 
         Split out as its own method so a resistant subclass can substitute a
         different notion of "middle" and "spread" without reimplementing
-        ``fit``: :class:`~process_improve.multivariate.methods.PRM` centres at
+        ``fit``: :class:`~process_improve.multivariate.methods.PRM` centers at
         the L1 median, because the ordinary mean and standard deviation are
         exactly as fragile as the fit they are preparing (#191).
 
@@ -963,7 +987,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         NotEnoughVarianceError
             If every column of X is constant or has no observed value over the rows
             the fit uses, as across the family (#1144); or if every column of Y is, as
-            the fit centres it (with ``scale=False``, if Y is 0 throughout).
+            the fit centers it (with ``scale=False``, if Y is 0 throughout).
 
         Warns
         -----
@@ -988,7 +1012,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 stacklevel=user_stacklevel(),
             )
         # Accept a Series for Y by promoting it to one column with its own labels; a 1-D array
-        # becomes one column below, labelled like X's rows as a 2-D array is (#1027).
+        # becomes one column below, labeled like X's rows as a 2-D array is (#1027).
         if isinstance(Y, pd.Series):
             Y = Y.to_frame()
 
@@ -1048,7 +1072,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         assert isinstance(X, pd.DataFrame)
         assert isinstance(Y, pd.DataFrame)
 
-        # Honour ``scale`` (see __init__): center + unit-variance-scale X and Y
+        # Honor ``scale`` (see __init__): center + unit-variance-scale X and Y
         # with the library's MCUVScaler, matching sklearn PLSRegression's
         # ``scale=True`` default. The NIPALS core and every fitted attribute run
         # in this scaled space; the user-facing predictions_ / beta_coefficients_
@@ -1067,9 +1091,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             self._x_scaler, self._y_scaler = self._make_scalers(X, Y, sample_weight)
             X = self._x_scaler.transform(X)
             Y = self._y_scaler.transform(Y)
-        elif self.warn_on_uncentred:
+        elif self.warn_on_uncentered:
             _warn_if_uncentred(X, Y)
-        # Nothing to explain, as centred, over the rows the fit uses: refused in the family's words (#1149)
+        # Nothing to explain, as centered, over the rows the fit uses: refused in the family's words (#1149)
         check_y_varies((Y if sample_weight is None else Y[sample_weight > 0]).to_numpy())
 
         A = components_to_fit(self.n_components, N, K)
@@ -1192,7 +1216,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             with warnings.catch_warnings():  # a response with no observed value has no RMSE: 0 / 0
                 warnings.simplefilter("ignore", RuntimeWarning)  # pragma: no mutate - 0 / 0 warns no other kind
                 rmse.append(np.sqrt(np.nansum(cell_weight * y_left**2, axis=0) / cell_weight.sum(axis=0)))
-        # A row with nothing observed has no SPE, as diagnose gives it none (#1148); fit places it at the centre.
+        # A row with nothing observed has no SPE, as diagnose gives it none (#1148); fit places it at the center.
         self._spe = np.where(_rows_with_data(unscaled_x.to_numpy())[:, np.newaxis], np.column_stack(spe), np.nan)
         self.r2_cumulative_ = pd.Series(r2_cumulative, index=component_names, name="Output cumulative R²")
         self.r2_per_component_ = pd.Series(
@@ -1243,7 +1267,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         Returns
         -------
         pd.DataFrame of shape (n_samples, n_features)
-            The rows, scaled as the fit scaled its own, columns labelled as fitted.
+            The rows, scaled as the fit scaled its own, columns labeled as fitted.
         """
         check_is_fitted(self, "direct_weights_")
         # sklearn's validate_data(reset=False) checks feature-name *order*; _align_to_fit_features
@@ -1333,7 +1357,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         Returns
         -------
         y_hat : pd.DataFrame of shape (n_samples, n_targets)
-            Predicted target values, indexed by ``X``'s rows and labelled
+            Predicted target values, indexed by ``X``'s rows and labeled
             with the target column names captured during ``fit``.
 
         See Also
@@ -1492,7 +1516,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             The score estimator; see
             :mod:`process_improve.multivariate._projection`.
         ridge : float, default=0.0
-            Non-negative regularisation added to the matrix inverted by the
+            Non-negative regularization added to the matrix inverted by the
             ``"tsr"`` and ``"pmp"`` estimators. Raise it above zero when
             ``condition_number`` reports near-singularity (typically very
             early in a batch, when few columns are observed).
@@ -1540,10 +1564,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         is a fixed linear map ``t_hat = M @ z_observed`` on the model's
         scaled X space. This method exposes that matrix so callers that reuse
         one pattern many times (an online monitor at time sample ``k``, or a
-        mid-course optimiser treating the candidate future columns as
+        mid-course optimizer treating the candidate future columns as
         observed) can precompute it once. Note the matrix acts on *scaled*
         values: when the model was fitted with ``scale=True``, apply the
-        internal centring and scaling first (as :meth:`project` does).
+        internal centering and scaling first (as :meth:`project` does).
 
         Parameters
         ----------
@@ -1557,7 +1581,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         -------
         result : sklearn.utils.Bunch
             With keys ``matrix`` (DataFrame, n_components x n_observed,
-            columns labelled by the observed features), ``condition_number``
+            columns labeled by the observed features), ``condition_number``
             (float) and ``method``.
         """
         check_is_fitted(self, "direct_weights_")
@@ -1799,7 +1823,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         The defaults are the research-backed combination: the
         one-standard-error rule on top of repeated, shuffled K-fold CV, with
         :class:`MCUVScaler` re-fit inside every training fold so test data
-        never leaks into the centring/scaling estimates.
+        never leaks into the centering/scaling estimates.
 
         Unlike the calibration statistics stored on a fitted model
         (``rmse_``, ``r2_cumulative_``), the metrics returned here estimate
@@ -1833,7 +1857,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             ``1`` to disable repeats. Repeated K-fold's standard errors are
             slightly optimistic because test folds overlap across repeats;
             that is fine for the 1-SE *selection* rule but should not be
-            reported as an unbiased generalisation variance.
+            reported as an unbiased generalization variance.
         random_state : int, numpy.random.Generator or None, optional
             Seed forwarded to ``KFold`` / ``RepeatedKFold`` for reproducible
             shuffling; a Generator gives them its next draw of an int. Ignored
@@ -1853,9 +1877,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             When True (the default), fit a fresh :class:`MCUVScaler` on each
             training fold's X and Y, apply it to the held-out rows, fit PLS in
             scaled space, then inverse-transform the predictions so RMSECV is
-            reported on the original Y scale. This removes the centring /
+            reported on the original Y scale. This removes the centering /
             scaling leakage of the prior default. Set to False to keep the
-            pre-1.28 behaviour, in which case ``X`` and ``Y`` should already
+            pre-1.28 behavior, in which case ``X`` and ``Y`` should already
             be scaled; a :class:`SpecificationWarning` is emitted. A fold
             model that scales (``scale=True``, the default) still autoscales
             its own rows, so pass ``scale=False`` as well to keep a scaling
@@ -1863,14 +1887,14 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             predicts it, whichever scalings apply.
 
             Pass the **raw, unscaled** blocks under the default. In-fold
-            re-standardisation overwrites whatever scaling the caller applied,
+            re-standardization overwrites whatever scaling the caller applied,
             so two deliberately different strategies (autoscale versus Pareto,
             say) become the same model and report RMSECV identical to several
             decimal places: a comparison between them shows no difference for
             reasons that have nothing to do with the data. A
             :class:`SpecificationWarning` is emitted when ``X`` arrives already
-            centred and unit-variance scaled, which is the detectable half of
-            that case; a block scaled some other way cannot be recognised, so
+            centered and unit-variance scaled, which is the detectable half of
+            that case; a block scaled some other way cannot be recognized, so
             the rule is the caller's to keep.
         min_q2_increase : float, default 0.01
             Threshold used only when ``selection_rule="q2_increment"``: the
@@ -1890,7 +1914,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             is judged ``selection_is_stable=True`` iff the modal vote share
             in ``selection_distribution`` is at least this fraction.
             Meinshausen & Bühlmann (2010, *JRSS-B*) suggest 0.6-0.9 for
-            their variable-selection analogue; we default to the
+            their variable-selection analog; we default to the
             permissive end.
         **pls_kwargs
             Additional keyword arguments passed to the ``PLS()`` constructor
@@ -1998,11 +2022,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         n_folds_total = len(splits)
         min_train_size = min(len(train_idx) for train_idx, _ in splits)
 
-        # Centring inside a fold removes one DoF, so a training fold of n rows, re-centred,
+        # Centering inside a fold removes one DoF, so a training fold of n rows, re-centered,
         # has rank at most n - 1. Cap A there when the fold is scaled, or when its model
-        # centres the fold itself (PLS(scale=True) does, and PRM always): without in-fold
+        # centers the fold itself (PLS(scale=True) does, and PRM always): without in-fold
         # scaling the cap was n, and a fold model on as few rows as columns ran out of X (#1027).
-        probe: dict[str, typing.Any] = {"n_components": 1}  # pragma: no mutate - only whether it centres is read
+        probe: dict[str, typing.Any] = {"n_components": 1}  # pragma: no mutate - only whether it centers is read
         centred = scale_inside_folds or cls(**probe, **pls_kwargs)._centres_and_scales()
         # A column with nothing observed is left out of every fold model, so it adds no component (#1114).
         upper = min(min_train_size - centred, int(X.notna().any().sum()))
@@ -2020,7 +2044,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # Drives the 1-SE rule's standard error.
         per_fold_rmse = np.full((A, n_folds_total), np.nan)
         # Per-fold total PRESS (sum of squared Y residuals over the fold), on the
-        # same linear scale as the Q2 normalisation; used to put a +/-1 SE band
+        # same linear scale as the Q2 normalization; used to put a +/-1 SE band
         # on the Q2 curve, mirroring PCA's se_press -> q2_se rescaling.
         per_fold_press_total = np.full((A, n_folds_total), np.nan)
         # Out-of-fold predictions: with repeated K-fold each row appears in
@@ -2137,7 +2161,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         se_rmsecv = pd.Series(se_values, index=component_index, name="SE(RMSECV)")
 
         # Q2 standard error: the standard error of the per-fold total PRESS, rescaled by the
-        # Y sum-of-squares that normalises the validated Q2 (Q2_Y_total = 1 - PRESS /
+        # Y sum-of-squares that normalizes the validated Q2 (Q2_Y_total = 1 - PRESS /
         # tss_y.sum()). This is the half-width of a +/-1 SE band around the
         # ``r2y_validated["total"]`` curve, computed the same way as PCA's ``q2_se``.
         #
@@ -2340,7 +2364,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 (NaN otherwise). It is a monotone function of :math:`Q^2`.
               - ``r_train``, ``r_cv``, ``r_cv_threshold``, ``r_cv_p``: correlation of
                 :math:`t_a` and :math:`u_a` on the training rows; the same correlation
-                pooled over the held-out rows (about the training-fold centre, so it is
+                pooled over the held-out rows (about the training-fold center, so it is
                 unaffected by sign flips between folds); the :math:`1-\alpha` quantile of
                 its null distribution under permuted Y; and its one-sided permutation
                 *p*-value.
@@ -2473,11 +2497,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             exactly once.
         scope : {"global", "local"}, default="global"
             ``"global"`` (the published default) fits the fold models on the rows as the
-            model fitted to all rows scales them (autoscaled, for PLS), without re-centring
+            model fitted to all rows scales them (autoscaled, for PLS), without re-centering
             them; the prediction property above is then exact. ``"local"`` autoscales each
             training fold separately, as :meth:`PLS.select_n_components` does; scores and
             SPE are still reproduced exactly, predictions approximately. A fold model that
-            centres its rows itself, as :class:`~process_improve.multivariate.methods.PRM`
+            centers its rows itself, as :class:`~process_improve.multivariate.methods.PRM`
             always does, predicts approximately in either scope.
         random_state : int, numpy.random.Generator or None, default=None
             Seed for the fold assignment and the random directions of the residual part.

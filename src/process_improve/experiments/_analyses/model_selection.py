@@ -24,7 +24,7 @@ screening or supersaturated design.
 
 Between the two lie the designs whose runs are enough but whose candidates are
 aliased with each other, as ``A:B`` and ``C:D`` are in a half fraction run twice, or
-the squares of a two-level factorial with centre runs; and those where the runs
+the squares of a two-level factorial with center runs; and those where the runs
 estimate a candidate only in part, as an interaction of two categories whose levels
 never all meet. Started from all of them, neither of an aliased pair could leave,
 since the model fits as well without either one. So the search is run twice, and the
@@ -41,7 +41,7 @@ rounding.
 
 A Scheffe mixture model has no intercept, since the components sum to 1: every
 linear blending term stays in, and the search chooses among the non-linear blending
-terms (``x1:x2``, and ``x1:x2:x3`` for the special cubic). A formula analysed as a
+terms (``x1:x2``, and ``x1:x2:x3`` for the special cubic). A formula analyzed as a
 mixture model is searched the same way, over its own terms.
 
 Any other formula is searched over its own terms too, each one free to enter once
@@ -96,7 +96,7 @@ class _Formula:
     """An explicit formula as the search needs it.
 
     ``terms`` holds each term of the formula, less its intercept and its blocks, as the codes of its factors:
-    ``("A",)``, ``("A", "B")`` for ``A:B``, ``("I(A ** 2)",)``. ``mixture`` says the formula was analysed as a
+    ``("A",)``, ``("A", "B")`` for ``A:B``, ``("I(A ** 2)",)``. ``mixture`` says the formula was analyzed as a
     mixture model, so its linear blending terms stay in and it has no intercept; ``intercept`` says whether
     any other formula has one.
     """
@@ -322,7 +322,7 @@ def _candidates(
     """Return the model searched, the linear blending terms it keeps, its candidates, and whether it has an intercept.
 
     A named model is searched as itself, and None as the interactions model. A Scheffe model, and a formula
-    analysed as a mixture model, keep the factors as their linear blending terms and have no intercept.
+    analyzed as a mixture model, keep the factors as their linear blending terms and have no intercept.
     """
     if formula is None:
         searched = model if model in ("main_effects", "interactions", "quadratic", *SCHEFFE_MODELS) else "interactions"
@@ -364,7 +364,7 @@ def _run_model_selection(
         ``"aicc"`` (default), ``"aic"`` or ``"bic"``.
     formula : _Formula or None
         The terms of ``model``, an explicit formula, and how it was fitted; None for a
-        named model. A formula analysed as a mixture model keeps its linear blending
+        named model. A formula analyzed as a mixture model keeps its linear blending
         terms (the factors), as a Scheffé model does, and the search chooses among the
         others. Any other formula may lose any term that no remaining term contains.
     blocks : Sequence[str]

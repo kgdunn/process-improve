@@ -70,7 +70,7 @@ sets the number of runs; the default is ``10 * k``.
 
    * - Design type
      - Smallest distance between runs (higher is more spread)
-     - Squared centred L2 discrepancy (lower is more uniform)
+     - Squared centered L2 discrepancy (lower is more uniform)
    * - ``latin_hypercube``
      - 0.21
      - 0.0062
@@ -95,7 +95,7 @@ possible, which pushes them to the faces and corners of the region; in 8 or more
 every run of a ``"maximin"`` design sits on the levels -1, 0 and +1, so runs coincide
 when projected onto a few factors. A uniform design matches the fraction of runs in
 every sub-box to that sub-box's volume. The discrepancy column is Hickernell's squared
-centred L2 discrepancy, ``CD^2``, the value ``scipy.stats.qmc.discrepancy`` returns and
+centered L2 discrepancy, ``CD^2``, the value ``scipy.stats.qmc.discrepancy`` returns and
 ``metadata["centered_l2_discrepancy"]`` reports. The Latin
 hypercube types also guarantee that each factor's range is cut into ``n`` slices with
 one run in each, which the maximin and sequence designs do not.

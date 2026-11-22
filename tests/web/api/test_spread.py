@@ -2,7 +2,7 @@
 
 The analysis (``api_analyze_runs``) takes the runs at one setting as readings of it. Each setting read twice or more
 gives its readings' mean, standard deviation and ln s, and, for a response with a goal, the signal-to-noise ratio of
-that goal: larger is better to maximise, smaller is better to minimise, nominal is best for a target. The response
+that goal: larger is better to maximize, smaller is better to minimize, nominal is best for a target. The response
 table averages each over the settings at each level of a factor. Schmidt and Launsby's signal-to-noise example, a
 2^(3-1) read twice at each setting, prints the table for all three ratios, and the page reproduces it.
 """
@@ -23,7 +23,7 @@ LEVELS_1_2 = [{"name": n, "low": 1, "high": 2, "units": ""} for n in "ABC"]
 
 
 def analysed(api, goal: str | None = None, readings: list[list] = READINGS, settings: list[list] = SETTINGS) -> dict:
-    """Analyse each setting run once for each of its readings, in that order, with the response's goal."""
+    """Analyze each setting run once for each of its readings, in that order, with the response's goal."""
     info = {"goal": goal, "target": 20} if goal else {}
     runs = [s for s, values in zip(settings, readings, strict=True) for _ in values]
     design = api.ok(
@@ -124,7 +124,7 @@ def test_runs_read_once_have_no_spread(api):
 
 
 def test_a_setting_repeated_alone_is_no_table(api):
-    """A centre run read three times, beside corners read once, is one setting with a spread: no table."""
+    """A center run read three times, beside corners read once, is one setting with a spread: no table."""
     runs = [*SETTINGS, [1.5, 1.5, 1.5], [1.5, 1.5, 1.5], [1.5, 1.5, 1.5]]
     design = api.ok("api_make_design", {"design_type": "given", "factors": LEVELS_1_2, "runs": runs, "response": "y"})
     analysis = api.ok("api_analyze_runs", {**held_of(design), "responses": [25.0, 10, 25, 10, 17, 18, 19]})

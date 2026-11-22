@@ -14,7 +14,7 @@ regression even if the tool's "happy path" still works.
 
 Scaffolding landed in ENG-15. The first example uses
 ``robust_scale_sn`` -- the simplest registered tool (one
-parameter, list of numbers). A follow-up generalises this to walk
+parameter, list of numbers). A follow-up generalizes this to walk
 the whole ``_TOOL_REGISTRY`` using a JSON-Schema -> hypothesis
 strategy converter (the hardest part is supporting ``oneOf`` and
 nested ``items``).

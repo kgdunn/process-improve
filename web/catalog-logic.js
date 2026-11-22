@@ -22,9 +22,9 @@ export const MODELS = { main_effects: "main effects", interactions: "two-factor 
 export const COLLECTIONS = ["published", "generated", "both"];
 
 /** How the list can be ordered. */
-export const SORTS = { default: "Catalogue order", runs: "Fewest runs", factors: "Fewest factors", newest: "Most recent", title: "Title" };
+export const SORTS = { default: "Catalog order", runs: "Fewest runs", factors: "Fewest factors", newest: "Most recent", title: "Title" };
 
-/** The colour of each family on the timeline: the Okabe-Ito colours first, for the families most designs are in. */
+/** The color of each family on the timeline: the Okabe-Ito colors first, for the families most designs are in. */
 export const FAMILY_COLOURS = {
   full_factorial: "#0072B2",
   fractional_factorial: "#56B4E9",
@@ -39,7 +39,7 @@ export const FAMILY_COLOURS = {
   supersaturated: "#661100",
 };
 
-/** The colour of a family the map does not single out. */
+/** The color of a family the map does not single out. */
 export const OTHER_COLOUR = "#A6A49E";
 
 /** The filters with nothing chosen: every design passes. */
@@ -313,7 +313,7 @@ const NOT_A_DESIGN = new Set(["comparison", "other"]);
 const ahead = (d) => (d.glyph && !NOT_A_DESIGN.has(d.family) ? 0 : 1);
 
 /**
- * Order designs: as the catalogue lists them (designs with their runs first, then comparisons and
+ * Order designs: as the catalog lists them (designs with their runs first, then comparisons and
  * entries without runs), by size, by year (newest first) or by title.
  */
 export function sorted(designs, how) {
@@ -388,7 +388,7 @@ export function sizeSentence(catalog, state, count) {
   return `${count} listed: ${[...families.map((f) => catalog.families?.[f]?.label ?? f), ...size].join(", ")}.`;
 }
 
-/** What the designs of each step of the map's colours estimate, in words. */
+/** What the designs of each step of the map's colors estimate, in words. */
 export const STEP_WORDS = ["none of these models, or none is stated", "the main effects", "the main effects and the two-factor interactions", "the full quadratic"];
 
 /**
@@ -404,7 +404,7 @@ export function bandPlace(runs) {
   return band + within;
 }
 
-/** What a design estimates, as a step of the map's colours: 3 the full quadratic, 2 interactions, 1 main effects, 0 none or not stated. */
+/** What a design estimates, as a step of the map's colors: 3 the full quadratic, 2 interactions, 1 main effects, 0 none or not stated. */
 export const modelStep = (design) => ["main_effects", "interactions", "quadratic"].indexOf(largestModel(design.models)) + 1;
 
 /** The step most of these designs are at; of two steps as common, the higher. */
@@ -562,7 +562,7 @@ const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
 const hex = (rgb) => `#${rgb.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
 
 /**
- * The colour of a coded setting, as the book draws a run matrix: blue at -1, light grey at 0 and
+ * The color of a coded setting, as the book draws a run matrix: blue at -1, light gray at 0 and
  * vermillion at +1, darker beyond, as an axial run of a central composite design is.
  */
 export function settingColour(value) {
@@ -581,7 +581,7 @@ const LABEL_NEAR = 0.25;
 
 /**
  * The label a categorical factor's coded setting stands for: its labels are coded evenly from -1, the first, to +1,
- * the last, in the order the catalogue lists them. Null when the setting is missing or falls between two labels.
+ * the last, in the order the catalog lists them. Null when the setting is missing or falls between two labels.
  */
 export function labelOf(factor, coded) {
   if (coded === null || coded === undefined) return null;
@@ -799,7 +799,7 @@ export function sourceLine(design, catalog) {
 const repr = (value) => (typeof value === "string" ? JSON.stringify(value) : String(value));
 
 /**
- * The Python that gives a reader the design: the library call that makes it, or the catalogue entry that holds it.
+ * The Python that gives a reader the design: the library call that makes it, or the catalog entry that holds it.
  * It is written to be read: one step a line, each step with a comment, and no line wider than the box shows.
  */
 export function pythonCode(design, detail) {
@@ -838,7 +838,7 @@ export function pythonCode(design, detail) {
 /** Whether the source prints the entry's runs: the page holds them coded, or holds the results printed beside them. */
 const printsRuns = (detail) => Boolean(detail?.coded_runs?.length || Object.keys(detail?.response_values ?? {}).length);
 
-/** The Python that reads a published design's entry from the reference catalogue, and prints its factors and runs. */
+/** The Python that reads a published design's entry from the reference catalog, and prints its factors and runs. */
 function catalogueCode(design, detail) {
   const listed = detail?.listed === "designs" ? "reference_designs" : "reference_experiments";
   const factors = Boolean(detail?.factors?.length);
@@ -908,7 +908,7 @@ export function checkIndex(data) {
 /**
  * Mark each design that some source prints: a published design, and a generated one of the same
  * class as a published one (see sameDesigns). A generated design left unmarked is one no source in
- * the catalogue prints.
+ * the catalog prints.
  */
 export function markInSource(designs) {
   const printed = new Set(designs.filter((d) => d.collection === "published" && d.design_class).map((d) => d.design_class));
@@ -1067,7 +1067,7 @@ export function projectionText(summary, names) {
 // ---------------------------------------------------------------- a design's correlations
 /**
  * The absolute correlation between a design's main effects, squares and two-factor interactions, as
- * compare_designs reads them (its correlations) and names them: each column centred and scaled to
+ * compare_designs reads them (its correlations) and names them: each column centered and scaled to
  * length 1, in that order. A column that does not vary, such as the square of a two-level factor, has
  * no correlation: its row and column are null, as the app's correlation map leaves them blank.
  */
@@ -1330,7 +1330,7 @@ const number = (x) => String(Number(x.toPrecision(12)));
 
 /**
  * Write a limit on the coded settings in a design's factors and their own units, as Factorial reads
- * a limit: each letter becomes ((name - centre) / half-range). Every operation is bracketed, so the
+ * a limit: each letter becomes ((name - center) / half-range). Every operation is bracketed, so the
  * text means what the tree means.
  */
 export function limitInUnits(limit, factors) {

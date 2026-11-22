@@ -1,7 +1,7 @@
 """Validation (``web/validation.html``): what the page says must stay true of the record it sums up.
 
 The page is written by hand, for a reader who wants one screen and no table of thousands of checks. Its names and
-counts come from two places a test can read: the reference catalogue's list of sources, and
+counts come from two places a test can read: the reference catalog's list of sources, and
 ``web/checked.json``, which ``scripts/design_crosscheck/tabulate.py`` writes from the comparison of each
 design with the other packages. A source or a package that joins either one fails here until the page says so.
 """
@@ -33,7 +33,7 @@ MARK = r'data-state="(\w+)"></span>([\w.-]+)<span class="visually-hidden">: ([^<
 WORDS = {"match": "gives the same design", "known": "differs in places, for a known reason"}
 
 
-def test_the_page_counts_the_sources_of_the_reference_catalogue():
+def test_the_page_counts_the_sources_of_the_reference_catalog():
     sources = len(reference_sources())
     assert f"the designs that {sources} textbooks and papers print" in PAGE
     assert f"{sources} books, handbooks and papers" in PAGE

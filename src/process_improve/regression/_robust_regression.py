@@ -590,7 +590,7 @@ def multiple_linear_regression(
     Keys present only for single-feature ``X`` (and only when ``fit_intercept``
     is True and there is enough non-degenerate data)::
 
-        x_ssq:                    sum of squares of the centred predictor
+        x_ssq:                    sum of squares of the centered predictor
         pi_range:                 prediction interval above and below, over the
                                   range of the predictor (``pi_resolution`` points)
     """

@@ -90,7 +90,7 @@ def ssq(X: np.ndarray, axis: int | None = None) -> float | np.ndarray:
     """
     if axis not in (0, 1, None):
         raise ValueError(f"axis must be 0, 1 or None; got {axis}.")
-    # One vectorised call, not a Python loop over the rows or columns: PLS
+    # One vectorized call, not a Python loop over the rows or columns: PLS
     # cross-validation calls this millions of times per row and column, and the
     # loop was over half its run time.
     return np.nansum(np.asarray(X) ** 2, axis=axis)
@@ -211,7 +211,7 @@ def _quick_regress_masked(Y: np.ndarray, x: np.ndarray, denom_floor: float, per:
             # Coefficient is undefined when the effective ``x`` (after
             # NaN masking in Y) has no signal: ``x`` is all zero, or the
             # column ``Y[:, k]`` is all NaN. Return 0.0 (no contribution)
-            # rather than the un-normalised numerator, which the previous
+            # rather than the un-normalized numerator, which the previous
             # code returned silently. SEC-21 (#270) sub-item 7.
             # The threshold is relative to ssq(x); see "Degenerate denominators" above.
             b[k] = numer / denom if denom > denom_floor else 0.0
@@ -225,7 +225,7 @@ def _quick_regress_masked(Y: np.ndarray, x: np.ndarray, denom_floor: float, per:
         # of squares of `x` restricted to the non-missing cells of row `n`, so it is
         # 1.0 only when `x` is unit-norm AND that row of Y has no NaN. Two call sites
         # pass `c_a` (`_pls.py` and `_mbpls.py`), which NIPALS deliberately never
-        # renormalises, and any missing cell in Y shrinks it further. Measured over
+        # renormalizes, and any missing cell in Y shrinks it further. Measured over
         # real fits: 1.0 for every complete-data PCA call, but only half of the
         # complete-data PLS calls and 46% of the calls with missing data.
         denom = ssq(~np.isnan(Y[n, :]) * x.T)
@@ -239,7 +239,7 @@ def _quick_regress_complete(Y: np.ndarray, x: np.ndarray, denom_floor: float, pe
 
     :func:`_quick_regress_masked` spends nearly all its time on per-row
     ``nan_to_num`` / ``isnan`` calls that change nothing when ``Y`` is complete, and NIPALS
-    calls it thousands of times per fit. Here every coefficient comes from one vectorised
+    calls it thousands of times per fit. Here every coefficient comes from one vectorized
     product, and the result is **bit-for-bit** the loop's, not merely close to it:
 
     * each numerator is the same elementwise products summed along a C-contiguous row,
@@ -360,7 +360,7 @@ def _kernel_pls(
     Implements the Dayal-MacGregor (1997) kernel algorithm, which extracts the
     PLS weights, loadings and regression matrix directly from the kernels,
     without access to the original ``X`` / ``Y`` blocks. ``X'X`` is not deflated;
-    each direction ``r`` is orthogonalised against the earlier loadings so that
+    each direction ``r`` is orthogonalized against the earlier loadings so that
     the score inner product is ``r' (X'X) r``.
 
     Parameters

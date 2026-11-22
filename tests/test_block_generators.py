@@ -22,7 +22,7 @@ def factorial(names: str | list[str], **options):
     factors = [Factor(name=name, low=-1, high=1) for name in names]
     design_type = "fractional_factorial" if "generators" in options else "full_factorial"
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore", UserWarning)  # no centre runs, so no pure error: wanted here
+        warnings.simplefilter("ignore", UserWarning)  # no center runs, so no pure error: wanted here
         return generate_design(factors, design_type=design_type, n_center_points=0, **options)
 
 

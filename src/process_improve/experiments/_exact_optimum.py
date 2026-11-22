@@ -6,15 +6,15 @@ A response that is a straight line in the factors gives Derringer-Suich ramps th
 straight lines too, and the logarithm of the composite desirability is then a concave
 function of those ramps. Over a region with straight constraints, factors that are left
 out or used at no less than a minimum, and limits on how many factors are used, the
-best setting solves a mixed-integer programme with that concave objective.
+best setting solves a mixed-integer program with that concave objective.
 
 Each logarithm is replaced by tangents, which lie on or above it. What is left is a
-mixed-integer *linear* programme, which HiGHS solves to proven optimality: its solution
+mixed-integer *linear* program, which HiGHS solves to proven optimality: its solution
 says which factors to use, and its objective is an upper bound on the desirability of
 every setting in the region. With those factors in use the best setting is a linear
-programme's, refined with tangents where its own solution sits until bound and
+program's, refined with tangents where its own solution sits until bound and
 desirability agree (Kelley's cutting planes, 1960). The tangents at that setting then
-go to the mixed-integer programme, whose bound for this set of factors is now exact,
+go to the mixed-integer program, whose bound for this set of factors is now exact,
 and it is solved again: it returns the same set, which proves the setting, or a set
 that may still be better. No setting of the region scores higher than a proven one,
 which a search from starting points cannot say.
@@ -45,10 +45,10 @@ _AGREEMENT_IN_SET = 1e-7
 #: Two tangents whose points differ by less than this share are taken as the same tangent: the second would
 #: lower the bound by less than 1e-8 of it, and HiGHS can hardly tell their two rows apart.
 _SAME_TANGENT = 1e-4
-#: The most rounds of tangents, and the seconds the search may take; one programme is given what is left of them.
+#: The most rounds of tangents, and the seconds the search may take; one program is given what is left of them.
 _ROUNDS = 30
 _SECONDS = 20.0
-#: The status :func:`scipy.optimize.milp` gives a programme that HiGHS could not solve ("Solve error").
+#: The status :func:`scipy.optimize.milp` gives a program that HiGHS could not solve ("Solve error").
 _SOLVE_ERROR = 4
 #: How far inside the limits of an ``"in_range"`` goal the setting is kept, as a share of their width. A setting
 #: on a limit is beyond it by rounding as often as not, and the goal then scores 0. HiGHS meets a row to about
@@ -93,7 +93,7 @@ class ExactOptimum:
     score: float
     #: The composite desirability no setting of the region exceeds, when ``holds``.
     bound: float
-    #: Whether HiGHS solved the programme the bound is from to the end. A bound it did not is no bound.
+    #: Whether HiGHS solved the program the bound is from to the end. A bound it did not is no bound.
     holds: bool
 
     def proves(self, score: float) -> bool:
@@ -133,10 +133,10 @@ def _ramps(
 
 
 class _Programme:
-    """The mixed-integer linear programme: its variables are the factors, the factors in use, the ramps and the scores.
+    """The mixed-integer linear program: its variables are the factors, the factors in use, the ramps and the scores.
 
     A score is the logarithm of one response's desirability, held under the tangents to
-    it. The programme maximises the scores' weighted sum, the logarithm of the composite.
+    it. The program maximizes the scores' weighted sum, the logarithm of the composite.
     """
 
     def __init__(
@@ -236,13 +236,13 @@ class _Programme:
     def solve(
         self, used: np.ndarray | None = None, margin: float = _INSIDE, seconds: float = _SECONDS
     ) -> tuple[np.ndarray, np.ndarray, float, bool] | None:
-        """Return the programme's setting, the factors it uses, its bound on the desirability, and whether it is solved.
+        """Return the program's setting, the factors it uses, its bound on the desirability, and whether it is solved.
 
         With ``used``, which says for each factor that can be left out whether it is in
-        use, the programme is the linear one over that set of factors. ``margin`` is how
+        use, the program is the linear one over that set of factors. ``margin`` is how
         far inside the limits of the in-range goals the setting is kept; with 0 the bound
         is the one over the whole region. ``seconds`` is the time HiGHS may take: a
-        programme it does not finish in them is not solved, and its bound proves nothing.
+        program it does not finish in them is not solved, and its bound proves nothing.
         """
         from process_improve.experiments.designs_omars_ilp import _run_milp  # noqa: PLC0415
 
@@ -257,12 +257,12 @@ class _Programme:
         options = {"time_limit": seconds, "mip_rel_gap": 0.0}
         solved = _run_milp(self.cost, rows, options, integrality=integrality, bounds=bounds)
         if solved.x is None and solved.status == _SOLVE_ERROR:
-            # HiGHS's presolve fails on a programme now and then that HiGHS solves without it.
+            # HiGHS's presolve fails on a program now and then that HiGHS solves without it.
             solved = _run_milp(self.cost, rows, {**options, "presolve": False}, integrality=integrality, bounds=bounds)
         if solved.x is None:
             return None
         # HiGHS may stop within 1e-6 of the best objective: its own bound on that objective is the one that holds.
-        dual = getattr(solved, "mip_dual_bound", None)  # None for a linear programme
+        dual = getattr(solved, "mip_dual_bound", None)  # None for a linear program
         lowest = float(solved.fun) if dual is None else min(float(solved.fun), float(dual))
         in_use = np.round(solved.x[self.k : self.k + self.n_gaps])
         # HiGHS meets a bound to about 1e-7: a factor left out is put at its zero, one in use at its minimum or above.
@@ -275,7 +275,7 @@ class _Programme:
         """Return the setting of largest desirability that uses the factors ``used`` marks, from ``start`` on.
 
         The tangents this adds on the way are taken out again: only those at the setting
-        returned are for the caller to keep, which leaves the programme's tangents apart
+        returned are for the caller to keep, which leaves the program's tangents apart
         from one another.
         """
         n_rows, n_touches = len(self.rows), [len(touches) for touches in self.touches]
@@ -323,7 +323,7 @@ def exact_optimum(
     ExactOptimum or None
         The best setting found, its composite desirability, and the composite desirability
         that no setting of the region exceeds; the setting is proven when the two agree.
-        None when the programme has no solution: the region is empty, or every setting
+        None when the program has no solution: the region is empty, or every setting
         leaves a desirability at 0.
     """
     programme = _Programme(region, models, goals, importances)

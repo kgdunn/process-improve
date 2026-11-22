@@ -3,7 +3,7 @@
 Goos and Jones (2011, Section 10.2) compare the wind tunnel's I-optimal split-plot design with Dr.
 Cavendish's second option. Their FDS curves cross at a fraction of 0.20 of the design space. The book
 prints the second option's relative D-efficiency as 89.2% and the I-optimal design's gain as 12.1%;
-the designs it prints give 91.4% and 9.4%, which the reference catalogue records as disagreements.
+the designs it prints give 91.4% and 9.4%, which the reference catalog records as disagreements.
 """
 
 from __future__ import annotations

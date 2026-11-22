@@ -34,11 +34,11 @@ def test_every_offered_design_generates(api, design_type):
 
 @pytest.mark.parametrize("design_type", ALL_DESIGNS)
 def test_run_sheet_lists_the_runs_in_their_randomised_order(api, bootstrap, design_type):
-    """Row i of the sheet is the i-th run the library randomised, and "Std order" is where it sits unrandomised.
+    """Row i of the sheet is the i-th run the library randomized, and "Std order" is where it sits unrandomized.
 
     ``DesignResult.design_actual`` is already in run order, and ``run_order[i]`` is the
     standard-order position of its i-th row. Sorting the sheet on that position instead
-    lists the runs unrandomised, centre points last, under a "Run order" of 1..n.
+    lists the runs unrandomized, center points last, under a "Run order" of 1..n.
     """
     spec = {"design_type": design_type, "factors": FACTORS, "budget": 14}
     sheet = run_sheet(api.ok("api_make_design", spec))
@@ -56,17 +56,17 @@ def test_run_sheet_lists_the_runs_in_their_randomised_order(api, bootstrap, desi
 
 
 def test_std_order_rebuilds_the_standard_order_factorial(api):
-    """Sorted on "Std order", a 2^3 factorial reads corner by corner, last factor fastest, then its centre runs."""
+    """Sorted on "Std order", a 2^3 factorial reads corner by corner, last factor fastest, then its center runs."""
     spec = {"design_type": "full_factorial", "factors": FACTORS, "n_center_points": 3}
     sheet = run_sheet(api.ok("api_make_design", spec))
     standard = sheet.sort_values("Std order")
     corners = np.array(list(itertools.product([-1, 1], repeat=3)))
     np.testing.assert_allclose(coded(standard, FACTORS), np.vstack([corners, np.zeros((3, 3))]))
-    assert not np.allclose(coded(sheet, FACTORS), coded(standard, FACTORS)), "the runs are made in a randomised order"
+    assert not np.allclose(coded(sheet, FACTORS), coded(standard, FACTORS)), "the runs are made in a randomized order"
 
 
 def test_std_order_rebuilds_the_definitive_screening_foldover(api):
-    """Sorted on "Std order", a DSD reads as its conference matrix C, then -C, then the centre run."""
+    """Sorted on "Std order", a DSD reads as its conference matrix C, then -C, then the center run."""
     spec = {"design_type": "dsd", "factors": FACTORS, "n_center_points": 1}
     standard = coded(run_sheet(api.ok("api_make_design", spec)).sort_values("Std order"), FACTORS).to_numpy()
     half = (len(standard) - 1) // 2

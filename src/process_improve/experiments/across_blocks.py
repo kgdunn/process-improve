@@ -270,7 +270,7 @@ def fit_across_blocks(
     forms : mapping of str to str
         Candidate forms, by name: each a model formula's right-hand side over the factors, such as
         ``"A + B + A:B + I(A**2)"``. A categorical factor can be written ``C(F, Sum)`` for effects coding; a square
-        root as ``np.sqrt(A)``. Code the factors first when a form's meaning depends on their centre and scale.
+        root as ``np.sqrt(A)``. Code the factors first when a form's meaning depends on their center and scale.
     block : str
         The block column.
 

@@ -3,12 +3,12 @@
 """The sequential method of response surfaces: a path of steepest ascent, and the next design on it (#798).
 
 A first design finds the direction in which the response improves. The experimenter steps along it,
-runs a few settings on the path, and centres the next design on the best of them. Two functions set
+runs a few settings on the path, and centers the next design on the best of them. Two functions set
 that out from a fitted model:
 
 - :func:`steepest_path` steps along the steepest ascent (or descent) as sources set it out: a round
   amount of one leading factor, in its own units, with the other factors in proportion to the slopes;
-- :func:`next_design` centres a new design on a step of that path, each factor's range kept or rescaled.
+- :func:`next_design` centers a new design on a step of that path, each factor's range kept or rescaled.
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ class NoSteepestDirectionError(ValueError):
     """The fitted model is flat at the base of the path, so no direction improves it fastest.
 
     Raised by :func:`steepest_path` when the gradient of the model at the base is zero: at the
-    design centre, when every first-order coefficient is zero.
+    design center, when every first-order coefficient is zero.
     """
 
 
@@ -58,7 +58,7 @@ def steepest_path(
     """Return the path of steepest ascent (or descent) of a fitted model, as a table of steps (#798 S1).
 
     The path leaves ``base`` along the gradient of the fitted model there, which is the first-order
-    coefficients when the base is the centre of the design, and moves every factor in proportion
+    coefficients when the base is the center of the design, and moves every factor in proportion
     to its slope in coded units. A curved surface turns away from this straight line; ridge
     analysis (``optimize_responses(..., method="ridge_analysis")``) follows the curve instead.
 
@@ -83,7 +83,7 @@ def steepest_path(
         rows: step 0 is the base.
     base : dict or None
         Where the path starts, each factor in its own units, as for ``step``. A factor left out
-        is at the centre of its range; by default the path starts at the centre of the design.
+        is at the center of its range; by default the path starts at the center of the design.
     goal : {"maximize", "minimize"}
         ``"maximize"`` follows the steepest ascent, ``"minimize"`` the steepest descent.
 
@@ -176,20 +176,20 @@ def next_design(
     scale: Mapping[str, float] | None = None,
     **design: Any,  # noqa: ANN401
 ) -> DesignResult:
-    """Return a new design centred on a step of a path of steepest ascent (#798 S2).
+    """Return a new design centered on a step of a path of steepest ascent (#798 S2).
 
-    The design's centre is the path's setting at ``at_step``, and each factor keeps the width of
+    The design's center is the path's setting at ``at_step``, and each factor keeps the width of
     its range, times ``scale[factor]`` where given: Davies (11.42) enlarges the units of the
     factors whose effects were small, Box, Hunter and Hunter widen the ranges near a maximum, and
     others narrow them. A factor whose range the path does not know (a model without its coding)
-    is set out in the coded units of the first design, from -1 to +1 about its new centre.
+    is set out in the coded units of the first design, from -1 to +1 about its new center.
 
     Parameters
     ----------
     path : dict
         A path from :func:`steepest_path`.
     at_step : int
-        The step to centre on: 0 is the base of the path.
+        The step to center on: 0 is the base of the path.
     scale : dict or None
         A factor's new range width over its old one; 1 for a factor left out.
     **design
@@ -199,7 +199,7 @@ def next_design(
     Returns
     -------
     DesignResult
-        The design, with ``design_actual`` in the factors' units about the new centre.
+        The design, with ``design_actual`` in the factors' units about the new center.
 
     Raises
     ------
@@ -252,7 +252,7 @@ def _unit(name: str, ranges: Mapping[str, Mapping[str, float]]) -> float:
 
 
 def _coded(point: Mapping[str, float], names: list[str], ranges: Mapping[str, Mapping[str, float]]) -> np.ndarray:
-    """Return a setting given in the factors' own units as a coded vector; a factor left out is at its centre."""
+    """Return a setting given in the factors' own units as a coded vector; a factor left out is at its center."""
     unknown = sorted(set(point) - set(names))
     if unknown:
         raise ValueError(f"base names {unknown}, which are not factors of the model; its factors are {names}.")
@@ -269,7 +269,7 @@ def _gradient(coefficients: list[dict[str, Any]], names: list[str], at: np.ndarr
 
     A term is a product of factors (``A:I(B ** 2)`` is A, B and B), so its slope along a factor is
     the product of the others, once for each time the factor appears in it. A slope that is only
-    what is left when its terms cancel is set to zero, so the judgement does not depend on the
+    what is left when its terms cancel is set to zero, so the judgment does not depend on the
     units of the response.
     """
     index = {name: i for i, name in enumerate(names)}

@@ -78,7 +78,7 @@ def _in_run_order(
     r1, std_error = found["autocorrelation"][0], found["std_error"]
     # Box, Hunter and Hunter (1978) randomize the run order because successive runs of a process are
     # often serially correlated (r1 = -0.29 in their record of 210 yields, p. 63), and randomizing is
-    # what lets the runs be analysed as if they were independent. For independent errors r1 has a
+    # what lets the runs be analyzed as if they were independent. For independent errors r1 has a
     # standard error of about 1/sqrt(N) (p. 587), so |r1| > 2/sqrt(N) is about the 5% level.
     dependent = abs(r1) > 2 * std_error
     check = {

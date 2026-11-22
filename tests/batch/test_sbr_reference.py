@@ -3,8 +3,8 @@
 The fixture in ``tests/fixtures/sbr_batch_pca/`` holds the scores and loadings
 that ``unit_tests.m::PCA_batch_data`` of the 2011 toolkit asserted: a
 two-component PCA on all nine trajectories of the 53 batches, every unfolded
-column mean-centred and scaled to unit variance. MATLAB unfolds time-major;
-the fixture is labelled ``(tag, sequence)`` so it can be reindexed onto the
+column mean-centered and scaled to unit variance. MATLAB unfolds time-major;
+the fixture is labeled ``(tag, sequence)`` so it can be reindexed onto the
 tag-major layout that :func:`process_improve.batch.dict_to_wide` produces.
 Principal components are defined up to their sign, so each column is
 sign-aligned before comparing, as the legacy ``assertEAE`` did.

@@ -82,7 +82,7 @@ const MARKUP = `
   <details class="python">
     <summary>Show the Python code of this figure</summary>
     <p class="hint">The process-improve code that draws this figure, after the code of the analysis it draws:
-      copy it and it runs as it is. The page then puts the axes in your own units and its own colours.</p>
+      copy it and it runs as it is. The page then puts the axes in your own units and its own colors.</p>
     <pre><code></code></pre>
     <button type="button" class="link" data-do="code">Copy the code</button>
   </details>`;

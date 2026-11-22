@@ -10,7 +10,7 @@
 export const TIER_KEYS = ["reproduced", "within_1", "within_5", "not_reproduced"];
 
 /**
- * The causes the catalogue records, as the page names them: why a number differs from its source, and why
+ * The causes the catalog records, as the page names them: why a number differs from its source, and why
  * a printed number is not recomputed. The build's JSON holds what each means; these are its short names.
  */
 export const CAUSES = {
@@ -198,13 +198,13 @@ export function formatError(error) {
 
 /**
  * What a number is, by its plain name in ``names`` (the JSON's ``quantities``, which the build takes from
- * web/quantities.json), or by the catalogue's own word where it has none.
+ * web/quantities.json), or by the catalog's own word where it has none.
  */
 export const quantityName = (what, names = {}) => names[what] ?? String(what ?? "").replaceAll("_", " ");
 
 /**
  * The quantity a number is, in a few words, as ``_quantity`` in scripts/build_web_app.py names it: what it is and
- * of which term. The catalogue calls a quantity it has no name for "other", and says what it is in its term.
+ * of which term. The catalog calls a quantity it has no name for "other", and says what it is in its term.
  */
 export const quantity = (number, names = {}) =>
   [number.what === "other" ? "" : quantityName(number.what, names), number.term].filter((part) => part).join(": ");
@@ -238,7 +238,7 @@ export function filterCases(cases, sources, { query = "", source = "", form = ""
   );
 }
 
-/** A case's kind as the page names it: the catalogue writes "case study" two ways, and a design has none. */
+/** A case's kind as the page names it: the catalog writes "case study" two ways, and a design has none. */
 export const kindOf = (c) => String(c.kind ?? "design").replace("-", " ");
 
 /** Each kind of case among ``cases``, with how many there are, most first. */

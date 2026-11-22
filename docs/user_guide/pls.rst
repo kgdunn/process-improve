@@ -153,21 +153,21 @@ component :math:`a`.
 VIP is also available for PCA models (using loadings instead of weights),
 accessed the same way via ``pca.vip()``.
 
-Centring and the Missing Intercept
+Centering and the Missing Intercept
 -----------------------------------
 
 ``PLS`` fits no intercept term. The default ``scale=True`` hides that: the model
-mean-centres and unit-variance-scales both blocks with :class:`MCUVScaler`
+mean-centers and unit-variance-scales both blocks with :class:`MCUVScaler`
 before the NIPALS fit, and maps predictions back to the original scale
-afterwards, so the response mean is carried by the centring rather than by a
+afterwards, so the response mean is carried by the centering rather than by a
 coefficient.
 
-With ``scale=False`` nothing is centred, and a response left on its natural
+With ``scale=False`` nothing is centered, and a response left on its natural
 scale displaces every prediction by roughly the response mean. R² and Q² then go
 large and negative on data that does contain a strong relationship, which reads
 as "there is nothing here". ``fit`` announces this with an
-:class:`~process_improve.multivariate.UncentredDataWarning` when either block
-has column means that are large relative to their own spread; it does not centre
+:class:`~process_improve.multivariate.UncenteredDataWarning` when either block
+has column means that are large relative to their own spread; it does not center
 for you, because ``scale=False`` means "touch nothing".
 
 .. code-block:: python
@@ -183,11 +183,11 @@ for you, because ``scale=False`` means "touch nothing".
        scaler_x.transform(X), scaler_y.transform(Y)
    )
 
-Fitting un-centred on purpose
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Fitting un-centered on purpose
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Some fits are deliberately un-centred: a demonstration of the offset itself, or
-a test that proves some other centring check fires. There the warning is the
+Some fits are deliberately un-centered: a demonstration of the offset itself, or
+a test that proves some other centering check fires. There the warning is the
 expected outcome, and under a ``filterwarnings = error`` policy it arrives as an
 exception that cannot be told apart from a failed fit.
 
@@ -200,12 +200,12 @@ your call site:
 
    * - Opt-out
      - Scope
-   * - ``PLS(..., warn_on_uncentred=False)``
+   * - ``PLS(..., warn_on_uncentered=False)``
      - This model only. Every other warning from the same ``fit`` still
        arrives. Stored like any constructor parameter, so it survives
        ``clone()`` and reaches a fit built by a ``Pipeline`` or a grid search.
-   * - ``ignore::process_improve.multivariate.UncentredDataWarning``
-     - Every un-centred-block warning in the filtered scope. Use it when you do
+   * - ``ignore::process_improve.multivariate.UncenteredDataWarning``
+     - Every un-centered-block warning in the filtered scope. Use it when you do
        not construct the model, so the flag is out of reach. Clamped component
        counts and NIPALS non-convergence still warn.
    * - ``ignore::process_improve.multivariate.SpecificationWarning``
@@ -216,23 +216,23 @@ your call site:
 
    import warnings
 
-   from process_improve.multivariate import PLS, UncentredDataWarning
+   from process_improve.multivariate import PLS, UncenteredDataWarning
 
    warnings.simplefilter("error")  # as a strict pytest.ini does
 
-   # Narrowest: this one model is permitted to fit un-centred.
-   model = PLS(n_components=2, scale=False, warn_on_uncentred=False).fit(X, Y_uncentred)
+   # Narrowest: this one model is permitted to fit un-centered.
+   model = PLS(n_components=2, scale=False, warn_on_uncentered=False).fit(X, Y_uncentred)
 
    # Wider: when the model is constructed by code you do not own.
    with warnings.catch_warnings():
-       warnings.simplefilter("ignore", UncentredDataWarning)
+       warnings.simplefilter("ignore", UncenteredDataWarning)
        model = build_and_fit_somebody_elses_pls(X, Y_uncentred)
 
-``UncentredDataWarning`` subclasses
+``UncenteredDataWarning`` subclasses
 :class:`~process_improve.multivariate.SpecificationWarning`, so filters and
 ``pytest.warns(SpecificationWarning)`` assertions written against the parent keep
-matching it. ``warn_on_uncentred`` has no effect under ``scale=True``: the model
-centres both blocks itself, so the condition cannot arise.
+matching it. ``warn_on_uncentered`` has no effect under ``scale=True``: the model
+centers both blocks itself, so the condition cannot arise.
 
 Predictions
 -----------

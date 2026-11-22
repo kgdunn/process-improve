@@ -33,7 +33,7 @@ def _coded(result) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
-# Core behaviour
+# Core behavior
 # ---------------------------------------------------------------------------
 
 
@@ -134,7 +134,7 @@ def test_extra_center_runs_are_added() -> None:
 
 
 def test_sparsity_counts_the_extra_center_runs() -> None:
-    """The sparsity pair was computed on the foldover alone, without the extra centre runs."""
+    """The sparsity pair was computed on the foldover alone, without the extra center runs."""
     from process_improve.experiments import generate_omars
 
     result = generate_omars(_factors(3), center_runs=3, random_state=3, solver_options=_SOLVER)
@@ -164,7 +164,7 @@ def test_n_restarts_is_honoured_and_checked() -> None:
     [(17, 3), (16, 2), (13, 1), (19, 5)],
 )
 def test_center_runs_count_towards_n_runs(n_runs: int, center_runs: int) -> None:
-    """n_runs is the total run count of the returned design, centre runs included (#496)."""
+    """n_runs is the total run count of the returned design, center runs included (#496)."""
     from process_improve.experiments import generate_omars
 
     result = generate_omars(
@@ -216,7 +216,7 @@ def test_selection_criteria_all_yield_valid_omars() -> None:
 def test_satisfice_thresholds_are_applied() -> None:
     from process_improve.experiments import generate_omars
 
-    # A permissive ceiling keeps the candidates; the winner must honour it.
+    # A permissive ceiling keeps the candidates; the winner must honor it.
     result = generate_omars(
         _factors(3),
         satisfice={"max_second_order_correlation": 0.8},
@@ -250,9 +250,9 @@ def test_satisfice_unknown_key_raises() -> None:
 def test_multistart_reaches_catalogue_quality() -> None:
     """The randomized multistart finds a high-D-efficiency 25-run, 5-factor OMARS design.
 
-    A pure feasibility search (the old behaviour) topped out near D-efficiency 37
-    for this cell, while the enumerated OMARS catalogue reaches roughly 39 to 40.6.
-    The multistart must clear a catalogue-competitive bar; this is the regression
+    A pure feasibility search (the old behavior) topped out near D-efficiency 37
+    for this cell, while the enumerated OMARS catalog reaches roughly 39 to 40.6.
+    The multistart must clear a catalog-competitive bar; this is the regression
     guard for the old feasibility-only ceiling.
     """
     from process_improve.experiments import generate_omars
@@ -300,7 +300,7 @@ def test_more_restarts_is_never_worse() -> None:
         solver_options=_SOLVER,
     )
     assert searched.metadata["d_efficiency"] >= baseline.metadata["d_efficiency"]
-    assert searched.metadata["d_efficiency"] >= 39.0  # and it clears the catalogue-competitive bar
+    assert searched.metadata["d_efficiency"] >= 39.0  # and it clears the catalog-competitive bar
 
 
 @pytest.mark.slow
@@ -565,7 +565,7 @@ def test_options_reach_highs(monkeypatch: pytest.MonkeyPatch) -> None:
     assert minimize["disp"] is False
     assert "node_limit" not in unlimited
     # The randomized-objective solves skip the costly root heuristics and strong
-    # branching; the minimise-size and feasibility solves keep the HiGHS defaults.
+    # branching; the minimize-size and feasibility solves keep the HiGHS defaults.
     for options in (default_nodes, custom_nodes, unlimited):
         assert options["mip_heuristic_run_rins"] is False
         assert options["mip_heuristic_run_rens"] is False
@@ -912,7 +912,7 @@ def test_search_report_records_diagnostics() -> None:
     assert result.metadata["search_mode"] == "exhaustive"
     assert result.metadata["solver"] == "highs"
     assert result.metadata["solver_status"] == "Enumerated"
-    # The minimise-size solve proved its size, and the enumeration set aside the
+    # The minimize-size solve proved its size, and the enumeration set aside the
     # designs that cannot fit the model.
     assert report.size_proven_minimal is True
     assert 0 < report.rank_deficient_designs < report.enumerated_designs
@@ -1334,7 +1334,7 @@ def test_canonical_form_is_one_array_for_every_equivalent_design() -> None:
 def test_exhaustive_winner_is_returned_in_canonical_form() -> None:
     """Equivalent designs tie exactly, so rounding must not pick the orientation, which is the same on every platform.
 
-    Only the run order is randomised: sorted by run code, the design is its canonical form.
+    Only the run order is randomized: sorted by run code, the design is its canonical form.
     """
     from process_improve.experiments import generate_omars
 
@@ -1474,7 +1474,7 @@ def test_an_enumeration_overflow_falls_back_to_the_multistart(monkeypatch: pytes
 
 
 def _count_swap_searches(monkeypatch: pytest.MonkeyPatch) -> list[int]:
-    """Record each local-search neighbourhood query (one per descent step)."""
+    """Record each local-search neighborhood query (one per descent step)."""
     calls: list[int] = []
     real_swaps = omars_ilp._SwapIndex.swaps
 

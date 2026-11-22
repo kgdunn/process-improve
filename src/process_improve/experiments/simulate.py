@@ -1,6 +1,6 @@
 # (c) Kevin Dunn, 2010-2026. MIT License.
 
-"""How a design would do on a process you can only hypothesise: simulated studies, judged as the next step judges them.
+"""How a design would do on a process you can only hypothesize: simulated studies, judged as the next step judges them.
 
 :func:`~process_improve.experiments.compare.compare_designs` and
 :func:`~process_improve.experiments.evaluate.evaluate_design` score a design for one fixed model,
@@ -43,9 +43,9 @@ __all__ = ["simulate_design_performance"]
 
 SimGoal = Literal["learn", "maximize", "minimize", "target"]
 
-#: Two columns whose centred correlation is this close to 1 in size are the same column: exact aliases.
+#: Two columns whose centered correlation is this close to 1 in size are the same column: exact aliases.
 _SAME_COLUMN = 1e-9
-#: The term the analysis reports for curvature at the centre runs of a two-level design; it is aliased
+#: The term the analysis reports for curvature at the center runs of a two-level design; it is aliased
 #: with every square there.
 CURVATURE = "curvature"
 #: The largest number of false alarms listed by term for each design.
@@ -68,7 +68,7 @@ def simulate_design_performance(
     alpha: float = 0.05,
     random_state: int | np.random.Generator | None = 42,
 ) -> dict[str, Any]:
-    """Simulate studies with each design on a hypothesised process, and report what their analysis finds.
+    """Simulate studies with each design on a hypothesized process, and report what their analysis finds.
 
     Each design is made ``n_simulations`` times on ``truth``, with fresh noise each time, and each
     simulated study is judged as :func:`~process_improve.experiments.recommend_next_step` judges
@@ -81,7 +81,7 @@ def simulate_design_performance(
 
     A true term counts as found when the analysis finds it, or a term that the design makes
     identical to it (an exact alias, such as ``D`` for ``A:B`` in a resolution III fraction, or the
-    curvature at the centre runs for a square). Every other term found is a false alarm.
+    curvature at the center runs for a square). Every other term found is a false alarm.
 
     Parameters
     ----------
@@ -220,7 +220,7 @@ def _one_study(
 
 
 def _column(study: _Study, term: str) -> np.ndarray:
-    """Return a term's column on the runs, from its internal name; the curvature term is the centre runs."""
+    """Return a term's column on the runs, from its internal name; the curvature term is the center runs."""
     if term == _CURVATURE:
         return study.data[_CURVATURE].to_numpy(dtype=float)
     _, factors = _canonical(term)
@@ -238,7 +238,7 @@ def _same(a: np.ndarray, b: np.ndarray) -> bool:
 
 # --------------------------------------------------------------------------- the report for one design
 def _report(studies: list[dict[str, Any]], truth: TrueProcess, best: dict[str, Any] | None, n_runs: int) -> dict:
-    """Summarise the simulated studies of one design against the truth."""
+    """Summarize the simulated studies of one design against the truth."""
     study = studies[0]["study"]  # the runs' settings are the same in every study; only the response differs
     truths = {t: _column(study, _internal(study, t)) for t in truth.coefficients if t != "Intercept"}
     n = len(studies)
@@ -331,11 +331,11 @@ def _summary(report: dict[str, Any], truth: TrueProcess) -> str:
 def _true_best(
     truth: TrueProcess, names: list[str], goal: SimGoal, target: float | None, span: float = 1.0
 ) -> dict[str, Any]:
-    """Return the coded settings within ``span`` of the centre where the true process best meets the goal.
+    """Return the coded settings within ``span`` of the center where the true process best meets the goal.
 
-    A grid of :data:`_GRID_LEVELS` levels per factor (corners included) finds the neighbourhood of
+    A grid of :data:`_GRID_LEVELS` levels per factor (corners included) finds the neighborhood of
     the best, and L-BFGS-B, with the polynomial's exact gradient, refines the five best grid points.
-    The inert factors are left at the centre. ``span`` is 1 for the ranges themselves.
+    The inert factors are left at the center. ``span`` is 1 for the ranges themselves.
     """
     used = [n for n in names if n in truth.factors]
     terms = [{"term": t, "coefficient": v} for t, v in truth.coefficients.items()]

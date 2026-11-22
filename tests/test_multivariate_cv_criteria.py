@@ -227,7 +227,7 @@ def test_pseudo_validation_predictions_equal_fold_predictions_global_scope() -> 
     Xs, Ys = x_scaler.transform(X), y_scaler.transform(Y)
     fold_predictions = np.zeros(len(X))
     for train, test in pv.cv_splits:
-        model = PLS(n_components=2, scale=False, warn_on_uncentred=False).fit(Xs.iloc[train], Ys.iloc[train])
+        model = PLS(n_components=2, scale=False, warn_on_uncentered=False).fit(Xs.iloc[train], Ys.iloc[train])
         fold_predictions[test] = model.predict(Xs.iloc[test]).to_numpy().ravel()
     fold_predictions = fold_predictions * y_scaler.scale_.iloc[0] + y_scaler.center_.iloc[0]
     np.testing.assert_allclose(pv.global_model.predict(pv.X_pv).to_numpy().ravel(), fold_predictions, atol=1e-10)
@@ -259,7 +259,7 @@ def test_jackknife_angle_scales_the_tangent_by_sqrt_folds_minus_one() -> None:
     assert _jackknife_angle(np.full((3, 1), 90.0), 3)[0] == pytest.approx(90.0)
 
 
-# --- Behaviour on data with known structure ----------------------------------------------
+# --- Behavior on data with known structure ----------------------------------------------
 
 
 def test_structural_rules_find_two_components(two_component_result: object) -> None:
@@ -476,7 +476,7 @@ def test_data_that_cannot_be_cross_validated_is_refused(rows_x: int, rows_y: int
 
 
 def _robust_data() -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Two latent variables, with a few rows that pull the means away from PRM's robust centre.
+    """Two latent variables, with a few rows that pull the means away from PRM's robust center.
 
     PRM's reweighting on these rows is sensitive: inputs that differ in their last digits
     can take 44 passes rather than 39 and land 0.26 apart. The blocks are returned as the
@@ -490,7 +490,7 @@ def _robust_data() -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def test_prm_held_out_rows_are_predicted_as_each_fold_model_predicts_them() -> None:
-    """A PRM fold model centres and scales its autoscaled rows again, at its robust centre (#1029).
+    """A PRM fold model centers and scales its autoscaled rows again, at its robust center (#1029).
 
     The reference is each fold's PRM predicting its held-out rows, after the fold's own
     autoscaling, back in Y's units. The held-out rows were read in the fold's autoscaled
@@ -515,8 +515,8 @@ def test_prm_pseudo_validation_set_reproduces_scores_and_spe(scope: str) -> None
     """The full-data PRM gives X_pv the D-scaled fold scores and the fold SPE, exactly, in its own space (#1029).
 
     X_pv was mapped back to the data's units by an autoscaler fitted to X, not by the PRM's
-    robust scaler, and the fold models' held-out rows were not centred at their robust
-    centres: the scores the full-data model gave X_pv were off by up to 5.6.
+    robust scaler, and the fold models' held-out rows were not centered at their robust
+    centers: the scores the full-data model gave X_pv were off by up to 5.6.
     """
     X, Y = _robust_data()
     pv = PRM.pseudo_validation_set(X, Y, n_components=2, scope=scope, random_state=0)
@@ -624,7 +624,7 @@ def test_pseudo_validation_t2_leaves_out_a_component_with_no_spread() -> None:
 
     def fit(rows: np.ndarray) -> PLS:
         with pytest.warns(SpecificationWarning, match="nothing left in Y that X can explain"):
-            return PLS(n_components=3, scale=False, warn_on_uncentred=False).fit(X.iloc[rows], y.iloc[rows])
+            return PLS(n_components=3, scale=False, warn_on_uncentered=False).fit(X.iloc[rows], y.iloc[rows])
 
     model = fit(np.arange(30))
     model.y_loadings_.iloc[:, 2] = 1.0
@@ -769,7 +769,7 @@ def test_unusable_gaps_raise() -> None:
 def test_gaps_fit_takes_are_taken(where: str) -> None:
     """A row with no X, and a column of X or Y with no value, are taken as ``fit`` takes them (#1114).
 
-    They were refused. The row is fitted at the centre with no weight, and has no held-out
+    They were refused. The row is fitted at the center with no weight, and has no held-out
     prediction or SPE; the column is left out of every model, with the warning ``fit`` gives.
     """
     X, Y = _two_component_data(n=30, m=2)
@@ -787,7 +787,7 @@ def test_gaps_fit_takes_are_taken(where: str) -> None:
     assert np.isfinite(result.press).all()
     assert np.isfinite(result.table["pv_spe_alarm_rate"]).all()
     assert pv.local_spe.isna().to_numpy().tolist() == [where == "x_row" and i == 3 for i in range(30)]
-    if where == "x_row":  # its response helps centre the folds it trains, and has no prediction to judge
+    if where == "x_row":  # its response helps center the folds it trains, and has no prediction to judge
         y = Y.to_numpy()
         baseline = sum(
             float(np.sum(np.delete(y[test] - y[train].mean(axis=0), np.flatnonzero(test == 3), axis=0) ** 2))
@@ -916,7 +916,7 @@ def _folds_by_hand(X: pd.DataFrame, Y: pd.DataFrame, splits: list, n_components:
     for train, test in splits:
         x_centre, x_scale = _observed_mean_sd(x[train])
         y_centre, y_scale = _observed_mean_sd(y[train])
-        model = PLS(n_components=n_components, scale=False, warn_on_uncentred=False).fit(
+        model = PLS(n_components=n_components, scale=False, warn_on_uncentered=False).fit(
             (x[train] - x_centre) / x_scale, (y[train] - y_centre) / y_scale
         )
         weights, x_loadings = model.x_weights_.to_numpy(), model.x_loadings_.to_numpy()
@@ -1019,7 +1019,7 @@ def _score_correlation_by_hand(x: np.ndarray, y: np.ndarray, splits: list, n_com
     for train, test in splits:
         x_centre, x_scale = _observed_mean_sd(x[train])
         y_centre, y_scale = _observed_mean_sd(y[train])
-        model = PLS(n_components=A, scale=False, warn_on_uncentred=False).fit(
+        model = PLS(n_components=A, scale=False, warn_on_uncentered=False).fit(
             np.nan_to_num((x[train] - x_centre) / x_scale), np.nan_to_num((y[train] - y_centre) / y_scale)
         )
         weights, x_loadings, y_loadings = (
@@ -1196,13 +1196,13 @@ def _compare_by_hand(X: pd.DataFrame, Y: pd.DataFrame, splits: list, settings: d
 
 
 def _global_folds_by_hand(X: pd.DataFrame, Y: pd.DataFrame, splits: list, n_components: int) -> list[dict]:
-    """Fold models fitted, unscaled and uncentred, to the training rows of the fully autoscaled blocks."""
+    """Fold models fitted, unscaled and uncentered, to the training rows of the fully autoscaled blocks."""
     x, y = X.to_numpy(dtype=float), Y.to_numpy(dtype=float)
     (x_mean, x_sd), (y_mean, y_sd) = _observed_mean_sd(x), _observed_mean_sd(y)
     xs, ys = (x - x_mean) / x_sd, (y - y_mean) / y_sd
     folds = []
     for train, test in splits:
-        model = PLS(n_components=n_components, scale=False, warn_on_uncentred=False).fit(xs[train], ys[train])
+        model = PLS(n_components=n_components, scale=False, warn_on_uncentered=False).fit(xs[train], ys[train])
         weights, x_loadings = model.x_weights_.to_numpy(), model.x_loadings_.to_numpy()
         folds.append(
             {
@@ -1690,9 +1690,9 @@ def test_in_sample_criteria_from_a_single_fold_of_every_row() -> None:
 
 
 def test_an_autoscaled_x_is_warned_about_in_the_words_of_this_function() -> None:
-    """Each fold re-standardises X, so an X that arrives autoscaled loses the scaling it came in."""
+    """Each fold re-standardizes X, so an X that arrives autoscaled loses the scaling it came in."""
     X, Y = _two_component_data(n=30)
-    with pytest.warns(SpecificationWarning, match=r"re-standardises inside every CV fold.* comparison of their Q2 "):
+    with pytest.warns(SpecificationWarning, match=r"re-standardizes inside every CV fold.* comparison of their Q2 "):
         compare_cv_criteria(
             MCUVScaler().fit_transform(X), Y, max_components=1, n_permutations=9, n_cv_permutations=0, random_state=0
         )
@@ -1759,7 +1759,7 @@ def test_swapped_pairs_at_the_threshold() -> None:
 def test_every_fit_gets_the_settings_and_the_component_count() -> None:
     """Each fold model and the model fitted to all rows are this class, with the settings passed on.
 
-    In global scope the fold models are fitted unscaled to rows that are not centred in the
+    In global scope the fold models are fitted unscaled to rows that are not centered in the
     fold, so they are told not to warn about it.
     """
     fits = []
@@ -1779,7 +1779,7 @@ def test_every_fit_gets_the_settings_and_the_component_count() -> None:
         fits.clear()
         Recorded.pseudo_validation_set(X, Y, n_components=2, cv=KFold(3), scope=scope, random_state=0, **settings)
         assert [(p["n_components"], p["max_iter"], p["tol"]) for p in fits] == [(2, 7, 1e-5)] * 4
-        assert [(p["scale"], p["warn_on_uncentred"]) for p in fits] == [(True, True)] + [(fold_scale, fold_scale)] * 3
+        assert [(p["scale"], p["warn_on_uncentered"]) for p in fits] == [(True, True)] + [(fold_scale, fold_scale)] * 3
 
 
 def test_pseudo_validation_component_count_runs_from_one_to_the_cap() -> None:
@@ -1818,7 +1818,7 @@ def test_pseudo_validation_set_refuses_the_components_with_no_y_loading() -> Non
 
 
 def test_pseudo_validation_set_by_hand_one_row_at_a_time_with_a_row_at_the_centre() -> None:
-    """Leave-one-out, global scope: one row's mixing has short columns, and the row at the centre has none.
+    """Leave-one-out, global scope: one row's mixing has short columns, and the row at the center has none.
 
     Ten integer rows in five pairs, a and -a, and a row of zeros: the zeros are the mean,
     exactly, so that row is 0 once scaled. Held out alone, it mixes into a column of zeros
@@ -1875,7 +1875,7 @@ def test_covariance_permutation_counts_a_draw_that_ties_the_statistic() -> None:
     x -= x.mean(axis=0)
     y = x @ np.array([[1.0], [0.5]]) + 0.1 * rng.standard_normal((4, 1))
     y -= y.mean(axis=0)
-    model = PLS(n_components=1, scale=False, warn_on_uncentred=False).fit(x, y)
+    model = PLS(n_components=1, scale=False, warn_on_uncentered=False).fit(x, y)
     p_value = _covariance_permutation_pvalues(x, y, model, 200, np.random.default_rng(1))[0]
     orders = np.random.default_rng(1).permuted(np.tile(np.arange(4), (200, 1)), axis=1)  # one batch
     statistic = _largest_singular_value(x.T @ y)

@@ -26,7 +26,7 @@ except ImportError:  # pragma: no cover - exercised via env-without-plotly
     go = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
     make_subplots = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
 
-from process_improve.visualization.colors import COLOUR_MAPS, colorscale
+from process_improve.visualization.colors import COLOR_MAPS, colorscale
 from process_improve.visualization.themes import (
     DEFAULT_THEME,
     LIMIT_LINE_COLOR,
@@ -206,7 +206,7 @@ def score_plot(  # noqa: C901, PLR0913
 
             items_to_highlight = {'{"color": "red", "symbol": "cross"}': items_in_red}
 
-        will highlight the items in ``items_in_red`` with the given colour and shape.
+        will highlight the items in ``items_in_red`` with the given color and shape.
 
     sizes : pd.Series, optional
         One non-negative value per observation, indexed as the scores are. The marker
@@ -441,7 +441,7 @@ def loading_plot(
 
         Passing any value other than ``'p'`` to a PCA model raises
         :class:`AttributeError`, since PCA has no ``x_weights_`` / ``direct_weights_`` /
-        ``y_loadings_``. Any unrecognised string raises :class:`ValueError`.
+        ``y_loadings_``. Any unrecognized string raises :class:`ValueError`.
 
     pc_horiz : int, optional
         Which component to plot on the horizontal axis, by default 1 (the first component)
@@ -593,7 +593,7 @@ def spe_plot(  # noqa: C901
 
             items_to_highlight = {'{"color": "red", "symbol": "cross"}': items_in_red}
 
-        will highlight the items in ``items_in_red`` with the given colour and shape.
+        will highlight the items in ``items_in_red`` with the given color and shape.
 
     settings : dict
         Default settings::
@@ -742,7 +742,7 @@ def t2_plot(  # noqa: C901
 
             items_to_highlight = {'{"color": "red", "symbol": "cross"}': items_in_red}
 
-        will highlight the items in ``items_in_red`` with the given colour and shape.
+        will highlight the items in ``items_in_red`` with the given color and shape.
 
     judged_rows : {"fitted", "new"} or None, optional
         Which rows the limit line judges (see :func:`hotellings_t2_limit`). The plot shows the
@@ -902,8 +902,8 @@ def explained_variance_plot(
             {
                 "as_percentage": True,         # bool: y-axis as a percentage, else a fraction
                 "title": "Variance explained ...",   # str: overall plot title
-                "bar_color": None,              # str|None: bar colour; None uses the theme
-                "line_color": None,             # str|None: line colour; None uses the theme
+                "bar_color": None,              # str|None: bar color; None uses the theme
+                "line_color": None,             # str|None: line color; None uses the theme
                 "show_legend": True,            # bool: show clickable legend
                 "html_image_height": 500,       # int: image height in pixels
                 "html_aspect_ratio_w_over_h": 16/9,  # float: width as ratio of height
@@ -1042,9 +1042,9 @@ def correlation_loadings_plot(  # noqa: C901
 
             {
                 "title": "Correlation loadings ...",  # str: overall plot title
-                "x_marker_color": None,         # str|None: X-variable marker colour; None uses the theme
-                "y_marker_color": None,         # str|None: Y-variable marker colour (PLS); None uses the theme
-                "ellipse_color": "grey",        # str: colour of the variance ellipses
+                "x_marker_color": None,         # str|None: X-variable marker color; None uses the theme
+                "y_marker_color": None,         # str|None: Y-variable marker color (PLS); None uses the theme
+                "ellipse_color": "grey",        # str: color of the variance ellipses
                 "show_labels": True,            # bool: label each variable
                 "show_legend": True,            # bool: show clickable legend (PLS only)
                 "html_image_height": 600,       # int: image height in pixels
@@ -1272,7 +1272,7 @@ def omeda_plot(
 
     One bar per variable, from :func:`~process_improve.multivariate.methods.omeda`.
     A bar above zero marks a variable that is higher in ``group`` than in
-    ``reference`` (or than the model centre, with no reference), in a way the
+    ``reference`` (or than the model center, with no reference), in a way the
     model captures; below zero, lower. For a comparison other than two groups, pass
     ``weights`` to :func:`~process_improve.multivariate.methods.omeda` and plot the
     result.
@@ -1287,13 +1287,13 @@ def omeda_plot(
         Index labels of the observations of interest, or a boolean mask.
     reference : sequence, optional
         Index labels, or a boolean mask, of the observations to compare against.
-        ``None`` (default) compares the group against the model centre.
+        ``None`` (default) compares the group against the model center.
     settings : dict
         Default settings::
 
             {
                 "title": "oMEDA",               # str: overall plot title
-                "bar_color": None,              # str|None: bar colour; None uses the theme
+                "bar_color": None,              # str|None: bar color; None uses the theme
                 "html_image_height": 500,       # int: image height in pixels
                 "html_aspect_ratio_w_over_h": 16/9,  # float: width as ratio of height
                 "template": "pi_journal",       # str: registered Plotly theme name
@@ -1372,8 +1372,8 @@ def predictions_vs_observed_plot(
 
             {
                 "title": "Observed vs predicted ...",  # str: overall plot title
-                "marker_color": None,           # str|None: data-marker colour; None uses the theme
-                "reference_color": "#9CA3AF",   # str: colour of the y = x line
+                "marker_color": None,           # str|None: data-marker color; None uses the theme
+                "reference_color": "#9CA3AF",   # str: color of the y = x line
                 "html_image_height": 500,       # int: image height in pixels
                 "html_aspect_ratio_w_over_h": 1.0,   # float: width as ratio of height
                 "template": "pi_journal",         # str: registered Plotly theme name
@@ -1491,7 +1491,7 @@ def coefficient_plot(
 
             {
                 "title": "Regression coefficients ...",  # str: overall plot title
-                "bar_color": None,              # str|None: bar colour; None uses the theme
+                "bar_color": None,              # str|None: bar color; None uses the theme
                 "html_image_height": 500,       # int: image height in pixels
                 "html_aspect_ratio_w_over_h": 16/9,  # float: width as ratio of height
                 "template": "pi_journal",         # str: registered Plotly theme name
@@ -1572,7 +1572,7 @@ def confusion_matrix_plot(
         A fitted PLS-DA model generated by this library.
     matrix : pd.DataFrame, optional
         A confusion matrix to plot instead of the model's training-set one, indexed and
-        labelled by class. Pass ``model.confusion(X_test, y_test).matrix`` to see the
+        labeled by class. Pass ``model.confusion(X_test, y_test).matrix`` to see the
         held-out picture, which is the one worth acting on: ``confusion_matrix_`` is
         fitted on the same rows it is scored on and will always look better.
     settings : dict
@@ -1629,7 +1629,7 @@ def confusion_matrix_plot(
 
     counts = matrix.to_numpy(dtype=float)
     if setdict["normalize"]:
-        # Row-normalise: each row then reads as "of the samples that really were this
+        # Row-normalize: each row then reads as "of the samples that really were this
         # class, what fraction went where". A row with no samples stays at zero rather
         # than becoming NaN, so the heat map has no holes in it.
         row_totals = counts.sum(axis=1, keepdims=True)
@@ -1650,7 +1650,7 @@ def confusion_matrix_plot(
         # One of the package's own maps is drawn from its light end, so an empty cell fades into the page; any other
         # name is Plotly's to read.
         "colorscale": colorscale(setdict["colorscale"])
-        if setdict["colorscale"] in COLOUR_MAPS
+        if setdict["colorscale"] in COLOR_MAPS
         else setdict["colorscale"],
         "colorbar": dict(title=colorbar_title),
         "hovertemplate": "True %{y}, predicted %{x}: %{z}<extra></extra>",
@@ -1697,7 +1697,7 @@ def effect_summary_plot(
             {
                 "include_residual": True,       # bool: draw the residual bar too
                 "title": "Variation by design term",  # str: overall plot title
-                "bar_color": None,              # str|None: bar colour; None uses the theme
+                "bar_color": None,              # str|None: bar color; None uses the theme
                 "html_image_height": 500,       # int: image height in pixels
                 "html_aspect_ratio_w_over_h": 16/9,  # float: width as ratio of height
                 "template": "pi_journal",       # str: registered Plotly theme name

@@ -69,7 +69,7 @@ plan = call("api_compare_plan", {"factors": demo["design"]["factors"]})
 made = [{"label": item["label"], **held(call("api_make_design", item["spec"]))} for item in plan["designs"]]
 call("api_compare", {"model": plan["model"], "designs": made})
 
-# The browser's copy of the wheel leaves out the reference catalogue's sources (NOT_FOR_THE_PAGE in
+# The browser's copy of the wheel leaves out the reference catalog's sources (NOT_FOR_THE_PAGE in
 # scripts/build_web_app.py). One module reads them, and the page's Python must never load it.
 if "process_improve.experiments.reference_catalogue" in sys.modules:
     raise SystemExit("the page's Python loaded the reference catalogue, which the browser's wheel leaves out")

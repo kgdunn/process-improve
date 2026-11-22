@@ -97,7 +97,7 @@ def _trials(df: pd.DataFrame, trials: str | float | Sequence[float] | None) -> n
 
 
 def _ml_dispersion(family: sm.families.Family, y: np.ndarray, mu: np.ndarray, weights: np.ndarray) -> float:
-    """Return the dispersion that maximises the likelihood at the fitted means (SAS GENMOD's estimate)."""
+    """Return the dispersion that maximizes the likelihood at the fitted means (SAS GENMOD's estimate)."""
 
     def negative(log_phi: float) -> float:
         return -float(family.loglike(y, mu, var_weights=weights, scale=np.exp(log_phi)))

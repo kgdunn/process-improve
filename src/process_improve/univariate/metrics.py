@@ -194,7 +194,7 @@ def Sn(x: np.ndarray | pd.Series, constant: float = 1.1926) -> np.floating:  # n
     # not the averaging median numpy provides: himed is element floor(n/2) + 1
     # and lomed is element floor((n + 1) / 2), one-based, of the sorted values.
     # They coincide with np.median only for odd n, so using np.median for both
-    # (the previous behaviour) biased every even-n estimate downward: 0.443 in
+    # (the previous behavior) biased every even-n estimate downward: 0.443 in
     # place of 0.886 at n = 2, and still 0.5 percent low at n = 1500.
     inner_high_median = np.sort(diffs, axis=1)[:, n // 2]
     outer_low_median = np.sort(inner_high_median)[(n + 1) // 2 - 1]
@@ -435,7 +435,7 @@ def ttest_independent_from_df(
     data_subset = data_subset.dropna()
     output = pd.DataFrame()
     # Enumerate the groups from the CLEANED data. Taking them from `df` (the
-    # previous behaviour) kept groups whose values are all missing, and NaN
+    # previous behavior) kept groups whose values are all missing, and NaN
     # group labels, each of which then produced a silent all-NaN comparison
     # row against an empty sample.
     groups = list(data_subset[grouper_column].unique())
@@ -612,7 +612,7 @@ def ttest_paired_from_df(
     data_subset = data_subset.dropna()
     output = pd.DataFrame()
     # Enumerate the groups from the CLEANED data. Taking them from `df` (the
-    # previous behaviour) kept groups whose values are all missing, and NaN
+    # previous behavior) kept groups whose values are all missing, and NaN
     # group labels, each of which then produced a silent all-NaN comparison
     # row against an empty sample.
     groups = list(data_subset[grouper_column].unique())
@@ -659,7 +659,7 @@ def confidence_interval(df: pd.DataFrame, column_name: str, conflevel: float = 0
     ------
     ValueError
         If `style` is neither 'robust' nor 'regular', or if the column holds fewer than 2
-        non-missing values. An unrecognised `style` used to fall through to the classical
+        non-missing values. An unrecognized `style` used to fall through to the classical
         branch, so a typo returned a different interval with nothing to signal it (#561).
     """
 
@@ -1027,9 +1027,9 @@ def benjamini_hochberg(p_values: np.ndarray | pd.Series | list, alpha: float = 0
 
 
 def _relative_spread(spread: float, center: float) -> float:
-    """Return ``spread / center``, or NaN when the centre is (near) zero.
+    """Return ``spread / center``, or NaN when the center is (near) zero.
 
-    A relative standard deviation is undefined at a zero centre: the division
+    A relative standard deviation is undefined at a zero center: the division
     gives ``inf`` (or NaN for 0/0) and emits a RuntimeWarning through the
     public API and the agent-facing tools. Report NaN instead, which is what
     "undefined" means to every downstream consumer.
@@ -1111,7 +1111,7 @@ def detect_outliers_esd(
 
     Arguments:
         x {list, sequence, NumPy vector/array} -- [A sequence, list or vector which can be
-        unravelled.]
+        unraveled.]
 
     Keyword Arguments:
         algorithm -- Two algorithms are possible to detect outliers: (default: "esd")
@@ -1215,7 +1215,7 @@ def detect_outliers_esd(
             g = R.max()
             # The Grubbs p-value, by contrast, describes the sample actually in
             # hand this iteration, which has shrunk by every point dropped so
-            # far. Using the original N here (the previous behaviour) reported
+            # far. Using the original N here (the previous behavior) reported
             # a p-value for a larger sample than the statistic came from.
             n_i = int(sample.notna().sum())
             s = g**2 * n_i * (2 - n_i) / (g**2 * n_i - (n_i - 1) ** 2)  # R-function Grubbs formula
@@ -1270,7 +1270,7 @@ def tietjen_moore_test(
 
     Tests the null hypothesis "there are no outliers" against the alternative
     "the ``n_outliers`` most extreme observations are outliers". Unlike the
-    generalised ESD test, the number of suspected outliers must be fixed in
+    generalized ESD test, the number of suspected outliers must be fixed in
     advance. The test statistic has no closed-form critical value, so it is
     obtained by simulation under the normal null.
 
@@ -1379,7 +1379,7 @@ def distribution_fit(
 
     dist = getattr(scipy_stats, distribution)
     parameters = dist.fit(a)
-    # Compare against the frozen, fully-parameterised distribution.  Passing the
+    # Compare against the frozen, fully-parameterized distribution.  Passing the
     # frozen ``.cdf`` (which applies loc/scale internally) rather than the
     # distribution name plus ``args`` keeps this working across scipy versions,
     # where the latter form can forward loc/scale positionally to the raw cdf.

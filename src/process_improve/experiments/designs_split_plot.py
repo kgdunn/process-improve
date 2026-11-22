@@ -6,7 +6,7 @@ consecutive runs, and the easy-to-change factors are reset for every run. The ru
 share its random effect, so their responses are correlated: :math:`V = I + \eta Z Z^T` in units of
 the run-to-run variance, with :math:`\eta` the ratio of the whole-plot variance to it and :math:`Z`
 the runs' whole-plot indicators. A design is judged on :math:`M = X^T V^{-1} X`, the information of
-the generalised least squares estimates (Goos and Jones, *Optimal Design of Experiments: A Case
+the generalized least squares estimates (Goos and Jones, *Optimal Design of Experiments: A Case
 Study Approach*, chapter 10):
 
 - D-optimal: the largest :math:`|M|`;
@@ -50,7 +50,7 @@ if TYPE_CHECKING:
     from process_improve.experiments.factor import Factor
     from process_improve.experiments.region import DesignRegion
 
-#: The criteria the search optimises.
+#: The criteria the search optimizes.
 CRITERIA = ("d_optimal", "a_optimal", "i_optimal")
 
 #: Levels a continuous factor may take: three for a model without squares, five with them, since

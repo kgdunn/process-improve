@@ -1,6 +1,6 @@
 """Tests for optimal designs whose blocks enter the exchange as fixed effects (#631).
 
-A blocked design is analysed with the blocks as fixed effects, so what it estimates is
+A blocked design is analyzed with the blocks as fixed effects, so what it estimates is
 the factor information adjusted for the blocks: ``S = F'F - F'Z (Z'Z)^-1 Z'F`` for model
 rows ``F`` and sum-coded block columns ``Z``. These tests compute ``S`` independently of
 the exchange and compare the joint design with the old way, an unblocked optimum split
@@ -104,7 +104,7 @@ class TestAugmentationInANewBlock:
         assert result.metadata["blocking"]["method"] == "optimal_exchange"
 
     def test_beats_augmenting_without_the_block(self, fixed: pd.DataFrame) -> None:
-        """Analysed with the day effect, the blocked augmentation is 13% more D-efficient than ignoring the day."""
+        """Analyzed with the day effect, the blocked augmentation is 13% more D-efficient than ignoring the day."""
         blocked = _adjusted_log_det(_blocked(2, 9, 2, fixed_runs=fixed).design, 2)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")

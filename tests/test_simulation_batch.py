@@ -11,7 +11,7 @@ Grouped by intent:
   altering the draws of the others, and the within-batch channel alone
   spreads the titer (the load-bearing claim for mid-course correction).
 - Physical invariants (property-based, hypothesis).
-- Optimiser behaviour and the variance decomposition (slow tier).
+- Optimizer behavior and the variance decomposition (slow tier).
 - Round-trips into the package's batch tooling (integration tier).
 """
 
@@ -253,7 +253,7 @@ def test_replay_spread_exceeds_zero_disturbance_spread(sim: BioreactorSimulator)
 
 def test_channel_toggle_is_a_true_counterfactual() -> None:
     """Switching one channel off must not change the draws of the others: the
-    same seed with within-batch off keeps the identical realised trajectory.
+    same seed with within-batch off keeps the identical realized trajectory.
     """
     with_wb = BioreactorSimulator(_config(ic_scale=0.0, noise_scale=1.0, within_batch_scale=1.0))
     without_wb = BioreactorSimulator(_config(ic_scale=0.0, noise_scale=1.0, within_batch_scale=0.0))
@@ -398,7 +398,7 @@ def test_nominal_trajectory_steps_when_the_shift_has_no_duration() -> None:
 def test_physical_invariants_hold_for_any_input(
     seed: int, ic_scale: float, within_batch_scale: float, noise_scale: float
 ) -> None:
-    """States stay finite and non-negative, the realised trajectory stays inside
+    """States stay finite and non-negative, the realized trajectory stays inside
     the actuator bounds, volume grows linearly, and the product mass never
     exceeds what the substrate fed in can support.
     """
@@ -613,7 +613,7 @@ def test_variance_decomposition_replays_a_supplied_trajectory(sim: BioreactorSim
 
 
 # ---------------------------------------------------------------------------
-# Optimiser and variance decomposition (slow tier)
+# Optimizer and variance decomposition (slow tier)
 # ---------------------------------------------------------------------------
 
 
@@ -1007,7 +1007,7 @@ def test_ctmi_rejects_ill_posed_cardinals() -> None:
 
 
 def test_realised_trajectory_matches_requested_when_noise_off(nominal: pd.DataFrame) -> None:
-    """With control noise off, each realised row equals the requested setpoint of
+    """With control noise off, each realized row equals the requested setpoint of
     the interval that ends at its timestamp (it was once shifted one interval
     ahead, reporting the next interval's setpoint).
     """

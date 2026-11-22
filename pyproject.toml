@@ -193,7 +193,7 @@ warn_unused_ignores = false
 # Specifically disable import-untyped errors
 disable_error_code = ["import-untyped"]
 # Example scripts under examples/ are not production code and are already
-# exempted from many strict ruff rules; they pull in notebook-flavoured
+# exempted from many strict ruff rules; they pull in notebook-flavored
 # patterns (untyped locals, dynamic axis manipulation) that are noise under
 # type checking.
 exclude = [

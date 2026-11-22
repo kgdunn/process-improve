@@ -29,7 +29,7 @@ Significance:  pareto, half_normal, daniel
 Factor effects: main_effects, interaction, perturbation, cube_plot, square_plot
 Diagnostics:   residuals_vs_fitted, normal_probability, residuals_vs_order, box_cox
 Response surface: contour, surface_3d, prediction_variance
-Optimisation:  desirability_contour, overlay, ridge_trace, steepest_ascent_path
+Optimization:  desirability_contour, overlay, ridge_trace, steepest_ascent_path
 Design quality: fds_plot, power_curve
 
 Exit codes

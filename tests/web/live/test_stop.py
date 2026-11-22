@@ -73,7 +73,7 @@ def test_a_real_search_is_stopped_and_python_starts_again_and_again(own_context,
     settled(page, timeout=180_000)  # the Python that followed answers, once it has listed the brief's designs again
     reveal(page, "#panel-simulate")
     page.click("#tab-simulate")
-    page.click("#simulate")  # results to practise on, analysed
+    page.click("#simulate")  # results to practice on, analyzed
     settled(page, timeout=180_000)
     reveal(page, "#charts")
     page.wait_for_function(

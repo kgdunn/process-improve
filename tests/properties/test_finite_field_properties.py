@@ -2,7 +2,7 @@
 
 GF(q) exists exactly when ``q`` is a prime power. ``prime_power`` decides that, and
 ``_field_tables`` must build the field for every prime power and refuse every other
-integer, with a message naming it. The reference here factorises by plain trial
+integer, with a message naming it. The reference here factorizes by plain trial
 division, independently of the code under test.
 """
 

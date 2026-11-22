@@ -360,7 +360,7 @@ def test_a_design_hidden_moves_past_a_thick_line_in_grey_and_leaves_the_charts(p
     after = design_columns(page)
     assert after == [d for d in before if d != leader] + [leader], "to the far right"
     hidden = page.locator(f'#comparison [data-design="{leader}"]')
-    assert all("set-aside" in (c.get_attribute("class") or "") for c in hidden.all()), "every cell of it, in grey"
+    assert all("set-aside" in (c.get_attribute("class") or "") for c in hidden.all()), "every cell of it, in gray"
     assert page.locator("#comparison thead tr").first.locator("th.parted").get_attribute("data-design") == leader
     groups = page.locator("#comparison tbody tr.group")
     assert groups.locator("td.parted").count() == groups.count(), "the line runs through the group rows"
@@ -425,7 +425,7 @@ def test_a_design_taken_from_the_detailed_comparison_reaches_the_run_sheet_as_ma
     settled(page)
     assert calls(page, "api_make_design") == [], "the comparison made it already"
     assert page.locator("#design-table tbody tr").count() == chosen["design"]["n_runs"]
-    assert calls(page, "api_simulate"), "practising: the same process, noise and seed, on the new runs"
+    assert calls(page, "api_simulate"), "practicing: the same process, noise and seed, on the new runs"
     assert page.locator("#design-table input.sim").count() == chosen["design"]["n_runs"]
 
 

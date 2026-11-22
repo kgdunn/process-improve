@@ -1,6 +1,6 @@
 """Tests for the product-by-compound preprocessing pipeline.
 
-The pipeline is trim, transform, centre, scale, in that order, with an
+The pipeline is trim, transform, center, scale, in that order, with an
 ``apply_fitted_*`` partner for each fitting step so a held-out row can be
 preprocessed without having seen its own values. Several of the tests below pin
 choices that are easy to reverse and quiet when reversed: zeros default to
@@ -21,7 +21,7 @@ from process_improve.chemistry import (
     center_and_scale,
     choose_transform,
     classify_zero_states,
-    normalisation_check,
+    normalization_check,
     trim_by_prevalence,
 )
 
@@ -125,34 +125,34 @@ class TestNormalisationCheck:
         rng = np.random.default_rng(0)
         raw = pd.DataFrame(rng.uniform(1, 10, size=(8, 5)))
         closed = raw.div(raw.sum(axis=1), axis=0) * 100.0
-        totals, outside = normalisation_check(closed)
+        totals, outside = normalization_check(closed)
         assert np.allclose(totals.to_numpy(), 100.0)
         assert outside.empty
 
     def test_a_diluted_row_is_reported(self) -> None:
         block = pd.DataFrame({"a": [10.0, 10.0, 10.0, 10.0, 1.0], "b": [5.0, 5.0, 5.0, 5.0, 0.5]})
-        totals, outside = normalisation_check(block, factor=1.8)
+        totals, outside = normalization_check(block, factor=1.8)
         assert list(outside.index) == [4]
         assert totals.iloc[4] == pytest.approx(1.5)
 
     def test_the_band_is_symmetric_in_fold_change(self) -> None:
         block = pd.DataFrame({"a": [10.0, 10.0, 10.0, 20.0, 5.0]})
-        _totals, outside = normalisation_check(block, factor=1.8)
+        _totals, outside = normalization_check(block, factor=1.8)
         assert sorted(outside.index) == [3, 4]
 
     def test_an_all_missing_row_totals_to_nan_rather_than_zero(self) -> None:
         block = pd.DataFrame({"a": [10.0, np.nan], "b": [10.0, np.nan]})
-        totals, _outside = normalisation_check(block)
+        totals, _outside = normalization_check(block)
         assert np.isnan(totals.iloc[1])
 
     def test_factor_must_exceed_one(self, chem: pd.DataFrame) -> None:
         with pytest.raises(ValueError, match="factor"):
-            normalisation_check(chem, factor=1.0)
+            normalization_check(chem, factor=1.0)
 
     def test_a_non_positive_median_total_raises(self) -> None:
         block = pd.DataFrame({"a": [0.0, 0.0, 0.0]})
         with pytest.raises(ValueError, match="median row total"):
-            normalisation_check(block)
+            normalization_check(block)
 
 
 class TestChooseTransform:
@@ -421,7 +421,7 @@ class TestBlockValidation:
     def test_a_block_of_unreadable_dtypes_raises(self) -> None:
         block = pd.DataFrame({"a": ["low", "high", "trace"]})
         with pytest.raises(ValueError, match="could not read any numeric values"):
-            normalisation_check(block)
+            normalization_check(block)
 
     def test_an_all_missing_block_is_not_mistaken_for_unreadable(self) -> None:
         """All-NaN is a legitimate (if useless) numeric block, not a dtype problem."""

@@ -1,11 +1,11 @@
-"""The reference catalogue, reproduced with this library.
+"""The reference catalog, reproduced with this library.
 
 ``process_improve.experiments.reference_catalogue`` holds worked examples, exercises and case studies of
 published sources, each with its runs as printed and every number the source prints for it, with
 where it is printed. ``reproduce_reference_catalogue`` recomputes every number that carries a check; here
 each one must agree with the printed text to within the source's own rounding. A number that is
 not recomputed must say why. A change to the library that contradicts a published source fails
-here, and so does a number copied wrongly into the catalogue.
+here, and so does a number copied wrongly into the catalog.
 """
 
 from __future__ import annotations
@@ -91,7 +91,7 @@ def test_every_number_a_reproduction_page_shows_has_a_plain_name_for_what_it_is(
     """A number that differs, or one the library has no function for yet, is shown on factori.al by its quantity.
 
     The pages name it by ``web/quantities.json`` ("a sum of squares", not ``anova_sum_sq``), except a quantity the
-    catalogue calls "other", which its term names.
+    catalog calls "other", which its term names.
     """
     names = json.loads(QUANTITIES.read_text(encoding="utf-8"))
     shown = {
@@ -192,7 +192,7 @@ def test_the_sources_are_cited_in_full():
 
 
 def test_the_terms_of_the_sources_are_stated_beside_them():
-    """The MIT licence covers the code; the notice beside the data says it does not cover the sources' contents."""
+    """The MIT license covers the code; the notice beside the data says it does not cover the sources' contents."""
     notice = (reference_catalogue._CATALOGUE_DIR / "NOTICE.md").read_text(encoding="utf-8")
     assert "does not extend" in notice
     assert "source.rights" in notice
@@ -506,7 +506,7 @@ def test_two_constructions_of_one_design_agree_once_columns_are_reordered_and_si
     assert not _same_runs(entry, fraction, "4")[1]
     assert not _same_runs(entry, {**fraction, "relabel": "columns"}, "4")[1]
     relabelled = _same_runs(entry, {**fraction, "relabel": "columns and signs"}, "4")
-    assert relabelled == ("the library's columns 1, 2, -3", True)  # the first relabelling found; 1, -3, 2 also works
+    assert relabelled == ("the library's columns 1, 2, -3", True)  # the first relabeling found; 1, -3, 2 also works
 
 
 def test_a_printed_alpha_is_the_axial_distance_of_the_library_design():
@@ -688,7 +688,7 @@ def test_a_printed_design_may_use_only_some_columns_of_a_stored_array():
 
 
 def _plane(a, b):
-    """Return a 2^2 with a centre point, y = 10 + a x1 + b x2 exactly, x1 from 100 to 200 and x2 from 125 to 175."""
+    """Return a 2^2 with a center point, y = 10 + a x1 + b x2 exactly, x1 from 100 to 200 and x2 from 125 to 175."""
     runs = [(-1, -1), (-1, 1), (1, -1), (1, 1), (0, 0)]
     return {
         "name": "plane",
@@ -720,7 +720,7 @@ def test_a_factor_left_out_of_a_prediction_point_sits_at_its_centre():
 
 
 def test_a_prediction_s_error_at_a_run_is_the_prediction_less_the_run_s_value():
-    """A 2^2's corners predict 3 at the centre, where the centre run reads 4: an error of -1, or -25%."""
+    """A 2^2's corners predict 3 at the center, where the center run reads 4: an error of -1, or -25%."""
     entry = _factorial(2, [1, 3, 2, 6], centre=[4])
     check = {"model": "A * B", "runs": [1, 2, 3, 4], "point": {}}
     out = reference_catalogue._Fits()(entry, check)
@@ -1083,7 +1083,7 @@ def test_a_prediction_can_be_read_as_the_half_width_of_its_interval():
 
 
 def _factorial(k, y, centre=()):
-    """Return an unreplicated 2^k in standard order, factors A, B, ... coded -1 and +1, then any centre runs."""
+    """Return an unreplicated 2^k in standard order, factors A, B, ... coded -1 and +1, then any center runs."""
     names = list("ABCDE"[:k])
     rows = [[1 if (i >> j) & 1 else -1 for j in range(k)] + [v] for i, v in enumerate(y)] + [
         [0] * k + [v] for v in centre
@@ -1192,7 +1192,7 @@ def test_a_percent_of_total_is_a_term_s_share_of_the_total_sum_of_squares():
 
 
 def test_centre_runs_give_the_curvature_test_and_the_largest_r_squared():
-    """Four centre runs: pure error on 3 df, and 1 - SSpe/SST the best R² any model of these runs could reach."""
+    """Four center runs: pure error on 3 df, and 1 - SSpe/SST the best R² any model of these runs could reach."""
     entry = _factorial(4, FILTRATION, centre=[73, 75, 66, 69])
     fits = reference_catalogue._Fits()
     check = {"model": "A * B * C * D"}
@@ -1272,7 +1272,7 @@ BBD3 = [
     *[[a, 0, c] for c in (-1, 1) for a in (-1, 1)],
     *[[0, b, c] for c in (-1, 1) for b in (-1, 1)],
     *[[0, 0, 0]] * 3,
-]  # the Box-Behnken design in three factors, three centre runs
+]  # the Box-Behnken design in three factors, three center runs
 
 
 def test_a_design_is_checked_by_its_structure_projections_measures_and_whole_arrays(monkeypatch, tmp_path):
@@ -1287,7 +1287,7 @@ def test_a_design_is_checked_by_its_structure_projections_measures_and_whole_arr
     cube = {"design_type": "full_factorial", "k": 3, "options": {"n_center_points": 0}}
     expected = [
         item("3", {"kind": "design_structure", "key": "n_center_runs"}),
-        item("7", {"kind": "design_structure", "key": "level_counts.0.min"}),  # four edge runs and three centres
+        item("7", {"kind": "design_structure", "key": "level_counts.0.min"}),  # four edge runs and three centers
         item("6", {"kind": "design_structure", "key": "mirror_pairs"}),
         item("1", {"kind": "projections", "size": 2, "key": "fraction_estimable"}),
         item("3", {"kind": "projections", "size": 2, "key": "n_projections"}),
@@ -1362,7 +1362,7 @@ def test_an_alias_matrix_in_thirds_product_columns_a_changed_run_and_some_column
 
 
 def test_a_best_corner_some_runs_of_a_design_and_a_relative_efficiency_are_checked(monkeypatch, tmp_path):
-    """A 2^2 factorial with a centre run, y = 3 + 2a - b: its best corner, its corner runs, its efficiency."""
+    """A 2^2 factorial with a center run, y = 3 + 2a - b: its best corner, its corner runs, its efficiency."""
 
     def item(value, check):
         return {"what": "x", "term": None, "value": value, "where": {"page": 1, "quote": "x"}, "check": check}
@@ -1926,7 +1926,7 @@ def test_relative_variances_code_a_categorical_factor_as_jmp_does():
 
 
 def test_the_normal_equations_are_read_entry_by_entry():
-    """Montgomery's Examples 10.2 and 10.3: the 2^3 with four centre runs is orthogonal, and not with run 8 gone."""
+    """Montgomery's Examples 10.2 and 10.3: the 2^3 with four center runs is orthogonal, and not with run 8 gone."""
     from process_improve.experiments.reference_catalogue import _normal_equations
 
     entry = _factorial(3, [32, 46, 57, 65, 36, 48, 57, 68], centre=[50, 44, 53, 56])
@@ -1970,7 +1970,7 @@ def test_a_prediction_interval_is_read_as_its_half_width_and_the_point_s_leverag
 
 
 def _ccd(y=None, *, blocks=False):
-    """Return Montgomery's Example 11.2 CCD in two factors: the 2^2, five centre runs, then the axial runs at 1.414."""
+    """Return Montgomery's Example 11.2 CCD in two factors: the 2^2, five center runs, then the axial runs at 1.414."""
     runs = [(-1, -1), (-1, 1), (1, -1), (1, 1), *[(0, 0)] * 5, (1.414, 0), (-1.414, 0), (0, 1.414), (0, -1.414)]
     y = y or [76.5, 77.0, 78.0, 79.5, 79.9, 80.3, 80.0, 79.7, 79.8, 78.4, 75.6, 78.5, 77.0]
     block = [1] * 9 + [2] * 4
@@ -1999,7 +1999,7 @@ def test_a_design_is_compared_on_its_inverse_as_a_whole():
     assert _normal_equations(entry, {"model": model, "key": "leverage", "point": {"A": 1, "B": 1}}) == pytest.approx(
         1 / 5 + 1 / 4 + 1 / 4
     )
-    # the 2^2 alone against it with the centre run: (|X2'X2|^-1 / |X1'X1|^-1)^(1/3) = (64 / 80)^(1/3)
+    # the 2^2 alone against it with the center run: (|X2'X2|^-1 / |X1'X1|^-1)^(1/3) = (64 / 80)^(1/3)
     relative = _normal_equations(
         entry, {"model": model, "key": "relative_d", "runs": [1, 2, 3, 4], "versus": [1, 2, 3, 4, 5]}
     )
@@ -2103,7 +2103,7 @@ def test_the_canonical_analysis_names_only_the_factors_the_model_holds():
 
 
 def test_desirability_scores_each_fitted_response_at_a_point():
-    """At the design centre the yield is 79.94: 0.994 of the way from 70 to 80; the composite is a geometric mean."""
+    """At the design center the yield is 79.94: 0.994 of the way from 70 to 80; the composite is a geometric mean."""
     from process_improve.experiments.reference_catalogue import _desirability
 
     entry = _ccd()
@@ -2120,12 +2120,12 @@ def test_desirability_scores_each_fitted_response_at_a_point():
     first = _desirability(entry, {**check, "key": "d.0"})
     second = _desirability(entry, {**check, "key": "d.1"})
     assert first == pytest.approx(0.994, abs=1e-3)
-    assert second == 0  # the fitted viscosity at the centre, 70, is above its upper limit 68
+    assert second == 0  # the fitted viscosity at the center, 70, is above its upper limit 68
     assert _desirability(entry, check) == 0
 
 
 def test_spherical_and_blocked_designs_are_read_from_their_runs():
-    """Example 11.2's CCD: the axial runs lie at √2; the blocks are orthogonal with two centre runs in each."""
+    """Example 11.2's CCD: the axial runs lie at √2; the blocks are orthogonal with two center runs in each."""
     from process_improve.experiments.reference_catalogue import _blocks_orthogonal, _run_radius
 
     entry = _ccd(blocks=True)
@@ -2133,12 +2133,12 @@ def test_spherical_and_blocked_designs_are_read_from_their_runs():
     assert _run_radius(entry, {"key": "max"}) == pytest.approx(math.sqrt(2))
     assert (
         _blocks_orthogonal(entry, {"block": "block"}) == 0
-    )  # five centre runs with the cube, none with the axial runs
+    )  # five center runs with the cube, none with the axial runs
     entry["runs"]["rows"] = [
         [*row[:2], 2 if i in (7, 8) else row[2], row[3]] for i, row in enumerate(entry["runs"]["rows"])
     ]
     entry["runs"]["rows"][4][2] = 1
-    # three centre runs with the cube and two with the axial runs: still not the share Equation 11.18 needs
+    # three center runs with the cube and two with the axial runs: still not the share Equation 11.18 needs
     assert _blocks_orthogonal(entry, {"block": "block"}) == 0
     half = [r for r in entry["runs"]["rows"] if r[0] or r[1]] + [
         [0, 0, 1, 80],
@@ -2149,11 +2149,11 @@ def test_spherical_and_blocked_designs_are_read_from_their_runs():
     entry["runs"]["rows"] = half
     assert (
         _blocks_orthogonal(entry, {"block": "block"}) == 1
-    )  # Montgomery's p. 509 design: two centre runs in each block
+    )  # Montgomery's p. 509 design: two center runs in each block
 
 
 def test_rotatability_is_read_from_the_runs_or_from_a_design_the_library_makes():
-    """Example 11.2's CCD, its axial runs at √2 = 4^(1/4), is rotatable; the face-centred CCD is not."""
+    """Example 11.2's CCD, its axial runs at √2 = 4^(1/4), is rotatable; the face-centered CCD is not."""
     from process_improve.experiments.reference_catalogue import _rotatable
 
     entry = _ccd()
@@ -2168,7 +2168,7 @@ def test_rotatability_is_read_from_the_runs_or_from_a_design_the_library_makes()
 
 
 def test_a_definitive_screening_design_is_fold_over_pairs_with_squares_orthogonal_to_main_effects():
-    """Figure 11.32's design for four factors: four fold-over pairs and a centre run."""
+    """Figure 11.32's design for four factors: four fold-over pairs and a center run."""
     from process_improve.experiments.reference_catalogue import (
         _estimable_projections,
         _fold_over_pairs,
@@ -2613,7 +2613,7 @@ def test_the_total_row_of_a_multistratum_analysis_adds_every_stratum():
 
 
 def _six_factor_dsd() -> dict:
-    """Jones and Nachtsheim's (2011) six-factor definitive screening design, Figure 1, as a catalogue entry."""
+    """Jones and Nachtsheim's (2011) six-factor definitive screening design, Figure 1, as a catalog entry."""
     text = "0+---- 0-++++ +0-++- -0+--+ --0+-- ++0-++ -++0+- +--0-+ +-+-0- -+-+0+ ++++-0 ----+0 000000"
     rows = [[{"+": 1, "-": -1, "0": 0}[c] for c in run] for run in text.split()]
     names = [f"x{i + 1}" for i in range(6)]
@@ -2666,7 +2666,7 @@ def test_a_design_folded_over_takes_the_sign_of_its_halves_as_one_more_factor():
 
 
 def test_a_design_is_compared_with_one_the_library_makes_by_its_determinant_or_its_standard_errors():
-    """Table 5's row for m = 6: against the 12-run Plackett-Burman design with a centre run."""
+    """Table 5's row for m = 6: against the 12-run Plackett-Burman design with a center run."""
     from process_improve.experiments.reference_catalogue import _relative_efficiency
 
     model = " + ".join(f"x{i + 1}" for i in range(6))

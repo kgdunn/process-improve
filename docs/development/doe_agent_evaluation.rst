@@ -29,7 +29,7 @@ The protocol
 ------------
 
 - **Cases**: the adhesion problem of the "AI agents in DoE" study (8 factors, noise
-  3), and the processes hypothesised for its Problems 02 (12 factors, noise 5) and
+  3), and the processes hypothesized for its Problems 02 (12 factors, noise 5) and
   03 (10 factors, noise 8). The goal is to maximize the response. Every factor
   range is a hard limit, and the budget is 150 runs.
 - **Conditions**: T, with the process-improve tools through the ``doe-designer``
@@ -118,7 +118,7 @@ What the sessions showed about the tools:
 - **One study stopped too early.** T on impact 03, seed 11, confirmed after its
   first 25-run definitive screening design and fell 1 sd short. The design found
   four of the seven active main effects at noise 8. The factors left out of the
-  model went to the end their small effect favours, and one of them (X09) has a
+  model went to the end their small effect favors, and one of them (X09) has a
   strong square in the truth. The deterministic benchmark shows the same weak spot
   on this case (mean shortfall 0.8 sd).
 - **Blocks changed the advice.** T on hardness 02, seed 11, got "confirm" without

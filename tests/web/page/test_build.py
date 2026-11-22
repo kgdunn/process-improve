@@ -278,7 +278,7 @@ def _stand_in_wheel(path: Path, left_out: str) -> None:
 
 
 def test_the_browser_s_copy_of_the_wheel_leaves_out_what_the_page_never_reads(build_script, tmp_path, monkeypatch):
-    """The catalogue's sources stay out, the rest stays in, and the wheel's RECORD lists what it then holds."""
+    """The catalog's sources stay out, the rest stays in, and the wheel's RECORD lists what it then holds."""
     monkeypatch.setattr(build_script, "compile_bytecode", lambda _tree, _python: False)
     wheel = tmp_path / "pkg-1.0-py3-none-any.whl"
     _stand_in_wheel(wheel, build_script.NOT_FOR_THE_PAGE)

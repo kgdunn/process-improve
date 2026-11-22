@@ -127,7 +127,7 @@ class ExperimentalStage(BaseModel):
         Rules governing the transition to the next stage.
     conditional : bool
         Whether the stage is run only when the stage before shows it is needed. An
-        optimisation stage after a screening design that can test for curvature is
+        optimization stage after a screening design that can test for curvature is
         conditional: when the screening finds none, the study goes straight to
         confirmation and these runs are never made.
     run_if : str
@@ -207,7 +207,7 @@ class DOEProblemSpec(BaseModel):
     factors : list[Factor]
         All candidate experimental factors.
     responses : list[Response]
-        Response variables with optimisation goals.
+        Response variables with optimization goals.
     budget : int or None
         Total run budget across all stages.
     constraints : list[Constraint] or None
@@ -276,5 +276,5 @@ class DOEProblemSpec(BaseModel):
 
     @property
     def goal_includes_optimization(self) -> bool:
-        """Whether any response has an optimisation goal."""
+        """Whether any response has an optimization goal."""
         return len(self.responses) > 0

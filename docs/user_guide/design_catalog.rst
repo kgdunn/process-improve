@@ -4,7 +4,7 @@ The Design Catalog
 ==================
 
 The design catalog at `factori.al/catalog <https://factori.al/catalog/>`_ lists two kinds of
-design. The published ones are the experiments and designs of the reference catalogue
+design. The published ones are the experiments and designs of the reference catalog
 (:mod:`process_improve.experiments.reference_catalogue`): textbooks, handbooks and papers, each
 entry with its source, the page it is printed on, and every number the source prints for it. The
 generated ones are the designs :func:`~process_improve.experiments.generate_design` makes, one for
@@ -54,7 +54,7 @@ by what its source says of it.
    * - ``family``
      - The family, such as ``"dsd"`` or ``"fractional_factorial"``. A published design's family is
        read from the source's own words for it by
-       :func:`~process_improve.experiments.design_catalog.normalise_family`.
+       :func:`~process_improve.experiments.design_catalog.normalize_family`.
    * - ``collection``
      - ``"published"`` or ``"generated"``.
    * - ``n_runs``, ``n_factors``
@@ -62,7 +62,7 @@ by what its source says of it.
    * - ``n_numeric``, ``n_categorical``, ``n_mixture``
      - How many factors of each kind.
    * - ``levels``, ``n_centre``
-     - Each factor's number of distinct settings, and the runs with every numeric factor at its centre.
+     - Each factor's number of distinct settings, and the runs with every numeric factor at its center.
    * - ``models``
      - Whether the design estimates main effects, two-factor interactions and the full quadratic, each
        in full (see :func:`~process_improve.experiments.design_measures.estimable_models`).
@@ -73,7 +73,7 @@ by what its source says of it.
    * - ``design_class``
      - Records of one class hold one design, printed or made in more than one place.
    * - ``source``, ``year``, ``added``, ``where``
-     - The published source, the year it appeared, the date the entry entered the catalogue, and
+     - The published source, the year it appeared, the date the entry entered the catalog, and
        the pages, tables and figures that print it. A figure is named by its caption or alt text
        (:func:`~process_improve.experiments.design_catalog.figure_name`), not by its file.
    * - ``where_url``
@@ -83,7 +83,7 @@ by what its source says of it.
        book, and for a generated design.
    * - ``topics``
      - What the design is applied to, such as ``"food-beverages"`` or ``"semiconductors"``: its
-       subject-matter topics in the reference catalogue
+       subject-matter topics in the reference catalog
        (:func:`~process_improve.experiments.design_catalog.catalog_topics`), ``"general"`` when the
        source states none. A generated design has none, so filtering by an application keeps the
        published designs only.
@@ -134,7 +134,7 @@ the resolution of a regular fraction, and 3 for the 12-run Plackett-Burman desig
 reordering of the factors and a swap of some factors' two levels make their runs the same.
 :func:`~process_improve.experiments.design_measures.fingerprint` hashes what does not change under
 those three; :func:`~process_improve.experiments.design_measures.same_design` confirms a match by
-finding the relabelling itself. The catalog groups its designs so: the 12-run Plackett-Burman design
+finding the relabeling itself. The catalog groups its designs so: the 12-run Plackett-Burman design
 it makes is also the Taguchi L12 array printed by Schmidt and Launsby and the design of Table 3.18 of
 the NIST e-Handbook.
 
@@ -168,23 +168,23 @@ The errata
 
 :func:`~process_improve.experiments.design_catalog.catalog_errata` lists every printed number that
 the library recomputes and does not reproduce, with the value as printed, where it is printed, the
-source's words around it and the reason the catalogue records: the source's rounding, a misprint, or
+source's words around it and the reason the catalog records: the source's rounding, a misprint, or
 a method that differs from the library's. Every other recomputed number agrees with its source, as
 the test suite requires. The catalog's page lists them by source and by words, and
 ``catalog/feed.xml`` (:func:`~process_improve.experiments.design_catalog.catalog_feed`) is an Atom
-feed with an entry for each source as it enters the catalogue.
+feed with an entry for each source as it enters the catalog.
 
 How closely each case reproduces
 --------------------------------
 
 :func:`~process_improve.experiments.design_catalog.catalog_reproduction` puts every case of the
-reference catalogue in one of four tiers, by the largest relative difference between a number its
+reference catalog in one of four tiers, by the largest relative difference between a number its
 source prints and the library's value (:data:`~process_improve.experiments.design_catalog.REPRODUCTION_TIERS`):
 fully reproduced, when every recomputed number agrees to the source's last printed digit; within 1%;
 within 5%; and unable to reproduce, when a number differs by more than 5% or a result that is not a
 number, such as an alias chain, differs. A case is placed by its worst number.
 
-The catalogue records the cause of every number that differs, one of
+The catalog records the cause of every number that differs, one of
 :data:`~process_improve.experiments.reference_catalogue.DISAGREEMENT_CAUSES`: an error in the source,
 a quiz option its answer key marks incorrect, the source's rounding, another method or convention,
 the library, or not known yet. In the first two the library's value is the right one
@@ -216,7 +216,7 @@ purpose, and those that differ for a reason not known yet. A case is listed unde
 that one of its numbers is under. After them comes what the library lacks, the missing methods that
 would recompute the most printed numbers first. A number is named by what it is in plain words, such
 as "a sum of squares". Each source also has a page of its own, under
-`Books <https://factori.al/catalog/books/>`_, in the same names and colours: how closely the library
+`Books <https://factori.al/catalog/books/>`_, in the same names and colors: how closely the library
 gives its answers, a bar of its printed numbers as its row has them, its cases in page order with the
 name of each, the misprints found in it with the printed value beside the value its own data give,
 and the printed numbers the library has no function for yet. Each
@@ -230,7 +230,7 @@ Opening a design, and limits on its settings
 A design whose type the browser app makes opens with the runs the app makes, which the build checks
 are the source's runs. Any other design with a complete table of runs, of 2 to 12 numeric or
 two-level factors and without blocks or whole plots, opens as *runs as given*: the source's runs, in
-its order and its factors' own units, with its results. Factorial analyses them as it analyses a
+its order and its factors' own units, with its results. Factorial analyzes them as it analyzes a
 design it made, with the largest model the runs estimate in full.
 
 A limit on the settings, typed beside the list in coded units (``A + B <= 1``, with ``A`` a design's
@@ -242,16 +242,16 @@ D-optimal and I-optimal designs make runs inside it.
 Proposing a design or a case study
 ----------------------------------
 
-A design printed in a book, a paper or a handbook can be proposed for the catalogue with the
+A design printed in a book, a paper or a handbook can be proposed for the catalog with the
 `catalog entry form <https://github.com/kgdunn/process-improve/issues/new?template=catalog_entry.yml>`_.
 It asks for the source, where the runs are printed, the factors, the runs and the numbers the source
-prints for them. The entry enters the reference catalogue once the library recomputes those numbers,
+prints for them. The entry enters the reference catalog once the library recomputes those numbers,
 each agreeing with the source or recorded with the reason it does not.
 
 A designed experiment of your own can be shared with the
 `case study form <https://github.com/kgdunn/process-improve/issues/new?template=case_study.yml>`_.
 It asks for the least an analysis needs: the factors and the responses, the runs in the order they
 were done, how the runs were grouped (in a random order, in blocks, or as a split plot), and the
-licence the data are shared under (CC BY 4.0 or CC0 1.0). The numbers your own analysis found are
+license the data are shared under (CC BY 4.0 or CC0 1.0). The numbers your own analysis found are
 optional; each one you give becomes a check. The entry cites the issue as its source, so the catalog
 links back to it.

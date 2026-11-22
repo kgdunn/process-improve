@@ -185,7 +185,7 @@ export function fitContext(context = {}) {
 }
 
 /**
- * The context as lines of text, each labelled as the relay's email labels it: the stamp's rows, the errors, and
+ * The context as lines of text, each labeled as the relay's email labels it: the stamp's rows, the errors, and
  * last the version of the app, which is the commit it was built from and the day of that commit.
  */
 export function contextLines(context = {}) {

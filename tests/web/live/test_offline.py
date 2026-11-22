@@ -3,7 +3,7 @@
 Once Python has started, a first visit registers ``sw.js`` and copies what it loaded: the page's own files, the
 Pyodide release with its packages, the wheel. It copies the charts and workbooks too, unasked,
 which need plotly, openpyxl and Plotly.js. Then the network goes: the page opens again, Python starts from the
-copy, and a design is made, analysed, drawn and written to a workbook.
+copy, and a design is made, analyzed, drawn and written to a workbook.
 
 The context here has the service worker and no routes: a request the worker answers passes by any route, so the
 downloads are the real ones, as a reader's are. ``tests/web/js`` runs the same code against a stand-in for the
@@ -53,7 +53,7 @@ def said(page: Any, start: str, timeout: float = 180_000) -> None:  # noqa: ANN4
 
 
 def a_study_with_its_charts_and_its_workbook(page: Any) -> None:  # noqa: ANN401 - a Playwright Page
-    """Make a design, simulate and analyse it, draw its charts and download its workbook: all that needs Python."""
+    """Make a design, simulate and analyze it, draw its charts and download its workbook: all that needs Python."""
     set_factors(page, FACTORS)
     candidates_done(page)
     generate(page, design_type="full_factorial")

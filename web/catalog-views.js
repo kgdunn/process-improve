@@ -74,7 +74,7 @@ const radius = (count) => Math.min(16, 4.5 * Math.sqrt(count));
  * one point per distinct setting, its area in proportion to the runs that land on it. The box is the
  * factors' low and high levels; a run beyond it, such as an axial run of a central composite
  * design, is drawn outside. When the points hold different numbers of runs, a point with more than
- * one is labelled with its count, as "3×", so the label is not read as a response at that corner.
+ * one is labeled with its count, as "3×", so the label is not read as a response at that corner.
  */
 export function projectionPlot(runs, columns, names) {
   const points = projected(runs, columns);
@@ -168,7 +168,7 @@ const STRIP = 28;
 
 /**
  * Draw the published designs by the year their source appeared, as a strip for the filter panel: a bar per
- * span of years, as tall as its share of the fullest span, with the years chosen in full colour. A bar is
+ * span of years, as tall as its share of the fullest span, with the years chosen in full color. A bar is
  * a button; the page also lets a reader drag across the years. The strip is stretched to the panel's width,
  * so it holds no words: the page writes the first and last year under it.
  */
@@ -199,7 +199,7 @@ export function drawTimeline(svg, bins, [from, to]) {
 }
 
 // ---------------------------------------------------------------- the map of factors and runs
-/** The fewest designs of each step of the map's colours, when a cell's colour says how many it holds. */
+/** The fewest designs of each step of the map's colors, when a cell's color says how many it holds. */
 export const COUNT_STEPS = [1, 5, 20, 50];
 
 /** The fill of a cell or a mark, as style.css names it: by what its designs estimate, or by how many they are. */
@@ -215,7 +215,7 @@ const drawnAt = new WeakMap();
  * has. A row is a button with its number of factors, then a cell for each band of runs with the designs it
  * holds; a cell with none in the list is pale. Over the cells run two lines: the fewest runs the main effects
  * need, and the fewest the full quadratic needs. A row in ``opened`` has a lane for each family under it, with a
- * mark for each run size, and the lines run straight down through them. ``shade`` says what a cell's colour is:
+ * mark for each run size, and the lines run straight down through them. ``shade`` says what a cell's color is:
  * what most of its designs estimate ("model"), or how many they are ("count"). The buttons, the cells and the
  * marks name themselves (data-unfold, data-band, data-runs and data-family) for the page, which decides what a
  * press does.
@@ -279,7 +279,7 @@ export function drawSizeMap(holder, rows, { opened, shade, moved = null }) {
         const cy = ly + nameH + laneH / 2;
         block.append(
           shape("line", { class: "sizemap__rule", x1: head, x2: width, y1: ly + nameH + laneH, y2: ly + nameH + laneH }),
-          // A press beside a mark finds the nearest one: the marks of neighbouring sizes are a few pixels apart.
+          // A press beside a mark finds the nearest one: the marks of neighboring sizes are a few pixels apart.
           shape("rect", { class: "sizemap__lane", x: head, y: ly + nameH, width: width - head, height: laneH, "data-row": row.row, "data-lane": index }),
         );
         // The largest first, so that a small mark sits on a large one.

@@ -56,7 +56,7 @@ const sourceName = (key) => {
   return source.year ? `${source.short ?? key} (${source.year})` : (source.short ?? key);
 };
 
-/** A state's mark: a square in its colour, hatched or empty for the two states that have no colour. */
+/** A state's mark: a square in its color, hatched or empty for the two states that have no color. */
 const stateKey = (state) => element("span", { class: "statekey", "data-state": state, "aria-hidden": "true" });
 
 /** The cases the reader's search, source and kind keep. */
@@ -518,7 +518,7 @@ function wire() {
     missingShown += MISSING_SHOWN;
     drawMissing();
   });
-  // A word of the reasons the catalogue records: the search keeps the cases whose numbers differ for it.
+  // A word of the reasons the catalog records: the search keeps the cases whose numbers differ for it.
   for (const button of document.querySelectorAll(".try")) {
     button.addEventListener("click", () => {
       const open = CASE_STATES.slice(1).map((s) => s.key);

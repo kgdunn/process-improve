@@ -1,7 +1,7 @@
 """Coverage for TPLS ``feature_importance`` / ``vip()`` (issue #192).
 
 The TPLS VIP-based feature importance for the D-block (material properties) and
-F-block (formulation variables) previously had no tests pinning its behaviour.
+F-block (formulation variables) previously had no tests pinning its behavior.
 These tests lock in the current structure and invariants so that any future
 re-derivation (e.g. the deflated-matrix variant noted in #192) is a deliberate,
 reviewed change rather than a silent one.
@@ -162,7 +162,7 @@ class TestTPLSDBlockScaling:
             _ = model.d_block_scaling_
 
     def test_scaling_equalises_block_trace(self, tpls_pyphi_data: dict) -> None:
-        """After centring, auto-scaling and block-scaling, trace(X_i^T X_i) ~= 1 for every D-block.
+        """After centering, auto-scaling and block-scaling, trace(X_i^T X_i) ~= 1 for every D-block.
 
         This is the paper's stated goal (removing bias toward blocks with more lots or properties) and is
         an independent anchor for the scaling: the previous 1/sqrt(M_i) factor left trace = P_i - 1, i.e.

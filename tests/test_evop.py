@@ -1,8 +1,8 @@
-"""The evolutionary-operation calculation sheet of a 2^2 design with a centre point (#802 G1).
+"""The evolutionary-operation calculation sheet of a 2^2 design with a center point (#802 G1).
 
 Montgomery's Example 11.7 works three cycles by hand (Tables 11.23 to 11.26), and his Table 11.27
 prints the factor f_{k,n} that turns the range of a cycle's differences into a standard deviation.
-These tests hold the sheet to every printed number, read from the reference catalogue's record, and
+These tests hold the sheet to every printed number, read from the reference catalog's record, and
 the error limits to a simulation of a process whose noise is known.
 """
 
@@ -24,7 +24,7 @@ BOUNDARY = {(5, 9), (10, 3)}
 
 @pytest.fixture(scope="module")
 def record() -> dict:
-    """Return the catalogue's record of Montgomery's Example 11.7."""
+    """Return the catalog's record of Montgomery's Example 11.7."""
     [entry] = [e for e in reference_experiments(source="montgomery-2013") if e["name"] == "montgomery-evop-yield"]
     return entry
 
@@ -61,7 +61,7 @@ def table_11_27(record) -> dict[int, list[float]]:
 
 # --------------------------------------------------------------------------- Montgomery's Example 11.7
 def test_the_points_are_numbered_as_montgomery_numbers_them(record):
-    """Figure 11.49: point (1) is the centre, 250 F and 145 psi; the corners are 5 F and 5 psi from it."""
+    """Figure 11.49: point (1) is the center, 250 F and 145 psi; the corners are 5 F and 5 psi from it."""
     for _cycle, point, temperature, pressure, _y in record["runs"]["rows"]:
         assert ((temperature - 250) / 5, (pressure - 145) / 5) == POINTS[point - 1]
 
@@ -162,7 +162,7 @@ def test_d2_has_a_closed_form_for_two_and_three_observations():
 def test_the_effects_are_those_of_the_factors_that_moved_the_readings():
     """A noiseless response 80 + 1.5 A - 0.5 B + 0.25 AB + 0.5 (A^2 + B^2).
 
-    The effects are twice the coefficients, 3, -1 and 0.5. The corners sit 1 above the centre, so
+    The effects are twice the coefficients, 3, -1 and 0.5. The corners sit 1 above the center, so
     the change in mean is 4 x 1 / 5 = 0.8. Two identical cycles differ by nothing: S is 0.
     """
     readings = [80 + 1.5 * a - 0.5 * b + 0.25 * a * b + 0.5 * (a**2 + b**2) for a, b in POINTS]

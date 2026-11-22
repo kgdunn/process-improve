@@ -3,7 +3,7 @@
 """Unified design generation: ``generate_design()`` dispatcher.
 
 This module provides a single entry point for creating any standard
-experimental design.  It dispatches to specialised modules based on
+experimental design.  It dispatches to specialized modules based on
 ``design_type`` and applies common post-processing (center points,
 replication, randomization, coded/actual mapping).
 
@@ -118,7 +118,7 @@ def _fraction_runs(
     """Return the runs of the fraction a budget sizes, or ``None`` when the budget does not size it.
 
     A budget sizes a two-level fractional factorial asked for by name and without generators: the
-    fraction is the largest power of two that fits once the centre runs are set aside and the
+    fraction is the largest power of two that fits once the center runs are set aside and the
     replicates divided out, capped at the half fraction (#956). Rounding down warns. The caller
     passes ``design_type=None`` when the budget must not size the design: generators fix the
     fraction, and an automatically chosen design is sized by its own rules.
@@ -137,7 +137,7 @@ def _fraction_runs(
     if room < smallest:
         raise ValueError(
             f"budget={budget} leaves {max(room, 0)} run(s) for a fractional factorial of {k} factors once "
-            f"{n_center_points} centre run(s) and {n_replicates} replicate(s) are counted; the smallest such "
+            f"{n_center_points} center run(s) and {n_replicates} replicate(s) are counted; the smallest such "
             f"fraction has {smallest} runs. Give a larger budget, or use 'plackett_burman' or 'supersaturated'."
         )
     n_runs = min(2 ** int(math.log2(room)), 2 ** (k - 1))
@@ -148,7 +148,7 @@ def _fraction_runs(
             else f"a two-level fraction has a power-of-two number of runs, so {n_runs} is the largest that fits"
         )
         warnings.warn(
-            f"budget={budget} leaves {room} run(s) for the fraction after {n_center_points} centre run(s) and "
+            f"budget={budget} leaves {room} run(s) for the fraction after {n_center_points} center run(s) and "
             f"{n_replicates} replicate(s); {reason}.",
             category=UserWarning,
             stacklevel=user_stacklevel(),
@@ -305,7 +305,7 @@ def _dispatch_taguchi(
 # Registry
 # ---------------------------------------------------------------------------
 
-#: Space-filling design types (see designs_space_filling.py); none adds centre points.
+#: Space-filling design types (see designs_space_filling.py); none adds center points.
 _SPACE_FILLING = ("latin_hypercube", "maximin_lhs", "uniform", "sobol", "halton", "maximin", "maxpro")
 
 #: Design types chosen by an optimality criterion; the only ones that take fixed_runs or candidates.
@@ -460,9 +460,9 @@ _DEFAULT_CENTER_POINTS = 3
 
 
 def _default_center_points(factors: list[Factor]) -> int:
-    """Return the centre runs a design gets when none are asked for: none when every factor is categorical.
+    """Return the center runs a design gets when none are asked for: none when every factor is categorical.
 
-    A categorical factor has no centre, so a "centre run" of a design with only categorical factors
+    A categorical factor has no center, so a "center run" of a design with only categorical factors
     repeats one of its cells: a 3 x 3 factorial would get three of its diagonal cells twice.
     """
     if factors and all(f.type == FactorType.categorical for f in factors):
@@ -471,7 +471,7 @@ def _default_center_points(factors: list[Factor]) -> int:
 
 
 class _RunOverhead(NamedTuple):
-    """Runs a design gains beyond its own structure: appended centre points, and replicates."""
+    """Runs a design gains beyond its own structure: appended center points, and replicates."""
 
     n_center_points: int = _DEFAULT_CENTER_POINTS
     n_replicates: int = 1
@@ -491,15 +491,15 @@ def _auto_select(
     factors : list[Factor]
         Factor specifications.
     budget : int or None
-        Maximum number of runs the experimenter can afford, centre points and
+        Maximum number of runs the experimenter can afford, center points and
         replicates included.
     constraints : list[Constraint] or None
         Factor-space constraints.
     hard_to_change : list[str] or None
         Names of hard-to-change factors.
     overhead : _RunOverhead or None
-        Centre points a factorial or Plackett-Burman design would add, and replicates
-        of the whole design; ``None`` means 3 centre points and no replicates.
+        Center points a factorial or Plackett-Burman design would add, and replicates
+        of the whole design; ``None`` means 3 center points and no replicates.
 
     Returns
     -------
@@ -541,7 +541,7 @@ def _auto_select_by_budget(  # noqa: PLR0911
 ) -> str:
     """Pick the unconstrained design family that fits ``budget`` runs for ``k`` process factors.
 
-    A family fits when its runs times the replicates, plus the centre points it adds
+    A family fits when its runs times the replicates, plus the center points it adds
     (which are not replicated), stay within the budget. When none fits, the Plackett-Burman design is chosen and a
     warning is logged.
     """
@@ -575,7 +575,7 @@ def _auto_select_by_budget(  # noqa: PLR0911
     if fits(len(factors) + 1, 0):  # an optimal design for the main effects
         return "d_optimal"
     logger.warning(
-        "No design for %d factors fits a budget of %d runs; the Plackett-Burman design has %d runs, centre "
+        "No design for %d factors fits a budget of %d runs; the Plackett-Burman design has %d runs, center "
         "points and replicates included.",
         len(factors),
         budget,
@@ -623,11 +623,11 @@ def _model_that_fits(factors: list[Factor], model_type: str, budget: int) -> str
 # Argument checks
 # ---------------------------------------------------------------------------
 
-#: Design types that append ``n_center_points`` centre runs after building the design.
+#: Design types that append ``n_center_points`` center runs after building the design.
 _ADDS_CENTER_POINTS = frozenset({"full_factorial", "fractional_factorial", "plackett_burman"})
-#: Design types that place ``n_center_points`` centre runs inside their own structure.
+#: Design types that place ``n_center_points`` center runs inside their own structure.
 _BUILDS_CENTER_POINTS = frozenset({"ccd", "box_behnken"})
-#: Design types with centre runs of their own; ``n_center_points`` is then the total, at least theirs.
+#: Design types with center runs of their own; ``n_center_points`` is then the total, at least theirs.
 _OWN_CENTER_RUNS = frozenset({"dsd", "omars", "omars_ilp"})
 
 #: Design types whose run count the design structure fixes, so a budget cannot change it.
@@ -641,11 +641,11 @@ def _center_points_by_rule(
     alpha: str | float | None,
     ccd: dict[str, Any],
 ) -> tuple[int | None, str | float | None]:
-    """Turn a rule named for a CCD's centre runs into their number, and the axial distance it assumes.
+    """Turn a rule named for a CCD's center runs into their number, and the axial distance it assumes.
 
     Box and Hunter's rules hold for a rotatable design in one block, so the design is made rotatable.
     *ccd* holds the composite design's ``cube``, ``generators``, ``resolution``, ``n_replicates`` and
-    ``n_blocks``. A number of centre runs (or ``None``) passes through unchanged.
+    ``n_blocks``. A number of center runs (or ``None``) passes through unchanged.
     """
     if not isinstance(n_center_points, str):
         return n_center_points, alpha
@@ -657,12 +657,12 @@ def _center_points_by_rule(
     if design_type != "ccd":
         raise ValueError(
             f"n_center_points={n_center_points!r} names a rule for a central composite design; "
-            f"design_type={design_type!r} takes a number of centre runs."
+            f"design_type={design_type!r} takes a number of center runs."
         )
     if alpha not in (None, "rotatable") or (ccd["n_blocks"] or 1) > 1:
         raise ValueError(
             f"n_center_points={n_center_points!r} is Box and Hunter's rule for a rotatable CCD in one block; "
-            f"with alpha={alpha!r} and n_blocks={ccd['n_blocks']!r}, give the number of centre runs instead."
+            f"with alpha={alpha!r} and n_blocks={ccd['n_blocks']!r}, give the number of center runs instead."
         )
     k = len(factors)
     cube_runs = (
@@ -672,7 +672,7 @@ def _center_points_by_rule(
 
 
 def _check_counts(n_center_points: int | None, n_replicates: int, n_blocks: int | None) -> None:
-    """Raise for a centre-point, replicate or block count that cannot be meant literally."""
+    """Raise for a center-point, replicate or block count that cannot be meant literally."""
     if n_center_points is not None and (int(n_center_points) != n_center_points or n_center_points < 0):
         raise ValueError(f"n_center_points must be a whole number >= 0; got {n_center_points}.")
     if int(n_replicates) != n_replicates or n_replicates < 1:
@@ -687,10 +687,10 @@ def _refuse_unused_arguments(
     """Raise when an argument is given to a design type that would silently ignore it."""
     takes_centers = _ADDS_CENTER_POINTS | _BUILDS_CENTER_POINTS | _OWN_CENTER_RUNS
     if n_center_points and design_type not in takes_centers:
-        hint = " Seed a centre run with fixed_runs instead." if design_type in _OPTIMAL_FAMILIES else ""
+        hint = " Seed a center run with fixed_runs instead." if design_type in _OPTIMAL_FAMILIES else ""
         raise ValueError(
-            f"design_type={design_type!r} does not add centre points, so n_center_points={n_center_points} "
-            f"cannot be honoured; leave it unset or 0.{hint}"
+            f"design_type={design_type!r} does not add center points, so n_center_points={n_center_points} "
+            f"cannot be honored; leave it unset or 0.{hint}"
         )
     uses_fraction = design_type == "fractional_factorial" or (design_type == "ccd" and cube == "fractional")
     if not uses_fraction and (resolution is not None or generators is not None):
@@ -725,7 +725,7 @@ def _blocks_from_generators(design_type: str, block_generators: list[str], n_blo
 
 
 def _center_mask(coded_matrix: np.ndarray, factors: list[Factor]) -> np.ndarray:
-    """Mark the runs with every non-categorical factor at its centre (0 in coded units)."""
+    """Mark the runs with every non-categorical factor at its center (0 in coded units)."""
     columns = [j for j, f in enumerate(factors) if f.type != FactorType.categorical]
     if not columns or coded_matrix.dtype == object:
         return np.zeros(len(coded_matrix), dtype=bool)
@@ -733,15 +733,15 @@ def _center_mask(coded_matrix: np.ndarray, factors: list[Factor]) -> np.ndarray:
 
 
 def _center_runs_built_in(coded_matrix: np.ndarray, factors: list[Factor]) -> int:
-    """Count the runs with every non-categorical factor at its centre (0 in coded units)."""
+    """Count the runs with every non-categorical factor at its center (0 in coded units)."""
     return int(_center_mask(coded_matrix, factors).sum())
 
 
 def _own_center_rows(design_type: str, coded_matrix: np.ndarray, factors: list[Factor]) -> np.ndarray | None:
-    """Return the centre runs a design builds in, which replication leaves single; None for the others.
+    """Return the center runs a design builds in, which replication leaves single; None for the others.
 
-    In a CCD, Box-Behnken, DSD or OMARS design a centre run is part of the construction,
-    and ``n_center_points`` counts the design's centre runs. Elsewhere a run at the centre
+    In a CCD, Box-Behnken, DSD or OMARS design a center run is part of the construction,
+    and ``n_center_points`` counts the design's center runs. Elsewhere a run at the center
     is an ordinary run (an optimal design may choose one), replicated with the rest.
     """
     if design_type in _BUILDS_CENTER_POINTS | _OWN_CENTER_RUNS:
@@ -750,7 +750,7 @@ def _own_center_rows(design_type: str, coded_matrix: np.ndarray, factors: list[F
 
 
 def _total_runs(n_rows: int, own_center_rows: np.ndarray | None, extra_center_points: int, n_replicates: int) -> int:
-    """Count the runs of the finished design: the replicated runs, then the centre runs once."""
+    """Count the runs of the finished design: the replicated runs, then the center runs once."""
     n_own = 0 if own_center_rows is None else int(own_center_rows.sum())
     return (n_rows - n_own) * n_replicates + n_own + extra_center_points
 
@@ -758,7 +758,7 @@ def _total_runs(n_rows: int, own_center_rows: np.ndarray | None, extra_center_po
 def _extra_center_points(
     design_type: str, n_center_points: int | None, coded_matrix: np.ndarray, factors: list[Factor]
 ) -> int:
-    """Centre runs to append to the dispatched design."""
+    """Center runs to append to the dispatched design."""
     if design_type in _ADDS_CENTER_POINTS:
         return _default_center_points(factors) if n_center_points is None else n_center_points
     if design_type in _OWN_CENTER_RUNS and n_center_points is not None:
@@ -786,7 +786,7 @@ def _warn_if_no_error_df(
         return
     warnings.warn(
         f"This {design_type!r} design leaves no degrees of freedom for error once the full second-order model is "
-        "fitted, so analyze_omars cannot test any effect. Add centre runs (for example n_center_points=3) or "
+        "fitted, so analyze_omars cannot test any effect. Add center runs (for example n_center_points=3) or "
         "give a larger budget.",
         category=UserWarning,
         stacklevel=user_stacklevel(),
@@ -794,7 +794,7 @@ def _warn_if_no_error_df(
 
 
 def _alpha_inside_limits(design_type: str, alpha: str | float | None, factors: list[Factor]) -> str | float | None:
-    """Return a CCD's axial distance: face-centred when none is given and a factor's range is a hard limit.
+    """Return a CCD's axial distance: face-centered when none is given and a factor's range is a hard limit.
 
     The default axial distance steps past the ranges, which a hard limit forbids.
     """
@@ -807,7 +807,7 @@ def _note_alpha_chosen(meta: dict, given: str | float | None, used: str | float 
     """Record why the axial distance is not the one asked for, when hard limits chose it."""
     if used != given:
         meta["alpha_reason"] = (
-            "face-centred: a factor's range is a hard limit, and axial runs further out would pass it"
+            "face-centered: a factor's range is a hard limit, and axial runs further out would pass it"
         )
 
 
@@ -909,7 +909,7 @@ def generate_design(  # noqa: PLR0913
         space-filling types ``"latin_hypercube"``, ``"maximin_lhs"``, ``"uniform"``, ``"sobol"``,
         ``"halton"``, ``"maximin"`` and ``"maxpro"`` (``budget`` runs, default ``10 * k``).
         If ``None``, the design type is chosen automatically based on the
-        factor count, budget, and constraints, so that the design, centre points
+        factor count, budget, and constraints, so that the design, center points
         and replicates included, fits within *budget* (a warning is logged when no
         design does). *resolution* or *generators* choose a fractional factorial.
         An automatically chosen fractional factorial for six or more factors is
@@ -917,7 +917,7 @@ def generate_design(  # noqa: PLR0913
         design is built for the largest model, up to *model_type*, that *budget* can
         estimate.
     budget : int or None
-        Maximum number of runs the experimenter can afford, centre points and
+        Maximum number of runs the experimenter can afford, center points and
         replicates included. The optimal, mixture, space-filling and supersaturated
         designs, and OMARS with a budget, are built to it (OMARS to the largest
         foldover size within it). A fractional factorial without *generators* is the
@@ -932,26 +932,26 @@ def generate_design(  # noqa: PLR0913
         or ``2k + 2`` runs gives Jones and Nachtsheim's (2011) design of ``2k + 1``
         runs, two fewer than the default, whose main effects are slightly correlated.
     n_center_points : int, str or None
-        Number of centre runs in the whole design: they are not replicated with
+        Number of center runs in the whole design: they are not replicated with
         *n_replicates*. ``None`` (the default) means 3 for the full and
         fractional factorials, Plackett-Burman, CCD and Box-Behnken designs, and the
-        design's own centre runs for the others. A design whose factors are all
-        categorical has no centre, so ``None`` gives it none: a 3 x 3 factorial has
+        design's own center runs for the others. A design whose factors are all
+        categorical has no center, so ``None`` gives it none: a 3 x 3 factorial has
         9 runs. Give a number to add runs to it anyway. CCD and Box-Behnken designs place
         them within the design structure. For a DSD or OMARS design it is the total
-        number of centre runs, at least the one the design has (two for a DSD with
+        number of center runs, at least the one the design has (two for a DSD with
         categorical factors). A DSD or OMARS design that leaves the full second-order
         model no error degrees of freedom (the default for an even number of factors)
-        warns, since :func:`analyze_omars` could not test its effects; extra centre runs
-        fix that. Any other design type takes no centre points, so a positive value
+        warns, since :func:`analyze_omars` could not test its effects; extra center runs
+        fix that. Any other design type takes no center points, so a positive value
         raises ``ValueError``. For a CCD, ``"uniform_precision"`` or ``"orthogonal"``
         sets the number by Box and Hunter's rule for a rotatable design in one block
         (:func:`~process_improve.experiments.designs_response_surface.ccd_center_points`),
-        and makes the design rotatable: four factors get 7 or 12 centre runs.
+        and makes the design rotatable: four factors get 7 or 12 center runs.
     n_replicates : int
-        Number of replicates of the design's runs, centre runs excepted (default 1 =
+        Number of replicates of the design's runs, center runs excepted (default 1 =
         no replication): a 2^3 factorial with ``n_center_points=3`` and
-        ``n_replicates=2`` has 16 factorial runs and 3 centre runs. A CCD's orthogonal
+        ``n_replicates=2`` has 16 factorial runs and 3 center runs. A CCD's orthogonal
         axial distance allows for it. Cannot be combined with *fixed_runs*.
     n_blocks : int or None
         Number of blocks the runs are made in (days, batches, raw-material lots), with
@@ -1003,16 +1003,16 @@ def generate_design(  # noqa: PLR0913
         one interaction of each pair; ``metadata["aliased_interactions"]`` lists the pairs.
     categorical_method : {"dsd", "orth"}
         For a DSD with two-level categorical factors, how they are added (Jones and
-        Nachtsheim 2013): ``"dsd"`` (default), the DSD-augment method, two centre runs
+        Nachtsheim 2013): ``"dsd"`` (default), the DSD-augment method, two center runs
         and a little correlation between a categorical and the other main effects; or
         ``"orth"``, the ORTH-augment method, every main effect orthogonal to every other
         (up to four categorical factors) but partly aliased with some second-order
-        effects, in the same runs for one categorical factor and two more centre runs
+        effects, in the same runs for one categorical factor and two more center runs
         for more. Any other design type refuses ``"orth"``.
     constraints : list[Constraint] or None
         Inequalities on the continuous factors, in actual units, e.g.
         ``Constraint(expression="3*T + 5*D <= 600")``; a dict of ``Constraint`` fields or
-        a bare expression string is accepted too. Honoured by the optimal
+        a bare expression string is accepted too. Honored by the optimal
         families (``"d_optimal"``, chosen automatically when constraints are given,
         ``"i_optimal"``, ``"a_optimal"``, ``"e_optimal"``, ``"g_optimal"`` and
         ``"k_optimal"``), whose runs are selected
@@ -1022,7 +1022,7 @@ def generate_design(  # noqa: PLR0913
         ``metadata["constraints_enforced"] = False``.
     hard_to_change : list[str] or None
         Names of hard-to-change factors, for a split-plot design: they are set once for
-        each whole plot, and the design is D-, I- or A-optimal on the generalised least
+        each whole plot, and the design is D-, I- or A-optimal on the generalized least
         squares information ``X'V^-1 X``, with the whole-plot variance half the run-to-run
         variance. Only the optimal families build one, so any other *design_type* raises
         ``ValueError``; with *design_type* unset, a D-optimal design is chosen.
@@ -1043,7 +1043,7 @@ def generate_design(  # noqa: PLR0913
         components as proportions that sum to 1 (blends already made, to which an optimal
         mixture design adds the blends that say most beside them).
         The fixed runs occupy the first rows of the result and ``budget`` counts them, so
-        ``budget`` must exceed ``len(fixed_runs)``. A common use is to seed a centre point. Raises
+        ``budget`` must exceed ``len(fixed_runs)``. A common use is to seed a center point. Raises
         ``ValueError`` if given for a non-optimal ``design_type``.
     candidates : pandas.DataFrame or None
         The settings the runs must be chosen from, for the optimal families only: for
@@ -1055,7 +1055,7 @@ def generate_design(  # noqa: PLR0913
         constraint are dropped. A candidate may be chosen more than once, and
         ``metadata["selected_candidates"]`` counts the picks per index label.
     random_state : int, numpy.random.Generator or None
-        Seeds the run-order randomisation and any random search (default 42, so the
+        Seeds the run-order randomization and any random search (default 42, so the
         same call gives the same design). ``None`` draws fresh entropy; see
         :doc:`/development/reproducibility`.
     backend : {"auto", "exchange", "pyoptex"}
@@ -1089,7 +1089,7 @@ def generate_design(  # noqa: PLR0913
     ValueError
         If *design_type* is unknown, if factor/budget constraints
         cannot be satisfied, or if an argument is given that the design type
-        cannot honour.
+        cannot honor.
 
     Examples
     --------
@@ -1184,7 +1184,7 @@ def generate_design(  # noqa: PLR0913
     _note_alpha_chosen(meta, alpha_given, alpha)
     _refuse_unenforced_rules(factors, constraints, design_type, meta)
     if constraints and not meta.get("constraints_enforced"):
-        # Only the optimal, mixture and sobol/halton/maximin paths honour constraints; say so on the result.
+        # Only the optimal, mixture and sobol/halton/maximin paths honor constraints; say so on the result.
         logger.warning(
             "design_type=%r does not enforce constraints; use an optimal design ('d_optimal', 'i_optimal', ...), "
             "'mixture', or the 'sobol', 'halton' or 'maximin' space-filling designs.",
@@ -1241,7 +1241,7 @@ def _refuse_traces(
 
     The candidate exchange of the optimal designs keeps every run at 0 or at least the
     minimum. A classical design takes its levels from the factor's range alone, so its
-    centre points or its axial runs can fall between the two, and so can the runs of a
+    center points or its axial runs can fall between the two, and so can the runs of a
     split-plot design or of another backend. The first ``n_fixed`` runs are the caller's
     ``fixed_runs``, which are kept as given.
     """
@@ -1259,7 +1259,7 @@ def _refuse_traces(
     if traces:
         raise ValueError(
             f"design_type={design_type!r} sets {', '.join(traces)} between 0 and its minimum in some runs"
-            f"{' or centre points' if n_center_points else ''}. An optimal design ('d_optimal', 'i_optimal', "
+            f"{' or center points' if n_center_points else ''}. An optimal design ('d_optimal', 'i_optimal', "
             "'a_optimal') built by the candidate exchange keeps every run at 0 or at least the minimum; leave "
             "design_type unset to get one."
         )
@@ -1272,11 +1272,11 @@ def _refuse_optimal_only_arguments(
     hard_to_change: list[str] | None,
     factors: list[Factor],
 ) -> None:
-    """Raise when an argument only the optimal families honour is given to another design type.
+    """Raise when an argument only the optimal families honor is given to another design type.
 
     ``candidates``, ``fixed_runs`` and ``hard_to_change`` are those arguments. Only the
     optimal families build split-plot structure; any other design type would drop
-    ``hard_to_change`` and randomise every run, resetting the hard-to-change factors from
+    ``hard_to_change`` and randomize every run, resetting the hard-to-change factors from
     run to run.
     """
     families = ", ".join(sorted(_OPTIMAL_FAMILIES))
@@ -1287,7 +1287,7 @@ def _refuse_optimal_only_arguments(
             hint = "Use design_type='d_optimal' or 'i_optimal', or leave design_type unset to choose one."
         raise ValueError(
             f"hard_to_change={list(hard_to_change)} asks for a split-plot design, which only the optimal design "
-            f"families ({families}) build; design_type={design_type!r} would randomise every run. {hint}"
+            f"families ({families}) build; design_type={design_type!r} would randomize every run. {hint}"
         )
     if candidates is not None and design_type not in _OPTIMAL_FAMILIES:
         raise ValueError(
@@ -1305,8 +1305,8 @@ def _refuse_over_budget(design_type: str, n_runs: int, budget: int) -> None:
     """Raise when a design type of fixed size needs more runs than the budget."""
     if design_type in _FIXED_SIZE and n_runs > budget:
         raise ValueError(
-            f"design_type={design_type!r} gives {n_runs} runs (centre points and replicates included), more than "
-            f"budget={budget}. Use fewer centre points or replicates, a smaller design, or design_type=None to "
+            f"design_type={design_type!r} gives {n_runs} runs (center points and replicates included), more than "
+            f"budget={budget}. Use fewer center points or replicates, a smaller design, or design_type=None to "
             "choose one that fits."
         )
 

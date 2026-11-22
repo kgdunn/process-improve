@@ -166,7 +166,7 @@ def tool_spec(
 
 
 # ---------------------------------------------------------------------------
-# Serialisation helper
+# Serialization helper
 # ---------------------------------------------------------------------------
 
 
@@ -174,7 +174,7 @@ def clean(value: Any) -> Any:  # noqa: PLR0911, ANN401
     """Recursively convert numpy scalars / arrays to plain Python types.
 
     All ``tools.py`` modules should call ``clean(result)`` before returning
-    so that every tool output is JSON-serialisable.
+    so that every tool output is JSON-serializable.
     """
     if isinstance(value, dict):
         # Keys need unwrapping too: json.dumps rejects numpy scalar keys (a

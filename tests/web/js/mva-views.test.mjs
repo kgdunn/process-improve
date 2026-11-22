@@ -67,7 +67,7 @@ describe("encodings", () => {
     ]);
   });
 
-  test("the colour scale runs from dark to light", () => {
+  test("the color scale runs from dark to light", () => {
     assert.equal(viridis(0), "rgb(68, 1, 84)");
     assert.equal(viridis(1), "rgb(253, 231, 37)");
     assert.equal(viridis(2), viridis(1), "clamped");
@@ -96,7 +96,7 @@ describe("the look of each point follows the store", () => {
     assert.equal(styles[3].size, MARKER.size * 1.6);
   });
 
-  test("a row in a saved set takes the set's colour, unless the points encode colour themselves", () => {
+  test("a row in a saved set takes the set's color, unless the points encode color themselves", () => {
     const sets = [{ name: "Upset", rows: new Set(["52"]), colour: "#E69F00" }];
     assert.equal(pointStyles(points, state({ sets }), { colour: null })[30].colour, "#E69F00");
     const coloured = points.map((p, i) => ({ ...p, colour: i % 2 ? "A" : "B" }));
@@ -116,7 +116,7 @@ describe("labels", () => {
     assert.equal(chooseLabels(cloud(), state(), { labels: "all" }).size, 33);
   });
 
-  test("a label goes on the side away from its neighbours", () => {
+  test("a label goes on the side away from its neighbors", () => {
     const points = [
       { id: "a", x: 0, y: 0 },
       { id: "left", x: -1, y: 0 },
@@ -152,7 +152,7 @@ describe("the scatter", () => {
     assert.equal(figure.data[0].showlegend, false);
   });
 
-  test("colour categories get legend keys, the ellipse a dashed line, and an annotation an arrow", () => {
+  test("color categories get legend keys, the ellipse a dashed line, and an annotation an arrow", () => {
     const points = cloud().map((p, i) => ({ ...p, colour: i < 30 ? "Normal" : "Upset" }));
     const ellipse = { x: [1, 0, -1, 0, 1], y: [0, 1, 0, -1, 0] };
     const figure = scatterFigure(points, state(), {
@@ -184,7 +184,7 @@ describe("the scatter", () => {
 });
 
 describe("bars and sequences", () => {
-  test("bars take their sign's colour and can be sorted by size", () => {
+  test("bars take their sign's color and can be sorted by size", () => {
     const items = [
       { id: "Tin", value: 0.2 },
       { id: "z2", value: -1.3 },

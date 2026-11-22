@@ -41,7 +41,7 @@ def third_order_contrasts(
     """Return, for each factor of a composite design, the slope its axial runs give less the slope its cube gives.
 
     A composite design measures each factor's slope twice: from its axial runs, at plus and minus
-    alpha with the other factors at their centres, and from the runs of its factorial cube. Under
+    alpha with the other factors at their centers, and from the runs of its factorial cube. Under
     a second-order model the two agree. Their difference estimates (alpha^2 - 1) b_iii less the sum
     of b_ijj over the other factors j, which is b_iii - b_ijj for two factors at alpha = sqrt(2), as
     Box, Hunter and Hunter (15.20, 15.21) write it. A contrast many standard errors from zero says
@@ -74,7 +74,7 @@ def third_order_contrasts(
     ------
     ValueError
         If there are fewer than two factors, no runs of a factorial cube, a factor without an
-        axial run on each side of the centre, or no replicated runs and no ``sigma``.
+        axial run on each side of the center, or no replicated runs and no ``sigma``.
 
     Examples
     --------
@@ -106,7 +106,7 @@ def third_order_contrasts(
         alone = ~np.isclose(x[:, i], 0.0) & np.all(np.isclose(np.delete(x, i, axis=1), 0.0), axis=1)
         plus, minus = alone & (x[:, i] > 0), alone & (x[:, i] < 0)
         if not (plus.any() and minus.any()):
-            raise ValueError(f"{name!r} needs an axial run on each side of the centre, the other factors at 0.")
+            raise ValueError(f"{name!r} needs an axial run on each side of the center, the other factors at 0.")
         reach = x[plus, i].mean() - x[minus, i].mean()
         axial = (y[plus].mean() - y[minus].mean()) / reach
         factorial = float(y[cube] @ x[cube, i] / cube.sum())
@@ -125,8 +125,8 @@ def pooled_pure_error(designs: Sequence[pd.DataFrame], response_col: str, factor
 
     Each design's replicated runs are compared with their own mean, and the sums of squares and
     the degrees of freedom are added over the designs. Runs of two designs at the same coded
-    setting are not replicates of each other, since the design's centre moves from one to the
-    next. Box, Hunter and Hunter (15.16, 15.24) pool the centre runs of three designs this way. A
+    setting are not replicates of each other, since the design's center moves from one to the
+    next. Box, Hunter and Hunter (15.16, 15.24) pool the center runs of three designs this way. A
     blocked design whose blocks may differ goes in as one design per block.
 
     Parameters
@@ -243,7 +243,7 @@ def stationary_point_region(
     --------
     Box, Hunter and Hunter's composite design (Table 15.4), at alpha = sqrt(2). The fitted
     surface is a maximum whose smaller eigenvalue is 3% of the larger, nearly a ridge, so its
-    stationary point lies far outside the runs and is poorly located: the centre of the design
+    stationary point lies far outside the runs and is poorly located: the center of the design
     is inside the 95% region, while (1, 0) is not.
 
     >>> import pandas as pd
@@ -371,7 +371,7 @@ def _quadratic_matrix(theta: np.ndarray, pairs: list[tuple[int, int]], k: int) -
 def _stationary_point(theta: np.ndarray, pairs: list[tuple[int, int]], k: int) -> tuple[np.ndarray | None, str]:
     """Return the fitted surface's stationary point and its classification, read as optimize_responses reads them.
 
-    Along a stationary ridge the point is the one nearest the centre; a rising ridge has none.
+    Along a stationary ridge the point is the one nearest the center; a rising ridge has none.
     """
     b, quadratic = theta[1 : 1 + k], _quadratic_matrix(theta, pairs, k)
     eigenvalues, eigenvectors = _eigen_by_size(quadratic)

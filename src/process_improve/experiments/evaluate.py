@@ -678,7 +678,7 @@ def _compass_search(ctx: _EvalContext, starts: pd.DataFrame, continuous: list[st
     step = 0.5
     k = len(continuous)
     while step > _SEARCH_TOLERANCE:
-        # every point's 2k neighbours: one quantitative factor moved up or down by the step
+        # every point's 2k neighbors: one quantitative factor moved up or down by the step
         moves = np.vstack([np.eye(k), -np.eye(k)]) * step
         neighbours = current.loc[current.index.repeat(2 * k)].reset_index(drop=True)
         shift = np.tile(moves, (len(current), 1))
@@ -907,7 +907,7 @@ def _compute_average_prediction_variance(ctx: _EvalContext) -> dict[str, Any]:
     """I-criterion: the prediction variance ``f(x)'(X'X)^-1 f(x)`` averaged over the design region.
 
     In units of the error variance, and lower is better. This is what JMP reports as the
-    "average variance of prediction" and what an I-optimal design minimises.
+    "average variance of prediction" and what an I-optimal design minimizes.
     """
     if ctx.is_singular:
         return {"average_prediction_variance": None, "note": "Design is rank-deficient for the specified model."}
@@ -937,7 +937,7 @@ def _compute_a_optimality(ctx: _EvalContext) -> dict[str, Any]:
 
     The trace of the inverse information matrix is the sum (so, up to a
     constant, the average) of the coefficient variances.  ``a_efficiency`` is a
-    normalised score in the same spirit as ``d_efficiency`` (higher is better).
+    normalized score in the same spirit as ``d_efficiency`` (higher is better).
     """
     if ctx.is_singular:
         return {"a_optimality": None, "note": "Design is rank-deficient for the specified model."}
@@ -1058,7 +1058,7 @@ def _compute_correlation(ctx: _EvalContext) -> dict[str, Any]:
     The pure-quadratic columns ``x_i^2`` have a non-zero mean, so a raw Pearson
     correlation between them is inflated by that shared offset and depends on
     the coding.  To get a coding-invariant measure, each second-order column is
-    first residualised against the intercept-and-main-effect block (the
+    first residualized against the intercept-and-main-effect block (the
     content those columns share by construction) and the correlations are taken
     on the residuals.
 
@@ -1083,7 +1083,7 @@ def _compute_correlation(ctx: _EvalContext) -> dict[str, Any]:
 
     second = ctx.X[:, second_idx]
     base = ctx.X[:, base_idx]
-    # Residualise the second-order columns against [intercept, main effects].
+    # Residualize the second-order columns against [intercept, main effects].
     resid = second - base @ (np.linalg.pinv(base) @ second)
 
     with np.errstate(invalid="ignore", divide="ignore"):
@@ -1138,7 +1138,7 @@ def _second_order_pair(first: tuple[str, str], second: tuple[str, str]) -> str:
 
 
 def _by_pair(corr: np.ndarray, terms: list[str]) -> dict[str, dict[str, float | int]]:
-    """Summarise the sizes of correlations between second-order terms by kind of pair.
+    """Summarize the sizes of correlations between second-order terms by kind of pair.
 
     For each kind of :data:`SECOND_ORDER_PAIRS` that the terms make, ``max_abs_r``, ``mean_abs_r``
     and ``n_pairs``, as Jones and Nachtsheim (2011) tabulate them for definitive screening designs
@@ -1166,7 +1166,7 @@ def _compute_estimate_correlation(ctx: _EvalContext) -> dict[str, Any]:
     *estimates* the fit makes of them: ``r_ij = c_ij / sqrt(c_ii c_jj)`` with ``c = (X'X)^-1``,
     the correlations JMP prints as the "correlation of estimates". A large ``|r_ij|`` means the
     data cannot tell the two effects apart: an active square can show up as an interaction, or
-    the reverse. ``by_pair`` summarises them by kind of pair (see :func:`_by_pair`), as
+    the reverse. ``by_pair`` summarizes them by kind of pair (see :func:`_by_pair`), as
     ``correlation`` does for the columns. A model of every main effect and every square gives
     Jones and Nachtsheim's (2011) Table 4 for two squares, and the full quadratic model of three of
     the factors gives its other columns.
@@ -1247,7 +1247,7 @@ def _compute_alias_matrix(ctx: _EvalContext) -> dict[str, Any]:
     (the two-factor interactions not already in the model, and with
     ``alias_terms="quadratic"`` the squares of the numeric factors too), the least
     squares estimate of the fitted coefficients is biased by
-    ``E[b1] = beta1 + A @ beta2``.  This generalises :func:`alias_structure`
+    ``E[b1] = beta1 + A @ beta2``.  This generalizes :func:`alias_structure`
     (which only handles two-level fractional factorials) to any design / model.
 
     Returns the ``matrix`` (nested lists), the ``model_terms`` (rows) and
@@ -1378,7 +1378,7 @@ def _compute_vif(ctx: _EvalContext) -> dict[str, Any]:
     ``VIF_j = c_jj * sum_i (x_ij - mean_j)^2`` with ``c = (X'X)^-1``. For a model with an
     intercept this is the classical ``1 / (1 - R_j^2)``, with ``R_j^2`` from regressing
     column ``j`` on the other columns. A Scheffé mixture model has no intercept, and its
-    linear blending columns sum to one, so the classical form (which centres the columns)
+    linear blending columns sum to one, so the classical form (which centers the columns)
     is undefined for them; the same expression is reported, as JMP does: it is finite
     whenever the model is estimable, and the cross-product terms read as usual.
     """
@@ -1546,7 +1546,7 @@ def _compute_screening_power(ctx: _EvalContext) -> dict[str, Any]:
 
     A test is not estimable when its model is rank-deficient or leaves no residual degrees of
     freedom, and aliased when a second-order term outside its model cannot be told apart from the
-    term tested (every square of a two-level design with centre runs; an interaction of a
+    term tested (every square of a two-level design with center runs; an interaction of a
     resolution IV fraction). Neither has a power; the averages are over the other tests, and a
     hypothesis none of whose tests remains is reported as ``"aliased"`` or ``"not estimable"``,
     as Table 7 marks them. Only numeric factors can be studied this way.
@@ -1831,7 +1831,7 @@ def _compute_resolution(ctx: _EvalContext) -> dict[str, Any]:
 def _generator_chains_apply(ctx: _EvalContext) -> bool:
     """Whether the generators' alias chains describe the whole design.
 
-    They do for a (fractional) factorial, centre points included. The axial runs of a
+    They do for a (fractional) factorial, center points included. The axial runs of a
     central composite design (or any other runs added to a fractional cube) break part
     of that aliasing, so for those designs the chains are found from the design itself.
     """

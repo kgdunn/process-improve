@@ -187,7 +187,7 @@ def test_validate_missing_product_in_covariates_drops_and_warns():
     assert result.ok
     assert result.errors == []
     assert any("no row in the covariate table" in w and "dropped" in w for w in result.warnings)
-    # The unmatched product is gone from the normalised panel.
+    # The unmatched product is gone from the normalized panel.
     assert PRODUCTS[-1] not in set(result.normalized_df["product"])
     assert result.stats["n_products"] == len(PRODUCTS) - 1
 
@@ -1211,7 +1211,7 @@ def test_tool_panel_check_returns_scorecard_and_mam():
 
     panel = _scaling_panel().to_dict(orient="records")
     out = execute_tool_call("sensory_panel_check", {"panel": panel, "align": True})
-    json.dumps(out)  # must be JSON-serialisable for the front end
+    json.dumps(out)  # must be JSON-serializable for the front end
     assert out["ok"]
     beta = {r["panelist_id"]: r["beta"] for r in out["mam"]["scaling"]}
     assert beta["P0"] < 0.7  # compressor recovered through the tool

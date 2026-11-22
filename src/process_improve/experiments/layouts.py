@@ -134,7 +134,7 @@ def estimate_missing(design_matrix: pd.DataFrame, formula: str, decimals: int | 
         The model, with the response on the left, such as ``"y ~ C(block) + C(treatment)"``.
     decimals : int, optional
         Round the estimates to this many decimals before they complete the table, as a source
-        does that analyses the estimates it prints.
+        does that analyzes the estimates it prints.
 
     Returns
     -------

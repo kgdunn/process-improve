@@ -1,4 +1,4 @@
-"""Analysing a transformed response: ``analysis_transforms`` in the specification, as the page and a workbook keep it.
+"""Analyzing a transformed response: ``analysis_transforms`` in the specification, as the page and a workbook keep it.
 
 The model is fitted to the response's log, square root or -1/y (an increasing form of 1/y, as Box-Cox's is),
 and what the replies say in the response's units is put back in them: a prediction becomes the response's median.
@@ -17,7 +17,7 @@ from tests.web._support import FACTORS, held_of
 
 
 def transformed(held: dict, transform: str | None, response: str | None = None) -> dict:
-    """Return what the page holds with its response, or the one named, analysed with ``transform``."""
+    """Return what the page holds with its response, or the one named, analyzed with ``transform``."""
     spec = held["spec"]
     return {**held, "spec": {**spec, "analysis_transforms": {response or spec["response"]: transform}}}
 
@@ -114,14 +114,14 @@ def test_a_result_the_transform_cannot_take_is_refused_naming_its_run(api, held)
     order = pd.DataFrame(held["rows"], columns=held["columns"])["Run order"].iloc[3]
     assert message == (
         f"The log of {held['spec']['response']} needs every result above 0, and run {order} has 0. "
-        "Analyse it as it is, or with another transform."
+        "Analyze it as it is, or with another transform."
     )
     assert api.ok("api_analyze_runs", {**transformed(held, "sqrt"), "responses": y}), "a square root takes 0"
 
 
 def test_a_transform_the_page_does_not_offer_is_refused(api, held):
     message = api.error("api_analyze_runs", {**transformed(held, "box_cox"), "responses": lognormal(held)})
-    assert message == "A response is analysed as it is, or as its log, square root or inverse."
+    assert message == "A response is analyzed as it is, or as its log, square root or inverse."
 
 
 def test_a_transform_of_a_response_since_renamed_is_dropped(api, held):
@@ -189,7 +189,7 @@ def test_the_what_if_models_say_which_response_is_on_which_scale(api, held):
     assert fit["coefficients"][0] == pytest.approx(logged["coefficients"][0]["coefficient"]), "fitted to ln y"
 
 
-#: A yield to maximise and a cost to minimise, over a face-centred design in T and P.
+#: A yield to maximize and a cost to minimize, over a face-centered design in T and P.
 TWO = [
     {"name": "Yield", "label": "Yield", "units": "%", "goal": "maximize"},
     {"name": "Cost", "label": "Cost", "units": "$/kg", "goal": "minimize"},

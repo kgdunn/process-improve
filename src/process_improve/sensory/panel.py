@@ -37,7 +37,7 @@ _AGREEMENT_FLOOR = 0.0
 _AGREEMENT_SUSPECT = 0.5
 _DISCRIMINATION_SUSPECT = 0.5
 
-#: Minimum number of panelists before the Extreme Studentised Deviate test is
+#: Minimum number of panelists before the Extreme Studentized Deviate test is
 #: used to flag low-tail outliers; below this the floor rules apply alone.
 _MIN_PANELISTS_FOR_ESD = 4
 

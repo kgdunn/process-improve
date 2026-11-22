@@ -49,7 +49,7 @@ def test_dsd_with_categorical_keeps_main_effects_clear_of_second_order() -> None
     )
     second = [x[:, i] * x[:, j] for i in range(5) for j in range(i, 5) if not (i == j and i >= 3)]
     assert np.abs(x.T @ np.column_stack(second)).max() == 0
-    assert result.n_runs == 14  # 2 * 6 + 2 centre runs
+    assert result.n_runs == 14  # 2 * 6 + 2 center runs
 
 
 @pytest.mark.parametrize("design_type", ["ccd", "box_behnken", "omars", "supersaturated", "latin_hypercube"])
@@ -84,7 +84,7 @@ def test_taguchi_any_number_of_two_level_factors(k: int) -> None:
     result = generate_design([_c(f"x{i}") for i in range(k)], "taguchi")
     x = result.design[[f"x{i}" for i in range(k)]].to_numpy(dtype=float)
     assert _strength_two(x)
-    assert not np.all(x == 0, axis=1).any()  # no centre points
+    assert not np.all(x == 0, axis=1).any()  # no center points
     assert result.n_runs == {2: 4, 3: 4}.get(k, 8 if k <= 7 else 12 if k <= 11 else 16)
 
 

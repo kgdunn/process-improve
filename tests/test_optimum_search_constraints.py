@@ -243,7 +243,7 @@ def _best_of_every_set(desirability: object, region: DesignRegion, rng: np.rando
 
 
 class TestCurvedModels:
-    """Models with blending terms are searched for: from promising sets, their neighbours, the tangents' best set."""
+    """Models with blending terms are searched for: from promising sets, their neighbors, the tangents' best set."""
 
     def test_the_tangent_of_a_model_is_its_value_and_slopes_at_the_point(self) -> None:
         terms = {"Intercept": 2.0, "a": 3.0, "b": -1.0, "a:b": 4.0, "I(a ** 2)": 0.5, "a:b:c": 2.0}

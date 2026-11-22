@@ -1,4 +1,4 @@
-"""A Taguchi orthogonal array, made, simulated and analysed as a reader would, in the browser.
+"""A Taguchi orthogonal array, made, simulated and analyzed as a reader would, in the browser.
 
 The array takes one setting of its own, the levels of each numeric factor; its facts name the
 array, and Learn fits the main effects and squares a three-level array is made for, saying once
@@ -47,7 +47,7 @@ def test_a_three_level_array_is_made_simulated_and_analysed_for_its_main_effects
 
     practise(page)
     reveal(page, "#analysis")
-    assert page.input_value("#model") == "", "analysed as designed"
+    assert page.input_value("#model") == "", "analyzed as designed"
     analysis = last_reply(page, "api_analyze_runs")
     assert analysis["warnings"] == []
     assert analysis["result"]["formula"] == "T + P + F + I(T ** 2) + I(P ** 2) + I(F ** 2)"

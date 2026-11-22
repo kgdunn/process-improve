@@ -1,4 +1,4 @@
-"""Batch process data analysis: alignment, feature extraction, modelling, and visualization."""
+"""Batch process data analysis: alignment, feature extraction, modeling, and visualization."""
 
 from process_improve.batch._batch_monitor import BatchMonitor
 from process_improve.batch._batch_pca import BatchPCA
@@ -57,7 +57,7 @@ from process_improve.batch.preprocessing import (
 )
 
 __all__ = [
-    # Modelling and monitoring
+    # Modeling and monitoring
     "BatchMonitor",
     "BatchPCA",
     "BatchPLS",

@@ -2,7 +2,7 @@
 
 Produces raw Python dicts that match the `ECharts option specification
 <https://echarts.apache.org/en/option.html>`_.  No pyecharts dependency
-- dicts are JSON-serialisable and can be passed directly to
+- dicts are JSON-serializable and can be passed directly to
 ``echarts.setOption()`` on the SvelteKit frontend.
 """
 
@@ -129,7 +129,7 @@ class EChartsAdapter(AbstractAdapter):
         return option
 
     def _heatmap_axes(self, option: dict[str, Any], layer: LayerSpec) -> None:
-        """Give a heatmap's panel category axes from its grid, and the colour scale ECharts needs to draw it.
+        """Give a heatmap's panel category axes from its grid, and the color scale ECharts needs to draw it.
 
         ``zmin`` and ``zmax`` in the layer's style fix the scale; otherwise it spans the values.
         """
@@ -380,13 +380,13 @@ class EChartsAdapter(AbstractAdapter):
         return self._heatmap_series(layer)
 
     def _constraint_series(self, layer: LayerSpec) -> dict[str, Any]:
-        """Build a masked heatmap: the cells a constraint contour excludes, in its fill colour.
+        """Build a masked heatmap: the cells a constraint contour excludes, in its fill color.
 
         ECharts has no constraint contour, so the cells on the side of
         ``contours.value`` that ``contours.operation`` does not keep are drawn, one
         ``[x, y, 1]`` per cell, and the cells kept are left out. The grid is the one a
         contour's response is drawn on (see :meth:`_heatmap_series`), so the mask covers
-        the response cell for cell; drawn after it, it sits on top. The fill colour is the
+        the response cell for cell; drawn after it, it sits on top. The fill color is the
         series' own, and the series is silent, without a tooltip.
 
         Raises
@@ -453,7 +453,7 @@ class EChartsAdapter(AbstractAdapter):
         ------
         KeyError
             If a data row is missing an encoded field, matching the
-            Plotly adapter's behaviour for the same layer.
+            Plotly adapter's behavior for the same layer.
         """
         data = []
         for row in layer.data:
@@ -639,7 +639,7 @@ class EChartsAdapter(AbstractAdapter):
         ------
         KeyError
             If a data row is missing the encoded x or y field, matching
-            the Plotly adapter's behaviour for the same layer.
+            the Plotly adapter's behavior for the same layer.
         """
         if not layer.x or not layer.y:
             return []

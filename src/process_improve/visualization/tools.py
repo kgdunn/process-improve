@@ -7,7 +7,7 @@ Pydantic input contract (ENG-04 / ENG-10): each tool pairs its
 ``ConfigDict(extra="forbid")``; the function receives the parsed
 model as its single positional argument.
 
-Each function returns a JSON-serialisable dict that matches the
+Each function returns a JSON-serializable dict that matches the
 shape of ``visualize_doe`` (``plot_type``, ``title``, ``data``,
 ``plotly``, ``echarts``), so frontends can render them without
 dispatch.
@@ -139,7 +139,7 @@ class BoxplotInput(BaseModel):
     value_columns: list[str] = Field(
         ...,
         description=(
-            "Numeric columns to summarise. Without group_by, each column "
+            "Numeric columns to summarize. Without group_by, each column "
             "becomes a separate box. With group_by, only the first column "
             "is used and one box is drawn per unique group value."
         ),

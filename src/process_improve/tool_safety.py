@@ -195,7 +195,7 @@ class ToolSafetyError(Exception):
         self.details = details or {}
 
     def to_dict(self) -> dict[str, Any]:
-        """Return a JSON-serialisable representation of this error."""
+        """Return a JSON-serializable representation of this error."""
         return {"error": self.code, "message": str(self), "details": self.details}
 
 
@@ -488,7 +488,7 @@ def _create_pool(memory_mb: int, max_workers: int = 1) -> ProcessPoolExecutor:
 
 
 def get_pool(memory_mb: int | None = None, max_workers: int = 1) -> ProcessPoolExecutor:
-    """Return a lazily-initialised module-level :class:`ProcessPoolExecutor`.
+    """Return a lazily-initialized module-level :class:`ProcessPoolExecutor`.
 
     The pool is recreated if ``memory_mb`` changes (e.g. tests override it).
     Passing ``None`` resolves the cap from :data:`settings.max_memory_mb` at
@@ -513,7 +513,7 @@ def _terminate_workers(pool: ProcessPoolExecutor) -> None:
     input) would keep a CPU core busy after a timeout. Here we reach into the
     CPython-internal process table and terminate each worker, escalating to
     ``kill()`` if ``terminate()`` does not take. Guarded with ``suppress`` so that
-    an internal-API change degrades to the old (non-killing) behaviour instead of
+    an internal-API change degrades to the old (non-killing) behavior instead of
     raising.
     """
     processes = getattr(pool, "_processes", None)

@@ -20,9 +20,9 @@ orthogonality, so on any other design (a three-level design with runs missing,
 a Plackett-Burman design) a pure quadratic effect leaks into the main-effect
 tests. :func:`analyze_omars` checks the structure and warns when it is absent.
 
-The procedure, summarised:
+The procedure, summarized:
 
-1. Code each factor to the ``[-1, +1]`` range and centre the response.
+1. Code each factor to the ``[-1, +1]`` range and center the response.
 2. Estimate the error variance from the residuals of the full second-order
    model (intercept + main effects + all quadratics and interactions).
 3. Test the main effects with t-tests at ``alpha_main`` and split them into
@@ -41,7 +41,7 @@ The procedure, summarised:
 
 References
 ----------
-The staged analysis generalises the design-based model-selection approach for
+The staged analysis generalizes the design-based model-selection approach for
 definitive screening designs to the wider OMARS family.  This is an independent
 implementation of that published methodology.
 
@@ -113,9 +113,9 @@ class OmarsResult:
         p-value of the overall second-order F-gate (step 5).  ``nan`` when the
         analysis was main-effects only.
     active_interactions : list[str]
-        Two-factor interaction terms declared active, labelled ``"A:B"``.
+        Two-factor interaction terms declared active, labeled ``"A:B"``.
     active_quadratics : list[str]
-        Quadratic terms declared active, labelled ``"A^2"``.
+        Quadratic terms declared active, labeled ``"A^2"``.
     final_p_value : float
         p-value of the final (failed) F-test that terminated the subset search.
         ``nan`` when the second-order gate did not open.
@@ -151,7 +151,7 @@ class OmarsResult:
 def _code_design(matrix: np.ndarray) -> np.ndarray:
     """Code each column to the ``[-1, +1]`` range from its own min and max.
 
-    A column with levels ``{lo, mid, hi}`` is mapped with centre
+    A column with levels ``{lo, mid, hi}`` is mapped with center
     ``(hi + lo) / 2`` and half-range ``(hi - lo) / 2`` so that the extreme
     levels become ``-1`` and ``+1`` and any symmetric middle level becomes
     ``0``.
@@ -172,7 +172,7 @@ def _orthogonality(coded: np.ndarray, full_so: np.ndarray, tol: float = 1e-8) ->
     """Check the structure the staged analysis relies on, for the coded design.
 
     Returns whether the main effects are balanced (each column sums to zero), mutually
-    orthogonal, and orthogonal to every (centred) second-order column.
+    orthogonal, and orthogonal to every (centered) second-order column.
     """
     n_runs = coded.shape[0]
     scale = tol * n_runs
@@ -248,7 +248,7 @@ def _quadratic_columns(coded: np.ndarray) -> list[int]:
 
 
 def _full_second_order(coded: np.ndarray, quad_cols: list[int]) -> np.ndarray:
-    """Return the centred matrix of all quadratic and two-factor interaction columns."""
+    """Return the centered matrix of all quadratic and two-factor interaction columns."""
     n_runs, n_factors = coded.shape
     quad_blocks = [(coded[:, j] ** 2).reshape(n_runs, 1) for j in quad_cols]
     inter_blocks = [
@@ -276,7 +276,7 @@ def _heredity_candidates(
     q_heredity: str,
     i_heredity: str,
 ) -> tuple[np.ndarray, list[str]]:
-    """Build the centred candidate second-order matrix under heredity rules.
+    """Build the centered candidate second-order matrix under heredity rules.
 
     Returns the matrix of candidate columns and the matching list of effect
     labels (``"A^2"`` for quadratics, ``"A:B"`` for interactions).
@@ -434,7 +434,7 @@ def analyze_omars(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915
     second_order: bool = True,
     max_subset_terms: int | None = None,
 ) -> OmarsResult:
-    """Analyse data from an OMARS design with the staged main-then-second-order protocol.
+    """Analyze data from an OMARS design with the staged main-then-second-order protocol.
 
     Parameters
     ----------

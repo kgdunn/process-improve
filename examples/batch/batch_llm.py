@@ -134,7 +134,7 @@ all_sequences = []
 for k in training_batches:
     all_sequences.extend(batch_dict[k][tag_to_plot].to_list())
 training_sequence = pd.Series(all_sequences)
-plt = training_sequence.plot(title="Unravelled training data")
+plt = training_sequence.plot(title="Unraveled training data")
 if not get_to_final_result:
     plt.show()
 

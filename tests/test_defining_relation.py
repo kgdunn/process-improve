@@ -21,7 +21,7 @@ FIFTEEN = "ABCDEFGHJKLMNOP"
 def fraction(names: str, **options):
     factors = [Factor(name=name, low=-1, high=1) for name in names]
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore", UserWarning)  # no centre runs, so no pure error: wanted here
+        warnings.simplefilter("ignore", UserWarning)  # no center runs, so no pure error: wanted here
         return generate_design(factors, design_type="fractional_factorial", n_center_points=0, **options)
 
 

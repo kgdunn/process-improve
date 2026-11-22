@@ -51,7 +51,7 @@ import pandas as pd
 
 
 def bibd_analysis(data: pd.DataFrame, treatment: str, block: str, response: str) -> dict[str, Any]:
-    r"""Analyse a balanced incomplete block design: intrablock, interblock and combined treatment estimates.
+    r"""Analyze a balanced incomplete block design: intrablock, interblock and combined treatment estimates.
 
     Parameters
     ----------

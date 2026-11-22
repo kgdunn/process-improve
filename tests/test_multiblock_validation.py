@@ -231,7 +231,7 @@ def test_block_t2_is_scaled_as_the_super_t2_is(cls: type[MultiblockModel]) -> No
     Scaled that way, one component's T² sums to n - 1 over the n rows that have a score,
     so the last column sums to A (n - 1). The block T² was scaled by the variance about
     the scores' own mean instead. That differs once missing cells leave the scores
-    off-centre, and a row with no score in the block, which MBPLS allows, made it NaN, so
+    off-center, and a row with no score in the block, which MBPLS allows, made it NaN, so
     every row's T² in that block went unscaled.
     """
     blocks, y = _blocks(n=20)
@@ -256,7 +256,7 @@ def test_block_t2_is_scaled_as_the_super_t2_is(cls: type[MultiblockModel]) -> No
 def test_a_tolerance_above_1_still_runs_one_pass(cls: type[MultiblockModel]) -> None:
     """The first pass always runs (#1028).
 
-    A centred seed moves by about its own size in the first pass, so a tolerance of 2 is met
+    A centered seed moves by about its own size in the first pass, so a tolerance of 2 is met
     at once: each component is that one pass, as with ``max_iter=1``. The loop used to test the
     tolerance before the first pass, so it never began, and fit raised KeyError for want of a
     block loading.

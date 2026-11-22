@@ -25,14 +25,14 @@ body:
   - type: textarea
     id: expected
     attributes:
-      label: Expected behaviour
+      label: Expected behavior
       description: What did you expect to happen?
     validations:
       required: true
   - type: textarea
     id: actual
     attributes:
-      label: Actual behaviour
+      label: Actual behavior
       description: What happened instead? Include the full traceback if there is one.
     validations:
       required: true

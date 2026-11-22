@@ -119,7 +119,7 @@ def test_practise_on_the_worked_example_then_a_study_of_ones_own_kept_as_a_file(
     assert page.locator("#findings li").count() > 0
     assert _best(page)
 
-    # A study of one's own, practised on before the real runs.
+    # A study of one's own, practiced on before the real runs.
     study_menu(page, "#new-study")
     set_factors(page, [{"name": "Speed", "low": 100, "high": 300, "units": "rpm"}, *REACTOR])
     candidates_done(page)
@@ -131,7 +131,7 @@ def test_practise_on_the_worked_example_then_a_study_of_ones_own_kept_as_a_file(
     practise(page)
     page.click("#go-learn")
     settled(page)
-    assert page.locator("#findings li").count() > 0, "practice results are analysed like real ones"
+    assert page.locator("#findings li").count() > 0, "practice results are analyzed like real ones"
     kept = run_sheet(page)
 
     # Kept as a file, and opened on another computer.

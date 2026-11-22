@@ -47,7 +47,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DURATIONS = Path(__file__).with_name(".test_durations.json")
 #: The thread counts of OpenBLAS, OpenMP and MKL, which each library reads when it loads.
 ONE_THREAD = ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS")
-#: xdist's function that turns a worker's serialised warning back into a ``WarningMessage``.
+#: xdist's function that turns a worker's serialized warning back into a ``WarningMessage``.
 Rebuild = Callable[[dict[str, Any]], warnings.WarningMessage]
 
 
@@ -63,7 +63,7 @@ def pytest_configure(config: pytest.Config) -> None:
     class, on a thread of that worker's own. When two workers report warnings from two packages the
     controller has not imported yet (this library's ``SpecificationWarning`` and scikit-learn's
     ``ConvergenceWarning``, say), the two threads import at the same moment and can deadlock in the
-    import system or meet a half-initialised pandas. The worker then goes down and its test counts as
+    import system or meet a half-initialized pandas. The worker then goes down and its test counts as
     failed (#1137). A lock makes the threads rebuild, and so import, one after the other.
     """
     if hasattr(config, "workerinput"):

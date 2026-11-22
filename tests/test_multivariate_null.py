@@ -620,7 +620,7 @@ class TestDefaultFitPredictAgainstSklearn:
     def test_the_predictions_match_sklearn(
         self, capsys: pytest.CaptureFixture[str], n_rows: int, n_features: int, asked: int, used: int
     ) -> None:
-        """Leave-one-out leaves n - 1 rows, whose centred rank is n - 2: the cap on the components."""
+        """Leave-one-out leaves n - 1 rows, whose centered rank is n - 2: the cap on the components."""
         from sklearn.cross_decomposition import PLSRegression
         from sklearn.model_selection import LeaveOneOut, cross_val_predict
 

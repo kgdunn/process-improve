@@ -108,12 +108,12 @@ def _cell_means(panel: pd.DataFrame, attribute: str) -> pd.DataFrame:
 
 
 def _assessor_scaling(matrix: pd.DataFrame) -> tuple[pd.Series, pd.Series, np.ndarray, float]:
-    """Return per-panelist slopes and means, the centred product effect, and its SSQ.
+    """Return per-panelist slopes and means, the centered product effect, and its SSQ.
 
     ``matrix`` is panelists (rows) by products (columns) of cell means.
     """
     consensus = matrix.mean(axis=0)
-    tau = (consensus - consensus.mean()).to_numpy()  # centred product effect
+    tau = (consensus - consensus.mean()).to_numpy()  # centered product effect
     ssq_tau = float(np.nansum(tau**2))
     means = matrix.mean(axis=1)
     if ssq_tau > 0:
@@ -302,7 +302,7 @@ def align_scores(panel: pd.DataFrame, *, method: AlignMethod = "both", robust: b
     panel : pandas.DataFrame
         Validated ``descriptive_long`` panel data.
     method : {"both", "location", "scale"}
-        ``"location"`` recentres each panelist to the grand mean; ``"scale"``
+        ``"location"`` recenters each panelist to the grand mean; ``"scale"``
         rescales the spread around the panelist's own mean; ``"both"`` (default)
         does both, the full MAM alignment.
     robust : bool
@@ -415,7 +415,7 @@ def _fixed_design(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Return the fixed-effect matrix, each column's term number, and which scaling columns survive.
 
-    The terms are the intercept, the product terms, and ``scaling``: the centred product
+    The terms are the intercept, the product terms, and ``scaling``: the centered product
     cell means times each panelist's indicator, so each panelist gets a slope on the
     consensus. Those slopes sum to the consensus itself, which the product terms
     already span, so one panelist's column is aliased and dropped (the last, as lme4
@@ -619,8 +619,8 @@ def mixed_assessor_model_reml(
 
     The model for one attribute has the product terms (every main effect and
     interaction of ``product_factors``) and a ``scaling`` term as fixed effects. The
-    scaling term gives each panelist a slope on the centred product means, so a
-    panelist who uses a wider or narrower part of the scale is modelled, not counted
+    scaling term gives each panelist a slope on the centered product means, so a
+    panelist who uses a wider or narrower part of the scale is modeled, not counted
     as disagreement. The random terms are each product term crossed with the
     panelist, the replicate and both, and those three on their own.
 

@@ -89,7 +89,7 @@ def project_materials(model: TPLS, d_new: dict[str, pd.DataFrame]) -> dict[str, 
             # Without the deflation the scores are not orthogonal: the residual is what the span of S misses.
             resid = d_tilde - d_tilde @ s_mat @ np.linalg.pinv(s_mat)
         train = model.r_loadings_f[group].to_numpy()
-        # T2 among the training materials of the group; their scores are centred, since D is.
+        # T2 among the training materials of the group; their scores are centered, since D is.
         inv_cov = np.linalg.pinv(np.cov(train, rowvar=False).reshape(n_comp, n_comp))
         frame = pd.DataFrame(scores, index=df.index, columns=[f"r_{a + 1}" for a in range(n_comp)])
         frame["T2"] = np.einsum("ia,ab,ib->i", scores, inv_cov, scores)
@@ -185,7 +185,7 @@ def predict(
 def centre_f(f_blocks: dict[str, pd.DataFrame], means: dict[str, pd.Series]) -> dict[str, pd.DataFrame]:
     """Subtract the training mean fraction of each material; a material absent from ``means`` has mean 0.
 
-    Use with a model fitted with ``skip_f_matrix_preprocessing=True`` on centred F, which is
+    Use with a model fitted with ``skip_f_matrix_preprocessing=True`` on centered F, which is
     the preprocessing under which a material's effect depends on its properties only.
     """
     return {g: df - means[g].reindex(df.columns).fillna(0.0) for g, df in f_blocks.items()}
@@ -194,7 +194,7 @@ def centre_f(f_blocks: dict[str, pd.DataFrame], means: dict[str, pd.Series]) -> 
 def material_coefficients(model: TPLS, group: str, props: pd.DataFrame) -> pd.DataFrame:
     """Change in predicted Y per unit fraction of a material, for any material with known properties.
 
-    A TPLS prediction is affine in the fractions, and for a model fitted with centred F the
+    A TPLS prediction is affine in the fractions, and for a model fitted with centered F the
     coefficient of a material is a function of its properties alone: ``b(d)``, the model's
     implicit property-to-performance map. Computed as a difference of two predictions, so it
     needs no algebra beyond :func:`predict`.
@@ -224,7 +224,7 @@ def pseudo_recipe(
     pd.DataFrame
         Rows: new materials. Columns: training materials of the group (weights, rows sum
         to 1), plus ``residual``, the reconstruction error (zero when the new material lies
-        in the convex hull of its neighbours).
+        in the convex hull of its neighbors).
     """
     pre = model.preproc_["D"][group]
     names = model.material_names[group]

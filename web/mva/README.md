@@ -30,7 +30,7 @@ function of plain data, and runs under Node. Only `link.js` and the drawing half
 Every observation has a `rowId` (its index label, as text) and every variable a
 `colId` (its column name). Plots, the table and the Python glue speak only in these
 ids, never in positions, so a row keeps its identity through a sort, a filter, a
-dropped neighbour or a refit.
+dropped neighbor or a refit.
 
 ## 1. The dataset recipe (`process_improve.workbench.Recipe`)
 
@@ -133,13 +133,13 @@ intersection, difference. Every view subscribes. Changes are batched, so a lasso
 `views.js` builds Plotly figures from points and the store's state, and never touches
 the document:
 
-- **Encodings:** colour by a number (a colour scale) or a category (a colour-blind
+- **Encodings:** color by a number (a color scale) or a category (a color-blind
   safe palette), marker size by a number (area-proportional), symbol by a category.
 - **State:** selected points full strength with an outline; the rest faded while a
   selection exists; **excluded points hollow**, still projected and drawn; the hovered
   point enlarged in every view.
 - **Labels** on the selection and the extremes only, each placed on the side away from
-  its neighbours, so a label never sits on another point.
+  its neighbors, so a label never sits on another point.
 - **Annotations:** the T² ellipse, origin lines, control limits, and arrows the text
   can point at.
 - Score plots carry the percent of variance per component on their axes.
@@ -172,7 +172,7 @@ Measured under Pyodide on the LDPE data: open 36 ms, fit 40 ms, explain a group 
 save 30 ms, open a project (refit and verify) 27 ms.
 
 Later: the latent-space what-if with `PLS.invert`, a refit that animates from the old
-model to the new, table cells coloured by their SPE contribution, branching variants
+model to the new, table cells colored by their SPE contribution, branching variants
 and their comparison, a Python console on the same session.
 
 ## Running the demo page

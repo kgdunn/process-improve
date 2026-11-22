@@ -1,6 +1,6 @@
 """Every page of the site beside the app has the same top line and the same footer (web/site.js).
 
-The colour-mode switch was on the app and the concept map only, each page ended in a footer of its own or in none,
+The color-mode switch was on the app and the concept map only, each page ended in a footer of its own or in none,
 and the page of the textbooks' answers was linked from one door on the catalog. Each page now has the switch at the
 end of its top line and one footer, with the same links in the same order.
 """
@@ -79,7 +79,7 @@ def test_each_page_has_the_colour_mode_switch_at_the_end_of_its_top_line(reprodu
         "the first press changes the page"
     )
     assert page.evaluate("localStorage.getItem('factorial-mode')") in ("dark", "light")
-    assert switch.get_attribute("aria-label").startswith("Colour mode: ")
+    assert switch.get_attribute("aria-label").startswith("Color mode: ")
 
 
 def test_the_mode_chosen_on_one_page_is_the_mode_of_the_next(reproduced_context, site):

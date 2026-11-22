@@ -67,7 +67,7 @@ class VisualizeDoeInput(BaseModel):
     )
     hold_values: dict[str, float] | None = Field(
         None,
-        description=("Coded values for factors not being plotted (default 0 = centre). E.g. {'C': 0.5}."),
+        description=("Coded values for factors not being plotted (default 0 = center). E.g. {'C': 0.5}."),
     )
     highlight_significant: bool = Field(
         True,
@@ -88,13 +88,13 @@ class VisualizeDoeInput(BaseModel):
 @tool_spec(
     name="visualize_doe",
     description=(
-        "Generate DOE visualisations from analysis results or design data. "
+        "Generate DOE visualizations from analysis results or design data. "
         "Supports 22 plot types: significance plots (pareto, half_normal, daniel), "
         "factor-effect plots (main_effects, interaction, perturbation), "
         "diagnostic plots (residuals_vs_fitted, normal_probability, residuals_vs_order, box_cox), "
         "response-surface plots (contour, surface_3d, prediction_variance), "
         "cube plot (cube_plot), square plot (square_plot), "
-        "optimisation plots (desirability_contour, overlay, ridge_trace, steepest_ascent_path), "
+        "optimization plots (desirability_contour, overlay, ridge_trace, steepest_ascent_path), "
         "and design-quality plots (fds_plot, power_curve, correlation_map). "
         "Returns both Plotly and ECharts configurations for dual-backend rendering. "
         "Pass analysis_results from fit_linear_model or analyze_experiment, or raw design_data."
@@ -113,7 +113,7 @@ class VisualizeDoeInput(BaseModel):
     category="experiments",
 )
 def visualize_doe_tool(spec: VisualizeDoeInput) -> dict[str, Any]:
-    """Generate a DOE visualisation."""
+    """Generate a DOE visualization."""
     try:
         from process_improve.experiments.visualization import visualize_doe  # noqa: PLC0415
 

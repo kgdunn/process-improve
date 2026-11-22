@@ -275,7 +275,7 @@ class SimulateProcessInput(BaseModel):
         "Evaluate a previously created simulator at specific factor settings. "
         "Returns the simulated output values (with fresh Gaussian noise per call, "
         "so identical settings yield similar but not identical outputs - this is "
-        "intentional, matching real asset behaviour). "
+        "intentional, matching real asset behavior). "
         "Pass 'sim_id' from the 'create_simulator' response. Supply all declared "
         "factors in 'settings'; missing factors default to their mid-range value "
         "and out-of-range values are clipped to the declared bounds (both with a "
@@ -360,7 +360,7 @@ class RevealSimulatorInput(BaseModel):
     category="simulation",
 )
 def reveal_simulator(spec: RevealSimulatorInput) -> dict:
-    """Return the materialised model.
+    """Return the materialized model.
 
     ``simulator_state`` and the ``confirmed`` flag are injected by the host
     out of band via
@@ -471,7 +471,7 @@ class SimulateBatchCampaignInput(BaseModel):
         "temperature/pH growth kinetics, Luedeking-Piret production, an oxygen-transfer ceiling) with three "
         "independently tunable disturbance channels: measured initial conditions, an unmeasured within-batch "
         "disturbance, and instrument-scale noise. Use it to demonstrate that replaying a fixed 'golden batch' "
-        "schedule does not reproduce its outcome, and to generate batch data for latent-variable modelling. "
+        "schedule does not reproduce its outcome, and to generate batch data for latent-variable modeling. "
         "Returns the per-batch titers with feed-class labels, summary statistics, and the disturbance-free "
         "reference titer of the same schedule for comparison."
     ),
@@ -488,7 +488,7 @@ class SimulateBatchCampaignInput(BaseModel):
     rng={"uses_rng": True, "seed_param": "random_state", "default_seed": 0},
 )
 def simulate_batch_campaign(spec: SimulateBatchCampaignInput) -> dict[str, Any]:
-    """Simulate a bioreactor campaign and summarise the final-quality outcomes."""
+    """Simulate a bioreactor campaign and summarize the final-quality outcomes."""
     import dataclasses  # noqa: PLC0415
 
     import numpy as np  # noqa: PLC0415
@@ -703,7 +703,7 @@ class CorrectBatchMidcourseInput(BaseModel):
         "correction (per-feed-class PLS models fitted on a deliberately varied historical campaign; TSR "
         "batch-so-far projection; a QP over the remaining setpoint schedule with SPE/T2 caps and a "
         "no-correction dead band), and EXECUTE the corrected schedules by re-simulating each batch with the "
-        "identical disturbances. Reports realised before/after titers, not model predictions, so the gain is "
+        "identical disturbances. Reports realized before/after titers, not model predictions, so the gain is "
         "a true same-batch counterfactual. Requires the 'control' extra (osqp)."
     ),
     input_model=CorrectBatchMidcourseInput,
@@ -757,7 +757,7 @@ def correct_batch_midcourse(spec: CorrectBatchMidcourseInput) -> dict[str, Any]:
                 "model_fit_r2_per_class": {str(k): round(float(v), 3) for k, v in result.models.fit_r2.items()},
                 "note": (
                     "executed_titer_g_L re-simulates the batch with the corrected schedule and the identical "
-                    "disturbance seed; the gain over replay_titer_g_L is realised, not predicted."
+                    "disturbance seed; the gain over replay_titer_g_L is realized, not predicted."
                 ),
             }
         )
@@ -797,7 +797,7 @@ class EvaluateBatchControlPolicyInput(BaseModel):
         default=False,
         description=(
             "Also compute the two ceilings: the per-batch perfect-feedforward optimum (adapted) and the "
-            "oracle that optimises the remaining schedule against the simulator at the same decision point. "
+            "oracle that optimizes the remaining schedule against the simulator at the same decision point. "
             "Roughly 10 s per test batch slower."
         ),
     )
@@ -811,7 +811,7 @@ class EvaluateBatchControlPolicyInput(BaseModel):
         "(the nominal schedule; the floor), mid-course correction (per-feed-class PLS models, corrected at a "
         "decision point, every corrected schedule re-simulated with the identical disturbances), and "
         "optionally the perfect-feedforward ceiling and the oracle-from-the-decision-point ceiling. Reports "
-        "realised mean/sd titers per policy and the per-batch outcomes, so each gain is an executed same-batch "
+        "realized mean/sd titers per policy and the per-batch outcomes, so each gain is an executed same-batch "
         "counterfactual rather than a model prediction. Requires the 'control' extra (osqp)."
     ),
     input_model=EvaluateBatchControlPolicyInput,

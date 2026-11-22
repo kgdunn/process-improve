@@ -44,7 +44,7 @@ BiocManager::install("mixOmics")
 `linnerud.csv` is the Linnerud physical-fitness dataset (20 athletes;
 Tenenhaus, *La regression PLS: theorie et pratique*, 1998). It is
 public-domain and ships unmodified inside scikit-learn under their
-BSD-3-Clause licence. No third-party data is redistributed by this
+BSD-3-Clause license. No third-party data is redistributed by this
 fixture beyond what scikit-learn already ships.
 
 ## Provenance and licensing of the reference numbers
@@ -73,7 +73,7 @@ The mixOmics package itself is GPL-2 and remains a separately
 installed runtime dependency of `run_reference.R`. It is not
 redistributed by `process-improve`. Re-running the reference script
 on a different machine requires the user to install mixOmics from
-Bioconductor under its own licence terms.
+Bioconductor under its own license terms.
 
 Attribution for the reference implementation:
 

@@ -92,7 +92,7 @@ let state = structuredClone({ ...DEFAULT_STATE });
 let shown = PAGE;
 /** Resolves to the Plotly.js version once the app's manifest is read, or to null when it cannot be. */
 let plotlyReady = Promise.resolve(null);
-/** The rows of the map opened into their families, what a cell's colour says, and the width the map is drawn at. */
+/** The rows of the map opened into their families, what a cell's color says, and the width the map is drawn at. */
 const openedRows = new Set();
 let mapShade = "model";
 let mapWidth = 0;
@@ -123,7 +123,7 @@ function toast(text, kind = "ok") {
 }
 
 /**
- * Draw a design's coded runs as the book draws a run matrix: a cell per setting, blue at -1, grey at 0,
+ * Draw a design's coded runs as the book draws a run matrix: a cell per setting, blue at -1, gray at 0,
  * vermillion at +1. A card draws the runs across and the factors down; the detail draws runs down.
  */
 function drawGlyph(canvas, rows, { across, width, height }) {
@@ -581,7 +581,7 @@ async function openErrata() {
     });
     $("#errata-body").replaceChildren(
       element("p", {
-        text: "Every number a source prints that process-improve recomputes and does not reproduce, with the reason the catalogue records: the source's rounding, a misprint, or a method that differs from the library's. The catalogue's tests require every other recomputed number to agree with its source.",
+        text: "Every number a source prints that process-improve recomputes and does not reproduce, with the reason the catalog records: the source's rounding, a misprint, or a method that differs from the library's. The catalog's tests require every other recomputed number to agree with its source.",
       }),
       element("div", { class: "errata__controls" }, source, words, element("label", { class: "facets__switch" }, rounding, " Include the reasons that mention rounding")),
       count,
@@ -783,7 +783,7 @@ function printedIn(detail) {
 const NOTES_SHOWN = 240;
 
 /**
- * An entry's notes: the source's words for its design, and what the catalogue adds of it. Short notes are shown
+ * An entry's notes: the source's words for its design, and what the catalog adds of it. Short notes are shown
  * as they are; long ones, which name the lines of the source each number was read from, fold under a summary,
  * so they are there for a reader who wants them and out of the way of one who reads on.
  */
@@ -948,7 +948,7 @@ function detailBody(design, detail) {
 /** The most runs a design's detail lists. */
 const RUNS_SHOWN = 400;
 
-/** A run's coded setting, tinted as the run matrix colours it: blue at -1, grey at 0, vermillion at +1. */
+/** A run's coded setting, tinted as the run matrix colors it: blue at -1, gray at 0, vermillion at +1. */
 const settingCell = (value) =>
   element("td", { class: "setting", style: value === null || value === undefined ? null : `--tint: ${settingColour(value)}` }, fmt(value));
 
@@ -966,7 +966,7 @@ function leverageCell(h) {
 /**
  * The runs, one row each, in one table: each run's block as the source prints it, each coded setting tinted by its
  * value, a categorical factor of more than two labels by its label instead, the results the source prints, and each
- * run's leverage when the runs' leverages differ. Colour, settings and leverage share the row, so they line up and
+ * run's leverage when the runs' leverages differ. Color, settings and leverage share the row, so they line up and
  * scroll together.
  */
 function runsTable(detail, outcome) {
@@ -984,7 +984,7 @@ function runsTable(detail, outcome) {
     ...(leverage ? [leverageCell(leverage[i])] : []),
   ]);
   const coded = labelled.some((l) => !l);
-  const said = coded ? ["-1 is a factor's low level and +1 its high level, tinted blue at -1, grey at 0 and vermillion at +1."] : [];
+  const said = coded ? ["-1 is a factor's low level and +1 its high level, tinted blue at -1, gray at 0 and vermillion at +1."] : [];
   if (detail.runs_from) {
     said.unshift(`The source prints no runs: these are the fraction the library makes from its generators, ${generatorsLine(detail.runs_from)}, in standard order.`);
   }

@@ -35,7 +35,7 @@ from process_improve.multivariate import PLS, MCUVScaler
 
 warnings.simplefilter("ignore")
 
-# Colours sampled from the base card, so the new panels match their neighbours.
+# Colors sampled from the base card, so the new panels match their neighbors.
 NAVY, RED, SPINE, BAND, CONTOUR = "#2c5f7c", "#a93226", (143, 143, 142), "#e6edf2", "#b8c8d3"
 INTERVAL = "#d4e0e8"  # one step darker than the card's band, so a single interval bar still reads
 BACKGROUND = (250, 248, 243)
@@ -66,7 +66,7 @@ def runs(design: object) -> np.ndarray:
 
 
 def draw_design(ax: plt.Axes, design: object) -> None:
-    """Outline through the factorial corners; navy factorial runs, red centre and axial runs."""
+    """Outline through the factorial corners; navy factorial runs, red center and axial runs."""
     xy, coded = runs(design), design.design[["T", "P"]].to_numpy(float)
     corners = xy[(np.abs(coded) == 1).all(axis=1)]
     order = np.argsort(np.arctan2(*(corners - corners.mean(axis=0)).T[::-1]))
@@ -100,8 +100,8 @@ def journey(ax: plt.Axes) -> None:
         analysis_type="coefficients",
     )
     ranges = {f.name: {"low": f.low, "high": f.high} for f in box(start, half)}
-    # On a 45-degree path a coded step of sqrt(2) is one corner-to-centre diagonal: step 1 lands on
-    # the factorial's top-right corner, step 2 on the centre of the next design.
+    # On a 45-degree path a coded step of sqrt(2) is one corner-to-center diagonal: step 1 lands on
+    # the factorial's top-right corner, step 2 on the center of the next design.
     steps = optimize_responses([fit], method="steepest_ascent", step_size=np.sqrt(2), n_steps=4, factor_ranges=ranges)[
         "steepest_path"
     ]["steps"]
@@ -110,7 +110,7 @@ def journey(ax: plt.Axes) -> None:
     second = generate_design(box(tuple(path[-1]), half), design_type="ccd", alpha="rotatable")
 
     heading = (path[-1] - path[-2]) / np.linalg.norm(path[-1] - path[-2])
-    tip = path[-1] - 0.25 * heading  # arrowhead just short of the ring round the new centre run
+    tip = path[-1] - 0.25 * heading  # arrowhead just short of the ring round the new center run
     ax.plot(*np.vstack([path[:-1], tip]).T, color=NAVY, lw=1.8 * PX, ls=(0, (4, 3)), alpha=0.8, zorder=2)
     arrow = {"arrowstyle": "-|>", "color": NAVY, "lw": 1.8 * PX, "mutation_scale": 14, "alpha": 0.8}
     ax.annotate("", xy=tip, xytext=tip - 0.05 * heading, arrowprops=arrow, zorder=2)

@@ -1,7 +1,7 @@
 # (c) Kevin Dunn, 2010-2026. MIT License. Based on own private work over the years.
 """Partial Robust M-regression: a PLS that a handful of bad rows cannot capture (#191).
 
-Ordinary PLS minimises a sum of squares, so its breakdown point is zero: a single
+Ordinary PLS minimizes a sum of squares, so its breakdown point is zero: a single
 sufficiently wild observation moves the fit without limit. PRM (Serneels, Croux,
 Filzmoser and Van Espen, 2005) replaces that with an iteratively reweighted fit,
 where each row's weight falls off with how badly the current model misses it and
@@ -74,7 +74,7 @@ def _checked_prior(sample_weight: np.ndarray | None, n_samples: int) -> np.ndarr
 
 
 def _column_medians(rows: np.ndarray) -> np.ndarray:
-    """Return the median of each column: the centre of Y."""
+    """Return the median of each column: the center of Y."""
     return np.median(rows, axis=0)
 
 
@@ -98,13 +98,13 @@ def _robust_scaler(
     centre: Callable[[np.ndarray], np.ndarray],
     unit: float = 1.0,  # pragma: no mutate - only Y takes it, and a column's median is the same in any unit
 ) -> MCUVScaler:
-    """Return a scaler centred robustly, once, on the rows the prior keeps.
+    """Return a scaler centered robustly, once, on the rows the prior keeps.
 
-    The centre is the L1 median of the rows (``centre=l1_median``, for X) or the
+    The center is the L1 median of the rows (``centre=l1_median``, for X) or the
     median of each column (``centre=_column_medians``, for Y). With ``scale``, each
     column is also divided by 1.4826 times its median absolute deviation, or by 1
-    where that is 0, and the centre is taken in those units, the space the leverage
-    distances are then measured in. Without, the centre is taken in units of ``unit``,
+    where that is 0, and the center is taken in those units, the space the leverage
+    distances are then measured in. Without, the center is taken in units of ``unit``,
     one number for the block: the L1 median is then the same, and its tolerance is
     relative to the data's spread, not to their units (#1114).
     """
@@ -113,7 +113,7 @@ def _robust_scaler(
     if scale:
         mad = np.median(np.abs(rows - np.median(rows, axis=0)), axis=0) * _MAD_TO_SIGMA
         spread = np.where(mad > 0, mad, 1.0)
-    # Fitted for the sklearn metadata of the block (feature names, counts); centre and spread replaced.
+    # Fitted for the sklearn metadata of the block (feature names, counts); center and spread replaced.
     scaler = MCUVScaler().fit(block)
     scaler.center_[:] = centre(rows / spread) * spread
     scaler.scale_[:] = spread if scale else 1.0
@@ -121,11 +121,11 @@ def _robust_scaler(
 
 
 def _residual_weights(residuals: np.ndarray, active: np.ndarray, cutoff: float) -> np.ndarray:
-    """Fair weight of each row's residual, centred at its median and divided by its median absolute value.
+    """Fair weight of each row's residual, centered at its median and divided by its median absolute value.
 
     The paper's scale is the median absolute residual itself, not the 1.4826 times
     it that estimates a Gaussian standard deviation: the cutoff is tuned to it. With
-    several targets each is standardised alone and a row's residual is the norm of
+    several targets each is standardized alone and a row's residual is the norm of
     the result, which for one target is the paper's ``|r| / median |r|``.
     """
     centred = residuals - np.median(residuals[active], axis=0)
@@ -155,13 +155,13 @@ class PRM(PLS):
 
     The steps are those of Serneels et al. (2005):
 
-    1. X is centred at its L1 median and y at its median, once. Neither moves
+    1. X is centered at its L1 median and y at its median, once. Neither moves
        when an outlier does, so the outliers do not choose the coordinate system.
-    2. The starting weights come from the data alone: each centred row's
-       distance from the centre, over the median distance, and each centred y,
+    2. The starting weights come from the data alone: each centered row's
+       distance from the center, over the median distance, and each centered y,
        over the median absolute y.
     3. A PLS model is fitted with the weights, and new weights come from it: the
-       residual, centred at its median and over its median absolute value; and
+       residual, centered at its median and over its median absolute value; and
        the distance of the row's scores from their L1 median, over the median
        distance, each component scaled to unit length in the weighted fit (as
        SIMPLS's scores are), so the first components do not decide it alone.
@@ -176,7 +176,7 @@ class PRM(PLS):
     cutoff : float, optional
         Tuning constant :math:`c` of the Fair weight function, default 4.0 as
         recommended by Serneels et al. Smaller is more aggressive: an
-        observation at :math:`c` standardised units gets weight 0.25.
+        observation at :math:`c` standardized units gets weight 0.25.
     max_weight_iter : int, optional
         Maximum reweighting iterations, default 100. Each one is a full PLS fit.
     coefficient_tol : float, optional
@@ -187,18 +187,20 @@ class PRM(PLS):
         ``coefficient_tol``, as the paper does, not on the change in the weights.
     scale : bool, optional
         True (the default) also divides each column of X and of Y, after the
-        robust centring, by 1.4826 times its median absolute deviation (by 1
+        robust centering, by 1.4826 times its median absolute deviation (by 1
         where that is 0), computed once: columns in different units then count
         equally, as PLS's ``scale`` makes them. False is the paper's algorithm,
-        which centres only.
+        which centers only.
     max_iter, tol, missing_data_settings
         As for :class:`~process_improve.multivariate.methods.PLS`.
     copy : None
         Deprecated since 2.4.0 and removed in 3.0; it has no effect. PRM never
         modifies the X or Y it is given, so there is nothing to copy.
-    warn_on_uncentred : bool, optional
+    warn_on_uncentered : bool, optional
         Accepted for :class:`~process_improve.multivariate.methods.PLS`'s
-        signature; it has no effect, since PRM always centres.
+        signature; it has no effect, since PRM always centers.
+    warn_on_uncentred : bool or None, optional
+        The former name of ``warn_on_uncentered``: deprecated since 2.7.0 and removed in 3.0.
 
     Attributes
     ----------
@@ -208,7 +210,7 @@ class PRM(PLS):
         them. Small entries are this model's statement about which rows it
         declined to be led by; see :meth:`outlier_summary`. A weight is 0 only
         when the product underflows, for a row so far out in both its residual
-        and its leverage (1e100 standardised units, say) that it takes no part
+        and its leverage (1e100 standardized units, say) that it takes no part
         in the fit.
     n_weight_iter_ : int
         Reweighting iterations actually run.
@@ -253,7 +255,8 @@ class PRM(PLS):
         tol: float = epsqrt,
         copy: bool | None = None,
         missing_data_settings: dict | None = None,
-        warn_on_uncentred: bool = True,
+        warn_on_uncentered: bool = True,
+        **former: bool,
     ):
         # `PLS.__init__` rather than `super().__init__` for the same reason PLSDA
         # names it: it says which constructor runs instead of leaving it to be
@@ -266,7 +269,8 @@ class PRM(PLS):
             tol=tol,
             copy=copy,
             missing_data_settings=missing_data_settings,
-            warn_on_uncentred=warn_on_uncentred,
+            warn_on_uncentered=warn_on_uncentered,
+            **former,
         )
         # Stored verbatim and read only in fit(), per the sklearn __init__ convention.
         self.cutoff = cutoff
@@ -306,7 +310,7 @@ class PRM(PLS):
             )
 
     def _centres_and_scales(self) -> bool:
-        """Return True: PRM centres robustly even when it does not scale."""
+        """Return True: PRM centers robustly even when it does not scale."""
         return True
 
     def _make_scalers(
@@ -317,8 +321,8 @@ class PRM(PLS):
     ) -> tuple[MCUVScaler, MCUVScaler]:
         """Return the robust scalers ``fit`` built before reweighting, the same at every iteration.
 
-        Recomputing the centre with the weights would let the fit move its own
-        origin; the paper centres once, at statistics no outlier controls.
+        Recomputing the center with the weights would let the fit move its own
+        origin; the paper centers once, at statistics no outlier controls.
         """
         return self._robust_scalers
 
@@ -351,13 +355,13 @@ class PRM(PLS):
             Training data.
         Y : array-like of shape (n_samples, n_targets)
             Target values. The paper is written for one; with several, a row's
-            residual is the norm of its residuals, each standardised alone.
+            residual is the norm of its residuals, each standardized alone.
         sample_weight : array-like of shape (n_samples,), optional
             Prior row weights, multiplied into the robust weights at every
             iteration. Use this to express knowledge the data cannot carry, such
             as a run you already know was compromised; it is not needed to
             downweight outliers, which is what the model is for. A row with a
-            zero weight is left out of every median and centre, as if dropped.
+            zero weight is left out of every median and center, as if dropped.
 
         Returns
         -------
@@ -384,7 +388,7 @@ class PRM(PLS):
         X_df, Y_df = _as_frame(X), _as_frame(Y)
         refuse_empty_block(X_df, "X")
         refuse_empty_block(Y_df, "Y")
-        # Before the robust centring, which met a Y of another length as an IndexError (#1114)
+        # Before the robust centering, which met a Y of another length as an IndexError (#1114)
         check_response_block(Y_df, X_df.shape[0])
         if np.any(np.isnan(X_df.to_numpy())) or np.any(np.isnan(Y_df.to_numpy())):
             raise ValueError(
@@ -416,7 +420,7 @@ class PRM(PLS):
             _robust_scaler(Y_df, active, scale=self.scale, centre=_column_medians),
         )
         x_centred = self._robust_scalers[0].transform(X_df).to_numpy() / x_unit
-        # Y need not be centred first: _residual_weights centres it at its median
+        # Y need not be centered first: _residual_weights centers it at its median
         weights = _leverage_weights(x_centred, active, self.cutoff) * _residual_weights(
             Y_df.to_numpy() / self._y_units, active, self.cutoff
         )
@@ -443,8 +447,8 @@ class PRM(PLS):
         # The returned model is the last fit, and the weights are the ones it gives each
         # row, as the paper has it; no fit after them, which would be another model.
         self.robust_weights_ = weights
-        # The paper's intercept is the median residual of y - Xb, not the centre the
-        # weighted fit ran about (the median of y): move the centre by the difference.
+        # The paper's intercept is the median residual of y - Xb, not the center the
+        # weighted fit ran about (the median of y): move the center by the difference.
         shift = np.median(Y_df.to_numpy()[active] - self.predictions_.to_numpy()[active], axis=0)
         y_scaler = self._robust_scalers[1]  # the scaler PLS.fit set as self._y_scaler
         y_scaler.center_ = y_scaler.center_ + shift

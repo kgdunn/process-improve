@@ -7,7 +7,7 @@ primitives (significance thresholds, constraint regions) as first-class
 concepts.
 
 Dataclasses are used over Pydantic to keep this layer dependency-free
-and fast to construct.  All fields are JSON-serialisable via
+and fast to construct.  All fields are JSON-serializable via
 :meth:`ChartSpec.to_dict`.
 """
 
@@ -31,7 +31,7 @@ from process_improve.visualization.types import (
 
 @dataclass
 class Encoding:
-    """Map a data field to a visual channel (x, y, colour, size, …).
+    """Map a data field to a visual channel (x, y, color, size, …).
 
     Parameters
     ----------
@@ -74,9 +74,9 @@ class LayerSpec:
     y : Encoding or None
         Vertical-axis encoding.
     z : Encoding or None
-        Depth / colour-intensity encoding (contour, surface, heatmap).
+        Depth / color-intensity encoding (contour, surface, heatmap).
     color : str or None
-        Literal CSS colour string, or field name for colour encoding.
+        Literal CSS color string, or field name for color encoding.
     name : str
         Trace / series name for the legend.
     opacity : float
@@ -305,7 +305,7 @@ class ChartSpec:
     # -- helpers -----------------------------------------------------------
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialise the entire spec to a plain dict (JSON-safe).
+        """Serialize the entire spec to a plain dict (JSON-safe).
 
         Enum values are converted to their string representations, and numpy scalars and
         arrays in the layers' data to plain Python values, with NaN and infinity as ``None``

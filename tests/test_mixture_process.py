@@ -99,7 +99,7 @@ class TestOrderBasedModels:
 
 
 class TestMatrixAndFormulaAgree:
-    """The model matrix the design engine optimises is the one the recorded formula builds."""
+    """The model matrix the design engine optimizes is the one the recorded formula builds."""
 
     @pytest.mark.parametrize(
         "model_type",
@@ -206,7 +206,7 @@ class TestRegion:
             DesignRegion([*BLENDS, *SETTINGS]).centroid()
 
 
-#: Goos and Jones (2011), Table 6.2: the 12-run D-optimal design for the reflectivity of aluminium sheet. The
+#: Goos and Jones (2011), Table 6.2: the 12-run D-optimal design for the reflectivity of aluminum sheet. The
 #: three mills share the reduction in thickness (each 0.1 to 0.8 of it), and spray volume and oil-water are
 #: two-level process variables, here -1 (Low) and +1 (High). The model is the second-order Scheffé model in the
 #: mills plus the main effects of the two process variables.
@@ -688,7 +688,7 @@ class TestPublishedDesignWithLabels:
             region=self.REGION,
             metric=["average_prediction_variance", "g_efficiency"],
         )
-        assert quality["average_prediction_variance"] == pytest.approx(0.483, abs=0.005)  # the catalogue's 0.483
+        assert quality["average_prediction_variance"] == pytest.approx(0.483, abs=0.005)  # the catalog's 0.483
         assert quality["max_prediction_variance"] == pytest.approx(2 / 3)
 
 

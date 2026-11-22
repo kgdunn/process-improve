@@ -212,7 +212,7 @@ class TestResamplerDispatch:
         ids=["jackknife-of-no-rows", "bootstrap-of-no-rounds", "fractional-of-no-rows"],
     )
     def test_a_resampling_that_yields_nothing_is_refused(self, rows: int, settings: dict, method: str) -> None:
-        """No rows to leave out, or no rounds to draw, leaves nothing to summarise, and the error says so."""
+        """No rows to leave out, or no rounds to draw, leaves nothing to summarize, and the error says so."""
         x = DataFrameDict({"F": {"main": pd.DataFrame(np.zeros((rows, 2)), columns=["f1", "f2"])}})
         r = Resampler(estimator=_StubEstimator(), x=x, accessor=_accessor, **settings)
         with pytest.raises(ValueError, match=r"^No resamples were generated\. Check your data and parameters\.$"):
@@ -437,7 +437,7 @@ class TestResamplerReproducibility:
         r.bootstrap(show_progress=False)
         after = g.random()
         # The Resampler must have consumed some entropy in between.
-        # We can't predict ``after`` without modelling the consumption,
+        # We can't predict ``after`` without modeling the consumption,
         # but we can assert that ``before`` and ``after`` are different
         # (vanishingly unlikely otherwise).
         assert before != after
@@ -539,7 +539,7 @@ class TestPlotResults:
         for trace in named:
             np.testing.assert_array_equal(trace.x, np.linspace(-5.0, 5.0, 500))
 
-        # Batlow, the package's colour map, runs from #faccfa to #011959: the first row takes its dark end, the
+        # Batlow, the package's color map, runs from #faccfa to #011959: the first row takes its dark end, the
         # last its light end, at opacity 0.6.
         assert [trace.fillcolor for trace in named] == ["rgba(1, 25, 89, 0.6)", "rgba(250, 204, 250, 0.6)"]
 

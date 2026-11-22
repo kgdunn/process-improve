@@ -102,7 +102,7 @@ _FDS_FRACTIONS = np.linspace(0.0, 1.0, 1001)
 #: The step of the differences a curved limit's slope is taken from, in coded units.
 _SLOPE_STEP = 1e-6
 
-#: A column whose centred norm is below this, relative to the run count, is constant.
+#: A column whose centered norm is below this, relative to the run count, is constant.
 _CONSTANT = 1e-9
 
 
@@ -310,7 +310,7 @@ class DesignComparison:
         Returns
         -------
         pandas.DataFrame
-            One row per measure, labelled by :attr:`Measure.label`; a ``"Better"``
+            One row per measure, labeled by :attr:`Measure.label`; a ``"Better"``
             column with an arrow for the preferred direction; then one column per
             design. The entries are text: counts as integers, the measures to four
             significant figures as the book prints them, ``"Fits the model?"`` as
@@ -381,7 +381,7 @@ class DesignComparison:
               design's joint precision of the coefficients over the reference's;
             - ``a_efficiency``, ``i_efficiency`` and ``g_efficiency``: the reference's
               :math:`A/p`, :math:`I` and :math:`G` over the design's, so that every
-              efficiency above 1 favours the design;
+              efficiency above 1 favors the design;
             - ``variance_ratio``: for each term, the design's coefficient variance over
               the reference's;
             - ``fds_crossings``: the fractions of the design space, to the nearest
@@ -1160,7 +1160,7 @@ def compare_designs(
         The designs, in coded units: a :class:`DesignResult` (its coded ``design``), a
         DataFrame of factor columns (``RunOrder`` and ``Block`` are ignored), or an
         array with one column per factor. A mapping's keys label the designs; in a
-        sequence each design is labelled with its ``design_type``. Every design has
+        sequence each design is labeled with its ``design_type``. Every design has
         the same factors, under the same names.
     model : {"main_quadratic", "main_effects", "interactions", "quadratic"}
         The model every design is scored on. ``"main_quadratic"``, the default and

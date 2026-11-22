@@ -287,8 +287,8 @@ def off_spec_trajectories_on_spec_product(model: MBPLS, blocks: dict) -> Bunch:
     batch is placed in each of them with the group whose average point is
     nearer. The batches classed good that the trajectory block places with
     the abnormal batches, while both initial-condition blocks place them with
-    the good ones, are compared with their nearest abnormal neighbours in the
-    trajectory block: the contribution from the neighbours' average to theirs
+    the good ones, are compared with their nearest abnormal neighbors in the
+    trajectory block: the contribution from the neighbors' average to theirs
     in the operating-condition block names what differed.
     """
     groups = disposition(list(model.super_scores_.index))
@@ -305,14 +305,14 @@ def off_spec_trajectories_on_spec_product(model: MBPLS, blocks: dict) -> Bunch:
     move = contributions.loc[anomalous].mean() - contributions.loc[neighbours].mean()
     print(f"their nearest abnormal batches in the trajectory block: {neighbours}")
     print(
-        "Zop contribution from the neighbours' average to the anomalous batches' average: "
+        "Zop contribution from the neighbors' average to the anomalous batches' average: "
         + ", ".join(f"{name} {value:+.2f}" for name, value in move.items())
     )
     return Bunch(anomalous=anomalous, neighbours=neighbours, placed=placed, zop_move=move)
 
 
 def plot_block_scores(model: MBPLS, mark: list[int]) -> go.Figure:
-    """Draw the score plot of every block side by side, coloured by the plant's disposition, with `mark` labelled."""
+    """Draw the score plot of every block side by side, colored by the plant's disposition, with `mark` labeled."""
     groups = disposition(list(model.super_scores_.index))
     colours = {"good": "steelblue", "abnormal": "purple", "high solvent": "teal"}
     fig = make_subplots(
@@ -431,7 +431,7 @@ def main(argv: list[str] | None = None) -> int:
     found = off_spec_trajectories_on_spec_product(mbpls_x, blocks)
     save(plot_block_scores(mbpls_x, found.anomalous), "batch-mbpls-block-scores")
     save(
-        plot_bars(found.zop_move, "Zop contribution from the neighbours' average to the anomalous batches'"),
+        plot_bars(found.zop_move, "Zop contribution from the neighbors' average to the anomalous batches'"),
         "batch-mbpls-zop-move",
     )
     for tag in ("CTankLvl", "ClockTime", "D-Temp", "D-Temp-SP"):
@@ -439,7 +439,7 @@ def main(argv: list[str] | None = None) -> int:
             data.X,
             tag,
             batches_to_highlight={HIGHLIGHT: found.anomalous, NEIGHBOUR: found.neighbours},
-            extra_info=f"anomalous {found.anomalous} in red, their neighbours {found.neighbours} in teal",
+            extra_info=f"anomalous {found.anomalous} in red, their neighbors {found.neighbours} in teal",
         )
         save(fig, f"raw-{tag}-anomalous")
     print(f"figures written to {args.output_dir}")

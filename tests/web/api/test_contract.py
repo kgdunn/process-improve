@@ -1090,13 +1090,13 @@ ENTRY_POINTS = {
     "upload of curves": "api_read_workbook",
 }
 
-#: Entry points the page does not call: ``api_analyze`` analyses a workbook in one call, for the
+#: Entry points the page does not call: ``api_analyze`` analyzes a workbook in one call, for the
 #: tests (``tests/web/wasm`` among them) and for scripted use; the page reads a workbook and then
-#: analyses its runs. ``api_compare_plan`` and ``api_compare`` are the two halves of
+#: analyzes its runs. ``api_compare_plan`` and ``api_compare`` are the two halves of
 #: ``api_candidates``, which the page calls once for both.
 NOT_CALLED_BY_THE_PAGE = {"api_analyze", "api_compare_plan", "api_compare"}
 
-#: Three responses, as the brief lists them: a yield to maximise, a cost to minimise and a purity with a target.
+#: Three responses, as the brief lists them: a yield to maximize, a cost to minimize and a purity with a target.
 THREE = [
     {"name": "Yield", "label": "Yield", "units": "%", "goal": "maximize"},
     {"name": "Cost", "label": "Cost", "units": "$/kg", "goal": "minimize"},
@@ -1246,7 +1246,7 @@ def next_steps(api) -> dict[str, Callable[[], dict]]:
 
 
 def aimed_at(api, worked_example: dict[str, Any], target: float) -> dict:
-    """Return a face-centred CCD of the worked example's process, with results, aiming at a target in its ranges."""
+    """Return a face-centered CCD of the worked example's process, with results, aiming at a target in its ranges."""
     demo = worked_example["demo"]
     info = {**demo["design"]["response_info"], "goal": "target", "target": target}
     spec = {**demo["design"], "response_info": info, "design_type": "ccd", "alpha": "face_centered"}
@@ -1256,7 +1256,7 @@ def aimed_at(api, worked_example: dict[str, Any], target: float) -> dict:
 
 
 def aimed_blend(request: dict) -> dict:
-    """Return a request about a blend's runs with a hardness to maximise: its best blend is searched for."""
+    """Return a request about a blend's runs with a hardness to maximize: its best blend is searched for."""
     return {**request, "spec": {**request["spec"], "response_info": {"label": "Hardness", "goal": "maximize"}}}
 
 
@@ -1266,7 +1266,7 @@ def through_best_blend(api, request: dict) -> dict:
 
 
 def two_blends(api) -> dict:
-    """Return a simplex lattice measuring a hardness to maximise and a cost to minimise, with simulated results."""
+    """Return a simplex lattice measuring a hardness to maximize and a cost to minimize, with simulated results."""
     responses = [{"name": "Hardness", "goal": "maximize"}, {"name": "Cost", "goal": "minimize"}]
     factors = [{"name": n, "low": None, "high": None, "units": ""} for n in "ABC"]
     spec = {"design_type": "simplex_lattice", "factors": factors, "n_replicates": 2, "responses": responses}
@@ -1332,7 +1332,7 @@ KEPT = [{"name": "Hot", "settings": {"T": 190, "P": 2.5, "F": 12}}]
 
 
 def logged(analysed: dict) -> dict:
-    """Analyse the worked example's yield on the log scale, its main effects only, so Box-Cox has a fit to judge."""
+    """Analyze the worked example's yield on the log scale, its main effects only, so Box-Cox has a fit to judge."""
     spec = {**analysed["spec"], "analysis_transforms": {analysed["spec"]["response"]: "log"}}
     return {**analysed, "spec": spec, "model": "main_effects"}
 
@@ -1506,7 +1506,7 @@ def test_each_chart_is_a_plotly_figure_the_page_can_restyle(reply):
     for key, figure in figures.items():
         assert isinstance(figure["data"], list), key
         assert isinstance(figure.get("layout", {}), dict), key
-    for key in ("contour", "true_contour"):  # the page gives these two one colour scale
+    for key in ("contour", "true_contour"):  # the page gives these two one color scale
         assert isinstance(figures[key]["data"][0]["z"], list), key
 
 

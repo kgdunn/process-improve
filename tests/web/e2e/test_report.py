@@ -51,7 +51,7 @@ def headings(report: Any) -> list[str]:  # noqa: ANN401
 
 
 def test_the_report_names_what_a_model_was_fitted_with_once_the_worker_has_fetched_it(page):
-    """Start-up leaves statsmodels out, so the catalogue names what Python ran on then; the worker says the rest."""
+    """Start-up leaves statsmodels out, so the catalog names what Python ran on then; the worker says the rest."""
     runtime = {"python": "3.14.2", "packages": {"numpy": "2.4.6", "statsmodels": "0.14.6"}, "pyodide": "314.0.7"}
     page.evaluate("(runtime) => window.__pi.warmed(runtime)", runtime)
     said = "Python 3.14.2 in Pyodide 314.0.7, with numpy 2.4.6 and statsmodels 0.14.6"
@@ -64,7 +64,7 @@ def test_the_worked_example_s_report_holds_the_study_and_what_learn_makes_of_it(
     name, html = download_report(page)
     assert name == "box_behnken-15-runs-report.html"
     report = opened(page, html)
-    assert report.text_content("h1") == "Yield (%), maximise: Box-Behnken in Temperature, Pressure and Flow", (
+    assert report.text_content("h1") == "Yield (%), maximize: Box-Behnken in Temperature, Pressure and Flow", (
         "the study's title"
     )
     assert headings(report) == [
@@ -120,7 +120,7 @@ def test_the_report_opens_in_a_tab_of_its_own_to_read(page):
         report = popup.value
         report.wait_for_url("blob:**")
         report.wait_for_load_state()
-        assert report.text_content("h1") == "Yield (%), maximise: Box-Behnken in Temperature, Pressure and Flow", button
+        assert report.text_content("h1") == "Yield (%), maximize: Box-Behnken in Temperature, Pressure and Flow", button
         assert "The next step" in headings(report)
         settled(page)
         assert status(page)[0].startswith("The report is open in a tab of its own")

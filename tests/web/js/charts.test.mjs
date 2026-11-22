@@ -188,7 +188,7 @@ describe("the coefficient chart", () => {
     assert.equal(coefficientFigure(many, false, COLOURS).height, termRowsHeight(20));
     assert.equal(termRowsHeight(20), 28 * 20 + 130);
     const { yaxis } = coefficientFigure(many, false, COLOURS).layout;
-    assert.equal(yaxis.dtick, 1, "every term labelled, none skipped for want of room");
+    assert.equal(yaxis.dtick, 1, "every term labeled, none skipped for want of room");
   });
 
   test("the legend sits above the plot, clear of the axis title below it", () => {
@@ -351,7 +351,7 @@ describe("the book's Pareto plot of the coefficients", () => {
 });
 
 describe("the response surfaces", () => {
-  test("one colour scale and one set of levels for both", () => {
+  test("one color scale and one set of levels for both", () => {
     const fitted = { data: [{ z: [[0, 1], [2, 3]] }] };
     const truth = { data: [{ z: [[-1, 1], [2, 4.5]] }] };
     shareContourScale(fitted, truth);
@@ -376,14 +376,14 @@ describe("the comparison's charts", () => {
     assert.deepEqual(figure.data[1].y, [0.3, 0.6]);
   });
 
-  test("a design the reader hides is not drawn, and every other curve keeps its colour", () => {
+  test("a design the reader hides is not drawn, and every other curve keeps its color", () => {
     const curve = { fraction: [0, 1], variance: [0.2, 0.9] };
     const fds = { "BBD [n=15]": curve, "CCD [n=17]": curve, "DSD [n=11]": curve };
     const all = fdsFigure(fds);
     const some = fdsFigure(fds, { hidden: new Set(["BBD [n=15]"]) });
     assert.deepEqual(some.data.map((t) => t.visible), [false, true, true]);
     assert.deepEqual(some.data.map((t) => t.line.color), all.data.map((t) => t.line.color));
-    assert.equal(new Set(all.data.map((t) => t.line.color)).size, 3, "a colour each");
+    assert.equal(new Set(all.data.map((t) => t.line.color)).size, 3, "a color each");
   });
 
   test("with limits on the settings, the curves run over the settings you can run, not the cube", () => {
@@ -454,7 +454,7 @@ describe("the best settings", () => {
 });
 
 describe("a card's layout", () => {
-  test("the page's colours, its own height, no title, and no fixed width", () => {
+  test("the page's colors, its own height, no title, and no fixed width", () => {
     const layout = pageLayout({ title: "x", width: 900, xaxis: { scaleanchor: "y" } }, 300, COLOURS);
     assert.equal(layout.height, 300);
     assert.equal(layout.font.color, COLOURS.fg);
@@ -468,7 +468,7 @@ describe("a card's layout", () => {
     assert.equal(pageLayout({ legend: { y: 1.02 } }, 300, COLOURS).legend.borderwidth, 0);
   });
 
-  test("what the pointer rests on is named in the page's colours, on a light page or a dark one", () => {
+  test("what the pointer rests on is named in the page's colors, on a light page or a dark one", () => {
     const dark = { ...COLOURS, fg: "#e8e8e6", panel: "#1c1e21", line: "#3a3d42" };
     const { hoverlabel } = pageLayout({}, 300, dark);
     assert.deepEqual(hoverlabel, { bgcolor: "#1c1e21", bordercolor: "#3a3d42", font: { color: "#e8e8e6", size: 12 } });
@@ -484,7 +484,7 @@ describe("a card's layout", () => {
     assert.equal(narrow.yaxis.title.text, "Residual (%)", "a title that fits is left on its line");
     assert.equal(pageLayout(figure, 340, COLOURS, { width: 900 }).xaxis.title.text, long);
     const beside = pageLayout(figure, 340, COLOURS, { width: 404, bar: 64 }).xaxis.title.text;
-    assert.equal(beside, narrow.xaxis.title.text, "a colour bar takes its width from the axis");
+    assert.equal(beside, narrow.xaxis.title.text, "a color bar takes its width from the axis");
   });
 
   test("a title with markup of its own is left as it is written", () => {
@@ -522,7 +522,7 @@ describe("one run, marked wherever it is drawn", () => {
   const heard = [];
   onRunMarked((run) => heard.push(run));
 
-  test("a ring around each point that is the run's, a fixed size on the screen, in the colour given", () => {
+  test("a ring around each point that is the run's, a fixed size on the screen, in the color given", () => {
     const rings = runRings([runs, { type: "scatter", customdata: [1], x: [5], y: [5] }], 1, COLOURS.warn);
     assert.deepEqual(rings.map((ring) => [ring.xanchor, ring.yanchor]), [[20, 0.2], [40, 0.4]], "not of a trace that draws no runs");
     const [ring] = rings;
@@ -603,7 +603,7 @@ describe("an axis title wrapped to its room", () => {
 });
 
 describe("a figure's traces, as the page draws them", () => {
-  test("a colour bar is narrow, with its title along its side", () => {
+  test("a color bar is narrow, with its title along its side", () => {
     const contour = { type: "contour", z: [[1]], colorbar: { title: { text: "Yield (%)" } } };
     const [drawn] = pageData([contour]);
     assert.deepEqual(drawn.colorbar, { thickness: 12, outlinewidth: 0, title: { side: "right", text: "Yield (%)" } });
@@ -612,7 +612,7 @@ describe("a figure's traces, as the page draws them", () => {
     assert.equal(pageData([{ type: "heatmap", colorbar: { thickness: 20 } }])[0].colorbar.thickness, 20, "a figure's own width is kept");
   });
 
-  test("a trace with no colour bar is drawn as it is", () => {
+  test("a trace with no color bar is drawn as it is", () => {
     const hidden = { type: "heatmap", z: [[1]], showscale: false };
     const line = { type: "scatter", x: [1], y: [1] };
     const [first, second] = pageData([hidden, line]);
@@ -621,9 +621,9 @@ describe("a figure's traces, as the page draws them", () => {
   });
 });
 
-describe("a surface's colours, on a light page and on a dark one", () => {
+describe("a surface's colors, on a light page and on a dark one", () => {
   const DARK = { ...LIGHT, fg: "#e8e8e6", panel: "#1c1e21" };
-  // The contrast of two colours as WCAG measures it, from each one's luminance: 1 for the same colour, 21 at most.
+  // The contrast of two colors as WCAG measures it, from each one's luminance: 1 for the same color, 21 at most.
   const linear = (part) => (part <= 0.04045 ? part / 12.92 : ((part + 0.055) / 1.055) ** 2.4);
   const luminance = (hex) => [0.2126, 0.7152, 0.0722].reduce((sum, w, i) => sum + w * linear(parseInt(hex.slice(1 + 2 * i, 3 + 2 * i), 16) / 255), 0);
   const contrast = (a, b) => (Math.max(luminance(a), luminance(b)) + 0.05) / (Math.min(luminance(a), luminance(b)) + 0.05);
@@ -632,7 +632,7 @@ describe("a surface's colours, on a light page and on a dark one", () => {
   test("a page is dark when its text is the light part of it", () => {
     assert.equal(lightness("#000000"), 0);
     assert.equal(lightness("#ffffff"), 1);
-    assert.equal(lightness("#fff"), 1, "a colour of three digits");
+    assert.equal(lightness("#fff"), 1, "a color of three digits");
     assert.equal(isDark(LIGHT), false);
     assert.equal(isDark(DARK), true);
     assert.equal(isDark(COLOURS), false);
@@ -687,7 +687,7 @@ describe("a surface's colours, on a light page and on a dark one", () => {
     assert.deepEqual(pageData([bands])[0].colorscale, bands.colorscale, "a report's figure is the light page's");
   });
 
-  test("the numbers on a contour's lines are in the page's ink, with a halo in the page's colour", () => {
+  test("the numbers on a contour's lines are in the page's ink, with a halo in the page's color", () => {
     for (const colours of [LIGHT, DARK]) {
       const [labels, ...others] = pageLayout({}, 300, colours).template.data.contour;
       assert.deepEqual(others, []);
@@ -726,7 +726,7 @@ describe("a surface's colours, on a light page and on a dark one", () => {
     };
     const DEEP = rampOf(DEFAULT_COLOUR_MAP, true);
     assert.deepEqual(ternaryFigure(ternary, { response: "Hardness" }, DARK).data[0].marker.colorscale, DEEP);
-    // A correlation has a sign, so its map runs from -1 to +1 in a map of two colours, whatever map the study chose.
+    // A correlation has a sign, so its map runs from -1 to +1 in a map of two colors, whatever map the study chose.
     const drawn = (colours) => correlationFigure(["A", "B"], [[1, -0.4], [-0.4, 1]], 2, colours).data[0];
     assert.deepEqual([drawn(LIGHT).zmin, drawn(LIGHT).zmax], [-1, 1]);
     assert.deepEqual(drawn(LIGHT).colorscale, divergingRamp());
@@ -770,7 +770,7 @@ describe("a mixture's overlay of the acceptable ranges", () => {
     assert.equal(hardness.name, "Hardness: 26 HV and above");
     assert.equal(hardness.showlegend, true);
     assert.equal(cost.showlegend, false, "a boundary the blends do not reach has no key");
-    assert.notEqual(hardness.line.dash, cost.line.dash, "each line reads without its colour");
+    assert.notEqual(hardness.line.dash, cost.line.dash, "each line reads without its color");
     const star = data.at(-1);
     assert.equal(star.name, BALANCED_BLEND);
     assert.deepEqual([star.a, star.b, star.c], [[0.6], [0.35], [0.05]]);
@@ -830,10 +830,10 @@ describe("the overlay of the acceptable ranges", () => {
   ];
   const AXES = { T: "T (degC)", P: "P (bar)" };
 
-  test("a colour of the page's with an opacity, for a shading the lines show through", () => {
+  test("a color of the page's with an opacity, for a shading the lines show through", () => {
     assert.equal(withAlpha("#2c5f7c", 0.2), "rgba(44, 95, 124, 0.2)");
     assert.equal(withAlpha("#06c", 0.5), "rgba(0, 102, 204, 0.5)");
-    assert.equal(withAlpha("rebeccapurple", 0.5), "rebeccapurple", "a colour that is no hex code is kept");
+    assert.equal(withAlpha("rebeccapurple", 0.5), "rebeccapurple", "a color that is no hex code is kept");
   });
 
   test("each response's boundary is named by the results it accepts", () => {
@@ -851,13 +851,13 @@ describe("the overlay of the acceptable ranges", () => {
     assert.deepEqual(shade.z, [[0, 0, 0, 0, 0], ...OVERLAY.acceptable.map((row) => [0, ...row, 0]), [0, 0, 0, 0, 0]]);
     assert.deepEqual(shade.x, [-2, -1, 0, 1, 2]);
     assert.equal(shade.fillcolor, "rgba(44, 95, 124, 0.22)");
-    // A yield to maximise: its low end, the one level drawn, the next beyond every value the yield takes here.
+    // A yield to maximize: its low end, the one level drawn, the next beyond every value the yield takes here.
     assert.deepEqual([yieldLine.contours.start, yieldLine.contours.end, yieldLine.contours.size], [55, 70, 15]);
     assert.deepEqual([purityLine.contours.start, purityLine.contours.end, purityLine.contours.size], [97.5, 99.5, 2], "a target: both ends");
     assert.equal(yieldLine.contours.coloring, "none");
     assert.ok(yieldLine.contours.showlabels, "each boundary carries its value");
     assert.deepEqual([yieldLine.line.color, yieldLine.line.dash], [PAGE.accent, RESPONSE_DASHES[0]]);
-    assert.deepEqual([purityLine.line.color, purityLine.line.dash], [PAGE.warn, RESPONSE_DASHES[1]], "a colour and a dash each");
+    assert.deepEqual([purityLine.line.color, purityLine.line.dash], [PAGE.warn, RESPONSE_DASHES[1]], "a color and a dash each");
     const star = figure.data.at(-1);
     assert.equal(star.name, BALANCED);
     assert.deepEqual([star.x[0], star.y[0]], OVERLAY.at);
@@ -874,13 +874,13 @@ describe("the overlay of the acceptable ranges", () => {
     assert.equal(layout.yaxis.scaleanchor, "x");
   });
 
-  test("with limits on the settings, what cannot be run is grey, and the legend says so", () => {
+  test("with limits on the settings, what cannot be run is gray, and the legend says so", () => {
     const limited = { ...OVERLAY, runnable: [[1, 1, 0], [1, 1, 0], [1, 1, 1]] };
     const figure = overlayFigure(limited, RESPONSES, AXES, PAGE);
     const grey = figure.data[1];
     assert.equal(grey.contours.operation, "<");
     assert.deepEqual(grey.z.slice(1, -1).map((row) => row.slice(1, -1)), [[0, 0, 1], [0, 0, 1], [0, 0, 0]], "1 where the setting cannot be run");
-    assert.ok(grey.z[0].every((v) => v === 0), "a border of 0s, so grey to the edge still has an edge");
+    assert.ok(grey.z[0].every((v) => v === 0), "a border of 0s, so gray to the edge still has an edge");
     assert.ok(figure.data.some((t) => t.name === GREYED && t.showlegend !== false));
   });
 
@@ -894,7 +894,7 @@ describe("the overlay of the acceptable ranges", () => {
     assert.deepEqual(legend, [SHADED, "Purity: 97.5 to 99.5%", BALANCED]);
   });
 
-  test("five responses take five colours and five dashes", () => {
+  test("five responses take five colors and five dashes", () => {
     const five = Array.from({ length: 5 }, (_, i) => ({ name: `R${i}`, z: OVERLAY.responses[0].z, levels: [55] }));
     const words = five.map((r) => ({ name: r.name, label: r.name, units: "", goal: "maximize", low: 55, high: 60 }));
     const lines = overlayFigure({ ...OVERLAY, responses: five }, words, AXES, PAGE).data.filter((t) => t.type === "contour" && t.contours.coloring === "none");
@@ -910,7 +910,7 @@ describe("a mixture's pictures", () => {
     runs: { a: [1, 0.5], b: [0, 0.5], c: [0, 0], y: [30.2, 31.4] },
   };
 
-  test("a triangle of blends, coloured by the response on one scale for the fitted and the true surface", () => {
+  test("a triangle of blends, colored by the response on one scale for the fitted and the true surface", () => {
     assert.deepEqual(ternaryRange(ternary), [20, 33]);
     assert.deepEqual(ternaryRange({ ...ternary, grid: { ...ternary.grid, true: null } }), [20, 31]);
     const { data, layout } = ternaryFigure(ternary, { response: "Hardness", units: "HV" }, COLOURS);
@@ -937,7 +937,7 @@ describe("a mixture's pictures", () => {
     assert.equal(star.marker, BEST_MARKER);
   });
 
-  test("a line per component along its Cox direction, the true process dotted in the same colour", () => {
+  test("a line per component along its Cox direction, the true process dotted in the same color", () => {
     const traces = ["A", "B", "C", "D"].map((component, i) => ({ component, change: [-0.25, 0, 0.75], fitted: [1, 2, 3 + i], true: null }));
     const plain = coxFigure({ components: ["A", "B", "C", "D"], traces }, { response: "y" }, COLOURS);
     assert.deepEqual(plain.data.map((t) => t.name), ["A", "B", "C", "D"]);
@@ -969,7 +969,7 @@ describe("a mixture's pictures", () => {
   });
 });
 
-test("a report's charts take the light theme's colours, as style.css gives them", () => {
+test("a report's charts take the light theme's colors, as style.css gives them", () => {
   const css = readFileSync(new URL("../../../web/style.css", import.meta.url), "utf8");
   const start = css.indexOf(":root {");
   const light = css.slice(start, css.indexOf("}", start));
@@ -998,17 +998,17 @@ describe("a campaign's two charts: every run in order, and every run where it wa
   ];
   const best = [60, 64, 64, 66, 66, 69];
 
-  test("every run in the order they were made, a mark each, coloured by its round", () => {
+  test("every run in the order they were made, a mark each, colored by its round", () => {
     const { data, layout } = campaignRunsFigure(runs, best, words, colours);
     const rounds = data.filter((trace) => trace.mode === "markers");
     assert.deepEqual(rounds.map((trace) => trace.name), ["Round 1", "Round 2", "Round 3"]); // prettier-ignore
     assert.deepEqual(rounds.map((trace) => trace.x), [[1, 2], [3], [4, 5, 6]], "counted through the campaign"); // prettier-ignore
     assert.deepEqual(rounds.map((trace) => trace.y), [[60, 64], [63], [66, 65, 69]]); // prettier-ignore
     assert.deepEqual(rounds[0].customdata, [1, 3], "each mark knows its run of its own round");
-    assert.equal(new Set(rounds.map((trace) => trace.marker.color)).size, 3, "a colour a round");
+    assert.equal(new Set(rounds.map((trace) => trace.marker.color)).size, 3, "a color a round");
     assert.equal(rounds[0].hovertemplate, "Round 1, run %{customdata}<br>Yield: %{y:.4g} %<extra></extra>");
     assert.deepEqual([layout.xaxis.range, layout.yaxis.title.text], [[0.5, 6.5], "Yield (%)"]);
-    assert.equal(campaignRunsFigure(runs.slice(0, 2), best.slice(0, 2), words, colours).data.filter((trace) => trace.mode === "markers").length, 1, "one round is one colour");
+    assert.equal(campaignRunsFigure(runs.slice(0, 2), best.slice(0, 2), words, colours).data.filter((trace) => trace.mode === "markers").length, 1, "one round is one color");
   });
 
   test("the best result so far is a stepped line, and a target a level one", () => {
@@ -1048,7 +1048,7 @@ describe("a campaign's two charts: every run in order, and every run where it wa
         const box = layout.shapes[i];
         assert.deepEqual([box.x0, box.x1, box.y0, box.y1], [one.surface.x[0], one.surface.x.at(-1), one.surface.y[0], one.surface.y.at(-1)]);
       }
-      assert.equal(new Set(surfaces.map((trace) => `${trace.zmin}:${trace.zmax}`)).size, 1, "one scale of colour for every round");
+      assert.equal(new Set(surfaces.map((trace) => `${trace.zmin}:${trace.zmax}`)).size, 1, "one scale of color for every round");
       assert.equal(surfaces.filter((trace) => trace.showscale).length, 1, "and one key to it");
       const marks = data.filter((trace) => trace.type === "scatter");
       assert.deepEqual(marks.map((trace) => trace.name), rounds.map((one) => `Round ${one.round}`)); // prettier-ignore
@@ -1065,7 +1065,7 @@ describe("the what-if map: a response over two factors, where the dials are", ()
   const colours = { ...COLOURS, panel: "#fff" };
   const words = { label: "Yield", units: "%", axes, at: [180, 1.5], best: [200, 1] };
 
-  test("the surface with its lines labelled, over the two factors' ranges, and no drag of Plotly's own", () => {
+  test("the surface with its lines labeled, over the two factors' ranges, and no drag of Plotly's own", () => {
     const { data, layout } = mapFigure(surface, words, colours);
     const [contour] = data;
     assert.deepEqual([contour.type, contour.x, contour.y, contour.z], ["contour", surface.x, surface.y, surface.z]);

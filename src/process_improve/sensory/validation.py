@@ -7,7 +7,7 @@ which coerces a caller-supplied table into the canonical ``descriptive_long``
 schema and validates a product-covariate table alongside it. For now only the
 ``observational`` mode is supported: the covariate columns are measured
 descriptors of products whose formulation is unknown. The ``designed`` mode
-(covariate columns being controlled factor levels, analysed as effects) is
+(covariate columns being controlled factor levels, analyzed as effects) is
 stubbed and raises ``NotImplementedError``; it is planned for a later release.
 The mode is recorded on the result and decides how
 :func:`process_improve.sensory.analysis.analyze_descriptive` relates the
@@ -89,7 +89,7 @@ def _collapsed_label_warnings(labels: pd.Series, column: str) -> list[str]:
         groups.setdefault(key, set()).add(str(raw))
     return [
         f"Column {column!r} has labels that differ only by case or whitespace: "
-        f"{sorted(variants)}. Consider harmonising them."
+        f"{sorted(variants)}. Consider harmonizing them."
         for variants in groups.values()
         if len(variants) > 1
     ]
@@ -230,7 +230,7 @@ def validate_descriptive(  # noqa: PLR0912, PLR0915, C901
             warnings.append(f"{n_out} score value(s) fall outside the expected range [{score_min}, {score_max}].")
 
     # --- Covariate table + product reconciliation ---------------------
-    # Normalise first so the balance audit and stats reflect the products the
+    # Normalize first so the balance audit and stats reflect the products the
     # relate will actually run on. The relate aggregates to product means and
     # looks covariates up by product label, so a panel product with no covariate
     # row cannot be related; drop those (warning) and relate on the intersection.

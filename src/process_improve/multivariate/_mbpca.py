@@ -122,7 +122,7 @@ def _seed_super_score(x_def: dict[str, np.ndarray], context: _MBPCALoopContext) 
 def _fit_one_component(x_def: dict[str, np.ndarray], context: _MBPCALoopContext) -> _MBPCAComponent:
     """Iterate the super-score to convergence on the currently deflated blocks.
 
-    The first pass always runs. A centred seed changes by about its own size in that pass,
+    The first pass always runs. A centered seed changes by about its own size in that pass,
     so a tolerance above 1 used to end the loop before it began and leave no loadings.
     """
     t_super = _seed_super_score(x_def, context)
@@ -130,7 +130,7 @@ def _fit_one_component(x_def: dict[str, np.ndarray], context: _MBPCALoopContext)
     local_loadings: dict[str, np.ndarray] = {}
     local_scores: dict[str, np.ndarray] = {}
 
-    # On the dense path each loading is normalised as soon as it is formed, so dividing it by
+    # On the dense path each loading is normalized as soon as it is formed, so dividing it by
     # the score's sum of squares first would change nothing; nor would dividing a score by
     # the sum of squares of a loading of unit length.
     for itern in itertools.count(1):
@@ -323,7 +323,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
 
     Generic multi-block PCA following the consensus-PCA / hierarchical PCA
     formulation of Westerhuis, Kourti & MacGregor (1998). Each X-block is
-    preprocessed independently (mean-centred and unit-variance scaled),
+    preprocessed independently (mean-centered and unit-variance scaled),
     then divided by ``sqrt(K_b)`` so blocks of unequal width contribute
     fairly to the consensus super-score.
 
@@ -354,10 +354,10 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
     algorithm : str, default="auto"
         Algorithm to use for fitting the model.
 
-        - ``"auto"``: dense vectorised hierarchical NIPALS when the data is
+        - ``"auto"``: dense vectorized hierarchical NIPALS when the data is
           complete; mask-aware NIPALS (NaN-tolerant) when any block contains
           missing values.
-        - ``"dense"``: dense vectorised hierarchical NIPALS. Raises if any
+        - ``"dense"``: dense vectorized hierarchical NIPALS. Raises if any
           block contains missing values.
         - ``"nipals"``: mask-aware hierarchical NIPALS. Always uses the
           NaN-tolerant inner-loop primitives, even when the data is
@@ -389,7 +389,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
     feature_names_in_ : np.ndarray
         Concatenated column names, one per feature, in block order.
     preproc_ : dict[str, MCUVScaler]
-        Per-block preprocessors used to mean-centre and unit-variance
+        Per-block preprocessors used to mean-center and unit-variance
         scale each X-block.
     super_scores_ : pd.DataFrame, shape (n_samples, n_components)
         Super-block (consensus) scores ``T``.
@@ -614,7 +614,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         algo = self.algorithm.lower()
         if algo not in self._valid_algorithms:
             raise ValueError(
-                f"Algorithm '{self.algorithm}' is not recognised. Must be one of {self._valid_algorithms}."
+                f"Algorithm '{self.algorithm}' is not recognized. Must be one of {self._valid_algorithms}."
             )
         if algo == "auto":
             algo = "nipals" if self.has_missing_data_ else "dense"
@@ -624,7 +624,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         return algo
 
     def _preprocess(self, X: dict[str, pd.DataFrame]) -> dict[str, np.ndarray]:
-        """Mean-centre and unit-variance scale each block independently."""
+        """Mean-center and unit-variance scale each block independently."""
         self.preproc_: dict[str, MCUVScaler] = {name: MCUVScaler().fit(X[name]) for name in self.block_names_}
         return {name: self.preproc_[name].transform(X[name]).to_numpy() for name in self.block_names_}
 
@@ -633,7 +633,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         return list(range(1, self.n_components_ + 1))
 
     def _store_latent_frames(self, work: _MBPCAArrays) -> None:
-        """Wrap the scores and loadings in labelled pandas containers."""
+        """Wrap the scores and loadings in labeled pandas containers."""
         component_names = self._component_names()
         self.super_scores_ = pd.DataFrame(work.super_scores, index=self._sample_index, columns=component_names)
         self.super_loadings_ = pd.DataFrame(work.super_loadings, index=self.block_names_, columns=component_names)
@@ -741,7 +741,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         return self._project(X)
 
     def _scaled_block(self, name: str, block: pd.DataFrame) -> np.ndarray:
-        """Centre and scale one block of new rows as the fit did.
+        """Center and scale one block of new rows as the fit did.
 
         A column the fit left out, having no observed value (#1098), is read as missing, as every
         cell of it was in the fit: a value there adds nothing to a score or an SPE, and a row has
@@ -951,7 +951,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
     ) -> dict[str, pd.DataFrame]:
         r"""Per-block per-variable contributions to a super-score (MBPCA).
 
-        The multi-block analogue of :meth:`PCA.score_contributions`. A super
+        The multi-block analog of :meth:`PCA.score_contributions`. A super
         score is a weighted sum of the (deflated, preprocessed) variables across
         every block, so it splits exactly into one term per variable:
 
@@ -1017,7 +1017,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
     ) -> dict[str, pd.Series]:
         """Per-block per-variable contributions to a group's average super score.
 
-        The multi-block analogue of :meth:`PCA.group_contributions`. See that
+        The multi-block analog of :meth:`PCA.group_contributions`. See that
         method for the definition; the result is returned one Series per
         X-block, and the sum over every block equals the group's average super
         score (or the difference between the two groups' average super scores

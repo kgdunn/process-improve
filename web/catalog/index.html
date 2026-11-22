@@ -10,7 +10,7 @@
   <meta name="theme-color" content="#f5f6f4" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#141517" media="(prefers-color-scheme: dark)">
   <script>
-    /* The colour mode chosen in the app (index.html), put on the page before it is drawn. */
+    /* The color mode chosen in the app (index.html), put on the page before it is drawn. */
     try {
       const mode = localStorage.getItem("factorial-mode");
       if (mode === "light" || mode === "dark") document.documentElement.dataset.theme = mode;
@@ -176,13 +176,13 @@
     <div class="catalog__main">
       <figure class="catalog__map">
         <div class="sizemap__tools">
-          <span class="views" role="group" aria-label="Colour the cells by">
+          <span class="views" role="group" aria-label="Color the cells by">
             <button type="button" data-shade="model" aria-pressed="true">What they estimate</button>
             <button type="button" data-shade="count" aria-pressed="false">How many</button>
           </span>
           <button type="button" class="link map__reset" id="map-reset">Reset the map</button>
         </div>
-        <ul class="sizemap__key" aria-label="What the map's colours and lines say">
+        <ul class="sizemap__key" aria-label="What the map's colors and lines say">
           <li data-key="model">Most designs of a cell estimate:</li>
           <li data-key="model"><svg viewBox="0 0 12 12" aria-hidden="true"><rect class="fill-0" x="1" y="1" width="10" height="10" rx="2"></rect></svg>none of these, or none is stated</li>
           <li data-key="model"><svg viewBox="0 0 12 12" aria-hidden="true"><rect class="fill-2" width="12" height="12" rx="2"></rect></svg>main effects</li>
@@ -244,16 +244,16 @@
   </div>
 
   <div class="page-note">
-    <p>The published designs are from the reference catalogue of
+    <p>The published designs are from the reference catalog of
       <a href="https://github.com/kgdunn/process-improve" target="_blank" rel="noopener">process-improve</a>, which holds each source's runs and
       every number it prints, with where it is printed, and recomputes them on each change to the library. The
-      numbers and short quotations belong to their sources, whose terms each design shows; the MIT licence of
+      numbers and short quotations belong to their sources, whose terms each design shows; the MIT license of
       process-improve does not cover them. <a href="../technical-details-how-factorial-works.html">How Factorial works</a>.</p>
   </div>
 </main>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 <script src="../catalog.js" type="module"></script>
-<!-- The colour-mode switch and the footer every page shares (site.js). -->
+<!-- The color-mode switch and the footer every page shares (site.js). -->
 <script src="../site.js" type="module"></script>
 </body>
 </html>

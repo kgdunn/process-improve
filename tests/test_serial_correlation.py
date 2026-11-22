@@ -1,7 +1,7 @@
 """Serially correlated records: the variance of a difference of averages, and a first-order moving average (#802 G3).
 
 Box, Hunter and Hunter's 210 batch yields (sections 3.1 and 18.2) are serially correlated, r1 = -0.29.
-These tests hold the two functions to the book's numbers, read from the reference catalogue's record,
+These tests hold the two functions to the book's numbers, read from the reference catalog's record,
 and to simulations of a process whose model is known.
 """
 
@@ -101,7 +101,7 @@ def test_both_methods_find_the_theta_a_long_simulated_record_was_made_with(metho
 
 
 def test_a_record_with_no_lag_1_autocorrelation_has_a_theta_of_0():
-    found = fit_ma1([0.0, 1.0, 0.0, -1.0, 0.0, 1.0, 0.0, -1.0])  # each neighbour of a 1 or a -1 is a 0
+    found = fit_ma1([0.0, 1.0, 0.0, -1.0, 0.0, 1.0, 0.0, -1.0])  # each neighbor of a 1 or a -1 is a 0
     assert (found["r1"], found["theta"]) == (0.0, 0.0)
     assert found["sigma2"] == pytest.approx(4 / 7), "the record's own variance"
 

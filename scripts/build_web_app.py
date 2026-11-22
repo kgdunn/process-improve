@@ -296,7 +296,7 @@ def _pack(tree: Path, target: Path) -> None:
             packed.writestr(zipfile.ZipInfo(path.relative_to(tree).as_posix()), path.read_bytes(), zipfile.ZIP_DEFLATED)
 
 
-#: The folder of the wheel that the browser's copy leaves out: the reference catalogue's sources, 29 MB that the build
+#: The folder of the wheel that the browser's copy leaves out: the reference catalog's sources, 29 MB that the build
 #: turns into the catalog's pages (:func:`write_catalog`, :func:`write_reproduction`). Only
 #: ``process_improve.experiments.reference_catalogue`` reads it, which the page's Python never imports
 #: (``tests/web/api/test_browser_safe.py``), so the browser neither downloads it nor unpacks it at each start.
@@ -473,7 +473,7 @@ WORKED = "worked"
 #: The latest campaign format the page reads (``CAMPAIGN_VERSION`` in ``web/campaign.js``).
 CAMPAIGN_VERSION = 15
 #: The format of a study of one factor (``ONE_FACTOR_FORMAT`` in ``web/campaign.js``): a page from before it could
-#: not analyse one, and refuses it in a sentence. A study of more factors keeps format 1.
+#: not analyze one, and refuses it in a sentence. A study of more factors keeps format 1.
 ONE_FACTOR_FORMAT = 2
 #: The format of a study with a categorical factor that lists its levels (``LEVELS_FORMAT`` in ``web/campaign.js``):
 #: three or more, or two that read as numbers, which a page of an earlier format would misread.
@@ -502,7 +502,7 @@ PLANNED_FORMAT = 10
 #: The format of a study whose design sets a factor once for a group of runs (``WHOLE_PLOT_FORMAT`` in
 #: ``web/campaign.js``): a split-plot study of the catalog, opened with its whole plots.
 WHOLE_PLOT_FORMAT = 11
-#: The format of a study with settings of its own, such as its colour map (``SETTINGS_FORMAT`` in
+#: The format of a study with settings of its own, such as its color map (``SETTINGS_FORMAT`` in
 #: ``web/campaign.js``). No example the build makes has any.
 SETTINGS_FORMAT = 12
 #: The format of a study judged at a significance level of its own (``SIGNIFICANCE_FORMAT`` in
@@ -605,7 +605,7 @@ def book_example(entry: dict[str, Any]) -> dict[str, Any]:
 def published_example(entry: dict[str, Any]) -> dict[str, Any]:
     """Make an example of a published source into what the page opens from ``?example=<name>``.
 
-    In place of the book's page it carries its source, as the reference catalogue cites it: the
+    In place of the book's page it carries its source, as the reference catalog cites it: the
     citation, where in the source its runs are printed, and the address the source is read at.
     """
     from process_improve.experiments.reference_catalogue import (  # noqa: PLC0415 - the docs environment has it
@@ -713,7 +713,7 @@ def _campaign(title: str, design: dict[str, Any], responses: list[float | None])
 
 
 def generated_campaign(record: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
-    """Return the campaign that opens a generated design, made by the page in its own randomised run order.
+    """Return the campaign that opens a generated design, made by the page in its own randomized run order.
 
     The page's design must have the record's runs: the catalog draws one design and opens the same one.
     """
@@ -1048,7 +1048,7 @@ PAIR_NUMBERS = {"difference", "ci_low", "ci_high", "half_width", "p", "p_value"}
 #: How far the page's own number may sit from a printed one beyond the printed rounding, as a share of it: a fit
 #: worked in coded units, as the page's is, and one worked in a source's own units agree to a few millionths.
 ARITHMETIC = 1e-6
-#: Keys of a check that make its number one the page does not show: a transformed or summarised response, a
+#: Keys of a check that make its number one the page does not show: a transformed or summarized response, a
 #: number worked from settings or read back on another scale, a one-sided test, a categorical factor coded otherwise.
 NOT_SHOWN = (
     "summary",
@@ -1296,7 +1296,7 @@ def _coefficient_reading(check: dict[str, Any], spec: dict[str, Any], flipped: f
 
 
 def _agreement(check: dict[str, Any], printed: object) -> dict[str, Any] | None:
-    """Return the printed number, its bound and the rounding it allows, as the catalogue's checks hold a number to it.
+    """Return the printed number, its bound and the rounding it allows, as the catalog's checks hold a number to it.
 
     The rule is :func:`~process_improve.experiments.reference_catalogue._agrees`: half a unit in the last digit
     printed, or in ``decimals`` places, times ``of_rounded``; and ``ARITHMETIC`` of the number besides, as the
@@ -1368,7 +1368,7 @@ def printed_numbers(record: dict[str, Any], entry: dict[str, Any], spec: dict[st
 
     Each holds what the number is and where it is printed (``what``, ``term``, ``printed``, ``where``), the model
     it is printed for as the page's terms (``model``), where on the page's analysis of that model the page's own
-    number is (``read``), the rule it agrees by (``agree``), and the reason, where the catalogue knows the printed
+    number is (``read``), the rule it agrees by (``agree``), and the reason, where the catalog knows the printed
     number not to reproduce (``reason``). A number of another response, or of some of the runs only, is not one
     the page shows; of the checks of one printed number, the first the page shows is kept.
     """
@@ -1510,7 +1510,7 @@ def write_reproduction(out_dir: Path) -> None:
     """Write ``catalog/reproduction.json``: how closely the library reproduces each case of each source.
 
     It holds each tier's largest relative difference (``null`` for the last, which has none), the causes the
-    catalogue records of a difference and of a number not recomputed, those of a difference in which the
+    catalog records of a difference and of a number not recomputed, those of a difference in which the
     library's value is the right one, the forms a source takes, the sources as the catalog names them with
     the form of each, every case (see
     :func:`~process_improve.experiments.design_catalog.catalog_reproduction`), which
@@ -1569,7 +1569,7 @@ class FieldGroup(NamedTuple):
 
 
 #: The kinds of design, in the order a field's page lists them; a family no kind names is "other". The page draws
-#: each kind with a shape of its own (``web/field-chart.js``), so the kinds are told apart without their colours.
+#: each kind with a shape of its own (``web/field-chart.js``), so the kinds are told apart without their colors.
 FIELD_GROUPS = {
     "full": FieldGroup(
         "Full factorial", "full factorials", "Every combination of the factor levels.", frozenset({"full_factorial"})
@@ -1643,10 +1643,10 @@ def field_sentence(experiments: list[dict[str, Any]]) -> str:
 
 
 def field_summaries(designs: list[dict[str, Any]], topics: dict[str, dict[str, str]]) -> dict[str, dict[str, Any]]:
-    """Summarise each field's published experiments: its sentence, its chart's points and its experiments by kind.
+    """Summarize each field's published experiments: its sentence, its chart's points and its experiments by kind.
 
     An experiment counts when a source prints it, it has factors and runs, and it is a designed experiment, not a
-    comparison of samples. A field is an application the catalogue names, other than "general", with one at least.
+    comparison of samples. A field is an application the catalog names, other than "general", with one at least.
     A point is ``[factors, runs, kind, how many]``: experiments of one size and kind share a point.
     """
     summaries = {}
@@ -1866,9 +1866,9 @@ CAUSE_STATE = {
     "unexplained": "open",
 }
 
-#: A plain name for each quantity the catalogue records a number of (its ``what``), for the numbers a page shows:
+#: A plain name for each quantity the catalog records a number of (its ``what``), for the numbers a page shows:
 #: those that differ and those not in Factorial yet. ``write_reproduction`` passes the names its cases use on to
-#: the reproduction page. The catalogue's "other" has none: its term says what it is.
+#: the reproduction page. The catalog's "other" has none: its term says what it is.
 QUANTITIES = WEB_SRC / "quantities.json"
 
 #: What a book's page calls its source, by the source's form.
@@ -1912,7 +1912,7 @@ def book_verdict(cases: list[dict[str, Any]], noun: str) -> str:
 
     Exact or within 1% counts as giving the answer; a difference of more than 5% in more than one example in
     twenty keeps the verdict from the first level. Where any number differs, the verdict says why, as far as
-    the catalogue knows.
+    the catalog knows.
     """
     tiers = Counter(case["tier"] for case in cases if case["tier"])
     total = sum(tiers.values())
@@ -1971,8 +1971,8 @@ def quantity_names() -> dict[str, str]:
 def _quantity(number: dict[str, Any]) -> str:
     """Name a number's quantity in a few words, as ``quantity`` in web/reproduced-logic.js does.
 
-    The words are its plain name and its term: its term alone where the catalogue calls it "other", and the
-    catalogue's own word in place of a name it has none for.
+    The words are its plain name and its term: its term alone where the catalog calls it "other", and the
+    catalog's own word in place of a name it has none for.
     """
     what = number["what"]
     name = "" if what == "other" else quantity_names().get(what, str(what or "").replace("_", " "))
@@ -2006,7 +2006,7 @@ def _rest(items: list[str], tag: str = "ul", css: str = "field-list") -> str:
 
 
 def _state_key(state: str) -> str:
-    """Return a state's mark, as the reproduction page draws it: a square in its colour, hatched or empty for two."""
+    """Return a state's mark, as the reproduction page draws it: a square in its color, hatched or empty for two."""
     return f'<span class="statekey" data-state="{state}" aria-hidden="true"></span>'
 
 
@@ -2198,7 +2198,7 @@ def write_books(folder: Path, data: dict[str, Any]) -> None:
     """Write ``books/`` under the catalog: a page for each source with a case, and the list of them.
 
     A case's place in its source is read from ``index.json`` beside it, which :func:`write_catalog` writes;
-    without it the examples are listed in the catalogue's order.
+    without it the examples are listed in the catalog's order.
     """
     index = folder / "index.json"
     where = (

@@ -1,8 +1,8 @@
-"""The app's name and mark: Factorial, a 2^3 factorial and its centre run seen down the cube's diagonal.
+"""The app's name and mark: Factorial, a 2^3 factorial and its center run seen down the cube's diagonal.
 
 ``tools/branding/app_mark.py`` draws the mark from ``generate_design`` and writes the favicon, the
 icons and the link card into ``web/``. The page's header and its status line draw the same mark
-inline, in the page's own colours, so they follow the reader's theme; these tests keep every copy
+inline, in the page's own colors, so they follow the reader's theme; these tests keep every copy
 in step with the generated one, and every file the page's head and manifest name in the build.
 """
 
@@ -52,7 +52,7 @@ def png_size(name: str) -> tuple[int, int]:
 
 
 def geometry(svg: str) -> dict[str, set[tuple[float, ...]]]:
-    """Return the mark's points: its runs' centres, the hexagon's corners, and the ends of its three edges."""
+    """Return the mark's points: its runs' centers, the hexagon's corners, and the ends of its three edges."""
     number = r"[-\d.]+"
     circles = {tuple(map(float, m)) for m in re.findall(rf'<circle[^>]*? cx="({number})" cy="({number})"', svg)}
     hexagon = re.search(r'<polygon points="([^"]+)"', svg)
@@ -78,10 +78,10 @@ def test_the_mark_is_a_two_level_factorial_in_three_factors_with_its_centre_run(
 
 
 def test_seen_down_the_diagonal_two_corners_fall_behind_the_centre_run(app_mark):
-    """The axes are 120 degrees apart, so (+,+,+) and (-,-,-) both land on the centre; the rest make a hexagon."""
+    """The axes are 120 degrees apart, so (+,+,+) and (-,-,-) both land on the center; the rest make a hexagon."""
     projected = app_mark.runs() @ app_mark.AXES
     radius = np.hypot(*projected.T)
-    assert np.isclose(radius, 0).sum() == 3, "the centre run and two corners"
+    assert np.isclose(radius, 0).sum() == 3, "the center run and two corners"
     assert np.allclose(radius[~np.isclose(radius, 0)], 2), "six corners on one circle"
     rim, centre, near = app_mark.mark()
     assert len(rim) == 6
@@ -168,12 +168,12 @@ def test_the_app_s_typeface_is_served_from_its_own_files_with_its_licence():
 
 
 def test_the_other_pages_wear_the_app_s_look():
-    """The catalog, the concept map and the multivariate page: no pill, no coloured edge, and the app's ground."""
+    """The catalog, the concept map and the multivariate page: no pill, no colored edge, and the app's ground."""
     css = source("style.css")
     assert "999px" not in css, "a chip has the one corner every box has"
     for edged in (".statelist", ".map-card"):
         rule = next(line for line in css.splitlines() if line.startswith(f"{edged} {{"))
-        assert "border-left" not in rule, f"{edged} is marked by a point, not by a coloured edge"
+        assert "border-left" not in rule, f"{edged} is marked by a point, not by a colored edge"
     mva = (ROOT / "web" / "mva" / "mva.css").read_text(encoding="utf-8")
     assert "--bg: #f5f6f4;" in mva, "the multivariate page stands on the app's neutral ground"
     assert "#faf8f3" not in mva

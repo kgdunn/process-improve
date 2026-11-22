@@ -1,6 +1,6 @@
 """Square plot: 2D box with response values at the four 2^2 design vertices.
 
-A square plot is the 2-factor analogue of :class:`CubePlot`: it displays
+A square plot is the 2-factor analog of :class:`CubePlot`: it displays
 the predicted (or observed) response at each corner of a 2x2 design.
 Common in introductory DoE worksheets where readers reason about main
 effects and interactions by inspecting the four corner responses.

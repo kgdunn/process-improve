@@ -28,7 +28,7 @@ from process_improve.experiments.design_catalog import (
     catalog_topics,
     design_facets,
     glyph,
-    normalise_family,
+    normalize_family,
     printed_checks,
     published_runs,
     search_catalog,
@@ -40,7 +40,7 @@ from process_improve.experiments.reference_catalogue import (
     reference_experiments,
     reference_sources,
     reference_topics,
-    reproduce_reference_catalogue,
+    reproduce_reference_catalog,
 )
 
 
@@ -94,7 +94,7 @@ def records() -> list[dict]:
     ],
 )
 def test_a_design_type_in_words_names_its_family(text, family):
-    assert normalise_family(text) == family
+    assert normalize_family(text) == family
 
 
 @pytest.mark.slow
@@ -110,7 +110,7 @@ def test_every_published_entry_has_a_family_and_few_have_none(records):
     # that print no design (a fitted equation, an exercise in algebra, a table of values), five Koshal designs,
     # and 21 response surface designs no family holds (a hexagon, a dodecahedron, an all-bias design,
     # third-order and three-level designs). McMullen and Jurica's 1: runs chosen round by round by SNOBFIT,
-    # an optimiser, not by a design
+    # an optimizer, not by a design
     assert len(unknown) <= 74, f"a rule is needed for: {sorted(set(unknown))}"
 
 
@@ -359,7 +359,7 @@ def test_every_whole_plot_column_an_entry_names_is_in_its_run_table():
 
 
 def test_an_entry_can_say_it_is_run_in_no_blocks_whatever_its_text_says():
-    """Montgomery's smelting algorithms, analysed as one factor: only a later problem calls the runs blocks."""
+    """Montgomery's smelting algorithms, analyzed as one factor: only a later problem calls the runs blocks."""
     entry = {
         "name": "smelting",
         "design": {
@@ -490,12 +490,12 @@ def test_no_table_is_named_by_a_line_note_a_file_or_markup_and_other_sources_kee
 
 
 def _entry(name: str) -> dict:
-    """Return one entry of the reference catalogue, an experiment or a design, by its name."""
+    """Return one entry of the reference catalog, an experiment or a design, by its name."""
     return next(e for e in [*reference_experiments(), *reference_designs()] if e["name"] == name)
 
 
 def _book_figures() -> list[str]:
-    """Return every figure the book's entries record, as their notes for the catalogue's maintainers hold it."""
+    """Return every figure the book's entries record, as their notes for the catalog's maintainers hold it."""
     return [f for e in reference_experiments("pid-book") + reference_designs("pid-book") for f in e["where"]["figures"]]
 
 
@@ -550,7 +550,7 @@ def test_a_figure_is_named_by_its_caption_alt_text_description_or_label(note, na
 
 @pytest.mark.dataset
 def test_no_figure_of_the_book_is_named_by_a_path_a_line_note_or_a_label():
-    """A note's provenance (its file, the lines that print it, its label's prefix) stays in the catalogue's data."""
+    """A note's provenance (its file, the lines that print it, its label's prefix) stays in the catalog's data."""
     notes = _book_figures()
     assert sum(".png" in note for note in notes) >= 98
     for note in notes:
@@ -755,7 +755,7 @@ def test_generated_records_are_the_designs_the_library_makes(records):
     dsd = next(r for r in generated if r["id"] == "lib-dsd-k6")
     assert (dsd["n_runs"], dsd["n_centre"], dsd["family"]) == (13, 1, "dsd")
     ccd = next(r for r in generated if r["id"] == "lib-ccd-k2-rotatable")
-    assert ccd["levels"] == [5, 5], "the axial runs add two levels to the cube's two and the centre"
+    assert ccd["levels"] == [5, 5], "the axial runs add two levels to the cube's two and the center"
     assert all(r["source"] is None and r["year"] is None for r in generated)
 
 
@@ -817,8 +817,8 @@ def test_an_entry_s_printed_numbers_are_counted_by_what_their_checks_say():
 @pytest.mark.slow
 @pytest.mark.dataset
 def test_the_counts_are_what_the_reproduce_report_finds():
-    """The counts read from the catalogue are the report's, since the tests make every check agree or explain it."""
-    report = reproduce_reference_catalogue("ullmann-doe-2012")
+    """The counts read from the catalog are the report's, since the tests make every check agree or explain it."""
+    report = reproduce_reference_catalog("ullmann-doe-2012")
     published = {r["id"]: r for r in catalog_records("published") if r["source"] == "ullmann-doe-2012"}
     for name, rows in report.groupby("experiment"):
         checked = rows[rows["checked"].astype(bool)]

@@ -89,7 +89,7 @@ DOMAIN_TEMPLATES: dict[str, dict[str, Any]] = {
         "extra_stages": ["validation", "scaleup"],
         "special_considerations": [
             "Biological variability requires extra center points (5+) for reliable error estimation.",
-            "Long fermentation times (days to weeks) make run minimisation critical.",
+            "Long fermentation times (days to weeks) make run minimization critical.",
             "Scale-up effects may require a separate verification stage.",
         ],
     },
@@ -134,7 +134,7 @@ DOMAIN_TEMPLATES: dict[str, dict[str, Any]] = {
                 "co-solvent percentage, and particle size."
             ),
             "intermediate": (
-                "The plan's CCD is face-centred, so every run stays inside the factor ranges. Where the "
+                "The plan's CCD is face-centered, so every run stays inside the factor ranges. Where the "
                 "ranges are not hard limits, a rotatable CCD (alpha='rotatable') gives uniform prediction "
                 "variance across the region, which matters when the optimum may be near its boundary. "
                 "Extraction yield curves are often strongly quadratic."
@@ -144,7 +144,7 @@ DOMAIN_TEMPLATES: dict[str, dict[str, Any]] = {
         "special_considerations": ["Extraction processes often have strongly quadratic responses."],
         "soft_range_considerations": [
             (
-                "A rotatable CCD predicts better at the region boundaries than the face-centred one the plan uses; "
+                "A rotatable CCD predicts better at the region boundaries than the face-centered one the plan uses; "
                 "its axial runs go beyond the ranges."
             ),
         ],
@@ -191,14 +191,14 @@ DOMAIN_TEMPLATES: dict[str, dict[str, Any]] = {
             "intermediate": (
                 "With potentially 50-100+ media components, a two-phase approach is typical: "
                 "first a library screen or PB to reduce to a manageable set, then a DSD or BBD "
-                "for fine-tuning. Run minimisation is the top priority given the long timelines "
+                "for fine-tuning. Run minimization is the top priority given the long timelines "
                 "and high per-run costs."
             ),
         },
         "extra_stages": ["library_screen", "scaleup"],
         "special_considerations": [
             "Experiments are expensive and slow (14-21 days per run).",
-            "Run minimisation is critical - every run saved is 2-3 weeks.",
+            "Run minimization is critical - every run saved is 2-3 weeks.",
             "DSD allows screening and curvature detection in a single stage.",
             "High-dimensionality media screening may need a pre-screening step.",
         ],
@@ -212,7 +212,7 @@ DOMAIN_TEMPLATES: dict[str, dict[str, Any]] = {
         "prefer_curvature_detection": False,
         "notes": {
             "novice": (
-                "Bioprocess optimisation (upstream and downstream) typically involves many "
+                "Bioprocess optimization (upstream and downstream) typically involves many "
                 "factors. Plackett-Burman screening identifies the vital few before investing "
                 "in detailed response surface studies."
             ),
@@ -225,7 +225,7 @@ DOMAIN_TEMPLATES: dict[str, dict[str, Any]] = {
         },
         "extra_stages": ["validation", "scaleup"],
         "special_considerations": [
-            "Scale-up effects may invalidate bench-scale optimisation.",
+            "Scale-up effects may invalidate bench-scale optimization.",
             "Hard-to-change factors are common (reactor geometry, media preparation).",
             "Biological variability requires extra center points for error estimation.",
         ],
@@ -239,14 +239,14 @@ DOMAIN_TEMPLATES: dict[str, dict[str, Any]] = {
         "prefer_curvature_detection": False,
         "notes": {
             "novice": (
-                "A general DOE strategy follows the screening-optimisation-confirmation "
+                "A general DOE strategy follows the screening-optimization-confirmation "
                 "sequence. The specific design choices depend on the number of factors, "
                 "budget, and whether you have prior knowledge about which factors matter."
             ),
             "intermediate": (
                 "The strategy follows the Stat-Ease SCOR framework: Screening, "
-                "Characterisation, Optimisation, Ruggedness/Robustness. Budget is allocated "
-                "roughly 25-40% screening, 40-55% optimisation, 5-15% confirmation."
+                "Characterization, Optimization, Ruggedness/Robustness. Budget is allocated "
+                "roughly 25-40% screening, 40-55% optimization, 5-15% confirmation."
             ),
         },
         "extra_stages": [],
@@ -262,7 +262,7 @@ def get_domain_template(domain: str) -> dict[str, Any]:
     ----------
     domain : str
         Domain key (e.g. ``"fermentation"``).  Falls back to ``"general"``
-        if the key is not recognised.
+        if the key is not recognized.
 
     Returns
     -------

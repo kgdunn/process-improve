@@ -2,7 +2,7 @@
 
 The page makes a full factorial in one factor, its two levels each run several times in random order,
 and takes one factor's runs as given. The design's notes say how many runs sit at each level, as an
-alias sentence would mean nothing with one factor, and the design is analysed for its main effect.
+alias sentence would mean nothing with one factor, and the design is analyzed for its main effect.
 """
 
 from __future__ import annotations

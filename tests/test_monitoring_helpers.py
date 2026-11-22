@@ -104,7 +104,7 @@ def _process(mean: float, std: float, n: int = 4001) -> pd.DataFrame:
     ],
 )
 def test_the_defects_per_million_of_a_centred_process(cp, printed, formula):
-    """Schmidt and Launsby's Table 1.3 rows: a centred process has 2 Phi(-3 Cp) x 10^6 outside its limits.
+    """Schmidt and Launsby's Table 1.3 rows: a centered process has 2 Phi(-3 Cp) x 10^6 outside its limits.
 
     The book's 22,000 at Cpk 0.77 is read off a table, so it is not the formula's 20,888.
     """

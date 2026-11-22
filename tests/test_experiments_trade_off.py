@@ -75,7 +75,7 @@ class TestAgainstTheTextbookTable:
         assert table.loc[8, 9] == ""
 
     def test_existing_design_whose_search_is_refused_is_not_blank(self):
-        """2^(11-5) in 64 runs exists; a refused search falls back to the tabulated catalogue."""
+        """2^(11-5) in 64 runs exists; a refused search falls back to the tabulated catalog."""
         table = trade_off_table(runs=(64,), factors=(11,), display=False)
         assert table.loc[64, 11].startswith("2^(11-5)")
 
@@ -243,7 +243,7 @@ class TestDefiningWordsArePositive:
     """The report writes its defining words and alias chains without signs, which is exact only for positive generators.
 
     Its generators come only from ``minimum_aberration_generators``: from the search, which writes
-    ``name=word``, or from the ``_MIN_ABERRATION`` catalogue past the search limit. A generator such
+    ``name=word``, or from the ``_MIN_ABERRATION`` catalog past the search limit. A generator such
     as ``D=-AB`` would be reported as ``I=ABD`` instead of ``I=-ABD``.
     """
 
@@ -254,7 +254,7 @@ class TestDefiningWordsArePositive:
                 assert all(sign == 1 for _word, sign in signed), (k, n_runs, generators)
 
     def test_report_agrees_with_the_signed_defining_relation(self):
-        """Each fractional cell of the default table (searched), and each cell taken from the catalogue."""
+        """Each fractional cell of the default table (searched), and each cell taken from the catalog."""
         table = trade_off_table(display=False)
         cells = [(r, k) for r in table.index for k in table.columns if table.loc[r, k].startswith("2^(")]
         cells += [(64, 11), (128, 11), (256, 11)]  # past the search limit
@@ -295,7 +295,7 @@ def _table_cases() -> list:
 def test_generate_design_table_has_minimum_aberration(k: int, n_runs: int, generators: tuple[str, ...]) -> None:
     """The table generate_design uses and the search agree on the word-length pattern, cell by cell.
 
-    A minimum-aberration design is unique only up to relabelling, so the generators may differ;
+    A minimum-aberration design is unique only up to relabeling, so the generators may differ;
     the word-length pattern (A3, A4, ...) is what the criterion ranks, and the two must match.
     The patterns are those of Chen, Sun and Wu (1993), e.g. (0, 6, 8, 0, 0, 1) for 2^(9-4) in 32 runs.
     """

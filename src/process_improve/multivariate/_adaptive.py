@@ -43,7 +43,7 @@ per-step kernel movement is ``injection_ratio_`` (the gamma term's weight) and
 model into these two channels in the response's own units, and
 ``adaptation_plot`` renders the whole picture.
 
-The estimators initialise themselves from the batch :class:`~process_improve.multivariate._pca.PCA`
+The estimators initialize themselves from the batch :class:`~process_improve.multivariate._pca.PCA`
 / :class:`~process_improve.multivariate._pls.PLS`, so the ``i = 0`` model, its
 limits, and its sign conventions match the rest of the package exactly. They
 then expose an :meth:`~_AdaptiveModel.update` (single observation) and
@@ -172,7 +172,7 @@ def _scores_and_spe(
     Parameters
     ----------
     x : np.ndarray of shape (n_features,)
-        The row, centred and scaled.
+        The row, centered and scaled.
     direct, guide, loadings : np.ndarray of shape (n_features, n_components)
         The direct weights ``R`` (scores of a complete row), the columns each score is
         read along in a row with missing values, and the loadings ``P``.
@@ -221,27 +221,27 @@ def _as_rows(X: DataMatrix) -> tuple[pd.Index, np.ndarray]:
 def _ewma_step(
     centre: np.ndarray, scale: np.ndarray, value: np.ndarray, factor_centre: np.ndarray, factor_scale: np.ndarray
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Move an EWMA centring and scaling vector one observation toward ``value``.
+    """Move an EWMA centering and scaling vector one observation toward ``value``.
 
     Equations 1a and 2a of the method: the scale tracks the squared deviation from
-    the centre before this step, then the centre moves toward the value. A variable
+    the center before this step, then the center moves toward the value. A variable
     with a zero factor is frozen, and one whose value is missing moves neither its
-    centre nor its scale.
+    center nor its scale.
 
     Parameters
     ----------
     centre, scale : np.ndarray of shape (n_variables,)
-        The current centring and scaling vectors.
+        The current centering and scaling vectors.
     value : np.ndarray of shape (n_variables,)
         The new raw observation, ``NaN`` where missing.
     factor_centre, factor_scale : np.ndarray of shape (n_variables,)
-        The EWMA factors of the centre (lambda) and of the scale (alpha).
+        The EWMA factors of the center (lambda) and of the scale (alpha).
 
     Returns
     -------
     centre, scale : np.ndarray of shape (n_variables,)
         The vectors after this step. A scale of exactly 0 (a scale factor of 1 and a
-        value at the centre) is set to 1, as :class:`MCUVScaler` scales a column of
+        value at the center) is set to 1, as :class:`MCUVScaler` scales a column of
         equal values; a scale in small units is kept, in any units.
     """
     deviation = value - centre
@@ -249,7 +249,7 @@ def _ewma_step(
     spread = np.sqrt((1.0 - factor_scale) * scale**2 + factor_scale * deviation**2)
     spread = np.where(spread > 0.0, spread, 1.0)
     # (1 - lambda) m + lambda x, written as m + lambda (x - m): the same value, but exact
-    # when x equals m, so an observation at the centre leaves it unchanged to the last bit.
+    # when x equals m, so an observation at the center leaves it unchanged to the last bit.
     moved = centre + factor_centre * deviation
     return np.where(observed, moved, centre), np.where(observed, spread, scale)
 
@@ -389,7 +389,7 @@ class _AdaptiveModel(_LatentVariableModel):
     def _scaled(
         self, rows: np.ndarray, centre: np.ndarray | None = None, scale: np.ndarray | None = None
     ) -> np.ndarray:
-        """Return raw rows centred and scaled, by the current vectors unless others are given, as the model reads them.
+        """Return raw rows centered and scaled, by the current vectors unless others are given, as the model reads them.
 
         A column the fit left out is read at 0, so a value a new row has in it adds nothing to the
         row's scores or SPE, as in PCA and PLS (#1098).
@@ -399,12 +399,12 @@ class _AdaptiveModel(_LatentVariableModel):
         return self._left_out((rows - centre) / scale, 0.0)
 
     def _ewma_update_x(self, x0: np.ndarray) -> np.ndarray:
-        """Advance the X-space EWMA centre and scale by one observation, and return it scaled by them.
+        """Advance the X-space EWMA center and scale by one observation, and return it scaled by them.
 
         The monitoring statistics used the vectors before this step; the kernel takes the
-        observation scaled with the moved ones, a missing value at the centre, 0.
+        observation scaled with the moved ones, a missing value at the center, 0.
         """
-        # A column the fit left out stays out: its centre and scale do not move, and the kernel takes 0 (#1098)
+        # A column the fit left out stays out: its center and scale do not move, and the kernel takes 0 (#1098)
         x0 = self._left_out(x0, np.nan)
         self.mx_, self.sx_ = _ewma_step(self.mx_, self.sx_, x0, self.lambda_center_, self.alpha_scale_)
         return np.nan_to_num((x0 - self.mx_) / self.sx_)
@@ -516,7 +516,7 @@ class _AdaptiveModel(_LatentVariableModel):
         return pd.DataFrame(scores, index=labels, columns=self._component_names)
 
     def _scaled_rows(self, X: pd.DataFrame) -> pd.DataFrame:
-        """Return ``X`` centred and scaled by the *current* centre and spread, as ``_project`` reads each row.
+        """Return ``X`` centered and scaled by the *current* center and spread, as ``_project`` reads each row.
 
         The contribution functions read new rows through this, so they take the data :meth:`transform`
         takes (#1125). They pass a frame, whose columns are matched to the fit as PCA and PLS match them.
@@ -557,7 +557,7 @@ class _AdaptiveModel(_LatentVariableModel):
         training model's standard-deviation units. Part of the *preprocessing* channel
         of adaptation, complementary to :attr:`distance_` (the *kernel* channel).
         """
-        return pd.Series(self._hist_center_shift, index=self._hist_index, name="Centre migration (training SD)")
+        return pd.Series(self._hist_center_shift, index=self._hist_index, name="Center migration (training SD)")
 
     @property
     def scale_shift_(self) -> pd.Series:
@@ -598,7 +598,7 @@ class _AdaptiveModel(_LatentVariableModel):
         splits each prediction's departure from the frozen training model into a
         centering/scaling channel and a kernel (subspace/regression) channel, with
         the total on a secondary axis; the lower panels show the preprocessing
-        drift (centre migration, scale change) and the kernel drift (subspace
+        drift (center migration, scale change) and the kernel drift (subspace
         rotation ``A - distance_``, and for PLS the regression change). For an
         AdaptivePCA model only the two state-drift panels are shown.
 
@@ -667,7 +667,7 @@ class _AdaptiveModel(_LatentVariableModel):
             go.Scatter(
                 x=x,
                 y=self._hist_center_shift,
-                name="Centre migration [training SD]",
+                name="Center migration [training SD]",
                 line=dict(color="#1f4e79", width=1),
             ),
             row=r_pre,
@@ -715,7 +715,7 @@ class _AdaptiveModel(_LatentVariableModel):
 class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
     """Recursive, adaptive Principal Component Analysis for on-line monitoring.
 
-    Initialise the model on a block of common-cause data with :meth:`fit`, then feed
+    Initialize the model on a block of common-cause data with :meth:`fit`, then feed
     new observations through :meth:`update` (one row) or :meth:`partial_fit` (a
     block). Each in-control observation updates the EWMA centering / scaling
     vectors and the ``X'X`` kernel; the loadings are recomputed from the kernel
@@ -734,7 +734,7 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         into every update. ``0`` recovers the textbook recursive update.
     lambda_center : float or array-like, default=0.02
         EWMA factor(s) for the centering vector, scalar or one per variable. ``0``
-        freezes a variable's centre (for tags that must not drift).
+        freezes a variable's center (for tags that must not drift).
     alpha_scale : float or array-like, default=0.01
         EWMA factor(s) for the scaling vector, scalar or one per variable.
     update_when_out_of_control : bool, default=False
@@ -758,7 +758,7 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         Per-update subspace overlap with the training model, in units of components
         (``n_components`` = identical, ``0`` = orthogonal).
     center_shift_, scale_shift_ : pd.Series
-        Preprocessing-drift diagnostics: centre migration (training-SD units) and mean
+        Preprocessing-drift diagnostics: center migration (training-SD units) and mean
         fractional scale change per observation.
     injection_ratio_, kernel_update_norm_ : pd.Series
         Kernel-update magnitudes per observation: the gamma-injection weight and
@@ -831,9 +831,9 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         self.lambda_center_ = self._as_vector(self.lambda_center, K, "lambda_center")
         self.alpha_scale_ = self._as_vector(self.alpha_scale, K, "alpha_scale")
 
-        # Initialise preprocessing from MCUVScaler, then build the kernel and loadings
+        # Initialize preprocessing from MCUVScaler, then build the kernel and loadings
         # from the *scaled* data so every downstream projection (which scales the
-        # incoming observation) lives in the same space. Initialising the loadings from
+        # incoming observation) lives in the same space. Initializing the loadings from
         # the same eigendecomposition that later updates use keeps the distance
         # metric at exactly A until the model actually adapts.
         self._scaler = MCUVScaler().fit(X_df)  # refuses fewer than two rows
@@ -843,10 +843,10 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         check_x_varies([X_df], explains_y=False)  # pragma: no mutate - see above
         self.mx_ = self._scaler.center_.to_numpy().copy()
         self.sx_ = self._scaler.scale_.to_numpy().copy()
-        self._mx0 = self.mx_.copy()  # frozen training centre / scale for the drift diagnostics
+        self._mx0 = self.mx_.copy()  # frozen training center / scale for the drift diagnostics
         self._sx0 = self.sx_.copy()
 
-        # A missing cell is 0: at the centre, it adds nothing to X'X.
+        # A missing cell is 0: at the center, it adds nothing to X'X.
         Xs = np.nan_to_num(self._scaler.transform(X_df).to_numpy())
         self.XtX0_ = Xs.T @ Xs
         self.XtX_ = self.XtX0_.copy()
@@ -954,8 +954,8 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
 class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimator):
     """Recursive, adaptive Projection to Latent Structures for on-line monitoring.
 
-    The PLS analogue of :class:`AdaptivePCA`, carrying both association matrices
-    ``X'X`` and ``X'Y``. Initialise on a block of common-cause data with :meth:`fit`,
+    The PLS analog of :class:`AdaptivePCA`, carrying both association matrices
+    ``X'X`` and ``X'Y``. Initialize on a block of common-cause data with :meth:`fit`,
     then stream new observations through :meth:`update` / :meth:`partial_fit`. The
     weights, loadings and regression coefficients are recomputed from the kernels
     by the Dayal-MacGregor algorithm after each in-control update.
@@ -990,7 +990,7 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
     distance_ : pd.Series
         Per-update subspace overlap (on the weights ``W``) with the training model.
     center_shift_, scale_shift_ : pd.Series
-        Preprocessing-drift diagnostics: X-centre migration (training-SD units) and
+        Preprocessing-drift diagnostics: X-center migration (training-SD units) and
         mean fractional scale change per observation.
     beta_shift_ : pd.Series
         Relative change of the scaled regression from the training data, per observation.
@@ -1104,7 +1104,7 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         self.lambda_center_y_ = self._as_vector(self.lambda_center_y, M, "lambda_center_y")
         self.alpha_scale_y_ = self._as_vector(self.alpha_scale_y, M, "alpha_scale_y")
 
-        # Initialise preprocessing and the batch model, matching PLS(scale=True), its default.
+        # Initialize preprocessing and the batch model, matching PLS(scale=True), its default.
         self._x_scaler = MCUVScaler().fit(X_df)
         self._y_scaler = MCUVScaler().fit(Y_df)
         self.mx_ = self._x_scaler.center_.to_numpy().copy()
@@ -1115,7 +1115,7 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         training_model = PLS(n_components=A).fit(X_df, Y_df)
         self._unobserved_columns = training_model._unobserved_columns  # which that fit names in a warning (#1098)
 
-        # A missing cell is 0: at the centre, it adds nothing to X'X or X'Y.
+        # A missing cell is 0: at the center, it adds nothing to X'X or X'Y.
         Xs = np.nan_to_num(self._x_scaler.transform(X_df).to_numpy())
         Ys = np.nan_to_num(self._y_scaler.transform(Y_df).to_numpy())
         self.XtX0_ = Xs.T @ Xs

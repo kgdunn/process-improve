@@ -111,7 +111,7 @@ def test_a_model_the_design_does_not_estimate_has_no_run_loss():
 
 # --------------------------------------------------------------------------- the prediction variance
 def test_the_fds_curve_rises_between_the_least_and_the_largest_prediction_variance():
-    """For a 2^2 in main effects, the variance at x is (1 + x1^2 + x2^2) / 4: from 0.25 at the centre to 0.75."""
+    """For a 2^2 in main effects, the variance at x is (1 + x1^2 + x2^2) / 4: from 0.25 at the center to 0.75."""
     curve = fds_curve(SQUARE, ["numeric"] * 2, "main_effects")
     assert len(curve) == 21
     assert curve == sorted(curve)
@@ -255,13 +255,13 @@ def test_designs_are_grouped_into_classes_of_one_design(monkeypatch):
 
 # --------------------------------------------------------------------------- what the runs are made of
 def test_a_definitive_screening_design_s_zeros_centre_run_and_mirror_pairs() -> None:
-    """The six-factor DSD with three centre runs: two zeros per column, four per interaction, centre runs left out."""
+    """The six-factor DSD with three center runs: two zeros per column, four per interaction, center runs left out."""
     runs = coded("dsd", 6, n_center_points=3)
     found = design_measures.design_structure(runs, list("ABCDEF"))
     assert (found["n_center_runs"], found["zeros"]["n0ME"], found["zeros"]["n0IE"]) == (3, 2, 4)
     assert (found["mirror_pairs"], found["foldover"], found["n_three_level"]) == (6, True, 6)
     assert {level: counts["A"] for level, counts in found["level_counts"].items()} == {"-1": 5, "0": 5, "1": 5}
-    assert [len(group) for group in found["replicated"]] == [3]  # the centre runs
+    assert [len(group) for group in found["replicated"]] == [3]  # the center runs
 
 
 def test_mixed_levels_replicates_and_blocks() -> None:

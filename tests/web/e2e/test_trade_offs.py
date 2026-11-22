@@ -3,7 +3,7 @@
 Under the balance of a study of three responses, the page tries settings on the models and draws each as a point
 on two responses' axes: paler where the models guess, with a line through the best one response can be for each
 value of the other, the runs made, and a star at the balanced settings. The reader picks the axes and a response to
-colour the points by, types limits that keep only the settings that meet them, and presses a point to choose its
+color the points by, types limits that keep only the settings that meet them, and presses a point to choose its
 settings: the what-if panel moves there, and confirmation runs can be added there.
 """
 

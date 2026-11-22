@@ -1,5 +1,5 @@
 // What every page of factori.al beside the app shares (about, features, the catalog, the textbooks' answers, the
-// concept map): the colour-mode switch at the top, and one footer with the same links in the same place. A page
+// concept map): the color-mode switch at the top, and one footer with the same links in the same place. A page
 // loads this module and gets both; the app's own footer (index.html) holds the same links, kept in step by
 // tests/web/js/site.test.mjs. No Python runs here.
 import { MODES, nextMode } from "./logic.js";
@@ -38,7 +38,7 @@ const MODE_ICONS =
 /** A link's address from this page: a path from the site's root, which is where this module is served from. */
 const address = (path) => (/^https?:/.test(path) ? path : new URL(path, import.meta.url).href);
 
-/** Show a colour mode: the page's colours, the browser's own bar, and what the switch is called. */
+/** Show a color mode: the page's colors, the browser's own bar, and what the switch is called. */
 function applyMode(mode, button) {
   const root = document.documentElement;
   root.dataset.mode = mode;
@@ -49,11 +49,11 @@ function applyMode(mode, button) {
     meta.dataset.scheme = scheme;
     meta.media = mode === "auto" ? `(prefers-color-scheme: ${scheme})` : scheme === mode ? "all" : "not all";
   }
-  button.setAttribute("aria-label", `Colour mode: ${MODE_NAMES[mode]}`);
+  button.setAttribute("aria-label", `Color mode: ${MODE_NAMES[mode]}`);
 }
 
 /**
- * Put the colour-mode switch at the end of the page's top line, beside the way back: light, dark or the system's,
+ * Put the color-mode switch at the end of the page's top line, beside the way back: light, dark or the system's,
  * in turn, kept in this browser under the key the app and the concept map use. A page with a switch of its own
  * (the concept map) keeps it.
  */

@@ -81,7 +81,7 @@ _SAMPLED_CANDIDATES = 2**15
 _FEASIBILITY_TOL = 1e-9
 _BISECTION_STEPS = 50
 _MAX_EXCHANGES = 500
-#: Rank-one updates of ``M^-1`` between full re-factorisations, which bound the drift of the updates.
+#: Rank-one updates of ``M^-1`` between full re-factorizations, which bound the drift of the updates.
 _REFACTOR_EVERY = 50
 #: ``M^-1`` is also rebuilt when the largest candidate variance falls below this fraction of its value at the last
 #: rebuild, as it does while a singular design is filled in: the rounding error scales with the old, larger values.
@@ -97,7 +97,7 @@ _START_WORK = 400_000_000
 _GREEDY_SLACK = 0.05
 
 # ---------------------------------------------------------------------------
-# 1. Constraint expressions -> vectorised inequality functions g(x) <= 0
+# 1. Constraint expressions -> vectorized inequality functions g(x) <= 0
 # ---------------------------------------------------------------------------
 
 _Env = Mapping[str, np.ndarray]
@@ -557,7 +557,7 @@ def _level_choices(model_type: str, criterion: str) -> list[int]:
     """Grid resolutions to try, finest first.
 
     A quadratic model needs 3 levels; for criteria that push runs to the edges of the
-    region (D, A, E, K) an even level count adds no centre and only displaces the
+    region (D, A, E, K) an even level count adds no center and only displaces the
     middle level, so 4 is skipped. Models without squared terms may use 2 levels.
     """
     if model_type != "quadratic":
@@ -600,8 +600,8 @@ def _lattice_points(shape: list[int], k_cont: int, n_sampled: int | None, edges:
     its middle level and the rest at the extremes: those are the points a D-optimal
     quadratic design is built from, and a uniform sample of a large grid holds few of
     them (2% of the points of the 10-factor grid have no factor at its middle level).
-    A sampled grid on an odd number of levels also holds the centre and the face
-    centres (one factor at an extreme, the rest at the middle), the points a quadratic
+    A sampled grid on an odd number of levels also holds the center and the face
+    centers (one factor at an extreme, the rest at the middle), the points a quadratic
     model leans on and a random sample would rarely contain.
     """
     if n_sampled is None:
@@ -624,9 +624,9 @@ def _lattice_points(shape: list[int], k_cont: int, n_sampled: int | None, edges:
 
 
 def _boundary_points(region: _Region, grid: np.ndarray, cat_idx: np.ndarray, step: float) -> tuple:
-    """Find where each constraint boundary crosses a grid edge, by vectorised bisection.
+    """Find where each constraint boundary crosses a grid edge, by vectorized bisection.
 
-    For every edge between neighbouring grid points along one axis where one end is
+    For every edge between neighboring grid points along one axis where one end is
     feasible for a constraint and the other is not, the crossing point is located on
     that edge. The feasible side of the final bracket is returned, so the point
     satisfies the constraint it came from; other constraints are checked afterwards.
@@ -661,7 +661,7 @@ def _boundary_points(region: _Region, grid: np.ndarray, cat_idx: np.ndarray, ste
 #: Most vertices of a region the candidate set takes; a region with more gives none. Listing them is quick up to
 #: here (0.2 s in 10 factors with 8 limits), while the exchange's cost grows with every candidate.
 _MAX_VERTEX_CANDIDATES = 2**13
-#: Linear programmes solved to find vertices of a region with too many to list (see :func:`_sampled_vertices`).
+#: Linear programs solved to find vertices of a region with too many to list (see :func:`_sampled_vertices`).
 _SAMPLED_VERTICES = 2**10
 #: The vertices are sampled when the grid and the boundary points leave fewer candidates than this many per
 #: model coefficient: a grid on many factors has no point inside a region that limits their totals.
@@ -671,7 +671,7 @@ _SMALLEST_SHARE_MOVED = 0.03
 
 
 def search_directions(k: int, n: int | None = None) -> Iterator[np.ndarray]:
-    """Yield ``n`` directions in ``k`` coordinates for linear programmes that look for vertices.
+    """Yield ``n`` directions in ``k`` coordinates for linear programs that look for vertices.
 
     ``n`` is ``_SAMPLED_VERTICES`` when it is not given.
 
@@ -705,7 +705,7 @@ def points_between(vertices: np.ndarray) -> np.ndarray:
 def _sampled_vertices(a_mat: np.ndarray, b_vec: np.ndarray) -> np.ndarray:
     """Return vertices of ``{x in [-1, 1]^k : a_mat @ x <= b_vec}`` found by linear programming, and points between.
 
-    For a region with more vertices than can be listed. A linear programme moves a point
+    For a region with more vertices than can be listed. A linear program moves a point
     as far as it goes in one direction, which ends at a vertex, so the directions of
     :func:`search_directions` give that many vertices, less the repeats;
     :func:`points_between` adds the points between them.
@@ -740,12 +740,12 @@ def piece_vertices(
     ``a_ub @ x <= b_ub`` and ``bounds``. A grid, or a vertex of the region taken without
     the count rules, seldom uses a number of factors the rules allow: a vertex uses few
     factors, fewer than a rule that asks for several. So candidates are found piece by
-    piece. Linear programmes in the directions of :func:`search_directions` end at
+    piece. Linear programs in the directions of :func:`search_directions` end at
     vertices of a piece, and :func:`points_between` adds the points between them, which
     the piece holds too. A piece no point of which meets the limits gives nothing.
 
     The sets are every allowed one when there are few, and a sample of them otherwise, so
-    that about ``_SAMPLED_VERTICES`` programmes are solved in all, at least two per set.
+    that about ``_SAMPLED_VERTICES`` programs are solved in all, at least two per set.
 
     Parameters
     ----------
@@ -988,7 +988,7 @@ def model_matrix(region: _Region, coded: np.ndarray, cats: np.ndarray, model_typ
 
     The D-, I- and G-criteria do not depend on which full-rank coding is used, so they
     select the same designs under any coding. The A-, E- and K-criteria do depend on
-    it, and here optimise the effect-coded model, the usual convention in DoE software.
+    it, and here optimize the effect-coded model, the usual convention in DoE software.
     """
     from process_improve.experiments.designs_utils import (  # noqa: PLC0415
         categorical_effect_columns,
@@ -1068,13 +1068,13 @@ def _greedy_start(f_cand: np.ndarray, f_fixed: np.ndarray, n_free: int, rng: np.
 
 @dataclass(frozen=True)
 class Criterion:
-    """The optimality criterion an exchange maximises.
+    """The optimality criterion an exchange maximizes.
 
-    ``"d_optimal"`` maximises ``log det(M)``, with ``M = X'X``. ``"a_optimal"`` and
-    ``"i_optimal"`` minimise ``trace(M^-1 W)``: with ``W = I`` that is the summed
+    ``"d_optimal"`` maximizes ``log det(M)``, with ``M = X'X``. ``"a_optimal"`` and
+    ``"i_optimal"`` minimize ``trace(M^-1 W)``: with ``W = I`` that is the summed
     variance of the coefficients (A), and with ``W`` the average of ``f(x) f(x)'``
     over the region it is the average prediction variance over the region (I), which
-    is what ``evaluate_design`` reports as I-efficiency. ``"e_optimal"`` maximises the
+    is what ``evaluate_design`` reports as I-efficiency. ``"e_optimal"`` maximizes the
     smallest eigenvalue of ``M``, which bounds the variance of the worst-estimated
     linear combination of the coefficients.
 
@@ -1124,7 +1124,7 @@ class Criterion:
         own block, so the block sizes stay as they started. With them fixed,
         ``det(M) = det(Z'Z) det(S)``, where ``S`` is the factor information adjusted for
         the blocks (the Schur complement of the block part ``Z'Z`` of ``M``), so D
-        maximises ``det(S)``. The trace criteria give the block columns no weight, and
+        maximizes ``det(S)``. The trace criteria give the block columns no weight, and
         ``trace(M^-1 W) = trace(S^-1 W)``. Only D, A and I are blocked this way.
         """
         weights = None if self.weights is None else np.pad(self.weights, (0, n_block_columns))
@@ -1708,7 +1708,7 @@ def fedorov_exchange(
     rng: np.random.Generator,
     criterion: Criterion | None = None,
 ) -> tuple[np.ndarray, float]:
-    """Choose ``n_free`` candidate rows that maximise ``criterion`` (D-optimality by default).
+    """Choose ``n_free`` candidate rows that maximize ``criterion`` (D-optimality by default).
 
     For D, A and I each design run in turn is swapped for the candidate that improves
     the criterion most (:func:`_row_exchange`, the modified Fedorov exchange of Cook and
@@ -1835,7 +1835,7 @@ def polish_runs(
 ) -> tuple[np.ndarray, np.ndarray, int]:
     """Coordinate exchange on a finer or complete grid, after the candidate exchange on a coarse or sampled one.
 
-    Each run in turn is moved to the best of its neighbours, the points that differ
+    Each run in turn is moved to the best of its neighbors, the points that differ
     from it in one continuous coordinate (set to another level of ``lattice``), when
     that improves ``criterion``; passes repeat until no move helps. The gains are those
     of :meth:`Criterion.swap_gains`, so only D, A and I are polished. This reaches grid
@@ -2239,7 +2239,7 @@ def _missing_rank(f_fixed: np.ndarray, n_parameters: int) -> int:
 def refuse_budget_short_of_fixed_runs(f_fixed: np.ndarray, n_parameters: int, budget: int) -> None:
     """Raise when the budget leaves too few new runs to supply the rank the fixed runs lack.
 
-    Fixed runs that repeat a point (three centre runs, say) carry less information than
+    Fixed runs that repeat a point (three center runs, say) carry less information than
     their count, so a budget above the number of coefficients can still be too small.
 
     Raises

@@ -17,7 +17,7 @@ from process_improve.multivariate._common import epsqrt
 
 
 def thin_residual(signal: np.ndarray, *, relative_size: float = 1.5, seed: int = 0) -> np.ndarray:
-    """Return a residual for ``signal``: centred, orthogonal to it, and with all its singular values equal.
+    """Return a residual for ``signal``: centered, orthogonal to it, and with all its singular values equal.
 
     Its rows are orthogonal to the column of ones and to the columns of ``signal``, and its
     columns to the rows of ``signal``, so a model of ``signal + residual`` fits ``signal`` first
@@ -28,7 +28,7 @@ def thin_residual(signal: np.ndarray, *, relative_size: float = 1.5, seed: int =
     Parameters
     ----------
     signal : np.ndarray of shape (n_samples, n_features)
-        The data the residual is added to, centred.
+        The data the residual is added to, centered.
     relative_size : float, default=1.5
         The residual's Frobenius norm over the signal's, in units of epsqrt.
     seed : int, default=0

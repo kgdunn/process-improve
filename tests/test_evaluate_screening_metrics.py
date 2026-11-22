@@ -30,7 +30,7 @@ def _six_factor_dsd() -> pd.DataFrame:
 
 
 def _two_level(design_type: str, k: int, columns: int, **options: object) -> pd.DataFrame:
-    """Return the first *columns* factors of a two-level design with one centre run, in coded units."""
+    """Return the first *columns* factors of a two-level design with one center run, in coded units."""
     factors = [Factor(name=f"x{i + 1}", low=-1, high=1) for i in range(k)]
     made = generate_design(factors, design_type, n_center_points=1, **options)
     return pd.DataFrame(made.design)[[f"x{i + 1}" for i in range(columns)]]
@@ -81,7 +81,7 @@ class TestKindsOfPair:
 
 
 class TestColumnCorrelationByPair:
-    """``correlation`` summarises the second-order columns by kind of pair: Table 3 and equation (4)."""
+    """``correlation`` summarizes the second-order columns by kind of pair: Table 3 and equation (4)."""
 
     def test_the_six_factor_design_follows_table_3(self) -> None:
         found = _by_pair(_six_factor_dsd(), "quadratic", "correlation")
@@ -196,7 +196,7 @@ class TestScreeningPower:
         assert _hypotheses(design, effect_size=1.5)[3]["average_power"] == pytest.approx([expected], rel=1e-6)
 
     def test_the_orthogonal_alternative_marks_what_table_7_cannot_test(self) -> None:
-        """The 12-run Plackett-Burman design's first six columns and a centre run: Table 7's columns 6 to 8."""
+        """The 12-run Plackett-Burman design's first six columns and a center run: Table 7's columns 6 to 8."""
         found = _hypotheses(_two_level("plackett_burman", 11, 6))
         assert found[1]["average_power"][0] == pytest.approx(0.883, abs=5e-4)
         assert found[3]["average_power"][0] == pytest.approx(0.548, abs=5e-4)

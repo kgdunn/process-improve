@@ -113,7 +113,7 @@ So:
 - Where the result is a dict that an agent or a tool reads, it also
   carries the warning's text (as ``analyze_experiment``'s
   ``coding_note`` did), since a warning does not reach them.
-- Where possible, the new behaviour keeps what the old one gave, under
+- Where possible, the new behavior keeps what the old one gave, under
   an unmistakable name (``coefficients_actual``), so that nobody loses a
   result they relied on.
 - At ``(X+1).0`` the default becomes the new value, and the warning and
@@ -126,11 +126,11 @@ So:
 When a deprecation is unavoidable mid-cycle
 -------------------------------------------
 
-If a bug or security finding forces a behaviour change inside a
+If a bug or security finding forces a behavior change inside a
 PATCH release:
 
 1. The CHANGELOG entry under "Changed" explicitly names the
-   behaviour change.
+   behavior change.
 2. If the public signature changes, the next MINOR release
    includes a deprecation shim under this policy. PATCH
    releases never break a signature.
@@ -143,7 +143,7 @@ What is *not* a breaking change
 -------------------------------
 
 - Adding a new optional kwarg with a default that preserves the
-  previous behaviour.
+  previous behavior.
 - Adding a new public function.
 - Fixing a documented bug (the fix is the breaking change of
   the bug, not of the API).

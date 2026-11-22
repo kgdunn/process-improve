@@ -6,7 +6,7 @@ At the sample sizes a sensory-to-chemistry study runs at, "is there anything
 here at all" is the hard question, and the obvious ways to answer it do not
 work. A high :math:`R^2` on twelve products with three components is close to
 guaranteed. A count of how many variables exceed VIP 1 is not a test statistic
-at all: VIP is normalised so that :math:`\sum_j \text{VIP}_j^2 = K` exactly, so
+at all: VIP is normalized so that :math:`\sum_j \text{VIP}_j^2 = K` exactly, so
 that count describes the shape of the VIP distribution rather than the presence
 of a relationship, barely moves when the response is permuted, and yields a
 false-discovery rate near 100% on data that does contain signal.
@@ -105,7 +105,7 @@ def _loo_fit_predict(n_components: int) -> Callable:
 
     The **raw** blocks are handed to :class:`PLS`, which scales by default, so
     each leave-one-out fold (:meth:`PLS.cross_validate`'s default) derives its own
-    centring and scaling constants from the training rows only (it refits a clone
+    centering and scaling constants from the training rows only (it refits a clone
     per fold).
     Scaling the blocks *before* calling this leaks the held-out row's mean and
     spread into the fold, which is the trap the ``fit_predict`` documentation
@@ -182,7 +182,7 @@ def check_predictive_signal(
           hundreds of rows, where a permutation null multiplies the cost by
           ``n_perm``. Pick deliberately.
         * **Re-derive the response constants inside each fold too.** It is easy
-          to nest the predictor preprocessing and forget the response. Centre
+          to nest the predictor preprocessing and forget the response. Center
           and scale the response on the training rows, predict, then
           back-transform with those same training constants before the
           prediction is returned; otherwise the score is computed on a scale the

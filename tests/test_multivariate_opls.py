@@ -243,14 +243,14 @@ def test_opls_reproduces_paper_case_study_1() -> None:
 def test_the_removed_inert_parameters_are_refused(name: str, value: float) -> None:
     """``max_iter`` and ``tol`` never reached the closed-form algorithm and were removed in 2.0 (#588)."""
     assert name not in OPLS(n_orthogonal_components=2).get_params()
-    # The removed keyword goes in through a dict, so a static analyser does not flag the call.
+    # The removed keyword goes in through a dict, so a static analyzer does not flag the call.
     with pytest.raises(TypeError, match=name):
         OPLS(n_orthogonal_components=2, **{name: value})
 
 
 @pytest.fixture
 def labelled_cheese(cheese: tuple[pd.DataFrame, pd.DataFrame]) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Return the cheese data with labelled rows, so every output's labels can be checked."""
+    """Return the cheese data with labeled rows, so every output's labels can be checked."""
     X, y = cheese
     rows = [f"cheese{i}" for i in range(len(X))]
     return X.set_axis(rows), y.set_axis(rows)
@@ -287,7 +287,7 @@ class TestComponentCount:
             assert OPLS(n_orthogonal_components=2).fit(X, y).n_components_ == 3
 
     def test_more_components_than_the_centred_rows_carry_are_refused(self) -> None:
-        """Five centred rows have rank 4, so a fifth component finds no variance left, as PLS's does."""
+        """Five centered rows have rank 4, so a fifth component finds no variance left, as PLS's does."""
         rng = np.random.default_rng(1)
         X = pd.DataFrame(rng.normal(size=(5, 8)))
         y = pd.DataFrame(X.to_numpy() @ rng.normal(size=8))
@@ -337,7 +337,7 @@ class TestComponentCount:
     def test_a_constant_y_is_refused_as_pls_refuses_it(
         self, synthetic_single_response: tuple[pd.DataFrame, pd.DataFrame], n_orthogonal: int
     ) -> None:
-        """A constant response is 0 once centred, so it gives no predictive direction (#1128).
+        """A constant response is 0 once centered, so it gives no predictive direction (#1128).
 
         OPLS raised a LinAlgError with an orthogonal component, and predicted NaN without one.
         Unscaled, a response of zeros is refused the same way.
@@ -479,7 +479,7 @@ class TestLabels:
     def test_a_response_is_read_by_position_and_named_by_its_series(
         self, labelled_cheese: tuple[pd.DataFrame, pd.DataFrame]
     ) -> None:
-        """A Series with its own row numbers fits as the labelled frame does."""
+        """A Series with its own row numbers fits as the labeled frame does."""
         X, y = labelled_cheese
         from_frame = OPLS(n_orthogonal_components=1).fit(X, y).predict(X)
         from_series = OPLS(n_orthogonal_components=1).fit(X, y["Taste"].reset_index(drop=True)).predict(X)

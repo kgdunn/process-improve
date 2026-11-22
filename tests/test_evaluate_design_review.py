@@ -350,7 +350,7 @@ class TestFactorsInTheirOwnUnits:
         metrics = ["condition_number", "scaled_condition_number"]
         a, b = (evaluate_design(d, model="x1 + x2", metric=metrics) for d in (_TEMPERATURE_PRESSURE, in_metres))
         assert a["scaled_condition_number"] == pytest.approx(b["scaled_condition_number"])
-        assert b["condition_number"] > 5 * a["condition_number"]  # x1 in metres is far shorter than x2
+        assert b["condition_number"] > 5 * a["condition_number"]  # x1 in meters is far shorter than x2
         x = np.asarray(dmatrix("x1 + x2", _TEMPERATURE_PRESSURE))
         assert a["scaled_condition_number"] == pytest.approx(np.linalg.cond(x / np.linalg.norm(x, axis=0)))
 

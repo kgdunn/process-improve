@@ -68,7 +68,7 @@ def popcorn(
         package. When given, it overrides `t`.
     random_state : int, np.random.Generator, or None, default None
         Seed or generator for the noise term. ``None`` (the default) draws
-        fresh noise on every call, which is the intended behaviour for the
+        fresh noise on every call, which is the intended behavior for the
         classroom exercise; pass an ``int`` to make a call reproducible.
 
     Returns

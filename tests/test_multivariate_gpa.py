@@ -277,7 +277,7 @@ class TestTransform:
         np.testing.assert_allclose(gpa.transform(configs), gpa.consensus_, atol=1e-12)
 
     def test_new_objects_use_the_fitted_alignment(self, panel: pd.DataFrame) -> None:
-        """Two products on their own land where they did in the fit, not re-centred on themselves."""
+        """Two products on their own land where they did in the fit, not re-centered on themselves."""
         configs = GPA.configurations_from_long(panel)
         gpa = GPA().fit(configs)
         pair = {name: config.iloc[[2, 7]] for name, config in configs.items()}
@@ -345,7 +345,7 @@ class TestInputs:
 
 
 def _centred(configs: dict[str, pd.DataFrame], width: int) -> list[np.ndarray]:
-    """Centre each configuration and pad it with zero columns to ``width``, as GPA does before aligning."""
+    """Center each configuration and pad it with zero columns to ``width``, as GPA does before aligning."""
     out = []
     for config in configs.values():
         values = config.to_numpy(dtype=float) - config.to_numpy(dtype=float).mean(axis=0)
@@ -441,7 +441,7 @@ class TestIterations:
             np.testing.assert_allclose(gpa.rotations_[name], expected, atol=1e-6)
 
     def test_scaling_beats_equal_sizes(self) -> None:
-        """For a total size, ten Berge's factors maximise the consensus share; equal sizes are one choice of factors."""
+        """For a total size, ten Berge's factors maximize the consensus share; equal sizes are one choice of factors."""
         configs = _noisy(12, [0.1, 0.1, 0.8, 1.5], [1.0, 1.0, 1.0, 1.0])
         unit = {name: config / np.linalg.norm(config - config.mean()) for name, config in configs.items()}
         scaled = GPA().fit(configs).consensus_share_

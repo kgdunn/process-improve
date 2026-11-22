@@ -4,7 +4,7 @@
 //
 // The caller hands in Plotly and the scheduler, so tests/web/mva runs this under Node with stand-ins.
 
-/** The parts of the store a view redraws for; "sets" only matters to the rows, where the sets colour the points. */
+/** The parts of the store a view redraws for; "sets" only matters to the rows, where the sets color the points. */
 const REDRAWS_FOR = { rows: ["rows", "hover", "excluded", "sets"], cols: ["cols", "hover"] };
 
 /**

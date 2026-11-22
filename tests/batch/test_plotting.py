@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 from process_improve.batch.plotting import (
-    colours_per_batch_id,
+    colors_per_batch_id,
     get_rgba_from_triplet,
     plot_all_batches_per_tag,
     plot_multitags,
@@ -19,7 +19,7 @@ sns = pytest.importorskip("seaborn")
 
 
 def test_plot_colours() -> None:
-    """Test colour conversion from triplet to RGBA."""
+    """Test color conversion from triplet to RGBA."""
     assert get_rgba_from_triplet([0.9677975592919913, 0.44127456009157356, 0.5358103155058701]) == pytest.approx(
         [246, 112, 136]
     )
@@ -92,8 +92,8 @@ def _two_batches() -> dict:
 
 
 def test_rgba_needs_three_or_four_values() -> None:
-    """A colour needs three channels and an optional alpha; two values are refused."""
-    with pytest.raises(ValueError, match=r"`incolour` must be a list of 3 or 4 values; got 2 entries\."):
+    """A color needs three channels and an optional alpha; two values are refused."""
+    with pytest.raises(ValueError, match=r"`incolor` must be a list of 3 or 4 values; got 2 entries\."):
         get_rgba_from_triplet([0.1, 0.2])
 
 
@@ -128,20 +128,20 @@ def test_plot_all_batches_per_tag_fixes_the_left_axis_range() -> None:
     assert fig.layout.yaxis.autorange is False
 
 
-def test_colours_per_batch_id_defaults_to_the_hls_palette() -> None:
-    """Without a colour map the hls palette is used, and a highlighted batch takes its JSON spec."""
-    default = colours_per_batch_id([1, 2], {}, 2)
-    assert default == colours_per_batch_id([1, 2], {}, 2, colour_map=partial(sns.color_palette, "hls"))
-    highlighted = colours_per_batch_id([1, 2], {'{"width": 4, "color": "red"}': [1]}, 2)
+def test_colors_per_batch_id_defaults_to_the_hls_palette() -> None:
+    """Without a color map the hls palette is used, and a highlighted batch takes its JSON spec."""
+    default = colors_per_batch_id([1, 2], {}, 2)
+    assert default == colors_per_batch_id([1, 2], {}, 2, color_map=partial(sns.color_palette, "hls"))
+    highlighted = colors_per_batch_id([1, 2], {'{"width": 4, "color": "red"}': [1]}, 2)
     assert highlighted == {1: {"width": 4, "color": "red"}, 2: default[2]}
     with pytest.raises(
-        ValueError, match=r"batches_to_highlight: each key must be a JSON-encoded colour spec\. Got 'bad'\."
+        ValueError, match=r"batches_to_highlight: each key must be a JSON-encoded color spec\. Got 'bad'\."
     ):
-        colours_per_batch_id([1, 2], {"bad": [1]}, 2)
+        colors_per_batch_id([1, 2], {"bad": [1]}, 2)
 
 
 def test_plot_multitags_draws_into_a_given_figure_with_the_chosen_layout() -> None:
-    """A supplied figure, tag list, batch subset and column count are all honoured; time is not a panel."""
+    """A supplied figure, tag list, batch subset and column count are all honored; time is not a panel."""
     existing = go.Figure()
     fig = plot_multitags(
         _two_batches(),

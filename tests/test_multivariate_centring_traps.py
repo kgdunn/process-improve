@@ -1,10 +1,10 @@
-"""Tests for the centring and scaling traps in the PLS API.
+"""Tests for the centering and scaling traps in the PLS API.
 
-Three of these pin behaviour that used to be silent:
+Three of these pin behavior that used to be silent:
 
-* ``PLS(scale=False)`` fits no intercept, so an un-centred response makes every
+* ``PLS(scale=False)`` fits no intercept, so an un-centered response makes every
   prediction wrong by roughly the response mean (A1);
-* ``select_n_components(..., scale_inside_folds=True)`` re-standardises inside
+* ``select_n_components(..., scale_inside_folds=True)`` re-standardizes inside
   each fold, which erases a scaling the caller applied deliberately (A3);
 * ``sum(VIP ** 2)`` is exactly the number of X variables, so counting how many
   variables exceed VIP 1 describes the shape of the VIP distribution rather than
@@ -24,7 +24,7 @@ from sklearn.base import clone
 from sklearn.model_selection import KFold
 
 from process_improve.multivariate import PCA, PLS, vip
-from process_improve.multivariate._common import SpecificationWarning, UncentredDataWarning
+from process_improve.multivariate._common import SpecificationWarning, UncenteredDataWarning
 from process_improve.multivariate._preprocessing import _looks_prescaled, _uncentred_columns, _warn_scaling_traps
 
 
@@ -79,7 +79,7 @@ class TestUncentredBlockWarning:
         assert "'y'" in message
 
     def test_the_offset_really_does_destroy_r2(self) -> None:
-        """The behaviour the warning is about, pinned so the two cannot drift apart."""
+        """The behavior the warning is about, pinned so the two cannot drift apart."""
         x = _standardised_x()
         truth = 2 * x["a"] - x["b"]
         scores = {}
@@ -105,7 +105,7 @@ class TestUncentredBlockWarning:
             PLS(n_components=2, scale=False).fit(x, y)
 
     def test_scale_true_never_warns_about_centring(self) -> None:
-        """``scale=True`` centres both blocks itself, so the trap cannot be sprung."""
+        """``scale=True`` centers both blocks itself, so the trap cannot be sprung."""
         x = _standardised_x() + 4.0
         y = pd.DataFrame({"y": 2 * x["a"] - x["b"] + 5.0})
         with _no_specification_warning():
@@ -119,7 +119,7 @@ class TestUncentredBlockWarning:
             PLS(n_components=2, scale=False).fit(x, y)
 
     def test_constant_nonzero_column_warns(self) -> None:
-        """A column with no spread at all cannot have been centred."""
+        """A column with no spread at all cannot have been centered."""
         x = _standardised_x()
         x["constant"] = 3.0
         y = pd.DataFrame({"y": 2 * x["a"] - x["b"]})
@@ -135,7 +135,7 @@ class TestUncentredBlockWarning:
 
 
 class TestUncentredWarningOptOut:
-    """A deliberate un-centred fit needs a narrower escape than silencing the category."""
+    """A deliberate un-centered fit needs a narrower escape than silencing the category."""
 
     @staticmethod
     def _offset_blocks() -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -144,9 +144,9 @@ class TestUncentredWarningOptOut:
 
     def test_warning_is_its_own_class_under_the_parent(self) -> None:
         """Filters and ``pytest.warns`` written against the parent keep matching."""
-        assert issubclass(UncentredDataWarning, SpecificationWarning)
+        assert issubclass(UncenteredDataWarning, SpecificationWarning)
         x, y = self._offset_blocks()
-        with pytest.warns(UncentredDataWarning, match="fits no intercept"):
+        with pytest.warns(UncenteredDataWarning, match="fits no intercept"):
             PLS(n_components=2, scale=False).fit(x, y)
 
     def test_flag_silences_the_warning_under_simplefilter_error(self) -> None:
@@ -154,46 +154,46 @@ class TestUncentredWarningOptOut:
         x, y = self._offset_blocks()
         with warnings.catch_warnings():
             warnings.simplefilter("error")
-            PLS(n_components=2, scale=False, warn_on_uncentred=False).fit(x, y)
+            PLS(n_components=2, scale=False, warn_on_uncentered=False).fit(x, y)
 
     def test_flag_does_not_silence_other_specification_warnings(self) -> None:
         """What blanket suppression costs: a second, unrelated warning from the same fit."""
         x, y = self._offset_blocks()
         with pytest.warns(SpecificationWarning, match="more than can be computed") as record:
-            PLS(n_components=40, scale=False, warn_on_uncentred=False).fit(x, y)
-        assert not [w for w in record if issubclass(w.category, UncentredDataWarning)]
+            PLS(n_components=40, scale=False, warn_on_uncentered=False).fit(x, y)
+        assert not [w for w in record if issubclass(w.category, UncenteredDataWarning)]
 
     def test_category_filter_is_the_wider_opt_out(self) -> None:
         """For callers who cannot reach the constructor, e.g. a model built by other code."""
         x, y = self._offset_blocks()
         with warnings.catch_warnings(record=True) as record:
             warnings.simplefilter("error")
-            warnings.simplefilter("ignore", UncentredDataWarning)
+            warnings.simplefilter("ignore", UncenteredDataWarning)
             with pytest.warns(SpecificationWarning, match="more than can be computed"):
                 PLS(n_components=40, scale=False).fit(x, y)
-        assert not [w for w in record if issubclass(w.category, UncentredDataWarning)]
+        assert not [w for w in record if issubclass(w.category, UncenteredDataWarning)]
 
     def test_flag_changes_only_the_warning_never_the_fit(self) -> None:
-        """Opting out must not quietly centre the data or otherwise move the numbers."""
+        """Opting out must not quietly center the data or otherwise move the numbers."""
         x, y = self._offset_blocks()
         with _numbers_only():
             loud = PLS(n_components=2, scale=False).fit(x, y)
-        quiet = PLS(n_components=2, scale=False, warn_on_uncentred=False).fit(x, y)
+        quiet = PLS(n_components=2, scale=False, warn_on_uncentered=False).fit(x, y)
         np.testing.assert_allclose(
             np.asarray(loud.predict(x), dtype=float),
             np.asarray(quiet.predict(x), dtype=float),
         )
 
     def test_flag_is_a_no_op_when_scale_is_true(self) -> None:
-        """``scale=True`` centres both blocks itself, so there is nothing to opt out of."""
+        """``scale=True`` centers both blocks itself, so there is nothing to opt out of."""
         x, y = self._offset_blocks()
         with _no_specification_warning():
-            PLS(n_components=2, scale=True, warn_on_uncentred=False).fit(x, y)
+            PLS(n_components=2, scale=True, warn_on_uncentered=False).fit(x, y)
 
     def test_flag_survives_get_params_and_clone(self) -> None:
         """It has to reach a fit that a Pipeline or a grid search constructs."""
-        model = PLS(n_components=2, scale=False, warn_on_uncentred=False)
-        assert model.get_params()["warn_on_uncentred"] is False
+        model = PLS(n_components=2, scale=False, warn_on_uncentered=False)
+        assert model.get_params()["warn_on_uncentered"] is False
         x, y = self._offset_blocks()
         with warnings.catch_warnings():
             warnings.simplefilter("error")
@@ -201,18 +201,18 @@ class TestUncentredWarningOptOut:
 
     def test_default_stays_on(self) -> None:
         """The warning is correct; the opt-out is opt-in."""
-        assert PLS(n_components=2).get_params()["warn_on_uncentred"] is True
+        assert PLS(n_components=2).get_params()["warn_on_uncentered"] is True
 
     def test_message_points_at_the_flag(self) -> None:
         """A caller who hits this by surprise should not have to search for the remedy."""
         x, y = self._offset_blocks()
-        with pytest.warns(UncentredDataWarning) as record:
+        with pytest.warns(UncenteredDataWarning) as record:
             PLS(n_components=2, scale=False).fit(x, y)
-        assert "warn_on_uncentred=False" in str(record[0].message)
+        assert "warn_on_uncentered=False" in str(record[0].message)
 
 
 class TestPreScaledInsideFoldsWarning:
-    """A3: in-fold re-standardisation erases a scaling the caller chose deliberately."""
+    """A3: in-fold re-standardization erases a scaling the caller chose deliberately."""
 
     @staticmethod
     def _blocks() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
@@ -230,7 +230,7 @@ class TestPreScaledInsideFoldsWarning:
     def test_prescaled_x_warns(self) -> None:
         _raw, autoscale, _pareto, y = self._blocks()
         cv = KFold(n_splits=5, shuffle=True, random_state=0)
-        with pytest.warns(SpecificationWarning, match="already centred and unit-variance"):
+        with pytest.warns(SpecificationWarning, match="already centered and unit-variance"):
             PLS.select_n_components(autoscale, y, cv=cv, max_components=4, scale_inside_folds=True)
 
     def test_raw_x_does_not_warn(self) -> None:
@@ -240,7 +240,7 @@ class TestPreScaledInsideFoldsWarning:
             PLS.select_n_components(raw, y, cv=cv, max_components=4, scale_inside_folds=True)
 
     def test_two_deliberate_scalings_are_indistinguishable_inside_folds(self) -> None:
-        """The behaviour the warning is about: identical RMSECV from different scalings.
+        """The behavior the warning is about: identical RMSECV from different scalings.
 
         Without in-fold scaling the two stay apart only for a model that does not scale
         itself: a ``PLS(scale=True)`` autoscales each training fold on its own, and its
@@ -283,7 +283,7 @@ class TestPreScaledInsideFoldsWarningPCA:
 
         Each raw column is given exactly the spread requested. With equal spreads
         the Pareto block is the autoscaled block times one constant, so the two
-        in-fold standardised matrices are identical cell for cell and the collapse
+        in-fold standardized matrices are identical cell for cell and the collapse
         can be pinned exactly. With unequal spreads the two scalings weight the
         columns differently, which is what a caller comparing them wants to see.
         """
@@ -305,7 +305,7 @@ class TestPreScaledInsideFoldsWarningPCA:
 
     def test_prescaled_x_warns(self) -> None:
         _raw, autoscale, _pareto = self._blocks(self._UNEQUAL_SPREADS)
-        with pytest.warns(SpecificationWarning, match="already centred and unit-variance"):
+        with pytest.warns(SpecificationWarning, match="already centered and unit-variance"):
             PCA.select_n_components(autoscale, max_components=4, cv=5, random_state=0)
 
     def test_scale_inside_folds_false_warns(self) -> None:
@@ -319,10 +319,10 @@ class TestPreScaledInsideFoldsWarningPCA:
             PCA.select_n_components(raw, max_components=4, cv=5, random_state=0)
 
     def test_two_deliberate_scalings_collapse_inside_folds(self) -> None:
-        """The behaviour the warning is about: in-fold standardisation undoes the caller's scaling.
+        """The behavior the warning is about: in-fold standardization undoes the caller's scaling.
 
         With equal column spreads the Pareto block is a constant multiple of the
-        autoscaled one, so the in-fold standardised matrices coincide exactly and
+        autoscaled one, so the in-fold standardized matrices coincide exactly and
         so do the Q2 curves. The same two blocks with unequal spreads are told
         apart only when the folds leave the caller's scaling alone.
         """
@@ -338,7 +338,7 @@ class TestPreScaledInsideFoldsWarningPCA:
 
 
 class TestVipNormalisation:
-    """A6: VIP is normalised so its mean square is exactly 1."""
+    """A6: VIP is normalized so its mean square is exactly 1."""
 
     @pytest.mark.parametrize("n_components", [1, 2, 3])
     def test_sum_of_squared_vip_equals_n_features(self, n_components: int) -> None:
@@ -388,7 +388,7 @@ class TestPreScaledDetection:
         assert _looks_prescaled(block)
 
     def test_the_mean_tolerance_includes_its_edge(self) -> None:
-        """A column whose mean is exactly 0.05 still counts as centred.
+        """A column whose mean is exactly 0.05 still counts as centered.
 
         The four values sum to exactly 0.2 in floating point, so their mean is exactly 0.05, and
         their deviations 1.5, -0.5, -0.5, -0.5 give a sample standard deviation of exactly 1.
@@ -399,7 +399,7 @@ class TestPreScaledDetection:
         assert _looks_prescaled(pd.DataFrame({"edge": column}))
 
     def test_each_criterion_is_needed_on_its_own(self) -> None:
-        """Centred but with sd 1.2, or unit variance but with mean 0.1: neither is standardised."""
+        """Centered but with sd 1.2, or unit variance but with mean 0.1: neither is standardized."""
         block = _standardised_x()
         assert not _looks_prescaled(block * 1.2)
         assert not _looks_prescaled(block + 0.1)
@@ -457,7 +457,7 @@ class TestScalingTrapMessages:
             _warn_scaling_traps(_standardised_x(), scale_inside_folds=False, fold="CV fold", metric="RMSECV")
         assert len(record) == 1
         assert str(record[0].message) == (
-            "scale_inside_folds=False leaks centring/scaling estimated on the full dataset into every CV fold, "
+            "scale_inside_folds=False leaks centering/scaling estimated on the full dataset into every CV fold, "
             "making the reported RMSECV optimistic. The default scale_inside_folds=True is preferred."
         )
         assert not record[0].filename.endswith("_preprocessing.py")
@@ -467,10 +467,10 @@ class TestScalingTrapMessages:
             _warn_scaling_traps(_standardised_x(), scale_inside_folds=True, fold="element-fold", metric="PRESS")
         assert len(record) == 1
         assert str(record[0].message) == (
-            "X is already centred and unit-variance scaled, so scale_inside_folds=True is not protecting you "
-            "from leakage: it re-standardises inside every element-fold and overwrites the scaling you chose. "
+            "X is already centered and unit-variance scaled, so scale_inside_folds=True is not protecting you "
+            "from leakage: it re-standardizes inside every element-fold and overwrites the scaling you chose. "
             "Two deliberately different scalings (say autoscale versus Pareto) collapse onto the same "
-            "standardised model this way, so a comparison of their PRESS reflects only the units the blocks "
+            "standardized model this way, so a comparison of their PRESS reflects only the units the blocks "
             "arrived in, never which scaling suits the data. Pass the raw, unscaled X and let the folds scale "
             "it, or keep your own scaling and set scale_inside_folds=False (accepting the optimism that flag "
             "warns about)."

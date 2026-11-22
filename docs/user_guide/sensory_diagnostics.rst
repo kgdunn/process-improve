@@ -1,4 +1,4 @@
-Panel diagnostics: can this attribute be modelled?
+Panel diagnostics: can this attribute be modeled?
 ==================================================
 
 :doc:`sensory_panel` scores each *panelist*. This page is about the prior
@@ -84,7 +84,7 @@ understated.
 :func:`~process_improve.sensory.assessor_variance_equality` tests that
 precondition directly. Residuals are taken against the product mean first, which
 removes the genuine product effects that would otherwise dominate the spread;
-Levene's test (median-centred, the Brown-Forsythe variant) then compares
+Levene's test (median-centered, the Brown-Forsythe variant) then compares
 assessors:
 
 .. code-block:: pycon

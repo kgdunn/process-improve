@@ -190,7 +190,7 @@ def test_a_run_sheet_read_from_a_workbook_has_no_notes_and_is_renamed_all_the_sa
 
 
 def test_the_terms_a_workbook_was_analysed_with_are_renamed(api, design):
-    """A workbook keeps the terms it was last analysed with in its specification; a rename carries them."""
+    """A workbook keeps the terms it was last analyzed with in its specification; a rename carries them."""
     terms = [["T"], ["P"], ["T", "P"], ["T", "T"]]
     held = {**sent(design), "spec": {**design["spec"], "analysis_model": {"terms": terms}}}
     renamed = api.ok("api_relabel", {"design": held, "factors": named(FACTORS, WORDS)})

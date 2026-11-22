@@ -18,7 +18,7 @@ from process_improve.experiments import Factor, OmarsResult, analyze_omars, gene
 def _fccd() -> pd.DataFrame:
     """Face-centered central composite design for three factors (levels in {-1, 0, 1}).
 
-    Eight factorial corners, six axial points on the faces, and six centre
+    Eight factorial corners, six axial points on the faces, and six center
     runs: 20 runs in total, with mutually orthogonal main effects.
     """
     factorial = np.array(list(itertools.product([-1, 1], repeat=3)), dtype=float)
@@ -46,7 +46,7 @@ def _orthogonal_three_level() -> pd.DataFrame:
     the second-order Gram matrix is exactly zero.  This is the zero-aliasing
     limit of the minimal aliasing that OMARS designs are built to achieve, so
     it is the cleanest available stand-in for a true OMARS design until a
-    catalogued OMARS generator is available.  Because there is no aliasing,
+    cataloged OMARS generator is available.  Because there is no aliasing,
     the staged analysis can recover the *exact* set of active terms, with no
     spurious ones.
     """
@@ -432,7 +432,7 @@ def test_options_outside_their_range_raise(options: dict) -> None:
 
 
 def _dsd(n_factors: int) -> pd.DataFrame:
-    """Return a definitive screening design with four centre runs, one column per factor, levels -1, 0 and +1."""
+    """Return a definitive screening design with four center runs, one column per factor, levels -1, 0 and +1."""
     factors = [Factor(name=f"X{i:02d}", low=-1, high=1) for i in range(1, n_factors + 1)]
     design = generate_design(factors, design_type="dsd", n_center_points=4).design_actual
     return design[[f.name for f in factors]].astype(float)
