@@ -19,6 +19,7 @@ import io
 import json
 import zipfile
 from collections.abc import Callable
+from importlib.util import find_spec
 from typing import Any
 
 import numpy as np
@@ -255,6 +256,7 @@ SAMPLE_INPUTS: dict[str, dict[str, Any] | Callable[[], dict[str, Any]]] = {
     "sensory_validate_descriptive": {"panel": _PANEL, "covariates": _PRODUCT_COVARIATES, "mode": "observational"},
     "sensory_analyze_descriptive": {"panel": _PANEL, "covariates": _PRODUCT_COVARIATES, "mode": "observational"},
     "sensory_panel_check": {"panel": _PANEL, "align": True},
+    "query_concept_graph": {"cypher": "MATCH (term:DesignType) RETURN term.name AS design ORDER BY design"},
 }
 
 #: Tools that by design give a different output on each call, and why.
@@ -270,6 +272,8 @@ NOT_REPRODUCIBLE: dict[str, str] = {
 _MARKS = {
     "search_design_catalog": (pytest.mark.slow, pytest.mark.dataset),
     "sensory_analyze_descriptive": (pytest.mark.slow,),
+    # relate is not installed with the package, and has no wheel for free-threaded Python.
+    "query_concept_graph": (pytest.mark.skipif(find_spec("relate") is None, reason="relate-db is not installed"),),
 }
 
 
