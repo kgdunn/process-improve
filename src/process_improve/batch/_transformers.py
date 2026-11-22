@@ -39,6 +39,7 @@ from .preprocessing import (
     _RESAMPLE_SETTINGS,
     _check_long_enough_to_resample,
     _onto_time_axis,
+    _refuse_missing_values,
     _resample_to_length,
     _resolve_columns_to_align,
     align_with_path,
@@ -57,10 +58,9 @@ def _columns_to_align(X: object, columns_to_align: Sequence | None, caller: str)
     Resolve the columns to align, and refuse batches that lack one or hold a missing value in one.
 
     The resolution is the one :class:`~process_improve.batch.BatchScaler` uses: the numeric
-    columns that vary within at least one batch, unless named. A missing value is refused
-    rather than carried: one ``NaN`` turns the whole of a tag into ``NaN`` under the cubic
-    interpolation of :func:`~process_improve.batch.resample_to_reference`, and makes every
-    distance of a dynamic time warping ``NaN``.
+    columns that vary within at least one batch, unless named. A missing value is refused as
+    :func:`~process_improve.batch.resample_to_reference` refuses it: both aligners resample
+    every batch, and a dynamic time warping distance with a missing value in it is ``NaN``.
     """
     batches = typing.cast("dict", X)
     named = None if columns_to_align is None else list(columns_to_align)
@@ -69,19 +69,13 @@ def _columns_to_align(X: object, columns_to_align: Sequence | None, caller: str)
     lacking = {batch_id: tags for batch_id, tags in lacking.items() if tags}
     if lacking:
         raise ValueError(f"{caller} needs every batch to hold the tags it aligns; missing (batch: tags): {lacking}.")
-    gaps = {batch_id: [c for c in columns if batch[c].isna().any()] for batch_id, batch in batches.items()}
-    gaps = {batch_id: tags for batch_id, tags in gaps.items() if tags}
-    if gaps:
-        raise ValueError(
-            f"{caller} cannot align a tag with missing values; fill them first, for instance with "
-            f"process_improve.batch.fill_gaps. Missing values in (batch: tags): {gaps}."
-        )
+    _refuse_missing_values(batches, columns, caller)
     return columns
 
 
 def _reference_batch(X: dict, columns: list, reference_batch: Hashable | None, settings: dict | None) -> Hashable:
     """
-    Return the batch named as the reference, the only batch, or the most typical one.
+    Return the batch named as the reference, or the most typical one.
 
     The most typical batch is the one :func:`~process_improve.batch.find_reference_batch`
     picks. Its Hotelling's T2 screen judges the batches its PCA was fitted to, so it is
@@ -92,8 +86,6 @@ def _reference_batch(X: dict, columns: list, reference_batch: Hashable | None, s
         if reference_batch not in X:
             raise KeyError(f"`reference_batch` was not found in the dict of batches; got {reference_batch!r}.")
         return reference_batch
-    if len(X) == 1:
-        return next(iter(X))
     found = find_reference_batch(X, columns, settings={"judged_rows": "fitted", **(settings or {})})
     return found[0] if isinstance(found, list) else found
 
@@ -115,8 +107,8 @@ class ResampleAligner(TransformerMixin, BaseEstimator):
         vary within at least one batch, as :class:`~process_improve.batch.BatchScaler` does.
     reference_batch : Hashable or None, optional
         Key of the batch whose length every batch takes. ``None`` (the default) takes the
-        only batch when there is one, and otherwise the most typical batch, chosen by
-        :func:`~process_improve.batch.find_reference_batch` with ``judged_rows="fitted"``.
+        most typical batch, chosen by :func:`~process_improve.batch.find_reference_batch`
+        with ``judged_rows="fitted"``.
     settings : dict or None, optional
         Passed to :func:`~process_improve.batch.resample_to_reference`, and to
         :func:`~process_improve.batch.find_reference_batch` when it chooses the reference.
@@ -234,14 +226,14 @@ class DTWAligner(TransformerMixin, BaseEstimator):
         :class:`~process_improve.batch.BatchScaler` does.
     reference_batch : Hashable or None, optional
         Key of the batch the first iterations align to. ``None`` (the default) takes the
-        only batch when there is one, and otherwise the most typical batch, chosen by
-        :func:`~process_improve.batch.find_reference_batch` with ``judged_rows="fitted"``.
+        most typical batch, chosen by :func:`~process_improve.batch.find_reference_batch`
+        with ``judged_rows="fitted"``.
     settings : dict or None, optional
         Passed to :func:`~process_improve.batch.batch_dtw`, whose docstring lists them and
         their defaults, and to :func:`~process_improve.batch.find_reference_batch` when it
         chooses the reference. :meth:`transform` uses the same ``subsample``, ``band`` and
-        time-axis settings. The default ``show_progress=True`` prints the progress of
-        :meth:`fit`; pass ``{"show_progress": False}`` to silence it.
+        time-axis settings. The default ``show_progress=True`` shows a progress bar of
+        :meth:`fit` on stderr; pass ``{"show_progress": False}`` to hide it.
 
     Attributes
     ----------
