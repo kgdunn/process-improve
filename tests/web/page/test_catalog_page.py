@@ -66,7 +66,16 @@ def test_every_file_the_catalog_loads_is_published(build_script):
     # The views take the rule for a link out from campaign.js (tabOf), which catalog.js loads already.
     assert set(re.findall(r'from "\./([^"]+)"', source("catalog-views.js"))) == {"campaign.js", "catalog-logic.js"}
     fields = "catalog/fields.json"  # the fields of the question at the top, which write_fields writes
-    assert fetched == {"catalog/index.json", "wheels/manifest.json", "catalog/detail/", "catalog/errata.json", fields}
+    checked = "checked.json"  # what each kind of design was checked against, which the build copies
+    assert fetched == {
+        "catalog/index.json",
+        "wheels/manifest.json",
+        "catalog/detail/",
+        "catalog/errata.json",
+        fields,
+        checked,
+    }
+    assert checked in build_script.APP_FILES
     assert source("catalog.js").count("fetch(") == len(fetched), "every fetch goes through app()"
     assert not any(ref.startswith("/") for ref in refs | fetched), "an absolute address breaks on GitHub Pages"
     # The list of books is written by the build (tests/web/page/test_book_pages.py), not copied from web/.
