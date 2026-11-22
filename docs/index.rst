@@ -151,7 +151,8 @@ Sixteen designs, one function call
       Screening, response surface, optimal, mixture and space-filling designs all come from
       ``generate_design(factors, design_type=...)``. Each construction is checked against its
       published definition by the test suite, so a change that breaks a design fails the
-      tests.
+      tests. :doc:`How the numbers are validated <validation>` gives the comparisons with
+      books and with other software.
 
       :doc:`See every design family <user_guide/doe_coverage>`
 
@@ -183,6 +184,7 @@ Learn the methods
    quickstart
    architecture
    scaling
+   validation
    user_guide/index
    api/index
 
