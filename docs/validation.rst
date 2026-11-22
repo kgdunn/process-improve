@@ -164,7 +164,7 @@ FrF2 and DoE.base (R)
 
 FrF2 2.3-5 built the two-level full and fractional factorials, the Plackett-Burman designs and
 the blocked designs. DoE.base 1.2-5 built the factorials with more than two levels and the
-orthogonal arrays. Ulrike Groemping maintains both.
+orthogonal arrays.
 
 - **Fractional factorials and Plackett-Burman designs.** No difference: FrF2 gives every number
   that process-improve gives as printed.
@@ -180,7 +180,7 @@ orthogonal arrays. Ulrike Groemping maintains both.
 - **Not built.** A Plackett-Burman design of 136 runs (Schmidt and Launsby, 2000) and a
   factorial of one factor.
 
-Two things were found in FrF2 on the way:
+Two observations on FrF2:
 
 1. Permitting two-factor interactions to be aliased with blocks gives a blocking that confounds
    one, where the default confounds none. The same holds for 64 runs in 4 blocks.
@@ -212,7 +212,7 @@ Two things were found in FrF2 on the way:
 rsm (R)
 ~~~~~~~
 
-rsm 2.10.6 built the central composite and Box-Behnken designs. Russell Lenth maintains it.
+rsm 2.10.6 built the central composite and Box-Behnken designs.
 
 - **Box-Behnken designs.** No difference.
 - **Central composite designs.** Run counts and axial distances agree: on full and fractional
@@ -234,8 +234,7 @@ rsm 2.10.6 built the central composite and Box-Behnken designs. Russell Lenth ma
 daewr (R)
 ~~~~~~~~~
 
-daewr 1.2-11 built the definitive screening designs, with ``DefScreen``. John Lawson maintains
-it.
+daewr 1.2-11 built the definitive screening designs, with ``DefScreen``.
 
 - **4, 6, 8 and 10 factors.** No difference.
 - **5, 7, 9, 11 and 12 factors.** ``DefScreen`` returns the designs of Jones and Nachtsheim
@@ -247,7 +246,7 @@ it.
 
 :download:`The checks on which daewr differs <validation/differences_daewr.csv>`.
 
-One thing was found in daewr: for 5, 7, 9, 11 and 12 factors the main effects of its designs are
+One observation on daewr: for 5, 7, 9, 11 and 12 factors the main effects of its designs are
 correlated, where the conference-matrix designs are orthogonal.
 
 .. code-block:: r
@@ -272,9 +271,8 @@ pydoe and pyDOE3 (Python)
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 pyDOE3 1.6.2 is the release process-improve's basic arrays were copied from; it is archived.
-pydoe 1.6.0 continues it, and Saud Zahir maintains it. Each difference below was traced to a
-printed source and reported to pydoe with an example that reproduces it, and a fix is proposed
-for each.
+pydoe 1.6.0 continues it. Each difference below was traced to a printed source and reported to
+pydoe with an example that reproduces it, and a fix is proposed for each.
 
 .. list-table::
    :header-rows: 1
@@ -346,8 +344,7 @@ OApackage (Python and C++)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 OApackage 2.7.21 built the definitive screening designs, from the conference designs it
-enumerates, and the orthogonal arrays, by extending an array one column at a time. Pieter
-Eendebak maintains it.
+enumerates, and the orthogonal arrays, by extending an array one column at a time.
 
 - **Definitive screening designs.** No difference, for an even or an odd number of factors.
 - **Orthogonal arrays.** The 12-run array has the size and the levels of Taguchi's L12 but not
