@@ -117,7 +117,7 @@ class _Box:
     high: np.ndarray
 
     @property
-    def centre(self) -> np.ndarray:
+    def center(self) -> np.ndarray:
         return (self.low + self.high) / 2.0
 
     @property
@@ -126,7 +126,7 @@ class _Box:
 
     def coded(self, actual: np.ndarray) -> np.ndarray:
         """Return actual settings in coded units, ``-1`` at each factor's low end and ``+1`` at its high end."""
-        return (actual - self.centre) / self.half
+        return (actual - self.center) / self.half
 
 
 def _box(factors: Sequence[Factor]) -> _Box:
@@ -204,7 +204,7 @@ def _setting(point: np.ndarray, box: _Box) -> str:
 
 
 def _separation(cannot: np.ndarray, can: np.ndarray) -> tuple[np.ndarray, float, float]:
-    """Return ``(w, c, t)`` maximising ``t`` with ``w @ p - c >= t`` on ``cannot`` and ``<= -t`` on ``can``.
+    """Return ``(w, c, t)`` maximizing ``t`` with ``w @ p - c >= t`` on ``cannot`` and ``<= -t`` on ``can``.
 
     Points are in coded units and ``-1 <= w_j <= 1``, so ``t`` is bounded; the two sets
     can be separated by a straight cut exactly when the largest ``t`` is positive.
@@ -243,12 +243,12 @@ def _not_separable(cannot: np.ndarray, can: np.ndarray, box: _Box) -> NotSeparab
     reasons = []
     if inside_can:
         reasons.append(
-            f"cannot[{inside_can[0]}] ({_setting(box.centre + cannot[inside_can[0]] * box.half, box)}) lies between "
+            f"cannot[{inside_can[0]}] ({_setting(box.center + cannot[inside_can[0]] * box.half, box)}) lies between "
             "settings that can be run, so a cut that rules it out rules some of them out too"
         )
     if inside_cannot:
         reasons.append(
-            f"can[{inside_cannot[0]}] ({_setting(box.centre + can[inside_cannot[0]] * box.half, box)}) lies between "
+            f"can[{inside_cannot[0]}] ({_setting(box.center + can[inside_cannot[0]] * box.half, box)}) lies between "
             "settings that cannot be run, so a cut that rules them out rules it out too"
         )
     if not reasons:
@@ -265,7 +265,7 @@ def _not_separable(cannot: np.ndarray, can: np.ndarray, box: _Box) -> NotSeparab
 
 
 def _least_distance(g: np.ndarray, h: np.ndarray) -> np.ndarray | None:
-    """Return ``z`` minimising ``||z||`` subject to ``g @ z >= h``, or None when the solution cannot be certified.
+    """Return ``z`` minimizing ``||z||`` subject to ``g @ z >= h``, or None when the solution cannot be certified.
 
     The least-distance problem is solved through the non-negative least-squares problem
     ``min ||E u - f||, u >= 0`` with ``E = [g.T; h]`` and ``f = (0, ..., 0, 1)`` (Lawson and
@@ -299,7 +299,7 @@ def _least_distance(g: np.ndarray, h: np.ndarray) -> np.ndarray | None:
 def _max_margin_plane(cannot: np.ndarray, can: np.ndarray, start: tuple[np.ndarray, float] | None = None) -> np.ndarray:
     """Return ``w`` of the plane ``w @ x = c`` of maximum margin between two separable sets (coded units).
 
-    It minimises ``||w||`` subject to ``w @ p - c >= 1`` on ``cannot`` and ``w @ q - c <= -1``
+    It minimizes ``||w||`` subject to ``w @ p - c >= 1`` on ``cannot`` and ``w @ q - c <= -1``
     on ``can``: the support vector machine of hard margin, whose ``w`` is unique. The
     problem is a least-distance problem once ``c`` is carried as a variable with the small
     weight ``_OFFSET_WEIGHT`` (it is free in the original), and is solved through
@@ -522,7 +522,7 @@ def _expression(names: Sequence[str], coefficients: Sequence[Fraction], rhs: Fra
 
     The factors keep their order; the first term is made positive, turning ``<=`` into
     ``>=`` when its coefficient was negative; a coefficient of 1 is left out, and whole
-    numbers are written without ``".0"``. The text is then canonicalised by parsing it and
+    numbers are written without ``".0"``. The text is then canonicalized by parsing it and
     writing it back (``ast.unparse``), which also checks it is a limit the library reads.
     """
     first = next(c for c in coefficients if c != 0)
@@ -554,7 +554,7 @@ def separating_constraint(
     The limit is found in two steps, in coded units (each factor's range mapped to
     ``[-1, 1]``, so a factor counts by its range, not by its units):
 
-    1. Whether any straight cut separates the two sets: a linear program maximises the
+    1. Whether any straight cut separates the two sets: a linear program maximizes the
        margin ``t`` of a plane ``w @ x = c`` with every ``|w_j| <= 1``. When the best margin
        is not positive, :class:`NotSeparableError` is raised; one small linear program per
        setting finds the settings that lie inside the other set's convex hull, to name them.
@@ -622,7 +622,7 @@ def separating_constraint(
     ... ]
     >>> corners = [list(c) for c in itertools.product((150, 200), (1, 3), (10, 20))]
     >>> cannot = [c for c in corners if c[0] == 200 and c[1] == 3]  # T and P both high
-    >>> can = [c for c in corners if c not in cannot] + [[175, 2, 15]]  # the rest, and the centre
+    >>> can = [c for c in corners if c not in cannot] + [[175, 2, 15]]  # the rest, and the center
     >>> separating_constraint(factors, cannot, can).expression
     'T + 25 * P <= 250'
     """

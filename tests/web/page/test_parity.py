@@ -15,9 +15,9 @@ import pandas as pd
 import pytest
 
 from process_improve.visualization.colors import (
-    COLOUR_MAPS,
-    DEFAULT_COLOUR_MAP,
-    DIVERGING_COLOUR_MAPS,
+    COLOR_MAPS,
+    DEFAULT_COLOR_MAP,
+    DIVERGING_COLOR_MAPS,
     SURFACE_COLORSCALE,
     colorscale,
     diverging_colorscale,
@@ -239,7 +239,7 @@ def test_the_transforms_to_analyse_with_are_bootstrap_s_after_as_measured(bootst
 
 @pytest.mark.parametrize("categorical", [(), ("S",)], ids=["numeric factors", "a categorical factor"])
 def test_the_terms_to_tick_are_the_terms_bootstrap_fits(bootstrap, node, categorical):
-    """Each term the page lists is one bootstrap reads, labelled as its fit labels it; a named model's are its own."""
+    """Each term the page lists is one bootstrap reads, labeled as its fit labels it; a named model's are its own."""
     factors = [
         {"name": n, **({"low": "A", "high": "B"} if n in categorical else {"low": -1, "high": 1})}
         for n in ["T", "P", "S", "pH"]
@@ -332,7 +332,7 @@ def test_the_most_factors_a_study_has_is_bootstrap_s(bootstrap, node):
 
 
 def test_past_the_factors_whose_interactions_the_page_models_both_sides_keep_to_main_effects(bootstrap, node):
-    """The page and bootstrap.py agree on how many factors' interactions are modelled, and on the highest resolution."""
+    """The page and bootstrap.py agree on how many factors' interactions are modeled, and on the highest resolution."""
     held = javascript(node, source("logic.js"), [("MAX_INTERACTION_FACTORS", []), ("INTERACTION_MODELS", [])])
     assert held == [bootstrap.MAX_INTERACTION_FACTORS, list(bootstrap.INTERACTION_MODELS)]
     counts = [3, 4, 5, 12, 13, 24]
@@ -822,16 +822,16 @@ def test_the_page_s_ramp_for_a_surface_is_the_library_s(node):
 
 
 def test_the_page_s_colour_maps_are_the_library_s(node):
-    """A study's colour map is drawn by the page and by the Python it shows: both hold the same maps."""
+    """A study's color map is drawn by the page and by the Python it shows: both hold the same maps."""
     calls = [
         ("COLOUR_MAPS", []),
         ("DEFAULT_COLOUR_MAP", []),
-        *[("rampOf", [name, dark]) for name in COLOUR_MAPS for dark in (False, True)],
+        *[("rampOf", [name, dark]) for name in COLOR_MAPS for dark in (False, True)],
     ]
     maps, default, *ramps = javascript(node, source("charts.js"), calls)
-    assert (maps, default) == (COLOUR_MAPS, DEFAULT_COLOUR_MAP)
-    assert ramps == [colorscale(name, dark_page=dark) for name in COLOUR_MAPS for dark in (False, True)]
+    assert (maps, default) == (COLOR_MAPS, DEFAULT_COLOR_MAP)
+    assert ramps == [colorscale(name, dark_page=dark) for name in COLOR_MAPS for dark in (False, True)]
     diverging = [("DIVERGING_COLOUR_MAPS", []), ("divergingRamp", [False]), ("divergingRamp", [True])]
     maps, light, dark = javascript(node, source("charts.js"), diverging)
-    assert maps == DIVERGING_COLOUR_MAPS
+    assert maps == DIVERGING_COLOR_MAPS
     assert (light, dark) == (diverging_colorscale(), diverging_colorscale(dark_page=True))

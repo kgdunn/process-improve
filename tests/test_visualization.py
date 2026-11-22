@@ -33,8 +33,8 @@ from process_improve.experiments.visualization.plots.surfaces import _clip_line
 from process_improve.visualization.adapters import EChartsAdapter, PlotlyAdapter
 from process_improve.visualization.colors import (
     CANNOT_RUN_FILL,
-    COLOUR_MAPS,
-    DEFAULT_COLOUR_MAP,
+    COLOR_MAPS,
+    DEFAULT_COLOR_MAP,
     DESIRABILITY_COLORSCALE,
     ECHARTS_VISUAL_MAP_COLORS,
     SURFACE_COLORSCALE,
@@ -383,7 +383,7 @@ class TestReferenceDistributionPlot:
         x = np.array([p["mean"] for p in curve["data"]])
         height = np.array([p["height"] for p in curve["data"]])
         scale = found["reference_scale"]
-        assert x[height.argmax()] == pytest.approx(64.0)  # centred at the mean of the four averages
+        assert x[height.argmax()] == pytest.approx(64.0)  # centered at the mean of the four averages
         assert height.max() == pytest.approx(stats.t.pdf(0, 20) / scale)  # 24 animals less 4 diets
         assert x.min() < 61, "the curve spans every average"
         assert x.max() > 68
@@ -1482,7 +1482,7 @@ class TestSquarePlot:
 
 
 # ---------------------------------------------------------------------------
-# Optimisation plots
+# Optimization plots
 # ---------------------------------------------------------------------------
 
 
@@ -1843,7 +1843,7 @@ class TestDesirabilityHelpers:
         assert individual_desirability(0.25, target_goal) == pytest.approx(0.5)
 
     def test_individual_desirability_rejects_unknown_goal(self) -> None:
-        """An unrecognised goal is an error, not a silent zero.
+        """An unrecognized goal is an error, not a silent zero.
 
         The plotting copy of this helper used to return 0.0 here, which made a
         typo in a goal name look like an infeasible response.
@@ -1873,7 +1873,7 @@ class TestDesirabilityHelpers:
 
 
 # ---------------------------------------------------------------------------
-# Optimisation plot edge cases
+# Optimization plot edge cases
 # ---------------------------------------------------------------------------
 
 
@@ -1881,13 +1881,13 @@ class TestDesirabilityContourEdgeCases:
     def test_no_optimisation_data(self) -> None:
         plot = create_plot("desirability_contour")
         spec = plot.to_spec()
-        assert "no optimisation data" in spec.title.lower()
+        assert "no optimization data" in spec.title.lower()
 
     def test_empty_optimization_key_and_no_coefficients(self) -> None:
         """An optimization dict without responses and no top-level coefficients."""
         plot = create_plot("desirability_contour", analysis_results={"optimization": {}})
         spec = plot.to_spec()
-        assert "no optimisation data" in spec.title.lower()
+        assert "no optimization data" in spec.title.lower()
 
     def test_single_factor(self, coefficients_2f: list) -> None:
         plot = create_plot(
@@ -1908,7 +1908,7 @@ class TestOverlayPlotEdgeCases:
     def test_missing_optimization_key_falls_back_to_single_response(self, coefficients_2f: list) -> None:
         """Top-level coefficients degrade to a one-response contour.
 
-        This matches the desirability contour plot's behaviour, and is more
+        This matches the desirability contour plot's behavior, and is more
         useful than an empty frame. There are no bounds, so there is no sweet
         spot to shade and the metadata says so.
         """
@@ -2088,9 +2088,9 @@ class TestRidgeTracePlotEdgeCases:
         assert len(spec.panels[0].layers[0].data) == 30
 
     def test_zero_linear_terms_follow_the_flattest_direction(self) -> None:
-        """With b = 0 the ridge runs along the leading eigenvector, not the centre.
+        """With b = 0 the ridge runs along the leading eigenvector, not the center.
 
-        This test previously asserted the trace stayed at the centre for every
+        This test previously asserted the trace stayed at the center for every
         radius. That was the old implementation showing: it solved
         ``(B + mu*I) x = -b/2``, got the zero vector for ``b = 0``, and could
         not rescale a zero vector onto the sphere, so it drew a flat line at
@@ -2868,22 +2868,22 @@ class TestThreeDimensionalPlotly:
 class TestColourMaps:
     """The Scientific colour maps a surface is drawn in."""
 
-    @pytest.mark.parametrize("name", list(COLOUR_MAPS))
+    @pytest.mark.parametrize("name", list(COLOR_MAPS))
     def test_a_map_is_nine_colours_and_low_fades_into_the_page(self, name: str) -> None:
         light, dark = colorscale(name), colorscale(name, dark_page=True)
         assert [at for at, _ in light] == [i / 8 for i in range(9)]
-        assert [colour for _, colour in dark] == COLOUR_MAPS[name]
-        assert [colour for _, colour in light] == COLOUR_MAPS[name][::-1]
+        assert [colour for _, colour in dark] == COLOR_MAPS[name]
+        assert [colour for _, colour in light] == COLOR_MAPS[name][::-1]
 
     def test_the_default_is_batlow_light_for_low(self) -> None:
-        assert DEFAULT_COLOUR_MAP == "batlow"
+        assert DEFAULT_COLOR_MAP == "batlow"
         assert colorscale() == SURFACE_COLORSCALE
         assert SURFACE_COLORSCALE[0] == [0.0, "#faccfa"]
         assert SURFACE_COLORSCALE[-1] == [1.0, "#011959"]
         assert [colour for _, colour in SURFACE_COLORSCALE] == ECHARTS_VISUAL_MAP_COLORS
 
     def test_an_unknown_map_is_refused_with_the_maps_there_are(self) -> None:
-        with pytest.raises(ValueError, match="Unknown colour map 'jet': choose one of batlow, devon, lajolla, grayC"):
+        with pytest.raises(ValueError, match="Unknown color map 'jet': choose one of batlow, devon, lajolla, grayC"):
             colorscale("jet")
 
 

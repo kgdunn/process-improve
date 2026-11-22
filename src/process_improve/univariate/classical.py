@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import itertools
 import math
+import warnings
 from collections.abc import Sequence
 from typing import Any
 
@@ -36,6 +37,7 @@ import numpy as np
 from scipy import integrate, optimize, stats
 
 from process_improve._random import check_random_state
+from process_improve._warnings import user_stacklevel
 from process_improve.univariate.metrics import _check_probability
 
 ALTERNATIVES = ("two-sided", "greater", "less")
@@ -589,7 +591,7 @@ def variance_interval(variance: float, df: float, conflevel: float = 0.95) -> di
     }
 
 
-def least_favourable_means(difference: float, n_groups: int) -> list[float]:
+def least_favorable_means(difference: float, n_groups: int) -> list[float]:
     r"""Return the means of ``n_groups`` groups at which a ``difference`` between two of them is hardest to detect.
 
     Two groups sit ``difference`` apart and the others midway between them, so the departures from
@@ -598,12 +600,23 @@ def least_favourable_means(difference: float, n_groups: int) -> list[float]:
 
     Examples
     --------
-    >>> least_favourable_means(75, 4)
+    >>> least_favorable_means(75, 4)
     [-37.5, 0.0, 0.0, 37.5]
     """
     if n_groups < 2:
         raise ValueError(f"n_groups must be at least 2; got {n_groups!r}.")
     return [-difference / 2, *[0.0] * (n_groups - 2), difference / 2]
+
+
+def least_favourable_means(difference: float, n_groups: int) -> list[float]:
+    """Return :func:`least_favorable_means`; this, its former name, is deprecated since 2.7.0 and removed in 3.0."""
+    warnings.warn(
+        "process_improve.univariate.least_favourable_means is deprecated since 2.7.0 and will be removed in 3.0; "
+        "use least_favorable_means instead.",
+        DeprecationWarning,
+        stacklevel=user_stacklevel(),
+    )
+    return least_favorable_means(difference, n_groups)
 
 
 def one_way_power(n: int, sigma: float, means: Sequence[float], alpha: float = 0.05) -> dict[str, float]:
@@ -612,7 +625,7 @@ def one_way_power(n: int, sigma: float, means: Sequence[float], alpha: float = 0
     The F statistic follows the noncentral :math:`F` on :math:`a - 1` and :math:`a (n - 1)` degrees
     of freedom, with noncentrality :math:`\lambda = n \sum \tau_i^2 / \sigma^2`, where
     :math:`\tau_i` are the ``means``' departures from their average. For the smallest difference
-    between two groups worth detecting, pass :func:`least_favourable_means`. ``phi`` is
+    between two groups worth detecting, pass :func:`least_favorable_means`. ``phi`` is
     :math:`\sqrt{\lambda / a}`, the parameter of the operating characteristic curves of
     Montgomery's Appendix Chart V.
 
@@ -623,7 +636,7 @@ def one_way_power(n: int, sigma: float, means: Sequence[float], alpha: float = 0
 
     Examples
     --------
-    >>> found = one_way_power(5, 25, least_favourable_means(75, 4), alpha=0.01)  # Montgomery 3.7
+    >>> found = one_way_power(5, 25, least_favorable_means(75, 4), alpha=0.01)  # Montgomery 3.7
     >>> round(found["power"], 6)
     0.804838
     """
@@ -671,7 +684,7 @@ def one_way_sample_size(
 
     Examples
     --------
-    >>> found = one_way_sample_size(0.95, 0.25, least_favourable_means(0.5, 2))  # Montgomery 2.4: 8 of each
+    >>> found = one_way_sample_size(0.95, 0.25, least_favorable_means(0.5, 2))  # Montgomery 2.4: 8 of each
     >>> found["n"], round(found["power"], 4)
     (8, 0.9602)
     """

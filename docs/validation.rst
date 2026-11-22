@@ -43,7 +43,7 @@ Two rules hold for every comparison:
 Against printed sources
 -----------------------
 
-The reference catalogue (:mod:`process_improve.experiments.reference_catalogue`) holds the
+The reference catalog (:mod:`process_improve.experiments.reference_catalogue`) holds the
 designs and experiments of 22 sources: textbooks such as Box, Hunter and Hunter
 (1978), Box and Draper (2007) and Montgomery (2013), the NIST/SEMATECH e-Handbook, and papers
 on minimum aberration, definitive screening and OMARS designs. Each entry names the page it is
@@ -55,14 +55,14 @@ The test suite recomputes those numbers on every change
 last digit the source prints. A number that does not agree must record its cause, and so must
 a number that is not recomputed; the tests fail without it.
 
-.. list-table:: The catalogue on 22 November 2026 (commit ``37f81b6``)
+.. list-table:: The catalog on 22 November 2026 (commit ``37f81b6``)
    :header-rows: 1
    :widths: 60 20 20
 
    * - Printed numbers
      - Count
      - Share
-   * - In the catalogue
+   * - In the catalog
      - 42,897
      -
    * - Recomputed by the library
@@ -113,9 +113,9 @@ count the source states), 1,555 need a function the library does not have yet, 1
 data the source does not print, and 709 are computed but not yet read by a check.
 
 `Reproduced from the books <https://factori.al/catalog/reproduced/>`__ shows these counts as they
-stand today, for the whole catalogue and for each source, with an example of every cause.
+stand today, for the whole catalog and for each source, with an example of every cause.
 :ref:`design-catalog` describes the records, and
-:func:`~process_improve.experiments.reference_catalogue.reproduce_reference_catalogue` returns
+:func:`~process_improve.experiments.reference_catalogue.reproduce_reference_catalog` returns
 one row per number.
 
 .. _validation-designs:
@@ -124,11 +124,11 @@ Against other software: how a design is built
 ---------------------------------------------
 
 A printed number says what a design should be. Another package says what a second,
-independent construction gives. Of the catalogue's numbers, 3,377 depend on how a design is
+independent construction gives. Of the catalog's numbers, 3,377 depend on how a design is
 built: run counts, generators, defining relations, alias chains, resolutions, word length
 patterns, axial distances and block arrangements.
 
-``scripts/design_crosscheck/compare.py`` checks each of them twice with the catalogue's own
+``scripts/design_crosscheck/compare.py`` checks each of them twice with the catalog's own
 checker: on the design process-improve builds, and on the design the other package builds.
 Only the construction changes, so a difference is a difference in the design.
 
@@ -142,11 +142,11 @@ How to read the table:
 - **Checks** are the numbers of the kinds of design the package builds. **Agree** means both
   packages give the number the source prints. **Differ** means they give different answers.
   **Not built** means the package has no design for the request, or declines it.
-- The numbers that neither package gives as printed are left out: the catalogue records their
+- The numbers that neither package gives as printed are left out: the catalog records their
   cause, most often a misprint in the source.
 - No package here builds OMARS designs, so their 47 checks are in no row.
 - A difference is examined before it is counted as a finding. Several first differences came
-  from how a request was put to the other package, for example which centre runs go to which
+  from how a request was put to the other package, for example which center runs go to which
   block.
 
 **How independent is each package?** process-improve's two-level factorial, Plackett-Burman,
@@ -172,7 +172,7 @@ orthogonal arrays.
   for every blocked full factorial, and the same alias classes for the blocked fractions of Box
   and Draper (2007), Table 5.14.
 - **Minimum aberration.** For the 30 sizes from 8 to 128 runs that both packages build, the two
-  designs have the same word length pattern. For 69 larger sizes FrF2's catalogue has a design
+  designs have the same word length pattern. For 69 larger sizes FrF2's catalog has a design
   and process-improve's search stops at its limit (A12 in `issue 788 <https://github.com/kgdunn/process-improve/issues/788>`__).
 - **Orthogonal arrays.** DoE.base's arrays have the size and the levels of Taguchi's L8, L9,
   L12, L16 and L27, but not the layout of the printed tables, so the checks that compare runs
@@ -217,7 +217,7 @@ rsm 2.10.6 built the central composite and Box-Behnken designs.
 - **Box-Behnken designs.** No difference.
 - **Central composite designs.** Run counts and axial distances agree: on full and fractional
   cubes, for a rotatable, a spherical or a given distance, and in blocks.
-- **Centre runs in each block.** rsm takes them block by block (``n0``), and so gives axial
+- **Center runs in each block.** rsm takes them block by block (``n0``), and so gives axial
   distances of NIST 5.3.3.6.4 that process-improve does not, because it takes one total (A11 in
   `issue 788 <https://github.com/kgdunn/process-improve/issues/788>`__).
 - **A rotatable distance on a small cube.** rsm declines ``alpha = "rotatable"`` when the cube is
@@ -335,7 +335,7 @@ composite designs on a full cube.
 
 - **What it builds agrees.** No difference.
 - **Not built.** dexpy chooses a fraction from its run count: it takes no generators, no
-  resolution and no blocks, so most of the catalogue's fractions cannot be asked of it. It has
+  resolution and no blocks, so most of the catalog's fractions cannot be asked of it. It has
   no central composite design on a fractional cube, and no factor with more than two levels.
 
 .. _validation-oapackage:
@@ -406,7 +406,7 @@ kept with the tests. A change that moves one of them fails the test.
      - Scores, loadings and R2 on simulated styrene-butadiene rubber batches
    * - Control charts
      - qcc (R)
-     - Centre line, standard deviation and limits of the individuals chart
+     - Center line, standard deviation and limits of the individuals chart
    * - Least squares, t-tests and analysis of variance
      - R (``lm``, ``t.test``), statsmodels, SciPy
      - Coefficients, standard errors, p-values, sums of squares, adjusted p-values
@@ -426,7 +426,7 @@ The tests, in the order of the table, are in ``tests/``:
 ``test_regression.py``,
 ``test_univariate.py``,
 ``test_analysis.py``.
-The last row is checked through the reference catalogue.
+The last row is checked through the reference catalog.
 
 The R values are recomputed in a Docker image with dated snapshots of CRAN (``tools/r``), so a
 fixture can be made again with the same versions.
@@ -472,13 +472,13 @@ What the comparisons found
        factors.
      - :ref:`validation-daewr`
    * - process-improve
-     - No way to give the centre runs of each block of a central composite design, and a
+     - No way to give the center runs of each block of a central composite design, and a
        minimum-aberration search that stops where published designs exist.
      - A11 and A12 in `issue 788 <https://github.com/kgdunn/process-improve/issues/788>`__
    * - process-improve
      - 1,555 printed numbers that need a function the library does not have yet, 275 that
        differ for a cause not known yet, and 1 that differs for a bug or limit of the library.
-     - `The catalogue's tracking issue <https://github.com/kgdunn/process-improve/issues/804>`__
+     - `The catalog's tracking issue <https://github.com/kgdunn/process-improve/issues/804>`__
 
 .. _validation-limits:
 
@@ -486,7 +486,7 @@ What this page does not show
 ----------------------------
 
 - **Optimal designs are not cross-checked with other software.** A D- or I-optimal search
-  starts from random designs, so two packages need not find the same design. The catalogue
+  starts from random designs, so two packages need not find the same design. The catalog
   checks the criteria of the designs a source prints.
 - **OMARS designs have no second implementation here.** They are checked against the papers
   that define them only.
@@ -505,7 +505,7 @@ What this page does not show
 Repeating a comparison
 ----------------------
 
-The catalogue:
+The catalog:
 
 .. code-block:: bash
 
@@ -513,9 +513,9 @@ The catalogue:
 
 .. code-block:: python
 
-   from process_improve.experiments.reference_catalogue import reproduce_reference_catalogue
+   from process_improve.experiments.reference_catalogue import reproduce_reference_catalog
 
-   numbers = reproduce_reference_catalogue()  # one row per printed number; several minutes
+   numbers = reproduce_reference_catalog()  # one row per printed number; several minutes
    numbers.groupby(["checked", "agrees", "cause"], dropna=False).size()
 
 The designs of another package, here the R packages (``scripts/design_crosscheck/README.md``

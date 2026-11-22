@@ -4,12 +4,13 @@ from __future__ import annotations
 import json
 import math
 import random
+import warnings
 from collections.abc import Callable, Sequence
 from functools import partial
 from typing import Any, cast
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 # Plotting settings -- ENG-13 (#295): live in the optional ``[plotting]``
 # extra. Module import succeeds without them; any actual plot call raises
@@ -24,6 +25,8 @@ except ImportError:  # pragma: no cover - exercised via env-without-plotly
     go = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
     sns = _MissingExtra("seaborn", "plotting")  # type: ignore[assignment]
     plotoffline = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
+
+from process_improve._warnings import user_stacklevel
 
 from .data_input import check_valid_batch_dict
 
@@ -46,7 +49,8 @@ class MultiTagPlotSettings(BaseModel):
     html_image_height: int = 900
     html_aspect_ratio_w_over_h: float = 16 / 9
     default_line_width: float = 2
-    colour_map: Callable = sns.husl_palette
+    # ``colour_map``, the former name, is still accepted; plot_multitags and the colour_map property warn of it.
+    color_map: Callable = Field(default=sns.husl_palette, validation_alias=AliasChoices("color_map", "colour_map"))
     animate: bool = False
     animate_batches_to_highlight: list = Field(default_factory=list)
     animate_show_slider: bool = True
@@ -61,22 +65,51 @@ class MultiTagPlotSettings(BaseModel):
     animate_n_frames: int | None = None
     animate_framerate_milliseconds: int = 0
 
+    @property
+    def colour_map(self) -> Callable:
+        """The former name of ``color_map``: deprecated since 2.7.0 and removed in 3.0."""
+        warnings.warn(
+            "process_improve.batch.plotting.MultiTagPlotSettings.colour_map is deprecated since 2.7.0 and will be "
+            "removed in 3.0; use color_map instead.",
+            DeprecationWarning,
+            stacklevel=user_stacklevel(),
+        )
+        return self.color_map
 
-def get_rgba_from_triplet(incolour: Sequence[float], alpha: float = 1, as_string: bool = False) -> str | list:
+
+def get_rgba_from_triplet(
+    incolor: Sequence[float] | None = None,
+    alpha: float = 1,
+    as_string: bool = False,
+    *,
+    incolour: Sequence[float] | None = None,
+) -> str | list:
     """
-    Convert the input colour triplet (list) to a Plotly rgba(r,g,b,a) string if
+    Convert the input color triplet (list) to a Plotly rgba(r,g,b,a) string if
     `as_string` is True. If `False` it will return the list of 3 integer RGB
     values.
 
     E.g.    [0.9677975592919913, 0.44127456009157356, 0.5358103155058701] -> 'rgba(246,112,136,1)'
+
+    `incolour`, the former name of `incolor`, is deprecated since 2.7.0 and removed in 3.0.
     """
-    if not 3 <= len(incolour) <= 4:
-        raise ValueError(f"`incolour` must be a list of 3 or 4 values; got {len(incolour)} entries.")
-    colours = [max(0, math.floor(c * 255)) for c in list(incolour)[0:3]]
+    if incolour is not None:
+        warnings.warn(
+            "process_improve.batch.plotting.get_rgba_from_triplet(incolour=...) is deprecated since 2.7.0 and will be "
+            "removed in 3.0; use incolor=... instead.",
+            DeprecationWarning,
+            stacklevel=user_stacklevel(),
+        )
+        incolor = incolour
+    if incolor is None:
+        raise TypeError("get_rgba_from_triplet() missing 1 required argument: 'incolor'")
+    if not 3 <= len(incolor) <= 4:
+        raise ValueError(f"`incolor` must be a list of 3 or 4 values; got {len(incolor)} entries.")
+    colors = [max(0, math.floor(c * 255)) for c in list(incolor)[0:3]]
     if as_string:
-        return f"rgba({colours[0]},{colours[1]},{colours[2]},{float(alpha)})"
+        return f"rgba({colors[0]},{colors[1]},{colors[2]},{float(alpha)})"
     else:
-        return colours
+        return colors
 
 
 def plot_to_HTML(filename: str, fig: dict) -> str:  # noqa: N802
@@ -137,7 +170,7 @@ def plot_all_batches_per_tag(  # noqa: PLR0912, PLR0913
 
             batches_to_highlight = {'{"width": 2, "color": "rgba(255,0,0,0.5)"}': redlist}
 
-        will plot the batch identifiers in ``redlist`` with that colour and linewidth.
+        will plot the batch identifiers in ``redlist`` with that color and linewidth.
     x_axis_label : str, optional
         String label for the x-axis, by default "Time [sequence order]"
     highlight_width: int, optional
@@ -169,12 +202,12 @@ def plot_all_batches_per_tag(  # noqa: PLR0912, PLR0913
         batches_to_highlight = {}
     default_line_width = 2
     unique_items = list(df_dict.keys())
-    n_colours = len(unique_items)
+    n_colors = len(unique_items)
     random.seed(13)
-    colours = list(sns.husl_palette(n_colours))
-    random.shuffle(colours)
-    colours = [get_rgba_from_triplet(c, as_string=True) for c in colours]
-    line_styles = {k: dict(width=default_line_width, color=v) for k, v in zip(unique_items, colours, strict=False)}
+    colors = list(sns.husl_palette(n_colors))
+    random.shuffle(colors)
+    colors = [get_rgba_from_triplet(c, as_string=True) for c in colors]
+    line_styles = {k: dict(width=default_line_width, color=v) for k, v in zip(unique_items, colors, strict=False)}
     for key, val in batches_to_highlight.items():
         # SEC-32 (#281): each key must be a JSON-encoded plotly line-style
         # spec. Decode once outside the comprehension so a bad key raises
@@ -288,6 +321,42 @@ def plot_all_batches_per_tag(  # noqa: PLR0912, PLR0913
     return fig
 
 
+def colors_per_batch_id(
+    batch_ids: list,
+    batches_to_highlight: dict,
+    default_line_width: float,
+    use_default_color: bool = False,
+    color_map: Callable | None = None,
+) -> dict[Any, dict]:
+    """
+    Return a color to use for each trace in the plot. A dictionary: keys are batch ids, and
+    the value is a color and line width setting for Plotly.
+
+    use_default_color: bool
+        If True, then the default color is used (gray: 0.5, 0.5, 0.5)
+    """
+    if color_map is None:
+        color_map = partial(sns.color_palette, "hls")
+    random.seed(13)
+    n_colors = len(batch_ids)
+    colors = list(color_map(n_colors)) if not (use_default_color) else [(0.5, 0.5, 0.5)] * n_colors
+    random.shuffle(colors)
+    colors = [get_rgba_from_triplet(c, as_string=True) for c in colors]
+    color_assignment = {
+        key: dict(width=default_line_width, color=val) for key, val in zip(list(batch_ids), colors, strict=False)
+    }
+    for key, val in batches_to_highlight.items():
+        # SEC-32 (#281) -- decode outside the comprehension so a bad key
+        # raises ValueError at the API surface rather than JSONDecodeError
+        # inside the dict-merge.
+        try:
+            color_spec = json.loads(key)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"batches_to_highlight: each key must be a JSON-encoded color spec. Got {key!r}.") from exc
+        color_assignment.update({item: color_spec for item in val if item in batch_ids})
+    return color_assignment
+
+
 def colours_per_batch_id(
     batch_ids: list,
     batches_to_highlight: dict,
@@ -295,35 +364,31 @@ def colours_per_batch_id(
     use_default_colour: bool = False,
     colour_map: Callable | None = None,
 ) -> dict[Any, dict]:
-    """
-    Return a colour to use for each trace in the plot. A dictionary: keys are batch ids, and
-    the value is a colour and line width setting for Plotly.
+    """Return :func:`colors_per_batch_id`; this, its former name, is deprecated since 2.7.0 and removed in 3.0."""
+    warnings.warn(
+        "process_improve.batch.plotting.colours_per_batch_id is deprecated since 2.7.0 and will be removed in 3.0; "
+        "use colors_per_batch_id(..., use_default_color=..., color_map=...) instead.",
+        DeprecationWarning,
+        stacklevel=user_stacklevel(),
+    )
+    return colors_per_batch_id(
+        batch_ids, batches_to_highlight, default_line_width, use_default_color=use_default_colour, color_map=colour_map
+    )
 
-    use_default_colour: bool
-        If True, then the default colour is used (grey: 0.5, 0.5, 0.5)
-    """
-    if colour_map is None:
-        colour_map = partial(sns.color_palette, "hls")
-    random.seed(13)
-    n_colours = len(batch_ids)
-    colours = list(colour_map(n_colours)) if not (use_default_colour) else [(0.5, 0.5, 0.5)] * n_colours
-    random.shuffle(colours)
-    colours = [get_rgba_from_triplet(c, as_string=True) for c in colours]
-    colour_assignment = {
-        key: dict(width=default_line_width, color=val) for key, val in zip(list(batch_ids), colours, strict=False)
-    }
-    for key, val in batches_to_highlight.items():
-        # SEC-32 (#281) -- decode outside the comprehension so a bad key
-        # raises ValueError at the API surface rather than JSONDecodeError
-        # inside the dict-merge.
-        try:
-            colour_spec = json.loads(key)
-        except json.JSONDecodeError as exc:
-            raise ValueError(
-                f"batches_to_highlight: each key must be a JSON-encoded colour spec. Got {key!r}."
-            ) from exc
-        colour_assignment.update({item: colour_spec for item in val if item in batch_ids})
-    return colour_assignment
+
+def _with_color_map(settings: dict) -> dict:
+    """Return ``settings`` with ``colour_map``, the former name of ``color_map``, renamed, with the policy's warning."""
+    if "colour_map" not in settings:
+        return settings
+    warnings.warn(
+        "process_improve.batch.plotting.plot_multitags(settings={'colour_map':...}) is deprecated since 2.7.0 and "
+        "will be removed in 3.0; use settings={'color_map':...} instead.",
+        DeprecationWarning,
+        stacklevel=user_stacklevel(),
+    )
+    renamed = {key: value for key, value in settings.items() if key != "colour_map"}
+    renamed.setdefault("color_map", settings["colour_map"])
+    return renamed
 
 
 # flake8: noqa: C901
@@ -361,7 +426,7 @@ def plot_multitags(  # noqa: PLR0912, PLR0915
 
             batches_to_highlight = {'{"width": 2, "color": "rgba(255,0,0,0.5)"}': redlist}
 
-        will plot the batch identifiers in ``redlist`` with that colour and linewidth.
+        will plot the batch identifiers in ``redlist`` with that color and linewidth.
 
     settings : dict
         Default settings::
@@ -387,7 +452,7 @@ def plot_multitags(  # noqa: PLR0912, PLR0915
     font_size = 12
     hovertemplate = "Time: %{x}\ny: %{y}"
 
-    config = MultiTagPlotSettings(**(settings or {}))
+    config = MultiTagPlotSettings(**_with_color_map(settings or {}))
 
     if len(config.animate_batches_to_highlight) == 0:
         config.animate = False
@@ -395,12 +460,12 @@ def plot_multitags(  # noqa: PLR0912, PLR0915
         # override for animations, because we want to see everything in frame zero
         config.default_line_width = 0.5
         # Override these settings for animations, because we want to see everything in frame zero
-        animation_colour_assignment = colours_per_batch_id(
+        animation_color_assignment = colors_per_batch_id(
             batch_ids=list(df_dict.keys()),
             batches_to_highlight=batches_to_highlight or dict(),
             default_line_width=config.animate_line_width,
-            use_default_colour=False,
-            colour_map=config.colour_map,
+            use_default_color=False,
+            color_map=config.color_map,
         )
 
     else:
@@ -455,13 +520,13 @@ def plot_multitags(  # noqa: PLR0912, PLR0915
         specs=specs,
     )
 
-    colour_assignment = colours_per_batch_id(
+    color_assignment = colors_per_batch_id(
         batch_ids=list(df_dict.keys()),
         batches_to_highlight=batches_to_highlight,
         default_line_width=config.default_line_width,
-        # if animating, yes, use grey for all lines; unless `batches_to_highlight` was specified
-        use_default_colour=config.animate if config.animate and (len(batches_to_highlight) == 0) else False,
-        colour_map=config.colour_map,
+        # if animating, yes, use gray for all lines; unless `batches_to_highlight` was specified
+        use_default_color=config.animate if config.animate and (len(batches_to_highlight) == 0) else False,
+        color_map=config.color_map,
     )
 
     # Initial plot (what is visible before animation starts)
@@ -489,7 +554,7 @@ def plot_multitags(  # noqa: PLR0912, PLR0915
                 name=batch_id,
                 mode=config.mode,
                 hovertemplate=hovertemplate,
-                line=colour_assignment[batch_id],
+                line=color_assignment[batch_id],
                 legendgroup=batch_id,
                 # Only add batch_id to legend the first time it is plotted (the first subplot)
                 showlegend=showlegend,
@@ -556,7 +621,7 @@ def plot_multitags(  # noqa: PLR0912, PLR0915
             up_to_index=index + 1,
             time_column=time_column,
             batch_ids_to_animate=config.animate_batches_to_highlight,
-            animation_colour_assignment=animation_colour_assignment,
+            animation_color_assignment=animation_color_assignment,
             show_legend=config.show_legend,
             hovertemplate=hovertemplate,
             max_columns=config.ncols,
@@ -643,18 +708,33 @@ def generate_one_frame(  # noqa: PLR0913
     up_to_index: int,
     time_column: str | None,
     batch_ids_to_animate: list,
-    animation_colour_assignment: dict,
+    animation_color_assignment: dict | None = None,
     show_legend: bool = False,
     hovertemplate: str = "",
     max_columns: int = 0,
     mode: str = "lines",
+    *,
+    animation_colour_assignment: dict | None = None,
 ) -> list[go.Scatter]:
     """
     Return a list of dictionaries.
 
     Each entry in the list is for each subplot; in the order of the subplots.
     Since each subplot is a tag, we need the `tag_list` as input.
+
+    `animation_colour_assignment`, the former name of `animation_color_assignment`, is deprecated since 2.7.0 and
+    removed in 3.0.
     """
+    if animation_colour_assignment is not None:
+        warnings.warn(
+            "process_improve.batch.plotting.generate_one_frame(animation_colour_assignment=...) is deprecated since "
+            "2.7.0 and will be removed in 3.0; use animation_color_assignment=... instead.",
+            DeprecationWarning,
+            stacklevel=user_stacklevel(),
+        )
+        animation_color_assignment = animation_colour_assignment
+    if animation_color_assignment is None:
+        raise TypeError("generate_one_frame() missing 1 required argument: 'animation_color_assignment'")
     output = []
     row = col = 1
     for tag in tag_list:
@@ -672,7 +752,7 @@ def generate_one_frame(  # noqa: PLR0913
                     name=batch_id,
                     mode=mode,
                     hovertemplate=hovertemplate,
-                    line=animation_colour_assignment[batch_id],
+                    line=animation_color_assignment[batch_id],
                     legendgroup=batch_id,
                     showlegend=show_legend if tag == tag_list[0] else False,
                     xaxis=cast("tuple[Any, ...]", fig.get_subplot(row, col))[1]["anchor"],

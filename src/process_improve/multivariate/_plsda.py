@@ -157,11 +157,13 @@ class PLSDA(ClassifierMixin, PLS):
         ``"uniform"`` gives every class ``1 / G``, which is what you want when the
         training set was deliberately balanced but the population is not.
     scale : bool, optional
-        Passed to :class:`PLS`. Default True, which mean-centres and unit-variance-scales
+        Passed to :class:`PLS`. Default True, which mean-centers and unit-variance-scales
         both blocks. Scaling the indicator block is standard for PLS-DA: without it a
         rare class contributes less variance and is fitted less well.
-    max_iter, tol, missing_data_settings, warn_on_uncentred
+    max_iter, tol, missing_data_settings, warn_on_uncentered
         Passed through to :class:`PLS` unchanged.
+    warn_on_uncentred : bool or None, optional
+        The former name of ``warn_on_uncentered``: deprecated since 2.7.0 and removed in 3.0.
     copy : None
         Deprecated since 2.4.0 and removed in 3.0; it has no effect. PLSDA never
         modifies the X or y it is given, so there is nothing to copy.
@@ -184,7 +186,7 @@ class PLSDA(ClassifierMixin, PLS):
         Training-set confusion matrix, rows the true class and columns the predicted one.
     accuracy_ : float
         Training-set accuracy. Optimistic by construction; use :meth:`score` on held-out
-        data, or :meth:`permutation_test`, to learn anything about generalisation.
+        data, or :meth:`permutation_test`, to learn anything about generalization.
     sensitivity_, specificity_ : pd.Series indexed by ``classes_``
         Per-class true-positive and true-negative rates on the training set.
 
@@ -235,7 +237,8 @@ class PLSDA(ClassifierMixin, PLS):
         tol: float = epsqrt,
         copy: bool | None = None,
         missing_data_settings: dict | None = None,
-        warn_on_uncentred: bool = True,
+        warn_on_uncentered: bool = True,
+        **former: bool,
     ):
         # `PLS.__init__` rather than `super().__init__`, and the difference is only
         # apparent. The MRO is PLSDA -> ClassifierMixin -> PLS, and `ClassifierMixin`
@@ -243,7 +246,7 @@ class PLSDA(ClassifierMixin, PLS):
         # base says which constructor runs instead of leaving it to be read off the MRO,
         # and it does not depend on that mixin staying `__init__`-free. It is also what
         # CodeQL's py/missing-call-to-init can see: the query cannot follow the skip past
-        # a mixin, so the `super()` form read as "PLS is never initialised", which would
+        # a mixin, so the `super()` form read as "PLS is never initialized", which would
         # have left every `n_components` unset had it been true.
         PLS.__init__(
             self,
@@ -253,7 +256,8 @@ class PLSDA(ClassifierMixin, PLS):
             tol=tol,
             copy=copy,
             missing_data_settings=missing_data_settings,
-            warn_on_uncentred=warn_on_uncentred,
+            warn_on_uncentered=warn_on_uncentered,
+            **former,
         )
         # Stored verbatim and read only in fit(), per the sklearn __init__ convention.
         self.decision_rule = decision_rule
@@ -295,7 +299,7 @@ class PLSDA(ClassifierMixin, PLS):
         ValueError
             If ``y`` holds fewer than two distinct labels (there is nothing to
             discriminate), if its length does not match ``X``, if a row has no label, or
-            if ``decision_rule`` / ``priors`` is not a recognised value.
+            if ``decision_rule`` / ``priors`` is not a recognized value.
         """
         if self.copy is not None:
             warnings.warn(
@@ -379,10 +383,10 @@ class PLSDA(ClassifierMixin, PLS):
     def decision_function(self, X: DataMatrix) -> pd.DataFrame:
         """Predicted class-indicator values, one column per class.
 
-        These are the raw PLS predictions of the one-hot ``Y``, so they are centred near 1
+        These are the raw PLS predictions of the one-hot ``Y``, so they are centered near 1
         for the class a sample belongs to and near 0 for the others, but they are not
         bounded to ``[0, 1]`` and do not sum to 1. Use :meth:`predict_proba` for a
-        normalised quantity.
+        normalized quantity.
 
         Parameters
         ----------
@@ -400,10 +404,10 @@ class PLSDA(ClassifierMixin, PLS):
     def predict_proba(self, X: DataMatrix) -> np.ndarray:
         """Class posteriors from the fitted per-class Gaussians.
 
-        In column ``g`` the training indicator values of class ``g``'s members are modelled
+        In column ``g`` the training indicator values of class ``g``'s members are modeled
         as ``N(mean_in, sd_in)`` and everyone else's as ``N(mean_out, sd_out)``. The
         evidence for class ``g`` is ``prior_g`` times the ratio of those two densities,
-        and the posteriors are those normalised across the classes. This is a genuine
+        and the posteriors are those normalized across the classes. This is a genuine
         probability model rather than a rescaling of the indicators: it accounts for how
         tightly each class scores, for how well it separates from the rest, and for how
         common it is.
@@ -501,7 +505,7 @@ class PLSDA(ClassifierMixin, PLS):
         return float(np.average(correct, weights=None if sample_weight is None else np.ravel(sample_weight)))
 
     def _confusion(self, truth: np.ndarray, predicted: np.ndarray) -> pd.DataFrame:
-        """Confusion matrix as a labelled frame: rows true, columns predicted."""
+        """Confusion matrix as a labeled frame: rows true, columns predicted."""
         counts = np.zeros((self.n_classes_, self.n_classes_), dtype=int)
         position = {klass: index for index, klass in enumerate(self.classes_)}
         for actual, guess in zip(truth, predicted, strict=True):  # pragma: no mutate - predict gives one per row

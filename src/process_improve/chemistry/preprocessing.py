@@ -8,13 +8,13 @@ sensory attributes is four decisions, and the order they are taken in is fixed:
 
 .. code-block:: text
 
-    trim  ->  transform  ->  centre  ->  scale
+    trim  ->  transform  ->  center  ->  scale
 
 Trimming first, because a compound seen in two of forty products has no
-concentration worth transforming. Transforming before centring, because the
+concentration worth transforming. Transforming before centering, because the
 range ratio that decides between a log and a linear scale is a property of the
-raw values. Centring before scaling, because a scaling constant estimated
-around the wrong centre is the wrong constant.
+raw values. Centering before scaling, because a scaling constant estimated
+around the wrong center is the wrong constant.
 
 Three things in here are easy to get wrong, and each is wrong quietly:
 
@@ -48,8 +48,12 @@ data", BMC Genomics, 7, 142, 2006, doi:10.1186/1471-2164-7-142.
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pandas as pd
+
+from process_improve._warnings import user_stacklevel
 
 #: The three zero states. ``unknown`` is the default and is not a failure: it
 #: records that nobody has yet said which of the other two applies.
@@ -196,7 +200,7 @@ def trim_by_prevalence(
     """Split the block by how often each compound is seen at all.
 
     A compound detected in one or two products has no concentration worth
-    modelling: any apparent relationship is a line through two points. It is not
+    modeling: any apparent relationship is a line through two points. It is not
     thereby uninformative, though, so nothing is thrown away. The third return
     value is a presence layer covering **every** compound, kept and dropped
     alike, which for a rare compound is often the more useful representation:
@@ -243,12 +247,12 @@ def trim_by_prevalence(
     return kept, dropped, presence
 
 
-def normalisation_check(chem: pd.DataFrame, factor: float = 1.8) -> tuple[pd.Series, pd.Series]:
+def normalization_check(chem: pd.DataFrame, factor: float = 1.8) -> tuple[pd.Series, pd.Series]:
     """Report the row totals, and which of them sit outside a fold-band around the median.
 
-    A product-by-compound block that has been normalised to a constant sum has
+    A product-by-compound block that has been normalized to a constant sum has
     row totals that are all equal; one that has not may still be fine, but a row
-    whose total is several fold away from its neighbours usually means something
+    whose total is several fold away from its neighbors usually means something
     mechanical rather than chemical (a different injection volume, a dilution
     that was not recorded, an integration that dropped a peak). Either way the
     answer changes what the rest of the pipeline should do, so it is worth
@@ -278,10 +282,10 @@ def normalisation_check(chem: pd.DataFrame, factor: float = 1.8) -> tuple[pd.Ser
 
     Examples
     --------
-    >>> totals, outside = normalisation_check(chem)
+    >>> totals, outside = normalization_check(chem)
     >>> outside / totals.median()  # how far out, as a fold change
     """
-    numeric = _require_numeric_block(chem, "normalisation_check")
+    numeric = _require_numeric_block(chem, "normalization_check")
     if not np.isfinite(factor) or factor <= 1:
         raise ValueError(f"factor must be a finite fold change greater than 1; got {factor!r}.")
 
@@ -296,8 +300,19 @@ def normalisation_check(chem: pd.DataFrame, factor: float = 1.8) -> tuple[pd.Ser
     return totals, outside
 
 
+def normalisation_check(chem: pd.DataFrame, factor: float = 1.8) -> tuple[pd.Series, pd.Series]:
+    """Return :func:`normalization_check`; this, its former name, is deprecated since 2.7.0 and removed in 3.0."""
+    warnings.warn(
+        "process_improve.chemistry.normalisation_check is deprecated since 2.7.0 and will be removed in 3.0; "
+        "use normalization_check instead.",
+        DeprecationWarning,
+        stacklevel=user_stacklevel(),
+    )
+    return normalization_check(chem, factor)
+
+
 def choose_transform(col: pd.Series, ratio_log: float = 10.0, ratio_linear: float = 3.0) -> str:
-    """Decide whether a compound should be modelled on a log or a linear scale.
+    """Decide whether a compound should be modeled on a log or a linear scale.
 
     The decision is made on the range ratio of the **detected** values: the
     largest divided by the smallest, ignoring zeros and missing cells. A
@@ -549,7 +564,7 @@ def center_and_scale(
     *,
     detected_only: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Centre and scale a transformed block, returning the constants for replay.
+    """Center and scale a transformed block, returning the constants for replay.
 
     ``"autoscale"`` divides by the standard deviation (``ddof=1``, matching
     :class:`~process_improve.multivariate.MCUVScaler`), giving every compound
@@ -570,14 +585,14 @@ def center_and_scale(
     method : {"autoscale", "pareto"}, default "autoscale"
         The divisor: the standard deviation, or its square root.
     detected_only : bool, keyword-only, default False
-        Compute the centring and scaling constants from the detected cells
+        Compute the centering and scaling constants from the detected cells
         alone.
 
         **Leave this off unless imputation has actually run.** The rule it
         implements, that constants must not be estimated from imputed values, is
         sound and easy to over-apply. On a column whose zeros are real
         observations of "not detected", excluding them puts every one of those
-        zeros many standard deviations below a centre estimated from a handful
+        zeros many standard deviations below a center estimated from a handful
         of detected values. The column becomes effectively binary with a very
         large magnitude, and since PLS follows variance, the components then
         track how *sparse* a variable is rather than how it relates to the
@@ -591,7 +606,7 @@ def center_and_scale(
     (scaled, constants) : tuple of pandas.DataFrame
         ``scaled`` has the labels of ``transformed``. ``constants`` has one row
         per compound with columns ``compound``, ``center``, ``divisor``,
-        ``method`` and ``n_used``. ``divisor`` is what the centred values were
+        ``method`` and ``n_used``. ``divisor`` is what the centered values were
         **divided** by, not a multiplier; feed the table to
         :func:`apply_fitted_center_scale` rather than reapplying it by hand.
 
@@ -651,7 +666,7 @@ def center_and_scale(
 
 
 def apply_fitted_center_scale(transformed: pd.DataFrame, constants: pd.DataFrame) -> pd.DataFrame:
-    """Replay centring and scaling constants computed elsewhere.
+    """Replay centering and scaling constants computed elsewhere.
 
     The partner of :func:`center_and_scale`, for held-out rows. ``divisor`` is
     divided by, not multiplied by: it is the standard deviation (or its square

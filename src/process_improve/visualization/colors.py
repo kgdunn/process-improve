@@ -1,8 +1,8 @@
-"""DOE colour palettes shared across both backends.
+"""DOE color palettes shared across both backends.
 
-Provides consistent, accessible colours for all DOE plot types.
+Provides consistent, accessible colors for all DOE plot types.
 The palettes are designed for readability on white backgrounds and
-are colourblind-friendly where possible.
+are colorblind-friendly where possible.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from __future__ import annotations
 # Core palette
 # ---------------------------------------------------------------------------
 
-#: Primary palette for DOE visualisations.
+#: Primary palette for DOE visualizations.
 DOE_PALETTE: dict[str, str] = {
     "primary": "#2563EB",  # Main lines, bars
     "secondary": "#7C3AED",  # Secondary traces
@@ -27,10 +27,10 @@ DOE_PALETTE: dict[str, str] = {
 }
 
 # ---------------------------------------------------------------------------
-# Factor colours (up to 10 factors)
+# Factor colors (up to 10 factors)
 # ---------------------------------------------------------------------------
 
-#: Distinct colours for individual factors in main-effects / interaction.
+#: Distinct colors for individual factors in main-effects / interaction.
 FACTOR_COLORS: list[str] = [
     "#2563EB",  # blue
     "#DC2626",  # red
@@ -45,16 +45,16 @@ FACTOR_COLORS: list[str] = [
 ]
 
 # ---------------------------------------------------------------------------
-# Contour / surface colour scales
+# Contour / surface color scales
 # ---------------------------------------------------------------------------
 
 #: The Scientific colour maps a surface is drawn in (Crameri, F., 2018, Scientific colour maps, Zenodo,
-#: doi:10.5281/zenodo.1243862; MIT licence, copyright (c) Fabio Crameri): nine colours each, sampled evenly along
-#: the map, dark for one end and light for the other. They are even to the eye, so a step in the colour is a step
-#: in the value, and a reader who does not tell red from green reads them, as does a print in grey. ``devon`` and
+#: doi:10.5281/zenodo.1243862; MIT license, copyright (c) Fabio Crameri): nine colors each, sampled evenly along
+#: the map, dark for one end and light for the other. They are even to the eye, so a step in the color is a step
+#: in the value, and a reader who does not tell red from green reads them, as does a print in gray. ``devon`` and
 #: ``grayC`` end in white, which a page is, so they are sampled along their first nine tenths; ``grayC`` begins in
-#: black, darker than a dark page (#141517), so it is sampled from 6% of the way, where it is the page's own grey.
-COLOUR_MAPS: dict[str, list[str]] = {
+#: black, darker than a dark page (#141517), so it is sampled from 6% of the way, where it is the page's own gray.
+COLOR_MAPS: dict[str, list[str]] = {
     "batlow": ["#011959", "#114360", "#226061", "#4d734d", "#828231", "#c09036", "#f29d6d", "#fdb4b6", "#faccfa"],
     "devon": ["#2c1a4c", "#293467", "#275186", "#376aae", "#6583d2", "#9b9ce8", "#bbb5f1", "#d2cef6", "#eae8fb"],
     "lajolla": ["#191900", "#372411", "#67342a", "#a64644", "#d9604e", "#e58851", "#edae54", "#f7da74", "#fffecb"],
@@ -62,16 +62,16 @@ COLOUR_MAPS: dict[str, list[str]] = {
 }
 
 #: The map a surface is drawn in unless another is asked for.
-DEFAULT_COLOUR_MAP = "batlow"
+DEFAULT_COLOR_MAP = "batlow"
 
 
-def colorscale(name: str = DEFAULT_COLOUR_MAP, *, dark_page: bool = False) -> list[list[float | str]]:
-    """Return one of :data:`COLOUR_MAPS` as a Plotly colour scale, a low value fading into the page.
+def colorscale(name: str = DEFAULT_COLOR_MAP, *, dark_page: bool = False) -> list[list[float | str]]:
+    """Return one of :data:`COLOR_MAPS` as a Plotly color scale, a low value fading into the page.
 
     Parameters
     ----------
     name : str
-        A key of :data:`COLOUR_MAPS`.
+        A key of :data:`COLOR_MAPS`.
     dark_page : bool
         Whether the figure is on a dark page. A low value is then the map's dark end; on a light page, the
         default, it is the light end.
@@ -79,25 +79,25 @@ def colorscale(name: str = DEFAULT_COLOUR_MAP, *, dark_page: bool = False) -> li
     Returns
     -------
     list of [float, str]
-        The colour at each of nine evenly spaced fractions from 0 to 1.
+        The color at each of nine evenly spaced fractions from 0 to 1.
     """
-    if name not in COLOUR_MAPS:
-        raise ValueError(f"Unknown colour map {name!r}: choose one of {', '.join(COLOUR_MAPS)}.")
-    colours = COLOUR_MAPS[name] if dark_page else COLOUR_MAPS[name][::-1]
+    if name not in COLOR_MAPS:
+        raise ValueError(f"Unknown color map {name!r}: choose one of {', '.join(COLOR_MAPS)}.")
+    colours = COLOR_MAPS[name] if dark_page else COLOR_MAPS[name][::-1]
     return [[i / (len(colours) - 1), colour] for i, colour in enumerate(colours)]
 
 
 #: The Scientific colour maps for a value that has a sign, such as a correlation from -1 to +1 (Crameri, 2018, as
-#: above): nine colours each, blue for the negative end and red for the positive. ``vik`` is near white at zero, for
+#: above): nine colors each, blue for the negative end and red for the positive. ``vik`` is near white at zero, for
 #: a light page; ``berlin`` is near black at zero, for a dark one, where a white zero would glare.
-DIVERGING_COLOUR_MAPS: dict[str, list[str]] = {
+DIVERGING_COLOR_MAPS: dict[str, list[str]] = {
     "vik": ["#001261", "#034481", "#307da6", "#94bed2", "#ece5e0", "#dbaa8d", "#c27041", "#912d06", "#590008"],
     "berlin": ["#9eb0ff", "#519fd3", "#286886", "#14303e", "#190c09", "#411201", "#7d341e", "#be6f63", "#ffadad"],
 }
 
 
 def diverging_colorscale(*, dark_page: bool = False) -> list[list[float | str]]:
-    """Return the Plotly colour scale for a value with a sign, zero fading into the page.
+    """Return the Plotly color scale for a value with a sign, zero fading into the page.
 
     Parameters
     ----------
@@ -108,24 +108,24 @@ def diverging_colorscale(*, dark_page: bool = False) -> list[list[float | str]]:
     Returns
     -------
     list of [float, str]
-        The colour at each of nine evenly spaced fractions from 0, the most negative value, to 1, the most
+        The color at each of nine evenly spaced fractions from 0, the most negative value, to 1, the most
         positive; 0.5 is zero.
     """
-    colours = DIVERGING_COLOUR_MAPS["berlin" if dark_page else "vik"]
+    colours = DIVERGING_COLOR_MAPS["berlin" if dark_page else "vik"]
     return [[i / (len(colours) - 1), colour] for i, colour in enumerate(colours)]
 
 
-#: Plotly-style continuous colour scale for contour and surface plots: batlow, light for low and dark for high.
+#: Plotly-style continuous color scale for contour and surface plots: batlow, light for low and dark for high.
 SURFACE_COLORSCALE: list[list[float | str]] = colorscale()
 
-#: ECharts-compatible colour stops (same hues as Plotly scale).
+#: ECharts-compatible color stops (same hues as Plotly scale).
 ECHARTS_VISUAL_MAP_COLORS: list[str] = [str(colour) for _, colour in SURFACE_COLORSCALE]
 
 # ---------------------------------------------------------------------------
-# Diagnostic plot colours
+# Diagnostic plot colors
 # ---------------------------------------------------------------------------
 
-#: Colours specifically for residual diagnostic plots.
+#: Colors specifically for residual diagnostic plots.
 DIAGNOSTIC_COLORS: dict[str, str] = {
     "residual": "#2563EB",
     "fitted_line": "#DC2626",
@@ -137,7 +137,7 @@ DIAGNOSTIC_COLORS: dict[str, str] = {
 }
 
 # ---------------------------------------------------------------------------
-# Desirability colour scale: the default map, light for d = 0 (worst) and dark for d = 1 (best). It was red, amber
+# Desirability color scale: the default map, light for d = 0 (worst) and dark for d = 1 (best). It was red, amber
 # and green, which a reader who does not tell red from green cannot read.
 # ---------------------------------------------------------------------------
 
@@ -146,7 +146,7 @@ DESIRABILITY_COLORSCALE: list[list[float | str]] = colorscale()
 # ---------------------------------------------------------------------------
 # Sweet-spot fill: a single flat green, used behind overlaid response contours
 # to shade the region where every response is within specification. It is one
-# colour rather than a scale because the mask it renders is binary.
+# color rather than a scale because the mask it renders is binary.
 # ---------------------------------------------------------------------------
 
 SWEET_SPOT_COLORSCALE: list[list[float | str]] = [
@@ -155,7 +155,7 @@ SWEET_SPOT_COLORSCALE: list[list[float | str]] = [
 ]
 
 # ---------------------------------------------------------------------------
-# Settings that cannot be run: a translucent grey laid over a contour plot where
+# Settings that cannot be run: a translucent gray laid over a contour plot where
 # the limits on the settings rule a point out, so the response stays readable
 # beneath it and the settings that can be run are left clear.
 # ---------------------------------------------------------------------------

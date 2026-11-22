@@ -15,10 +15,10 @@ The order is fixed
     trim  ->  transform  ->  centre  ->  scale
 
 Trim first, because a compound detected in two of forty products has no
-concentration worth transforming. Transform before centring, because the range
+concentration worth transforming. Transform before centering, because the range
 ratio that decides between a log and a linear scale is a property of the raw
-values. Centre before scaling, because a scaling constant estimated around the
-wrong centre is the wrong constant.
+values. Center before scaling, because a scaling constant estimated around the
+wrong center is the wrong constant.
 
 .. code-block:: python
 
@@ -26,19 +26,19 @@ wrong centre is the wrong constant.
        apply_transform,
        center_and_scale,
        classify_zero_states,
-       normalisation_check,
+       normalization_check,
        trim_by_prevalence,
    )
 
    states = classify_zero_states(chem, lod={"linalool": 0.02})
-   totals, outside = normalisation_check(chem)
+   totals, outside = normalization_check(chem)
 
    kept, dropped, presence = trim_by_prevalence(chem, min_nonzero=3)
    transformed, applied = apply_transform(kept, lod={"linalool": 0.02})
    scaled, constants = center_and_scale(transformed, presence[kept.columns])
 
 ``scaled`` is now ready for :class:`~process_improve.multivariate.PLS` with
-``scale=False``, since it is already centred and scaled.
+``scale=False``, since it is already centered and scaled.
 
 A zero is not self-describing
 -----------------------------
@@ -50,8 +50,8 @@ A zero in a concentration table is one of two completely different things:
 * an **essential** zero: the compound is genuinely absent.
 
 They want opposite handling. A rounded zero should be substituted with
-something below the detection limit and then modelled as a small quantity; an
-essential zero is a categorical fact and modelling it as a small quantity
+something below the detection limit and then modeled as a small quantity; an
+essential zero is a categorical fact and modeling it as a small quantity
 invents chemistry that is not there. The distinction cannot be recovered from
 an exported table, so :func:`~process_improve.chemistry.classify_zero_states`
 does not guess:
@@ -111,15 +111,15 @@ substitution.
 ``detected_only`` is off for a reason
 -------------------------------------
 
-The rule that centring and scaling constants must not be estimated from imputed
+The rule that centering and scaling constants must not be estimated from imputed
 values is sound, and easy to over-apply. Where no imputation has happened, the
 zeros are real observations of "not detected", and excluding them puts every
-one of those zeros many standard deviations below a centre computed from a
+one of those zeros many standard deviations below a center computed from a
 handful of detected values. The column becomes effectively binary with a very
 large magnitude, and since PLS follows variance, the components then track *how
 sparse a variable is* rather than how it relates to the response. Every
 attribute comes back with the same handful of rare compounds at the top of its
-list, which reads as a finding and is an artefact.
+list, which reads as a finding and is an artifact.
 
 So :func:`~process_improve.chemistry.center_and_scale` defaults
 ``detected_only=False``. Switch it on **after**
@@ -157,7 +157,7 @@ have been confused often enough that the new table leaves no room for it.
 .. seealso::
 
    :doc:`sensory_diagnostics` for the matching question on the sensory side:
-   whether an attribute can be modelled as an intensity at all.
+   whether an attribute can be modeled as an intensity at all.
 
 API
 ---
