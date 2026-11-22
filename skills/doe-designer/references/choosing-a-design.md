@@ -4,7 +4,7 @@ Read this when deciding what to generate. The short version: the number of
 factors and how much you already know decide the design, not the other way
 round.
 
-## The screening / optimisation split
+## The screening / optimization split
 
 This is the first fork, and getting it wrong is expensive.
 
@@ -14,7 +14,7 @@ user cannot confidently name the two or three that dominate. Screening designs
 are cheap per factor, deliberately assume no curvature, and are content to
 alias interactions. Their output is a shortlist, not a model.
 
-**Optimisation** answers "what settings are best?" It needs curvature, so it
+**Optimization** answers "what settings are best?" It needs curvature, so it
 needs three or more levels per factor, which makes it expensive per factor. It
 is only worth running on factors that screening has already shown to matter.
 
@@ -22,7 +22,7 @@ The single most common mistake is trying to do both at once with eleven
 factors and a central composite design. That costs hundreds of runs to
 estimate quadratic terms for factors that turn out to be inert. Screen first.
 
-A useful budget split: about a third on screening, about half on optimisation,
+A useful budget split: about a third on screening, about half on optimization,
 the rest held back for confirmation and for the surprise that always turns up.
 
 ## Two-level designs (screening and factor effects)
@@ -62,7 +62,7 @@ Practically:
 Ask for resolution IV unless the run budget forbids it. The extra runs over a
 resolution-III design are usually cheaper than the ambiguity they remove.
 
-## Response surface designs (optimisation)
+## Response surface designs (optimization)
 
 | Design | Runs (k factors) | When |
 |---|---|---|
@@ -81,7 +81,7 @@ at maximum simultaneously" would break something.
 **Optimal designs** are the fallback whenever the region is irregular: mixture
 constraints, a forbidden corner, a fixed odd budget, or a mix of continuous
 and categorical factors. Use `i_optimal` when the goal is prediction across
-the region (the usual case for optimisation) and `d_optimal` when the goal is
+the region (the usual case for optimization) and `d_optimal` when the goal is
 estimating coefficients precisely.
 
 ## Mixture designs
@@ -93,10 +93,10 @@ not independent, because raising one necessarily lowers another.
 ## Split-plot: hard-to-change factors
 
 If a factor is expensive or slow to reset (oven temperature, a reactor
-changeover), full randomisation may be impractical. Pass
+changeover), full randomization may be impractical. Pass
 `hard_to_change_factors` to `recommend_strategy` and it will propose a
 split-plot. The critical point to tell the user: a split-plot has *two* error
-terms, and analysing it as if it were fully randomised will overstate the
+terms, and analyzing it as if it were fully randomized will overstate the
 significance of the hard-to-change factor. Record which factor it was.
 
 ## Center points
@@ -132,7 +132,7 @@ than a new design:
 - **Fold-over** resolves the aliasing in a resolution-III design by adding a
   mirrored block, promoting it to resolution IV.
 - **Axial points** upgrade a two-level factorial to a central composite, so a
-  screening design becomes an optimisation design without discarding the runs
+  screening design becomes an optimization design without discarding the runs
   already done.
 - **Extra replicates** buy degrees of freedom for error when an effect sits
   frustratingly near the significance boundary.

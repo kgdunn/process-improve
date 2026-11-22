@@ -53,7 +53,7 @@ them:
    print(ccd.alpha, ccd.design_actual["P"].min(), ccd.design_actual["P"].max())
    # 1.0 1.0 3.0
 
-* ``generate_design`` makes a CCD face-centred unless an ``alpha`` is given, and refuses a
+* ``generate_design`` makes a CCD face-centered unless an ``alpha`` is given, and refuses a
   design that would set the factor past its limits. A rotatable CCD here would ask for
   0.59 bar to 3.41 bar.
 * ``augment_design`` takes the names in ``hard_limits=[...]``, since its design is in coded
@@ -65,7 +65,7 @@ them:
   moves only the other factors, and the reasons say which factors would improve past their
   limits (see :ref:`next-step-hard-limits`).
 
-A range that is not marked keeps the old behaviour: a design may step past it, with a warning
+A range that is not marked keeps the old behavior: a design may step past it, with a warning
 that names the settings it asks for.
 
 Writing limits as text
@@ -229,7 +229,7 @@ first and keeps the second:
 
    box_corners = [list(c) for c in itertools.product((150, 200), (1, 3), (10, 20))]
    cannot = [c for c in box_corners if c[0] == 200 and c[1] == 3]  # hot and at high pressure, at any flow
-   can = [c for c in box_corners if c not in cannot] + [[175, 2, 15]]  # the other corners and the centre
+   can = [c for c in box_corners if c not in cannot] + [[175, 2, 15]]  # the other corners and the center
    print(separating_constraint(factors, cannot, can).expression)  # T + 25 * P <= 250
 
    one_corner = [[200, 3, 20]]
@@ -257,7 +257,7 @@ says so, and names the settings to blame:
    except NotSeparableError as err:
        print(err.inside_can)  # [0]
 
-The centre of the square lies between four corners that can be run, so a straight cut that
+The center of the square lies between four corners that can be run, so a straight cut that
 rules it out rules one of them out too; ``inside_can`` holds its index in ``cannot``. Such a
 setting needs a curved limit, or more settings marked. ``inside_cannot`` holds, the other
 way round, the settings that can be run but lie between settings that cannot.
@@ -307,12 +307,12 @@ the design's -1 and +1, and the region holds exactly the design's factors.
 
 The other kinds of augmentation keep to the region too:
 
-* ``"add_center_points"`` puts the centre runs at the region's central setting
-  (:meth:`~process_improve.experiments.region.DesignRegion.centroid`) when the centre of
+* ``"add_center_points"`` puts the center runs at the region's central setting
+  (:meth:`~process_improve.experiments.region.DesignRegion.centroid`) when the center of
   the box breaks a limit, and says so.
 * The ranges are limits, so axial runs sit on the faces of the cube, as with
   ``hard_limits``.
-* Any other new run that breaks a limit (a folded run, an axial or centre run, a copy) is
+* Any other new run that breaks a limit (a folded run, an axial or center run, a copy) is
   refused. The message names each such setting and the limits it breaks, which
   :meth:`~process_improve.experiments.region.DesignRegion.broken_limits` lists for any
   point.

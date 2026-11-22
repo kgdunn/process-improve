@@ -30,7 +30,7 @@ Data
 of 200 samples with nine trajectories, and five quality attributes per batch.
 :func:`process_improve.batch.load_sbr` downloads the workbook and returns
 the batch dictionary, the quality table, and the list of the six trajectories
-the original study modelled. The two feed flows are constant in the simulation
+the original study modeled. The two feed flows are constant in the simulation
 and the feed temperature barely moves, so they are left out.
 
 .. literalinclude:: sbr_batch_pls.py
@@ -272,15 +272,15 @@ limit for the whole batch: the score estimates early in a batch are shrunk
 and noisy compared with those near its end, so the scatter of the reference
 batches differs from sample to sample.
 :class:`process_improve.batch.BatchMonitor` passes every reference batch
-through ``predict_online_trace`` and summarises the spread at each sample,
+through ``predict_online_trace`` and summarizes the spread at each sample,
 following Nomikos and MacGregor (1995), who set the limits of their score
 charts from that spread and note that the :math:`T^2` chart needs the score
 covariance at each sample as well. The :math:`T^2` at sample :math:`k`
-is standardised by the covariance of the reference batches' score estimates
+is standardized by the covariance of the reference batches' score estimates
 at that sample, as Garcia-Munoz, Kourti and MacGregor (2004) compute it,
 which gives one limit for the whole batch, and the SPE
 limit is a chi-squared limit fitted to the reference batches' SPE at that
-sample (``spe_window`` pools the values of neighbouring samples into that
+sample (``spe_window`` pools the values of neighboring samples into that
 fit, which steadies the limits when few reference batches are available;
 on these 51 batches a window of two samples either side leaves every alarm
 sample unchanged). The SPE charted is the instantaneous one, the residual of the newest

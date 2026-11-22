@@ -44,7 +44,7 @@ PCA Example
    pca.t2_plot(judged_rows="fitted")
 
 The rows a model was fitted to and new rows are judged against different
-Hotelling's T² limits: a fitted row helped estimate the centre and the spread
+Hotelling's T² limits: a fitted row helped estimate the center and the spread
 of the scores, so it cannot lie as far out as a new row can. ``judged_rows``
 says which: ``"fitted"`` for ``hotellings_t2_``, a score plot or outlier
 detection, ``"new"`` for rows the model has not seen. Left out, it gives the
@@ -85,7 +85,7 @@ Component Selection
 -------------------
 
 Use cross-validation to select the number of PCA components. Pass the raw
-``X``, not ``X_scaled``: the selector fits the centring and scaling inside
+``X``, not ``X_scaled``: the selector fits the centering and scaling inside
 each fold, and warns if it is handed a block that is already scaled.
 
 .. code-block:: python

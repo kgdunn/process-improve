@@ -11,11 +11,11 @@ designed experiments, and to the browser app, and what a prototype on the book's
 The idea
 --------
 
-Some experiments return a curve per run, not a number: a colour-development profile, a
+Some experiments return a curve per run, not a number: a color-development profile, a
 dissolution profile, a temperature trajectory, a spectrum. The functional-data route to such a
 response has three steps:
 
-1. Smooth each measured curve with a basis expansion (B-splines, penalised B-splines (P-splines),
+1. Smooth each measured curve with a basis expansion (B-splines, penalized B-splines (P-splines),
    a Fourier basis, or wavelets). A curve becomes a short coefficient vector.
 2. Run PCA on those curves. The result is a mean function, a few orthonormal *eigenfunctions*
    (shape functions), and per-run *FPC scores*.
@@ -41,7 +41,7 @@ The results:
 
     *   - Check
         - Result
-    *   - P-spline smoothing, one lambda for all curves, chosen by generalised cross-validation
+    *   - P-spline smoothing, one lambda for all curves, chosen by generalized cross-validation
         - lambda 0.178, 4.7 effective degrees of freedom out of 10 time points
     *   - Variance explained by FPC 1, FPCs 1 and 2
         - 98.0%, 99.9%
@@ -54,7 +54,7 @@ The results:
     *   - ANOVA of FPC 2 (late drift), p < 0.01
         - Compound only, which is how the simulation generated the drift
 
-So the per-score ANOVA reads the mechanism off directly: the process factors change how much colour
+So the per-score ANOVA reads the mechanism off directly: the process factors change how much color
 develops; only the choice of compound changes whether it keeps drifting. The scores are uncorrelated
 across runs by construction, so one ANOVA per score is a fair decomposition.
 

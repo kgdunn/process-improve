@@ -75,7 +75,7 @@ def fit_model_a(batches: dict) -> BatchPCA:
     """Two-component batch PCA on all 55 batches.
 
     Every batch becomes one row of 10 tags x 100 samples = 1000 columns; the
-    columns are centred (removing the average trajectory) and scaled to unit
+    columns are centered (removing the average trajectory) and scaled to unit
     variance, so the model describes batch-to-batch deviations.
     """
     model = BatchPCA(n_components=2).fit(batches)
@@ -201,7 +201,7 @@ def verify_left_out(model: BatchPCA, batches: dict) -> pd.DataFrame:
     """Project the 15 batches left out of model C onto it and compare them with its 95% limits.
 
     The on-line projection at the last sample of a complete batch gives its scores, T2 and
-    SPE against the centre and scale of the model it was not part of.
+    SPE against the center and scale of the model it was not part of.
     """
     left_out = [SPE_OUTLIER, *SCORE_OUTLIERS, *DIFFERENT_BUT_ACCEPTABLE]
     projected = {b: model.predict_online(batches[b], upto_k=model.n_timesteps_) for b in left_out}

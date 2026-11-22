@@ -68,7 +68,7 @@ def plain_math(latex: str) -> str:
 
 
 def node_text(node: nodes.Node) -> str:
-    """Return the text of ``node``, with inline maths rendered by ``plain_math``."""
+    """Return the text of ``node``, with inline math rendered by ``plain_math``."""
     if isinstance(node, nodes.math):
         return plain_math(node.astext())
     if isinstance(node, nodes.Text):
@@ -79,7 +79,7 @@ def node_text(node: nodes.Node) -> str:
 def shorten(text: str, limit: int = DESCRIPTION_LIMIT) -> str:
     """Cut ``text`` at the last word boundary within ``limit`` characters, marking the cut.
 
-    A paragraph that ends in a colon introduces what follows it (a list, code, maths), so its
+    A paragraph that ends in a colon introduces what follows it (a list, code, math), so its
     end is marked the same way.
     """
     text = " ".join(text.split())

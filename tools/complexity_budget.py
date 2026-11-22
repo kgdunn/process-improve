@@ -42,7 +42,7 @@ BUDGET: dict[str, int] = {
     # and #1114 checked `n_repeats` with the shared count check: each alone took it under C901.
     # 31: #1128 moved PLS NIPALS's two "no variance left" refusals into a helper MBPLS
     # shares, taking `PLS._fit_nipals` under C901.
-    # 32: #1029 fitted the in-fold centre and scale of PCA's element-wise
+    # 32: #1029 fitted the in-fold center and scale of PCA's element-wise
     # cross-validation with MCUVScaler, taking `_pca_ekf_press` under C901.
     # 33: #1026 built PCA.fit's Hotelling's T² as one cumulative sum through the
     # rule diagnose and project share, taking it under C901.
@@ -57,7 +57,7 @@ BUDGET: dict[str, int] = {
     # branches of the Plotly adapter's `_layer_to_trace` and `_add_annotation` that
     # no MarkType / AnnotationType member could reach, taking all three under C901.
     # 40: #513's alias fix moved `find_aliases` out of `lm` as a flat function over
-    # centred correlations, so both lose their C901 suppressions (and `find_aliases`
+    # centered correlations, so both lose their C901 suppressions (and `find_aliases`
     # its PLR0912, `lm` its PLR0915). 42 before that.
     # 45: #639 rewrote `_run_model_selection` as a heredity-aware stepwise search
     # split into small helpers, and its C901 suppression went with it. 46 before
@@ -95,7 +95,7 @@ BUDGET: dict[str, int] = {
     # went with them. The history below counted against the default of 5.
     # 87: #793 adds `simulate_design_performance`, the public entry point that
     # simulates studies with candidate designs. Its settings are the inputs of
-    # the simulation (the designs, the hypothesised process, the goal and its
+    # the simulation (the designs, the hypothesized process, the goal and its
     # target, the number of studies, the significance level, the seed), and the
     # last four are the ones `recommend_next_step` takes for the same judging;
     # its private helpers stay under every threshold.

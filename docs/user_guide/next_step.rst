@@ -63,7 +63,7 @@ actions so far. Some actions ask for more:
    * - ``widen_ranges``
      - Set each factor's range to ``new_ranges`` and start the runs afresh with the ones given.
    * - ``move_region``
-     - Make the runs in order and stop at the first that does worse than the one before. Centre
+     - Make the runs in order and stop at the first that does worse than the one before. Center
        new ranges, as wide as these, on the best run, and start a new design there.
    * - ``stop``, ``investigate``
      - The study ends, or waits for a look at the process.
@@ -77,9 +77,9 @@ round, so the drift neither biases the effects nor swells the noise. In a simula
 second round ran 8 units (11 noise standard deviations) high, the blocks recovered the true
 optimum; without them the noise estimate grew more than fourfold and the effects of A and B were
 lost. The next runs are predicted as the process was in the latest round, since that is when
-they are made. Centre runs made in a round with no corner runs cannot show curvature: they differ
+they are made. Center runs made in a round with no corner runs cannot show curvature: they differ
 from the corners by that round's shift as well, so curvature is not judged and the step's reasons
-say so. Make centre runs in the same round as corner runs to test it.
+say so. Make center runs in the same round as corner runs to test it.
 
 .. _next-step-hard-limits:
 
@@ -104,7 +104,7 @@ The rules, in order
    confirmed again and judged on the new runs alone, since pooling them with the runs that
    missed would carry the first miss into the second test. A gross miss (more than three
    half-widths of the interval), or a second one, is ``investigate``.
-2. A model with fewer than two **degrees of freedom for error** cannot be judged: centre runs
+2. A model with fewer than two **degrees of freedom for error** cannot be judged: center runs
    for a two-level design, else the runs made again.
 3. **Nothing stands out** from the noise. With fewer than four degrees of freedom for error, a
    real effect can fail to stand out for want of them, so runs are added first. Otherwise the
@@ -116,9 +116,9 @@ The rules, in order
    columns reproduce its column with an R squared of 0.9 or more: wholly in a regular fraction,
    and not in a Plackett-Burman or definitive screening design, whose partial aliasing the
    analysis separates.
-5. **Curvature** the runs cannot model: axial runs, which make a face-centred central composite
+5. **Curvature** the runs cannot model: axial runs, which make a face-centered central composite
    design and keep every run inside the ranges, or runs chosen for the full quadratic model.
-   The curvature centre runs show could be any factor's square, and near an optimum a factor's
+   The curvature center runs show could be any factor's square, and near an optimum a factor's
    linear effect vanishes while its square does not, so the axial runs go in every numeric
    factor, up to six, rather than in the active ones only. With more factors, the full quadratic
    model goes in the active factors, and runs chosen (D-optimal) tell the other factors' squares
@@ -157,10 +157,10 @@ in:
      - t-tests in the largest of these, with one column per chain of exactly aliased terms
    * - A saturated two-level design (a fraction, or a full factorial without repeats)
      - Lenth's method on all its contrasts, with simulated critical values
-   * - A two-level design whose centre runs leave the t-tests fewer than four degrees of
-       freedom for error (a 16-run fraction with three centre runs leaves two)
+   * - A two-level design whose center runs leave the t-tests fewer than four degrees of
+       freedom for error (a 16-run fraction with three center runs leaves two)
      - Lenth's method on the contrasts of the two-level runs, worth about a third as many degrees
-       of freedom as contrasts, and a curvature test of the centre runs against their repeats;
+       of freedom as contrasts, and a curvature test of the center runs against their repeats;
        for the signal, each at ``alpha / 2``
    * - A definitive screening design
      - its staged analysis (``analyze_omars``), every test at ``alpha``, with strong heredity
@@ -228,32 +228,32 @@ move), in noise standard deviations.
      - 25.1
      - 0.00
      - 0.06
-   * - Adhesion, Plackett-Burman with three centre runs
+   * - Adhesion, Plackett-Burman with three center runs
      - confirm, stop
      - 19.6
      - 0.00
      - 0.00
-   * - Adhesion, Plackett-Burman without centre runs
+   * - Adhesion, Plackett-Burman without center runs
      - confirm, stop
      - 18.8
      - 0.00
      - 0.00
-   * - Adhesion, 2\ :sup:`8-4` with three centre runs
+   * - Adhesion, 2\ :sup:`8-4` with three center runs
      - confirm, stop
      - 24.8
      - 0.00
      - 0.00
-   * - Interior maximum, 2\ :sup:`3` with three centre runs
+   * - Interior maximum, 2\ :sup:`3` with three center runs
      - augment_to_rsm, confirm, stop
      - 23.2
      - 0.01
      - 0.04
-   * - Interior minimum, 2\ :sup:`4-1` with three centre runs
+   * - Interior minimum, 2\ :sup:`4-1` with three center runs
      - augment_to_rsm, confirm, stop
      - 24.4
      - 0.17
      - 0.68
-   * - Curvature in one of eight factors, 2\ :sup:`8-4` with three centre runs
+   * - Curvature in one of eight factors, 2\ :sup:`8-4` with three center runs
      - augment_to_rsm, confirm, stop
      - 32.6
      - 0.01
@@ -268,12 +268,12 @@ move), in noise standard deviations.
      - 19.6
      - 0.00
      - 0.00
-   * - Optimum outside the ranges, 2\ :sup:`3` with three centre runs
+   * - Optimum outside the ranges, 2\ :sup:`3` with three center runs
      - augment_to_rsm, move_region, augment_to_rsm, confirm, stop
      - 47.4
      - 0.04
      - 0.37
-   * - Pure noise, 2\ :sup:`4` with three centre runs
+   * - Pure noise, 2\ :sup:`4` with three center runs
      - widen_ranges, stop
      - 38.2
      - 0.00

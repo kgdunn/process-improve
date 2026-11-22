@@ -1,6 +1,6 @@
-"""Build the reference catalogue's designs with another library, and compare each printed number.
+"""Build the reference catalog's designs with another library, and compare each printed number.
 
-The catalogue's own checker (``_reproduce``) measures every printed number that depends on how a
+The catalog's own checker (``_reproduce``) measures every printed number that depends on how a
 design is built, twice: once on the design process-improve builds, and once on the design the other
 library builds. Only the construction changes, so a difference is a difference in the design.
 
@@ -189,7 +189,7 @@ def pydoe3_generate_design(factors, design_type=None, **opts):  # noqa: C901
     elif design_type == "dsd" and hasattr(pyDOE3, "definitive_screening_design"):
         if opts.get("budget"):
             raise Unsupported("harness does not map a DSD budget to fake factors")
-        # process-improve counts centre runs in total, the DSD's own one included
+        # process-improve counts center runs in total, the DSD's own one included
         m, nc = pyDOE3.definitive_screening_design(k), max(nc - 1, 0)
     elif design_type == "taguchi":
         m = _oa([len(f.levels) if f.levels else 2 for f in factors])
@@ -260,7 +260,7 @@ def other_generate_design(factors, design_type=None, **opts):
             while len(dsdp.generate(n_num=k, n_fake_factors=fake + 1, min_13=False, verbose=False)) <= opts["budget"]:
                 fake += 1
         m = dsdp.generate(n_num=k, n_fake_factors=fake, min_13=False, verbose=False).to_numpy(float)
-        nc = max(nc - 1, 0)  # process-improve counts centre runs in total, the DSD's own one included
+        nc = max(nc - 1, 0)  # process-improve counts center runs in total, the DSD's own one included
     elif LIB == "oapackage" and design_type == "dsd":
         import oa_builders  # noqa: PLC0415
         import oapackage  # noqa: PLC0415
@@ -282,7 +282,7 @@ def other_generate_design(factors, design_type=None, **opts):
 
 
 _DEXPY_CACHE: dict = {}
-_DEXPY_LAST: dict = {}  # the fraction dexpy chose for a run count, until the catalogue asks for it
+_DEXPY_LAST: dict = {}  # the fraction dexpy chose for a run count, until the catalog asks for it
 
 
 def dexpy(request: dict) -> np.ndarray:
@@ -455,7 +455,7 @@ def _r_ccd(k: int, opts: dict, names: list[str], nc: int) -> tuple[np.ndarray, f
     n_blocks = opts.get("n_blocks")
     alpha = opts.get("alpha", "orthogonal" if n_blocks else "rotatable")  # as process-improve, when blocked
     cube_blocks = (n_blocks or 2) - 1
-    if nc % (cube_blocks + 1) == 0:  # rsm takes centre runs per block: equal counts when they divide
+    if nc % (cube_blocks + 1) == 0:  # rsm takes center runs per block: equal counts when they divide
         n0 = [nc // (cube_blocks + 1)] * 2
     else:  # else process-improve's split: half to the cube portion, the rest to the star
         n0 = [(nc // 2) // cube_blocks, nc - ((nc // 2) // cube_blocks) * cube_blocks]
@@ -539,7 +539,7 @@ def r_generate_design(factors, design_type=None, **opts):  # noqa: C901, PLR0912
     elif design_type == "dsd":
         if opts.get("budget"):
             raise Unsupported("harness does not map a DSD budget to DefScreen")
-        # process-improve counts centre runs in total, the DSD's own one included
+        # process-improve counts center runs in total, the DSD's own one included
         m, nc = np.array(r({"kind": "dsd", "k": k})["matrix"], float), max(nc - 1, 0)
     elif design_type == "taguchi":
         m = np.array(r({"kind": "oa", "levels": lv})["matrix"])
@@ -567,7 +567,7 @@ def r_generate_design(factors, design_type=None, **opts):  # noqa: C901, PLR0912
 
 
 def r_min_aberration(n_runs: int, k: int) -> list[str]:
-    """FrF2's design for a run count: the first of its catalogue, which is ordered by aberration."""
+    """FrF2's design for a run count: the first of its catalog, which is ordered by aberration."""
     _BUILT[0], _ENGINE[0] = True, "FrF2"
     m = np.array(r({"kind": "fraction", "k": k, "runs": n_runs})["matrix"], float)
     return _relation_from_matrix(m, list(rc._LETTERS[:k]))[0]
@@ -592,7 +592,7 @@ _BUILT = [False]
 
 @contextlib.contextmanager
 def built_by(engine: str):
-    """Swap the catalogue's design constructors for the other library's, or watch process-improve's."""
+    """Swap the catalog's design constructors for the other library's, or watch process-improve's."""
     saved = {n: getattr(rc, n) for n in ("generate_design", "minimum_aberration_generators", "generate_omars")}
 
     def watch(fn):  # noqa: ANN202

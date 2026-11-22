@@ -12,7 +12,7 @@ how TPLS is used:
 
 1. Score the new material through the D block as a new observation, and give it an F loading
    of zero. Nothing else in the fitted model changes.
-2. Centre F instead of autoscaling it, so that a material's effect depends on its properties
+2. Center F instead of autoscaling it, so that a material's effect depends on its properties
    and not on how its usage happened to vary in training.
 3. Do not deflate the D block. This deflation, more than the new material, is what defeats
    every workaround: it caps the TPLS fit at R2 0.59 to 0.77 in simulations where the truth
@@ -31,7 +31,7 @@ two blends by 29%.
    the new material to D, with an all-zero column in F, and refitting looks right. But that
    column has no variance, so the default autoscaling of F gives it a NaN scale, and TPLS
    excludes it: at prediction the new material's fraction is multiplied by zero, as if it were
-   not in the blend. The refit also changes the model, because the new row changes the centring
+   not in the blend. The refit also changes the model, because the new row changes the centering
    and scaling of D and enters the D-block deflation: in the simulation, adding one material
    that no blend uses moved the predictions of the blends that do not use it by up to 0.023 Y
    standard deviations (2 components, `results/invariance_checks.csv`).
@@ -40,13 +40,13 @@ two blends by 29%.
    material `j` on Y is `b(d_j) / sigma_j`, where `b(d_j)` depends on its properties alone. A
    material used in many blends at varied fractions is damped; one used once is amplified. A
    new material has no `sigma` at all. Splitting one lot into two identical half-lots is a
-   direct test: it changes the predictions of an autoscaled model, and leaves a centred model
+   direct test: it changes the predictions of an autoscaled model, and leaves a centered model
    exactly unchanged (checked on the pyphi data). There the usage spread `sigma_j` of the 9
    Group 2 lots spans a factor of 20.7 (`study.py` prints it), so in the autoscaled model two
    lots with identical properties would get effects 20.7 times apart. The lot effects in that
    data set are small, so the change is small (0.002 Y standard deviations,
    `results/pyphi_invariance_checks.csv`); in the simulation with uneven usage the autoscaled
-   model's error on new materials is 16% higher than the centred model's.
+   model's error on new materials is 16% higher than the centered model's.
 4. **The D-block deflation caps the fit.** After each component TPLS deflates D by `r v'`,
    which removes that material direction from D for good. When the super score also carries Z,
    or a second group of materials, Y needs that direction again in a later component, with a
@@ -94,7 +94,7 @@ The blend scores are `t_a = f_a r_a / (r_a' r_a)`, with the F row deflated by
 * zero is the value TPLS itself computes, `p = F' t / t't`, for a column of F that is zero in
   every training blend.
 
-With F centred (not scaled) the prediction is then affine in the fractions, and every material's
+With F centered (not scaled) the prediction is then affine in the fractions, and every material's
 coefficient is one function of its properties, `b(d)` (`material_coefficients` computes it): the
 model's own property-to-effect map, the same for old and new materials.
 
@@ -105,7 +105,7 @@ All five are implemented on a fitted `TPLS` in `new_materials.py` and `methods.p
 ### 1. Project the new material through the D block
 
 Score the new material through `S` and `V` like a new observation, give it a zero F loading, and
-run the usual prediction (`project_materials`, `predict`). Centred F is the consistent choice
+run the usual prediction (`project_materials`, `predict`). Centered F is the consistent choice
 (reason 3) and matters when usage is uneven; the D-block deflation has to go (reason 4,
 `TPLSWithoutDDeflation`). This is the TPLS-native answer: no refit, and the T2 and SPE of the
 material in the D block say how far it is from the materials the model has seen.
@@ -117,15 +117,15 @@ the new material's properties (`pseudo_recipe`). A blend that uses `x` of the ne
 uses `x * alpha_k` of each of those materials instead (`substitute`), and the unchanged model
 predicts it. This works with any fitted TPLS, the default autoscaled one included, and the
 reconstruction residual says whether the new material lies inside the region spanned by the
-known ones. On a centred, linear model it gives the same answer as approach 1 whenever that
+known ones. On a centered, linear model it gives the same answer as approach 1 whenever that
 residual is zero.
 
 ### 3. Mixing rules: collapse the T to an L
 
 Describe each blend by the fraction-weighted mean of every property of each group (the ideal
 mixing rule), then regress Y on `[Z, means]` with PLS. A new material needs nothing special: its
-properties enter the mean. With one group of materials and no Z, TPLS with centred F and without
-the D-block deflation *is* a PLS on the means that centres them without scaling them, and
+properties enter the mean. With one group of materials and no Z, TPLS with centered F and without
+the D-block deflation *is* a PLS on the means that centers them without scaling them, and
 autoscales Y as TPLS does: the predictions agree to 1e-8 Y standard deviations, which makes each a
 check on the other. Approach 3a's PLS also scales each mean to unit variance, which weights the
 properties differently: its predictions differ from that TPLS by 0.0085 to 0.3 Y standard
@@ -184,7 +184,7 @@ data sets of 80 blends, at the best number of components in {4, 6, 8} for that m
 | 4. Hierarchical offsets | 1.83 | 1.96 | **2.15** | 3.77 |
 | *Reference: the material seen in training* | 1.86 | 1.61 | 2.29 | 3.60 |
 
-The reference is approach 1 (centred F, no D deflation) predicting each blend from all the other
+The reference is approach 1 (centered F, no D deflation) predicting each blend from all the other
 blends, so the material has been used in training. Scenarios: *ideal mixing*, properties explain
 every material effect; *uneven usage*, some materials are used far more than others; *hidden
 trait*, part of each material's effect is invisible in D; *non-ideal mixing*, blends of
@@ -195,7 +195,7 @@ dissimilar materials depart from the fraction-weighted average.
 * **Approach 3a loses almost nothing to novelty.** It is within 8% of the reference in every
   scenario, and below it with ideal mixing: 3a is more accurate than approach 1 in every
   column, enough to beat approach 1 even when approach 1 has seen the material.
-* **Centred F matters when usage is uneven** (2.12 against 2.47 for autoscaled F). With even
+* **Centered F matters when usage is uneven** (2.12 against 2.47 for autoscaled F). With even
   usage the median-scale guess of approach 1 is harmless.
 * **Offsets help when D misses something.** With a hidden trait, approach 4 (2.15) beats
   approach 1 (2.64): the hidden effects of the known materials in each blend are learned. The
@@ -246,7 +246,7 @@ process need not do.
 ### The pyphi data
 
 Leave-one-lot-out on the T-shaped data set bundled with the package (105 blends, 5 groups, 230
-lots; from pyphi by Garcia-Munoz). Q2 is computed on standardised Y, so 1 is perfect and 0 is
+lots; from pyphi by Garcia-Munoz). Q2 is computed on standardized Y, so 1 is perfect and 0 is
 predicting the mean; each method uses the number of components, from 1 to 4, that is best over
 all lots.
 
@@ -273,7 +273,7 @@ their spread is zero in most rows.
   identical half-lots, and adding to D a material that the blend does not use. A model that
   passes both depends on the formula only through the fractions placed on the materials'
   property vectors. Fraction-weighted sums of functions of the properties (the mixing rules of
-  approach 3) are the linear models of that kind, and TPLS with centred F is the simplest of
+  approach 3) are the linear models of that kind, and TPLS with centered F is the simplest of
   them. The tests are cheap; run them on any T-shaped model before trusting it with a new
   material. TPLS with autoscaled F fails the first; the zero-padded refit fails the second.
 * **Choose the number of components by leaving materials out, not blends.** Leave-one-blend-out
@@ -283,13 +283,13 @@ their spread is zero in most rows.
 
 ## What could change in the package
 
-These are for discussion; each changes public behaviour.
+These are for discussion; each changes public behavior.
 
 * `TPLS.diagnose(X, d_new=...)`: accept F columns for materials given in `d_new`, scored as in
   `predict` here (approach 1), and return their T2 and SPE in the D block.
-* An F preprocessing that centres without scaling, beside `skip_f_matrix_preprocessing`. It keeps
+* An F preprocessing that centers without scaling, beside `skip_f_matrix_preprocessing`. It keeps
   a material's effect a function of its properties alone, which autoscaling does not, and it
-  centres the blend scores, which raw fractions do not.
+  centers the blend scores, which raw fractions do not.
 * An option to skip the D-block deflation, or a change of default after a check against the
   results of Garcia-Munoz (2014), since it caps the fit whenever Z or a second group is present.
 * `TPLS.material_coefficients(d)`: the effect per unit fraction of any material, old or new.
@@ -302,7 +302,7 @@ These are for discussion; each changes public behaviour.
 * Calibrating the few-shot offset in the latent space (A parameters) instead of in Y
   (one per quality), which would need fewer measured blends when Y has many columns.
 * Substitution: with `b(d)` known, the fraction of a new material that reproduces the quality
-  of the current formula is a small least-squares problem, the analogue of product transfer.
+  of the current formula is a small least-squares problem, the analog of product transfer.
 
 ## Reproduce
 

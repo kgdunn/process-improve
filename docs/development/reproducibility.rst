@@ -11,7 +11,7 @@ Why one contract?
 -----------------
 
 Reproducibility of a fitted model, a bootstrap interval, or an
-optimisation result is part of the package's value proposition. A
+optimization result is part of the package's value proposition. A
 chemometrics or DoE user comparing two runs across a software
 upgrade has to be able to distinguish "the algorithm changed" from
 "the random seed changed". Today the codebase mixes:
@@ -80,8 +80,8 @@ The contract
    "fresh noise on every call" is the documented contract.**
    The only such case currently is
    ``simulation.model.simulate``'s noise term, which is part of
-   the simulator's documented behaviour and is gated behind an
-   explicit ``# Fresh noise: documented behaviour, not an
+   the simulator's documented behavior and is gated behind an
+   explicit ``# Fresh noise: documented behavior, not an
    accident`` comment.
 
 5. **Every ``@tool_spec`` that touches an RNG MUST declare its
@@ -104,7 +104,7 @@ The contract
    tools declare ``{"uses_rng": False}``.
 
 6. **``@tool_spec`` checks the declaration in (5); a test checks
-   the behaviour.** At decoration it rejects an ``rng=`` dict without
+   the behavior.** At decoration it rejects an ``rng=`` dict without
    a boolean ``uses_rng`` key, with an unknown key, with a
    ``seed_param`` or ``default_seed`` on a tool that declares
    ``{"uses_rng": False}``, or with a ``default_seed`` but no
@@ -146,10 +146,10 @@ After:
         rng = check_random_state(random_state)
         ...
 
-The behaviour for callers that did not pass ``random_state`` is
+The behavior for callers that did not pass ``random_state`` is
 preserved (``None`` falls through to an unseeded ``default_rng``).
 
-For an algorithm whose documented public behaviour was "always
+For an algorithm whose documented public behavior was "always
 seeded with 42", set ``default_seed=42`` in the
 ``@tool_spec(rng=...)`` metadata and accept ``random_state=None``
 as a synonym; this preserves byte-equivalence for existing

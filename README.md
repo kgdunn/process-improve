@@ -39,7 +39,7 @@ this package inside your browser tab (Pyodide / WebAssembly). Say what you will 
 its units and goal, and what might change it: the app lists the designs that can learn how the
 one depends on the other, scored on the nine measures of
 [Process Improvement using Data](https://learnche.org/pid) and on their power to find the change
-you care about. Run the one you pick, type in the results or practise with results simulated from
+you care about. Run the one you pick, type in the results or practice with results simulated from
 a process whose true model is known, and read the analysis, beside the truth when it is known.
 Copy the Python behind each step. The analysis runs on your machine, and your data never leave it.
 
@@ -195,7 +195,7 @@ go further.
 ```python
 from process_improve.multivariate import AdaptivePCA
 
-# Learn from the first 50 runs in their own units (the model centres and scales itself),
+# Learn from the first 50 runs in their own units (the model centers and scales itself),
 # then stream the last four, one at a time
 monitor = AdaptivePCA(n_components=3).fit(process.loc[:50])
 alarms = [not monitor.update(row.to_numpy()).in_control for _, row in process.loc[51:].iterrows()]
@@ -210,7 +210,7 @@ when the process drifts, and they report how far it has moved from where it was 
 - **Designed experiments**: factorial, screening (Plackett-Burman, DSD, supersaturated),
   response-surface (CCD, Box-Behnken, OMARS), mixture, space-filling and optimal (D, I, A, E,
   G, K) designs, in constrained regions too; design evaluation, analysis (including split
-  plots), augmentation, multi-response optimisation and a multi-stage strategy recommender.
+  plots), augmentation, multi-response optimization and a multi-stage strategy recommender.
 - **PCA** with SVD and NIPALS, native missing-value handling by Trimmed Score Regression,
   Hotelling's T² and SPE limits, and score, T² and SPE contributions.
 - **PLS** regression with a scikit-learn API, VIP, cross-validated component selection and
@@ -281,7 +281,7 @@ to install Plotly or numba.
 ## Use it from Claude
 
 The designed-experiments tooling ships as a Claude Skill, so you can plan, generate, verify
-and analyse experiments in your own Claude account with no server involved:
+and analyze experiments in your own Claude account with no server involved:
 
 ```
 /plugin marketplace add kgdunn/process-improve
@@ -289,7 +289,7 @@ and analyse experiments in your own Claude account with no server involved:
 ```
 
 The skill's first rule is that a design matrix is never written out by the model: it is
-generated from a catalogue and then verified, because a language model asked to produce a
+generated from a catalog and then verified, because a language model asked to produce a
 fractional factorial will often return one that looks right and is a lower resolution than
 it claims. See [`skills/README.md`](https://github.com/kgdunn/process-improve/blob/main/skills/README.md)
 for the other install routes (local folder, claude.ai upload) and for the MCP server, which

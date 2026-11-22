@@ -15,9 +15,9 @@ changes. Run the commands from the repository root with the development environm
 
 Notes:
 
-- Every design in the banner and gallery comes from one `generate_design` call. The two colour
-  themes were checked for colour-vision-deficiency separation and contrast on GitHub's light and
-  dark page colours; the README picks one with a `<picture>` element.
+- Every design in the banner and gallery comes from one `generate_design` call. The two color
+  themes were checked for color-vision-deficiency separation and contrast on GitHub's light and
+  dark page colors; the README picks one with a `<picture>` element.
 - `social_card.py` starts from `social-card-base.png`, the card uploaded before, and redraws two
   of its six panels: "Designed experiments" (a factorial, the path of steepest ascent from
   `optimize_responses`, and a central composite design that reuses runs) and "PLS with
@@ -29,9 +29,9 @@ Notes:
   it, the designs that can learn its curvature, a Box-Behnken design with results simulated from a
   known process, and the analysis beside the truth), capturing Design, the detailed comparison,
   Run, Learn and Next, in the light theme whatever the machine's. `make_demo_gif.py` captions
-  each frame in its stage's colour. Make it again at each release whose app looks different. `PLAYWRIGHT_PROXY`, if set, routes the browser through a proxy.
+  each frame in its stage's color. Make it again at each release whose app looks different. `PLAYWRIGHT_PROXY`, if set, routes the browser through a proxy.
 - `app_mark.py` draws Factorial's mark, the browser app's, from one `generate_design` call: the
-  2³ factorial and its centre run, seen down the cube's diagonal. Six corners land on a hexagon;
-  the other two fall behind the centre run, which is red as the banner draws centre runs. The
+  2³ factorial and its center run, seen down the cube's diagonal. Six corners land on a hexagon;
+  the other two fall behind the center run, which is red as the banner draws center runs. The
   package's own logo is the same idea in two factors. `tests/web/page/test_brand.py` checks that
   `web/favicon.svg` is what the script draws, and that the page's inline copies agree with it.

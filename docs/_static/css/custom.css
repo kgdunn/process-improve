@@ -1,6 +1,6 @@
-/* process-improve docs: brand colours and the landing page (docs/index.rst).
+/* process-improve docs: brand colors and the landing page (docs/index.rst).
 
-   The colours are the README banner's: blue design points and a red centre
+   The colors are the README banner's: blue design points and a red center
    point, with the lighter versions the dark banner uses. Everything else reads
    the theme's own --pst-color-* properties, so light and dark mode both work. */
 

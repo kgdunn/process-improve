@@ -1,7 +1,7 @@
 Design and analysis of experiments
 ==================================
 
-Worked case studies that lay out and analyse a designed experiment: which
+Worked case studies that lay out and analyze a designed experiment: which
 factors matter, how they interact, and where to go next.
 
 .. toctree::

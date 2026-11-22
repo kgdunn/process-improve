@@ -50,7 +50,7 @@ def main() -> None:
             ~mine["other"].str.contains("harness does not map", na=False)
         ]  # a limit of compare.py, not the package
         # A package is compared on the kinds of design it builds at least once. A number that neither library
-        # gives as printed is the catalogue's subject, not this comparison's.
+        # gives as printed is the catalog's subject, not this comparison's.
         built = mine["outcome"].isin(["agree", "other differs", "process-improve differs"])
         builds = mine.loc[built, "design_type"].unique()
         mine = mine[mine["design_type"].isin(builds) & (mine["outcome"] != "neither gives the printed number")]

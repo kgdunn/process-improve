@@ -127,7 +127,7 @@ where :math:`s_a^2` is the variance of the *a*-th score column.
 
 - T² is always non-negative, and its law is known, so confidence limits
   (e.g., 95 %) can be computed analytically. The law depends on the row.
-  A row the model was fitted to helped estimate the centre and the spread
+  A row the model was fitted to helped estimate the center and the spread
   of the scores, so its T² never exceeds :math:`(N - 1)^2 / N` and follows
   :math:`\frac{(N - 1)^2}{N} \mathrm{Beta}\left(\frac{A}{2}, \frac{N - A - 1}{2}\right)`.
   A new row follows

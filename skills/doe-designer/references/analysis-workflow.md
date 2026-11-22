@@ -1,4 +1,4 @@
-# Analysing experimental results
+# Analyzing experimental results
 
 Read this once results are in hand. The order matters: diagnostics before
 conclusions, always.
@@ -7,7 +7,7 @@ conclusions, always.
 
 1. **Look at the raw data first.** Plot the response against run order. A
    trend there means something drifted during the experiment, and no amount of
-   modelling fixes it silently. Check for values that are impossible rather
+   modeling fixes it silently. Check for values that are impossible rather
    than merely surprising.
 2. **Fit the model.** `analyze_experiment` with `analysis_type` including
    `effects` and `anova`. Start with `model: "interactions"` for a factorial;
@@ -46,7 +46,7 @@ they can see the gap.
 Do not pool high-order interactions into an error term without saying so. It
 is a defensible move when the design is resolution V or better and the
 three-factor interactions are genuinely believed negligible, but it is a
-judgement call and it should be stated, not slipped in.
+judgment call and it should be stated, not slipped in.
 
 ## Effect heredity and hierarchy
 
@@ -75,9 +75,9 @@ Run `residual_diagnostics` every time and actually read it.
   test.
 - **Trend** in residuals-vs-run-order: something drifted. Ambient conditions,
   a reagent degrading, an instrument going out of calibration. If run order
-  was recorded, this is detectable; if the runs were not randomised, it is
+  was recorded, this is detectable; if the runs were not randomized, it is
   indistinguishable from a factor effect, which is precisely why
-  randomisation matters. Keep the design's `RunOrder` column in
+  randomization matters. Keep the design's `RunOrder` column in
   `design_matrix`: `residual_diagnostics` then reports the residuals' lag-1
   autocorrelation in run order under `run_order`, with a `note` when it is
   more than twice its standard error. The top-level `durbin_watson` is in the
@@ -102,10 +102,10 @@ nobody thinks in log-yield. Predictions transformed back from a log fit are
 medians rather than means, which is worth a footnote when the difference
 matters.
 
-## Optimisation
+## Optimization
 
 `optimize_responses` combines several responses via desirability, letting each
-one be maximised, minimised or driven to a target with its own weight.
+one be maximized, minimized or driven to a target with its own weight.
 
 Three cautions worth passing to the user every time:
 
@@ -122,7 +122,7 @@ Three cautions worth passing to the user every time:
   one time in seven with three runs. If `confirmed` is false, the model is
   wrong somewhere and the result should not be used until that is understood.
 
-## Analysing a design you did not generate
+## Analyzing a design you did not generate
 
 Verify it first (see `verification.md`). If it turns out to be resolution II,
 stop: the aliasing means the data cannot separate the effects, and any

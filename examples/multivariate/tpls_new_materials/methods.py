@@ -26,7 +26,7 @@ FIT_CACHE: dict = {}
 def fit_tpls(
     train: dict, n_components: int, centred: bool, deflate_d: bool = True
 ) -> tuple[TPLS, dict[str, pd.Series] | None]:
-    """Fit TPLS with autoscaled F (the default) or centred F, with or without the D-block deflation."""
+    """Fit TPLS with autoscaled F (the default) or centered F, with or without the D-block deflation."""
     key = (id(train), n_components, centred, deflate_d)
     if key in FIT_CACHE:
         return FIT_CACHE[key]
@@ -56,7 +56,7 @@ def _diagnose(model: TPLS, f: dict, z: dict) -> pd.DataFrame:
 
 
 def ignore_material(train, test_f, test_z, d_new, n_components):
-    """Drop the new material and renormalise the remaining fractions of its group."""
+    """Drop the new material and renormalize the remaining fractions of its group."""
     model, _ = fit_tpls(train, n_components, centred=False)
     f = {}
     for g, df in test_f.items():
@@ -110,7 +110,7 @@ def projection_autoscaled_no_d_deflation(train, test_f, test_z, d_new, n_compone
 
 
 def projection_centred(train, test_f, test_z, d_new, n_components, deflate_d: bool = True):
-    """Approach 1: TPLS with centred F; the new material is scored through the D block."""
+    """Approach 1: TPLS with centered F; the new material is scored through the D block."""
     model, means = fit_tpls(train, n_components, centred=True, deflate_d=deflate_d)
     return predict(model, DataFrameDict({"F": centre_f(test_f, means), "Z": test_z, "Y": {}}), d_new)
 
@@ -150,7 +150,7 @@ def mixture_descriptors(f: dict, d: dict, latent: dict | None = None) -> pd.Data
     single material with their average properties have the same mean, but not the same
     spread: these moments describe departures from ideal mixing.
 
-    ``d`` must already be centred and scaled with the training statistics, and cover every material.
+    ``d`` must already be centered and scaled with the training statistics, and cover every material.
     """
     parts = []
     for g, f_g in f.items():
