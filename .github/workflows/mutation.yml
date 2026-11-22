@@ -61,13 +61,23 @@ jobs:
               process_improve.multivariate._pls.xǁPLSǁnested_cv*
               process_improve.multivariate._pls.xǁPLSǁcross_validate*
               process_improve.multivariate._pls.xǁPLSǁ_fit_nipals*
+          # The fit and the inversion reach tests/test_optimal_inversion.py's slow tests, and a
+          # mutant there that times out waits about 30 times their usual time: they are a group
+          # of their own, as the rest of PLS outran 120 minutes with them (#1092).
+          - name: pls fit and inversion
+            timeout: 120
+            patterns: >-
+              process_improve.multivariate._pls.xǁPLSǁfit*
+              process_improve.multivariate._pls.xǁPLSǁinvert*
+              process_improve.multivariate._pls.xǁPLSǁ_inversion_probe*
+              process_improve.multivariate._pls.xǁPLSǁ_fit_imputed*
           - name: pls
             timeout: 120
             patterns: >-
               process_improve.multivariate._pls.x_*
-              process_improve.multivariate._pls.xǁPLSǁ[!_cns]*
-              process_improve.multivariate._pls.xǁPLSǁ_[!f]*
-              process_improve.multivariate._pls.xǁPLSǁ_fit_imputed*
+              process_improve.multivariate._pls.xǁPLSǁ[!_cnsfi]*
+              process_improve.multivariate._pls.xǁPLSǁ_[!fi]*
+              process_improve.multivariate._pls.xǁPLSǁ_in_*
               process_improve.multivariate._pls.xǁPLSǁcompare_cv_criteria*
               process_improve.multivariate._pls.xǁPLSǁscore*
           - name: mbpca
