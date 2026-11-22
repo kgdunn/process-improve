@@ -2,7 +2,7 @@
 """scikit-learn transformers over the batch alignment and feature-extraction functions.
 
 :class:`ResampleAligner` and :class:`DTWAligner` put batches of unequal duration on one
-common length, and :class:`BatchFeatureExtractor` summarises each batch as one row of
+common length, and :class:`BatchFeatureExtractor` summarizes each batch as one row of
 features. Each learns what it needs in ``fit`` and applies it to new batches in
 ``transform``, so an alignment and a batch model sit in one
 :class:`~sklearn.pipeline.Pipeline`, and ``clone``, ``get_params`` and ``set_params`` work
@@ -212,7 +212,7 @@ class DTWAligner(TransformerMixin, BaseEstimator):
 
     :meth:`fit` runs :func:`~process_improve.batch.batch_dtw` (Kassidas, MacGregor and
     Taylor, 1998) on the training batches: it warps every batch nonlinearly onto a reference
-    trajectory, and learns a weight per tag that favours the tags which align consistently.
+    trajectory, and learns a weight per tag that favors the tags which align consistently.
     :meth:`transform` warps any batch, a training batch or a new one, onto the trajectory
     the last iteration aligned to, with the weights that iteration used, and resamples it
     onto the common time axis. A training batch therefore comes back as
@@ -379,14 +379,14 @@ _POSITION = "__batch_position__"
 
 class BatchFeatureExtractor(TransformerMixin, BaseEstimator):
     """
-    Summarise each batch as one row of features, for a model of the final quality.
+    Summarize each batch as one row of features, for a model of the final quality.
 
     Each feature of :mod:`process_improve.batch.features` named in ``features`` is computed
     for every tag of every batch, and the results are joined into one table: one row per
     batch and one column per tag and feature, named as the extractor names it, such as
     ``"Tag01_mean"`` or ``"Tag01_endpoint"``. The table is the X block of a
     :class:`~process_improve.multivariate.PLS` model of the final quality. The batches need
-    not be aligned: each feature summarises a batch whatever its duration.
+    not be aligned: each feature summarizes a batch whatever its duration.
 
     Parameters
     ----------
@@ -397,7 +397,7 @@ class BatchFeatureExtractor(TransformerMixin, BaseEstimator):
         ``"agemin"`` and ``"agemax"`` report the label of each batch's own index where the
         tag is lowest or highest: a sample number, or a time stamp when the index holds time.
     tags : list or None, optional
-        The tags to summarise. ``None`` (the default) takes every numeric column of the first
+        The tags to summarize. ``None`` (the default) takes every numeric column of the first
         batch. A batch identifier left in each frame, as
         :func:`~process_improve.batch.melted_to_dict` leaves it, is a numeric column too:
         name the ``tags`` to leave it out.
@@ -405,9 +405,9 @@ class BatchFeatureExtractor(TransformerMixin, BaseEstimator):
     Attributes
     ----------
     tags_ : list
-        The tags summarised, resolved during :meth:`fit`.
+        The tags summarized, resolved during :meth:`fit`.
     n_features_in_ : int
-        Number of tags summarised.
+        Number of tags summarized.
 
     See Also
     --------
@@ -461,7 +461,7 @@ class BatchFeatureExtractor(TransformerMixin, BaseEstimator):
             raise ValueError(f"{caller} needs every batch to hold the tags; missing (batch: tags): {lacking}.")
         text = [t for t in tags if not pd.api.types.is_numeric_dtype(first[t])]
         if text:
-            raise ValueError(f"{caller} can only summarise numeric tags; these are not: {text}.")
+            raise ValueError(f"{caller} can only summarize numeric tags; these are not: {text}.")
         return tags
 
     def fit(self, X: dict[Hashable, pd.DataFrame], y: object = None) -> BatchFeatureExtractor:  # noqa: ARG002

@@ -364,7 +364,7 @@ class TestBatchFeatureExtractor:
         [
             (_warped(30), None, TypeError, r"expects a dict of per-batch DataFrames.*got DataFrame"),
             ({}, None, ValueError, r"needs at least one batch"),
-            ({"x": _warped(30).assign(phase="heat")}, ["phase"], ValueError, r"only summarise numeric.*\['phase'\]"),
+            ({"x": _warped(30).assign(phase="heat")}, ["phase"], ValueError, r"only summarize numeric.*\['phase'\]"),
         ],
         ids=["frame", "empty", "text-tag"],
     )

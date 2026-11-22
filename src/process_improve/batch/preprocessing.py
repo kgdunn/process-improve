@@ -1166,7 +1166,7 @@ def _onto_time_axis(synced: pd.DataFrame, settings: dict) -> pd.DataFrame:
     # maximum exactly: `np.arange` stops at the last multiple below the maximum, while
     # `maximum - delta` does not, so a delta of 0.3 or 7 put the two axes' endpoints in
     # different places. Two asserts caught that as a bare AssertionError, and `python -O`
-    # strips asserts, so under optimisation it silently extrapolated instead (#197). Sharing
+    # strips asserts, so under optimization it silently extrapolated instead (#197). Sharing
     # the endpoints makes any delta work and leaves nothing to assert.
     sequence = np.linspace(time_axis[0], time_axis[-1], synced.shape[0])
     interpolated = pd.DataFrame()
