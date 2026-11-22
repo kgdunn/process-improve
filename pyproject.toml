@@ -160,8 +160,17 @@ dev = [
     "tqdm-stubs>=0.2.1",
     "watchdog>=6.0.0",
 ]
+# The embedded graph database behind ``experiments.knowledge.ConceptGraph`` and the
+# ``query_concept_graph`` tool, so the tests of both run. Not a published extra: ``[all]``
+# holds every extra, and relate-db has no wheel for free-threaded Python, so
+# ``pip install 'process-improve[all]'`` would fail there. A group of its own, so the
+# free-threaded CI job can leave it out (``UV_NO_GROUP``); users install it with
+# ``pip install relate-db``.
+concept-graph = ["relate-db>=1.2.0"]
 
 [tool.uv]
+# `uv sync` installs both groups; see `concept-graph` above for why it is not part of `dev`.
+default-groups = ["dev", "concept-graph"]
 # pyoptex 1.2.1 (PyPI) pins plotly~=5.24 and numba~=0.61, which conflict with
 # the `plotting` (plotly>=6.5.2) and `fast` (numba>=0.63.1) extras, and
 # pandas~=2.0, which would hold the dev environment, and so every CI job, at
