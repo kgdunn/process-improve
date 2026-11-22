@@ -487,6 +487,10 @@ only_mutate = [
     "src/process_improve/multivariate/_categorical.py",
     "src/process_improve/multivariate/_adaptive.py",
 ]
+# A mutant that makes the code loop is stopped after 3 times the summed time of every test that
+# reaches it, not mutmut's default of 15: for PLS's fit that sum is about 100 s, so each looping
+# mutant held one of the four workers for half an hour and the pls group never finished (#1092).
+timeout_multiplier = 3.0
 # The runner drops pytest.ini's addopts: no xdist workers and no coverage inside each mutant run.
 pytest_add_cli_args = ["-o", "addopts=", "-p", "no:cacheprovider"]
 pytest_add_cli_args_test_selection = [
