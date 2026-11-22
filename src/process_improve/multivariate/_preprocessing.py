@@ -20,7 +20,7 @@ from ._common import DataMatrix, SpecificationWarning, _reject_sparse, column_me
 
 
 class MCUVScaler(TransformerMixin, BaseEstimator):
-    """Mean-centre, unit-variance (MCUV) scaler.
+    """Mean-center, unit-variance (MCUV) scaler.
 
     Unlike ``sklearn.preprocessing.StandardScaler`` this uses the sample
     standard deviation (``ddof=1``), the convention for chemometric data
@@ -42,7 +42,7 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
 
         ``allow_nan=True`` because :meth:`fit` and :meth:`transform` use
         ``np.nanmean`` / ``np.nanstd``: NaN cells flow through, get
-        re-NaN'd by the centring/scaling arithmetic, and reach the
+        re-NaN'd by the centering/scaling arithmetic, and reach the
         downstream NIPALS estimator that knows how to handle them.
         """
         tags = super().__sklearn_tags__()
@@ -52,7 +52,7 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
     def get_feature_names_out(self, input_features=None) -> np.ndarray:  # noqa: ANN001
         """Return the output column names of :meth:`transform`.
 
-        :class:`MCUVScaler` is column-preserving (centring + scaling
+        :class:`MCUVScaler` is column-preserving (centering + scaling
         leave the X column layout unchanged), so the returned names
         mirror those captured during :meth:`fit` (or the
         ``input_features`` argument when no ``feature_names_in_`` was
@@ -76,7 +76,7 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
         Raises
         ------
         TypeError
-            If ``X`` is a SciPy sparse matrix. Centring makes every zero non-zero, so
+            If ``X`` is a SciPy sparse matrix. Centering makes every zero non-zero, so
             there is no sparse path to take; see :func:`_reject_sparse` for the remedy
             the message names (#399).
         """
@@ -112,7 +112,7 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
         # its observed values are all equal: its nanstd is more often rounding
         # noise (1e-17) than an exact 0, and which one depends on the array's
         # memory layout, so testing the standard deviation turned two in three
-        # constant columns into a column of +-sqrt((n-1)/n). Its centre is the
+        # constant columns into a column of +-sqrt((n-1)/n). Its center is the
         # value itself, so it transforms to exactly 0. The guard must also
         # catch: a column with fewer than two observed values, whose
         # nanstd(ddof=1) is NaN (NaN == 0 is False, so the equality test
@@ -133,7 +133,7 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
         return self
 
     def transform(self, X: DataMatrix, y=None) -> pd.DataFrame:  # noqa: ANN001, ARG002
-        """Mean-centre and unit-variance scale ``X``.
+        """Mean-center and unit-variance scale ``X``.
 
         ``y`` is accepted (and ignored) for :class:`Pipeline` compatibility.
         """
@@ -154,7 +154,7 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
         return pd.DataFrame(out, index=index, columns=self.center_.index)
 
     def inverse_transform(self, X: DataMatrix) -> pd.DataFrame:
-        """Inverse the mean-centring and unit-variance scaling."""
+        """Inverse the mean-centering and unit-variance scaling."""
         check_is_fitted(self)
         index = X.index if isinstance(X, pd.DataFrame) else None
         # inverse_transform is intentionally NOT routed through validate_data:
@@ -200,7 +200,7 @@ def center(
     The function is applied along the `axis`: 0=down the columns; 1 = across the rows.
 
     *Missing values*: with the default ``func=np.mean``, any NaN along the reduction axis
-    propagates into the centring vector, so an entire row or column of the returned data can end
+    propagates into the centering vector, so an entire row or column of the returned data can end
     up NaN. To skip missing entries instead (summing along the `axis`, dividing by the number of
     values that are present, and leaving pre-existing NaNs as NaNs in the output), pass
     ``func=np.nanmean``.
@@ -208,10 +208,10 @@ def center(
     Returns
     -------
     centred : DataMatrix
-        The centred data, returned when ``extra_output=False`` (the default).
-    (centred, centre_vector) : tuple[DataMatrix, np.ndarray]
-        When ``extra_output=True``, a tuple of the centred data and the
-        centring vector.
+        The centered data, returned when ``extra_output=False`` (the default).
+    (centered, centre_vector) : tuple[DataMatrix, np.ndarray]
+        When ``extra_output=True``, a tuple of the centered data and the
+        centering vector.
 
     Notes
     -----
@@ -222,8 +222,8 @@ def center(
     replaying that one means multiplying, not dividing. Getting the two the
     same way round is wrong by a factor of the variance::
 
-        centred, subtrahend = center(X, extra_output=True)
-        scaled, multiplier = scale(centred, extra_output=True)
+        centered, subtrahend = center(X, extra_output=True)
+        scaled, multiplier = scale(centered, extra_output=True)
         # replay on new rows:
         new_scaled = (new_X - subtrahend) * multiplier   # note: minus, then times
 
@@ -235,14 +235,14 @@ def center(
 
     See Also
     --------
-    MCUVScaler : Mean-centre and unit-variance scale in one fitted estimator.
+    MCUVScaler : Mean-center and unit-variance scale in one fitted estimator.
     scale : The scaling counterpart, whose extra output is a multiplier.
     """
     # pandas-stubs types apply()'s axis as a Literal, so a plain ``int`` axis does
     # not match any overload; the call is valid at runtime.
     vector = pd.DataFrame(X).apply(func, axis=axis).to_numpy()  # type: ignore[call-overload]  # pandas-stubs axis is Literal
     if axis == 1:
-        # Row-wise centring: the statistic is one value per ROW, so it must
+        # Row-wise centering: the statistic is one value per ROW, so it must
         # broadcast down the column axis. Without the reshape numpy broadcasts
         # the length-N vector across the columns instead: a ValueError for
         # N != K and a silently wrong answer for square matrices.
@@ -323,7 +323,7 @@ def scale(
     If dividing reads more naturally, invert it explicitly and name the
     variable for what it is::
 
-        scaled, multiplier = scale(centred, extra_output=True)
+        scaled, multiplier = scale(centered, extra_output=True)
         divisor = 1.0 / multiplier
 
     The two also disagree on degrees of freedom: this function defaults to
@@ -333,8 +333,8 @@ def scale(
 
     See Also
     --------
-    MCUVScaler : Mean-centre and unit-variance scale in one fitted estimator.
-    center : The centring counterpart, whose extra output is a subtrahend.
+    MCUVScaler : Mean-center and unit-variance scale in one fitted estimator.
+    center : The centering counterpart, whose extra output is a subtrahend.
 
     """
     if func is np.std:  # ``ddof`` is a parameter of its own, so it can never be in ``kwargs``
@@ -360,14 +360,14 @@ def scale(
         return np.multiply(X, vector)
 
 
-#: A column whose ``|mean| / sd`` exceeds this is treated as un-centred. The
+#: A column whose ``|mean| / sd`` exceeds this is treated as un-centered. The
 #: number is chosen from the damage it does: fitting without an intercept
 #: displaces every prediction by roughly the block mean, which costs
 #: approximately ``(mean / sd) ** 2`` of R², so 0.5 is the point where a quarter
 #: of the variance has already been thrown away.
 _UNCENTRED_MEAN_RATIO: float = 0.5
 
-#: Tolerances for recognising a block the caller has already mean-centred and
+#: Tolerances for recognizing a block the caller has already mean-centered and
 #: unit-variance scaled. Loose enough to accept a ``ddof=0`` scaling (which is
 #: off by ``sqrt(n / (n - 1))``, i.e. 2.6% at n=20) as "already scaled".
 _PRESCALED_MEAN_ATOL: float = 0.05
@@ -390,7 +390,7 @@ def _column_moments(X: DataMatrix) -> tuple[np.ndarray, np.ndarray]:
 def _uncentred_columns(X: DataMatrix, ratio: float = _UNCENTRED_MEAN_RATIO) -> list:
     """Return the labels of columns whose mean is large relative to their own spread.
 
-    A column with no spread at all cannot have been centred unless its mean is
+    A column with no spread at all cannot have been centered unless its mean is
     also zero, so a constant non-zero column is always reported.
 
     Parameters
@@ -404,7 +404,7 @@ def _uncentred_columns(X: DataMatrix, ratio: float = _UNCENTRED_MEAN_RATIO) -> l
     Returns
     -------
     list
-        Column labels, in column order. Empty when the block looks centred.
+        Column labels, in column order. Empty when the block looks centered.
     """
     frame = pd.DataFrame(X)
     means, sds = _column_moments(frame)
@@ -417,7 +417,7 @@ def _uncentred_columns(X: DataMatrix, ratio: float = _UNCENTRED_MEAN_RATIO) -> l
 
 
 def _looks_prescaled(X: DataMatrix) -> bool:
-    """Return True when every non-constant column is already centred and unit-variance.
+    """Return True when every non-constant column is already centered and unit-variance.
 
     Used to warn a caller who has done their own scaling and is about to have it
     re-done (and therefore erased) inside cross-validation folds. Constant
@@ -441,8 +441,8 @@ def _warn_scaling_traps(X: DataMatrix, *, scale_inside_folds: bool, fold: str, m
     Shared by :meth:`PCA.select_n_components` and :meth:`PLS.select_n_components`
     so the two selectors keep the same contract. With ``scale_inside_folds=False``
     the caller's full-data scaling leaks into every fold. With ``True`` and an
-    ``X`` that is already centred and unit-variance scaled, the in-fold
-    re-standardisation erases the scaling the caller chose, so a comparison
+    ``X`` that is already centered and unit-variance scaled, the in-fold
+    re-standardization erases the scaling the caller chose, so a comparison
     between two scalings can never show which suits the data.
 
     Parameters
@@ -459,7 +459,7 @@ def _warn_scaling_traps(X: DataMatrix, *, scale_inside_folds: bool, fold: str, m
     """
     if not scale_inside_folds:
         warnings.warn(
-            f"scale_inside_folds=False leaks centring/scaling estimated on the full "
+            f"scale_inside_folds=False leaks centering/scaling estimated on the full "
             f"dataset into every {fold}, making the reported {metric} optimistic. "
             "The default scale_inside_folds=True is preferred.",
             SpecificationWarning,
@@ -467,10 +467,10 @@ def _warn_scaling_traps(X: DataMatrix, *, scale_inside_folds: bool, fold: str, m
         )
     elif _looks_prescaled(X):
         warnings.warn(
-            "X is already centred and unit-variance scaled, so scale_inside_folds=True "
-            f"is not protecting you from leakage: it re-standardises inside every {fold} "
+            "X is already centered and unit-variance scaled, so scale_inside_folds=True "
+            f"is not protecting you from leakage: it re-standardizes inside every {fold} "
             "and overwrites the scaling you chose. Two deliberately different scalings "
-            "(say autoscale versus Pareto) collapse onto the same standardised model "
+            "(say autoscale versus Pareto) collapse onto the same standardized model "
             f"this way, so a comparison of their {metric} reflects only the units the "
             "blocks arrived in, never which scaling suits the data. Pass the raw, "
             "unscaled X and let the folds scale it, or keep your own scaling and set "

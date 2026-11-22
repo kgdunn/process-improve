@@ -182,7 +182,7 @@ class TestDispatchDefaults:
 
 
 class TestRunOrderPreservation:
-    """Only split-plot pyoptex designs keep their optimized ordering; the others are randomised."""
+    """Only split-plot pyoptex designs keep their optimized ordering; the others are randomized."""
 
     def test_pyoptex_design_without_split_plot_is_randomised(self) -> None:
         """The run order used to be kept for every pyoptex design, so the seed had no effect on it."""
@@ -264,7 +264,7 @@ class TestFixedRuns:
     def test_fixed_runs_must_leave_room_to_optimize(self) -> None:
         # A main-effects model over these factors has 5 coefficients (intercept,
         # two columns for the 3-level categorical, x1, x2), which is the floor
-        # the budget is raised to. Fixing all 5 runs leaves nothing to optimise.
+        # the budget is raised to. Fixing all 5 runs leaves nothing to optimize.
         # This used to be written as `budget=1` with a single fixed run, which
         # no longer reaches the check: a budget of 1 cannot estimate any model,
         # so it is now raised to the model size before `fixed_runs` is examined.

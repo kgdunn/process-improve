@@ -43,7 +43,7 @@ def _runs(design: Any) -> dict[str, Any]:  # noqa: ANN401
 
 
 def _bbd(n_centre: int) -> dict[str, Any]:
-    """Return the book's twelve-point Box-Behnken arrangement with ``n_centre`` centre runs."""
+    """Return the book's twelve-point Box-Behnken arrangement with ``n_centre`` center runs."""
     half = np.array([[0, 1, -1], [0, 1, 1], [1, -1, 0], [1, 0, -1], [1, 0, 1], [1, 1, 0]], dtype=float)
     runs = np.vstack([half, -half, np.zeros((n_centre, 3))])
     return {"columns": ["A", "B", "C"], "runs": runs.tolist()}

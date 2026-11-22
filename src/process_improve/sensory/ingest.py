@@ -123,7 +123,7 @@ def reshape_to_long(  # noqa: C901, PLR0912, PLR0915
     data : pandas.DataFrame
         The parsed panel table (rows already read from the spreadsheet).
     layout : {"long", "wide_by_attribute", "wide_by_product"}
-        ``"long"`` passes through (renaming columns and canonicalising);
+        ``"long"`` passes through (renaming columns and canonicalizing);
         ``"wide_by_attribute"`` melts attribute columns into rows (rows carry
         the product); ``"wide_by_product"`` melts product columns into rows
         (rows carry the attribute, i.e. one panelist-by-product matrix per

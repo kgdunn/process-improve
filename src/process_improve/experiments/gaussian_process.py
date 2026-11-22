@@ -2,7 +2,7 @@
 r"""Gaussian process models for computer experiments, fitted by maximum likelihood.
 
 A computer model gives the same output every time it is run at the same inputs, so its
-experiments are modelled by interpolation rather than regression. The usual model (ordinary
+experiments are modeled by interpolation rather than regression. The usual model (ordinary
 kriging; Sacks, Welch, Mitchell and Wynn, 1989) treats the output as a constant :math:`\mu` plus a
 Gaussian process of variance :math:`\sigma^2` whose correlation between two runs falls with their
 distance in each input:
@@ -11,9 +11,9 @@ distance in each input:
 
     R_{ij} = \exp\Big(-\sum_k \theta_k (x_{ik} - x_{jk})^2\Big).
 
-This is the model and the parameterisation of Montgomery's Example 11.4 and of JMP's Gaussian
+This is the model and the parameterization of Montgomery's Example 11.4 and of JMP's Gaussian
 process platform: the inputs in their own units, :math:`\mu` and :math:`\sigma^2` by maximum
-likelihood at each :math:`\theta`, and :math:`\theta` maximising the likelihood,
+likelihood at each :math:`\theta`, and :math:`\theta` maximizing the likelihood,
 
 .. math::
 
@@ -287,7 +287,7 @@ def fit_gaussian_process(
     rng = check_random_state(random_state)
     starts = [(lows + highs) / 2.0, *(rng.uniform(lows, highs) for _ in range(_N_STARTS))]
     bounds = list(zip(lows, highs, strict=True))
-    # Many small dense factorisations: waking a BLAS thread pool for each costs more than the arithmetic.
+    # Many small dense factorizations: waking a BLAS thread pool for each costs more than the arithmetic.
     with threadpool_limits(limits=1, user_api="blas"):
         searches = [
             optimize.minimize(_criterion, start, args=(squared, y, noise), jac=True, method="L-BFGS-B", bounds=bounds)

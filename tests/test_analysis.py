@@ -770,7 +770,7 @@ class TestLackOfFit:
         assert "no degrees of freedom" in lof["note"]
 
     def test_identical_repeats_report_a_pure_error_of_zero(self) -> None:
-        """Box and Draper (2007) Exercise 11.25, y2: the five centre runs all read 0.66 (#969).
+        """Box and Draper (2007) Exercise 11.25, y2: the five center runs all read 0.66 (#969).
 
         The book prints "Untested, s^2 = 0": pure error 0 on 4 df, lack of fit on 3 df, and no F.
         """
@@ -843,7 +843,7 @@ class TestCurvatureTest:
         ]
         assert ct["difference"] == pytest.approx(ct["factorial_point_mean"] - ct["center_point_mean"])
         assert ct["difference"] == pytest.approx(-0.50, abs=1e-12)
-        # The three centre runs give s = 2, so the difference's standard error is 2 sqrt(1/4 + 1/3).
+        # The three center runs give s = 2, so the difference's standard error is 2 sqrt(1/4 + 1/3).
         assert ct["std_error"] == pytest.approx(2 * np.sqrt(7 / 12))
         assert ct["t_statistic"] == pytest.approx(-0.50 / (2 * np.sqrt(7 / 12)))
         assert ct["t_statistic"] ** 2 == pytest.approx(ct["F_statistic"])
@@ -860,7 +860,7 @@ class TestCurvatureTest:
         assert "error" in result["curvature_test"]
 
     def test_curvature_needs_factorial_points(self) -> None:
-        """A Box-Behnken design has centre points but no run with every factor at +/-1."""
+        """A Box-Behnken design has center points but no run with every factor at +/-1."""
         factors = [Factor(name=n, low=-1, high=1) for n in "ABC"]
         design = generate_design(factors, design_type="box_behnken", n_center_points=3).design[list("ABC")]
         df = design.assign(y=np.arange(len(design), dtype=float))
@@ -868,7 +868,7 @@ class TestCurvatureTest:
         assert result["curvature_test"] == {"error": "No factorial points found."}
 
     def test_curvature_needs_replicated_runs(self) -> None:
-        """One centre run gives no pure error to test the curvature against."""
+        """One center run gives no pure error to test the curvature against."""
         df = _two_factor_with_center().iloc[:5]
         result = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="curvature_test")
         assert result["curvature_test"] == {
@@ -1336,7 +1336,7 @@ class TestModelSelection:
         assert again["model_summary"]["r_squared_adj"] == pytest.approx(ms["r_squared_adj"])
 
     def test_squares_aliased_with_each_other_do_not_cost_the_search_an_interaction(self) -> None:
-        """A two-level factorial with centre runs has one square to estimate, whichever factor it is named for.
+        """A two-level factorial with center runs has one square to estimate, whichever factor it is named for.
 
         Searched forward for that, the quadratic model lost an interaction that the interactions model, which it
         contains, kept: 117 units of AICc worse, for having more to choose from.
@@ -1937,7 +1937,7 @@ _EVERY_LEAST_SQUARES_ANALYSIS = [
 
 
 def _box_behnken_analysis(names: list[str], model: str, coding: object = "auto") -> dict:
-    """Analyse one Box-Behnken design, its first factor curved, under the factor names given."""
+    """Analyze one Box-Behnken design, its first factor curved, under the factor names given."""
     from process_improve.experiments import analyze_experiment
 
     factors = [Factor(name=n, low=-1, high=1) for n in ("A", "B", "C")]
@@ -2125,7 +2125,7 @@ class TestBlocks:
         assert result["predictions"][0]["predicted"] == pytest.approx(df.y.mean())
 
     def test_prediction_in_a_named_block_is_for_that_block(self) -> None:
-        """Each block is a whole 2^2 factorial, so at its centre a block's prediction is the average of its runs."""
+        """Each block is a whole 2^2 factorial, so at its center a block's prediction is the average of its runs."""
         df = pd.DataFrame(_full_factorial(2, replicates=3), columns=["A", "B"])
         df["Block"] = ["a"] * 4 + ["b"] * 4 + ["c"] * 4
         df["y"] = 10 + 2 * df.A + df.Block.map({"a": 0.0, "b": 3.0, "c": -1.0}) + np.linspace(-0.2, 0.2, 12)
@@ -2190,7 +2190,7 @@ class TestBlocks:
     def test_pure_error_is_within_blocks_however_the_formula_writes_the_block(self, block: str) -> None:
         """Box and Draper (2007), exercise 7.12: a central composite design in two blocks (#968).
 
-        The centre runs 80, 81, 79 and 71, 69, 70 give 2 + 2 = 4 on 4 df within blocks; pooled
+        The center runs 80, 81, 79 and 71, 69, 70 give 2 + 2 = 4 on 4 df within blocks; pooled
         across blocks they gave 154 on 5 df, more than the residual, and a negative lack of fit.
         """
         r2 = np.sqrt(2)
@@ -2781,7 +2781,7 @@ class TestReviewedInputs:
 
     def test_a_formula_for_another_response_raises(self) -> None:
         df = _two_factor_with_center().assign(z=[1.0, 2, 3, 4, 5, 6, 7])
-        with pytest.raises(ValueError, match="response being analysed is 'y'"):
+        with pytest.raises(ValueError, match="response being analyzed is 'y'"):
             analyze_experiment(df, response_column="y", model="z ~ A + B")
 
     def test_a_formula_uses_only_the_columns_it_names(self) -> None:
@@ -2817,7 +2817,7 @@ class TestReviewedInputs:
 
 
 class TestBoxCoxProfile:
-    """Box and Cox (1964): lambda maximises the profile likelihood of the fitted model."""
+    """Box and Cox (1964): lambda maximizes the profile likelihood of the fitted model."""
 
     def test_additive_data_need_no_transform(self) -> None:
         rng = np.random.default_rng(1)
@@ -2909,7 +2909,7 @@ class TestModelSelectionCriterion:
 
 
 # ---------------------------------------------------------------------------
-# Terms are tested at the centre of the design, whatever the factors' units
+# Terms are tested at the center of the design, whatever the factors' units
 # ---------------------------------------------------------------------------
 
 
@@ -2937,7 +2937,7 @@ class TestTestsAtTheCentre:
             assert self._anova(self._ccd(T), "quadratic") == pytest.approx(coded, rel=1e-6)
         as_given = smf.ols("y ~ T + P + T:P + I(T ** 2) + I(P ** 2)", data=self._ccd(175 + 25 * self.CCD[:, 0])).fit()
         p_as_given = sm.stats.anova_lm(as_given, typ=2)["PR(>F)"]
-        assert coded["T"] == pytest.approx(0.0513, abs=1e-4)  # borderline at the centre
+        assert coded["T"] == pytest.approx(0.0513, abs=1e-4)  # borderline at the center
         assert p_as_given["T"] == pytest.approx(p_as_given["I(T ** 2)"], rel=0.1)  # what was reported: T**2's
 
     def test_significance_agrees_with_the_anova_in_any_units(self) -> None:
@@ -2949,7 +2949,7 @@ class TestTestsAtTheCentre:
             assert result["significant_terms"] == ["T", "P", "T:P"]
 
     def test_a_model_that_coding_would_change_is_tested_as_given(self) -> None:
-        """``T:P`` without ``P`` is a different model once P is centred, so it is not centred."""
+        """``T:P`` without ``P`` is a different model once P is centered, so it is not centered."""
         data = self._ccd(175 + 25 * self.CCD[:, 0])
         expected = sm.stats.anova_lm(smf.ols("y ~ T + T:P", data=data).fit(), typ=2)["PR(>F)"].dropna()
         assert self._anova(data, "y ~ T + T:P") == pytest.approx(expected.to_dict())
@@ -2990,7 +2990,7 @@ class TestTestsAtTheCentre:
 
 
 def _reactor(kelvin: bool = False) -> pd.DataFrame:
-    """Return a 2^2 factorial in actual units with two centre runs: T in degC (or K), P in bar."""
+    """Return a 2^2 factorial in actual units with two center runs: T in degC (or K), P in bar."""
     T = np.array([150.0, 200.0, 150.0, 200.0, 175.0, 175.0])
     return pd.DataFrame(
         {"T": T + 273.15 if kelvin else T, "P": [1, 1, 3, 3, 2, 2], "y": [10.0, 18.0, 13.0, 25.0, 16.0, 16.8]}
@@ -3097,7 +3097,7 @@ class TestCoding:
         assert coded["effects"] == actual["effects"]
 
     def test_a_model_that_changes_when_coded_warns(self) -> None:
-        """``T:P`` without ``P`` is a different model once P is centred."""
+        """``T:P`` without ``P`` is a different model once P is centered."""
         with pytest.warns(UserWarning, match="fits the data differently"):
             analyze_experiment(
                 _reactor(), response_column="y", model="y ~ T + T:P", analysis_type="coefficients", coding="coded"
@@ -3268,7 +3268,7 @@ class TestNoCodedScale:
             analyze_experiment(self.DATA, response_column="Y", model=model, analysis_type=analysis)
 
     def test_effects_of_a_term_that_mixes_factors_are_refused(self) -> None:
-        """Box and Draper (2007) Table 3.6: once z2 is centred, I(z2 - 0.2 * z1) is another column."""
+        """Box and Draper (2007) Table 3.6: once z2 is centered, I(z2 - 0.2 * z1) is another column."""
         data = pd.DataFrame({"z1": [1.0, 1, 1], "z2": [0.8, 0.2, -0.4], "y": [4.0, 1, 1]})
         with pytest.raises(ValueError, match="has no coded scale"):
             analyze_experiment(data, response_column="y", model="z1 + I(z2 - 0.2 * z1) - 1", analysis_type="effects")
@@ -3452,5 +3452,5 @@ def test_a_response_too_large_for_its_squares_is_refused_and_a_rescaled_one_fits
     big = analyze_experiment(df.assign(y=df["y"] * 1e150), response_column="y", model="y ~ A + B")["model_summary"]
     assert big["r_squared"] == pytest.approx(base["r_squared"])
     assert big["f_p_value"] == pytest.approx(base["f_p_value"])
-    with pytest.raises(ValueError, match=r"too large in its units to analyse.*largest value is 3e\+300"):
+    with pytest.raises(ValueError, match=r"too large in its units to analyze.*largest value is 3e\+300"):
         analyze_experiment(df.assign(y=df["y"] * 1e300), response_column="y", model="y ~ A + B")

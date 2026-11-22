@@ -165,8 +165,8 @@ class FitPcaInput(BaseModel):
     name="fit_pca",
     description=(
         "Fit a Principal Component Analysis (PCA) model to a numeric data matrix. "
-        "The data is automatically mean-centred and scaled to unit variance (MCUV) before fitting. "
-        "Returns explained variance, R-squared statistics, detected outliers, and serialised "
+        "The data is automatically mean-centered and scaled to unit variance (MCUV) before fitting. "
+        "Returns explained variance, R-squared statistics, detected outliers, and serialized "
         "model parameters that can be passed to pca_predict for scoring new observations. "
         "Use this when you want to reduce dimensionality, identify patterns, or detect outliers "
         "in a multivariate dataset."
@@ -263,9 +263,9 @@ class FitPlsInput(BaseModel):
     name="fit_pls",
     description=(
         "Fit a Projection to Latent Structures (PLS) regression model linking an X matrix to "
-        "a Y matrix (or vector). The data is automatically mean-centred and scaled to unit "
+        "a Y matrix (or vector). The data is automatically mean-centered and scaled to unit "
         "variance (MCUV) before fitting. "
-        "Returns R-squared statistics, RMSE, regression coefficients, and serialised model "
+        "Returns R-squared statistics, RMSE, regression coefficients, and serialized model "
         "parameters that can be passed to pls_predict for scoring new observations. "
         "Use this when you want to build a predictive model from a multivariate X to one or "
         "more Y responses."
@@ -358,7 +358,7 @@ class ScaleDataInput(BaseModel):
 @tool_spec(
     name="scale_data",
     description=(
-        "Mean-centre and scale a data matrix to unit variance (MCUV scaling). "
+        "Mean-center and scale a data matrix to unit variance (MCUV scaling). "
         "Returns the scaled data along with the column means and standard deviations used. "
         "This is the standard preprocessing step before PCA or PLS. "
         "Use this when you need the scaled data for further analysis or want to inspect "
@@ -375,7 +375,7 @@ class ScaleDataInput(BaseModel):
     category="multivariate",
 )
 def scale_data(spec: ScaleDataInput) -> dict[str, Any]:
-    """Mean-centre and scale data to unit variance."""
+    """Mean-center and scale data to unit variance."""
     try:
         _validate_matrix_shape(spec.data, "data")
         from process_improve.multivariate.methods import MCUVScaler  # noqa: PLC0415
@@ -430,9 +430,9 @@ class DetectMultivariateOutliersInput(BaseModel):
     description=(
         "Detect multivariate outliers by fitting a PCA model and using both SPE (Squared "
         "Prediction Error) and Hotelling's T-squared diagnostics. "
-        "Combines statistical limits with the robust generalised ESD test. The T-squared limit is the "
+        "Combines statistical limits with the robust generalized ESD test. The T-squared limit is the "
         "one for the rows the model was fitted to, from the beta distribution. "
-        "The data is automatically mean-centred and scaled before fitting. "
+        "The data is automatically mean-centered and scaled before fitting. "
         "Use this when you suspect some observations are unusual in a multivariate sense "
         "even if they appear normal in individual variables."
     ),

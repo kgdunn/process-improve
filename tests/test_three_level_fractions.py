@@ -1,7 +1,7 @@
 """Three-level fractional factorials made from generators in arithmetic modulo 3 (#788 A5).
 
 Montgomery (2013, section 9.3) builds his 3^(3-1), 3^(4-1) and 3^(4-2) fractions from generators, and
-the reference catalogue holds his runs. The L9 of NIST and of Schmidt and Launsby, Schmidt and
+the reference catalog holds his runs. The L9 of NIST and of Schmidt and Launsby, Schmidt and
 Launsby's Latin square and the fraction of Montgomery's Problem 12.10 are the same construction. Each
 is rebuilt here from its generators, and the relation and aliases are checked by brute force.
 """

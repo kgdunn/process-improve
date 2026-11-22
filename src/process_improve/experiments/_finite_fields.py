@@ -101,7 +101,7 @@ def _poly_mod(dividend: tuple[int, ...], divisor: tuple[int, ...], p: int) -> li
 
 @cache
 def _field_tables(q: int) -> tuple[np.ndarray, np.ndarray]:
-    """Multiplication and subtraction tables of GF(q), elements labelled ``0 .. q-1`` by their base-p digits."""
+    """Multiplication and subtraction tables of GF(q), elements labeled ``0 .. q-1`` by their base-p digits."""
     factors = prime_power(q)
     if factors is None:
         raise ValueError(f"GF({q}) does not exist: {q} is not a prime power.")
@@ -282,7 +282,7 @@ def _hadamard(n: int) -> tuple[np.ndarray, str] | None:
 
 
 def hadamard_matrix(n: int) -> tuple[np.ndarray, str] | None:
-    """Return a verified, normalised Hadamard matrix of order ``n`` (first column all +1), or ``None``.
+    """Return a verified, normalized Hadamard matrix of order ``n`` (first column all +1), or ``None``.
 
     The second element names the construction.
     """

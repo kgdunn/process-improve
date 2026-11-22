@@ -265,8 +265,8 @@ def test_xbar_no_subgroup_keeps_a_given_target_and_s(style: str) -> None:
     """A given target and s are used as they are, and only a missing one is estimated.
 
     Both used to be replaced by estimates from the data, so a chart could not be drawn
-    from known (Phase I) values, and a shift that had moved the data's own centre was
-    judged against that moved centre.
+    from known (Phase I) values, and a shift that had moved the data's own center was
+    judged against that moved center.
     """
     rng = np.random.default_rng(1)
     y = np.concatenate([rng.normal(50, 2, 60), rng.normal(54, 2, 20)])  # a two-sigma shift at 60
@@ -357,7 +357,7 @@ def test_rho_array_matches_scalar_rho() -> None:
     """``_rho_array`` is the scalar ``rho`` applied element-wise, as ``np.vectorize(rho)`` was.
 
     It scores every cell of the Holt-Winters lambda grid, so a drift from the scalar function
-    could move the chosen lambdas. Covers the cutoff and its neighbouring floats, signed zero,
+    could move the chosen lambdas. Covers the cutoff and its neighboring floats, signed zero,
     both saturated tails, infinities and NaN, plus a dense sweep of the polynomial branch. A
     huge |x| must not overflow (and warn) inside the branch that ``np.where`` discards.
     """
@@ -526,7 +526,7 @@ def test_cpk_estimates_specs_from_data_when_none() -> None:
 def test_cpk_returns_rsd() -> None:
     """calculate_cpk reports the RSD of the DATA alongside Cpk.
 
-    Earlier versions divided the spread by the distance-to-spec centre, which
+    Earlier versions divided the spread by the distance-to-spec center, which
     is not an RSD of anything and changed value when the spec limits moved.
     """
     rng = np.random.default_rng(42)
@@ -624,7 +624,7 @@ def test_cpk_on_a_tie_reports_the_lower_side() -> None:
     """Specifications given per row: the distances to the lower limit 9 are 1, 2, 3 (mean 2, sd 1).
 
     Those to the upper limits 12, 15, 18 are 2, 4, 6 (mean 4, sd 2). Both sides have Cpk 2 / 3,
-    and the lower side's centre and spread are the ones reported.
+    and the lower side's center and spread are the ones reported.
     """
     data = pd.DataFrame({"x": [10.0, 11.0, 12.0], "lower": 9.0, "upper": [12.0, 15.0, 18.0]})
     result = calculate_cpk(data, "x", specifications=("lower", "upper"), trim_percentile=0)

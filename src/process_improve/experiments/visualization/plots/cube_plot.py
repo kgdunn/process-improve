@@ -123,7 +123,7 @@ class CubePlot(BasePlot):
             y=Encoding(field="y"),
             z=Encoding(field="z"),
             name="Edges",
-            color=DOE_PALETTE["neutral"],  # the grid's own grey is all but invisible on a white page
+            color=DOE_PALETTE["neutral"],  # the grid's own gray is all but invisible on a white page
             style={"width": 3, "size": 0},
         )
 

@@ -26,7 +26,7 @@ def fair_weights(distances: np.ndarray, cutoff: float) -> np.ndarray:
     Parameters
     ----------
     distances : np.ndarray
-        Standardised distances or residuals, of any shape. Signs are ignored.
+        Standardized distances or residuals, of any shape. Signs are ignored.
     cutoff : float
         Tuning constant :math:`c`, strictly positive. An observation at
         :math:`|z| = c` gets weight 0.25. Serneels et al. recommend 4.
@@ -81,7 +81,7 @@ def row_norms(values: np.ndarray) -> np.ndarray:
 
 
 def l1_median(X: np.ndarray, *, tol: float = 1e-8, max_iter: int = 200) -> np.ndarray:
-    """Spatial (L1) median: the point minimising the sum of Euclidean distances to the rows.
+    """Spatial (L1) median: the point minimizing the sum of Euclidean distances to the rows.
 
     This is the multivariate location estimate Partial Robust M-regression
     measures leverage against. Unlike the coordinate-wise median it is

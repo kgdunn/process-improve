@@ -70,7 +70,7 @@ class AnalyzeExperimentInput(BaseModel):
             "that map to -1 and +1, such as a central composite design's cube levels rather than its axial runs. "
             "Coded coefficients are what optimize_responses needs, since it evaluates models at coded settings "
             "and refuses actual-unit coefficients; coded results also carry coefficients_actual, the equation in "
-            "the factors' own units. With interactions, a coded main effect is tested at the centre of the "
+            "the factors' own units. With interactions, a coded main effect is tested at the center of the "
             "design, an actual one where the other factors are zero."
         ),
     )
@@ -88,7 +88,7 @@ class AnalyzeExperimentInput(BaseModel):
     whole_plot: str | list[str] | None = Field(
         None,
         description=(
-            "Column labelling each run's whole plot, for analysis_type='split_plot'. "
+            "Column labeling each run's whole plot, for analysis_type='split_plot'. "
             "Default: the 'WholePlot' column that generate_design adds to a split-plot design. "
             "A list of columns gives crossed random effects, as the rows and the columns of a two-way "
             "split-plot (strip-plot) design."
@@ -177,7 +177,7 @@ class AnalyzeExperimentInput(BaseModel):
                 response_column="y", analysis_type="coefficients")``,
            then pass the result to ``optimize_responses``
 
-    # "Analyse my split-plot experiment; temperature was hard to change"
+    # "Analyze my split-plot experiment; temperature was hard to change"
         -> ``analyze_experiment(design_matrix=[...], response_column="y",
                 analysis_type="split_plot")``
 

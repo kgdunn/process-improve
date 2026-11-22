@@ -1,7 +1,7 @@
 """ORTH-augmented definitive screening designs (Jones and Nachtsheim 2013, Section 3; #788 A4).
 
 The four designs printed in the paper's Figure 1(b), m = 4 continuous factors with c = 1 to 4
-two-level categorical factors, come from the catalogue. The paper's Table 4 gives the run sizes
+two-level categorical factors, come from the catalog. The paper's Table 4 gives the run sizes
 and the D-efficiency of each DSD-augmented design relative to the ORTH-augmented one, and Table 6
 the correlations left among more than four categorical factors.
 """
@@ -33,7 +33,7 @@ def information(design: np.ndarray) -> np.ndarray:
 
 
 def d_efficiency(design: np.ndarray) -> float:
-    """Return |X'X|^(1/p) / n for the main-effects model, as Table 4 normalises it."""
+    """Return |X'X|^(1/p) / n for the main-effects model, as Table 4 normalizes it."""
     return float(np.linalg.det(information(design)) ** (1 / (design.shape[1] + 1)) / len(design))
 
 
@@ -78,7 +78,7 @@ def test_dsd_augment_against_orth_augment_is_table_4_s_ratio(c, printed):
 
 @pytest.mark.parametrize(("m", "c"), [(m, c) for m in (4, 8, 12) for c in (6, 8, 10)])
 def test_more_than_four_categorical_factors_leave_table_6_s_correlations(m, c):
-    """n_nz = 2 n_B (c - 2 n_B - 2), n_B = c // 4: only factors sharing a column of the centre block correlate."""
+    """n_nz = 2 n_B (c - 2 n_B - 2), n_B = c // 4: only factors sharing a column of the center block correlate."""
     design, _ = dispatch_dsd(factors(m, c), categorical_method="orth")
     n_b = c // 4
     assert off_diagonal(design) == 2 * n_b * (c - 2 * n_b - 2)

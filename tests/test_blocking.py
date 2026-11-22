@@ -70,11 +70,11 @@ def test_other_designs_block_by_exchange(design_type: str, k: int) -> None:
 
 
 def test_a_model_the_design_cannot_estimate_in_one_block_is_passed_over() -> None:
-    """With centre runs as their only third level, the squares of two factors are the same column.
+    """With center runs as their only third level, the squares of two factors are the same column.
 
     The quadratic model is then singular however the runs are split, and the exchange used to
-    maximise a determinant that was rounding error: the blocks it picked differed between platforms.
-    The third factor is categorical, so its centre runs sit at its labels, coded -1 and +1.
+    maximize a determinant that was rounding error: the blocks it picked differed between platforms.
+    The third factor is categorical, so its center runs sit at its labels, coded -1 and +1.
     """
     cube = np.array(list(itertools.product((-1.0, 1.0), repeat=3)))
     design = np.vstack([cube, cube, [[0.0, 0.0, -1.0], [0.0, 0.0, 1.0]]])
@@ -83,7 +83,7 @@ def test_a_model_the_design_cannot_estimate_in_one_block_is_passed_over() -> Non
 
 
 def test_a_factorial_with_a_categorical_factor_is_blocked_for_the_model_it_can_estimate() -> None:
-    """Centre runs at one of a categorical factor's labels make the design irregular, so the exchange blocks it.
+    """Center runs at one of a categorical factor's labels make the design irregular, so the exchange blocks it.
 
     Blocked for its interactions, it keeps nearly all of their information: an odd block of
     nine runs cannot balance the supplier. The blocks picked for the singular quadratic kept 92%.
@@ -173,12 +173,12 @@ class TestCentralCompositeBlocks:
         )
 
     def test_two_factors_in_two_blocks_take_root_two(self) -> None:
-        """Montgomery's example: a 2^2 cube and three centre runs per block is rotatable and orthogonally blocked."""
+        """Montgomery's example: a 2^2 cube and three center runs per block is rotatable and orthogonally blocked."""
         result = generate_design(_factors(2), "ccd", n_blocks=2, n_center_points=6)
         assert result.alpha == pytest.approx(np.sqrt(2))
 
     def test_three_blocks_split_the_cube_by_confounding(self) -> None:
-        """With two centre runs in each cube block, all three blocks are orthogonal to every term."""
+        """With two center runs in each cube block, all three blocks are orthogonal to every term."""
         result = generate_design(_factors(3), "ccd", n_blocks=3, n_center_points=4)
         assert result.metadata["blocking"]["confounded_with"] == ["x0x1x2"]
         assert result.metadata["blocking"]["orthogonal"]
@@ -219,7 +219,7 @@ def test_blocking_alpha_matches_the_orthogonality_condition() -> None:
 def test_blocking_center_points_inverts_blocking_alpha(
     n_cube_runs: int, n_center_cube: int, n_factors: int, n_center_axial: int, n_axial_replicates: int
 ) -> None:
-    """The axial block's centre runs for orthogonal blocking at blocking_alpha's alpha are the ones it was given."""
+    """The axial block's center runs for orthogonal blocking at blocking_alpha's alpha are the ones it was given."""
     from process_improve.experiments.designs_response_surface import blocking_alpha, blocking_center_points
 
     alpha = blocking_alpha(n_cube_runs, n_center_cube, n_factors, n_center_axial, n_axial_replicates)
@@ -228,7 +228,7 @@ def test_blocking_center_points_inverts_blocking_alpha(
 
 
 def test_blocking_center_points_of_box_and_drapers_exercise_15_8_and_a_rotatable_alpha_too_small() -> None:
-    """The star run twice at alpha = 2**0.5 needs no centre run; at 8**0.25 with no cube centre runs, no count fits."""
+    """The star run twice at alpha = 2**0.5 needs no center run; at 8**0.25 with no cube center runs, no count fits."""
     from process_improve.experiments.designs_response_surface import blocking_center_points
 
     assert blocking_center_points(2**0.5, 8, 4, 3, n_axial_replicates=2) == 0.0

@@ -24,7 +24,7 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | 
 
     The elbow is taken as the data point whose (x, y) location is closest to
     the median of the accumulated intersection points; the median location is
-    where the intersections should stabilise.
+    where the intersections should stabilize.
 
     Both axes are first scaled to span 0 to 1, so that "closest" does not add up
     distances in two different units. The elbow is therefore the same whatever

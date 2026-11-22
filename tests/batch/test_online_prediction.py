@@ -371,7 +371,7 @@ def test_monitor_fit_attributes(pls_monitor: BatchMonitor, small_dryer: dict) ->
     assert pls_monitor.score_covariance_over_time_.shape == (n, N_COMPONENTS, N_COMPONENTS)
     assert np.all(pls_monitor.spe_limit_over_time_ > 0)
     assert np.all(pls_monitor.spe_limit_over_time_ > pls_monitor.spe_mean_over_time_)
-    # The T2 is standardised by the reference covariance at each sample, so
+    # The T2 is standardized by the reference covariance at each sample, so
     # its limit is the same at every sample and the reference batches' mean
     # T2 is A(N-1)/N everywhere (the trace of S^-1 S, spread over N batches).
     assert np.unique(pls_monitor.t2_limit_over_time_).size == 1

@@ -11,7 +11,7 @@ checks the arrays against pyDOE3 when it is installed.
 
 pyDOE3 took the arrays from the NIST Dataplot design files
 (https://www.itl.nist.gov/div898/software/dataplot/designs.htm). pyDOE3 is distributed
-under the BSD 3-Clause licence: Copyright (c) 2014, Abraham D. Lee; Copyright (c) 2018,
+under the BSD 3-Clause license: Copyright (c) 2014, Abraham D. Lee; Copyright (c) 2018,
 Rickard Sjögren & Daniel Svensson; Copyright (c) 2023, Rémi Lafage.
 """
 

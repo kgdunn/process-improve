@@ -80,7 +80,7 @@ def _model_formula(response: str, result: Any) -> str | None:  # noqa: ANN401
 @tool_spec(
     name="analyze_omars",
     description=(
-        "Analyse the results of a definitive screening design (DSD) or an OMARS design with the staged protocol "
+        "Analyze the results of a definitive screening design (DSD) or an OMARS design with the staged protocol "
         "these designs are built for (Jones and Nachtsheim 2017; Hameed, Nunez Ares and Goos 2023). Their main "
         "effects are orthogonal to every two-factor interaction and square, so the main effects are tested "
         "first, against an error estimate from what the full second-order model cannot fit; the inactive main "
@@ -90,7 +90,7 @@ def _model_formula(response: str, result: Any) -> str | None:  # noqa: ANN401
         "interactions and squares, and 'model_formula', the selected model with its factors' main effects, to "
         "pass to analyze_experiment (analysis_type='coefficients', coding='coded') and then optimize_responses. "
         "success is False when the design leaves no degrees of freedom for error (a DSD of an even number of "
-        "factors with one centre run): add centre runs."
+        "factors with one center run): add center runs."
     ),
     input_model=AnalyzeOmarsInput,
     examples="""

@@ -157,7 +157,7 @@ class TestDOptimal:
         The scorer used to invert ``X'X``. ``np.linalg.inv`` raises only on an
         exactly-zero LU pivot, which these rank-deficient +-1 designs slip past;
         the log-determinant of the resulting numerical noise came back as a
-        large NEGATIVE number, so the minimising search treated an inestimable
+        large NEGATIVE number, so the minimizing search treated an inestimable
         design as the best one available and actively selected it.
         """
         constant_factor = pd.DataFrame([[1.0, -1.0, -1.0], [1.0, 1.0, -1.0], [1.0, -1.0, 1.0], [1.0, 1.0, 1.0]])

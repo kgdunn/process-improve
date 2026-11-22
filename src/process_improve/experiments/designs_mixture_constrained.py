@@ -285,7 +285,7 @@ def _drop_redundant_rows(a_mat: np.ndarray, b_vec: np.ndarray) -> tuple[np.ndarr
     """Remove inequalities implied by the others (with ``sum(x) = 1``); the region is unchanged.
 
     Row ``r`` is implied when the largest ``a_r @ x`` over the region cut by the other
-    rows is at most ``b_r``, found by one linear programme per row. Rows are removed one
+    rows is at most ``b_r``, found by one linear program per row. Rows are removed one
     at a time, so of two identical rows one is kept. The upper bound ``x_i <= 1`` with
     lower bounds of 0 is the common case: it adds nothing, but would multiply the
     systems the vertex enumeration solves.
@@ -322,7 +322,7 @@ def sampled_vertices(a_mat: np.ndarray, b_vec: np.ndarray) -> np.ndarray:
 
     For a region with too many vertices for :func:`extreme_vertices` to list.
 
-    A linear programme moves a blend as far as it goes in one direction, which ends at a
+    A linear program moves a blend as far as it goes in one direction, which ends at a
     vertex, so the directions of
     :func:`~process_improve.experiments.designs_constrained.search_directions` give that
     many vertices, less the repeats.
@@ -408,9 +408,9 @@ def _face_rank(a_mat: np.ndarray, shared: np.ndarray) -> int:
 
 
 def _plane_centroids(vertices: np.ndarray, active: np.ndarray, a_mat: np.ndarray, adjacent: np.ndarray) -> list:
-    """Centroids of the region's 2-dimensional faces: the constrained analogue of ternary blends.
+    """Centroids of the region's 2-dimensional faces: the constrained analog of ternary blends.
 
-    A vertex and two of its neighbours span a 2-face when the constraints active at
+    A vertex and two of its neighbors span a 2-face when the constraints active at
     all three leave a plane (rank ``q - 2``). Its centroid averages every vertex on
     which those constraints are active, so each face is found once whichever corner
     it is reached from. Each set of shared constraints is examined once, and one with

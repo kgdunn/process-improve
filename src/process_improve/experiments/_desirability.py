@@ -23,7 +23,7 @@ Two quantities in this module are easy to confuse, so they are named apart:
 
 This module was previously duplicated in ``optimization.py`` and in
 ``visualization/plots/optimization_plots.py``, and the two copies drifted.
-It now holds the union of their behaviour: asymmetric target weights from the
+It now holds the union of their behavior: asymmetric target weights from the
 plotting copy, and the strict argument checking from the optimizer copy.
 
 References
@@ -54,7 +54,7 @@ SCORED_GOALS = ("maximize", "minimize", "target")
 
 
 def desirability_maximize(y: float, low: float, high: float, weight: float = 1.0) -> float:
-    """One-sided desirability for maximisation.
+    """One-sided desirability for maximization.
 
     Parameters
     ----------
@@ -81,7 +81,7 @@ def desirability_maximize(y: float, low: float, high: float, weight: float = 1.0
 
 
 def desirability_minimize(y: float, low: float, high: float, weight: float = 1.0) -> float:
-    """One-sided desirability for minimisation.
+    """One-sided desirability for minimization.
 
     Parameters
     ----------
@@ -188,7 +188,7 @@ def check_goal(goal: dict[str, Any]) -> None:
     Their ramps need finite limits with ``low < high``, a target strictly between
     them, and positive exponents. Outside that, the ramp either never reaches 1
     (a target outside the limits), turns into a step (swapped limits), or leaves
-    [0, 1] altogether (a negative weight), and the optimiser would chase it
+    [0, 1] altogether (a negative weight), and the optimizer would chase it
     without complaint.
 
     Parameters
@@ -200,7 +200,7 @@ def check_goal(goal: dict[str, Any]) -> None:
     Raises
     ------
     ValueError
-        If ``goal`` is missing or unrecognised, ``low`` or ``high`` is missing or
+        If ``goal`` is missing or unrecognized, ``low`` or ``high`` is missing or
         not finite, ``low >= high``, a target goal has no target or one outside
         ``(low, high)``, ``weight`` / ``weight_high`` is not positive, or an
         ``"in_range"`` goal has a weight, which has no ramp to shape there.

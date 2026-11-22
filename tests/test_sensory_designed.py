@@ -113,7 +113,7 @@ def test_tukey_only_high_formulation_separates_at_ref(panel: pd.DataFrame) -> No
 
 
 def test_tukey_matches_scipy_on_balanced_oneway() -> None:
-    """Without a block, the studentized-range maths must match scipy.stats.tukey_hsd."""
+    """Without a block, the studentized-range math must match scipy.stats.tukey_hsd."""
     scipy_stats = pytest.importorskip("scipy.stats")
     rng = np.random.default_rng(3)
     groups = {g: rng.normal(loc, 1.0, 8) for g, loc in zip("WXYZ", [0.0, 0.5, 2.0, 2.2], strict=True)}

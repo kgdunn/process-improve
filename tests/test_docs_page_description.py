@@ -55,7 +55,7 @@ Too short to describe the page.
 
 - A list item is a fragment of a sentence, however long it runs on the page.
 
-**Source worksheet:** a labelled line is a note about the page, not its opening paragraph.
+**Source worksheet:** a labeled line is a note about the page, not its opening paragraph.
 
 {OPENING}
 """

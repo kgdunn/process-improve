@@ -97,7 +97,7 @@ class TestHowTheTermsAreJudged:
         assert step["evidence"]["error_df"] == len(runs) - 1 - 1 - 8 - 1  # intercept, block, mains, A:C
 
     def test_a_definitive_screening_design_without_error_df_is_judged_by_the_stepwise_search(self) -> None:
-        """Six factors and one centre run: the full second-order model leaves the staged analysis no error."""
+        """Six factors and one center run: the full second-order model leaves the staged analysis no error."""
         factors = _factors("ABCDEF")
         truth = TrueProcess({"Intercept": 50, "A": 6, "B": -4, "A:B": 3}, sigma=1)
         with pytest.warns(UserWarning, match="leaves no degrees of freedom for error"):
@@ -111,7 +111,7 @@ class TestHowTheTermsAreJudged:
         assert step["action"] == "confirm"
 
     def test_a_proposal_the_runs_cannot_hold_falls_back_to_the_main_effects_model(self) -> None:
-        """Ten factors in a 12-run Plackett-Burman design and two centre runs: A:C beside them leaves one error df."""
+        """Ten factors in a 12-run Plackett-Burman design and two center runs: A:C beside them leaves one error df."""
         factors = _factors("ABCDEFGHJK")
         runs = _runs(factors, ADHESION, 0, design_type="plackett_burman", n_center_points=2)
         step = recommend_next_step(factors, runs, "y", ranges_can_move=False)
@@ -122,7 +122,7 @@ class TestHowTheTermsAreJudged:
         assert step["n_runs"] == 14
 
     def test_runs_too_few_for_any_model_are_replicated_and_the_centre_runs_still_test_curvature(self) -> None:
-        """Eleven factors in 14 runs: nothing is judged, and curvature is tested against the two centre runs alone."""
+        """Eleven factors in 14 runs: nothing is judged, and curvature is tested against the two center runs alone."""
         factors = _factors("ABCDEFGHJKL")
         runs = _runs(factors, ADHESION, 0, design_type="plackett_burman", n_center_points=2)
         step = recommend_next_step(factors, runs, "y", ranges_can_move=False)
@@ -183,7 +183,7 @@ class TestInteractionsTheRunsCannotSee:
 
 class TestConfirmationRunsAwayFromTheOptimum:
     def test_they_join_the_runs_in_the_latest_block(self) -> None:
-        """Runs made at the centre, not the optimum, are data; made after every block, they count in the latest one."""
+        """Runs made at the center, not the optimum, are data; made after every block, they count in the latest one."""
         factors = _factors("AB")
         cube = pd.DataFrame(
             [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, 0], [0, 0], [0, 0]], columns=list("AB"), dtype=float
@@ -357,7 +357,7 @@ class TestStrategyEdges:
             recommend_strategy(factors=factors, hard_to_change_factors=["A"])
 
     def test_eight_factors_known_well_get_a_ccd_on_a_half_fraction(self) -> None:
-        """Screening is skipped; the cube is 2^(8-1) = 128 runs, with 16 axial and 3 centre runs."""
+        """Screening is skipped; the cube is 2^(8-1) = 128 runs, with 16 axial and 3 center runs."""
         strategy = recommend_strategy(
             factors=_continuous(8), responses=_maximise(), prior_knowledge="Validated in published work."
         )
@@ -367,7 +367,7 @@ class TestStrategyEdges:
         assert stage["estimated_runs"] == 2**7 + 2 * 8 + 3
 
     def test_a_dsd_of_an_odd_number_of_factors_without_extra_centre_runs_warns_of_its_one_error_df(self) -> None:
-        """A two-level categorical factor takes the DSD's centre runs away; seven factors leave one df for error."""
+        """A two-level categorical factor takes the DSD's center runs away; seven factors leave one df for error."""
         factors = [Factor(name="S", type="categorical", levels=["a", "b"]), *_continuous(6)]
         strategy = recommend_strategy(factors=factors, responses=_maximise(), domain="pharma_formulation")
         assert _stage(strategy, "Screening")["design_params"] == {}
@@ -377,7 +377,7 @@ class TestStrategyEdges:
         )
 
     def test_a_tight_budget_takes_a_dsd_without_centre_runs_straight_to_plackett_burman(self) -> None:
-        """There are no centre runs to drop first; seven factors fit an 8-run Plackett-Burman design."""
+        """There are no center runs to drop first; seven factors fit an 8-run Plackett-Burman design."""
         factors = [Factor(name="S", type="categorical", levels=["a", "b"]), *_continuous(6)]
         strategy = recommend_strategy(factors=factors, responses=_maximise(), domain="pharma_formulation", budget=25)
         screening = _stage(strategy, "Screening")
@@ -395,7 +395,7 @@ class TestStrategyEdges:
         assert "Split-plot: X0 change only between whole plots" in screening["purpose"]
 
     def test_existing_data_counts_in_the_strategy_id_only_when_it_has_columns(self) -> None:
-        """A frame is summarised into the id; a list has no columns, so it is as if no data were given."""
+        """A frame is summarized into the id; a list has no columns, so it is as if no data were given."""
         plain = recommend_strategy(factors=_continuous(3))["strategy_id"]
         frame = recommend_strategy(factors=_continuous(3), existing_data=pd.DataFrame({"X0": [1.0], "y": [2.0]}))
         listed = recommend_strategy(factors=_continuous(3), existing_data=[1, 2, 3])

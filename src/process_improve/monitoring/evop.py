@@ -1,14 +1,14 @@
 # (c) Kevin Dunn, 2010-2026. MIT License.
-r"""Evolutionary operation (EVOP): the calculation sheet of a :math:`2^2` design with a centre point.
+r"""Evolutionary operation (EVOP): the calculation sheet of a :math:`2^2` design with a center point.
 
 In evolutionary operation a full-scale process runs, cycle after cycle, at five conditions close to
-its usual one: the centre (point 1) and the corners of a small square in two factors A and B
+its usual one: the center (point 1) and the corners of a small square in two factors A and B
 (point 2 with A and B both low, 3 both high, 4 A high and B low, 5 A low and B high). The changes
 are small enough to keep the product saleable, and repeating the cycle lets their effects emerge
 from the noise. After each cycle the calculation sheet updates:
 
 - each point's sum and average over the cycles so far;
-- the effects of A and B, their interaction, and the change in mean (the corners against the centre);
+- the effects of A and B, their interaction, and the change in mean (the corners against the center);
 - an estimate of the noise, from the range of the differences between each point's previous average
   and its new reading, times :math:`f_{k,n} = \sqrt{(n-1)/n} / d_2(k)` (see :func:`evop_f`);
 - the two-standard-deviation error limits of the averages, the effects and the change in mean.
@@ -40,7 +40,7 @@ from typing import Any
 import numpy as np
 from scipy import integrate, stats
 
-#: The points of the design in the sheet's order: the centre, then the corners as (A, B) in coded units.
+#: The points of the design in the sheet's order: the center, then the corners as (A, B) in coded units.
 POINTS = ((0, 0), (-1, -1), (1, 1), (1, -1), (-1, 1))
 
 #: Two standard deviations of the change in mean, (y2 + y3 + y4 + y5 - 4 y1) / 5, in units of sigma / sqrt(n):
@@ -103,7 +103,7 @@ def evop_f(k: int, n: int, decimals: int | None = None) -> float:
     ----------
     k : int
         The number of points in the design, whose differences give the range: 5 for a :math:`2^2`
-        design with a centre point.
+        design with a center point.
     n : int
         The cycle, 2 or more: the first cycle has no previous average to differ from.
     decimals : int or None
@@ -131,13 +131,13 @@ def evop_worksheet(
     factors: tuple[str, str] = ("A", "B"),
     range_factor_decimals: int | None = None,
 ) -> list[dict[str, Any]]:
-    r"""Work the EVOP calculation sheet of a :math:`2^2` design with a centre point, one cycle after another.
+    r"""Work the EVOP calculation sheet of a :math:`2^2` design with a center point, one cycle after another.
 
     Parameters
     ----------
     cycles : Sequence[Sequence[float]]
         The readings, a row per cycle in the order they were run, each row the five points in the
-        order of :data:`POINTS`: the centre, then A and B both low, both high, A high and B low, A
+        order of :data:`POINTS`: the center, then A and B both low, both high, A high and B low, A
         low and B high.
     factors : tuple[str, str]
         The names of the two factors, A and B, which name the effects.

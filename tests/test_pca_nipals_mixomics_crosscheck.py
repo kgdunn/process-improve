@@ -12,7 +12,7 @@ See ``tests/fixtures/mixomics_nipals/README.md`` for the regeneration
 recipe. Until the R-side reference CSVs land, this test module is
 auto-skipped.
 
-Normalisation conventions
+Normalization conventions
 -------------------------
 The two implementations use unit-norm loadings (the standard
 chemometrics convention) but differ in how they scale the scores:
@@ -21,12 +21,12 @@ chemometrics convention) but differ in how they scale the scores:
   ``j`` of ``T`` has L2 norm equal to the singular value of the
   ``j``-th component. The squared norm equals the eigenvalue that
   ``mixOmics::nipals`` stores in ``$eig``.
-- ``mixOmics::nipals`` returns scores normalised to unit L2 norm per
+- ``mixOmics::nipals`` returns scores normalized to unit L2 norm per
   column and a separate ``$eig`` vector with the singular values.
 
 The two are therefore identical up to a per-column scalar
 (the singular value) and a per-column sign (NIPALS sign ambiguity).
-The score-agreement test below normalises both sides to unit L2 norm
+The score-agreement test below normalizes both sides to unit L2 norm
 per column before comparing.
 
 References
@@ -88,7 +88,7 @@ def _align_sign(reference: np.ndarray, candidate: np.ndarray) -> np.ndarray:
 
     NIPALS components are sign-ambiguous; mixOmics and process_improve
     can converge to columns that differ by an overall sign. We pick the
-    sign that minimises the column residual against the reference.
+    sign that minimizes the column residual against the reference.
     """
     flipped = candidate.copy()
     for j in range(candidate.shape[1]):
@@ -131,7 +131,7 @@ def test_scores_match_mixomics(canonical_matrix, reference) -> None:
     """Score columns must agree up to sign and per-column scale.
 
     process_improve returns ``T = X @ P`` (column norm = singular value)
-    while mixOmics returns unit-norm score columns. Normalise both to
+    while mixOmics returns unit-norm score columns. Normalize both to
     unit-norm per column, then compare with the loadings-derived sign.
     """
     ref_p, ref_t = reference

@@ -1,9 +1,9 @@
-"""Box and Hunter's (1957) rules for the centre runs of a rotatable central composite design (#788 A11).
+"""Box and Hunter's (1957) rules for the center runs of a rotatable central composite design (#788 A11).
 
 Their table, reprinted by Montgomery (Table 11.11) and Myers, Montgomery and Anderson-Cook, gives
-the centre runs for uniform precision and for orthogonality. These tests hold the rules to that
-table and, independently, to what each rule means: the centred squared columns orthogonal, or the
-prediction variance at the centre equal to that one unit away.
+the center runs for uniform precision and for orthogonality. These tests hold the rules to that
+table and, independently, to what each rule means: the centered squared columns orthogonal, or the
+prediction variance at the center equal to that one unit away.
 """
 
 from __future__ import annotations
@@ -66,7 +66,7 @@ def test_the_orthogonal_rule_makes_the_squared_columns_orthogonal(k, cube):
 
 @pytest.mark.parametrize(("k", "cube"), [(2, "full"), (3, "full"), (4, "full"), (5, "fractional")])
 def test_the_uniform_precision_rule_balances_the_centre_and_one_unit_away(k, cube):
-    """The variance at the centre and one root-mean-square unit away are nearest equal at the rule's number."""
+    """The variance at the center and one root-mean-square unit away are nearest equal at the rule's number."""
 
     def gap(n_center: int) -> float:
         runs = composite(k, n_center, cube=cube, alpha="rotatable")[1]

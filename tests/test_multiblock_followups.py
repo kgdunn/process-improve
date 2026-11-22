@@ -86,7 +86,7 @@ class TestUnfoldBlocks:
         first = unfolded["spectra"].index
         for wide in unfolded.values():
             assert wide.index.equals(first)
-        # And the alignment is by batch id, not by position: the row labelled
+        # And the alignment is by batch id, not by position: the row labeled
         # `ids[0]` in one block carries `ids[0]`'s data in the other too.
         expected_process = dict_to_wide(process).loc[first]
         pd.testing.assert_frame_equal(unfolded["process"], expected_process)
@@ -265,7 +265,7 @@ class TestBlockSet:
         """``__hash__`` being None is the language-level declaration of unhashability.
 
         It is what ``hash()`` itself looks at before raising ``TypeError``, so
-        asserting the attribute pins the behaviour at its source.
+        asserting the attribute pins the behavior at its source.
         """
         assert BlockSet.__hash__ is None
 

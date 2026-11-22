@@ -1,9 +1,9 @@
 """Property tests for the PCA / PLS / TPLS numerical safety fixes in SEC-21.
 
-These tests pin the post-sweep behaviour for sub-items 2, 4, 6, 7, 8
+These tests pin the post-sweep behavior for sub-items 2, 4, 6, 7, 8
 (see the SEC-21 issue body for the full list). Each test exercises a
 degenerate input that previously produced silent ``inf`` / ``NaN``
-poisoning and asserts the new behaviour: either a clean error, a
+poisoning and asserts the new behavior: either a clean error, a
 flagged result, or a NaN that propagates predictably.
 
 The tests live in ``tests/properties/`` per ENG-29 marker conventions:
@@ -123,7 +123,7 @@ class TestR2PerVariableConstantColumn:
 class TestNipalsDoesNotMutateInput:
     """``Xd[:, [0]]`` returns a copy under current numpy semantics, but
     SEC-21 sub-item 2 adds a defensive ``.copy()`` to protect against
-    future numpy view-returning changes. This test pins the behaviour:
+    future numpy view-returning changes. This test pins the behavior:
     after a NIPALS fit, the caller's training data column 0 still has
     its original NaN sentinel value (if any).
     """

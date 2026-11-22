@@ -37,7 +37,7 @@ from process_improve.multivariate.methods import (
 
 DATA = Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "multivariate"
 LDPE = pd.read_csv(DATA / "LDPE" / "LDPE.csv", index_col=0)
-#: The fourteen process variables, centred, so a model that does not scale sees them in their units.
+#: The fourteen process variables, centered, so a model that does not scale sees them in their units.
 X = LDPE.iloc[:, :14] - LDPE.iloc[:, :14].mean()
 #: The five quality variables; Mw reaches 1.7e5, which is where 1e150 overflows a square, and in units of
 #: 1e303 its sum over the 54 runs passes the largest float, though no value does.
@@ -77,7 +77,7 @@ def _pca_scaled_y(units: float) -> Outputs:
 
 
 def _pls_large_y(units: float) -> Outputs:
-    """PLS with only Y in the units: its centre is the mean of a column whose sum passes the largest float."""
+    """PLS with only Y in the units: its center is the mean of a column whose sum passes the largest float."""
     model = PLS(n_components=3).fit(X, Y * units)
     return {"scores": model.scores_.to_numpy(), "predictions": model.predict(X).to_numpy() / units}
 
@@ -97,7 +97,7 @@ def _pca_count(units: float) -> Outputs:
 
 def _pls(units: float, *, scale: bool) -> Outputs:
     """Fit PLS: unscaled, its scores and predictions move with the units; T² never does."""
-    centred = Y - Y.mean()  # unscaled, PLS centres nothing
+    centred = Y - Y.mean()  # unscaled, PLS centers nothing
     model = PLS(n_components=3, scale=scale).fit(X * units, centred * units)
     return {
         "scores": model.scores_.to_numpy() / (1.0 if scale else units),
@@ -201,7 +201,7 @@ def test_a_prm_row_whose_squares_overflow_gets_a_weight_of_zero(block: str, scal
 
     The squares of such a row overflow, so its distance was ``inf`` and PRM raised "distances must
     be finite". The L1 median gave it no pull either, where a row of any other size pulls the
-    centre by a unit vector towards it.
+    center by a unit vector towards it.
     """
 
     def fit(far: float) -> PRM:
@@ -287,9 +287,9 @@ def test_column_spreads_reach_the_largest_float() -> None:
 
 
 def test_column_means_reach_the_largest_float() -> None:
-    """A column whose sum passes the largest float has its mean, and MCUVScaler centres it there (#1149).
+    """A column whose sum passes the largest float has its mean, and MCUVScaler centers it there (#1149).
 
-    numpy's mean was inf, and MCUVScaler took an inf centre for 0, without a word: the column was then
+    numpy's mean was inf, and MCUVScaler took an inf center for 0, without a word: the column was then
     scaled about the wrong point. Where no sum overflows, the mean is numpy's, bit for bit.
     """
     frame = pd.DataFrame({"a": [5.0, 6.0, 4.5, 5.25], "b": [-3.0, -2.75, -3.5, np.nan]})  # well away from 0

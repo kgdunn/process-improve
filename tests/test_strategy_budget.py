@@ -101,7 +101,7 @@ def test_estimate_confirmation_runs_has_minimum_of_three() -> None:
 
 
 class TestAllocateBudget:
-    """Budget allocation across screening / optimisation / confirmation."""
+    """Budget allocation across screening / optimization / confirmation."""
 
     def test_no_budget_uses_ideal_allocation(self) -> None:
         result = allocate_budget(

@@ -21,14 +21,14 @@ every foldover
 
    \mathrm{rank}(X) \le k + \min\!\left(h + 1,\; 1 + \tfrac{k(k+1)}{2}\right)
 
-with equality for half-designs in general position. The bound counts one centre
-run. A foldover can carry none, or several: ``N = 2h + c`` for ``c`` centre
+with equality for half-designs in general position. The bound counts one center
+run. A foldover can carry none, or several: ``N = 2h + c`` for ``c`` center
 runs, and the even block sees ``h`` distinct rows plus one more when ``c >= 1``.
-For a given ``N`` the most distinct rows come from one centre run when ``N`` is
+For a given ``N`` the most distinct rows come from one center run when ``N`` is
 odd, ``(N + 1) / 2`` of them, and from none or two when ``N`` is even, ``N / 2``.
 An even budget therefore buys the model of the odd budget one run below it, with
 one more error degree of freedom. Three capability classes follow, and they are
-the OMARS analogue of resolution:
+the OMARS analog of resolution:
 
 ``Full``
     ``N >= k^2 + k + 1``, or ``k^2 + k + 2`` for an even ``N``. Main effects,
@@ -39,7 +39,7 @@ the OMARS analogue of resolution:
     freedom left to test them, so curvature can be judged factor by factor. The
     two-factor interactions are present in the design but not in the model.
     The smallest, ``2k + 2`` runs, is a definitive screening design with a
-    second centre run.
+    second center run.
 ``Satd``
     ``N = 2k + 1``. The definitive screening design at its minimal size:
     estimable but exactly saturated, so there are point estimates and no
@@ -60,7 +60,7 @@ smallest OMARS size.
 :func:`~process_improve.experiments.generate_omars` builds it. That generator
 needs error degrees of freedom, so it refuses the saturated ``Satd`` size (for an
 even ``k``, ``generate_design(design_type="dsd")`` gives that design); it needs
-at least one centre run, so it builds an even size with two; and it repeats
+at least one center run, so it builds an even size with two; and it repeats
 half-runs only for three and four factors, up to a cap. Larger sizes in the
 table, such as 39 runs for three factors, exist but are not built.
 
@@ -128,7 +128,7 @@ REFERENCE_DESIGNS: tuple[str, ...] = ("dsd", "bbd")
 #: exists, by Belevitch's condition that ``m - 1`` be a sum of two squares.
 _NO_CONFERENCE_MATRIX = frozenset({22})
 
-#: Centre runs each Box-Behnken design conventionally carries. The design runs
+#: Center runs each Box-Behnken design conventionally carries. The design runs
 #: themselves come from ``_BBD_RUNS``; these are the counts the published tables
 #: quote alongside them, giving the familiar totals of 15, 27, 46, 54 and 62.
 _BBD_CENTRE_RUNS: dict[int, int] = {3: 3, 4: 3, 5: 6, 6: 6, 7: 6}
@@ -216,7 +216,7 @@ def omars_minimum_runs(n_factors: int, capability: str = "full") -> int:
     int
         The run count: ``k^2 + k + 1`` for ``"full"``, ``2k + 2`` for
         ``"quad"``, ``2k + 1`` for ``"satd"``. The ``"quad"`` size is even: a
-        foldover with two centre runs, one more than the saturated design.
+        foldover with two center runs, one more than the saturated design.
 
     Raises
     ------
@@ -289,7 +289,7 @@ def box_behnken_runs(n_factors: int) -> int | None:
     Returns
     -------
     int or None
-        Design runs plus the centre runs the published tables quote, or ``None``
+        Design runs plus the center runs the published tables quote, or ``None``
         when Box and Behnken did not publish a design for that factor count.
 
     Examples
@@ -332,11 +332,11 @@ def omars_anchor_entry(design: str, n_factors: int) -> OmarsTradeOffTableEntry |
     Notes
     -----
     :func:`get_omars_trade_off_table_entry` reports a budget at its best
-    centre-run arrangement, one centre run for an odd count and none or two for
-    an even one. A named design carries whatever centre replication its
+    center-run arrangement, one center run for an odd count and none or two for
+    an even one. A named design carries whatever center replication its
     published form specifies instead: a Box-Behnken design has three or six
-    centre runs, so its total is even from five factors upwards. Its capability
-    is that of its distinct half-rows, which extra centre runs do not alter.
+    center runs, so its total is even from five factors upwards. Its capability
+    is that of its distinct half-rows, which extra center runs do not alter.
 
     Examples
     --------
@@ -399,8 +399,8 @@ def get_omars_trade_off_table_entry(n_runs: int, n_factors: int, display: bool =
     Parameters
     ----------
     n_runs : int
-        Run budget. An odd budget is a foldover with one centre run, ``2h + 1``
-        runs; an even one is a foldover with no centre run or with two, and buys
+        Run budget. An odd budget is a foldover with one center run, ``2h + 1``
+        runs; an even one is a foldover with no center run or with two, and buys
         the model of the odd budget one run below it, with one more error
         degree of freedom.
     n_factors : int
@@ -446,7 +446,7 @@ def get_omars_trade_off_table_entry(n_runs: int, n_factors: int, display: bool =
     satd, quad, full = (omars_minimum_runs(k, c) for c in ("satd", "quad", "full"))
 
     # The second-order columns of a foldover see one distinct row per half-run, plus one for
-    # the centre runs if there are any. One centre run gives an odd budget (N + 1) / 2 such
+    # the center runs if there are any. One center run gives an odd budget (N + 1) / 2 such
     # rows; none or two give an even budget N / 2. Those rows decide which model is estimable.
     distinct_even_rows = (runs + 1) // 2
     capability, reason = "none", ""
@@ -531,7 +531,7 @@ def omars_trade_off_table(
     ----------
     runs : sequence of int, default :data:`DEFAULT_RUNS`
         Run budgets, one per row. An even budget is read as a foldover with no
-        centre run or with two.
+        center run or with two.
     factors : sequence of int, default :data:`DEFAULT_FACTORS`
         Factor counts, one per column.
     display : bool, default True

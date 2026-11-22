@@ -117,7 +117,7 @@ def test_a_term_that_cannot_be_told_apart_from_the_residual_is_refused(data, for
 
 
 def test_two_readings_per_cell_separate_the_interaction_from_the_residual():
-    """The neighbour of #1004's refused case: balanced, so REML gives the analysis-of-variance estimates."""
+    """The neighbor of #1004's refused case: balanced, so REML gives the analysis-of-variance estimates."""
     data = _parts_by_operators(2)
     found = variance_components(data, "y ~ operator", ["part:operator"])
     y = data["y"].to_numpy().reshape(5, 3, 2)  # part, operator, reading

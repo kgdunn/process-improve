@@ -12,14 +12,14 @@ Four themes are provided:
 
 ``pi_tufte``
     Minimal, maximum data-ink. White background, no gridlines,
-    range-frame axes, a muted colourway and a serif font.
+    range-frame axes, a muted colorway and a serif font.
 ``pi_economist``
-    Editorial style after *The Economist*: a pale blue-grey panel,
+    Editorial style after *The Economist*: a pale blue-gray panel,
     horizontal-only white gridlines, a heavy sans font and the
-    signature Economist colourway (deep blue with a red accent).
+    signature Economist colorway (deep blue with a red accent).
 ``pi_journal``
     Scientific-journal style (Nature / IEEE): white background, light
-    full grid, a black mirrored box and the Okabe-Ito colourblind-safe
+    full grid, a black mirrored box and the Okabe-Ito colorblind-safe
     palette.
 ``pi_brand``
     The process-improve house style, built on the existing
@@ -71,16 +71,16 @@ THEME_NAMES: tuple[str, ...] = (THEME_TUFTE, THEME_ECONOMIST, THEME_JOURNAL, THE
 DEFAULT_THEME: str = THEME_JOURNAL
 
 # ---------------------------------------------------------------------------
-# Semantic line colours
+# Semantic line colors
 # ---------------------------------------------------------------------------
 # Reference and confidence-limit lines are drawn as layout shapes, so they are
-# not coloured by a template ``colorway``. These constants give plot code a
-# single, theme-agnostic source for those semantic colours.
+# not colored by a template ``colorway``. These constants give plot code a
+# single, theme-agnostic source for those semantic colors.
 
-#: Colour for confidence-limit lines (SPE limit, Hotelling's T2 limit, ...).
+#: Color for confidence-limit lines (SPE limit, Hotelling's T2 limit, ...).
 LIMIT_LINE_COLOR: str = "#DC2626"
 
-#: Colour for neutral reference lines (zero lines, parity diagonals, ...).
+#: Color for neutral reference lines (zero lines, parity diagonals, ...).
 REFERENCE_LINE_COLOR: str = "#9CA3AF"
 
 
@@ -152,7 +152,7 @@ def _tufte_template() -> go.layout.Template:
 
 def _economist_template() -> go.layout.Template:
     # The Economist red leads the accent palette but is kept out of the first
-    # slot: the first colourway entry styles the primary data series, and a red
+    # slot: the first colorway entry styles the primary data series, and a red
     # series would clash with the red confidence-limit lines (LIMIT_LINE_COLOR).
     return go.layout.Template(
         data=_scaled_traces(ink="#121212", paper="#FFFFFF"),

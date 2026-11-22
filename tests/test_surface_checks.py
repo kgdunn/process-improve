@@ -28,7 +28,7 @@ from process_improve.experiments import (
     third_order_contrasts,
 )
 
-#: Box, Hunter and Hunter, Table 15.4: the composite design in two blocks, the cube with two centre runs and then
+#: Box, Hunter and Hunter, Table 15.4: the composite design in two blocks, the cube with two center runs and then
 #: the axial runs at plus or minus 1.4 (coded, as printed) with two more. The response is the yield, %.
 _COMPOSITE = pd.DataFrame(
     [
@@ -37,7 +37,7 @@ _COMPOSITE = pd.DataFrame(
     ],
     columns=["Block", "time", "temperature", "y"],
 )  # fmt: skip
-#: Box, Hunter and Hunter, Table 15.1: the first design of the investigation, a 2^2 with three centre runs.
+#: Box, Hunter and Hunter, Table 15.1: the first design of the investigation, a 2^2 with three center runs.
 _FIRST = pd.DataFrame(
     [(-1, -1, 54.3), (1, -1, 60.3), (-1, 1, 64.6), (1, 1, 68.0), (0, 0, 60.3), (0, 0, 64.3), (0, 0, 62.3)],
     columns=["time", "temperature", "y"],
@@ -98,7 +98,7 @@ class TestThirdOrderContrasts:
         assert round(out["time"]["std_error"], 2) == round(out["temperature"]["std_error"], 2) == 1.06
 
     def test_the_printed_runs_at_one_point_four_with_the_noise_from_the_centre_runs(self) -> None:
-        """At the axial distance the table prints, 1.4, and with the pure error of the centre runs within blocks."""
+        """At the axial distance the table prints, 1.4, and with the pure error of the center runs within blocks."""
         out = third_order_contrasts(_COMPOSITE, "y", _FACTORS)
         time, temperature = out["contrasts"]["time"], out["contrasts"]["temperature"]
         assert (time["axial_slope"], time["factorial_slope"]) == pytest.approx((-2.1 / 2.8, -2.025))
@@ -139,7 +139,7 @@ class TestThirdOrderContrasts:
 
 
 def _composite_of(response: Callable[[float, float], float]) -> pd.DataFrame:
-    """Return a two-factor composite design at alpha = sqrt(2), with two centre runs, and the response given."""
+    """Return a two-factor composite design at alpha = sqrt(2), with two center runs, and the response given."""
     a = math.sqrt(2)
     points = [(-1, -1), (1, -1), (-1, 1), (1, 1), (-a, 0), (a, 0), (0, -a), (0, a), (0, 0), (0, 0)]
     return pd.DataFrame([(x, z, response(x, z)) for x, z in points], columns=["a", "b", "y"])
@@ -156,7 +156,7 @@ class TestPooledPureError:
         assert (round(three["ms_pure_error"], 2), round(three["std_dev"], 2), three["df_pure_error"]) == (3.18, 1.78, 4)
 
     def test_runs_of_two_designs_at_one_setting_are_not_replicates(self) -> None:
-        """Each design's centre runs are compared with their own mean, not with the other design's."""
+        """Each design's center runs are compared with their own mean, not with the other design's."""
         one = pd.DataFrame({"x": [0, 0], "y": [10.0, 12.0]})
         other = pd.DataFrame({"x": [0, 0], "y": [20.0, 22.0]})
         assert pooled_pure_error([one, other], "y", ["x"])["ms_pure_error"] == pytest.approx(2.0)
@@ -171,7 +171,7 @@ class TestPooledPureError:
 
 
 def _composite_runs(k: int = 2, centre: int = 5) -> pd.DataFrame:
-    """Return the factor settings of a rotatable composite design in k factors, with ``centre`` centre runs."""
+    """Return the factor settings of a rotatable composite design in k factors, with ``centre`` center runs."""
     cube = list(itertools.product([-1.0, 1.0], repeat=k))
     reach = (2**k) ** 0.25
     axial = [tuple(sign * reach * (i == j) for j in range(k)) for i in range(k) for sign in (-1, 1)]
@@ -217,7 +217,7 @@ class TestStationaryPointRegion:
         )["stationary_point"]
         assert region["stationary_point"] == pytest.approx(found["stationary_point_coded"])
         assert min(region["std_error"].values()) > 15
-        # along the ridge, through the estimate and the centre, and on beyond the estimate
+        # along the ridge, through the estimate and the center, and on beyond the estimate
         ridge = np.outer([0.0, 1.0, 2.0], list(region["stationary_point"].values()))
         assert region["contains"](ridge).all()
         assert not region["contains"]([1.0, 0.0])
@@ -282,7 +282,7 @@ class TestStationaryPointRegion:
         assert region["classification"] == "rising_ridge"
         assert region["stationary_point"] is None
         assert region["std_error"] is None
-        assert not region["contains"]([0.0, 0.0]), "the gradient at the centre is clearly not zero"
+        assert not region["contains"]([0.0, 0.0]), "the gradient at the center is clearly not zero"
 
     def test_a_grid_gives_a_mask_of_its_shape_and_the_units_do_not_move_the_region(self) -> None:
         """A temperature in degC and a pressure in pascals, 1e5 from zero: the region is the coded one, mapped."""

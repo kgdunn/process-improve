@@ -1,6 +1,6 @@
 """Results judged against values stated before the data (#789 B5 and B6).
 
-Box, Hunter and Hunter print each of these, and the reference catalogue held them as manual checks:
+Box, Hunter and Hunter print each of these, and the reference catalog held them as manual checks:
 the five cars of Exercise 2.12 (a variance about the known mean 25.0, and a new car's 28.2 against
 it), the production record's nearly independent differences (Table 2.5, about zero), and the blood
 coagulation times of Table 6.1 against the norm of 63.

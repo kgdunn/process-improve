@@ -286,7 +286,7 @@ CASES: dict[str, tuple[Callable[[], object], str]] = {
     ),
     "PCA ekf: data that are already autoscaled": (
         lambda: PCA.select_n_components(STANDARDISED, max_components=2, cv=5, cv_scheme="ekf", random_state=0),
-        r"X is already centred and unit-variance scaled",
+        r"X is already centered and unit-variance scaled",
     ),
     "PCA: rows too sparse to estimate their scores": (
         lambda: PCA(n_components=2).fit(X).diagnose(X.iloc[:2].assign(b=np.nan, c=np.nan, d=np.nan)),
@@ -309,7 +309,7 @@ CASES: dict[str, tuple[Callable[[], object], str]] = {
         lambda: PLS(n_components=1, copy=True).fit(X, Y),
         r"PLS\.copy is deprecated",
     ),
-    "PLS: blocks that are not centred": (
+    "PLS: blocks that are not centered": (
         lambda: PLS(n_components=1, scale=False).fit(X + 100.0, Y - Y.mean()),
         r"PLS\(scale=False\) fits no intercept",
     ),
@@ -329,7 +329,7 @@ CASES: dict[str, tuple[Callable[[], object], str]] = {
         lambda: PLS(n_components=2).fit(DESIGN, INTERACTION),
         r"nothing left in Y that X can explain",
     ),
-    "PLS: centring and scaling outside the folds": (
+    "PLS: centering and scaling outside the folds": (
         lambda: PLS.select_n_components(
             X, Y, max_components=2, cv=5, n_repeats=1, scale_inside_folds=False, random_state=0
         ),
@@ -337,7 +337,7 @@ CASES: dict[str, tuple[Callable[[], object], str]] = {
     ),
     "PLS: cross-validation criteria on data that are already autoscaled": (
         lambda: PLS.compare_cv_criteria(STANDARDISED, Y, max_components=2, random_state=0),
-        r"X is already centred and unit-variance scaled",
+        r"X is already centered and unit-variance scaled",
     ),
     "OPLS: copy is deprecated": (
         lambda: OPLS(n_orthogonal_components=1, copy=True).fit(X, Y),
@@ -533,7 +533,7 @@ CASES: dict[str, tuple[Callable[[], object], str]] = {
         ),
         r"1 run\(s\) of the existing design lie outside the region",
     ),
-    # Designed experiments: analysing the runs
+    # Designed experiments: analyzing the runs
     "Analysis: blends rounded for printing": (
         lambda: analyze_experiment(_blends(3), response_column="y", model="scheffe_quadratic"),
         r"not to 1 exactly",
@@ -566,7 +566,7 @@ CASES: dict[str, tuple[Callable[[], object], str]] = {
         ),
         r"blocks are not added to an explicit formula",
     ),
-    "Analysis: whole plots analysed by ordinary least squares": (
+    "Analysis: whole plots analyzed by ordinary least squares": (
         lambda: analyze_experiment(
             _with_response(_two_level("AB", replicates=2)).assign(WholePlot=[1, 1, 2, 2, 3, 3, 4, 4]),
             response_column="y",
@@ -616,22 +616,22 @@ CASES: dict[str, tuple[Callable[[], object], str]] = {
         lambda: analyze_omars(_two_level("ABC", replicates=2).iloc[:-1], np.linspace(1.0, 2.0, 15)),
         r"does not have the OMARS structure",
     ),
-    # Designed experiments: optimising the responses
-    "Optimise: goals matched to models by position": (
+    # Designed experiments: optimizing the responses
+    "Optimize: goals matched to models by position": (
         lambda: optimize_responses([_quadratic_model("y1"), _quadratic_model("y2")], goals=_goals_without_names()),
         r"Matching goals to fitted models by position",
     ),
-    "Optimise: a region that the method ignores": (
+    "Optimize: a region that the method ignores": (
         lambda: optimize_responses([_quadratic_model()], method="stationary_point", region=DesignRegion(_coded("AB"))),
-        r"region is honoured by 'desirability' and 'pareto_front' only",
+        r"region is honored by 'desirability' and 'pareto_front' only",
     ),
-    "Optimise: limits that no setting reaches": (
+    "Optimize: limits that no setting reaches": (
         lambda: optimize_responses(
             [_quadratic_model()], goals=[{"response": "y", "goal": "maximize", "low": 500.0, "high": 600.0}]
         ),
         r"the composite desirability is 0",
     ),
-    "Optimise: search_bounds that ridge analysis cannot follow": (
+    "Optimize: search_bounds that ridge analysis cannot follow": (
         lambda: optimize_responses(
             [_quadratic_model()], method="ridge_analysis", search_bounds={"A": (0.0, 2.0), "B": (-2.0, 2.0)}
         ),
@@ -656,11 +656,11 @@ CASES: dict[str, tuple[Callable[[], object], str]] = {
         r"a panelist did not score every product",
     ),
     # The other modules
-    "Interactions: parents that are not centred and scaled": (
+    "Interactions: parents that are not centered and scaled": (
         lambda: interaction_terms(
             pd.DataFrame({"a": [1.0, 2.0, 3.0, 4.0, 10.0], "b": [5.0, 3, 8, 1, 2]}), [("a", "b")]
         ),
-        r"x_log does not look centred and unit-variance scaled",
+        r"x_log does not look centered and unit-variance scaled",
     ),
     "Robust regression: the default intervals change in 3.0": (
         lambda: robust_regression(np.arange(10.0), 2.0 * np.arange(10.0) + np.random.default_rng(7).normal(size=10)),

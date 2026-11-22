@@ -43,7 +43,7 @@ def text_outside_code_blocks(markdown: str) -> str:
 
 
 def package_name(requirement: str) -> str:
-    """Return the normalised distribution name of a requirement such as ``'scikit-learn>=1.7'``."""
+    """Return the normalized distribution name of a requirement such as ``'scikit-learn>=1.7'``."""
     match = re.match(r"[A-Za-z0-9._-]+", requirement.strip())
     assert match, requirement
     return re.sub(r"[-_.]+", "-", match.group()).lower()

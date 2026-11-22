@@ -508,7 +508,7 @@ def test_min_run_examples_are_the_designs_the_library_builds() -> None:
         k, _, roman = key.split("_")
         resolution = {"III": 3, "IV": 4, "V": 5}[roman]
         built = generate_design(factors(int(k)), design_type="fractional_factorial", resolution=resolution)
-        assert built.n_runs - 3 == runs, key  # generate_design adds 3 centre points by default
+        assert built.n_runs - 3 == runs, key  # generate_design adds 3 center points by default
     for design_id, design_type in (("omars", "omars"), ("dsd", "dsd")):
         for k, runs in _design_type(design_id).min_runs["examples"].items():
             assert generate_design(factors(int(k)), design_type=design_type).n_runs == runs, (design_id, k)

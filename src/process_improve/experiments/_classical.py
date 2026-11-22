@@ -6,7 +6,7 @@ fractional factorial, Plackett-Burman, Box-Behnken and central composite designs
 not need pyDOE3. ``tests/test_classical_arrays.py`` checks the
 equivalence against pyDOE3 when it is installed.
 
-pyDOE3 is distributed under the BSD 3-Clause licence. Its code descends from the
+pyDOE3 is distributed under the BSD 3-Clause license. Its code descends from the
 Scilab ``scidoe`` toolbox (Copyright (C) 2009-2013 Yann Collette, CEA / Jean-Marc
 Martinez, INRIA / Michael Baudin, Maria Christopoulou), converted to Python by
 Abraham Lee and maintained as pyDOE2 / pyDOE3.
@@ -26,7 +26,7 @@ _PB12_ROW = [-1, 1, -1, 1, 1, 1, -1, -1, -1, 1, -1]
 #: First column and last row of the 20-run Plackett-Burman Hankel core.
 _PB20_COLUMN = [-1, -1, 1, 1, -1, -1, -1, -1, 1, -1, 1, -1, 1, 1, 1, 1, -1, -1, 1]
 _PB20_ROW = [1, -1, -1, 1, 1, -1, -1, -1, -1, 1, -1, 1, -1, 1, 1, 1, 1, -1, -1]
-#: Centre points pyDOE3's ``bbdesign`` adds by default, indexed by the number of factors.
+#: Center points pyDOE3's ``bbdesign`` adds by default, indexed by the number of factors.
 _BB_DEFAULT_CENTRE = [0, 0, 0, 3, 3, 6, 6, 6, 8, 9, 10, 12, 12, 13, 14, 15, 16]
 
 
@@ -147,14 +147,14 @@ def pbdesign(n_factors: int) -> np.ndarray:
 
 
 def bbdesign(n_factors: int, center: int | None = None) -> np.ndarray:
-    """Return the Box-Behnken design pyDOE3 builds: a 2^2 factorial in every pair of factors, then centre runs.
+    """Return the Box-Behnken design pyDOE3 builds: a 2^2 factorial in every pair of factors, then center runs.
 
     Parameters
     ----------
     n_factors : int
         Number of factors, at least 3.
     center : int or None
-        Number of centre runs; ``None`` uses pyDOE3's default for ``n_factors``.
+        Number of center runs; ``None`` uses pyDOE3's default for ``n_factors``.
 
     Returns
     -------
@@ -187,15 +187,15 @@ def ccdesign(
 ) -> np.ndarray:
     """Return a central composite design laid out as pyDOE3's ``ccdesign`` lays it out.
 
-    Rows are the factorial points, the centre runs of the cube portion, the axial points,
-    then the centre runs of the axial portion.
+    Rows are the factorial points, the center runs of the cube portion, the axial points,
+    then the center runs of the axial portion.
 
     Parameters
     ----------
     n_factors : int
         Number of factors, at least 2.
     center : tuple[int, int]
-        Centre runs added to the cube portion and to the axial portion.
+        Center runs added to the cube portion and to the axial portion.
     alpha : {"orthogonal", "o", "rotatable", "r"}
         How the axial distance is chosen for a circumscribed design.
     face : {"circumscribed", "ccc", "inscribed", "cci", "faced", "ccf"}

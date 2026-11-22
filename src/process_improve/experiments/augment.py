@@ -104,7 +104,7 @@ _ALIAS_TOL = 1e-9
 
 
 def _effect_columns(design: pd.DataFrame, factor_names: list[str]) -> dict[str, np.ndarray]:
-    """Centred, unit-length columns of every main effect and two-factor interaction.
+    """Centered, unit-length columns of every main effect and two-factor interaction.
 
     A column that is constant (an effect aliased with the intercept) is left out,
     since it has no correlation to report.
@@ -502,7 +502,7 @@ def _augment_axial_check_blends(ctx: _AugmentContext, df: pd.DataFrame) -> dict[
 def _augment_add_center_points(ctx: _AugmentContext) -> dict[str, Any]:
     """Append center point rows (all zeros in coded units).
 
-    With a region whose limits rule out the centre of the box, the runs go to the region's
+    With a region whose limits rule out the center of the box, the runs go to the region's
     central setting instead (:meth:`DesignRegion.centroid`).
     """
     df = ctx.existing_design[ctx.factor_names].copy()
@@ -529,11 +529,11 @@ def _augment_add_center_points(ctx: _AugmentContext) -> dict[str, Any]:
         notes = [
             (
                 f"Added {n_center} run(s) at the region's central setting, {_settings_text(ctx.region, centre)}: "
-                f"the centre of the box breaks {broken}."
+                f"the center of the box breaks {broken}."
             ),
             (
-                "Repeated runs there give pure error. The curvature test that compares centre runs with the "
-                "factorial runs needs them at the centre of the box, so fit a model with squared terms instead."
+                "Repeated runs there give pure error. The curvature test that compares center runs with the "
+                "factorial runs needs them at the center of the box, so fit a model with squared terms instead."
             ),
         ]
 
@@ -639,7 +639,7 @@ def _augment_add_axial_points(ctx: _AugmentContext) -> dict[str, Any]:
 
 
 def _axial_distance(ctx: _AugmentContext, design: pd.DataFrame, n_new_centers: int = 0) -> float:
-    """Return the axial distance for *ctx*: face-centred by default when a factor has hard limits.
+    """Return the axial distance for *ctx*: face-centered by default when a factor has hard limits.
 
     A region makes every factor's range a hard limit, since its runs stay inside the box.
 
@@ -687,7 +687,7 @@ def _compute_alpha(
     alpha : str, float, or None
         ``"rotatable"``, ``"face_centered"``, ``"orthogonal"``, or numeric.
     n_new_centers : int
-        Centre runs added alongside the axial runs, which the orthogonal
+        Center runs added alongside the axial runs, which the orthogonal
         distance has to count.
     """
     if isinstance(alpha, (int, float)):
@@ -912,8 +912,8 @@ def _augment_add_runs_optimal(ctx: _AugmentContext) -> dict[str, Any]:
     }
 
 
-#: upgrade_to_rsm tops the centre runs up to this many, the usual three to five for a CCD, unless
-#: n_additional_runs sets the second stage's centre runs.
+#: upgrade_to_rsm tops the center runs up to this many, the usual three to five for a CCD, unless
+#: n_additional_runs sets the second stage's center runs.
 _RSM_CENTER_RUNS = 5
 
 
@@ -955,11 +955,11 @@ def _model_support(design: pd.DataFrame, factor_names: list[str], model: str) ->
 def _augment_upgrade_to_rsm(ctx: _AugmentContext) -> dict[str, Any]:
     """Upgrade a screening/factorial design to an RSM (CCD) design.
 
-    Adds 2k axial runs and ``n_additional_runs`` centre runs as a second stage (by
-    default, enough to bring the centre runs to five), then checks that the target
+    Adds 2k axial runs and ``n_additional_runs`` center runs as a second stage (by
+    default, enough to bring the center runs to five), then checks that the target
     model (default quadratic) can be estimated. It cannot when the cube is a
     resolution III or IV fraction, whose aliased two-factor interactions are zero on
-    every axial and centre run; that is reported, with a warning, rather than claimed
+    every axial and center run; that is reported, with a warning, rather than claimed
     away. A ``Block`` column marks the two stages, which are run at different times,
     and the result gives the axial distance at which they block orthogonally.
     """
@@ -967,7 +967,7 @@ def _augment_upgrade_to_rsm(ctx: _AugmentContext) -> dict[str, Any]:
     k = len(ctx.factor_names)
     model = ctx.target_model or "quadratic"
 
-    # Detect existing center points; the second stage adds the centre runs asked for, or tops them up to five
+    # Detect existing center points; the second stage adds the center runs asked for, or tops them up to five
     center_mask = (df.abs() < 1e-10).all(axis=1)
     n_existing_centers = int(center_mask.sum())
     if ctx.n_additional_runs is not None:
@@ -1004,7 +1004,7 @@ def _augment_upgrade_to_rsm(ctx: _AugmentContext) -> dict[str, Any]:
         notes.append(f"At alpha = {alpha_numeric:.4f} the two stages block orthogonally.")
     else:
         notes.append(
-            f"The two stages block orthogonally at alpha = {orthogonal:.4f} with these centre runs; at "
+            f"The two stages block orthogonally at alpha = {orthogonal:.4f} with these center runs; at "
             f"alpha = {alpha_numeric:.4f} the block effect is correlated with the estimates of the squared terms."
         )
     n_coefficients, rank, aliased = _model_support(augmented, ctx.factor_names, model)
@@ -1013,7 +1013,7 @@ def _augment_upgrade_to_rsm(ctx: _AugmentContext) -> dict[str, Any]:
     else:
         message = (
             f"The {model} model has {n_coefficients} coefficients but the upgraded design supports only {rank}: "
-            f"{', '.join(aliased)} cannot all be estimated. Axial and centre runs are zero on every interaction "
+            f"{', '.join(aliased)} cannot all be estimated. Axial and center runs are zero on every interaction "
             "column, so interactions aliased in the cube stay aliased; a central composite design needs a "
             "resolution V cube. Add runs that separate those interactions first (for a half fraction, its "
             "other half), or use 'add_runs_optimal' with this target_model."
@@ -1159,7 +1159,7 @@ def _coded_centre(region: DesignRegion) -> np.ndarray:
     """
     middle = region.centroid()
     if middle is None:
-        raise ValueError("No setting of the region was found to place the centre runs at; the region is too thin.")
+        raise ValueError("No setting of the region was found to place the center runs at; the region is too thin.")
     low = np.array([f.low for f in region.factors], dtype=float)
     high = np.array([f.high for f in region.factors], dtype=float)
     actual = np.array([middle[name] for name in region.names], dtype=float)
@@ -1294,8 +1294,8 @@ def augment_design(  # noqa: PLR0913
         Budget for additional runs, a positive whole number. Interpretation
         depends on the augmentation type (number of center points, number of
         D-optimal runs, number of blocks, ...). For ``"upgrade_to_rsm"`` it is
-        the number of centre runs in the second stage, beside the axial runs;
-        the default of ``None`` brings the centre runs to five. A regular two-level design
+        the number of center runs in the second stage, beside the axial runs;
+        the default of ``None`` brings the center runs to five. A regular two-level design
         splits into 2, 4, 8, ... blocks; another count raises. For ``"replicate"``, this is the
         number of complete copies of the existing design that are appended
         (each copy adds ``len(existing_design)`` runs); the default of
@@ -1332,10 +1332,10 @@ def augment_design(  # noqa: PLR0913
         dict form, such as ``metadata["region"]`` of the design ``generate_design`` made.
         The region's factors give the coding: their ``low`` and ``high`` are the design's
         -1 and +1. ``"add_runs_optimal"`` then chooses its runs among the settings the
-        limits allow, and ``"add_center_points"`` puts the centre runs at the region's
-        central setting when the centre of the box breaks a limit. The ranges are limits
+        limits allow, and ``"add_center_points"`` puts the center runs at the region's
+        central setting when the center of the box breaks a limit. The ranges are limits
         too, so axial runs sit on the faces of the cube, as with *hard_limits*. Any other
-        new run that breaks a limit (a folded run, an axial or centre run, a copy) is
+        new run that breaks a limit (a folded run, an axial or center run, a copy) is
         refused, and the message names it and the limit. Existing runs outside the region
         are kept, with a ``UserWarning``.
     axial_distance : float or None
@@ -1389,7 +1389,7 @@ def augment_design(  # noqa: PLR0913
         isinstance(n_additional_runs, bool) or int(n_additional_runs) != n_additional_runs or n_additional_runs < 1
     ):
         msg = (
-            f"n_additional_runs must be a positive whole number (runs, centre points, copies or blocks); "
+            f"n_additional_runs must be a positive whole number (runs, center points, copies or blocks); "
             f"got {n_additional_runs!r}."
         )
         raise ValueError(msg)

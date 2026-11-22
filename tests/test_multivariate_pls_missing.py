@@ -81,10 +81,10 @@ class TestImputationIsWorthIt:
     def test_rescaling_every_round_is_what_buys_the_accuracy(self) -> None:
         """Scaling once, from the incomplete data, fixes the coordinate system at its worst guess.
 
-        The completed data's centre is a better estimate of the complete data's centre
+        The completed data's center is a better estimate of the complete data's center
         than the observed cells' mean is, because it borrows from the correlated
         columns. That is why the loop re-estimates the scaling every round, and it is
-        checked here where it can be seen directly: on the fitted centre.
+        checked here where it can be seen directly: on the fitted center.
         """
         closer = 0
         for seed in range(8):
@@ -94,7 +94,7 @@ class TestImputationIsWorthIt:
             observed_mean = gapped.mean().to_numpy()
             true_centre = X.mean().to_numpy()
             closer += np.linalg.norm(fitted_centre - true_centre) < np.linalg.norm(observed_mean - true_centre)
-        assert closer >= 6, f"the completed-data centre was the better estimate on only {closer} of 8 seeds"
+        assert closer >= 6, f"the completed-data center was the better estimate on only {closer} of 8 seeds"
 
 
 class TestConvergence:
@@ -128,7 +128,7 @@ class TestExactProperties:
         assert imputed.fitting_info_["md_converged"]
 
     def test_the_scaling_is_re_estimated_from_the_completed_data(self) -> None:
-        """Scaling once from the gapped data would leave the centre at the observed mean, exactly."""
+        """Scaling once from the gapped data would leave the center at the observed mean, exactly."""
         X, Y = _dataset(0)
         gapped = _with_gaps(X, 0.30, 0)
         centre = _fit(gapped, Y, "tsr", tol=QUICK)._x_scaler.center_.to_numpy()
@@ -156,7 +156,7 @@ class TestExactProperties:
 
         One observed column cannot pin down three scores. The first version of this
         feature reached for a ridge to force the inverse through; trimming the row's
-        components to what it can support is exact rather than regularised.
+        components to what it can support is exact rather than regularized.
         """
         X, Y = _dataset(0)
         X.iloc[3, 1:] = np.nan  # one observed column, three components
@@ -360,7 +360,7 @@ class TestImputeLowRank:
     def test_a_constant_column_changes_no_other_imputation(self, method: str, value: float) -> None:
         """A constant column carries no information, so appending one changes no other imputed cell.
 
-        Its standard deviation is more often rounding noise (1e-17) than 0, and standardising
+        Its standard deviation is more often rounding noise (1e-17) than 0, and standardizing
         by that noise made it a column of +-0.98, a direction the low-rank model then fitted.
         Its own gap is filled with its value.
         """

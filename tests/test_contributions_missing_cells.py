@@ -169,7 +169,7 @@ def test_a_model_without_training_residuals_still_gets_contributions_for_missing
     """An adaptive PCA keeps no residual block, which only the "tsr" estimator needs; "scp" goes ahead.
 
     The complete rows' residuals are ``z - z P P'`` (the loadings are orthonormal), with ``z``
-    each row centred and scaled by the model, as ``transform`` reads it (#1125); the incomplete
+    each row centered and scaled by the model, as ``transform`` reads it (#1125); the incomplete
     rows' are NaN exactly at their missing cells.
     """
     X, _ = data

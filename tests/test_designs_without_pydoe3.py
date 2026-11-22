@@ -38,9 +38,9 @@ def test_designs_build_without_pydoe3() -> None:
     )
     lines = dict(line.split(" ", 1) for line in result.stdout.strip().splitlines())
     assert lines == {
-        "full_factorial": "19",  # 2^4 plus 3 centre runs
-        "fractional_factorial": "19",  # 2^(5-1) plus 3 centre runs
-        "plackett_burman": "11",  # 8 plus 3 centre runs
+        "full_factorial": "19",  # 2^4 plus 3 center runs
+        "fractional_factorial": "19",  # 2^(5-1) plus 3 center runs
+        "plackett_burman": "11",  # 8 plus 3 center runs
         "box_behnken": "27",
         "ccd": "27",
         "supersaturated": "12",

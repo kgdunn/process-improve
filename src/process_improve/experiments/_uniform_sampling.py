@@ -39,7 +39,7 @@ def _linear_row(a: np.ndarray, b: float) -> _Inequality:
 def _probe_points(low: np.ndarray, high: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Points to fit an affine form on, and more points to check it on, spread through the box ``[low, high]``.
 
-    The fit uses the centre of the box, a step of a quarter of the range from it along
+    The fit uses the center of the box, a step of a quarter of the range from it along
     each axis, and the first point of the unscrambled Halton sequence: ``k + 2`` points
     of which the first ``k + 1`` are affinely independent, so an affine form is always
     recovered exactly. (The first ``k + 2`` Halton points alone are not: in a base larger

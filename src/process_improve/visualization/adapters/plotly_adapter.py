@@ -2,7 +2,7 @@
 
 Converts a :class:`ChartSpec` into a Plotly-compatible dict that can be
 passed directly to ``plotly.graph_objects.Figure(data_dict)`` or
-serialised to JSON via ``json.dumps``.
+serialized to JSON via ``json.dumps``.
 """
 
 from __future__ import annotations
@@ -332,7 +332,7 @@ class PlotlyAdapter(AbstractAdapter):
             if value is not None:
                 trace_kwargs[key] = value
 
-        # With line-drawn contours the layer colour selects the line colour, so
+        # With line-drawn contours the layer color selects the line color, so
         # several responses overlaid on one panel stay distinguishable.
         if layer.color and contours.get("coloring") == "lines":
             trace_kwargs["line"] = dict(color=layer.color)
@@ -353,7 +353,7 @@ class PlotlyAdapter(AbstractAdapter):
         )
 
     def _heatmap_trace(self, layer: LayerSpec) -> go.Heatmap:
-        """Build a heatmap from the layer's grid; ``zmin``, ``zmax`` and ``colorscale`` in its style fix the colours."""
+        """Build a heatmap from the layer's grid; ``zmin``, ``zmax`` and ``colorscale`` in its style fix the colors."""
         style = layer.style
         return go.Heatmap(
             x=style.get("x_grid", []),

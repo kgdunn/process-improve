@@ -33,7 +33,7 @@ For runs :math:`d_i` and :math:`d_j` of an :math:`n \times m` design, let
     K_t = \frac{\sum_{i<j} [\delta(d_i, d_j)]^t}{n(n-1)/2},
 
 and the moment aberration pattern is :math:`(K_1, K_2, \ldots, K_m)`.
-Minimum moment aberration sequentially minimises that vector.
+Minimum moment aberration sequentially minimizes that vector.
 
 Strength and resolution
 -----------------------
@@ -143,7 +143,7 @@ class MomentAberrationResult:
     exact_lower_bounds: list[Fraction] = field(default_factory=list, repr=False)
 
     def to_dict(self) -> dict[str, Any]:
-        """Return a JSON-serialisable summary (drops the exact Fractions)."""
+        """Return a JSON-serializable summary (drops the exact Fractions)."""
         return {
             "pattern": self.pattern,
             "lower_bounds": self.lower_bounds,
@@ -158,7 +158,7 @@ class MomentAberrationResult:
     def is_better_than(self, other: MomentAberrationResult) -> bool:
         r"""Return True when ``self`` beats ``other`` on minimum moment aberration.
 
-        The criterion sequentially minimises the pattern, so the comparison is
+        The criterion sequentially minimizes the pattern, so the comparison is
         lexicographic on :math:`(K_1, K_2, \ldots)`. Uses the exact
         :class:`~fractions.Fraction` pattern, so designs that differ only in
         the far tail are still ordered correctly.
@@ -169,7 +169,7 @@ class MomentAberrationResult:
             If the two designs differ in run size or factor count. The
             criterion ranks designs *of the same size*; :math:`K_t` scales
             with both :math:`n` and :math:`m`, so a cross-size comparison
-            would silently favour the smaller design.
+            would silently favor the smaller design.
         """
         if (self.n_runs, self.n_factors) != (other.n_runs, other.n_factors):
             raise ValueError(
@@ -268,7 +268,7 @@ def _pattern_from_moments(
     for order in range(1, max_order + 1):
         total = sum(comb(order, u) * n_factors ** (order - u) * raw_moments[u] for u in range(order + 1))
         sum_delta_power = Fraction(total, 2**order)
-        # Strip the diagonal (delta_ii = m) and normalise by the pair count.
+        # Strip the diagonal (delta_ii = m) and normalize by the pair count.
         pattern.append((sum_delta_power - n_runs * n_factors**order) / (n_runs * (n_runs - 1)))
     return pattern
 

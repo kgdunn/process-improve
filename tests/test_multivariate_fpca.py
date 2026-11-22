@@ -16,7 +16,7 @@ from process_improve.multivariate.methods import SpecificationWarning
 
 
 def _colour_curves(n_runs: int = 40, seed: int = 1) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
-    """Curves built as the book's colour case is: an amplitude times a plateau shape, plus a drift times a late ramp."""
+    """Curves built as the book's color case is: an amplitude times a plateau shape, plus a drift times a late ramp."""
     rng = np.random.default_rng(seed)
     t = np.arange(10.0)
     ref = 1 - np.exp(-t / 2)
@@ -124,7 +124,7 @@ def test_a_request_for_more_components_than_the_curves_hold_is_clamped():
     with pytest.warns(SpecificationWarning, match="at most 4"):
         model = FPCA(n_components=9).fit(curves)
     assert model.n_components_ == 4
-    assert FPCA().fit(curves).n_components_ == 4  # one fewer than the curves, once they are centred
+    assert FPCA().fit(curves).n_components_ == 4  # one fewer than the curves, once they are centered
     assert FPCA(n_components=1).fit(curves).eigenfunctions_.shape == (10, 1)
 
 
@@ -181,7 +181,7 @@ def test_the_methoxylation_scores_match_the_sources_up_to_its_time_unit():
     """McMullen and Jurica's 15 reactions, sampled at their own times: one component, as the source finds.
 
     The source's PACE scores correlate with these almost perfectly and are sqrt(24) times larger, because it
-    integrates over hours and the catalogue holds the time coded as hours / 24.
+    integrates over hours and the catalog holds the time coded as hours / 24.
     """
     entry = reference_experiments("mcmullen-jurica-2024")[0]
     runs = pd.DataFrame(entry["runs"]["rows"], columns=entry["runs"]["columns"])

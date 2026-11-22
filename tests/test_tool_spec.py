@@ -333,7 +333,7 @@ class TestRobustSummaryStats:
         assert result["N_non_missing"] == 3
 
     def test_all_values_json_serialisable(self) -> None:
-        """Verify all result values are JSON-serialisable."""
+        """Verify all result values are JSON-serializable."""
         result = execute_tool_call("robust_summary_stats", {"values": [1.0, 2.0, 3.0]})
         json.dumps(result)  # must not raise
 
@@ -373,7 +373,7 @@ class TestDetectOutliers:
         assert result["n_outliers_found"] <= 1
 
     def test_result_json_serialisable(self) -> None:
-        """Verify the result is JSON-serialisable."""
+        """Verify the result is JSON-serializable."""
         result = execute_tool_call("detect_outliers", {"values": [1, 2, 3, 100]})
         json.dumps(result)
 
@@ -460,7 +460,7 @@ class TestNormalityTest:
         assert "is_normal" in result
 
     def test_returns_json_serialisable(self) -> None:
-        """Verify the result is JSON-serialisable."""
+        """Verify the result is JSON-serializable."""
         result = execute_tool_call("normality_test", {"values": [1.0, 2.0, 1.5, 1.8, 2.1]})
         json.dumps(result)
 
@@ -531,7 +531,7 @@ class TestTtestTwoSamples:
         assert {"z_value", "pooled_std"}.isdisjoint(result)
 
     def test_result_json_serialisable(self) -> None:
-        """Verify the result is JSON-serialisable."""
+        """Verify the result is JSON-serializable."""
         result = execute_tool_call("ttest_two_samples", {"group_a": [1, 2, 3], "group_b": [4, 5, 6]})
         json.dumps(result)
 
@@ -586,7 +586,7 @@ class TestTtestPairedSamples:
         assert result["z_value"] == result["t_value"]
 
     def test_result_json_serialisable(self) -> None:
-        """Verify the result is JSON-serialisable."""
+        """Verify the result is JSON-serializable."""
         result = execute_tool_call("ttest_paired_samples", {"group_a": [1, 2, 3], "group_b": [1, 2, 3]})
         json.dumps(result)
 
@@ -745,7 +745,7 @@ class TestPcaPredict:
     def test_t2_leaves_out_a_component_with_no_spread(self) -> None:
         """Three rows give three components, the third with no spread: it adds nothing to T² (#1026).
 
-        Three centred rows span two dimensions, so the third score sd is ~1e-16, and a new row
+        Three centered rows span two dimensions, so the third score sd is ~1e-16, and a new row
         off that plane got a T² near 1e30. It is now ``sum (t_a / s_a)^2`` over the first two.
         """
         data = [[1.0, 2.0, 0.5], [2.0, 1.0, 3.0], [4.0, 3.5, 1.0]]

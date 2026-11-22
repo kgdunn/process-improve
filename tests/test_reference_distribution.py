@@ -3,7 +3,7 @@
 Box, Hunter and Hunter's chapter 2 judges a plant trial's difference of 1.30 against the 191
 differences of adjacent averages of 10 in the process's own 210-batch record, and against 10 nearly
 independent ones (Table 2.5); its exercises do the same for cell growth, a patient's temperature and
-five batches. Each record and printed level is read from the reference catalogue.
+five batches. Each record and printed level is read from the reference catalog.
 """
 
 from __future__ import annotations

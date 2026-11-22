@@ -2,7 +2,7 @@
 
 The pid-book's mixture section puts lower bounds of 0.2, 0.2 and 0 on three ingredients, so the
 pure first pseudocomponent is the blend (0.8, 0.2, 0.0). Goos and Jones's rolling mill bounds each
-of three mills by 0.1, and the reference catalogue codes its runs in pseudocomponents itself.
+of three mills by 0.1, and the reference catalog codes its runs in pseudocomponents itself.
 These tests hold the conversions to both, and to the geometry of the region.
 """
 

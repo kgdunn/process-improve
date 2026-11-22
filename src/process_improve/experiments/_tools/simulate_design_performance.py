@@ -1,5 +1,5 @@
 # (c) Kevin Dunn, 2010-2026. MIT License.
-"""MCP tool wrapper: ``simulate_design_performance``, designs judged on a hypothesised process by simulation."""
+"""MCP tool wrapper: ``simulate_design_performance``, designs judged on a hypothesized process by simulation."""
 
 from __future__ import annotations
 
@@ -62,14 +62,14 @@ class SimulateDesignPerformanceInput(BaseModel):
     name="simulate_design_performance",
     description=(
         "Compare designs BEFORE running them, on the process you expect: each design is made many times on that "
-        "process with fresh noise, and every simulated study is analysed as recommend_next_step analyses real "
+        "process with fresh noise, and every simulated study is analyzed as recommend_next_step analyzes real "
         "runs. Unlike evaluate_design and compare_designs, which assume one fixed model, this shows what "
         "happens when interactions outside a screening model bias its effects, and when the analysis has to "
         "pick the model from noisy runs. Returns, per design: the share of studies that find each true term "
         "('found'), all of them ('found_all'), all and nothing else ('found_exactly'), the false alarms per "
         "study and which terms they were, how often nothing stood out, and with a goal, how far the predicted "
         "best settings fall short of the true best ('shortfall', also in noise standard deviations). A term "
-        "found through an exact alias (D for A:B in a resolution III fraction, the centre-run curvature for a "
+        "found through an exact alias (D for A:B in a resolution III fraction, the center-run curvature for a "
         "square) counts as found. Use it to choose between candidate designs, or to check that a design is "
         "large enough for the effects you need to see."
     ),

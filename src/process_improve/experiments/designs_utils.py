@@ -146,7 +146,7 @@ def categorical_labels(values: np.ndarray, factor: Factor) -> list:
     Raises
     ------
     ValueError
-        If a value is not one of :func:`categorical_codes`, such as the 0 of a centre
+        If a value is not one of :func:`categorical_codes`, such as the 0 of a center
         point for a two-level factor.
     """
     levels = list(factor.levels or [])
@@ -251,8 +251,8 @@ def coded_to_actual(columns: list[Column]) -> list[Column]:
 def add_center_points(matrix: np.ndarray, n_center: int, factors: list[Factor] | None = None) -> np.ndarray:
     """Append center point rows to a coded design matrix.
 
-    Continuous factors sit at 0. A categorical factor has no centre, so its centre runs
-    cycle through its levels (the usual practice of a centre point per level).
+    Continuous factors sit at 0. A categorical factor has no center, so its center runs
+    cycle through its levels (the usual practice of a center point per level).
 
     Parameters
     ----------
@@ -373,8 +373,8 @@ def _run_order(
 def _final_rows(flags: list | None, own: np.ndarray, n_replicates: int, n_runs: int) -> np.ndarray | None:
     """Carry a per-row flag of the dispatched design to the rows of the replicated design.
 
-    The design is the replicated rows, then the design's own centre runs, then the
-    appended centre runs (flagged ``False``), in the order :func:`build_design_result`
+    The design is the replicated rows, then the design's own center runs, then the
+    appended center runs (flagged ``False``), in the order :func:`build_design_result`
     stacks them.
     """
     if flags is None:
@@ -458,14 +458,14 @@ def build_design_result(  # noqa: PLR0913
     design_type : str
         Name of the design type.
     n_center_points : int
-        Number of centre runs to append, once: they are not replicated.
+        Number of center runs to append, once: they are not replicated.
     n_replicates : int
-        Number of replicates of the design's runs, centre runs excepted, so a
-        replicated design has the centre runs asked for, not that many per replicate.
+        Number of replicates of the design's runs, center runs excepted, so a
+        replicated design has the center runs asked for, not that many per replicate.
     n_blocks : int or None
         Number of blocks (None = no blocking).
     random_state : int, numpy.random.Generator or None
-        Seed for the run-order randomisation; ``None`` draws a fresh, unseeded
+        Seed for the run-order randomization; ``None`` draws a fresh, unseeded
         random order (see :func:`process_improve._random.check_random_state`).
     generators : list[str] or None
         Generator strings (fractional factorials).
@@ -484,13 +484,13 @@ def build_design_result(  # noqa: PLR0913
     n_leading_fixed : int
         Number of leading rows that are runs already performed (the fixed runs
         of an augmentation). They keep their place at the top of the run sheet;
-        only the remaining rows are randomised. Cannot be combined with
+        only the remaining rows are randomized. Cannot be combined with
         ``n_replicates > 1`` or with blocks.
     randomize : bool
         When ``False`` the run order of *coded_matrix* is kept (for designs whose
         run order is part of the solution, e.g. split-plot optimal designs).
     center_rows : np.ndarray or None
-        Boolean mask of the rows of *coded_matrix* that are centre runs the design
+        Boolean mask of the rows of *coded_matrix* that are center runs the design
         built in (a CCD's, a DSD's). Like the appended ones, they are not replicated.
     block_generators : list[str] or None
         The interaction words that define the blocks of a regular two-level
@@ -515,8 +515,8 @@ def build_design_result(  # noqa: PLR0913
             "that were already made. Replicate the new runs by raising the budget instead."
         )
 
-    # 1. Replicate the runs, then add the centre runs once: n_center_points counts the
-    #    centre runs of the whole design, and a design's own centre runs are not
+    # 1. Replicate the runs, then add the center runs once: n_center_points counts the
+    #    center runs of the whole design, and a design's own center runs are not
     #    replicated either.
     own = np.zeros(len(coded_matrix), dtype=bool) if center_rows is None else np.asarray(center_rows, dtype=bool)
     matrix = np.vstack([replicate_design(coded_matrix[~own], n_replicates), coded_matrix[own]])
@@ -525,8 +525,8 @@ def build_design_result(  # noqa: PLR0913
 
     n_runs = matrix.shape[0]
 
-    # 3. Blocks, then randomise: the run order is shuffled within each block, blocks in turn.
-    #    Without randomisation the original order is preserved (used for optimal designs
+    # 3. Blocks, then randomize: the run order is shuffled within each block, blocks in turn.
+    #    Without randomization the original order is preserved (used for optimal designs
     #    whose run order is part of the solution, e.g. split-plot).
     #    An optimal design whose exchange built the blocks in brings its own labels, and
     #    there the fixed runs, already made, are the first block and keep their order.

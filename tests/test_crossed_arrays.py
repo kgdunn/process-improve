@@ -1,6 +1,6 @@
 """Crossed inner and outer arrays for robust design (#788 A6).
 
-Ullmann (Table 8) crosses a 2^(4-1) inner array with three centre runs and a 2^2 outer array: 11 x 4
+Ullmann (Table 8) crosses a 2^(4-1) inner array with three center runs and a 2^2 outer array: 11 x 4
 = 44 runs. Montgomery crosses a 2^(4-1) with a noise factor read three times at each level (the leaf
 springs, Table 12.1), a 3^(4-2) with a 2^3 (the connector pull-off force, Table 12.2) and a 2^(5-2)
 with a 2^(3-1) (Problem 12.18). Schmidt and Launsby's signal-to-noise example reads each setting of a
@@ -47,7 +47,7 @@ def test_ullmann_s_table_8_crosses_eleven_inner_runs_with_four_outer_runs():
     assert len(crossed) == 44
     layout = crossed.pivot(index="inner_run", columns="outer_run", values="A")  # noqa: PD010 - one value a cell
     assert layout.shape == (11, 4)
-    # At each outer run, the inner runs are Table 8's eight fraction runs and three centre runs.
+    # At each outer run, the inner runs are Table 8's eight fraction runs and three center runs.
     for _, at_outer_run in crossed.groupby("outer_run"):
         assert settings(at_outer_run, "ABCD") == settings(printed, "ABCD")
     # And each inner run is made at all four settings of humidity and temperature.

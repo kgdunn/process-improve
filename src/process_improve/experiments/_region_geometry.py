@@ -157,7 +157,7 @@ def _cut(
     k = vertices.shape[1]
     weights = active.astype(float)
     # The boundaries each (kept, removed) pair has in common, a block of kept vertices at a time: the whole
-    # (kept x removed) matrix would take gigabytes from 15 factors, where a cut through the centre leaves
+    # (kept x removed) matrix would take gigabytes from 15 factors, where a cut through the center leaves
     # tens of thousands of vertices on each side.
     rows_per_block = max(1, _PRODUCT_CELLS // len(outer))
     removed = weights[outer].T

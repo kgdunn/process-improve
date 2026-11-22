@@ -55,7 +55,7 @@ _CATEGORICAL_FUNCS = frozenset({"C", "Treatment", "Sum", "Diff", "Helmert", "Pol
 # Curated allowlist of numpy callables permitted inside a formula when
 # ``allow_numpy=True``. These are pure, element-wise math transforms. We do NOT
 # allow arbitrary ``np.<anything>`` because numpy also exposes dangerous I/O such
-# as ``np.load`` (which deserialises pickles) and ``np.fromfile``.
+# as ``np.load`` (which deserializes pickles) and ``np.fromfile``.
 _NUMPY_ALLOWED_FUNCS = frozenset(
     {
         "log",
@@ -256,7 +256,7 @@ def validate_formula_is_safe(
     allowed = {str(name) for name in allowed_names}
 
     if not allow_transforms and not allow_numpy:
-        # Strict plain-Wilkinson path (unchanged behaviour).
+        # Strict plain-Wilkinson path (unchanged behavior).
         if not _FORMULA_ALLOWED_CHARS.match(formula):
             forbidden = sorted({c for c in formula if not _FORMULA_ALLOWED_CHARS.match(c)})
             raise UnsafeFormulaError(f"formula contains forbidden characters: {forbidden}.")

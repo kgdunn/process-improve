@@ -319,7 +319,7 @@ def test_a_row_with_no_y_value_shapes_no_weight() -> None:
     """#709: the first component's weights and scores are those of the fit without the row.
 
     F is passed as given and there is no Z block, so the extra row changes no scaling; Y's
-    centre and scale are worked over the observed values only. The row still has a score.
+    center and scale are worked over the observed values only. The row still has a score.
     """
     d_matrix, blocks = _synthetic()
     blocks["Z"] = {}
@@ -473,7 +473,7 @@ def test_a_group_of_f_that_does_not_covary_with_y_is_refused_as_not_enough_varia
     signs = np.tile([1.0, -1.0, 1.0, -1.0], 5)
     blocks["Y"]["Y1"]["y"] = signs
     d_matrix["H"] = d_matrix["G"].rename(index=lambda name: f"{name}h")
-    # Each column centres to a multiple of a pattern orthogonal to the response's
+    # Each column centers to a multiple of a pattern orthogonal to the response's
     pattern = np.tile([1.0, 1.0, -1.0, -1.0], 5)[:, np.newaxis]
     blocks["F"]["H"] = pd.DataFrame(
         0.5 + pattern * [0.1, 0.2, 0.3, 0.4], index=blocks["F"]["G"].index, columns=d_matrix["H"].index
@@ -606,7 +606,7 @@ def test_a_fitted_model_keeps_the_settings_it_was_fitted_with() -> None:
 
 
 def test_the_defaults_are_those_of_the_other_iterative_estimators() -> None:
-    """max_iter is 500 and tol epsqrt, as on PCA, PLS, MBPCA and MBPLS; F is centred and scaled by default."""
+    """max_iter is 500 and tol epsqrt, as on PCA, PLS, MBPCA and MBPLS; F is centered and scaled by default."""
     d_matrix, _ = _synthetic()
     assert TPLS(2, d_matrix).get_params() == {
         "n_components": 2,
@@ -658,7 +658,7 @@ def test_an_infinite_value_is_refused() -> None:
 
 
 def test_a_column_is_left_out_only_when_its_values_are_all_equal() -> None:
-    """Each column is centred on its mean and scaled by its sd (ddof=1); one of equal values is left out.
+    """Each column is centered on its mean and scaled by its sd (ddof=1); one of equal values is left out.
 
     [-epsqrt, 0, epsqrt] has a mean of exactly 0 and an sd of exactly epsqrt (2**-26), and
     [5, 5, 5 + 1e-9] one of 1e-9 / sqrt(3): both vary, so both stay, in any units. Their sds
@@ -666,7 +666,7 @@ def test_a_column_is_left_out_only_when_its_values_are_all_equal() -> None:
     have gone in units half as large. [0.1, 0.1, 0.1] has an sd of rounding noise, not 0, and
     one observed value is no spread either: both are left out. A block of one row has no column
     that varies, as a column with one observed value has none: every scale is NaN (#1144). It was
-    1, so a group of D with one material centred to 0 and stopped the fit. The fit names the
+    1, so a group of D with one material centered to 0 and stopped the fit. The fit names the
     columns, once it has not refused the data, so learning the scale does not warn.
     """
     model = TPLS(n_components=1, d_matrix=_synthetic()[0])
@@ -828,7 +828,7 @@ def test_a_y_fitted_exactly_is_refused_at_the_next_component_as_pls_refuses_it()
 def test_one_blend_is_refused_as_too_few_rows_as_across_the_family() -> None:
     """One blend is refused as PCA and PLS refuse one row (#1149).
 
-    Its Y column centred to 0, and it was refused as a Y with no variance, which sent the caller to
+    Its Y column centered to 0, and it was refused as a Y with no variance, which sent the caller to
     look at the response rather than at the number of blends.
     """
     d_matrix, blocks = _synthetic()
@@ -871,7 +871,7 @@ def test_several_z_groups_fit_and_diagnose_alike() -> None:
     """#981: each Z group is its own block in the super-level, in the fit and in diagnose alike.
 
     The fit gives each Z group its own weights and its own block score, so the super weights
-    have one row per Z group, then one for F. They were labelled for a single Z group, so a
+    have one row per Z group, then one for F. They were labeled for a single Z group, so a
     second one raised a shape error, and diagnose pooled every Z group into one score.
     """
     d_matrix, blocks = _with_a_second_z_group()

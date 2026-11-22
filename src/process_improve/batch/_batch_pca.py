@@ -1,8 +1,8 @@
 # (c) Kevin Dunn, 2010-2026. MIT License. Based on own private work over the years.
 """Batchwise-unfolded (multiway) PCA for batch trajectory data.
 
-Implements the batch modelling approach of Nomikos and MacGregor: align the
-batches, unfold them batchwise (one row per batch), mean-centre and scale each
+Implements the batch modeling approach of Nomikos and MacGregor: align the
+batches, unfold them batchwise (one row per batch), mean-center and scale each
 column (which removes the average trajectory), and fit an ordinary PCA on the
 result. The fitted model summarizes the deviations of every batch from the
 average trajectory, so batches can be compared, and new batches diagnosed,
@@ -68,10 +68,10 @@ class BatchPCA(TransformerMixin, BaseEstimator):
     Each batch becomes one row of the model matrix: the trajectories are
     unfolded batchwise via :func:`process_improve.batch.dict_to_wide`, the
     optional initial-conditions block is joined on, every column is
-    mean-centred and (optionally) scaled to unit variance with
+    mean-centered and (optionally) scaled to unit variance with
     :class:`process_improve.multivariate.MCUVScaler`, and an ordinary
     :class:`process_improve.multivariate.PCA` is fitted to the result.
-    Centring the unfolded columns removes the average trajectory, so the
+    Centering the unfolded columns removes the average trajectory, so the
     components model the batch-to-batch deviations.
 
     The batches must be aligned before fitting: every batch must have the
@@ -85,9 +85,9 @@ class BatchPCA(TransformerMixin, BaseEstimator):
     n_components : int
         Number of principal components to extract.
     scale : bool, default=True
-        Scale each unfolded column to unit variance after centring. Centring
+        Scale each unfolded column to unit variance after centering. Centering
         always happens (it removes the average trajectory); set this to False
-        to keep the columns in their centred, unscaled units.
+        to keep the columns in their centered, unscaled units.
     group_by_batch : bool, default=False
         Ordering of the unfolded column index, passed to
         :func:`process_improve.batch.dict_to_wide`: ``False`` groups all time
@@ -130,7 +130,7 @@ class BatchPCA(TransformerMixin, BaseEstimator):
     time_index_ : list
         The aligned sequence values (0, 1, ..., ``n_timesteps_`` - 1).
     center_, scale_ : pd.Series of length n_unfolded_features
-        The per-column centring and scaling applied before the PCA fit.
+        The per-column centering and scaling applied before the PCA fit.
 
     Examples
     --------
@@ -185,7 +185,7 @@ class BatchPCA(TransformerMixin, BaseEstimator):
 
         Returns the one-row-per-batch ``[Z | X-unfolded]`` matrix with a
         2-level column index throughout: trajectory columns keep their
-        ``(tag, sequence)`` labels; initial-condition columns are labelled
+        ``(tag, sequence)`` labels; initial-condition columns are labeled
         ``(name, "")`` since they carry no time axis.
         """
         check_valid_batch_dict(batches, no_nan=True)
@@ -238,7 +238,7 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         initial_conditions : pd.DataFrame, optional
             The Z block: one row per batch (indexed by the same batch
             identifiers as ``X``), one column per pre-batch measurement.
-            Joined onto the unfolded row before centring and scaling.
+            Joined onto the unfolded row before centering and scaling.
 
         Returns
         -------
@@ -297,7 +297,7 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         batches: dict[Hashable, pd.DataFrame],
         initial_conditions: pd.DataFrame | None,
     ) -> pd.DataFrame:
-        """Unfold new batches and apply the training centring/scaling."""
+        """Unfold new batches and apply the training centering/scaling."""
         check_is_fitted(self, "loadings_")
         wide = self._unfold(batches, initial_conditions)
         if list(wide.columns) != list(self.feature_columns_):
@@ -423,7 +423,7 @@ class BatchPCA(TransformerMixin, BaseEstimator):
             The missing-data score estimator; see
             :meth:`process_improve.multivariate.PCA.project`.
         ridge : float, default=0.0
-            Regularisation for the ``"tsr"`` / ``"pmp"`` estimators.
+            Regularization for the ``"tsr"`` / ``"pmp"`` estimators.
 
         Returns
         -------
@@ -504,7 +504,7 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         method : {"tsr", "scp", "pmp"}, default="tsr"
             The missing-data score estimator.
         ridge : float, default=0.0
-            Regularisation for the ``"tsr"`` / ``"pmp"`` estimators.
+            Regularization for the ``"tsr"`` / ``"pmp"`` estimators.
 
         Returns
         -------
@@ -544,7 +544,7 @@ class BatchPCA(TransformerMixin, BaseEstimator):
     def _coerce_online_initial_conditions(
         self, initial_conditions: pd.Series | pd.DataFrame | None
     ) -> pd.DataFrame | None:
-        """Normalise a single batch's initial conditions to a 1-row DataFrame (see :mod:`._online`)."""
+        """Normalize a single batch's initial conditions to a 1-row DataFrame (see :mod:`._online`)."""
         return coerce_single_initial_conditions(self, initial_conditions)
 
     def unfold_and_scale(
@@ -553,7 +553,7 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         *,
         initial_conditions: pd.DataFrame | None = None,
     ) -> pd.DataFrame:
-        """Unfold batches batchwise and apply the training centring and scaling.
+        """Unfold batches batchwise and apply the training centering and scaling.
 
         Parameters
         ----------

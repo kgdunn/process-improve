@@ -514,7 +514,7 @@ def plackett_burman_runs(n_factors: int) -> int:
 def dispatch_plackett_burman(factors: list[Factor]) -> tuple[np.ndarray, dict]:
     """Generate a Plackett-Burman screening design.
 
-    The ``N``-run design is ``k`` columns of a normalised Hadamard matrix of order
+    The ``N``-run design is ``k`` columns of a normalized Hadamard matrix of order
     ``N``, the smallest multiple of 4 above ``k`` that can be built (see
     :func:`plackett_burman_runs`). Where ``N - 1`` is a prime 3 mod 4 (12, 20, 24, 44,
     48, ... runs) the design is Paley's cyclic one, which is what Plackett and Burman
@@ -628,7 +628,7 @@ def dispatch_taguchi(factors: list[Factor]) -> tuple[np.ndarray, dict]:
     a product of two factors' counts carries both, as a digit each of its level: the
     6-level column of ``L18(6^1 3^6)`` is the 2-level and 3-level columns of Taguchi's
     L18 for one 2-level and seven 3-level factors. The chosen columns are checked to be
-    balanced in every pair (strength 2) before use. No centre points are added.
+    balanced in every pair (strength 2) before use. No center points are added.
 
     Parameters
     ----------

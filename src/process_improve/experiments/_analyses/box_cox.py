@@ -2,8 +2,8 @@
 """Box-Cox transformation diagnostic (ENG-02).
 
 The power ``lambda`` is chosen as Box and Cox (1964) and Montgomery (*Design and
-Analysis of Experiments*, section 15.1.1) choose it: by maximising the profile
-likelihood of the fitted model, which is the same as minimising the residual sum of
+Analysis of Experiments*, section 15.1.1) choose it: by maximizing the profile
+likelihood of the fitted model, which is the same as minimizing the residual sum of
 squares of the geometric-mean scaled response ``(y**lambda - 1) / (lambda * gm**(lambda - 1))``.
 Choosing ``lambda`` to make the response's own distribution look normal, ignoring the
 factors, is a different question: in a design with large effects the marginal

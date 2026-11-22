@@ -140,7 +140,7 @@ def test_pls_project_predicts_with_missing_columns(fitted_pls: PLS, correlated_d
 def test_a_row_with_nothing_observed_sits_at_the_model_centre(
     fitted_pca: PCA, fitted_pls: PLS, correlated_data: pd.DataFrame, method: str
 ) -> None:
-    """A row with no observed feature projects to the centre, where fit() places one (#1125).
+    """A row with no observed feature projects to the center, where fit() places one (#1125).
 
     Its scores, T2 and SPE are 0, it has no observed feature, and its condition number is
     inf: nothing of the information is left. A PLS model predicts the training mean of Y for
@@ -292,7 +292,7 @@ def test_tsr_is_not_projection_to_the_model_plane(fitted_pca: PCA, correlated_da
 
     For a PCA the guide is the loading matrix, so ``G*' P* Theta P*' G*`` alone
     cancels down to ``(P*'P*)^-1 P*'``: the two operators were bitwise equal,
-    and one of the three estimators was a relabelling of another.
+    and one of the three estimators was a relabeling of another.
     """
     mask = np.zeros(correlated_data.shape[1], dtype=bool)
     mask[:3] = True

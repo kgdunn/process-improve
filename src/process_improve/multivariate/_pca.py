@@ -89,7 +89,7 @@ def _low_rank_reconstruction(X: np.ndarray, rank: int) -> np.ndarray:
     Parameters
     ----------
     X : np.ndarray of shape (n_samples, n_features)
-        Centred (and usually scaled) data, all cells finite.
+        Centered (and usually scaled) data, all cells finite.
     rank : int
         Number of components to keep; capped at ``min(n_samples, n_features)``.
 
@@ -156,9 +156,9 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915
 
     Partitions the elements of ``X`` into ``n_folds`` element-folds (each cell
     is held out exactly once across folds); for each fold and each candidate
-    component count, the held-out cells are masked, initialised from the
+    component count, the held-out cells are masked, initialized from the
     in-fold column means, and refined by iterating SVD reconstruction
-    (Expectation-Maximisation style). The fitted model never sees the
+    (Expectation-Maximization style). The fitted model never sees the
     held-out true values, so the squared error of the prediction is an honest
     out-of-sample PRESS - the independence requirement of Bro, Kjeldahl,
     Smilde & Kiers (2008, *Anal. Bioanal. Chem.* 390:1241-1251) that the
@@ -169,7 +169,7 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915
     X : np.ndarray of shape (n_samples, n_features)
         Data matrix, of floats. With ``scale_inside_folds=True`` the raw
         unscaled matrix may be passed; with ``False`` the caller is expected
-        to have mean-centred (and usually unit-variance scaled) it.
+        to have mean-centered (and usually unit-variance scaled) it.
     max_components : int
         Maximum number of components to evaluate; PRESS is computed for
         ``1 .. max_components``.
@@ -192,13 +192,13 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915
     scale_inside_folds : bool
         If True, fit per-column mean and unit-variance constants on each
         fold's in-fold cells and apply them to the whole matrix before
-        running EM. This removes the centring/scaling leakage of the
+        running EM. This removes the centering/scaling leakage of the
         previous default (which used a single set of constants iteratively
         recomputed from the imputed matrix). PRESS is then measured in that
         same space, so a variable's contribution reflects its correlation
         structure rather than its units; ``press_input_units`` carries the
         other scale for callers who need it. If False, the scheme reverts to
-        the prior behaviour: the caller is responsible for scaling, the
+        the prior behavior: the caller is responsible for scaling, the
         in-loop column-mean drifts with the EM imputation, and PRESS is in
         the units of whatever matrix was passed.
     random_state : int, numpy.random.Generator or None
@@ -227,7 +227,7 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915
             the cells that were not held out") got wrong, measured the same
             way ``press`` is: the reference ``press`` is compared against.
             Computed here rather than by the caller because it needs each
-            fold's own centring and scaling constants.
+            fold's own centering and scaling constants.
         per_column_null_ss : np.ndarray of shape (n_features,)
             That reference, split by variable.
         press_input_units : np.ndarray of shape (max_components,)
@@ -263,7 +263,7 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915
     # PRESS is what the model got wrong; the null reference is what predicting
     # the in-fold column mean would have got wrong on the same cells. Both are
     # accumulated here, in the same space, because only this loop knows each
-    # fold's centring and scaling constants. The reference does not depend on
+    # fold's centering and scaling constants. The reference does not depend on
     # the component count, hence one value per fold rather than a grid.
     per_fold_null = np.zeros(total_folds)
     per_column_press = np.zeros((max_components, p))
@@ -292,15 +292,15 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915
                 fold_counter += 1
                 continue
 
-            # Fit per-column centring/scaling on the in-fold cells. The centre
+            # Fit per-column centering/scaling on the in-fold cells. The center
             # is needed either way, as the null model's prediction for every
-            # held-out cell in this fold; only the True path also centres and
+            # held-out cell in this fold; only the True path also centers and
             # scales the matrix it fits, and recomputes nothing inside EM.
             # Held out this fold, or never measured: both are unknown to the
             # fit and both are filled by EM below. Only ``mask`` is scored.
             impute = mask | ~observed
             # MCUVScaler's, in any units: a column whose in-fold values are all
-            # equal (or one, or none) keeps a scale of 1, and its centre is the
+            # equal (or one, or none) keeps a scale of 1, and its center is the
             # value (0 for none).
             in_fold = MCUVScaler().fit(np.where(impute, np.nan, X))  # pragma: no mutate - a None reads as NaN too
             col_centre = in_fold.center_.to_numpy()
@@ -315,7 +315,7 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915
                 if m_j.any():
                     Xtr[m_j, j] = col_centre[j]
 
-            # The cells' own scale and centre for this fold, one value per
+            # The cells' own scale and center for this fold, one value per
             # held-out cell. Under scale_inside_folds=False the scale is 1, so
             # every measurement below stays in the input units, as it was.
             cell_scale = np.broadcast_to(col_scale, X.shape)[mask]
@@ -341,13 +341,13 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915
                 prev_held = Xa[impute] / held_scale
                 for _iteration in range(ekf_max_iter):
                     if scale_inside_folds:
-                        # Centre and scale by the FIXED in-fold constants; the
+                        # Center and scale by the FIXED in-fold constants; the
                         # in-fold cells now sit on the analysis scale and the
                         # held-out cells move under EM.
                         Xs = (Xa - col_centre) / col_scale
                         recon = _low_rank_reconstruction(Xs, a) * col_scale + col_centre
                     else:
-                        # Prior behaviour: recompute the column mean each
+                        # Prior behavior: recompute the column mean each
                         # iteration. The mean drifts slightly as the held-out
                         # cells are updated.
                         col_mean = Xa.mean(axis=0)
@@ -395,7 +395,7 @@ def _ekf_null_reference(
     a reference computed out here could only be in the input units, and then a
     single high-variance column would set the whole curve however the folds were
     actually fitted (#546). Under ``scale_inside_folds=False`` there is no
-    in-fold scale to match, so the centred total sum of squares of the matrix the
+    in-fold scale to match, so the centered total sum of squares of the matrix the
     caller passed stays the reference, unchanged from earlier releases.
 
     Parameters
@@ -405,7 +405,7 @@ def _ekf_null_reference(
     X : np.ndarray of shape (n_samples, n_features)
         The matrix as it was passed to the cross-validation.
     scale_inside_folds : bool
-        Whether each fold standardised the matrix before fitting it.
+        Whether each fold standardized the matrix before fitting it.
 
     Returns
     -------
@@ -420,7 +420,7 @@ def _ekf_null_reference(
 
 
 def _preprocess_for_cell_schemes(X: np.ndarray, scheme: str) -> np.ndarray:
-    """Mean-centre and unit-variance scale the whole matrix, once.
+    """Mean-center and unit-variance scale the whole matrix, once.
 
     The schemes below are the classical ones, and all of them are defined on a
     single preprocessed matrix rather than on per-fold constants: there are no
@@ -439,12 +439,12 @@ def _preprocess_for_cell_schemes(X: np.ndarray, scheme: str) -> np.ndarray:
     Returns
     -------
     np.ndarray
-        The centred, unit-variance scaled matrix.
+        The centered, unit-variance scaled matrix.
 
     Raises
     ------
     ValueError
-        If ``X`` holds missing cells. These schemes factorise ``X`` directly,
+        If ``X`` holds missing cells. These schemes factorize ``X`` directly,
         and an SVD cannot see a NaN.
     """
     per_column = np.isnan(X).sum(axis=0)
@@ -462,7 +462,7 @@ def _preprocess_for_cell_schemes(X: np.ndarray, scheme: str) -> np.ndarray:
         )
         raise ValueError(
             f"cv_scheme={scheme!r} cannot take a block with missing cells, because it "
-            f"factorises the matrix directly. This block has {n_missing} of {X.size}, "
+            f"factorizes the matrix directly. This block has {n_missing} of {X.size}, "
             f"{where}. Use cv_scheme='ekf', which imputes an unmeasured cell alongside "
             "the held-out ones and never scores it, or drop what is missing first."
         )
@@ -487,7 +487,7 @@ def _pca_ckf_press(
         Zhat[:, g] = T_g P[g, :]'
 
     so no held-out value ever appears in the score that predicts it. The reference is the
-    column mean, which is zero in this centred space, so ``Q2 = 1 - PRESS / SS(Z)``.
+    column mean, which is zero in this centered space, so ``Q2 = 1 - PRESS / SS(Z)``.
 
     **ckf is not as clean as ekf, and the difference is measurable.** The loadings are
     still fitted on a matrix that includes the held-out columns, so information leaks
@@ -508,7 +508,7 @@ def _pca_ckf_press(
     Parameters
     ----------
     Z : np.ndarray of shape (n_samples, n_features)
-        Centred and scaled data, as produced by :func:`_preprocess_for_cell_schemes`.
+        Centered and scaled data, as produced by :func:`_preprocess_for_cell_schemes`.
     max_components : int
         PRESS is computed for ``1 .. max_components``.
     n_folds : int
@@ -562,7 +562,7 @@ def _pca_ckf_press(
             if keep.size < a:
                 # Fewer retained columns than components: the least-squares score is not
                 # determined. Leave this fold's contribution as NaN rather than inventing
-                # one, which is what `per_fold_press` being NaN-initialised is for.
+                # one, which is what `per_fold_press` being NaN-initialized is for.
                 continue
             scores = np.linalg.lstsq(loadings[keep, :], Z[:, keep].T)[0].T
             residual = Z[:, held_out] - scores @ loadings[held_out, :].T
@@ -599,8 +599,8 @@ def _leverage_corrected_press(
       cross-validation criterion.
     - ``"gcv"`` replaces both leverages by one averaged constant,
       :math:`np / [(n - 1)p - a(n + p - a - 1)]`, where the subtracted term
-      counts the free parameters of a centred rank-``a`` bilinear model. This
-      is *generalised* cross-validation, and it is the cheaper, blunter cousin.
+      counts the free parameters of a centered rank-``a`` bilinear model. This
+      is *generalized* cross-validation, and it is the cheaper, blunter cousin.
 
     Neither holds any data out. They correct the circularity analytically
     instead, which is why they cost one SVD in total rather than one per fold.
@@ -615,7 +615,7 @@ def _leverage_corrected_press(
     Parameters
     ----------
     X : np.ndarray of shape (n_samples, n_features)
-        Data matrix, already centred and scaled.
+        Data matrix, already centered and scaled.
     max_components : int
         Largest component count to evaluate; the criterion is returned for
         ``1 .. max_components``.
@@ -630,7 +630,7 @@ def _leverage_corrected_press(
         The same total, split by variable.
     null_model_ss : float
         What predicting every cell by its column mean gets wrong. Since ``X``
-        arrives centred, that is its total sum of squares.
+        arrives centered, that is its total sum of squares.
     per_column_null_ss : np.ndarray of shape (n_features,)
         That reference, split by variable.
 
@@ -662,7 +662,7 @@ def _leverage_corrected_press(
                 # Nothing is left to measure. Summing an empty total would
                 # report zero error, which reads as a perfect fit and would win
                 # the selection outright. Report nothing instead, as the
-                # generalised criterion does when its own guard fires. Both
+                # generalized criterion does when its own guard fires. Both
                 # leverages only grow with a, so no later count scores a cell
                 # either, and stopping here would report the same.
                 continue  # pragma: no mutate - see above: break gives the same result
@@ -717,8 +717,8 @@ def _eastment_krzanowski_press(
     models must agree before their product means anything.
 
     One caveat, which the classical scheme and the reference implementations
-    share: centring and scaling are fitted once on the whole matrix, so a cell
-    reaches the fold models through its own column's centre and spread even
+    share: centering and scaling are fitted once on the whole matrix, so a cell
+    reaches the fold models through its own column's center and spread even
     though it is absent from both decompositions. That path is of order
     :math:`1/n` and vanishes as rows are added, but it is not nothing, and it is
     why this scheme is not offered as the default. ``"ekf"`` fits its constants
@@ -727,7 +727,7 @@ def _eastment_krzanowski_press(
     Parameters
     ----------
     X : np.ndarray of shape (n_samples, n_features)
-        Data matrix, already centred and scaled, with no missing cells.
+        Data matrix, already centered and scaled, with no missing cells.
     max_components : int
         Largest component count to evaluate.
     n_folds : int
@@ -1105,7 +1105,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         component_names = self._component_names
         self._loadings = self._loadings_np
         self._scores = self._scores_np
-        # A row with nothing observed has no SPE, as diagnose gives it none (#1148); fit places it at the centre.
+        # A row with nothing observed has no SPE, as diagnose gives it none (#1148); fit places it at the center.
         self._spe = np.where(_rows_with_data(X.to_numpy())[:, np.newaxis], self._spe_np, np.nan)
         # The training residual block, kept for the trimmed-score-regression
         # estimator in ``project`` / ``projection_matrix``: TSR regresses on
@@ -1139,7 +1139,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
         # Hotelling's T² (cumulative across components). A component whose
         # score standard deviation is ~0 (a rank-deficient fit, e.g. asking
-        # for min(N, K) components from mean-centred data, whose rank is at
+        # for min(N, K) components from mean-centered data, whose rank is at
         # most min(N-1, K)) carries no T² information: its standardized score
         # is 0/0. _t2_score_sd leaves it out, here and in diagnose and project,
         # rather than dividing by ~zero, which poisoned T² with inf/NaN.
@@ -1218,7 +1218,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
                 raise NotEnoughVarianceError(emsg)
 
             # Seed the score from the column of X with the greatest
-            # sum-of-squares (variance, for mean-centred data) rather than the
+            # sum-of-squares (variance, for mean-centered data) rather than the
             # arbitrary first column (#195). NIPALS converges to the same
             # component for any non-degenerate seed, but the highest-variance
             # column is closest to the leading component, so it needs fewer
@@ -1335,12 +1335,12 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         # the TSR loading signs were LAPACK-dependent).
         self._loadings_np = np.where(_opposes_convention(V[:A].T), -V[:A].T, V[:A].T)  # K x A
 
-        # Project the imputed matrix as-is (no extra centring), exactly as
+        # Project the imputed matrix as-is (no extra centering), exactly as
         # transform() will project new data: the package convention is that X
         # is preprocessed (e.g. MCUVScaler) before fit. The previous code
-        # centred here, so scores_ disagreed with transform(X) on the very
-        # same data, and the residuals below mixed centred reconstructions
-        # with uncentred data (inflating SPE and deflating R2).
+        # centered here, so scores_ disagreed with transform(X) on the very
+        # same data, and the residuals below mixed centered reconstructions
+        # with uncentered data (inflating SPE and deflating R2).
         self._scores_np = Xd @ self._loadings_np
 
         # R2 and SPE
@@ -1425,9 +1425,9 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         return X_arr, X.index if isinstance(X, pd.DataFrame) else None
 
     def _scaled_rows(self, X: DataMatrix) -> pd.DataFrame:
-        """Return :meth:`_validated_rows` as a frame labelled as fitted, the name :meth:`PLS._scaled_rows` has.
+        """Return :meth:`_validated_rows` as a frame labeled as fitted, the name :meth:`PLS._scaled_rows` has.
 
-        PCA neither centres nor scales, so the rows are in the space it was fitted in as they come.
+        PCA neither centers nor scales, so the rows are in the space it was fitted in as they come.
         The contribution functions read every model's new rows through this one name.
         """
         X_arr, sample_index = self._validated_rows(X)
@@ -1525,7 +1525,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
-            New data in the model's (centred and scaled) space; NaN marks a
+            New data in the model's (centered and scaled) space; NaN marks a
             missing entry. A row with nothing observed sits at the model
             centre, as :meth:`fit` places one: scores, T2 and SPE of 0, no
             observed feature, and a ``condition_number`` of inf.
@@ -1533,7 +1533,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             The score estimator; see
             :mod:`process_improve.multivariate._projection`.
         ridge : float, default=0.0
-            Non-negative regularisation added to the matrix inverted by the
+            Non-negative regularization added to the matrix inverted by the
             ``"tsr"`` and ``"pmp"`` estimators. Raise it above zero when
             ``condition_number`` reports near-singularity (typically very
             early in a batch, when few columns are observed).
@@ -1579,7 +1579,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         For a fixed missingness pattern, every estimator in :meth:`project`
         is a fixed linear map ``t_hat = M @ z_observed``. This method exposes
         that matrix so callers that reuse one pattern many times (an online
-        monitor at time sample ``k``, or an optimiser treating candidate
+        monitor at time sample ``k``, or an optimizer treating candidate
         columns as observed) can precompute it once.
 
         Parameters
@@ -1594,7 +1594,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         -------
         result : sklearn.utils.Bunch
             With keys ``matrix`` (DataFrame, n_components x n_observed,
-            columns labelled by the observed features), ``condition_number``
+            columns labeled by the observed features), ``condition_number``
             (float) and ``method``.
         """
         check_is_fitted(self, "loadings_")
@@ -1660,13 +1660,13 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         beats cross-validation. Use it alongside the ekf-CV recommendation
         from :meth:`select_n_components` as a fast cross-check.
 
-        Internally ``X`` is mean-centred before estimation (a PPCA
+        Internally ``X`` is mean-centered before estimation (a PPCA
         assumption); it is **not** unit-variance scaled, because dividing
         each column by its standard deviation compresses the noise
         eigenvalues to near-zero values the MLE misreads as additional
         latent signal. If your columns are on wildly different scales,
         pass the analysis-scale ``X`` produced by your own preprocessing
-        (e.g. SNV for spectral data) and accept the centring this method
+        (e.g. SNV for spectral data) and accept the centering this method
         applies.
 
         Parameters
@@ -1692,7 +1692,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         """
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X)  # a 1-D X is one column
-        # sklearn centres X itself, and converts it to floats. ``svd_solver="full"``
+        # sklearn centers X itself, and converts it to floats. ``svd_solver="full"``
         # is the only solver that supports ``n_components="mle"`` in sklearn.
         sk = _SkPCA(
             n_components="mle",
@@ -1738,7 +1738,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
               correlation between columns, which is what parallel analysis
               is testing for, while leaving every column's own distribution
               untouched. Prefer it on process data, where a tag may be
-              skewed, heavy-tailed, bounded at zero or quantised by its
+              skewed, heavy-tailed, bounded at zero or quantized by its
               instrument: a Gaussian null then answers a question about
               Gaussian data rather than about this block.
         quantile : float, default 0.95
@@ -1747,8 +1747,8 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             the more conservative 95th-percentile threshold is the
             modern recommendation.
         scale : bool, default True
-            Mean-centre and unit-variance scale ``X`` before estimation.
-            Unlike :meth:`minka_mle`, which is mean-centred but never
+            Mean-center and unit-variance scale ``X`` before estimation.
+            Unlike :meth:`minka_mle`, which is mean-centered but never
             unit-variance scaled, parallel analysis defaults to autoscaling
             here so wildly different column scales do not dominate the null
             comparison.
@@ -1763,7 +1763,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             - ``n_components`` - number of components retained (can be 0
               on pure noise).
             - ``observed_eigenvalues`` - eigenvalues of ``X`` after
-              centring/scaling (np.ndarray of length ``min(n, p)``).
+              centering/scaling (np.ndarray of length ``min(n, p)``).
             - ``null_threshold`` - per-rank ``quantile`` of the null
               eigenvalue distribution (same length as
               ``observed_eigenvalues``). Plot it against
@@ -1793,7 +1793,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         X_arr = np.asarray(X, dtype=float)
         n, p = X_arr.shape
 
-        # Observed eigenvalues from the centred X. Centring removes one DoF
+        # Observed eigenvalues from the centered X. Centering removes one DoF
         # so the smallest singular value is at-or-near zero; that's expected.
         observed = np.linalg.svdvals(X_arr - X_arr.mean(axis=0)) ** 2 / max(1, n - 1)
 
@@ -1861,7 +1861,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         ----------
         X : array-like of shape (n_samples, n_features)
             Training data. With the default ``scale_inside_folds=True`` pass
-            the raw, unscaled X; mean-centring and unit-variance scaling are
+            the raw, unscaled X; mean-centering and unit-variance scaling are
             fit on each fold's in-fold cells. Pre-scale it yourself only
             with ``scale_inside_folds=False``.
         max_components : int, optional
@@ -1882,7 +1882,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
             - ``"ekf"``, the default: element-wise k-fold with EM imputation.
               Scattered cells are held out and each is imputed from a model
-              that never saw it. Fits its centring and scaling inside every
+              that never saw it. Fits its centering and scaling inside every
               fold, and is the only scheme here that takes a block with
               missing cells. Cost: ``n_folds * n_repeats * max_components``
               decompositions.
@@ -1914,7 +1914,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
               Cost: one decomposition. This and ``"sacv"`` are the defaults in
               ``FactoMineR`` and ``missMDA``.
 
-            ``"ek"``, ``"sacv"`` and ``"gcv"`` factorise the matrix directly,
+            ``"ek"``, ``"sacv"`` and ``"gcv"`` factorize the matrix directly,
             so they raise on a block with missing cells and they ignore
             ``scale_inside_folds``, ``n_repeats``, ``ekf_max_iter`` and ``ekf_tol``.
             They also report no per-fold spread, so ``selection_rule="1se"``
@@ -1938,26 +1938,26 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         min_q2_increase : float, default 0.01
             Threshold used only when ``selection_rule="q2_increment"``.
         scale_inside_folds : bool, default True
-            With the default, mean-centring and unit-variance scaling
+            With the default, mean-centering and unit-variance scaling
             constants are fit on each fold's in-fold cells and applied to
-            the whole matrix before EM, removing the centring/scaling
+            the whole matrix before EM, removing the centering/scaling
             leakage of the prior implementation. Set to ``False`` to
-            reproduce the previous behaviour (column mean recomputed each
+            reproduce the previous behavior (column mean recomputed each
             EM iteration from the imputed matrix, no scaling); this is
             useful only when ``X`` is already pre-scaled, and a
             :class:`SpecificationWarning` is emitted because scaling
             constants fit on the full matrix leak into every element-fold.
 
             Pass the **raw, unscaled** X under the default. In-fold
-            re-standardisation overwrites whatever scaling the caller
+            re-standardization overwrites whatever scaling the caller
             applied, so two deliberately different strategies (autoscale
             versus Pareto, say) become the same model and report the same
             PRESS: a comparison between them shows no difference for
             reasons that have nothing to do with the data. A
             :class:`SpecificationWarning` is emitted when ``X`` arrives
-            already centred and unit-variance scaled, which is the
+            already centered and unit-variance scaled, which is the
             detectable half of that case; a block scaled some other way
-            cannot be recognised, so the rule is the caller's to keep.
+            cannot be recognized, so the rule is the caller's to keep.
             Same contract as :meth:`PLS.select_n_components`.
         ekf_max_iter, ekf_tol : int and float, default 50 and 1e-6
             EM iteration cap and convergence tolerance for the ekf imputation
@@ -2133,7 +2133,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         # undefined Q2 rather than a perfect one, and so does a column with no
         # spread across the held-out cells. A column has nothing to predict when its
         # observed values are all equal, in any units, as MCUVScaler reads one: its
-        # null sum of squares is then 0, or rounding where it was centred at a mean.
+        # null sum of squares is then 0, or rounding where it was centered at a mean.
         # A floor of epsqrt on that sum took every column in small units for one (#1070).
         varies = np.fmax.reduce(X_arr) > np.fmin.reduce(X_arr)  # one per column: reduce runs over axis 0; both skip NaN
         null_ss = null_model_ss if varies.any() else np.nan
@@ -2167,10 +2167,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         se_values = se_values * press_scale_multiplier
         se_press = pd.Series(se_values, index=component_index, name="SE(PRESS)")
 
-        # The same constant null-model sum-of-squares that normalises Q2
+        # The same constant null-model sum-of-squares that normalizes Q2
         # (Q2 = 1 - PRESS / null_model_ss) also rescales the PRESS standard
         # error onto the Q2 scale, giving a directly usable +/-1 SE band around
-        # the Q2 curve without callers having to re-derive the normalisation.
+        # the Q2 curve without callers having to re-derive the normalization.
         q2_se = pd.Series(se_values / null_ss, index=component_index, name="SE(Q2)")
 
         press_arr_final = press.to_numpy()
@@ -2210,7 +2210,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
         consensus_fields: dict[str, object] = {}
         if return_consensus:
-            # Two cheap cross-checks: Minka's PPCA MLE (mean-centred input,
+            # Two cheap cross-checks: Minka's PPCA MLE (mean-centered input,
             # no unit-variance scaling) and Horn's parallel analysis. The latter
             # always autoscales: its null is unit-variance noise, and rescaling a
             # block that is already scaled changes nothing. ``scale_inside_folds``

@@ -120,13 +120,13 @@ class AnalysisRecipe:
     _canonical_cues: tuple[str, ...] = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        """Store each sequence as a tuple, and canonicalise the cue phrases once."""
+        """Store each sequence as a tuple, and canonicalize the cue phrases once."""
         for name in ("cue_phrases", "inputs_needed", "stages"):
             object.__setattr__(self, name, tuple(getattr(self, name)))
         object.__setattr__(self, "_canonical_cues", tuple(_canonicalise(phrase) for phrase in self.cue_phrases))
 
     def to_payload(self) -> dict[str, Any]:
-        """Serialise to a JSON-friendly dict the agent can consume."""
+        """Serialize to a JSON-friendly dict the agent can consume."""
         payload: dict[str, Any] = {
             "recipe_key": self.key,
             "title": self.title,
@@ -223,7 +223,7 @@ def select_recipe(query: str) -> AnalysisRecipe | None:
     """Return the best-matching recipe for *query*, or ``None``.
 
     Scoring is intentionally simple: each cue phrase that appears as a substring
-    of the canonicalised query contributes one point. The highest-scoring recipe
+    of the canonicalized query contributes one point. The highest-scoring recipe
     wins (ties broken by registration order); a minimum score of one is required
     to match. Replace with embedding similarity if the catalog grows beyond a few
     dozen recipes.
@@ -274,7 +274,7 @@ class _RecipeQuery(BaseModel):
     description=(
         "Match a free-text request to a predefined, step-by-step analysis recipe (a guided workflow that "
         "chains existing process-improve tools in the right order). Use this first when a user asks an "
-        "open-ended 'how do I analyse this' question, then follow the returned stages. "
+        "open-ended 'how do I analyze this' question, then follow the returned stages. "
         "Returns: {ok: true, matched: bool, recipe, available}. 'recipe' is the matched recipe payload "
         "(recipe_key, title, summary, domain, status, inputs_needed, and ordered 'stages' each with a "
         "directive plus optional tools/arg_hints; a planned recipe also carries a 'note') or null when "
@@ -285,7 +285,7 @@ class _RecipeQuery(BaseModel):
     category="recipes",
 )
 def select_analysis_recipe(spec: _RecipeQuery) -> dict:
-    """Return the best-matching recipe payload plus the full catalogue."""
+    """Return the best-matching recipe payload plus the full catalog."""
     match = select_recipe(spec.query)
     available = [
         {

@@ -221,7 +221,7 @@ class TestOmeda:
         pd.testing.assert_series_equal(omeda(pca, X, weights=weights), omeda(pca, X, group=group))
 
     def test_one_sided_weights_mirror_the_group_alone(self) -> None:
-        """Weights of -1 on the group, and nothing positive, give the group-vs-centre result negated."""
+        """Weights of -1 on the group, and nothing positive, give the group-vs-center result negated."""
         X, pca, group, _ = self._shifted()
         weights = -X.index.isin(group).astype(float)
         pd.testing.assert_series_equal(omeda(pca, X, weights=weights), -omeda(pca, X, group=group))

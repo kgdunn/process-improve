@@ -37,7 +37,7 @@ class TestChartSpecSerialisation:
         spec = ChartSpec(panels=[_scatter_panel([])], plot_type="scatter")
         raw = spec.to_dict()
         assert raw["plot_type"] == "scatter"
-        # The MarkType enum should be serialised to its string value.
+        # The MarkType enum should be serialized to its string value.
         assert raw["panels"][0]["layers"][0]["mark"] == "scatter"
 
     def test_to_dict_is_json_safe_with_numpy_values_in_the_data(self) -> None:
@@ -163,7 +163,7 @@ def _first_trace(panel: PanelSpec) -> dict:
 
 
 class TestPlotlyContourStyling:
-    """The contour trace must honour the style keys it is handed.
+    """The contour trace must honor the style keys it is handed.
 
     These keys were previously accepted into the spec and then discarded by the
     adapter, so an overlay of several responses rendered as filled surfaces all
@@ -193,11 +193,11 @@ class TestPlotlyContourStyling:
         assert trace["contours"]["size"] == 20.0
 
     def test_line_coloring_uses_the_layer_colour(self) -> None:
-        """Overlaid responses stay distinguishable only if each keeps its colour."""
+        """Overlaid responses stay distinguishable only if each keeps its color."""
         trace = _first_trace(_contour_panel({"contours_coloring": "lines"}, color="#123456"))
         assert trace["contours"]["coloring"] == "lines"
         assert trace["line"]["color"] == "#123456"
-        # A per-response colour bar would be meaningless, so it is suppressed.
+        # A per-response color bar would be meaningless, so it is suppressed.
         assert trace["showscale"] is False
 
     def test_showscale_and_opacity_are_forwarded(self) -> None:
@@ -264,7 +264,7 @@ class TestPlotlyLayersAndPanels:
             assert list(trace["error_y"]["array"]) == expected
 
     def test_a_scatter_edge_colour_outlines_the_markers(self) -> None:
-        """Markers read on any background when they carry an edge: colour and width are forwarded."""
+        """Markers read on any background when they carry an edge: color and width are forwarded."""
         trace = _first_trace(PanelSpec(layers=[_layer(MarkType.scatter, {"edge_color": "#222222"})]))
         assert trace["marker"]["line"] == {"color": "#222222", "width": 1}
 

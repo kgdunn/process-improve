@@ -51,24 +51,24 @@ class BatchMonitor(BaseEstimator):
 
     Builds a Hotelling's T2 and an SPE control limit at every time sample by
     passing each reference batch through the model's missing-data score
-    estimate at that sample and summarising the reference-batch spread. A new
+    estimate at that sample and summarizing the reference-batch spread. A new
     batch can then be tracked in real time: at each sample its projected T2
     and SPE are compared against the limit for that sample, flagging abnormal
-    behaviour while the batch is still running.
+    behavior while the batch is still running.
 
     The T2 at sample ``k`` is ``t_k' S_k^-1 t_k`` with ``S_k`` the scatter of
     the reference batches' score estimates at that sample about zero, the
-    centre of the training scores (so the reference batches' mean T2 is
+    center of the training scores (so the reference batches' mean T2 is
     ``A (N - 1) / N`` at every sample), and its limit is the F-distribution
     limit for the number of reference batches and components. The reference
     batches are normally the batches the model was fitted on, as in Nomikos
-    and MacGregor; a different reference set is centred on the model's
+    and MacGregor; a different reference set is centered on the model's
     training batches, not on itself. The SPE is either the length of the residual over every cell
     observed so far (``"cumulative"``) or over the newest sample only
     (``"instantaneous"``, the per-interval SPE of Nomikos and MacGregor,
     which reacts in the sample a fault begins); its limit at each sample is
     the moment-matched chi-squared limit on the reference batches' values at
-    that sample, or pooled over a window of neighbouring samples
+    that sample, or pooled over a window of neighboring samples
     (``spe_window``).
 
     Parameters
@@ -86,7 +86,7 @@ class BatchMonitor(BaseEstimator):
     spe_statistic : {"cumulative", "instantaneous"}, default="cumulative"
         Which SPE to chart and to build limits for (see above).
     spe_window : int, default=0
-        Half-width of the window of neighbouring samples whose reference SPE
+        Half-width of the window of neighboring samples whose reference SPE
         values are pooled with those of sample ``k`` before its limit is
         fitted: ``0`` fits each limit to the reference values of that sample
         alone, ``2`` to the values of samples ``k - 2`` to ``k + 2`` (fewer at
@@ -95,7 +95,7 @@ class BatchMonitor(BaseEstimator):
         across samples where the reference SPE changes level. The mean trace
         ``spe_mean_over_time_`` is never pooled.
     ridge : float, default=0.0
-        Regularisation for the ``"tsr"`` / ``"pmp"`` estimators, passed to
+        Regularization for the ``"tsr"`` / ``"pmp"`` estimators, passed to
         ``predict_online_trace``.
 
     Attributes (after fitting)
@@ -104,7 +104,7 @@ class BatchMonitor(BaseEstimator):
         The SPE limit at each sample.
     t2_limit_over_time_ : np.ndarray of shape (n_timesteps,)
         The T2 limit at each sample (the same value at every sample, since
-        the T2 is standardised by the per-sample score covariance).
+        the T2 is standardized by the per-sample score covariance).
     spe_mean_over_time_, t2_mean_over_time_ : np.ndarray of shape (n_timesteps,)
         The mean reference-batch statistic at each sample.
     score_covariance_over_time_ : np.ndarray of shape (n_timesteps, n_components, n_components)
@@ -206,9 +206,9 @@ class BatchMonitor(BaseEstimator):
             spe_matrix[row] = self._spe_from_trace(trace)
 
         # The score estimates early in a batch are shrunk and noisy compared
-        # with those near its end, so T2 is standardised sample by sample. The
-        # scatter is taken about zero, the centre of the training scores, so
-        # the quadratic form and its normalisation agree.
+        # with those near its end, so T2 is standardized sample by sample. The
+        # scatter is taken about zero, the center of the training scores, so
+        # the quadratic form and its normalization agree.
         # A component with no spread in the fit adds 0 to T2, as in every other T2 (#1124), so only
         # the components with spread must span their dimensions at each sample.
         score_sd = np.sqrt(np.asarray(self.model.explained_variance_, dtype=float))
@@ -229,7 +229,7 @@ class BatchMonitor(BaseEstimator):
         t2_matrix = np.stack([self._t2_from_scores(scores[row]) for row in range(n_reference)])
 
         # Each limit is fitted to the reference values of that sample, pooled with those of its
-        # ``window`` neighbours on either side when asked; the pool is shorter at the two ends.
+        # ``window`` neighbors on either side when asked; the pool is shorter at the two ends.
         spe_limits = np.array(
             [
                 spe_calculation(spe_matrix[:, max(0, k - window) : k + window + 1].ravel(), conf_level=self.conf_level)

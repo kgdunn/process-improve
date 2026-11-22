@@ -140,9 +140,9 @@ def test_set_theme_rejects_unknown() -> None:
 
 
 def test_theme_plot_backgrounds_are_pinned() -> None:
-    """Pin every theme's plot-area background colour.
+    """Pin every theme's plot-area background color.
 
-    The colours are not all distinct: pi_tufte and pi_journal deliberately
+    The colors are not all distinct: pi_tufte and pi_journal deliberately
     share a white plot area, so this pins all four values rather than
     claiming uniqueness.
     """

@@ -90,7 +90,7 @@ _SIMULATOR = {
 
 
 def _dsd_runs() -> list[dict[str, Any]]:
-    """Return a six-factor DSD with three centre runs, coded, and a response in which A, C and A:C are active."""
+    """Return a six-factor DSD with three center runs, coded, and a response in which A, C and A:C are active."""
     design = generate_design([Factor(name=n, low=-1, high=1) for n in "ABCDEF"], design_type="dsd", n_center_points=3)
     runs = design.design.drop(columns="RunOrder")
     truth = TrueProcess({"Intercept": 50, "A": 6, "C": -4, "A:C": 4}, sigma=0.5)

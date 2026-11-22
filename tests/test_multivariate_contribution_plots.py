@@ -17,7 +17,7 @@ Page numbers refer to the article as paginated in the PDF at the link above
 Why this file exists
 --------------------
 These tests are written against the paper rather than against the code, so they
-constrain the behaviour rather than describe it. A test that re-derives the
+constrain the behavior rather than describe it. A test that re-derives the
 implementation holds whatever that implementation computes; a test that encodes
 equation (3) holds only if the code is right.
 
@@ -150,7 +150,7 @@ def test_eq3_holds_for_pls_using_the_score_generating_weights(
 
     Page 21 notes that contributions apply to "other dimension reduction
     techniques", naming PLS. Westerhuis, Gurden and Smilde (2000) give the
-    generalisation: the decomposition uses whatever matrix ``R`` satisfies
+    generalization: the decomposition uses whatever matrix ``R`` satisfies
     ``T = XR``, which for PLS is ``direct_weights_`` and not the X-loadings.
     Using the loadings here would break the sum in equation (3).
     """
@@ -291,7 +291,7 @@ def test_eq4_q_contributions_are_squared_residuals_that_sum_to_q(
 def test_page14_group_contributions_use_the_group_average(
     emulsion_model: tuple[PCA, pd.DataFrame],
 ) -> None:
-    """A cluster of batches is summarised by averaging the data, then weighting.
+    """A cluster of batches is summarized by averaging the data, then weighting.
 
     Page 14: "When we compute the contributions, we can replace ``x_ij`` with a
     suitably chosen average, or other linear combination of the data. In this
@@ -313,7 +313,7 @@ def test_page14_group_contributions_use_the_group_average(
 def test_page14_the_comparison_is_against_the_centre_which_is_zero(
     emulsion_model: tuple[PCA, pd.DataFrame],
 ) -> None:
-    """Averaging over every batch gives nothing, because the data are centred.
+    """Averaging over every batch gives nothing, because the data are centered.
 
     Page 14: "This in effect compares the average value of the batches of
     interest to the mean of all the process variables, which is zero for each
@@ -391,7 +391,7 @@ def test_page18_a_drift_can_be_weighted_by_an_orthogonal_polynomial(
     model, scaled = emulsion_model
     run = list(range(100, 120))
     weights = np.zeros(len(scaled))
-    # First-order orthogonal polynomial over n points: centred, evenly spaced.
+    # First-order orthogonal polynomial over n points: centered, evenly spaced.
     weights[scaled.index.get_indexer_for(run)] = np.arange(len(run)) - (len(run) - 1) / 2.0
     assert weights.sum() == pytest.approx(0.0)
 

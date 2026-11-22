@@ -88,7 +88,7 @@ class TestFillGaps:
         assert filled["B1"]["C"].is_monotonic_increasing
 
     def test_non_numeric_columns_are_never_touched(self) -> None:
-        """A phase label travelling alongside the trajectory is not a measurement."""
+        """A phase label traveling alongside the trajectory is not a measurement."""
         mixed = {"B1": pd.DataFrame({"T": [1.0, np.nan, 3.0], "phase": ["heat", None, "cool"]})}
         filled, report = fill_gaps(mixed)
 

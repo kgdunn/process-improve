@@ -296,7 +296,7 @@ class Response(BaseModel):
     name : str
         Name of the response (e.g. "Yield", "Purity", "Cost").
     goal : ResponseGoal
-        Optimisation direction: ``"maximize"``, ``"minimize"``, or ``"target"``.
+        Optimization direction: ``"maximize"``, ``"minimize"``, or ``"target"``.
     target : float or None
         Target value (required when ``goal="target"``).
     low : float or None
@@ -306,7 +306,7 @@ class Response(BaseModel):
     units : str
         Engineering units (e.g. "%", "mg/L", "min").
     importance : float
-        Relative importance weight for multi-response optimisation (default 1.0).
+        Relative importance weight for multi-response optimization (default 1.0).
 
     Examples
     --------
@@ -342,8 +342,8 @@ class DesignResult:
         Design matrix in actual (real-world) units.
     run_order : list[int]
         The standard-order position (1-based) of each run. ``design`` and
-        ``design_actual`` are already in randomised run order, so ``run_order[i]``
-        is where their i-th row sits in the unrandomised design; sorting the rows on
+        ``design_actual`` are already in randomized run order, so ``run_order[i]``
+        is where their i-th row sits in the unrandomized design; sorting the rows on
         it recovers the standard order.
     design_type : str
         Name of the design that was generated.

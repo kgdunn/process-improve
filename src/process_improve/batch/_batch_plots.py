@@ -9,7 +9,7 @@ plots are specific to the batch (unfolded) structure:
   component drawn as a function of time, one trace per tag, so the reader sees
   how each variable contributes to a component over the batch evolution.
 - :func:`unfolded_contribution_plot`: for one batch, its whole contribution
-  vector over the unfolded ``(tag, time)`` axis, grouped and coloured by tag,
+  vector over the unfolded ``(tag, time)`` axis, grouped and colored by tag,
   or summed into one bar per tag. This is the classic batch contribution plot
   that answers "which variables, and when".
 - :func:`contribution_at_time_plot`: for one batch, the per-tag contribution to
@@ -184,8 +184,8 @@ def unfolded_contribution_plot(
     Takes a contribution matrix (one row per batch, the 2-level
     ``(tag, sequence)`` column index of the unfolded data) and draws one
     batch's row as bars in unfolded column order, one trace per tag so the
-    legend toggles tags and the colour identifies them. The tag names are
-    written under the centre of each tag's block of samples. Reading the
+    legend toggles tags and the color identifies them. The tag names are
+    written under the center of each tag's block of samples. Reading the
     plot left to right answers "which variables, and at which time" for the
     score, SPE or T2 of that batch.
 

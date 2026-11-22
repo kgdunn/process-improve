@@ -64,7 +64,7 @@ class ControlChartInput(BaseModel):
     description=(
         "Build a control chart for a sequence of numeric observations and identify out-of-control points. "
         "Supports Shewhart (xbar), Holt-Winters (HW), EWMA and CUSUM chart types; the Holt-Winters chart "
-        "blends Shewhart and CUSUM-like behaviour through its smoothing parameters. For the EWMA chart the "
+        "blends Shewhart and CUSUM-like behavior through its smoothing parameters. For the EWMA chart the "
         "limits are the steady-state limits of the EWMA statistic, and a point is out of control when "
         "the statistic, not the observation, is outside them. The CUSUM chart has no limits on the "
         "observations: a point is out of control when the upper or lower cumulative sum exceeds the "

@@ -43,7 +43,7 @@ _SLEEP = 0.5
 
 
 def test_single_call_returns_json(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A single dispatch returns the tool result serialised as JSON (unchanged behaviour)."""
+    """A single dispatch returns the tool result serialized as JSON (unchanged behavior)."""
     monkeypatch.setattr(mcp_server, "execute_tool_call", lambda name, payload: {"name": name, "echo": payload})
     handler = mcp_server._make_tool_handler("echo")
 
@@ -62,12 +62,12 @@ def test_non_dict_result_is_stringified(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 def test_concurrent_dispatch_does_not_block(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Two slow tool calls run concurrently rather than serialising on the event loop.
+    """Two slow tool calls run concurrently rather than serializing on the event loop.
 
     Drive-by robustness fix from #513: the previous version asserted on wall
     clock (``elapsed < 1.7 * _SLEEP``), which flakes on loaded CI runners. A
     barrier both calls must reach while in flight proves the overlap directly,
-    with no timing race: a serialised dispatch never has two calls in flight,
+    with no timing race: a serialized dispatch never has two calls in flight,
     so the barrier times out and raises ``BrokenBarrierError``.
     """
     barrier = threading.Barrier(2, timeout=20 * _SLEEP)
@@ -89,7 +89,7 @@ def test_concurrent_dispatch_does_not_block(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def test_tool_safety_error_returns_curated_payload(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A ``ToolSafetyError`` is serialised via its curated ``to_dict()`` payload."""
+    """A ``ToolSafetyError`` is serialized via its curated ``to_dict()`` payload."""
 
     def raise_timeout(_name: str, _payload: dict) -> dict:
         raise ToolTimeoutError("tool call timed out", details={"timeout_s": 10})

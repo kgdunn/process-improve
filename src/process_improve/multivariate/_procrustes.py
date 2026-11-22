@@ -3,7 +3,7 @@
 A panel of assessors scores the same products, each on their own use of the scale;
 two instruments measure the same parts, each in its own frame. Every one of them gives
 a *configuration*: the objects as points in space. Configurations can differ in where
-they are centred, how they are oriented (mirrored included), and how large they are,
+they are centered, how they are oriented (mirrored included), and how large they are,
 and none of that says anything about the objects. GPA removes exactly those three
 differences, and what is left is agreement (the consensus) and disagreement (the
 residuals), object by object and configuration by configuration.
@@ -36,7 +36,7 @@ except ImportError:  # pragma: no cover - exercised via env-without-plotly
     go = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
 
 
-#: Centred spread, as a share of a configuration's uncentred size, below which every
+#: Centered spread, as a share of a configuration's uncentered size, below which every
 #: object is taken to sit at the same point.
 _NULL_SPREAD = 1e-12
 
@@ -135,7 +135,7 @@ class GPA(BaseEstimator):
 
     Each configuration places the same objects (products, parts, batches) as points,
     one column per dimension: an assessor's scores on their attributes, an instrument's
-    measurements. GPA centres every configuration, rotates it (reflections allowed)
+    measurements. GPA centers every configuration, rotates it (reflections allowed)
     and, with ``scale=True``, stretches or shrinks it as a whole, so that together they
     sit as close as possible to their mean, the *consensus* (Gower, 1975; ten Berge,
     1977). The configurations may have different numbers of columns, as in free-choice
@@ -167,12 +167,12 @@ class GPA(BaseEstimator):
         Each configuration after translation, rotation and scaling, in the consensus's
         axes.
     scale_factors_ : pd.Series
-        The factor each centred configuration was multiplied by. Above 1, it was
+        The factor each centered configuration was multiplied by. Above 1, it was
         stretched: the assessor used a narrower range than the others. The factors
-        preserve the total sum of squares of the centred configurations.
+        preserve the total sum of squares of the centered configurations.
     rotations_ : dict[str, np.ndarray]
         The orthogonal matrix, of shape (n_dimensions, n_dimensions), applied to each
-        centred and padded configuration.
+        centered and padded configuration.
     residuals_ : pd.DataFrame of shape (n_objects, n_configurations)
         Squared distance of each object from the consensus, in each configuration.
         Summed down a column, how far a configuration disagrees; along a row, how
@@ -194,7 +194,7 @@ class GPA(BaseEstimator):
     J.M.F. ten Berge, "Orthogonal Procrustes rotation for two or more matrices",
     Psychometrika, 42 (1977), 267-276.
 
-    G.M. Arnold and A.A. Williams, "The use of generalised Procrustes techniques in
+    G.M. Arnold and A.A. Williams, "The use of generalized Procrustes techniques in
     sensory analysis", in *Statistical Procedures in Food Research*, Elsevier (1986).
 
     I.N. Wakeling, M.M. Raats and H.J.H. MacFie, "A new significance test for consensus
@@ -317,7 +317,7 @@ class GPA(BaseEstimator):
                 stacklevel=user_stacklevel(),
             )
         self.n_iter_ = fitted.n_iter
-        # Back to the data's own size: the aligned configurations keep the centred total sum of squares.
+        # Back to the data's own size: the aligned configurations keep the centered total sum of squares.
         factors = fitted.factors * np.sqrt(np.mean(sizes**2)) / sizes if self.scale else np.ones(len(frames))
         self._finish(frames, centred, factors, fitted.rotations)
         return self

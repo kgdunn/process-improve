@@ -122,7 +122,7 @@ def test_pls_matches_plsregression() -> None:
     beta = rng.normal(size=(n_features, 1))
     Y = pd.DataFrame(X.values @ beta + rng.normal(scale=0.2, size=(n_samples, 1)), columns=["y"])
 
-    # Both fed the identically scaled X; centre Y up front (PLSRegression centres Y internally).
+    # Both fed the identically scaled X; center Y up front (PLSRegression centers Y internally).
     x_scaled = pd.DataFrame(StandardScaler().fit_transform(X.values), columns=X.columns)
     y_scaled = pd.DataFrame(StandardScaler().fit_transform(Y.values), columns=["y"])
 
@@ -188,7 +188,7 @@ def test_transformed_target_regressor_with_mcuvscaler_and_pls() -> None:
 
     # Sanity: predictions live on the original Y scale, not the scaled space.
     # A trivial sanity check: the prediction mean should be close to Y mean,
-    # not to zero (which is what a scaled prediction would centre on).
+    # not to zero (which is what a scaled prediction would center on).
     y_pred = np.asarray(y_pred).ravel()
     assert abs(y_pred.mean() - Y.values.ravel().mean()) < 0.5
     # And the magnitude should match Y's scale, not the unit-variance scale.
@@ -243,7 +243,7 @@ def test_column_transformer_sparse_output_is_rejected_with_the_remedy() -> None:
     This is the case the issue predicted and the test above dodges by passing
     `sparse_output=False`. `ColumnTransformer` flips its *entire* concatenated output to
     sparse once the result is more than `sparse_threshold` (default 0.3) zeros, which a
-    one-hot block with a dozen levels easily is. NIPALS centres and scales every column,
+    one-hot block with a dozen levels easily is. NIPALS centers and scales every column,
     so there is no sparse path to take, and the message has to name the knob that avoids
     the round trip rather than sklearn's generic advice to call `.toarray()`.
     """
@@ -374,7 +374,7 @@ def test_halving_grid_search_cv_with_mcuvscaler_and_pls() -> None:
     assert grid.best_params_["pls__n_components"] >= 1
     assert grid.best_score_ > 0.3  # synthetic data with real latent factors
 
-    # Random analogue too: confirms the search dispatches resource budgets correctly.
+    # Random analog too: confirms the search dispatches resource budgets correctly.
     rng_search = HalvingRandomSearchCV(
         pipe,
         {"pls__n_components": [1, 2, 3]},

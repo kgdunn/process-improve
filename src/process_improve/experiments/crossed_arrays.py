@@ -69,7 +69,7 @@ def cross_arrays(
 
     Notes
     -----
-    A :class:`DesignResult` is crossed in the order of its table, which is its randomised run order.
+    A :class:`DesignResult` is crossed in the order of its table, which is its randomized run order.
     For the standard order, pass ``result.design.iloc[numpy.argsort(result.run_order)]``.
 
     The mean and the variance of each inner run's readings, the summaries of a robust-design study,
@@ -158,7 +158,7 @@ def signal_to_noise(readings: ArrayLike, kind: Literal["larger", "smaller", "nom
     Larger is better for a reading of 0 is -inf, and nominal is best for readings that do not vary
     is +inf. Nominal is best needs two readings for the variance: with fewer it is NaN.
 
-    For nominal is best, Taguchi's two-step optimisation then picks the settings with the highest
+    For nominal is best, Taguchi's two-step optimization then picks the settings with the highest
     ratio and moves the mean to the target with a factor that changes the mean but not the ratio.
 
     Examples

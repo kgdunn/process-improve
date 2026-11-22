@@ -1,7 +1,7 @@
 """Split-plot designs from the built-in coordinate exchange on X'V^-1 X (#788 A2).
 
 Goos and Jones (2011, chapter 10) print two split-plot designs the search must find again, each on
-the generalised least squares information with the whole-plot variance equal to the run variance:
+the generalized least squares information with the whole-plot variance equal to the run variance:
 the wind tunnel's I-optimal design (50 runs in ten whole plots of five, I = 0.512) and a 2^4 in
 eight whole plots of two runs. The search, without pyoptex, matches both to within 1% or betters them.
 """

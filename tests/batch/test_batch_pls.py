@@ -56,7 +56,7 @@ def test_predictions_in_original_units(aligned_dryer: dict, dryer_quality: pd.Da
 
 @pytest.mark.dataset
 def test_scaler_attributes_are_public(aligned_dryer: dict, dryer_quality: pd.DataFrame) -> None:
-    """The X and Y centring/scaling constants are public fitted attributes."""
+    """The X and Y centering/scaling constants are public fitted attributes."""
     model = BatchPLS(n_components=2).fit(aligned_dryer, dryer_quality)
     n_unfolded = model.n_tags_ * model.n_timesteps_
     assert model.center_.shape == (n_unfolded,)
@@ -282,7 +282,7 @@ def test_initial_conditions_are_validated(aligned_dryer: dict, dryer_quality: pd
 
 @pytest.mark.dataset
 def test_unscaled_fit_keeps_centring_only(aligned_dryer: dict, dryer_quality: pd.DataFrame) -> None:
-    """scale=False centres the unfolded columns but leaves their spread alone."""
+    """scale=False centers the unfolded columns but leaves their spread alone."""
     model = BatchPLS(n_components=2, scale=False).fit(aligned_dryer, dryer_quality)
     assert (model.scale_ == 1.0).all()
     assert model.r2_cumulative_.iloc[-1] > 0.0
@@ -290,7 +290,7 @@ def test_unscaled_fit_keeps_centring_only(aligned_dryer: dict, dryer_quality: pd
 
 @pytest.mark.dataset
 def test_group_by_batch_layout_with_initial_conditions(aligned_dryer: dict, dryer_quality: pd.DataFrame) -> None:
-    """With group_by_batch the Z columns are labelled ("", name) to match the (sequence, tag) layout."""
+    """With group_by_batch the Z columns are labeled ("", name) to match the (sequence, tag) layout."""
     ids = list(aligned_dryer)
     z = pd.DataFrame({"charge": [float(i) for i in range(len(ids))]}, index=ids)
     model = BatchPLS(n_components=2, group_by_batch=True).fit(aligned_dryer, dryer_quality, initial_conditions=z)

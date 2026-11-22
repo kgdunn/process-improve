@@ -3,7 +3,7 @@
 Box, Hunter and Hunter's section 14.6 fits the biochemical oxygen demand of six bottles against the
 incubation time with eta = b1 (1 - exp(-b2 x)), and prints the estimates, the residual sum of
 squares, the contour that bounds the 90% joint confidence region, and the fitted values. These tests
-hold the function to those numbers, read from the reference catalogue, to scipy's curve_fit, and to
+hold the function to those numbers, read from the reference catalog, to scipy's curve_fit, and to
 ordinary least squares for a model that is linear in its parameters.
 """
 

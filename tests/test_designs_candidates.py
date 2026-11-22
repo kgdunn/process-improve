@@ -16,7 +16,7 @@ DOSE = Factor(name="D", low=20, high=60)
 
 @pytest.fixture
 def history() -> pd.DataFrame:
-    """Thirty operating points from plant records, labelled by batch."""
+    """Thirty operating points from plant records, labeled by batch."""
     rng = np.random.default_rng(0)
     points = pd.DataFrame({"T": rng.uniform(100, 150, 30).round(1), "D": rng.uniform(20, 60, 30).round(1)})
     points.index = [f"batch_{i:02d}" for i in range(30)]

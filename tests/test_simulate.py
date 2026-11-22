@@ -1,4 +1,4 @@
-"""Tests for simulate_design_performance: designs judged by simulated studies on a hypothesised process."""
+"""Tests for simulate_design_performance: designs judged by simulated studies on a hypothesized process."""
 
 from __future__ import annotations
 

@@ -4,9 +4,9 @@ rules a product must meet.
 
 :meth:`PLS.invert <process_improve.multivariate.methods.PLS.invert>` returns the minimum-norm inputs for a target, and
 the null space along which every other answer lies. Jaeckle and MacGregor then picked a point in that window by hand,
-"such as the most economical one". This module makes that choice an optimisation, and proves it optimal:
+"such as the most economical one". This module makes that choice an optimization, and proves it optimal:
 
-    minimise    the cost of the inputs, or their distance to target qualities (in training standard deviations)
+    minimize    the cost of the inputs, or their distance to target qualities (in training standard deviations)
     subject to  each predicted quality within its window;
                 linear rules on the inputs: a mixture summing to 1, a safety or legal limit on a component;
                 each input within its bounds, or held at a fixed value;
@@ -48,7 +48,7 @@ _ROW_TOLERANCE = 1e-6  # a linear rule met to within this, relative to its scale
 _LIMIT_TOLERANCE = 1e-4  # T² or an SPE within this fraction above its limit is within it
 _ACTIVE = 1e-5  # a rule within this (relative) of its bound is binding
 _MAX_ROUNDS = 200  # outer-approximation rounds before the search reports it is not proven optimal
-_FIRST_TRY_ITERATIONS = 100  # SLSQP from the model centre settles in tens of iterations when an answer exists
+_FIRST_TRY_ITERATIONS = 100  # SLSQP from the model center settles in tens of iterations when an answer exists
 _RESTARTS = 3  # SLSQP restarts from where it stopped, while the optimality conditions do not hold there
 _KKT_TOLERANCE = 1e-6  # the optimality conditions' relative residual below which a point is the optimum
 _PROOF_TOLERANCE = 1e-6  # a tangent-plane bound within this fraction of the answer's objective proves it
@@ -226,7 +226,7 @@ def affine_model(model: BaseEstimator, conf_level: float = 0.95) -> AffineModel:
     Read a fitted PLS or TPLS model as exact affine maps of one input vector, checked against its ``diagnose``.
 
     The scores, predictions and residuals of a latent-variable model are affine in its inputs. One ``diagnose`` call,
-    at the model's centre and one step along each input, gives every map exactly. A second call, at random points, is
+    at the model's center and one step along each input, gives every map exactly. A second call, at random points, is
     the check: the maps must reproduce the model's own predictions, Hotelling's T² and SPE there.
 
     Parameters
@@ -321,17 +321,17 @@ class LinearRule:
 @dataclass(frozen=True)
 class InversionRules:
     """
-    What the inputs must meet, and what to minimise.
+    What the inputs must meet, and what to minimize.
 
-    Give ``costs`` or ``targets``, not both. To keep a quality near its target while minimising cost, give it a
+    Give ``costs`` or ``targets``, not both. To keep a quality near its target while minimizing cost, give it a
     window instead.
 
     Attributes
     ----------
     costs : dict of str to float
-        Each input's cost per unit: minimise their sum. Inputs not named cost nothing.
+        Each input's cost per unit: minimize their sum. Inputs not named cost nothing.
     targets : dict of str to float
-        Target qualities: minimise the summed distance to them, each in its training standard deviations.
+        Target qualities: minimize the summed distance to them, each in its training standard deviations.
     windows : dict of str to (float or None, float or None)
         Each quality's predicted value between a low and a high bound; None for no bound.
     bounds : dict of str to (float or None, float or None)
@@ -411,7 +411,7 @@ def _bad_values(rules: InversionRules) -> list[str]:
                  if not (isinstance(m, numbers.Real) and m > 0)]  # fmt: skip
     if bool(rules.costs) == bool(rules.targets):
         problems.append("give costs or targets (one of them) as the objective; to hold a quality near a target "
-                        "while minimising cost, give it a window")  # fmt: skip
+                        "while minimizing cost, give it a window")  # fmt: skip
     return problems
 
 
@@ -619,7 +619,7 @@ class _Problem:
         return a, np.array([r.low for r in rows]), np.array([r.high for r in rows])
 
     def start(self, bounds: np.ndarray) -> np.ndarray:
-        """Return the model's centre, within the bounds, and each target distance measured there."""
+        """Return the model's center, within the bounds, and each target distance measured there."""
         x = np.clip(self.affine.centre, bounds[: self.n, 0], bounds[: self.n, 1])
         y = self.affine.predict(x)
         d = [abs(y[k] - self.rules.targets[self.affine.y_names[k]]) / self.affine.y_scale[k] for k in self.targets]
@@ -733,7 +733,7 @@ def _meets(problem: _Problem, w: np.ndarray, rows: tuple[np.ndarray, np.ndarray,
 
 def _least_excess(problem: _Problem, rows: tuple, bounds: np.ndarray, start: np.ndarray) -> tuple[float, np.ndarray]:
     """
-    Minimise s with every limit relaxed to (1 + s) times itself and every linear row kept: always feasible.
+    Minimize s with every limit relaxed to (1 + s) times itself and every linear row kept: always feasible.
 
     Returns
     -------
@@ -820,7 +820,7 @@ def _continuous(problem: _Problem, on: tuple[int, ...] | None = None) -> tuple[n
     Search the inputs and target distances with every switch relaxed (``on=None``) or set.
 
     A linear program first checks the linear rows: when they cannot be met, that is proven at once. SLSQP then
-    searches from the model's centre. Should it end outside a limit, the least excess over the limits any point
+    searches from the model's center. Should it end outside a limit, the least excess over the limits any point
     meeting the linear rows can have tells "no answer" (``problem.why`` says which limit) from "start again there".
 
     Returns

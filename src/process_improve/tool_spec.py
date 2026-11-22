@@ -43,7 +43,7 @@ from process_improve._tool_registry import _TOOL_REGISTRY, clean, tool_spec
 
 logger = logging.getLogger(__name__)
 
-#: Serialises ``warnings.catch_warnings``, which swaps module-global state and is not
+#: Serializes ``warnings.catch_warnings``, which swaps module-global state and is not
 #: thread-safe: two tool calls on different threads could otherwise restore each other's
 #: filters. A build with context-aware warnings (``sys.flags.context_aware_warnings``,
 #: Python 3.14) keeps that state per thread and needs no lock.
@@ -213,7 +213,7 @@ def execute_tool_call(tool_name: str, tool_input: dict[str, Any]) -> Any:  # noq
     Returns
     -------
     Any
-        Whatever the tool function returns (typically a JSON-serialisable
+        Whatever the tool function returns (typically a JSON-serializable
         ``dict``), with ``library_warnings`` added to a dict when the tool
         raised any warning.
 

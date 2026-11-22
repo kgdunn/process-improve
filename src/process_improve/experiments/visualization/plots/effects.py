@@ -229,10 +229,10 @@ class InteractionPlot(BasePlot):
 
 @register_plot("perturbation")
 class PerturbationPlot(BasePlot):
-    """Perturbation plot: one factor at a time, others held at centre.
+    """Perturbation plot: one factor at a time, others held at center.
 
     Sweeps each factor from -1 to +1 while holding all others at their
-    centre (0 in coded units, or at ``hold_values``).  Requires a fitted
+    center (0 in coded units, or at ``hold_values``).  Requires a fitted
     model (coefficients from analysis results).
 
     Data sources
@@ -308,7 +308,7 @@ class PerturbationPlot(BasePlot):
         panel = PanelSpec(
             layers=layers,
             title="Perturbation Plot",
-            x_title="Coded Factor Level (Deviation from Centre)",
+            x_title="Coded Factor Level (Deviation from Center)",
             y_title="Predicted Response",
         )
 

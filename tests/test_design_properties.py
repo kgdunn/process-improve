@@ -165,7 +165,7 @@ class TestBoxBehnkenProperties:
     @_settings
     @given(k=st.integers(min_value=3, max_value=7))
     def test_non_center_rows_vary_one_block_of_factors(self, k: int) -> None:
-        """Every non-centre run varies one block of factors (pairs up to 5 factors, triples at 6 and 7)."""
+        """Every non-center run varies one block of factors (pairs up to 5 factors, triples at 6 and 7)."""
         x = _coded(generate_design(_factors(k), design_type="box_behnken", n_center_points=0))
         non_center_rows = x[~np.all(x == 0, axis=1)]
         varying_per_row = (non_center_rows != 0).sum(axis=1)
@@ -177,7 +177,7 @@ class TestBoxBehnkenProperties:
         [(3, 12), (4, 24), (5, 40), (6, 48), (7, 56), (9, 120), (10, 160), (11, 176), (12, 192), (16, 384)],
     )
     def test_run_counts_match_the_published_designs(self, k: int, n_runs: int) -> None:
-        """Box and Behnken (1960), Table 4: the runs before centre points, for every design published."""
+        """Box and Behnken (1960), Table 4: the runs before center points, for every design published."""
         x = _coded(generate_design(_factors(k), design_type="box_behnken", n_center_points=0))
         assert len(x) == n_runs
 
@@ -433,7 +433,7 @@ class TestEvaluateDesignProperties:
 
 
 # ---------------------------------------------------------------------------
-# Central composite design: alpha and centre runs
+# Central composite design: alpha and center runs
 # ---------------------------------------------------------------------------
 
 

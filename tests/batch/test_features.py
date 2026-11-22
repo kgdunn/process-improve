@@ -59,7 +59,7 @@ def test_age_col_specification(batch_data: pd.DataFrame) -> None:
 
 
 def test_default_tags_exclude_the_batch_and_phase_columns() -> None:
-    """With no tags given, every column but the batch and phase identifiers is summarised per batch and phase."""
+    """With no tags given, every column but the batch and phase identifiers is summarized per batch and phase."""
     data = pd.DataFrame(
         {
             "Batch": [1, 1, 1, 1, 2, 2],
