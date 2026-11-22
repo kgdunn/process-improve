@@ -97,9 +97,10 @@ def test_a_limit_that_cannot_be_read_says_why_and_holds_the_brief_back(blank_pag
 def test_with_limits_a_study_has_up_to_fourteen_factors_and_the_page_says_so(fresh_page):
     """An optimal design takes fifteen factors, so it is the limits, not the design, that hold the brief back."""
     page = fresh_page
-    set_factors(page, factors_named(*"ABCDEFGHIJKLMNO"))
-    candidates_done(page)
+    # The limit comes first: the designs of fifteen factors without it take over 30 s to list on a busy machine.
+    set_factors(page, factors_named(*"AB"))
     type_limit(page, "A + B <= 1")
+    set_factors(page, factors_named(*"ABCDEFGHIJKLMNO"))
     message = "With limits on the settings, the page makes designs in up to 14 factors; you have 15."
     page.wait_for_function("(said) => document.querySelector('#candidates').textContent === said", arg=message)
     choose(page, design_type="d_optimal")
