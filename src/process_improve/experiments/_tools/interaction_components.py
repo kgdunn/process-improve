@@ -43,7 +43,7 @@ class InteractionComponentsInput(BaseModel):
     name="interaction_components",
     description=(
         "Split each interaction of three-level factors into its orthogonal components of two degrees of freedom "
-        "each, as Montgomery and Davies analyse a 3^k factorial: AB and AB^2 for two factors (Yates's J and I), "
+        "each, as Montgomery and Davies analyze a 3^k factorial: AB and AB^2 for two factors (Yates's J and I), "
         "ABC, ABC^2, AB^2C and AB^2C^2 for three (Z, Y, X and W). Each component groups the runs by a sum of the "
         "factors' levels modulo 3, and its sum of squares is that of the three group totals. Returns "
         "'components', one row per main effect and per component: 'effect', 'component' (Montgomery's name, "

@@ -161,7 +161,7 @@ _TEXTILE_COLUMNS = {
 
 @pytest.fixture(scope="module")
 def textile() -> pd.DataFrame:
-    """Return the textile experiment's runs as the catalogue holds them: coded, in standard order, x1 fastest."""
+    """Return the textile experiment's runs as the catalog holds them: coded, in standard order, x1 fastest."""
     path = reference_catalogue._CATALOGUE_DIR / "box-draper-2007.json"
     entry = next(
         e for e in json.loads(path.read_text(encoding="utf-8"))["experiments"] if e["name"] == "box-draper-7-textile"
