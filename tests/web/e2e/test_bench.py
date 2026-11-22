@@ -123,6 +123,7 @@ def test_the_card_stays_open_or_closed_as_the_reader_left_it(blank_page):
     page = blank_page
     a_run_sheet(page)
     assert page.evaluate("document.querySelector('#bench').open")
+    # The card keeps its state in its toggle event, which the browser fires a moment after the click.
+    page.wait_for_function("localStorage.getItem('factorial-bench') === 'open'")
     page.reload()
-    page.wait_for_selector("#bench > summary", state="attached")
-    assert page.evaluate("localStorage.getItem('factorial-bench')") == "open"
+    page.wait_for_function("document.querySelector('#bench')?.open === true")
