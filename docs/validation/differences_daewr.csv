@@ -1,0 +1,27 @@
+source,entry,design,kind,printed,process_improve,other,outcome,catalogue_cause
+jones-nachtsheim-2011,jones-nachtsheim-2011-dsd-5-factors,dsd k=5,same_runs:,11,no relabelling of the library's columns ,"the library's columns 1, 2, 3, 4, 5",process-improve differs,method
+jones-nachtsheim-2011,jones-nachtsheim-2011-dsd-7-factors,dsd k=7,same_runs:,15,no relabelling of the library's columns ,"the library's columns 1, 2, 3, 4, 5, 6, 7",process-improve differs,method
+jones-nachtsheim-2011,jones-nachtsheim-2011-dsd-9-factors,dsd k=9,same_runs:,19,no relabelling of the library's columns ,"the library's columns 1, 2, 3, 4, 5, 6, 7, 8, 9",process-improve differs,method
+jones-nachtsheim-2011,jones-nachtsheim-2011-dsd-11-factors,dsd k=11,same_runs:,23,no relabelling of the library's columns ,"the library's columns 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11",process-improve differs,method
+jones-nachtsheim-2011,jones-nachtsheim-2011-dsd-12-factors,dsd k=12,same_runs:,25,no relabelling of the library's columns ,"the library's columns 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12",process-improve differs,method
+montgomery-2013,montgomery-dsd-12,dsd k=12,same_runs:,constructed from a conference matrix,no relabelling of the library's columns ,"the library's columns 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12",process-improve differs,source_error
+nunez-ares-goos-2019,nunez-ares-goos-design-sizes,dsd k=7,design_property:n_runs,17,17,15,other differs,
+nunez-ares-goos-2019,nunez-ares-goos-design-sizes,dsd k=9,design_property:n_runs,21,21,19,other differs,
+nunez-ares-goos-2019,nunez-ares-goos-design-sizes,dsd k=9,design_property:n_runs,21,21,19,other differs,
+nunez-ares-goos-2019,nunez-ares-goos-design-sizes,dsd k=11,design_property:n_runs,25,25,23,other differs,
+nunez-ares-goos-2019,nunez-ares-goos-design-sizes,dsd k=7,design_property:n_runs,17,17,15,other differs,
+nunez-ares-goos-2019,nunez-ares-goos-design-sizes,dsd k=9,design_property:n_runs,21,21,19,other differs,
+nunez-ares-goos-2019,nunez-ares-goos-design-sizes,dsd k=11,design_property:n_runs,25,25,23,other differs,
+nunez-ares-goos-2020,nag2020-xi-5,dsd k=7,design_property:n_runs,17,17,15,other differs,
+nunez-ares-goos-2020,nag2020-xi-5,dsd k=7,projections:['d_efficiency'],44.43,44.4287,41.7197,other differs,
+nunez-ares-goos-2020,nag2020-xi-5,dsd k=7,projections:['average_prediction_variance'],0.53,0.532746,0.66072,other differs,
+nunez-ares-goos-2020,nag2020-xi-6,dsd k=7,design_property:n_runs,18,18,16,other differs,
+nunez-ares-goos-2020,nag2020-xi-6,dsd k=7,projections:['d_efficiency'],44.25,44.2531,41.635,other differs,
+nunez-ares-goos-2020,nag2020-xi-6,dsd k=7,projections:['average_prediction_variance'],0.41,0.407221,0.484359,other differs,
+pid-book,dsd-five-factor-thirteen-run,dsd k=5,design_property:n_runs,13,13,11,other differs,
+pid-book,dsd-five-factor-thirteen-run,dsd k=5,design_metric:g_efficiency,13.9,13.9043,11.7652,other differs,
+pid-book,dsd-five-factor-thirteen-run,dsd k=5,design_metric:g_efficiency,13.9,13.9043,11.7652,other differs,
+pid-book,dsd-five-factor-thirteen-run,dsd k=5,design_metric:g_efficiency,13.9,13.9043,11.7652,other differs,
+pid-book,dsd-five-factor-thirteen-run,dsd k=5,design_metric:g_efficiency,13.9,13.9043,11.7652,other differs,
+pid-book,omars-trade-off-table,dsd k=5,design_property:n_runs,13,13,11,other differs,
+pid-book,omars-trade-off-table,dsd k=7,design_property:n_runs,17,17,15,other differs,
