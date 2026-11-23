@@ -21,7 +21,7 @@ import pandas as pd
 import pytest
 
 from process_improve import tool_safety
-from process_improve.batch import BatchScaler, determine_scaling, smooth_trajectories
+from process_improve.batch import BatchScaler, DTWAligner, determine_scaling, smooth_trajectories
 from process_improve.batch.preprocessing import batch_dtw
 from process_improve.experiments import (
     DesignRegion,
@@ -473,6 +473,12 @@ CASES: dict[str, tuple[Callable[[], object], str]] = {
     ),
     "Batch: a tag with a zero range, through BatchScaler": (
         lambda: BatchScaler(columns_to_align=["temp", "setpoint"]).fit(_batches(flat=True)),
+        r"zero range and substituted 1\.0",
+    ),
+    "Batch: a tag with a zero range, through DTWAligner": (
+        lambda: DTWAligner(["temp", "setpoint"], reference_batch="B0", settings={"show_progress": False}).fit(
+            _batches(flat=True)
+        ),
         r"zero range and substituted 1\.0",
     ),
     # Designed experiments: generating and reading a design
