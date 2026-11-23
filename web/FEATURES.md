@@ -833,11 +833,13 @@ Also:
 - **Your numbers in ink.** What you typed or measured is in blue ink. What Factorial worked
   out is in print.
   - *Details:* A simulated result is gray and in italics, as pencil, until you type over it.
-- **Every page has the same top line and footer.** The pages on how Factorial works, what it
-  does, how it is checked, the design catalog, the textbooks' answers and the concept map
-  each have the color-mode switch at the top and end in the same links, in the same order.
+- **Every page has the same top line and footer.** The pages on how Factorial works, the user
+  guide, how it is checked, the design catalog, the textbooks' answers and the page for
+  learning each have the color-mode switch at the top and end in the same links, in the same
+  order.
   - *Details:* A mode chosen on one page is the mode of the next. The footer marks the page
-    you are on.
+    you are on. It names each page in one to three words, and no name takes a second line on
+    a phone.
 - **One menu holds every way in.** "Studies", in the bar beside "New study", opens it: a new study, your
   studies, the worked example, data you have, and the design catalog. It also shares the
   study and shows its report.
@@ -897,7 +899,9 @@ Also:
   - *Details:* A link can open the form with a request written, as "Request it" does beside
     each design the app does not make yet. Nothing is sent until you press Send.
 - **A footer to scan.** What Factorial is in a sentence, a button to this list, links in named
-  groups, what is kept on the device, and which version of the app you have.
+  groups, what is kept on the device, and which version of the app you have. The links are
+  Open the app, User guide, Design catalog, Is it accurate? and Learn experimental design,
+  then How it works and Python package.
   - *Details:* The version is the commit the app was built from, as a link to it, and the day and
     time of that commit, in your own time zone on a 24-hour clock. A report sent from Feedback ends with the same version.
 
@@ -914,7 +918,7 @@ Also:
   - *Details:* A reactor's yield, studied over Temperature, Pressure and Flow in the 15 runs
     of a Box-Behnken design.
 - **Practice on a known process.** It shows the true model beside the fitted one.
-- **What Factorial does.** This list, as a page of the app. A point that ends with Show me
+- **The user guide.** This list, as a page of the app. A point that ends with Show me
   opens the app on an example of it, at the part of the page that has it. Each of the 17
   charts has its picture. A box finds a word, and a button in each part opens the details of
   its points.
@@ -924,7 +928,8 @@ Also:
   to run a copy of your own.
   - *Details:* The About page: what runs where, what reaches a server, the versions loaded,
     and how to build and serve the app yourself.
-- **The concept map.** It is under [More at factori.al](#more-at-factorial).
+- **Learn experimental design.** The book's chapter, the course, the course's videos and the
+  concept map are on one page. It is under [More at factori.al](#more-at-factorial).
 - **The package's documentation.** It is at <https://kgdunn.github.io/process-improve/>.
 
 ### Your data and your trust
@@ -1037,9 +1042,10 @@ What a careful reader, or an organization, asks before using a tool.
     to four designs are compared side by side. More than 1,100 designs open in Factorial with
     one click. There is a page for each of 30 fields and for each source, a list of errata, a
     feed, and forms to propose a published design or share a case study.
-- **[Validation](validation.html).** What Factorial is checked against, on one page: the
+- **[Is it accurate?](validation.html).** What Factorial is checked against, on one page: the
   books and papers that print its designs, and the other software that builds them.
-  - *Details:* The page counts the sources and the packages, and the differences found: the
+  - *Details:* The footer's link and the design catalog's door have the page's name, "Is it
+    accurate?", and both open it. The page counts the sources and the packages, and the differences found: the
     misprints in the books, the differences reported to other packages, and the gaps in
     Factorial. A grid has a row for each kind of design, with the packages it was compared
     with: a point where a package gives the same design, and a ring where it differs in
@@ -1059,9 +1065,17 @@ What a careful reader, or an organization, asks before using a tool.
     every number does. Each number of a case that differs is listed with why. A source's own
     page uses the same names and colors: a bar of every number it prints, each of its
     examples under its name, the misprints found in it, and what Factorial cannot compute yet.
-    "Search the book's cases" there opens that source's cases here.
-- **[The concept map](map/).** 237 ideas of designed experiments and 490 links between them,
-  in 13 topics, each with its definition, the book's line and a link into the book. It has
+    "Search the book's cases" there opens that source's cases here. The page opens from "Is
+    it accurate?", and its way back leads there.
+- **[Learn experimental design](map/).** Three ways to learn, on one page with the concept
+  map: read the chapter of *Process Improvement using Data*, take the Coursera course
+  Experimentation for Improvement, or watch the course's videos on YouTube.
+  - *Details:* The videos are the course's own, without its quizzes and course material. The
+    book's DOI is under the chapter, as text: one press selects it, to copy. A press anywhere
+    on a card follows its link. On a phone the three are one under the other, with the map's
+    heading on the first screen.
+- **[The concept map](map/).** It is on the page for learning, under the three ways to learn.
+  237 ideas of designed experiments and 490 links between them, in 13 topics, each with its definition, the book's line and a link into the book. It has
   three depths to choose from, side by side: Beginner, Intermediate and Adventurous.
   Zoom and fit are buttons on the map's corner (under the map on a phone), and the keyboard
   works too: + and - zoom, f fits all the topics, e shows the link labels, the arrow keys
