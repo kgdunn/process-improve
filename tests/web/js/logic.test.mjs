@@ -95,6 +95,7 @@ import {
   levelProblem,
   levelValue,
   listNames,
+  nCoefficients,
   nTerms,
   namedModelTerms,
   needsCentre,
@@ -218,6 +219,18 @@ describe("the design's settings", () => {
     assert.equal(nTerms(3, "main_effects"), 4);
     assert.equal(nTerms(3, "interactions"), 7);
     assert.equal(nTerms(3, "quadratic"), 10);
+  });
+
+  test("a categorical factor has no square, and one of several levels is a column per level but one", () => {
+    const numeric = (name) => ({ name, low: 0, high: 1, units: "" });
+    const material = [categoricalFactor("RM", ["A", "B"]), numeric("conc"), numeric("temp")];
+    assert.equal(nCoefficients(material, "quadratic"), 9, "no square of RM");
+    assert.equal(nCoefficients(material, "interactions"), 7);
+    const catalyst = [categoricalFactor("Catalyst", ["A", "B", "C"]), numeric("T"), numeric("P")];
+    assert.equal(nCoefficients(catalyst, "main_effects"), 5, "two columns for Catalyst");
+    assert.equal(nCoefficients(catalyst, "interactions"), 10, "and two in each of its interactions");
+    assert.equal(nCoefficients(catalyst, "quadratic"), 12);
+    assert.equal(nCoefficients([numeric("A"), numeric("B"), numeric("C")], "quadratic"), nTerms(3, "quadratic"));
   });
 
   test("an optimal design's model is as large as the largest the page fits: the quadratic in 12 factors", () => {
@@ -1232,9 +1245,11 @@ describe("the designs that can learn the brief", () => {
   });
 
   test("a design that takes a number of runs opens on its own: ten a factor, or the model's coefficients and spare", () => {
-    assert.equal(defaultBudget("maximin_lhs", 3, "interactions"), 3 * SPACE_FILLING_RUNS, "a space-filling design has no model");
-    assert.equal(defaultBudget("d_optimal", 3, "interactions"), 7 + 4);
-    assert.equal(defaultBudget("i_optimal", 4, "quadratic"), 15 + 4);
+    const numeric = (n) => Array.from({ length: n }, (_, i) => ({ name: `X${i + 1}`, low: 0, high: 1, units: "" }));
+    assert.equal(defaultBudget("maximin_lhs", numeric(3), "interactions"), 3 * SPACE_FILLING_RUNS, "a space-filling design has no model");
+    assert.equal(defaultBudget("d_optimal", numeric(3), "interactions"), 7 + 4);
+    assert.equal(defaultBudget("i_optimal", numeric(4), "quadratic"), 15 + 4);
+    assert.equal(defaultBudget("d_optimal", [categoricalFactor("RM", ["A", "B"]), ...numeric(2)], "quadratic"), 9 + 4);
   });
 
   test("the Run tab counts the runs, then the results in", () => {

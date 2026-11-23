@@ -7,10 +7,23 @@ import { confidencePercent, heldWords, marked, pointed, significance } from "./n
 
 export const SPARE_RUNS = 4;
 
-/** Count the coefficients, intercept included, of each named model in k factors. */
+/** Count the coefficients, intercept included, of each named model in k numeric factors. */
 export function nTerms(k, model) {
   const pairs = (k * (k - 1)) / 2;
   return 1 + k + (model === "main_effects" ? 0 : pairs) + (model === "quadratic" ? k : 0);
+}
+
+/**
+ * Count the coefficients, intercept included, of a named model over these factors; mirrors
+ * bootstrap._n_coefficients. A categorical factor has no square, and one of three levels or more is a column per
+ * level but one, in its main effect and in each interaction.
+ */
+export function nCoefficients(factors, model) {
+  const columns = factors.map((f) => (isCategorical(f) ? levelsOf(f).length - 1 : 1));
+  const mains = columns.reduce((sum, c) => sum + c, 0);
+  const pairs = (mains * mains - columns.reduce((sum, c) => sum + c * c, 0)) / 2; // each pair of factors' products
+  const squares = factors.filter((f) => !isCategorical(f)).length;
+  return 1 + mains + (model === "main_effects" ? 0 : pairs) + (model === "quadratic" ? squares : 0);
 }
 
 /** The space-filling designs, made for no model; mirrors bootstrap.SPACE_FILLING. */
@@ -23,9 +36,10 @@ export const SPACE_FILLING_RUNS = 10;
  * The runs a design that takes a number of runs opens with, as bootstrap.py gives them: SPACE_FILLING_RUNS a factor
  * for a space-filling design, else the coefficients of the model it is made for and SPARE_RUNS more.
  */
-export const defaultBudget = (designType, k, model) => {
+export const defaultBudget = (designType, factors, model) => {
+  const k = factors.length;
   if (SPACE_FILLING.includes(designType)) return SPACE_FILLING_RUNS * k;
-  return designType === "omars" ? screeningRuns(k) + OMARS_EXTRA_RUNS : nTerms(k, model) + SPARE_RUNS;
+  return designType === "omars" ? screeningRuns(k) + OMARS_EXTRA_RUNS : nCoefficients(factors, model) + SPARE_RUNS;
 };
 
 /** The runs of a definitive screening design in k factors: a foldover of a conference matrix and a center run. */
