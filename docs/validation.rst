@@ -132,7 +132,7 @@ patterns, axial distances and block arrangements.
 checker: on the design process-improve builds, and on the design the other package builds.
 Only the construction changes, so a difference is a difference in the design.
 
-.. csv-table:: Design construction against other packages, 22 November 2026 (commit ``37f81b6``)
+.. csv-table:: Design construction against other packages, 22 November 2026 (commit ``37f81b6``); pydoe 1.7.0 on 23 November (commit ``22f507f``)
    :file: validation/design_crosscheck.csv
    :header-rows: 1
    :widths: 30 38 8 8 8 8
@@ -271,17 +271,19 @@ pydoe and pyDOE3 (Python)
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 pyDOE3 1.6.2 is the release process-improve's basic arrays were copied from; it is archived.
-pydoe 1.6.0 continues it. Each difference below was traced to a printed source and reported to
-pydoe with an example that reproduces it, and a fix is proposed for each.
+pydoe continues it. The comparison with pydoe 1.6.0 found the six differences below. Each was
+traced to a printed source and reported to pydoe with an example that reproduces it and a
+proposed fix. pydoe merged the six fixes and released them in 1.7.0, the version in the table
+above: the 54 checks on which pydoe 1.6.0 differed now agree.
 
 .. list-table::
    :header-rows: 1
    :widths: 58 12 15 15
 
-   * - Difference
+   * - Difference in pydoe 1.6.0
      - Checks
      - Issue
-     - Fix proposed
+     - Fixed in 1.7.0 by
    * - ``bbdesign``: from 6 factors on, not the designs Box and Behnken published
      - 21
      - `186 <https://github.com/pydoe/pydoe/issues/186>`__
@@ -310,19 +312,23 @@ pydoe with an example that reproduces it, and a fix is proposed for each.
      - `194 <https://github.com/pydoe/pydoe/issues/194>`__
      - `197 <https://github.com/pydoe/pydoe/pull/197>`__
 
-The checks counted are those of the full comparison; issue 187 was found by reading the code,
-because the comparison builds a central composite design from its own cube.
+The checks counted are those on which pydoe 1.6.0 differed, 54 in all. Issue 187 was found by
+reading the code, because the comparison built a central composite design from its own cube.
+With pydoe 1.7.0 the comparison uses ``ccdesign(generators=...)``, the fractional cube that
+release added.
 
-- **The word "orthogonal".** Four more checks differ, on the axial distances of Davies (1956):
-  ``alpha="orthogonal"`` is the distance for orthogonal blocking, as in rsm.
+- **The word "orthogonal".** Four checks still differ in pydoe 1.7.0, on the axial distances of
+  Davies (1956): ``alpha="orthogonal"`` is the distance for orthogonal blocking, as in rsm. This
+  is a difference of definition, not of the design.
 - **Not built by pydoe.** A blocked factorial without the block generators given, a blocked
   fraction, a spherical axial distance, and OMARS designs. ``fracfact_opt`` gave no answer in
-  60 seconds for 18 checks.
-- **pyDOE3 1.6.2** differs on 93 more checks than pydoe 1.6.0, on fractional factorials chosen
-  by resolution or by aberration and on central composite designs with such a cube. pydoe gives
-  the printed numbers for all of them.
+  60 seconds for 17 checks.
+- **pyDOE3 1.6.2** differs on 151 checks, 147 more than pydoe 1.7.0. It has none of the six
+  fixes, and it also differs on fractional factorials chosen by resolution or by aberration and
+  on central composite designs with such a cube.
 
-:download:`The checks on which pydoe differs <validation/differences_pydoe.csv>`, and
+:download:`The four checks on which pydoe 1.7.0 differs <validation/differences_pydoe.csv>`,
+:download:`the 58 on which pydoe 1.6.0 differed <validation/differences_pydoe_1.6.0.csv>`, and
 :download:`those of pyDOE3 <validation/differences_pyDOE3.csv>`.
 
 .. _validation-dexpy:
@@ -460,8 +466,9 @@ What the comparisons found
        its own data give.
      - `Reproduced from the books <https://factori.al/catalog/reproduced/>`__
    * - pydoe
-     - Six differences from the printed sources, in ``bbdesign``, ``small_composite_design``,
-       ``ccdesign``, ``pbdesign``, the orthogonal arrays and ``fracfact_by_res``.
+     - Six differences from the printed sources in pydoe 1.6.0, in ``bbdesign``,
+       ``small_composite_design``, ``ccdesign``, ``pbdesign``, the orthogonal arrays and
+       ``fracfact_by_res``. All six are fixed in pydoe 1.7.0.
      - :ref:`validation-pydoe`
    * - FrF2
      - A blocking that confounds a two-factor interaction where the default confounds none,
