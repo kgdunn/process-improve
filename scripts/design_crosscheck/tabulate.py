@@ -30,12 +30,11 @@ PACKAGES = {
     "oapackage": "OApackage 2.7.21 (Python)",
     "dsdpkg": "definitive-screening-design 0.5.1 (Python)",
     "pydoe": "pydoe 1.7.0 (Python)",
-    "pyDOE3": "pyDOE3 1.6.2 (Python)",
 }
 WEB = Path(__file__).resolve().parents[2] / "web"
 
-#: A package as the app names it, and its language. pyDOE3 is named but is in no design's list: pydoe is its
-#: successor, so the one line of code is listed once.
+#: A package as the app names it, and its language. Each is reported at its latest release; pyDOE3, which pydoe
+#: continues, has no row.
 SHOWN = {
     "FrF2": ("FrF2", "R"),
     "DoE.base": ("DoE.base", "R"),
@@ -45,7 +44,6 @@ SHOWN = {
     "oapackage": ("OApackage", "Python"),
     "dsdpkg": ("definitive-screening-design", "Python"),
     "pydoe": ("pydoe", "Python"),
-    "pyDOE3": ("pyDOE3", "Python"),
 }
 DIFFERS = ["other differs", "process-improve differs"]
 DESIGNS = {
@@ -107,7 +105,7 @@ def write_checked(rows: pd.DataFrame) -> None:
     lists a package only when no check of that size differs, so a design's own note in the app names no package
     that builds that design another way.
     """
-    rows = rows[rows["built_by"].isin(set(SHOWN) - {"pyDOE3"}) & rows["design_type"].isin(DESIGNS)]
+    rows = rows[rows["built_by"].isin(set(SHOWN)) & rows["design_type"].isin(DESIGNS)]
     rows = rows[~rows["other"].str.contains("harness does not map", na=False)]
     rows = rows.assign(factors=rows["design"].str.extract(r"k=(\d+)$", expand=False))
     designs = {}

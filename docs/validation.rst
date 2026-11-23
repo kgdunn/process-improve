@@ -20,7 +20,7 @@ last sections say what the comparisons do not show, and how to repeat them.
      - The test suite recomputes every printed number on every change
        (:ref:`validation-sources`).
    * - How a design is built
-     - Nine packages in R and Python
+     - Eight packages in R and Python
      - Each package builds the same designs, and one checker measures both
        (:ref:`validation-designs`).
    * - Mixed models, sensory analysis, latent variable models, control charts and regression
@@ -141,7 +141,8 @@ How to read the table:
 
 - **Checks** are the numbers of the kinds of design the package builds. **Agree** means both
   packages give the number the source prints. **Differ** means they give different answers.
-  **Not built** means the package has no design for the request, or declines it.
+  **Not built** means the package has no design for the request, declines it, or gives no
+  answer in 180 seconds.
 - The numbers that neither package gives as printed are left out: the catalog records their
   cause, most often a misprint in the source.
 - No package here builds OMARS designs, so their 47 checks are in no row.
@@ -150,11 +151,10 @@ How to read the table:
   block.
 
 **How independent is each package?** process-improve's two-level factorial, Plackett-Burman,
-Box-Behnken, central composite and Taguchi arrays began as copies of pyDOE3 1.6.2's
-(``experiments/_classical.py``), and a test still compares them element by element. Agreement
-with pyDOE3 and pydoe on those arrays is therefore expected, and is not evidence. The evidence
-from those two packages is where they differ, because each difference was traced to a printed
-source. The R packages, dexpy, OApackage and definitive-screening-design share no code with
+Box-Behnken, central composite and Taguchi arrays began as copies of those of pyDOE3 1.6.2,
+the package that pydoe continues (``experiments/_classical.py``), and a test still compares
+them element by element. Agreement with pydoe on those arrays is therefore expected, and is not
+evidence. The R packages, dexpy, OApackage and definitive-screening-design share no code with
 process-improve.
 
 .. _validation-frf2:
@@ -267,69 +267,20 @@ correlated, where the conference-matrix designs are orthogonal.
 
 .. _validation-pydoe:
 
-pydoe and pyDOE3 (Python)
-~~~~~~~~~~~~~~~~~~~~~~~~~
+pydoe (Python)
+~~~~~~~~~~~~~~
 
-pyDOE3 1.6.2 is the release process-improve's basic arrays were copied from; it is archived.
-pydoe continues it. The comparison with pydoe 1.6.0 found the six differences below. Each was
-traced to a printed source and reported to pydoe with an example that reproduces it and a
-proposed fix. pydoe merged the six fixes and released them in 1.7.0, the version in the table
-above: the 54 checks on which pydoe 1.6.0 differed now agree.
+pydoe 1.7.0 built every kind of design in the table. No design differs.
 
-.. list-table::
-   :header-rows: 1
-   :widths: 58 12 15 15
-
-   * - Difference in pydoe 1.6.0
-     - Checks
-     - Issue
-     - Fixed in 1.7.0 by
-   * - ``bbdesign``: from 6 factors on, not the designs Box and Behnken published
-     - 21
-     - `186 <https://github.com/pydoe/pydoe/issues/186>`__
-     - `190 <https://github.com/pydoe/pydoe/pull/190>`__
-   * - ``small_composite_design``: from 5 factors on, the full quadratic model cannot be fitted
-     - none
-     - `187 <https://github.com/pydoe/pydoe/issues/187>`__
-     - `191 <https://github.com/pydoe/pydoe/pull/191>`__
-   * - ``ccdesign`` and ``star``: the axial distance on a fractional cube uses the run count of
-       the full cube
-     - 17
-     - `188 <https://github.com/pydoe/pydoe/issues/188>`__
-     - `189 <https://github.com/pydoe/pydoe/pull/189>`__
-   * - ``pbdesign``: no design for 28, 36, 44 and other run counts, and a 24-run design that
-       is the 12-run design doubled
-     - 13
-     - `192 <https://github.com/pydoe/pydoe/issues/192>`__
-     - `196 <https://github.com/pydoe/pydoe/pull/196>`__
-   * - Orthogonal arrays: two names that do not describe their arrays, an L64 that is not
-       orthogonal, and no L18 with one two-level column
-     - 1
-     - `193 <https://github.com/pydoe/pydoe/issues/193>`__
-     - `195 <https://github.com/pydoe/pydoe/pull/195>`__
-   * - ``fracfact_by_res``: resolution V returned where the same runs give resolution VI or VII
-     - 2
-     - `194 <https://github.com/pydoe/pydoe/issues/194>`__
-     - `197 <https://github.com/pydoe/pydoe/pull/197>`__
-
-The checks counted are those on which pydoe 1.6.0 differed, 54 in all. Issue 187 was found by
-reading the code, because the comparison built a central composite design from its own cube.
-With pydoe 1.7.0 the comparison uses ``ccdesign(generators=...)``, the fractional cube that
-release added.
-
-- **The word "orthogonal".** Four checks still differ in pydoe 1.7.0, on the axial distances of
-  Davies (1956): ``alpha="orthogonal"`` is the distance for orthogonal blocking, as in rsm. This
-  is a difference of definition, not of the design.
+- **The word "orthogonal".** The four checks that differ are axial distances of Davies (1956):
+  ``alpha="orthogonal"`` is the distance for orthogonal blocking, as in rsm. This is a
+  difference of definition, not of the design.
 - **Not built by pydoe.** A blocked factorial without the block generators given, a blocked
-  fraction, a spherical axial distance, and OMARS designs. ``fracfact_opt`` gave no answer in
-  60 seconds for 17 checks.
-- **pyDOE3 1.6.2** differs on 151 checks, 147 more than pydoe 1.7.0. It has none of the six
-  fixes, and it also differs on fractional factorials chosen by resolution or by aberration and
-  on central composite designs with such a cube.
+  fraction, and a spherical axial distance.
+- **Slow searches.** ``fracfact_opt`` gave no answer within 180 seconds for 14 checks, all on
+  fractions of 10 or 11 factors. They count as not built.
 
-:download:`The four checks on which pydoe 1.7.0 differs <validation/differences_pydoe.csv>`,
-:download:`the 58 on which pydoe 1.6.0 differed <validation/differences_pydoe_1.6.0.csv>`, and
-:download:`those of pyDOE3 <validation/differences_pyDOE3.csv>`.
+:download:`The four checks on which pydoe differs <validation/differences_pydoe.csv>`.
 
 .. _validation-dexpy:
 
@@ -356,7 +307,7 @@ enumerates, and the orthogonal arrays, by extending an array one column at a tim
 - **Orthogonal arrays.** The 12-run array has the size and the levels of Taguchi's L12 but not
   the layout of the printed table, so the one check that compares its runs differs. The others
   agree.
-- **Not built.** The search for a 24-factor design did not end in 60 seconds.
+- **Not built.** The search for a 24-factor design did not end in 180 seconds.
 
 :download:`The check on which OApackage differs <validation/differences_oapackage.csv>`.
 
@@ -466,9 +417,8 @@ What the comparisons found
        its own data give.
      - `Reproduced from the books <https://factori.al/catalog/reproduced/>`__
    * - pydoe
-     - Six differences from the printed sources in pydoe 1.6.0, in ``bbdesign``,
-       ``small_composite_design``, ``ccdesign``, ``pbdesign``, the orthogonal arrays and
-       ``fracfact_by_res``. All six are fixed in pydoe 1.7.0.
+     - Six differences from the printed sources, each reported with a fix. pydoe 1.7.0, the
+       release compared here, has all six fixes.
      - :ref:`validation-pydoe`
    * - FrF2
      - A blocking that confounds a two-factor interaction where the default confounds none,
@@ -500,7 +450,7 @@ What this page does not show
 - **Equal numbers, not equal layouts.** A design passes when it gives the printed numbers. Two
   orthogonal arrays that differ in the order of their rows and columns were not tested for
   equivalence.
-- **Agreement with pyDOE3 on the basic arrays is by construction**, as said above.
+- **Agreement with pydoe on the basic arrays is by construction**, as said above.
 - **A result is one run.** The versions and dates are those named in each table. A later
   release of a package can change its row.
 - **The references have limits too.** The SIMCA-P values are from version 14.1, recorded in
