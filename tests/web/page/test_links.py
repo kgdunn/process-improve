@@ -23,6 +23,7 @@ PAGES = (
     "validation.html",
     "catalog/index.html",
     "catalog/reproduced/index.html",
+    "map/index.html",
 )
 LINK_OUT = re.compile(r'<a href="https?://[^"]*"[^>]*>')
 OWN_TAB = re.compile(r'target="(?!_self"|_top"|_parent")[^"]+"')

@@ -139,6 +139,25 @@ def test_the_page_never_says_the_book_teaches():
     )
 
 
+def test_the_page_names_three_ways_to_learn_over_the_map_and_the_book_s_doi_as_text():
+    """The chapter, the course and the course's videos are links over the map; the book's DOI is text, in no link."""
+    page = " ".join(source("map/index.html").split())
+    ways = page[page.index('<ul class="learn">') : page.index("</ul>")]
+    links = re.findall(r'<li><a href="([^"]+)"[^>]*>([^<]+)</a>', ways)
+    assert [name for _, name in links] == ["Read the chapter", "Take the course", "Watch the videos"]
+    chapter, course, videos = (address for address, _ in links)
+    assert chapter == "https://learnche.org/pid/design-analysis-experiments/index", "the chapter, not the whole book"
+    assert course == "https://yint.org/experiment", "the address kept pointing at the course as it is offered now"
+    assert "list=PLHUnYbefLmeOPRuT1sukKmRyOVd4WSxJE" in videos, "the first video of the chapter, in the book's playlist"
+    assert "index=" not in videos, "a place in the playlist moves when the playlist is reordered; the video does not"
+    assert "The same videos as the course" in ways, "so a reader does not take the two for two courses"
+    assert "no quizzes" in ways
+    doi = re.search(r'<span class="learn__doi">Book DOI: (10\.5281/zenodo\.\d+)</span>', ways)
+    assert doi, "the DOI of the book, to read and to copy"
+    assert "doi.org" not in page, "and not a link"
+    assert page.index("</ul>") < page.index('<h2 class="learn__map">Concept map</h2>') < page.index('id="box"')
+
+
 def test_a_link_to_the_map_shows_the_map():
     """A chat or a blog shows og:image beside a link: for the map, the map's own card, drawn by map_card.py."""
     page = source("map/index.html")

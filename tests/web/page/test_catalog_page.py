@@ -97,12 +97,14 @@ def test_every_file_the_reproduction_page_loads_is_published(build_script):
     fetched = set(re.findall(r'fetch\(app\(`?"?([\w./-]+)', source("reproduced.js")))
     # The list of books is written by the build (tests/web/page/test_book_pages.py), not copied from web/.
     books = "catalog/books/index.html"
-    assert loaded == {"catalog/index.html", "favicon.svg", "style.css", "reproduced.js", "site.js", books}
+    # Its way back is to validation, the page a reader reaches it from ("Is it accurate?").
+    assert loaded == {"validation.html", "favicon.svg", "style.css", "reproduced.js", "site.js", books}
     assert imported == {"catalog-views.js", "reproduced-logic.js"}
     assert fetched == {"catalog/reproduction.json"}
     assert source("reproduced.js").count("fetch(") == len(fetched), "every fetch goes through app()"
     assert (loaded - {books}) | imported <= set(build_script.APP_FILES)
-    assert 'href="reproduced/"' in source(PAGE), "the catalog links to it"
+    assert 'href="../validation.html"' in source(PAGE), "the catalog's door opens validation"
+    assert 'href="catalog/reproduced/"' in source("validation.html"), "which links to it"
 
 
 def test_the_table_the_reproduction_page_opens_a_book_onto_is_the_book_s():

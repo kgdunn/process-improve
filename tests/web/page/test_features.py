@@ -432,7 +432,7 @@ def test_the_document_is_published_with_the_page_that_shows_it(build_script, nod
 def test_the_app_s_footer_leads_to_the_page_with_a_button_and_names_each_group_of_its_links():
     html = " ".join(source("index.html").split())
     footer = html[html.index('<footer class="foot">') : html.index("</footer>")]
-    assert '<a class="button primary" href="features.html">See what Factorial does</a>' in footer
+    assert '<a class="button primary" href="features.html">Read the user guide</a>' in footer
     lists = re.findall(r'<ul aria-labelledby="([\w-]+)">', footer)
     assert lists == ["foot-app", "foot-behind", "foot-help"]
     assert set(lists) <= set(page().ids), "each list is named by the line above it"

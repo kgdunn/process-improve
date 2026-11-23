@@ -377,6 +377,63 @@ def test_the_catalog_and_the_start_page_lead_to_it(context, site):
     page.wait_for_url("**/map/")
 
 
+def learning(context, site):
+    """Open the page for learning; return it once the map under the ways to learn is drawn."""
+    page = context.new_page()
+    page.goto(f"{site}map/")
+    page.wait_for_function("() => window.conceptMap && document.querySelector('#card h2')")
+    return page
+
+
+def test_three_ways_to_learn_are_over_the_map_and_a_press_anywhere_on_a_card_follows_its_link(context, site):
+    """The book's chapter, the course and its videos were three pages away from the map; they are over it."""
+    page = learning(context, site)
+    assert page.text_content("h1") == "Learn experimental design"
+    cards = page.locator(".learn li")
+    assert cards.locator("a").all_text_contents() == ["Read the chapter", "Take the course", "Watch the videos"]
+    last = cards.last.bounding_box()
+    assert last["y"] + last["height"] <= page.locator("h2.learn__map").bounding_box()["y"], "over the map's heading"
+    assert page.locator("h2.learn__map").bounding_box()["y"] < page.locator("#box").bounding_box()["y"]
+    on_its_link = page.evaluate(
+        """() => [...document.querySelectorAll('.learn li')].map((card) => {
+             const words = card.querySelector('span').getBoundingClientRect();
+             return document.elementFromPoint(words.left + 4, words.top + 4) === card.querySelector('a'); })"""
+    )
+    assert on_its_link == [True, True, True], "a press on a card's words is a press on its link"
+
+
+def test_the_book_s_doi_is_text_a_press_selects_and_no_link(context, site):
+    page = learning(context, site)
+    doi = page.locator(".learn__doi")
+    assert doi.text_content() == "Book DOI: 10.5281/zenodo.20284934"
+    assert page.locator("a[href*='doi.org']").count() == 0
+    alone = page.evaluate(
+        """() => { const doi = document.querySelector('.learn__doi'), box = doi.getBoundingClientRect();
+             return document.elementFromPoint(box.left + 4, box.top + box.height / 2) === doi; }"""
+    )
+    assert alone, "a press on the DOI reaches the DOI, not the card's link under it"
+    doi.click()
+    assert page.url.endswith("/map/"), "the press went nowhere"
+    assert doi.evaluate("(one) => getComputedStyle(one).userSelect || getComputedStyle(one).webkitUserSelect") == "all"
+
+
+@pytest.mark.parametrize("context_options", [PHONE])
+def test_on_a_phone_the_ways_to_learn_and_the_map_s_heading_fit_the_first_screen(context, site):
+    """The ways to learn stay short, so the map is one swipe away and its heading says it is there."""
+    page = learning(context, site)
+    widths = page.locator(".learn li").evaluate_all("(all) => all.map((one) => one.getBoundingClientRect().left)")
+    assert len(set(widths)) == 1, "one under the other"
+    heading = page.locator("h2.learn__map").bounding_box()
+    assert heading["y"] + heading["height"] < PHONE["viewport"]["height"]
+
+
+def test_an_address_that_names_an_idea_still_opens_at_the_map_past_the_ways_to_learn(context, site):
+    page = context.new_page()
+    page.goto(f"{site}map/#blocking")
+    page.wait_for_function("() => window.conceptMap && document.querySelector('#card h2')")
+    assert page.evaluate("document.querySelector('.learn').getBoundingClientRect().bottom") <= 0, "scrolled past"
+
+
 SMALL_PHONE = {"viewport": {"width": 360, "height": 780}, "is_mobile": True}
 LONG_LEVELS = ("2", "3")  # Intermediate and Adventurous: the row of switches must hold either name
 
