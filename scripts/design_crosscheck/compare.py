@@ -41,7 +41,9 @@ LIB = os.environ.get("DOE_LIB", "pyDOE3")
 OUT = Path(os.environ.get("DOE_OUT", "."))
 DEXPY_PYTHON = os.environ.get("DEXPY_PYTHON", "python")  # dexpy needs pandas 1.x: an interpreter of its own
 ARG = sys.argv[1] if len(sys.argv) > 1 else "20"  # a seed for a sample of 20, or "all"
-SEED, N_SAMPLE, TIMEOUT_S = (0 if ARG == "all" else int(ARG)), (None if ARG == "all" else 20), 60
+SEED, N_SAMPLE = (0 if ARG == "all" else int(ARG)), (None if ARG == "all" else 20)
+TIMEOUT_S = int(os.environ.get("DOE_TIMEOUT", "60"))  # the seconds one check may take, in either library
+ONLY = set(filter(None, os.environ.get("DOE_ENTRIES", "").split(",")))  # these entries alone, for a second look
 
 pyDOE3 = importlib.import_module(LIB) if LIB in ("pyDOE3", "pydoe") else None  # noqa: N816 - the package's name
 _star = (getattr(pyDOE3, "star", None) or pyDOE3.doe_star.star) if pyDOE3 else None
@@ -672,6 +674,7 @@ def main() -> None:
     entries = [
         e for e in rc.reference_designs() if any(builds_a_design(c) for x in e["expected"] for c in rc._checks(x))
     ]
+    entries = [e for e in entries if not ONLY or e["name"] in ONLY]
     sample = entries if N_SAMPLE is None else random.Random(SEED).sample(entries, N_SAMPLE)  # noqa: S311
     rows = []
     for entry in sample:

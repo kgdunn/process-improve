@@ -1006,11 +1006,11 @@ What a careful reader, or an organization, asks before using a tool.
     tests. The reproduction page reports how closely the library gives the numbers its
     sources print.
 - **Checked against other software.** The designs Factorial builds are compared with the
-  designs that nine open-source packages in R and Python build, and a page says where they
+  designs that eight open-source packages in R and Python build, and a page says where they
   differ.
   - *Details:* Each package builds the design a source prints, and the check that measures
     Factorial's design measures the package's too. The packages are FrF2, DoE.base, rsm and
-    daewr in R, and pydoe, pyDOE3, dexpy, OApackage and definitive-screening-design in
+    daewr in R, and pydoe, dexpy, OApackage and definitive-screening-design in
     Python.
 - **Tested before you see it.** Every change is checked by about 3,500 automated tests (Nov
   2026), and only a version that passes is published.
