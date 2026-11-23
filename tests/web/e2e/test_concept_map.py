@@ -89,7 +89,14 @@ def _open(context: Any, site: str, level: int | None = 3) -> Any:  # noqa: ANN40
 
 
 def _on_map(page: Any, point: dict[str, float]) -> tuple[float, float]:  # noqa: ANN401 - a Playwright Page
-    """Return a point drawn on the map in the page's coordinates."""
+    """Return a point drawn on the map in the page's coordinates, with the map in view.
+
+    The ways to learn are over the map, so on a phone the map starts under the first screen, and a mouse or a finger
+    reaches only what is in view, as a reader's does.
+    """
+    page.locator("#cy").scroll_into_view_if_needed()
+    # Cytoscape learns that the page moved from the scroll event, a frame later: a press sent sooner lands elsewhere.
+    page.evaluate("() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))")
     box = page.locator("#cy").bounding_box()
     return box["x"] + point["x"], box["y"] + point["y"]
 
@@ -406,7 +413,7 @@ def test_the_book_s_doi_is_text_a_press_selects_and_no_link(context, site):
     page = learning(context, site)
     doi = page.locator(".learn__doi")
     assert doi.text_content() == "Book DOI: 10.5281/zenodo.20284934"
-    assert page.locator("a[href*='doi.org']").count() == 0
+    assert page.locator(".learn a[href*='doi.org']").count() == 0
     alone = page.evaluate(
         """() => { const doi = document.querySelector('.learn__doi'), box = doi.getBoundingClientRect();
              return document.elementFromPoint(box.left + 4, box.top + box.height / 2) === doi; }"""
@@ -955,6 +962,7 @@ def test_on_a_touch_screen_a_term_held_then_dragged_moves_and_a_quick_swipe_stil
         page.wait_for_timeout(600)  # a scroll the browser makes from a drag goes on a moment after the finger lifts
         _settled(page)
 
+    page.locator("#cy").scroll_into_view_if_needed()  # before the page's place is read: the swipe alone moves it
     before = page.evaluate(WHERE, term)
     start = _on_map(page, _rendered(page, term))
     touch("touchStart", 0, 0)
@@ -967,6 +975,7 @@ def test_on_a_touch_screen_a_term_held_then_dragged_moves_and_a_quick_swipe_stil
 
     page.evaluate("() => window.scrollTo(0, 0)")
     start = _on_map(page, _rendered(page, term))
+    rested = page.evaluate("scrollY")  # with the map in view, under the ways to learn
     touch("touchStart", 0, 0)
     page.wait_for_timeout(700)
     for k in range(1, 7):
@@ -975,7 +984,7 @@ def test_on_a_touch_screen_a_term_held_then_dragged_moves_and_a_quick_swipe_stil
     lift()
     held = page.evaluate(WHERE, term)
     assert held["at"]["x"] - before["at"]["x"] == pytest.approx(60 / before["zoom"], rel=0.15), "held, it follows"
-    assert held["scrolled"] == 0, "and the page stays where it is"
+    assert held["scrolled"] == rested, "and the page stays where it is"
     assert page.text_content("#card h2") == "Full factorial", "a move is not a tap"
 
 
