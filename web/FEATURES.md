@@ -1074,7 +1074,7 @@ What a careful reader, or an organization, asks before using a tool.
     book's DOI is under the chapter, as text: one press selects it, to copy. A press anywhere
     on a card follows its link. On a phone the three are one under the other, with the map's
     heading on the first screen.
-- **[The concept map](map/).** It is on the page for learning, under the three ways to learn.
+- **The concept map.** It is on the page for learning, under the three ways to learn.
   237 ideas of designed experiments and 490 links between them, in 13 topics, each with its definition, the book's line and a link into the book. It has
   three depths to choose from, side by side: Beginner, Intermediate and Adventurous.
   Zoom and fit are buttons on the map's corner (under the map on a phone), and the keyboard
