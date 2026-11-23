@@ -42,7 +42,12 @@ rounding.
 A Scheffe mixture model has no intercept, since the components sum to 1: every
 linear blending term stays in, and the search chooses among the non-linear blending
 terms (``x1:x2``, and ``x1:x2:x3`` for the special cubic). A formula analyzed as a
-mixture model is searched the same way, over its own terms.
+mixture model is searched the same way, over its own terms. So are mixture components
+beside process factors: a formula over them without an intercept is searched over its
+own terms, and a standard model is the mixture-process model of that order
+(:func:`~process_improve.experiments.designs_mixture_process.mixture_process_model`),
+whose process main effects enter through the products ``x1:T``. A categorical factor
+beside the components is coded in ``L - 1`` columns, as ``analyze_experiment`` codes it.
 
 Any other formula is searched over its own terms too, each one free to enter once
 every term of the formula that it contains is in: ``A:B`` after ``A`` and ``B``,
@@ -66,11 +71,16 @@ import statsmodels.formula.api as smf
 from patsy import dmatrix
 
 from process_improve.experiments._analyses._shared import with_block_contrasts
-from process_improve.experiments._analyses.mixture import spans_constant
+from process_improve.experiments._analyses.mixture import _mixture_components, spans_constant
 from process_improve.experiments.designs_mixture_constrained import (
     SCHEFFE_DEGREE,
     SCHEFFE_MODELS,
     cubic_difference_term,
+)
+from process_improve.experiments.designs_mixture_process import (
+    PROCESS_MODELS,
+    ReducedRankFormula,
+    mixture_process_model,
 )
 from process_improve.experiments.designs_utils import BLOCK_COL
 
@@ -97,8 +107,9 @@ class _Formula:
 
     ``terms`` holds each term of the formula, less its intercept and its blocks, as the codes of its factors:
     ``("A",)``, ``("A", "B")`` for ``A:B``, ``("I(A ** 2)",)``. ``mixture`` says the formula was analyzed as a
-    mixture model, so its linear blending terms stay in and it has no intercept; ``intercept`` says whether
-    any other formula has one.
+    mixture model, or holds the constant without an intercept over mixture components beside process factors,
+    so its linear blending terms stay in and it has no intercept; ``intercept`` says whether any other formula
+    has one.
     """
 
     terms: list[tuple[str, ...]]
@@ -153,6 +164,30 @@ def _candidate_terms(
     return terms
 
 
+def _mixture_process_terms(
+    components: list[str], process: list[str], model: str, categorical: Collection[str]
+) -> list[_Term]:
+    """Terms the search may use on mixture-process data: the mixture-process ``model`` less its linear blending terms.
+
+    They are searched free of heredity, as a Scheffe model's are: a process main effect enters
+    through the products ``x_i:z_k``, so ``z_k:z_l`` and ``I(z_k ** 2)`` have no term ``z_k`` to need.
+    """
+    levels = dict.fromkeys(categorical, ())  # only which factors are categorical matters here: they have no square
+    terms = mixture_process_model(components, process, model, levels).terms
+    return [_Term(name, frozenset()) for name in (":".join(a.code for a in t) for t in terms) if name not in components]
+
+
+def _coded(formula: str, categorical: Collection[str]) -> str:
+    """Return ``formula`` with each ``categorical`` factor coded in ``L - 1`` columns wherever it appears.
+
+    ``analyze_experiment`` codes the factors beside mixture components so (see
+    :class:`~process_improve.experiments.designs_mixture_process.ReducedRankFormula`): with no intercept,
+    patsy would give a categorical factor a column for every level wherever the term below it is missing,
+    and those columns would add up to ones the blends already span. Any other formula is returned as it is.
+    """
+    return ReducedRankFormula(formula, list(categorical)) if categorical else formula
+
+
 class _Scorer:
     """Score subsets of terms.
 
@@ -166,7 +201,9 @@ class _Scorer:
     column short where the first holds the constant, and a slope within each level (``P:x``) is one short
     where ``x`` is a term. The model of some terms is the span of their columns, so with each term coded in
     full a subset is scored as the model patsy fits when given those terms alone, whichever subset it is.
-    The columns of a model are then more than its rank; the coefficients counted are its rank.
+    The columns of a model are then more than its rank; the coefficients counted are its rank. A factor in
+    ``categorical``, beside mixture components, is coded in ``L - 1`` columns wherever it appears, as
+    ``analyze_experiment`` fits it there.
 
     ``terms`` holds the candidates the search may use: those given, less any that adds nothing to what every
     model keeps. The runs cannot tell such a term from the blocks or the intercept, so no model is better
@@ -182,9 +219,10 @@ class _Scorer:
         fixed: Sequence[str] = (),
         *,
         intercept: bool = True,
+        categorical: Collection[str] = (),
     ) -> None:
         def coded(term: str) -> np.ndarray:
-            return np.asarray(dmatrix(f"0 + {term}", design_df), dtype=float)
+            return np.asarray(dmatrix(_coded(f"0 + {term}", categorical), design_df), dtype=float)
 
         blocks = [np.ones((len(y), int(intercept))), *(coded(name) for name in [*fixed, *(t.name for t in terms)])]
         ends = np.cumsum([block.shape[1] for block in blocks])
@@ -200,7 +238,7 @@ class _Scorer:
         # Coded together, the terms have as many columns as coefficients: where the runs give them all, the
         # candidates are estimable in full, and not only in part (a category's level some runs never meet).
         kept = [*fixed, *(t.name for t in self.terms)]
-        together = dmatrix(" + ".join(kept if intercept else ["-1", *kept]) or "1", design_df)
+        together = dmatrix(_coded(" + ".join(kept if intercept else ["-1", *kept]) or "1", categorical), design_df)
         every = [*self._fixed, *itertools.chain.from_iterable(self._columns.values())]
         self.in_full = self._rank(every) == together.shape[1]
 
@@ -317,21 +355,35 @@ def _numeric(column: pd.Series) -> bool:
 
 
 def _candidates(
-    design_df: pd.DataFrame, factor_cols: list[str], model: str | None, formula: _Formula | None
+    design_df: pd.DataFrame,
+    factor_cols: list[str],
+    model: str | None,
+    formula: _Formula | None,
+    components: Sequence[str] = (),
 ) -> tuple[str | None, list[str], list[_Term], bool]:
     """Return the model searched, the linear blending terms it keeps, its candidates, and whether it has an intercept.
 
     A named model is searched as itself, and None as the interactions model. A Scheffe model, and a formula
-    analyzed as a mixture model, keep the factors as their linear blending terms and have no intercept.
+    analyzed as a mixture model, keep the factors as their linear blending terms and have no intercept. Beside
+    process factors, the linear blending terms are the ``components``, and a standard model is the
+    mixture-process model of that order.
     """
+    categorical = [f for f in factor_cols if not _numeric(design_df[f])]
     if formula is None:
         searched = model if model in ("main_effects", "interactions", "quadratic", *SCHEFFE_MODELS) else "interactions"
+        if components and searched in PROCESS_MODELS:
+            process = [f for f in factor_cols if f not in components]
+            return (
+                searched,
+                list(components),
+                _mixture_process_terms(list(components), process, searched, categorical),
+                False,
+            )
         linear = list(factor_cols) if searched in SCHEFFE_MODELS else []
-        categorical = [f for f in factor_cols if not _numeric(design_df[f])]
         return searched, linear, _candidate_terms(factor_cols, searched, categorical=categorical), not linear
     names = [":".join(codes) for codes in formula.terms]
     if formula.mixture:
-        linear = [name for name in names if name in factor_cols]
+        linear = [name for name in names if name in (components or factor_cols)]
         return model, linear, [_Term(name, frozenset()) for name in names if name not in linear], False
     return model, [], _formula_terms(formula.terms), formula.intercept
 
@@ -355,7 +407,11 @@ def _run_model_selection(
         Name of the response column.
     factor_cols : list[str]
         Factor column names. One that is not numeric is a categorical factor: all its
-        contrasts enter and leave together, and it has no square.
+        contrasts enter and leave together, and it has no square. Where some are mixture
+        components beside process factors, a standard model is searched as the
+        mixture-process model of that order, without an intercept: its linear blending
+        terms stay in. A categorical factor beside the components is coded in ``L - 1``
+        columns, as ``analyze_experiment`` codes it.
     model : str or None
         ``"main_effects"``, ``"interactions"`` (also for ``None``), ``"quadratic"`` or a
         Scheffé model: the largest model the search may reach. An explicit formula is
@@ -364,9 +420,10 @@ def _run_model_selection(
         ``"aicc"`` (default), ``"aic"`` or ``"bic"``.
     formula : _Formula or None
         The terms of ``model``, an explicit formula, and how it was fitted; None for a
-        named model. A formula analyzed as a mixture model keeps its linear blending
-        terms (the factors), as a Scheffé model does, and the search chooses among the
-        others. Any other formula may lose any term that no remaining term contains.
+        named model. A formula analyzed as a mixture model, or one without an intercept
+        over mixture components that holds the constant, keeps its linear blending terms
+        (the components), as a Scheffé model does, and the search chooses among the others.
+        Any other formula may lose any term that no remaining term contains.
     blocks : Sequence[str]
         The terms that fit the blocks, as the model was fitted: the contrast columns of
         ``design_df``, or a formula's own block terms. They are in every model scored.
@@ -381,17 +438,21 @@ def _run_model_selection(
         ``selected_formula`` names them as a formula given to ``analyze_experiment``
         does, by the ``Block`` column. ``n_terms`` counts the coefficients the selected
         model estimates, intercept and blocks included, as ``model_summary`` does: its
-        rank, since patsy gives a category beside a mixture's components a column more.
+        rank.
     """
     if criterion not in _CRITERIA:
         raise ValueError(f"criterion must be one of {', '.join(_CRITERIA)}; got {criterion!r}.")
-    searched, linear, terms, intercept = _candidates(design_df, factor_cols, model, formula)
+    components = _mixture_components(design_df, factor_cols)
+    searched, linear, terms, intercept = _candidates(design_df, factor_cols, model, formula, components)
+    categorical = [f for f in factor_cols if not _numeric(design_df[f])] if components else []
     # A term of the formula that names Block, as Block:A, is scored and fitted with the blocks as levels (#1236).
     contrasts = [block for block in blocks if block in design_df.columns]
     fixed = [*linear, *(with_block_contrasts(block, contrasts) for block in blocks)]
     data = design_df[design_df[[response_col, *factor_cols]].notna().all(axis=1)]
     y = data[response_col].to_numpy(dtype=float)
-    selected, value, direction = _search(_Scorer(data, y, terms, criterion, fixed, intercept=intercept))
+    selected, value, direction = _search(
+        _Scorer(data, y, terms, criterion, fixed, intercept=intercept, categorical=categorical)
+    )
 
     chosen = [t.name for t in terms if t.name in selected]  # in candidate order: mains, 2FIs, squares
     if not (intercept or fixed or chosen):
@@ -400,10 +461,11 @@ def _run_model_selection(
             "model selection has nothing to choose between."
         )
     rhs = " + ".join([*([] if intercept else ["-1"]), *fixed, *chosen]) or "1"
-    fit = smf.ols(f"{response_col} ~ {rhs}", data=data).fit()
+    coded = _coded(f"{response_col} ~ {rhs}", categorical)
+    fit = smf.ols(coded, data=data).fit()
     if not fit.k_constant and spans_constant(fit):
         # As analyze_experiment does: statsmodels misses the constant of blends rounded for printing.
-        fit = smf.ols(f"{response_col} ~ {rhs}", data=data, hasconst=True).fit()
+        fit = smf.ols(coded, data=data, hasconst=True).fit()
     # The contrast columns analyze_experiment made for the blocks are no columns of the caller's own data: the
     # formula names the Block column in their place, as a formula given to analyze_experiment does. A term of
     # the caller's formula that names the blocks itself (``C(Block)``, ``Block:A``) is written as it was.

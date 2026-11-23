@@ -55,6 +55,7 @@ from process_improve.experiments._analyses.lack_of_fit import _run_lack_of_fit
 from process_improve.experiments._analyses.lenth import _run_lenth_method
 from process_improve.experiments._analyses.mixture import (
     BLEND_SUM_TOLERANCE,
+    _mixture_components,
     run_mixture_anova,
     run_mixture_effects,
     run_mixture_lenth,
@@ -249,31 +250,6 @@ def _looks_like_mixture(df: pd.DataFrame, factor_cols: list[str]) -> bool:
         return False
     in_unit_interval = bool(np.all((finite >= -1e-9) & (finite <= 1 + 1e-9)))
     return in_unit_interval and bool(np.allclose(finite.sum(axis=1), 1.0, rtol=0.0, atol=BLEND_SUM_TOLERANCE))
-
-
-def _mixture_components(df: pd.DataFrame, factor_cols: list[str]) -> list[str]:
-    """Return the factors that are mixture components beside other factors, or none.
-
-    They are the numeric factors whose settings all lie between 0 and 1, when there are at
-    least two of them, other factors besides, and every run's settings of them sum to 1: the
-    data of a mixture-process design. A process factor whose own settings lie between 0 and 1
-    hides them, and none are found. Columns that are only ever 0 or 1 blend nothing: they are
-    a categorical factor's indicators, one set per run, and none are found either.
-    """
-    numeric = [c for c in factor_cols if _is_numeric(df[c])]
-    values = df[numeric].to_numpy(dtype=float)
-    finite = values[np.isfinite(values).all(axis=1)]
-    if finite.size == 0:
-        return []
-    shares = [
-        c for c, column in zip(numeric, finite.T, strict=True) if np.all((column >= -1e-9) & (column <= 1 + 1e-9))
-    ]
-    if len(shares) < 2 or len(shares) == len(factor_cols):
-        return []
-    settings = finite[:, [numeric.index(c) for c in shares]]
-    if np.isin(settings, (0.0, 1.0)).all():
-        return []
-    return shares if np.allclose(settings.sum(axis=1), 1.0, rtol=0.0, atol=BLEND_SUM_TOLERANCE) else []
 
 
 def _as_mixture(
@@ -1071,16 +1047,18 @@ def _searched_formula(fit: _Fit) -> _Formula | None:
     """Return an explicit formula as model_selection searches it, less its blocks; None for a named model.
 
     The search is over the formula's own terms: a term the formula has, a square among them, is one the search
-    may keep, and no other comes in. One analyzed as a mixture model is searched as a Scheffe model is: not as
-    the interactions model, whose intercept the blends already make up (#1129).
+    may keep, and no other comes in. One analyzed as a mixture model, or one without an intercept over mixture
+    components beside process factors that holds the constant, is searched as a Scheffe model is: its linear
+    blending terms stay in, and there is no intercept, which the blends already make up (#1129, #1169).
     """
     if fit.model in _NAMED_MODELS:
         return None
     terms = ModelDesc.from_formula(fit.model).rhs_termlist
     own = [t for t in terms if t.factors and not _references(t.name(), BLOCK_COL)]
+    components = _mixture_components(fit.df, fit.factor_cols)
     return _Formula(
         [tuple(factor.name() for factor in t.factors) for t in own],
-        mixture=fit.mixture,
+        mixture=fit.mixture or (bool(components) and spans_constant(fit.ols)),
         intercept=any(not t.factors for t in terms),
     )
 
