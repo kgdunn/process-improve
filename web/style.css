@@ -590,7 +590,8 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 .foot__lead strong { color: var(--fg); }
 .foot__groups, .foot__nav { display: flex; flex-wrap: wrap; gap: 18px 32px; }
 .foot__nav { flex: 3 1 420px; }
-.foot__nav > div { flex: 1 1 150px; }
+/* A group is as wide as its longest link, and shares what room is left: no link's name takes a second line. */
+.foot__nav > div { flex: 1 1 auto; }
 .foot__device { flex: 1 1 240px; }
 .foot__head { margin: 0 0 6px; color: var(--fg); font-weight: 600; }
 .foot ul { margin: 0; padding: 0; list-style: none; }
