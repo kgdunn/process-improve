@@ -285,7 +285,7 @@ def test_designs_that_cannot_be_compared_are_refused():
             }
         )
     with pytest.raises(ValueError, match="not numeric"):
-        compare_designs({"labels": pd.DataFrame({"A": ["lo", "hi"], "B": [-1.0, 1.0]})})
+        compare_designs({"labels": np.array([["lo", -1.0], ["hi", 1.0]], dtype=object)})
     with pytest.raises(ValueError, match="finite numbers"):
         compare_designs({"gap": np.array([[0.0, np.nan], [1.0, 1.0]])})
 
@@ -837,3 +837,74 @@ def test_a_factor_the_region_does_not_name_is_free_over_its_range():
 def test_regions_that_cannot_be_compared_over_are_refused(region, error, match):
     with pytest.raises(error, match=match):
         compare_designs({"BBD": with_centre_runs(3)}, region=region)
+
+
+def material_factors() -> list[Factor]:
+    """Return a raw material A or B, a concentration and a temperature."""
+    return [
+        Factor(name="RM", type="categorical", levels=["A", "B"]),
+        Factor(name="conc", low=0, high=2),
+        Factor(name="temp", low=20, high=60),
+    ]
+
+
+QUADRATIC_IN_MATERIAL = "RM + conc + temp + RM:conc + RM:temp + conc:temp + I(conc ** 2) + I(temp ** 2)"
+
+
+def test_a_two_level_categorical_factor_has_no_square_and_is_averaged_at_its_levels():
+    """A column of labels is a categorical factor: no square, and I and G over its two levels only (#790).
+
+    Squaring it, as a numeric factor, gave the intercept's column twice, and every design read as unable
+    to fit the model. I is evaluate_design's exact average, which takes the factor at its levels too.
+    """
+    designs = {
+        kind: generate_design(material_factors(), kind, budget=13, model_type="quadratic", random_state=1)
+        for kind in ("d_optimal", "i_optimal")
+    }
+    comparison = compare_designs(designs, "quadratic")
+    assert "I(RM ** 2)" not in comparison.terms
+    assert "I(conc ** 2)" in comparison.terms
+    assert np.isin(comparison._model.points[:, 0], [-1.0, 1.0]).all(), "G is searched at RM's two levels"
+    for (kind, design), label in zip(designs.items(), comparison.designs, strict=True):
+        values = comparison.values[label]
+        assert values["fits"], kind
+        exact = evaluate_design(
+            design, model=QUADRATIC_IN_MATERIAL, metric="average_prediction_variance", integration="exact"
+        )["average_prediction_variance"]
+        assert values["i"] == pytest.approx(exact, rel=1e-9), kind
+    assert "I(RM ** 2)" not in comparison.correlations[comparison.designs[0]].index
+
+
+def test_a_categorical_factor_coded_minus_one_and_plus_one_scores_as_its_labels_do():
+    """The labels are coded -1 and +1 in sorted order; which level is which does not change a measure."""
+    design = generate_design(material_factors(), "d_optimal", budget=13, model_type="interactions", random_state=1)
+    labels = design.design[["RM", "conc", "temp"]]
+    numeric = labels.assign(RM=labels["RM"].map({"A": 1.0, "B": -1.0}))  # the other way round
+    by_labels = compare_designs({"labels": labels}, "interactions").values["labels [n=13]"]
+    by_numbers = compare_designs({"numbers": numeric}, "interactions").values["numbers [n=13]"]
+    for key in ("a", "d", "e", "power_main", "power_interaction", "max_r"):
+        assert by_labels[key] == pytest.approx(by_numbers[key]), key
+    assert by_labels["i"] > by_numbers["i"], "a categorical factor is at its levels, where the variance is largest"
+
+
+def test_a_categorical_factor_with_a_limit_on_the_numeric_factors():
+    """A limit on conc and temp: the region's points take RM at -1 or +1, and a local search keeps it there."""
+    region = DesignRegion(material_factors()[1:], ["conc ** 2 + ((temp - 40) / 20) ** 2 <= 2.5"])
+    design = generate_design(material_factors(), "d_optimal", budget=13, model_type="quadratic", random_state=1)
+    comparison = compare_designs({"D": design}, "quadratic", region=region)
+    assert np.isin(comparison._model.points[:, 0], [-1.0, 1.0]).all()
+    values = comparison.values["D [n=13]"]
+    assert values["fits"]
+    assert values["g"] >= values["i"] > 0
+    fds = comparison.relative("D [n=13]", "D [n=13]", random_state=1)
+    assert fds is not None
+
+
+def test_a_categorical_factor_of_three_levels_or_of_labels_and_numbers_is_refused():
+    three = pd.DataFrame({"RM": ["A", "B", "C", "A"], "conc": [-1.0, 0.0, 1.0, 1.0]})
+    with pytest.raises(ValueError, match=r"categorical factor of two levels.*RM has 3"):
+        compare_designs({"three": three}, "main_effects")
+    labels = pd.DataFrame({"RM": ["A", "B", "A", "B"], "conc": [-1.0, -1.0, 1.0, 1.0]})
+    numbers = labels.assign(RM=[-1.0, 1.0, -1.0, 1.0])
+    with pytest.raises(ValueError, match="RM is a column of labels in one design and of numbers in another"):
+        compare_designs({"labels": labels, "numbers": numbers}, "main_effects")
