@@ -29,7 +29,7 @@ PACKAGES = {
     "dexpy": "dexpy 0.12 (Python)",
     "oapackage": "OApackage 2.7.21 (Python)",
     "dsdpkg": "definitive-screening-design 0.5.1 (Python)",
-    "pydoe": "pydoe 1.6.0 (Python)",
+    "pydoe": "pydoe 1.7.0 (Python)",
     "pyDOE3": "pyDOE3 1.6.2 (Python)",
 }
 WEB = Path(__file__).resolve().parents[2] / "web"
