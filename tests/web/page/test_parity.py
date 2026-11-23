@@ -400,10 +400,15 @@ def test_a_design_s_runs_open_where_bootstrap_makes_them(api, bootstrap, node):
     assert javascript(node, source("python.js"), [("SPACE_FILLING", [])]) == [list(bootstrap.SPACE_FILLING)]
     counted = [d for d, info in bootstrap.DESIGNS.items() if "budget" in info["options"]]
     assert set(bootstrap.SPACE_FILLING) < set(counted)
+    material = [{"name": "RM", "type": "categorical", "levels": ["A", "B"], "units": ""}, *FACTORS[:2]]
     for design_type in counted:
-        made = api.ok("api_make_design", {"design_type": design_type, "factors": FACTORS, "model_type": "interactions"})
-        opened = javascript(node, source("logic.js"), [("defaultBudget", [design_type, len(FACTORS), "interactions"])])
-        assert opened == [made["spec"]["options"]["budget"]], design_type
+        # An optimal design takes a categorical factor, which has no square (#1468).
+        optimal = "model_type" in bootstrap.DESIGNS[design_type]["options"]
+        for factors in (FACTORS, material) if optimal else (FACTORS,):
+            spec = {"design_type": design_type, "factors": factors, "model_type": "quadratic"}
+            made = api.ok("api_make_design", spec)
+            opened = javascript(node, source("logic.js"), [("defaultBudget", [design_type, factors, "quadratic"])])
+            assert opened == [made["spec"]["options"]["budget"]], (design_type, factors[0]["name"])
 
 
 def test_a_report_names_the_seed_bootstrap_puts_the_runs_in_order_with(bootstrap, api):
@@ -472,6 +477,20 @@ def test_the_page_counts_a_model_s_coefficients_as_bootstrap_does(bootstrap, nod
     cases = [(k, model) for k in range(2, 13) for model in bootstrap.MODELS]
     counted = javascript(node, source("logic.js"), [("nTerms", [k, model]) for k, model in cases])
     assert counted == [bootstrap._n_terms(k, model) for k, model in cases]
+
+
+def test_the_page_counts_a_model_over_categorical_factors_as_bootstrap_does(bootstrap, node):
+    """A categorical factor has no square, and one of several levels is a column per level but one (#1468)."""
+    numeric = [{"name": n, "low": 0, "high": 1, "units": ""} for n in ("T", "P")]
+    studies = [
+        [{"name": "RM", "type": "categorical", "levels": ["A", "B"], "units": ""}, *numeric],
+        [{"name": "Catalyst", "type": "categorical", "levels": ["A", "B", "C"], "units": ""}, *numeric],
+        [{"name": "Lot", "type": "categorical", "levels": list("1234"), "units": ""}, numeric[0]],
+        [{"name": "S", "low": "old", "high": "new", "units": ""}, *numeric],  # two labels are categorical too
+    ]
+    cases = [(factors, model) for factors in studies for model in bootstrap.MODELS]
+    counted = javascript(node, source("logic.js"), [("nCoefficients", [f, model]) for f, model in cases])
+    assert counted == [bootstrap._n_coefficients(model, {"factors": f}) for f, model in cases]
 
 
 def test_the_page_expects_a_search_to_take_as_long_as_bootstrap_does(bootstrap, node):

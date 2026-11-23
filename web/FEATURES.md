@@ -99,7 +99,9 @@ three mixture designs under a heading of their own.
   number of runs you can afford, inside any limits on the settings.
   - *Details:* For a model of up to 91 coefficients: any model in up to 12 factors, and the
     main effects in up to 40. The three optimal designs take a categorical factor of 2 to 8
-    levels beside the numeric ones, and choose each run's level with its settings.
+    levels beside the numeric ones, and choose each run's level with its settings. Such a
+    factor has no square, and one of L levels is L - 1 coefficients in its main effect and in
+    each of its interactions; the count under Runs, and the runs a design opens with, say so.
 - **I-optimal.** For 2 to 40 factors. The runs that predict best across the ranges, for the
   number of runs you can afford, inside any limits on the settings.
   - *Details:* For a model of up to 91 coefficients, as the D-optimal design is.

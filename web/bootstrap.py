@@ -2643,7 +2643,7 @@ def _model_type(spec: dict, design_type: str, k: int) -> str:
     model_type = spec.get("model_type", "quadratic")
     if model_type not in MODELS:
         raise ValueError(f"Unknown model {model_type!r}.")
-    if (n_terms := _n_terms(k, model_type)) > MAX_OPTIMAL_TERMS:
+    if (n_terms := _n_coefficients(model_type, spec)) > MAX_OPTIMAL_TERMS:
         raise ValueError(
             f"The {model_type.replace('_', ' ')} model in {k} factors has {n_terms} coefficients, and the "
             f"{DESIGNS[design_type]['label']} design is made for a model of up to {MAX_OPTIMAL_TERMS} on this page: "
@@ -2689,7 +2689,7 @@ def _budget(spec: dict, design_type: str, k: int, model_type: str | None) -> int
     if design_type == "omars":
         return _omars_runs(spec, k)
     budget = spec.get("budget")
-    n_terms = _n_terms(k, model_type)
+    n_terms = _n_coefficients(model_type, spec)
     if budget and int(budget) < n_terms:
         model = model_type.replace("_", " ")
         raise ValueError(
@@ -3238,7 +3238,7 @@ def _analysis(
     pending = runs.loc[~done, "Run order"].astype(int).tolist() if "Run order" in runs else []
 
     coded = _design_frame(runs, spec, columns)[done].reset_index(drop=True)
-    n_terms = _n_terms(len(columns), fitted)
+    n_terms = _n_coefficients(model, spec)
     if pending and done.sum() < n_terms:
         complete = int(done.sum())
         raise ValueError(
@@ -4794,12 +4794,20 @@ def _analysis_notes(chain_labels: list[str], not_estimable: list[str]) -> list[s
     return notes
 
 
-def _n_terms(k: int, model: str | list[str]) -> int:
-    """Count the coefficients, intercept included, in a named model or a model of chosen terms."""
-    if not isinstance(model, str):
-        return 1 + len(model)
+def _n_terms(k: int, model: str) -> int:
+    """Count the coefficients, intercept included, of a named model in k numeric factors."""
     interactions = k * (k - 1) // 2
     return 1 + k + {"main_effects": 0, "interactions": interactions, "quadratic": interactions + k}[model]
+
+
+def _n_coefficients(model: str | list[str], spec: dict) -> int:
+    """Count the coefficients, intercept included, of a named model or of chosen terms over a study's factors.
+
+    A categorical factor has no square, and one of three levels or more is a column per level but one, in its
+    main effect and in each interaction (logic.js's ``nCoefficients`` mirrors it for a named model).
+    """
+    names = [f["name"] for f in spec["factors"]]
+    return 1 + len(_expanded_terms(_model_terms(model, names, _categorical_names(spec)), spec))
 
 
 def _equation(response: str, coefficients: list[dict]) -> str:

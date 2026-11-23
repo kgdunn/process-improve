@@ -256,7 +256,7 @@ import {
   levelValue,
   listNames,
   mixtureProblem,
-  nTerms,
+  nCoefficients,
   dayWords,
   momentWords,
   shortCommit,
@@ -1833,7 +1833,7 @@ function setDesignForm(spec) {
   const k = factorCount();
   resolutionEdited = Boolean(options.resolution) && options.resolution !== defaultResolution(k);
   if (options.resolution) $("#resolution").value = String(options.resolution);
-  budgetEdited = Boolean(options.budget) && options.budget !== defaultBudget(spec.design_type, k, options.model_type);
+  budgetEdited = Boolean(options.budget) && options.budget !== defaultBudget(spec.design_type, readFactors(), options.model_type);
   if (options.budget) $("#budget").value = options.budget;
   refreshDesign();
 }
@@ -1901,6 +1901,7 @@ function refreshDesign() {
   renderHard();
   renderPossible();
   const k = factorCount();
+  const factors = readFactors();
   const full = factorRows().length >= MAX_FACTORS; // the add buttons stop at the most factors a study has, and say so
   for (const id of ["#add-factor", "#add-categorical"]) $(id).disabled = full;
   $("#factors-full").hidden = !full;
@@ -1944,14 +1945,14 @@ function refreshDesign() {
 
   // An optimal design is made for a model of MAX_OPTIMAL_TERMS coefficients at most: a larger one is not offered.
   const modelType = $("#model_type");
-  for (const choice of modelType.options) choice.disabled = nTerms(k, choice.value) > MAX_OPTIMAL_TERMS;
+  for (const choice of modelType.options) choice.disabled = nCoefficients(factors, choice.value) > MAX_OPTIMAL_TERMS;
   if (modelType.selectedOptions[0].disabled) modelType.value = "main_effects";
   const tooLarge = [...modelType.options].some((choice) => choice.disabled);
 
   // A space-filling design is made for no model: its runs are so many a factor, and Learn fits the aim's model.
   const spread = SPACE_FILLING.includes(option.value);
-  const p = nTerms(k, spread ? OPTIMAL_MODEL[currentAim()] : $("#model_type").value);
-  if (!budgetEdited) $("#budget").value = defaultBudget(option.value, k, $("#model_type").value);
+  const p = nCoefficients(factors, spread ? OPTIMAL_MODEL[currentAim()] : $("#model_type").value);
+  if (!budgetEdited) $("#budget").value = defaultBudget(option.value, factors, $("#model_type").value);
   const omars = option.value === "omars";
   $("#budget-hint").textContent = spread
     ? `${SPACE_FILLING_RUNS} runs a factor is the usual start; Learn fits the model of your aim, which has ${p} coefficients.`

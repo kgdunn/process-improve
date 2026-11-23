@@ -451,3 +451,17 @@ def test_a_design_that_cannot_keep_limits_says_so_with_a_categorical_factor_too(
     factors = [*FACTORS[:2], SUPPLIER]
     request = {"design_type": "full_factorial", "factors": factors, "constraints": [{"expression": "T <= 190"}]}
     assert "cannot keep its runs inside limits on the settings" in api.error("api_make_design", request)
+
+
+def test_an_optimal_design_s_runs_count_a_categorical_factor_s_columns_and_no_square(api):
+    """RM, A or B, with conc and temp: the quadratic model has 9 coefficients, so 13 runs, and 9 is enough (#1468)."""
+    factors = [
+        {"name": "RM", "type": "categorical", "levels": ["A", "B"], "units": ""},
+        {"name": "conc", "low": 0, "high": 2, "units": "%"},
+        {"name": "temp", "low": 20, "high": 60, "units": "degC"},
+    ]
+    spec = {"design_type": "d_optimal", "factors": factors, "model_type": "quadratic"}
+    assert len(api.ok("api_make_design", spec)["rows"]) == 9 + 4, "the coefficients and SPARE_RUNS more"
+    assert len(api.ok("api_make_design", {**spec, "budget": 9})["rows"]) == 9
+    refused = api.reply("api_make_design", {**spec, "budget": 8})
+    assert refused["error"] == "The quadratic model in 3 factors has 9 coefficients, so it needs at least 9 runs."
