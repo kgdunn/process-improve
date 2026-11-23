@@ -18,7 +18,7 @@ ENTRIES = [
     "Your studies 0",
     "Open the worked example",
     "Analyze data you have",
-    "Catalog of experimental designs",
+    "Design catalog",
     "Share or download this study",
     "View its report",
     "Settings",
