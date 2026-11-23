@@ -52,6 +52,8 @@ import {
   shownValue,
   toggled,
   checkLine,
+  checkedAgainst,
+  checkedBadge,
   csvText,
   decodeGlyph,
   factLine,
@@ -646,6 +648,24 @@ describe("what a design withstands, in words", () => {
     const catalog = { ...CATALOG, designs: [...CATALOG.designs, twin] };
     assert.deepEqual(ids(sameDesigns(catalog, catalog.designs[0])), ["twin"]);
     assert.deepEqual(sameDesigns(catalog, design({ design_class: null })), []);
+  });
+
+  test("what a design's kind was checked against, for a design the library makes itself", () => {
+    const checked = { packages: { rsm: "R", dexpy: "Python" }, designs: { ccd: { factors: { 3: { sources: ["a"], packages: ["rsm", "dexpy"] } } } } };
+    const ccd = (more) => design({ design_type: "ccd", n_factors: 3, collection: "published", regenerable: true, ...more });
+    const note = checkedAgainst(checked, ccd());
+    assert.deepEqual(note, { sources: ["a"], packages: [{ name: "rsm", language: "R" }, { name: "dexpy", language: "Python" }] });
+    assert.equal(checkedBadge(note), "checked: 1 source, 2 packages");
+    const generated = checkedAgainst(checked, ccd({ collection: "generated", regenerable: null, in_source: true }));
+    assert.deepEqual(generated, note, "a design the library generates, which a source prints too");
+    const unprinted = checkedAgainst(checked, ccd({ collection: "generated", regenerable: null, in_source: false }));
+    assert.deepEqual(unprinted.sources, [], "one no source prints names no sources: they print others of its kind");
+    assert.equal(checkedBadge(unprinted), "checked: 2 packages");
+    assert.equal(checkedAgainst(checked, ccd({ regenerable: false })), null, "not a published design the library does not make");
+    assert.equal(checkedAgainst(checked, ccd({ regenerable: null })), null, "nor one it was not asked to make");
+    assert.equal(checkedAgainst(checked, ccd({ n_factors: 4 })), null, "nor a size that was not compared");
+    assert.equal(checkedAgainst(checked, ccd({ design_type: "mixture" })), null, "nor a kind that was not");
+    assert.equal(checkedAgainst(null, ccd()), null, "and nothing while the file is not read");
   });
 });
 

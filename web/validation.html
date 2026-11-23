@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Validation: how Factorial is checked</title>
+  <meta name="description" content="Factorial rebuilds the designs that textbooks and papers print, and that open-source packages in R and Python build, and compares the results. Where something differs, it says so.">
+  <link rel="canonical" href="https://factori.al/validation.html">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#f5f6f4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#141517" media="(prefers-color-scheme: dark)">
+  <script>
+    /* The color mode chosen in the app (index.html), put on the page before it is drawn. */
+    try {
+      const mode = localStorage.getItem("factorial-mode");
+      if (mode === "light" || mode === "dark") document.documentElement.dataset.theme = mode;
+    } catch {
+      /* storage refused: the system's mode */
+    }
+  </script>
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="process-improve">
+  <meta property="og:title" content="Validation: how Factorial is checked">
+  <meta property="og:description" content="Factorial's designs, checked against the textbooks and against open-source packages in R and Python.">
+  <meta property="og:url" content="https://factori.al/validation.html">
+  <meta property="og:image" content="https://factori.al/og-card.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="about validation">
+  <p class="about__back"><a href="./"><img src="favicon.svg" alt="" width="28" height="28"> Back to Factorial</a></p>
+  <p class="validation__eyebrow">How we know the designs are right</p>
+  <h1>Validation: done right</h1>
+  <p class="lede">Factorial rebuilds the designs that 22 textbooks and papers print, and that 9 open-source packages
+    build. It compares results, and where something is different, we state it clearly.</p>
+
+  <!-- The two things Factorial is checked against, side by side; one under the other on a phone. The numbers on this
+       page are those of the day at its foot: tests/web/page/test_validation.py holds the names to the record. -->
+  <div class="validation__pair">
+    <div>
+      <h2 class="feat-step">The books</h2>
+      <p class="validation__count">22 books, handbooks and papers</p>
+      <p>Over 37,000 checks; nearly 35,000 match the books exactly.</p>
+      <ul class="validation__list">
+        <li>Box, Hunter and Hunter, <cite>Statistics for Experimenters</cite></li>
+        <li>Montgomery, <cite>Design and Analysis of Experiments</cite></li>
+        <li>Box and Draper, <cite>Response Surfaces, Mixtures, and Ridge Analyses</cite></li>
+        <li>The NIST/SEMATECH <cite>e-Handbook of Statistical Methods</cite></li>
+        <li>Davies, <cite>The Design and Analysis of Industrial Experiments</cite></li>
+      </ul>
+      <p><a href="catalog/reproduced/">And 17 more, each with its pages</a></p>
+    </div>
+    <div>
+      <h2 class="feat-step">Other software</h2>
+      <p class="validation__count">9 open packages, in R and Python</p>
+      <p>Each one builds the same design. Then one check measures both.</p>
+      <dl class="validation__list">
+        <div><dt>R</dt><dd>FrF2, DoE.base, rsm, daewr</dd></div>
+        <div><dt>Python</dt><dd>pydoe, pyDOE3, dexpy, OApackage, definitive-screening-design</dd></div>
+      </dl>
+      <p><a href="#grid">See which design was checked against which</a></p>
+    </div>
+  </div>
+
+  <section class="validation__found" aria-labelledby="found-title">
+    <h2 id="found-title">When we get different answers, we investigate each one:</h2>
+    <ul>
+      <li><strong>909</strong> <span>were misprints in the books. We show each one in the links above.</span></li>
+      <li><strong>9</strong> <span>differences found in other open-source packages. We have let each one know via their
+        reporting channels.</span></li>
+      <li><strong>2</strong> <span>were gaps in Factorial. Both are on our public
+        <a href="https://github.com/kgdunn/process-improve/issues/788" target="_blank" rel="noopener">backlog list</a>
+        to fix.</span></li>
+    </ul>
+  </section>
+
+  <!-- Which kind of design was checked against which book and which package. A mark's shape says the same as its
+       color, and each package's cell says it in words for a reader who hears the page. -->
+  <section class="validation__grid" id="grid" aria-labelledby="grid-title">
+    <h2 id="grid-title">Each major experimental design type is checked</h2>
+    <p class="hint">One row per experimental design type.</p>
+    <ul class="states">
+      <li><span class="validation__mark" data-state="match"></span>Gives the same design</li>
+      <li><span class="validation__mark" data-state="known"></span>Differs in places, for a known reason</li>
+    </ul>
+    <table>
+      <thead>
+        <tr><th scope="col">Design</th><th scope="col">Books and papers</th><th scope="col">R</th><th scope="col">Python</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">Full factorial</th>
+          <td>10 sources</td>
+          <td data-head="R"><ul>
+            <li><span class="validation__mark" data-state="match"></span>FrF2<span class="visually-hidden">: gives the same design</span></li>
+            <li><span class="validation__mark" data-state="match"></span>DoE.base<span class="visually-hidden">: gives the same design</span></li>
+          </ul></td>
+          <td data-head="Python"><ul>
+            <li><span class="validation__mark" data-state="match"></span>pydoe<span class="visually-hidden">: gives the same design</span></li>
+            <li><span class="validation__mark" data-state="match"></span>dexpy<span class="visually-hidden">: gives the same design</span></li>
+          </ul></td>
+        </tr>
+        <tr>
+          <th scope="row">Fractional factorial</th>
+          <td>13 sources</td>
+          <td data-head="R"><ul>
+            <li><span class="validation__mark" data-state="match"></span>FrF2<span class="visually-hidden">: gives the same design</span></li>
+          </ul></td>
+          <td data-head="Python"><ul>
+            <li><span class="validation__mark" data-state="match"></span>pydoe<span class="visually-hidden">: gives the same design</span></li>
+            <li><span class="validation__mark" data-state="match"></span>dexpy<span class="visually-hidden">: gives the same design</span></li>
+          </ul></td>
+        </tr>
+        <tr>
+          <th scope="row">Plackett-Burman</th>
+          <td>7 sources</td>
+          <td data-head="R"><ul>
+            <li><span class="validation__mark" data-state="match"></span>FrF2<span class="visually-hidden">: gives the same design</span></li>
+          </ul></td>
+          <td data-head="Python"><ul>
+            <li><span class="validation__mark" data-state="known"></span>pydoe<span class="visually-hidden">: differs in places, for a known reason</span></li>
+          </ul></td>
+        </tr>
+        <tr>
+          <th scope="row">Box-Behnken</th>
+          <td>8 sources</td>
+          <td data-head="R"><ul>
+            <li><span class="validation__mark" data-state="match"></span>rsm<span class="visually-hidden">: gives the same design</span></li>
+          </ul></td>
+          <td data-head="Python"><ul>
+            <li><span class="validation__mark" data-state="match"></span>dexpy<span class="visually-hidden">: gives the same design</span></li>
+            <li><span class="validation__mark" data-state="known"></span>pydoe<span class="visually-hidden">: differs in places, for a known reason</span></li>
+          </ul></td>
+        </tr>
+        <tr>
+          <th scope="row">Central composite</th>
+          <td>10 sources</td>
+          <td data-head="R"><ul>
+            <li><span class="validation__mark" data-state="match"></span>rsm<span class="visually-hidden">: gives the same design</span></li>
+          </ul></td>
+          <td data-head="Python"><ul>
+            <li><span class="validation__mark" data-state="match"></span>dexpy<span class="visually-hidden">: gives the same design</span></li>
+            <li><span class="validation__mark" data-state="known"></span>pydoe<span class="visually-hidden">: differs in places, for a known reason</span></li>
+          </ul></td>
+        </tr>
+        <tr>
+          <th scope="row">Definitive screening</th>
+          <td>7 sources</td>
+          <td data-head="R"><ul>
+            <li><span class="validation__mark" data-state="known"></span>daewr<span class="visually-hidden">: differs in places, for a known reason</span></li>
+          </ul></td>
+          <td data-head="Python"><ul>
+            <li><span class="validation__mark" data-state="match"></span>OApackage<span class="visually-hidden">: gives the same design</span></li>
+            <li><span class="validation__mark" data-state="match"></span>definitive-screening-design<span class="visually-hidden">: gives the same design</span></li>
+            <li><span class="validation__mark" data-state="match"></span>pydoe<span class="visually-hidden">: gives the same design</span></li>
+          </ul></td>
+        </tr>
+        <tr>
+          <th scope="row">Orthogonal arrays</th>
+          <td>1 source, Schmidt and Launsby</td>
+          <td data-head="R"><ul>
+            <li><span class="validation__mark" data-state="match"></span>DoE.base<span class="visually-hidden">: gives the same design</span></li>
+          </ul></td>
+          <td data-head="Python"><ul>
+            <li><span class="validation__mark" data-state="match"></span>OApackage<span class="visually-hidden">: gives the same design</span></li>
+            <li><span class="validation__mark" data-state="match"></span>pydoe<span class="visually-hidden">: gives the same design</span></li>
+          </ul></td>
+        </tr>
+        <tr>
+          <th scope="row">OMARS</th>
+          <td>The papers that define them</td>
+          <td colspan="2">No other open package builds these yet.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="hint">pydoe differs from the books for some sizes of these three designs. Issues have been opened in their
+      GitHub repo.</p>
+    <p class="hint">daewr gives an earlier version of the design for 5, 7, 9, 11 and 12 factors.</p>
+  </section>
+
+  <p class="validation__more">
+    <a class="button primary" href="https://kgdunn.github.io/process-improve/validation.html" target="_blank" rel="noopener">Read the full record</a>
+    <a href="catalog/reproduced/">Browse the books</a>
+  </p>
+  <p class="page-note">Last checked on 22 November 2026.</p>
+</main>
+<script src="site.js" type="module"></script>
+</body>
+</html>

@@ -20,6 +20,7 @@ from tests.web._support import source
 PAGES = (
     "index.html",
     "technical-details-how-factorial-works.html",
+    "validation.html",
     "catalog/index.html",
     "catalog/reproduced/index.html",
 )

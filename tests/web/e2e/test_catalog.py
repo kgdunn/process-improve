@@ -13,7 +13,7 @@ import re
 
 import pytest
 
-from tests.web._support import BLOCKED_DESIGN, BOOK_DESIGN, CATALOG_SAMPLE, PAIRED_DESIGN
+from tests.web._support import BLOCKED_DESIGN, BOOK_DESIGN, CATALOG_SAMPLE, PAIRED_DESIGN, source
 from tests.web.e2e._page import headers, run_sheet, settled
 
 PILOT, COMPARISON, CCD, OMARS, CUBE = CATALOG_SAMPLE
@@ -224,6 +224,13 @@ def test_the_applications_of_the_fewest_designs_are_a_click_away(context, site, 
     assert chosen.is_checked(f"#topics-more input[value='{ten[-1]}']")
 
 
+def test_a_catalog_of_few_applications_lists_them_and_nothing_in_place_of_the_rest(context, site):
+    """With no more applications than the list shows there is no fold of the rest, and no stray word where it goes."""
+    page = open_catalog(context, site)
+    assert page.locator("#topics-more").count() == 0
+    assert "null" not in page.text_content("#topics")
+
+
 def test_a_word_of_an_application_s_name_finds_its_designs(book_context, site):
     page = open_catalog(book_context, site)
     page.fill("#query", "fermentation")
@@ -267,6 +274,44 @@ def test_a_design_s_detail_says_what_it_withstands_and_where_else_it_is(context,
         "document.querySelector('#detail-title').textContent.startsWith('Full factorial, 3 factors')"
     )
     assert "d=lib-full-factorial-k3" in page.url
+
+
+def test_a_design_the_library_makes_says_what_its_kind_was_checked_against(context, site):
+    """The library's 2^3 factorial names the sources that print one and the packages that build it the same way."""
+    checked = json.loads(source("checked.json"))
+    found = checked["designs"]["full_factorial"]["factors"]["3"]
+    page = open_catalog(context, site)
+    badges = page.locator(".result", has=page.locator(f".result__title[data-id='{CUBE}']")).locator(".badge")
+    assert f"checked: {len(found['sources'])} sources, {len(found['packages'])} packages" in badges.all_text_contents()
+    omars = page.locator(".result", has=page.locator(f".result__title[data-id='{OMARS}']"))
+    assert omars.locator(".badge--checked").count() == 0, "no other package builds an OMARS design: it has no note"
+    page.click(f".result__title[data-id='{CUBE}']")
+    page.wait_for_selector("#detail[open]")
+    note = page.locator("#detail-body .detail__checked")
+    assert note.locator("h3").text_content() == "Checked"
+    lists = note.locator(".detail__against > div")
+    assert lists.locator("h4").all_text_contents() == ["In print", "In other software"]
+    in_print = lists.nth(0).locator("li").all_text_contents()
+    assert len(in_print) == 5, "four sources by name, then how many more"
+    assert in_print[-1] == f"and {len(found['sources']) - 4} more"
+    software = lists.nth(1).locator("li").all_text_contents()
+    assert software == [f"{name} ({checked['packages'][name]})" for name in found["packages"]]
+    link = note.locator("a")
+    assert link.text_content() == "How Factorial is checked"
+    assert link.get_attribute("href") == f"{site}validation.html"
+    # No source prints the face-centered composite design: it counts and lists the packages alone.
+    page.keyboard.press("Escape")
+    composite = checked["designs"]["ccd"]["factors"]["3"]["packages"]
+    badges = page.locator(".result", has=page.locator(f".result__title[data-id='{CCD}']")).locator(".badge")
+    assert {"no source prints it", f"checked: {len(composite)} package"} <= set(badges.all_text_contents())
+    page.click(f".result__title[data-id='{CCD}']")
+    page.wait_for_function("document.querySelector('#detail-title').textContent.includes('composite')")
+    assert page.locator("#detail-body .detail__against h4").all_text_contents() == ["In other software"]
+    assert "as the books print it" not in page.text_content("#detail-body .detail__checked")
+    page.keyboard.press("Escape")
+    page.click(f".result__title[data-id='{OMARS}']")
+    page.wait_for_function("document.querySelector('#detail-title').textContent.includes('OMARS')")
+    assert page.locator("#detail-body .detail__checked").count() == 0
 
 
 def test_the_robustness_filters_keep_the_designs_that_withstand_more(context, site):

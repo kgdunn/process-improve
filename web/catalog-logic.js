@@ -668,6 +668,27 @@ export function sameDesigns(catalog, design) {
   return catalog.designs.filter((d) => d.design_class === design.design_class && d.id !== design.id);
 }
 
+/**
+ * What a design's kind, at its number of factors, was checked against (checked.json): the sources that
+ * print such a design, and the other packages that build it as the library does, each with its language. Null for
+ * a design the library does not make itself, so the note is only on a design that is Factorial's own to answer
+ * for, and for a kind or a size that was not compared. A generated design that no source prints names no sources:
+ * the sources print other designs of its kind.
+ */
+export function checkedAgainst(checked, design) {
+  if (!(design.regenerable || design.collection === "generated")) return null;
+  const found = checked?.designs?.[design.design_type]?.factors?.[design.n_factors];
+  if (!found) return null;
+  const printed = design.collection === "published" || design.in_source;
+  return { sources: printed ? found.sources : [], packages: found.packages.map((name) => ({ name, language: checked.packages[name] })) };
+}
+
+/** The note on a design's card: how many sources, where one prints the design, and how many packages. */
+export function checkedBadge(note) {
+  const counts = [note.sources.length ? plural(note.sources.length, "source") : "", plural(note.packages.length, "package")];
+  return `checked: ${counts.filter(Boolean).join(", ")}`;
+}
+
 /** What losing a run costs a design, in a sentence; empty when the catalog does not know. */
 export function runLossLine(design, model) {
   if (design.survives_run_loss === null || design.survives_run_loss === undefined) return "";

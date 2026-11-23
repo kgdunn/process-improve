@@ -68,6 +68,8 @@ APP_FILES = (
     "features.html",
     "features.js",
     "FEATURES.md",
+    "validation.html",
+    "checked.json",
     "catalog/index.html",
     "catalog.js",
     "catalog-logic.js",

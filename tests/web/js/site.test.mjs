@@ -16,8 +16,8 @@ describe("one footer on every page", () => {
   test("its groups are headed as the shared footer's are", () => {
     for (const group of SITE_LINKS) assert.ok(footer.includes(`>${group.head}</p>`), group.head);
   });
-  test("every page of the site is in it, the textbooks' answers among them", () => {
+  test("every page of the site is in it, validation and the textbooks' answers among them", () => {
     const paths = SITE_LINKS.flatMap((group) => group.links).map(([path]) => path).filter((path) => !path.startsWith("https:"));
-    assert.deepEqual(paths, ["./", "features.html", "catalog/", "catalog/reproduced/", "map/", "technical-details-how-factorial-works.html"]);
+    assert.deepEqual(paths, ["./", "features.html", "catalog/", "validation.html", "catalog/reproduced/", "map/", "technical-details-how-factorial-works.html"]);
   });
 });

@@ -834,8 +834,8 @@ Also:
   out is in print.
   - *Details:* A simulated result is gray and in italics, as pencil, until you type over it.
 - **Every page has the same top line and footer.** The pages on how Factorial works, what it
-  does, the design catalog, the textbooks' answers and the concept map each have the
-  color-mode switch at the top and end in the same links, in the same order.
+  does, how it is checked, the design catalog, the textbooks' answers and the concept map
+  each have the color-mode switch at the top and end in the same links, in the same order.
   - *Details:* A mode chosen on one page is the mode of the next. The footer marks the page
     you are on.
 - **One menu holds every way in.** "Studies", in the bar beside "New study", opens it: a new study, your
@@ -998,6 +998,13 @@ What a careful reader, or an organization, asks before using a tool.
   - *Details:* The app's results for the book's examples are held to the printed numbers by
     tests. The reproduction page reports how closely the library gives the numbers its
     sources print.
+- **Checked against other software.** The designs Factorial builds are compared with the
+  designs that nine open-source packages in R and Python build, and a page says where they
+  differ.
+  - *Details:* Each package builds the design a source prints, and the check that measures
+    Factorial's design measures the package's too. The packages are FrF2, DoE.base, rsm and
+    daewr in R, and pydoe, pyDOE3, dexpy, OApackage and definitive-screening-design in
+    Python.
 - **Tested before you see it.** Every change is checked by about 3,500 automated tests (Nov
   2026), and only a version that passes is published.
   - *Details:* The tests cover the page's logic, every call into Python, the page in a real
@@ -1022,10 +1029,22 @@ What a careful reader, or an organization, asks before using a tool.
     lists its designs. The filter for the years has a strip of bars over its two boxes: a
     bar's height is the number of designs published in its five years, and a drag across the
     strip, or a press on a bar, fills the boxes. A design's page links to where its source
-    prints it, projects its runs onto two or three factors, and draws its correlation map. Up
+    prints it, projects its runs onto two or three factors, and draws its correlation map. A
+    design the library makes itself has a "Checked" note: the sources that print a design of
+    its kind and size, the other packages that build it as the library does, and a link to
+    the page on validation. Its card counts them. A design no source prints names the
+    packages alone. Up
     to four designs are compared side by side. More than 1,100 designs open in Factorial with
     one click. There is a page for each of 30 fields and for each source, a list of errata, a
     feed, and forms to propose a published design or share a case study.
+- **[Validation](validation.html).** What Factorial is checked against, on one page: the
+  books and papers that print its designs, and the other software that builds them.
+  - *Details:* The page counts the sources and the packages, and the differences found: the
+    misprints in the books, the differences reported to other packages, and the gaps in
+    Factorial. A grid has a row for each kind of design, with the packages it was compared
+    with: a point where a package gives the same design, and a ring where it differs in
+    places for a known reason. It links to the textbooks' answers and to the full record in
+    the library's documentation, and gives the day of the last check.
 - **[Reproduced from the books](catalog/reproduced/).** How many of the numbers its sources
   print the library gives too, and the reason for each one that differs.
   - *Details:* One bar holds every printed number that was worked again. The others are a

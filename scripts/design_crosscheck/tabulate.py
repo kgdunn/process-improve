@@ -4,11 +4,15 @@ Run it from the repository root after compare.py, with the same ``DOE_OUT``::
 
     DOE_OUT=results uv run python scripts/design_crosscheck/tabulate.py
 
-It writes ``docs/validation/design_crosscheck.csv``, one row per package, and
-``docs/validation/differences_<package>.csv``, every check on which that package and process-improve differ.
+It writes ``docs/validation/design_crosscheck.csv``, one row per package,
+``docs/validation/differences_<package>.csv``, every check on which that package and process-improve differ, and
+``web/checked.json``, which the browser app reads: for each kind of design and each number of factors, the
+sources that print it and the packages that build it as process-improve does.
 """
 
+import json
 import os
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -28,6 +32,22 @@ PACKAGES = {
     "pydoe": "pydoe 1.6.0 (Python)",
     "pyDOE3": "pyDOE3 1.6.2 (Python)",
 }
+WEB = Path(__file__).resolve().parents[2] / "web"
+
+#: A package as the app names it, and its language. pyDOE3 is named but is in no design's list: pydoe is its
+#: successor, so the one line of code is listed once.
+SHOWN = {
+    "FrF2": ("FrF2", "R"),
+    "DoE.base": ("DoE.base", "R"),
+    "rsm": ("rsm", "R"),
+    "daewr": ("daewr", "R"),
+    "dexpy": ("dexpy", "Python"),
+    "oapackage": ("OApackage", "Python"),
+    "dsdpkg": ("definitive-screening-design", "Python"),
+    "pydoe": ("pydoe", "Python"),
+    "pyDOE3": ("pyDOE3", "Python"),
+}
+DIFFERS = ["other differs", "process-improve differs"]
 DESIGNS = {
     "full_factorial": "full factorial",
     "fractional_factorial": "fractional factorial",
@@ -70,6 +90,44 @@ def main() -> None:
             differs.drop(columns=["design_type", "built_by"]).to_csv(DOCS / f"differences_{name}.csv", index=False)
     pd.DataFrame(table).to_csv(DOCS / "design_crosscheck.csv", index=False)
     print(pd.DataFrame(table).to_string(index=False))
+    write_checked(rows)
+
+
+def _agreeing(rows: pd.DataFrame) -> dict[str, list[str]]:
+    """Return the sources and the packages of the checks that agree, each in the order of its first check."""
+    agree = rows[rows["outcome"] == "agree"]
+    packages = [SHOWN[name][0] for name in SHOWN if name in set(agree["built_by"])]
+    return {"sources": sorted(agree["source"].unique()), "packages": packages}
+
+
+def write_checked(rows: pd.DataFrame) -> None:
+    """Write ``web/checked.json``: what each kind of design, at each number of factors, was checked against.
+
+    A kind of design lists every package that builds it as process-improve does at one size or more. A size
+    lists a package only when no check of that size differs, so a design's own note in the app names no package
+    that builds that design another way.
+    """
+    rows = rows[rows["built_by"].isin(set(SHOWN) - {"pyDOE3"}) & rows["design_type"].isin(DESIGNS)]
+    rows = rows[~rows["other"].str.contains("harness does not map", na=False)]
+    rows = rows.assign(factors=rows["design"].str.extract(r"k=(\d+)$", expand=False))
+    designs = {}
+    for kind in DESIGNS:
+        mine = rows[rows["design_type"] == kind]
+        sizes = {}
+        for factors, size in mine.groupby("factors"):
+            differs = size.groupby("built_by")["outcome"].agg(lambda outcomes: outcomes.isin(DIFFERS).any())
+            found = _agreeing(size[~size["built_by"].map(differs)])
+            if found["packages"]:
+                sizes[factors] = found
+        designs[kind] = {**_agreeing(mine), "factors": dict(sorted(sizes.items(), key=lambda item: int(item[0])))}
+    newest = max(path.stat().st_mtime for path in OUT.glob("rows_*_all.csv"))
+    checked = {
+        "checked": datetime.fromtimestamp(newest, tz=UTC).date().isoformat(),
+        "packages": dict(SHOWN.values()),
+        "designs": designs,
+    }
+    WEB.mkdir(parents=True, exist_ok=True)
+    (WEB / "checked.json").write_text(json.dumps(checked, separators=(",", ":")) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

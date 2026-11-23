@@ -67,6 +67,7 @@ def test_the_footer_says_what_factorial_is_and_names_each_group_of_its_links(pag
                 "What Factorial does",
                 "Catalog of experimental designs",
                 "Validation & technical accuracy",
+                "Reproduced from the books",
                 "Experimental design concept map",
             ],
         ],
@@ -243,7 +244,14 @@ def test_the_page_s_links_go_to_the_app_and_its_other_pages(context, site):
         "(links) => links.map((link) => link.getAttribute('href'))"
     )
     pages = [href for href in inside if not href.startswith("./?request=")]
-    assert pages == ["technical-details-how-factorial-works.html", "catalog/", "catalog/reproduced/", "map/", "mva/"]
+    assert pages == [
+        "technical-details-how-factorial-works.html",
+        "catalog/",
+        "validation.html",
+        "catalog/reproduced/",
+        "map/",
+        "mva/",
+    ]
     assert len(inside) - len(pages) >= 5, "and a request for each design the app does not make yet"
     outside = page.locator("#features a[href^='http']")
     assert outside.count() >= 5
