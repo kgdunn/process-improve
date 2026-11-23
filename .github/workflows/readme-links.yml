@@ -4,6 +4,8 @@ name: README links
 # (tests/test_readme_guards.py). Links to other sites, such as the textbook,
 # openmv.net, PyPI and the badges, can break with no change here, so this job
 # requests every one of them: weekly, and on pull requests that touch the pages.
+# It also requests the links out of factori.al's page for learning (web/map/index.html):
+# the book's chapter, the course, and the course's videos on YouTube.
 on:
   schedule:
     - cron: "23 6 * * 1"
@@ -12,6 +14,7 @@ on:
     paths:
       - README.md
       - SKLEARN_COMPATIBILITY.md
+      - web/map/index.html
       - tools/check_readme_links.py
       - .github/workflows/readme-links.yml
 
@@ -33,7 +36,7 @@ jobs:
           python-version: "3.13"
 
       # Standard library only: no install step.
-      - name: Request every link in README.md and SKLEARN_COMPATIBILITY.md
+      - name: Request every link in README.md, SKLEARN_COMPATIBILITY.md and the page for learning
         run: python tools/check_readme_links.py
 
       # A failed scheduled run is easy to miss, so it opens an issue (one at a time).
@@ -44,8 +47,8 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          title="README links are broken"
+          title="Links to other sites are broken"
           open=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq 'length')
           if [ "$open" = "0" ]; then
-            gh issue create --title "$title" --body "The weekly README link check failed: $RUN_URL"
+            gh issue create --title "$title" --body "The weekly check of the links in the README, the sklearn notes and factori.al's page for learning failed: $RUN_URL"
           fi

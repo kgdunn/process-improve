@@ -171,8 +171,11 @@ The README is the first code a new user runs, so CI checks it like code:
   lines match `pyproject.toml`, so a new extra has to be documented.
 - `tools/check_readme_links.py` requests every link to another site, and checks
   that the openmv.net data files still match the bundled copies behind the
-  README's numbers. `.github/workflows/readme-links.yml` runs it weekly and on
-  pull requests that touch the README, and opens an issue when a weekly run fails.
+  README's numbers. It also requests the links out of factori.al's page for
+  learning (`web/map/index.html`): the book's chapter, the course, and the
+  course's videos, which it asks YouTube for through oEmbed.
+  `.github/workflows/readme-links.yml` runs it weekly and on pull requests that
+  touch one of these pages, and opens an issue when a weekly run fails.
 
 ### The browser app is tested
 

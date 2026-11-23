@@ -1,4 +1,4 @@
-"""What Factorial does (features.html), and the footer that leads to it.
+"""The user guide, what Factorial does (features.html), and the footer that leads to it.
 
 The page shows ``web/FEATURES.md``, the document the app is described from, read in the browser: one text, so the
 page cannot say what the document does not. It shows it for a reader of the app: the headline points as cards, each
@@ -63,21 +63,16 @@ def test_the_footer_says_what_factorial_is_and_names_each_group_of_its_links(pag
         [
             "The app",
             [
-                "Factorial, the app",
-                "What Factorial does",
-                "Catalog of experimental designs",
-                "Validation & technical accuracy",
-                "Reproduced from the books",
-                "Experimental design concept map",
+                "Open the app",
+                "User guide",
+                "Design catalog",
+                "Is it accurate?",
+                "Learn experimental design",
             ],
         ],
         [
             "Behind it",
-            [
-                "See behind the scenes: how Factorial works",
-                "process-improve, the Python package",
-                "Process Improvement using Data, the book",
-            ],
+            ["How it works", "Python package"],
         ],
         ["Something wrong or missing?", ["Send feedback"]],
     ]
@@ -87,11 +82,11 @@ def test_the_footer_says_what_factorial_is_and_names_each_group_of_its_links(pag
 
 def test_the_footer_s_button_opens_the_list_of_what_factorial_does(page):
     button = page.locator("footer a.button.primary")
-    assert button.text_content() == "See what Factorial does"
+    assert button.text_content() == "Read the user guide", "the name the footer's link gives the page"
     button.click()
     page.wait_for_url("**/features.html")
     page.wait_for_function(SHOWN)
-    assert page.text_content("h1") == "What Factorial does"
+    assert page.text_content("h1") == "User guide"
     seen = page.evaluate(SEEN)
     assert seen["steps"] == ["In one minute", "Design", "Run", "Learn", "Next", "Around the study", "The fine print"]
     assert seen["cards"] == 10, "the headline points, as cards"

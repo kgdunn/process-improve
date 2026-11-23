@@ -89,7 +89,14 @@ def _open(context: Any, site: str, level: int | None = 3) -> Any:  # noqa: ANN40
 
 
 def _on_map(page: Any, point: dict[str, float]) -> tuple[float, float]:  # noqa: ANN401 - a Playwright Page
-    """Return a point drawn on the map in the page's coordinates."""
+    """Return a point drawn on the map in the page's coordinates, with the map in view.
+
+    The ways to learn are over the map, so on a phone the map starts under the first screen, and a mouse or a finger
+    reaches only what is in view, as a reader's does.
+    """
+    page.locator("#cy").scroll_into_view_if_needed()
+    # Cytoscape learns that the page moved from the scroll event, a frame later: a press sent sooner lands elsewhere.
+    page.evaluate("() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))")
     box = page.locator("#cy").bounding_box()
     return box["x"] + point["x"], box["y"] + point["y"]
 
@@ -375,6 +382,63 @@ def test_the_catalog_and_the_start_page_lead_to_it(context, site):
     page.wait_for_selector("footer a[href='map/']")
     page.click("footer a[href='map/']")
     page.wait_for_url("**/map/")
+
+
+def learning(context, site):
+    """Open the page for learning; return it once the map under the ways to learn is drawn."""
+    page = context.new_page()
+    page.goto(f"{site}map/")
+    page.wait_for_function("() => window.conceptMap && document.querySelector('#card h2')")
+    return page
+
+
+def test_three_ways_to_learn_are_over_the_map_and_a_press_anywhere_on_a_card_follows_its_link(context, site):
+    """The book's chapter, the course and its videos were three pages away from the map; they are over it."""
+    page = learning(context, site)
+    assert page.text_content("h1") == "Learn experimental design"
+    cards = page.locator(".learn li")
+    assert cards.locator("a").all_text_contents() == ["Read the chapter", "Take the course", "Watch the videos"]
+    last = cards.last.bounding_box()
+    assert last["y"] + last["height"] <= page.locator("h2.learn__map").bounding_box()["y"], "over the map's heading"
+    assert page.locator("h2.learn__map").bounding_box()["y"] < page.locator("#box").bounding_box()["y"]
+    on_its_link = page.evaluate(
+        """() => [...document.querySelectorAll('.learn li')].map((card) => {
+             const words = card.querySelector('span').getBoundingClientRect();
+             return document.elementFromPoint(words.left + 4, words.top + 4) === card.querySelector('a'); })"""
+    )
+    assert on_its_link == [True, True, True], "a press on a card's words is a press on its link"
+
+
+def test_the_book_s_doi_is_text_a_press_selects_and_no_link(context, site):
+    page = learning(context, site)
+    doi = page.locator(".learn__doi")
+    assert doi.text_content() == "Book DOI: 10.5281/zenodo.20284934"
+    assert page.locator(".learn a[href*='doi.org']").count() == 0
+    alone = page.evaluate(
+        """() => { const doi = document.querySelector('.learn__doi'), box = doi.getBoundingClientRect();
+             return document.elementFromPoint(box.left + 4, box.top + box.height / 2) === doi; }"""
+    )
+    assert alone, "a press on the DOI reaches the DOI, not the card's link under it"
+    doi.click()
+    assert page.url.endswith("/map/"), "the press went nowhere"
+    assert doi.evaluate("(one) => getComputedStyle(one).userSelect || getComputedStyle(one).webkitUserSelect") == "all"
+
+
+@pytest.mark.parametrize("context_options", [PHONE])
+def test_on_a_phone_the_ways_to_learn_and_the_map_s_heading_fit_the_first_screen(context, site):
+    """The ways to learn stay short, so the map is one swipe away and its heading says it is there."""
+    page = learning(context, site)
+    widths = page.locator(".learn li").evaluate_all("(all) => all.map((one) => one.getBoundingClientRect().left)")
+    assert len(set(widths)) == 1, "one under the other"
+    heading = page.locator("h2.learn__map").bounding_box()
+    assert heading["y"] + heading["height"] < PHONE["viewport"]["height"]
+
+
+def test_an_address_that_names_an_idea_still_opens_at_the_map_past_the_ways_to_learn(context, site):
+    page = context.new_page()
+    page.goto(f"{site}map/#blocking")
+    page.wait_for_function("() => window.conceptMap && document.querySelector('#card h2')")
+    assert page.evaluate("document.querySelector('.learn').getBoundingClientRect().bottom") <= 0, "scrolled past"
 
 
 SMALL_PHONE = {"viewport": {"width": 360, "height": 780}, "is_mobile": True}
@@ -898,6 +962,7 @@ def test_on_a_touch_screen_a_term_held_then_dragged_moves_and_a_quick_swipe_stil
         page.wait_for_timeout(600)  # a scroll the browser makes from a drag goes on a moment after the finger lifts
         _settled(page)
 
+    page.locator("#cy").scroll_into_view_if_needed()  # before the page's place is read: the swipe alone moves it
     before = page.evaluate(WHERE, term)
     start = _on_map(page, _rendered(page, term))
     touch("touchStart", 0, 0)
@@ -910,6 +975,7 @@ def test_on_a_touch_screen_a_term_held_then_dragged_moves_and_a_quick_swipe_stil
 
     page.evaluate("() => window.scrollTo(0, 0)")
     start = _on_map(page, _rendered(page, term))
+    rested = page.evaluate("scrollY")  # with the map in view, under the ways to learn
     touch("touchStart", 0, 0)
     page.wait_for_timeout(700)
     for k in range(1, 7):
@@ -918,7 +984,7 @@ def test_on_a_touch_screen_a_term_held_then_dragged_moves_and_a_quick_swipe_stil
     lift()
     held = page.evaluate(WHERE, term)
     assert held["at"]["x"] - before["at"]["x"] == pytest.approx(60 / before["zoom"], rel=0.15), "held, it follows"
-    assert held["scrolled"] == 0, "and the page stays where it is"
+    assert held["scrolled"] == rested, "and the page stays where it is"
     assert page.text_content("#card h2") == "Full factorial", "a move is not a tap"
 
 

@@ -590,7 +590,8 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 .foot__lead strong { color: var(--fg); }
 .foot__groups, .foot__nav { display: flex; flex-wrap: wrap; gap: 18px 32px; }
 .foot__nav { flex: 3 1 420px; }
-.foot__nav > div { flex: 1 1 150px; }
+/* A group is as wide as its longest link, and shares what room is left: no link's name takes a second line. */
+.foot__nav > div { flex: 1 1 auto; }
 .foot__device { flex: 1 1 240px; }
 .foot__head { margin: 0 0 6px; color: var(--fg); font-weight: 600; }
 .foot ul { margin: 0; padding: 0; list-style: none; }
@@ -1504,7 +1505,7 @@ details.fold[open] > summary { border-bottom: 1px solid var(--line); border-radi
 details.fold > :not(summary) { margin-left: 14px; margin-right: 14px; }
 details.fold > ul { padding-left: 20px; }
 details.fold > :last-child { margin-bottom: 12px; }
-/* What Factorial does (features.html): the same column, for a list that folds. Its headline points are cards, a
+/* The user guide (features.html): the same column, for a list that folds. Its headline points are cards, a
    step of a study is a small heading, and each part under it is a fold that says, while closed, what it holds.
    How Factorial works opens on cards too. */
 .feat-tools { display: grid; gap: 8px; margin: 16px 0 4px; }
@@ -2183,6 +2184,24 @@ main.map > * { width: 100%; max-width: 980px; justify-self: center; box-sizing: 
 main.map > .map-box, main.map > .map-bar { max-width: 1600px; }
 main.map h1 { margin: 8px 0 0; font-size: 2rem; }
 main.map .lede { margin: 0; }
+/* Over the map, three ways to learn (map/index.html): the book's chapter, the course, and the course's videos. A
+   card's name is its link, stretched over the whole card, so a press anywhere on the card follows it. */
+.learn { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.learn li {
+  position: relative; padding: 12px 14px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner);
+}
+.learn li:hover, .learn li:focus-within { border-color: var(--accent); }
+.learn a { font-weight: 600; text-underline-offset: 3px; }
+.learn a::after { content: ""; position: absolute; inset: 0; }
+.learn span { display: block; margin-top: 3px; color: var(--muted); font-size: 0.92rem; line-height: 1.35; }
+/* The book's DOI is to read and to copy: it lies over the card's link, and one press selects the whole of it. */
+.learn .learn__doi { position: relative; z-index: 1; width: fit-content; cursor: text; -webkit-user-select: all; user-select: all; }
+main.map h2.learn__map { margin: 10px 0 0; }
+@media (max-width: 700px) {
+  .learn { grid-template-columns: 1fr; gap: 6px; }
+  .learn li { padding: 8px 12px; }
+}
 .map-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 /* Above the map, three rows: the search with the switches and the level beside it, the kinds of term on one line, and
    the other textbooks on one line. Zoom and fit stay below the map. */

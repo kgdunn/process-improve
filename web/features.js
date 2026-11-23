@@ -1,4 +1,4 @@
-// What Factorial does (features.html): the page is drawn from FEATURES.md, the document the app is described
+// The user guide (features.html), what Factorial does: the page is drawn from FEATURES.md, the document the app is described
 // from, so the two cannot differ. This is a reader of the Markdown that document is written in: headings,
 // paragraphs, lists, tables and rules, with bold, italic, code and links inside them. It is no reader of
 // Markdown at large: what the document does not use is shown as it is typed. The document's own top says how it
