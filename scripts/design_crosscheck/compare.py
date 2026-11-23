@@ -17,6 +17,7 @@ this file for the environment each library needs.
 import contextlib
 import functools
 import importlib
+import inspect
 import itertools
 import json
 import operator
@@ -146,16 +147,22 @@ def _ccd(k: int, opts: dict, names: list[str]) -> tuple[np.ndarray, float]:
     kind = alpha if alpha in ("rotatable", "orthogonal") else "rotatable"
     nc = int(opts.get("n_center_points") or 0)
     center = (nc // 2, nc - nc // 2)
-    if opts.get("cube") == "fractional":  # pyDOE3 has no fractional-cube CCD: compose its own pieces
+    if opts.get("cube") == "fractional":
         gens, res = opts.get("generators"), opts.get("resolution")
         if not gens and not res:  # the same default as process-improve: the half fraction, last = all others
             gens = [f"{names[-1]}={''.join(names[:-1])}"]
-        cube = _fraction(names, gens, res)
-        star = _star(k, alpha={"faced": "faced"}.get(face, kind), center=(1, 1))[0]
-        if face == "inscribed":
-            cube = cube / np.abs(star).max()
-            star = star / np.abs(star).max()
-        m = np.vstack([cube, np.zeros((center[0], k)), star, np.zeros((center[1], k))])
+        if gens and "generators" in inspect.signature(pyDOE3.ccdesign).parameters:
+            # pydoe 1.7.0 on: ccdesign builds the fractional cube itself, from the generators
+            m = pyDOE3.ccdesign(k, center=center, alpha=kind, face=face, generators=_gen_string(names, gens))
+        else:  # no fractional cube in ccdesign, or a cube named by its resolution: compose the package's pieces
+            cube = _fraction(names, gens, res)
+            # pydoe 1.7.0 on: star takes the cube's run count, without which it counts the full cube's runs
+            counts = {"n_cube": len(cube)} if "n_cube" in inspect.signature(_star).parameters else {}
+            star = _star(k, alpha={"faced": "faced"}.get(face, kind), center=(1, 1), **counts)[0]
+            if face == "inscribed":
+                cube = cube / np.abs(star).max()
+                star = star / np.abs(star).max()
+            m = np.vstack([cube, np.zeros((center[0], k)), star, np.zeros((center[1], k))])
     else:
         m = pyDOE3.ccdesign(k, center=center, alpha=kind, face=face)
     return m, float(np.abs(m).max() if face == "circumscribed" else 1.0)
