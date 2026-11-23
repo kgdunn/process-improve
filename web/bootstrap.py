@@ -7697,7 +7697,13 @@ def candidates(request: dict) -> dict:
     info = _response_info(request.get("response_info"))
     scored = [{"label": m["label"], **{key: m["design"][key] for key in ("spec", "columns", "rows")}} for m in made]
     asked = {"model": plan["model"], "designs": scored, **{k: info.get(k) for k in ("noise", "smallest_change")}}
-    several = made and any(_several(f) for f in made[0]["design"]["spec"]["factors"])
+    kept = made[0]["design"]["spec"]["factors"] if made else []
+    # The comparison squares every factor, and a categorical one has no square: coded -1 and +1, its square is the
+    # intercept, so every design would read as unable to fit the model.
+    # shortcut: scored as a factor of several levels is, without the nine measures; score them on the nine once
+    # compare_designs knows which factors are categorical (#790).
+    squared = plan["model"] in {MAIN_QUADRATIC, "quadratic"} and any(_categorical(f) for f in kept)
+    several = squared or any(_several(f) for f in kept)
     if k > MAX_COMPARED_FACTORS:
         notes.append(_compared_sentence(k))
     result = (_powers(asked) if several or k > MAX_COMPARED_FACTORS else compare(asked)) if made else None

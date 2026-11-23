@@ -197,3 +197,20 @@ def test_limits_leave_out_every_design_but_the_optimal_ones(api):
 
 def test_nothing_is_left_out_of_a_brief_every_design_takes(api):
     assert api.ok("api_compare_plan", {"factors": FACTORS, "model": "main_effects"})["left_out"] == []
+
+
+@pytest.mark.parametrize("model", ["main_quadratic", "quadratic"])
+def test_a_two_level_categorical_factor_has_no_square_so_the_optimal_designs_fit(api, model):
+    """A raw material A or B, and its concentration limited at A: the model squares the numeric factors only."""
+    factors = [
+        {"name": "RM", "type": "categorical", "levels": ["A", "B"], "units": ""},
+        {"name": "conc", "low": 0, "high": 2, "units": "%"},
+        {"name": "temp", "low": 20, "high": 60, "units": "degC"},
+    ]
+    limits = [{"expression": "not (RM == 'A' and conc > 1.5)", "note": ""}]
+    listed = api.ok("api_candidates", {"factors": factors, "model": model, "constraints": limits, "search": True})
+    values = listed["result"]["values"]
+    assert values, "the optimal designs are made"
+    assert all(v["fits"] for v in values.values()), values
+    assert "I(RM ** 2)" not in listed["result"]["terms"]
+    assert "I(conc ** 2)" in listed["result"]["terms"]
