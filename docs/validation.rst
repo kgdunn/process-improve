@@ -135,14 +135,16 @@ Only the construction changes, so a difference is a difference in the design.
 .. csv-table:: Design construction against other packages, 22 November 2026 (commit ``37f81b6``); pydoe 1.7.0 on 23 November (commit ``22f507f``)
    :file: validation/design_crosscheck.csv
    :header-rows: 1
-   :widths: 30 38 8 8 8 8
+   :widths: 30 46 8 8 8
 
 How to read the table:
 
-- **Checks** are the numbers of the kinds of design the package builds. **Agree** means both
-  packages give the number the source prints. **Differ** means they give different answers.
-  **Not built** means the package has no design for the request, declines it, or gives no
-  answer in 180 seconds.
+- **Checks** are the printed numbers measured on a design the package built. **Agree** means
+  both packages give the number the source prints. **Differ** means they give different
+  answers.
+- A request outside what a package offers, such as blocks or a kind of design it does not
+  build, is not counted: it is the package's scope, not a fault. Each package's section below
+  says what it does not offer.
 - The numbers that neither package gives as printed are left out: the catalog records their
   cause, most often a misprint in the source.
 - No package here builds OMARS designs, so their 47 checks are in no row.
@@ -177,8 +179,8 @@ orthogonal arrays.
 - **Orthogonal arrays.** DoE.base's arrays have the size and the levels of Taguchi's L8, L9,
   L12, L16 and L27, but not the layout of the printed tables, so the checks that compare runs
   differ. Their equivalence was not tested.
-- **Not built.** A Plackett-Burman design of 136 runs (Schmidt and Launsby, 2000) and a
-  factorial of one factor.
+- **Not counted.** A factorial of one factor, which FrF2 does not offer, and a Plackett-Burman
+  design of 136 runs (Schmidt and Launsby, 2000), for the second reason below.
 
 Two observations on FrF2:
 
@@ -242,7 +244,7 @@ daewr 1.2-11 built the definitive screening designs, with ``DefScreen``.
   conference matrix (Xiao, Lin and Bai, 2012): 2m + 3 runs for an odd number of factors m, the
   run count later sources print, and 25 runs for 12 factors. The checks of run counts, and of
   the measures that follow from them, therefore differ.
-- **Not built.** Designs for 3 factors, and for more than 12.
+- **Outside what DefScreen offers.** Designs for 3 factors, and for more than 12.
 
 :download:`The checks on which daewr differs <validation/differences_daewr.csv>`.
 
@@ -275,10 +277,11 @@ pydoe 1.7.0 built every kind of design in the table. No design differs.
 - **The word "orthogonal".** The four checks that differ are axial distances of Davies (1956):
   ``alpha="orthogonal"`` is the distance for orthogonal blocking, as in rsm. This is a
   difference of definition, not of the design.
-- **Not built by pydoe.** A blocked factorial without the block generators given, a blocked
-  fraction, and a spherical axial distance.
-- **Slow searches.** ``fracfact_opt`` gave no answer within 180 seconds for 14 checks, all on
-  fractions of 10 or 11 factors. They count as not built.
+- **Outside what pydoe offers.** A blocked factorial whose block generators the source does not
+  give, a blocked fraction, and a spherical axial distance.
+- **Slow searches.** ``fracfact_opt`` searches exhaustively, so a fraction of 10 or 11 factors
+  takes minutes: the search for a 2\ :sup:`10-4` fraction took 8 minutes. The 14 checks that
+  did not finish in 3 minutes are not counted.
 
 :download:`The four checks on which pydoe differs <validation/differences_pydoe.csv>`.
 
@@ -291,9 +294,10 @@ dexpy 0.12, from Stat-Ease, built two-level factorials, Box-Behnken designs and 
 composite designs on a full cube.
 
 - **What it builds agrees.** No difference.
-- **Not built.** dexpy chooses a fraction from its run count: it takes no generators, no
-  resolution and no blocks, so most of the catalog's fractions cannot be asked of it. It has
-  no central composite design on a fractional cube, and no factor with more than two levels.
+- **Outside what dexpy offers.** dexpy chooses a fraction from its run count: it takes no
+  generators, no resolution and no blocks, so most of the catalog's fractions cannot be asked of
+  it. It has no central composite design on a fractional cube, and no factor with more than two
+  levels.
 
 .. _validation-oapackage:
 
@@ -307,7 +311,7 @@ enumerates, and the orthogonal arrays, by extending an array one column at a tim
 - **Orthogonal arrays.** The 12-run array has the size and the levels of Taguchi's L12 but not
   the layout of the printed table, so the one check that compares its runs differs. The others
   agree.
-- **Not built.** The search for a 24-factor design did not end in 180 seconds.
+- **Not counted.** The search for a 24-factor design did not end in 3 minutes.
 
 :download:`The check on which OApackage differs <validation/differences_oapackage.csv>`.
 
@@ -316,8 +320,8 @@ enumerates, and the orthogonal arrays, by extending an array one column at a tim
 definitive-screening-design (Python)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-definitive-screening-design 0.5.1 built the definitive screening designs. No difference, and
-nothing not built.
+definitive-screening-design 0.5.1 built every definitive screening design asked of it. No
+difference.
 
 Three packages therefore build these designs alike, from a conference matrix: process-improve,
 OApackage and definitive-screening-design. daewr returns the earlier designs.

@@ -1,9 +1,9 @@
-Package,Designs compared,Checks,Agree,Differ,Not built
-FrF2 2.3-5 (R),"full factorial, fractional factorial, Plackett-Burman","2,757","2,755",0,2
-DoE.base 1.2-5 (R),"full factorial, orthogonal array",49,42,7,0
-rsm 2.10.6 (R),"Box-Behnken, central composite",319,309,10,0
-daewr 1.2-11 (R),definitive screening,131,99,26,6
-dexpy 0.12 (Python),"full factorial, fractional factorial, Box-Behnken, central composite","3,030",370,0,"2,660"
-OApackage 2.7.21 (Python),"definitive screening, orthogonal array",141,139,1,1
-definitive-screening-design 0.5.1 (Python),definitive screening,127,127,0,0
-pydoe 1.7.0 (Python),"full factorial, fractional factorial, Plackett-Burman, Box-Behnken, central composite, definitive screening, orthogonal array","3,248","3,162",4,82
+Package,Designs compared,Checks,Agree,Differ
+FrF2 2.3-5 (R),"full factorial, fractional factorial, Plackett-Burman","2,755","2,755",0
+DoE.base 1.2-5 (R),"full factorial, orthogonal array",49,42,7
+rsm 2.10.6 (R),"Box-Behnken, central composite",319,309,10
+daewr 1.2-11 (R),definitive screening,125,99,26
+dexpy 0.12 (Python),"full factorial, fractional factorial, Box-Behnken, central composite",370,370,0
+OApackage 2.7.21 (Python),"definitive screening, orthogonal array",140,139,1
+definitive-screening-design 0.5.1 (Python),definitive screening,127,127,0
+pydoe 1.7.0 (Python),"full factorial, fractional factorial, Plackett-Burman, Box-Behnken, central composite, definitive screening, orthogonal array","3,166","3,162",4

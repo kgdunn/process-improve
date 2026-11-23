@@ -67,11 +67,12 @@ def main() -> None:
         mine = mine[
             ~mine["other"].str.contains("harness does not map", na=False)
         ]  # a limit of compare.py, not the package
-        # A package is compared on the kinds of design it builds at least once. A number that neither library
-        # gives as printed is the catalog's subject, not this comparison's.
+        # A package is measured on the designs it built. A request it does not offer (blocks, a kind of design,
+        # an option) or did not finish in time is its scope, not a fault, and is not counted. A number that
+        # neither library gives as printed is the catalog's subject, not this comparison's.
         built = mine["outcome"].isin(["agree", "other differs", "process-improve differs"])
         builds = mine.loc[built, "design_type"].unique()
-        mine = mine[mine["design_type"].isin(builds) & (mine["outcome"] != "neither gives the printed number")]
+        mine = mine[built]
         count = mine["outcome"].value_counts()
         table.append(
             {
@@ -80,7 +81,6 @@ def main() -> None:
                 "Checks": f"{len(mine):,}",
                 "Agree": f"{count.get('agree', 0):,}",
                 "Differ": f"{count.get('other differs', 0) + count.get('process-improve differs', 0):,}",
-                "Not built": f"{count.get('other cannot build', 0):,}",
             }
         )
         differs = mine[mine["outcome"].isin(["other differs", "process-improve differs"])]
