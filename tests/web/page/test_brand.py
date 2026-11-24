@@ -177,3 +177,24 @@ def test_the_other_pages_wear_the_app_s_look():
     mva = (ROOT / "web" / "mva" / "mva.css").read_text(encoding="utf-8")
     assert "--bg: #f5f6f4;" in mva, "the multivariate page stands on the app's neutral ground"
     assert "#faf8f3" not in mva
+
+
+def test_every_brace_of_the_stylesheet_closes_a_block_it_opened():
+    """A closing brace with no block to close cancels the rule after it, and nothing says so.
+
+    Two were left in ``style.css`` by merges. One cancelled the rule that laid out the top of the design catalog, the
+    other the rule of the card under the concept map: each page showed that part with the browser's own layout.
+    """
+    css = re.sub(r"/\*.*?\*/", lambda found: "\n" * found.group(0).count("\n"), source("style.css"), flags=re.DOTALL)
+    depth, stray = 0, []
+    for number, line in enumerate(css.splitlines(), 1):
+        for mark in line:
+            if mark == "{":
+                depth += 1
+            elif mark == "}":
+                depth -= 1
+                if depth < 0:
+                    stray.append(number)
+                    depth = 0
+    assert stray == [], f"a closing brace with nothing to close, at line {stray}"
+    assert depth == 0, "a block is left open at the end of the file"

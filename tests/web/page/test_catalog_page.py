@@ -65,21 +65,22 @@ def test_every_file_the_catalog_loads_is_published(build_script):
     assert {"campaign.js", "charts.js", "catalog-logic.js", "catalog-views.js"} <= imported
     # The views take the rule for a link out from campaign.js (tabOf), which catalog.js loads already.
     assert set(re.findall(r'from "\./([^"]+)"', source("catalog-views.js"))) == {"campaign.js", "catalog-logic.js"}
-    fields = "catalog/fields.json"  # the fields of the question at the top, which write_fields writes
     checked = "checked.json"  # what each kind of design was checked against, which the build copies
     assert fetched == {
         "catalog/index.json",
         "wheels/manifest.json",
         "catalog/detail/",
         "catalog/errata.json",
-        fields,
         checked,
     }
     assert checked in build_script.APP_FILES
     assert source("catalog.js").count("fetch(") == len(fetched), "every fetch goes through app()"
     assert not any(ref.startswith("/") for ref in refs | fetched), "an absolute address breaks on GitHub Pages"
-    # The list of books is written by the build (tests/web/page/test_book_pages.py), not copied from web/.
-    assert (loaded - {"catalog/books/index.html"}) | imported <= set(build_script.APP_FILES)
+    # The lists of books and of fields are written by the build (tests/web/page/test_book_pages.py and
+    # test_field_pages.py), not copied from web/: the links at the page's foot lead to them.
+    written = {"catalog/books/index.html", "catalog/fields/index.html"}
+    assert written <= loaded, "the ways in by book and by field"
+    assert (loaded - written) | imported <= set(build_script.APP_FILES)
     assert "app.js" not in imported, "importing app.js would start the app's Python worker"
 
 
@@ -103,7 +104,9 @@ def test_every_file_the_reproduction_page_loads_is_published(build_script):
     assert fetched == {"catalog/reproduction.json"}
     assert source("reproduced.js").count("fetch(") == len(fetched), "every fetch goes through app()"
     assert (loaded - {books}) | imported <= set(build_script.APP_FILES)
-    assert 'href="../validation.html"' in source(PAGE), "the catalog's door opens validation"
+    # The catalog ends in the footer every page shares, whose "Is it accurate?" opens validation.
+    assert '<script src="../site.js" type="module"></script>' in source(PAGE)
+    assert '["validation.html", "Is it accurate?"]' in source("site.js")
     assert 'href="catalog/reproduced/"' in source("validation.html"), "which links to it"
 
 
@@ -215,6 +218,11 @@ def test_every_search_the_page_suggests_finds_designs_and_its_filters_agree_with
     placeholder = re.search(r'placeholder="([^"]+)"', source(PAGE)).group(1).replace("&lt;", "<")
     assert len(tries) >= 3
     records = design_catalog.catalog_records()
+    # The page's first line counts the designs and the sources in round numbers, which hold until one passes the next.
+    counted = sum(r["kind"] not in ("facts", "sample") for r in records)
+    lede = " ".join(re.search(r'<p class="lede">(.*?)</p>', source(PAGE), flags=re.DOTALL).group(1).split())
+    assert lede.startswith(f"Over {counted // 100 * 100:,} experimental designs from more than "), counted
+    assert f"more than {len(design_catalog.catalog_sources()) // 10 * 10} textbooks and papers." in lede
     designs = [
         {key: r[key] for key in design_catalog.INDEX_FIELDS} | {"open": False, "regenerable": None} for r in records
     ]

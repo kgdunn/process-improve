@@ -36,25 +36,70 @@ def counted(page, text: str) -> None:
     page.wait_for_function(f"document.querySelector('#count').textContent.startsWith({text!r})")
 
 
-def test_the_reader_s_field_opens_its_page_and_a_goal_writes_a_search(context, site):
-    """The question at the top lists the fields the build wrote; a goal fills the search box, for the reader to edit."""
+def test_a_goal_writes_a_search_and_the_ways_in_by_book_and_by_field_are_at_the_foot(context, site):
+    """A goal fills the search box, for the reader to edit; the lists of books and of fields are a link each.
+
+    The page opened on a question about the reader's field and three doors, over the search: some twenty things to
+    press before the first design. The top is now the search and the goals, and the table follows.
+    """
     page = open_catalog(context, site)
-    page.wait_for_selector("#field option[value='chemical-processes']", state="attached")
+    assert page.locator("#field-form, .door").count() == 0
+    first = page.locator("main > :is(form, nav, div, h2, p):not(.about__back, .site-top, .lede)").first
+    assert first.get_attribute("class") == "catalog__search", (
+        "the search is the first thing under the page's first line"
+    )
+    assert page.text_content("#goals-title") == "Try:"
     page.click("text=Blend ingredients")
     assert page.input_value("#query") == "mixture"
     counted(page, "0 of 5")
-    # The build writes the field's page (tests/web/page/test_field_pages.py): this site stands in for it.
-    page.route("**/catalog/fields/**", lambda route: route.fulfill(body="<h1>A field</h1>", content_type="text/html"))
-    page.select_option("#field", "chemical-processes")
-    page.click("#field-form button")
-    page.wait_for_url("**/catalog/fields/chemical-processes/")
+    foot = page.locator(".catalog__views a, .catalog__views button").all_text_contents()
+    assert [" ".join(words.split()) for words in foot] == [
+        "Browse by book",
+        "Browse by field",
+        "Errata: every printed number that does not reproduce",
+        "Propose a design for the catalog",
+        "Share a case study of your own",
+    ]
+    assert page.evaluate(
+        "document.querySelector('.catalog__views').compareDocumentPosition(document.querySelector('#results')) & 2"
+    ), "after the list"
+    # The build writes the list of fields (tests/web/page/test_field_pages.py): this site stands in for it.
+    page.route("**/catalog/fields/**", lambda route: route.fulfill(body="<h1>Fields</h1>", content_type="text/html"))
+    page.click("text=Browse by field")
+    page.wait_for_url("**/catalog/fields/")
+
+
+def test_where_a_design_is_from_is_a_filter_that_says_what_the_two_kinds_are(context, site):
+    """Published, Generated and Both stood beside the search with no word on what they meant, or why to choose."""
+    page = open_catalog(context, site)
+    box = page.locator("#facets fieldset", has=page.locator("#collection"))
+    assert box.locator("legend").text_content() == "Where it is from"
+    assert page.locator("#collection [role=radio]").all_text_contents() == [
+        "Books and papers",
+        "Made by Factorial",
+        "Both",
+    ]
+    said = " ".join(box.locator(".hint").text_content().split())
+    assert said.startswith("A design from a book or paper comes with the experiment it was run in")
+    assert "Factorial makes the others itself" in said
+
+
+def test_a_family_s_row_has_one_number_the_designs_it_holds(context, site):
+    """A row had the year the family was first published and its count: two numbers on some rows, one on others."""
+    page = open_catalog(context, site)
+    rows = page.locator("#families label").evaluate_all(
+        """(rows) => rows.map((row) => [...row.querySelectorAll('span')]
+             .map((part) => part.textContent).filter((text) => /^\\d+$/.test(text)))"""
+    )
+    assert rows, "the families are listed"
+    assert all(len(numbers) == 1 for numbers in rows), rows
 
 
 def test_the_app_s_bar_opens_the_catalog(fresh_page):
     fresh_page.click(".studybar__link[href='catalog/']")
     fresh_page.wait_for_url("**/catalog/")
     fresh_page.wait_for_selector(".result")
-    assert fresh_page.text_content("#count") == "5 of 5 designs: 2 published, 3 generated"
+    assert fresh_page.text_content("#count") == "5 designs"
     assert set(shown(fresh_page)) == {PILOT, COMPARISON, CCD, OMARS, CUBE}
     assert shown(fresh_page)[-1] == COMPARISON, "a comparison is listed after the designs"
 
@@ -473,13 +518,13 @@ def cell(row: int, band: int) -> str:
 def test_the_map_counts_every_design_in_the_cell_of_its_factors_and_runs(context, site):
     page = open_map(context, site)
     assert page.locator("#map .sizemap__cell").evaluate_all(CELLS) == [
-        "1 factor, 17 to 24 runs: 1 design. Most estimate the main effects. Press to list it.",
+        "1 factor, 17 to 24 runs: 1 design. It estimates the main effects. Press to list it.",
         (
-            "3 factors, 5 to 8 runs: 2 designs. Most estimate the main effects and the two-factor interactions. "
-            "Press to list them."
+            "3 factors, 5 to 8 runs: 2 designs. At most, they estimate the main effects and the two-factor "
+            "interactions. Press to list them."
         ),
-        "3 factors, 17 to 24 runs: 1 design. Most estimate the full quadratic. Press to list it.",
-        "4 factors, 9 to 12 runs: 1 design. Most estimate the main effects. Press to list it.",
+        "3 factors, 17 to 24 runs: 1 design. It estimates the full quadratic. Press to list it.",
+        "4 factors, 9 to 12 runs: 1 design. It estimates the main effects. Press to list it.",
     ]
     assert page.locator("#map .sizemap__count").all_text_contents() == ["1", "2", "1", "1"]
     assert page.locator("#map [data-unfold]").count() == 13, "a row for 1 to 12 factors, and one for more"
@@ -504,14 +549,14 @@ def test_a_cell_of_the_map_lists_its_designs_and_a_second_press_or_the_reset_lis
     assert page.locator("#map .sizemap__cell").count() == 4, "the other cells are still counted"
     assert page.locator("#map .sizemap__cell.out").count() == 3, "and pale: none of theirs is in the list"
     page.click(cell(3, 1))
-    counted(page, "5 of 5")
+    counted(page, "5 designs")
     assert page.locator("#map .sizemap__cell.out").count() == 0
 
     page.click(cell(4, 2))
     counted(page, "1 of 5")
     assert shown(page) == [OMARS]
     page.click("#map-reset")
-    counted(page, "5 of 5")
+    counted(page, "5 designs")
     assert "runs=" not in page.url, "the address loses the cell"
     assert "k=" not in page.url
 
@@ -527,13 +572,13 @@ def test_a_row_of_the_map_opens_into_its_families_and_a_mark_lists_its_size(cont
     marks = page.locator("#map .sizemap__mark").evaluate_all(CELLS)
     assert marks == [
         (
-            "8 runs, Full factorial: 2 designs of 3 factors. Most estimate the main effects and the two-factor "
-            "interactions. Press to list them."
+            "8 runs, Full factorial: 2 designs of 3 factors. At most, they estimate the main effects and the "
+            "two-factor interactions. Press to list them."
         ),
         "17 runs, Central composite: 1 design of 3 factors. It estimates the full quadratic. Press to list it.",
     ]
     assert page.locator("#map .sizemap__fewest").all_text_contents() == ["4", "10"], "the fewest runs, by the lines"
-    assert page.text_content("#count").startswith("5 of 5"), "opening a row filters nothing"
+    assert page.text_content("#count") == "5 designs", "opening a row filters nothing"
 
     page.click("#map .sizemap__mark[data-runs='17']")
     counted(page, "1 of 5")
@@ -557,7 +602,7 @@ def test_a_row_of_the_map_opens_into_its_families_and_a_mark_lists_its_size(cont
     assert page.locator("#map .sizemap__mark").count() == 0, "a second press shuts the row"
     page.click("#map [data-unfold='3']")
     page.click("#map-reset")
-    counted(page, "5 of 5")
+    counted(page, "5 designs")
     assert page.locator("#map [aria-expanded=true]").count() == 0, "the reset shuts every row"
 
 
@@ -581,24 +626,75 @@ def test_the_map_says_what_a_press_listed_and_leads_to_the_list_where_a_design_o
     page.wait_for_selector("#detail[open]")
     page.keyboard.press("Escape")
     page.click("#map-reset")
-    counted(page, "5 of 5")
+    counted(page, "5 designs")
     assert page.is_hidden("#map-said")
     assert "fam=" not in page.url, "the reset takes the mark's family with its size"
 
 
-def test_the_map_s_cells_are_coloured_by_what_they_estimate_or_by_how_many_they_hold(context, site):
+def test_the_table_s_cells_are_coloured_by_the_most_a_design_of_that_size_estimates(context, site):
+    """One coloring, in three steps a reader can tell apart, with a key of a few words a label.
+
+    The cells were four shades of one blue, by what most designs of a cell estimate or by how many it holds: both
+    follow the sources the catalog happens to hold. The most that one of them estimates says what the size can do.
+    """
     page = open_map(context, site)
     fills = "(cells) => cells.map((cell) => [...cell.classList].find((name) => name.startsWith('fill-')))"
-    assert page.get_attribute("[data-shade=model]", "aria-pressed") == "true", "what they estimate, at first"
     assert page.locator("#map .sizemap__cell").evaluate_all(fills) == ["fill-2", "fill-3", "fill-4", "fill-2"]
-    assert page.locator(".sizemap__key [data-key=model]:visible").count() == 5
-    assert page.is_hidden(".sizemap__key [data-key=count]")
-    page.click("[data-shade=count]")
-    assert page.get_attribute("[data-shade=count]", "aria-pressed") == "true"
-    assert page.locator("#map .sizemap__cell").evaluate_all(fills) == ["fill-1"] * 4, "one to four designs each"
-    assert page.is_visible(".sizemap__key [data-key=count]")
-    assert page.locator(".sizemap__key [data-key=model]:visible").count() == 0
-    assert page.locator(".sizemap__key li:visible").count() == 3, "the two lines' key is there for both"
+    assert page.locator("[data-shade]").count() == 0, "no second coloring to choose"
+    key = [" ".join(words.split()) for words in page.locator(".sizemap__key li").all_text_contents()]
+    assert key == ["main effects", "+ interactions", "+ quadratic", "none stated", "fewest needed"]
+    assert all(len(label.split()) <= 5 for label in key), "a few words a label"
+    tops = page.locator(".sizemap__key li").evaluate_all(
+        "(items) => items.map((item) => item.getBoundingClientRect().top)"
+    )
+    assert len(set(tops)) == 1, "the key is one line at a laptop's width"
+    fill = "(marks) => marks.map((mark) => getComputedStyle(mark).fill)"
+    colours = page.locator(".sizemap__key rect").evaluate_all(fill)
+    assert colours[:3] == ["rgb(34, 96, 97)", "rgb(164, 138, 51)", "rgb(253, 180, 182)"], "three steps of batlow"
+    cells = page.locator("#map .sizemap__cell rect").evaluate_all(fill)
+    assert cells == [colours[0], colours[1], colours[2], colours[0]], "a cell has its key's color"
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 656, "height": 1000}}])
+def test_on_a_tablet_the_table_s_key_is_one_line(context, site):
+    """The key took three lines of a tablet's screen over the table, with seven long labels."""
+    page = open_map(context, site)
+    # In a wide font, as a device without the page's own may show it: the key was one line in a narrow font only.
+    tops = page.locator(".sizemap__key").evaluate(
+        """(key) => { key.style.fontFamily = '"DejaVu Sans", Verdana, sans-serif';
+             return [...key.querySelectorAll('li')].map((item) => Math.round(item.getBoundingClientRect().top)); }"""
+    )
+    assert len(tops) == 5
+    assert len(set(tops)) == 1, "one line"
+    room = page.locator(".sizemap__key").evaluate(
+        """(key) => { const last = key.lastElementChild.getBoundingClientRect();
+             return key.getBoundingClientRect().right - last.right; }"""
+    )
+    assert room > 24, f"with room to spare for a wider font still: {room} px"
+
+
+def test_the_table_names_its_two_sides_and_a_row_s_number_looks_like_the_button_it_is(context, site):
+    """The numbers down the side were plain circles: nothing said they open, or what the two sides count."""
+    page = open_map(context, site)
+    assert page.text_content("#map-title") == "Start with your number of factors"
+    sides = [" ".join(words.split()) for words in page.locator(".sizemap__axis").all_text_contents()]
+    assert sides == ["Factors: press a number to open its design families", "Number of experiments (scales with cost)"]
+    row = page.locator("#map [data-unfold='3']")
+    assert row.locator(".sizemap__arrow").count() == 1, "an arrow says the number opens"
+    ring = row.locator("rect").evaluate("(mark) => getComputedStyle(mark).stroke")
+    accent = page.evaluate("getComputedStyle(document.querySelector('.catalog__views a')).color")
+    assert ring == accent, "ringed in the color of a link"
+    shut = row.locator(".sizemap__arrow").get_attribute("d")
+    row.click()
+    row = page.locator("#map [data-unfold='3']")
+    assert row.get_attribute("aria-expanded") == "true"
+    assert row.locator(".sizemap__arrow").get_attribute("d") != shut, "the arrow turns down on an open row"
+    how = page.locator(".sizemap__how")
+    assert how.get_attribute("open") is None, "how to read the table is shut until asked for"
+    how.locator("summary").click()
+    said = " ".join(how.text_content().split())
+    assert "The number in a cell is how many designs it holds" in said
+    assert "the main effects, which are each factor's own effect" in said, "the key's words, at length"
 
 
 def test_the_map_is_used_from_the_keyboard(context, site):
@@ -632,8 +728,8 @@ def test_a_design_of_more_factors_than_the_map_has_rows_is_in_its_last_row(many_
     page = open_map(many_context, site)
     labels = page.locator("#map .sizemap__cell[data-row='13']").evaluate_all(CELLS)
     assert labels == [
-        "13 factors or more, 25 to 32 runs: 1 design. Most estimate the main effects. Press to list it.",
-        "13 factors or more, 65 to 128 runs: 1 design. Most estimate the main effects. Press to list it.",
+        "13 factors or more, 25 to 32 runs: 1 design. It estimates the main effects. Press to list it.",
+        "13 factors or more, 65 to 128 runs: 1 design. It estimates the main effects. Press to list it.",
     ]
     page.click(cell(13, 5))
     counted(page, "1 of 7")
@@ -817,7 +913,7 @@ def test_a_limit_keeps_the_designs_whose_every_run_meets_it(context, site):
     assert "lim=A+%2B+B+%3C%3D+1" in page.url
     page.fill("#limit", "A + B")
     assert page.text_content("#limit-error").startswith("The limit cannot be read: write <= for at most")
-    counted(page, "5 of 5")
+    counted(page, "5 designs")
 
 
 def test_a_design_s_runs_outside_the_limit_are_marked_and_it_opens_with_the_limit(context, site):

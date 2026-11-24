@@ -407,12 +407,11 @@ export function bandPlace(runs) {
 /** What a design estimates, as a step of the map's colors: 3 the full quadratic, 2 interactions, 1 main effects, 0 none or not stated. */
 export const modelStep = (design) => ["main_effects", "interactions", "quadratic"].indexOf(largestModel(design.models)) + 1;
 
-/** The step most of these designs are at; of two steps as common, the higher. */
-const commonStep = (designs) => {
-  const counts = [0, 0, 0, 0];
-  for (const d of designs) counts[modelStep(d)] += 1;
-  return counts.lastIndexOf(Math.max(...counts));
-};
+/**
+ * The highest step one of these designs is at: the most a design of their size can tell a reader. What most of
+ * them estimate would follow the sources the catalog happens to hold, and say less of the size itself.
+ */
+const bestStep = (designs) => Math.max(0, ...designs.map(modelStep));
 
 /** The items of a list by what ``key`` gives for each, in the order first met. */
 function grouped(list, key) {
@@ -426,8 +425,8 @@ const middleRuns = (designs) => designs.map((d) => d.n_runs).sort((a, b) => a - 
 
 /**
  * A row of the map opened into its families: a lane for each, the families of small designs first and "other"
- * last, with a mark for each run size. A mark says how many designs it holds, what most of them estimate, and
- * how many are in the list.
+ * last, with a mark for each run size. A mark says how many designs it holds, the most that one of them
+ * estimates, and how many are in the list.
  */
 function familyLanes(designs, listed, catalog) {
   const byFamily = grouped(designs, (d) => d.family);
@@ -437,7 +436,7 @@ function familyLanes(designs, listed, catalog) {
     label: catalog.families?.[family]?.label ?? family,
     count: byFamily.get(family).length,
     marks: [...grouped(byFamily.get(family), (d) => d.n_runs)]
-      .map(([runs, same]) => ({ runs, count: same.length, step: commonStep(same), listed: same.filter((d) => listed.has(d)).length }))
+      .map(([runs, same]) => ({ runs, count: same.length, step: bestStep(same), listed: same.filter((d) => listed.has(d)).length }))
       .sort((a, b) => a.runs - b.runs),
   }));
 }
@@ -446,8 +445,9 @@ function familyLanes(designs, listed, catalog) {
  * The map of the designs by their factors and runs: a row for each number of factors, and in it a cell for
  * each band of runs. It counts with every filter as it is but the three it shows, the runs, the factors and the
  * families, as the timeline counts with every filter but the years: a reader sees what the other sizes and
- * families hold. A cell says how many designs it holds, what most of them estimate, and how many are in the
- * list; a row names the fewest runs the main effects and the full quadratic need, and holds its families' lanes.
+ * families hold. A cell says how many designs it holds, the most that one of them estimates, and how many are
+ * in the list; a row names the fewest runs the main effects and the full quadratic need, and holds its families'
+ * lanes.
  */
 export function sizeMap(catalog, state) {
   const filters = filtersOf(state);
@@ -464,7 +464,7 @@ export function sizeMap(catalog, state) {
       fewest: [minimumRuns(row, "main_effects"), minimumRuns(row, "quadratic")],
       cells: RUN_BANDS.map((_, band) => {
         const inside = designs.filter((d) => runBand(d.n_runs) === band);
-        return { count: inside.length, step: inside.length ? commonStep(inside) : 0, listed: inside.filter((d) => listed.has(d)).length };
+        return { count: inside.length, step: bestStep(inside), listed: inside.filter((d) => listed.has(d)).length };
       }),
       lanes: familyLanes(designs, listed, catalog),
     };
@@ -606,18 +606,22 @@ const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 /** Whether a catalog entry is a design to run: not facts a source prints about designs, nor one sample measured. */
 export const isDesign = (design) => design.kind !== "facts" && design.kind !== "sample";
 
+/** A count as a reader writes it: 1,404. */
+const counted = (n) => n.toLocaleString("en-US");
+
 /**
- * Say how many of the catalog's designs the list shows, published and generated; an entry of facts about designs,
- * or of one sample with nothing varied, is listed but counted apart, as it is no design.
+ * Say how many of the catalog's designs the list shows: all of them, or so many of them. An entry of facts about
+ * designs, or of one sample with nothing varied, is no design: a narrowed list that holds some counts them apart,
+ * and the whole catalog's count leaves them out, as the page's first line is about its designs.
  */
 export function countSentence(list, catalog) {
-  const designs = list.filter(isDesign);
-  const of = `${designs.length} of ${plural(catalog.designs.filter(isDesign).length, "design")}`;
+  const designs = list.filter(isDesign).length;
+  const all = catalog.designs.filter(isDesign).length;
+  if (list.length === catalog.designs.length) return `${counted(all)} design${all === 1 ? "" : "s"}`;
+  const of = `${counted(designs)} of ${counted(all)} design${all === 1 ? "" : "s"}`;
   if (!list.length) return `${of}: change a filter or the search to see more`;
-  const published = designs.filter((d) => d.collection === "published").length;
-  const others = list.length - designs.length;
-  const more = others ? `; and ${plural(others, "entry", "entries")} of facts about designs or a single sample` : "";
-  return `${of}: ${published} published, ${designs.length - published} generated${more}`;
+  const others = list.length - designs;
+  return others ? `${of}, and ${plural(others, "entry", "entries")} of facts about designs or a single sample` : of;
 }
 
 /** The largest model a design estimates in full, in words; null when the catalog does not state it. */

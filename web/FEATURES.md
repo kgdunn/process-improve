@@ -1032,10 +1032,15 @@ What a careful reader, or an organization, asks before using a tool.
 - **[The design catalog](catalog/).** More than 1,500 published experiments and designs
   (Nov 2026) to search, compare and open in Factorial with one click.
   - *Details:* Published experiments and designs from 22 sources, 1956 to 2026, and designs
-    the library makes. Search in words, filter by family, field, runs, factors and model, and
-    see them counted on a map of factors by runs: a row opens into its families of design,
-    each mark colored by what the design truly estimates, and a press on a cell or a mark
-    lists its designs. The filter for the years has a strip of bars over its two boxes: a
+    the library makes. The page opens on the search and on searches to try. Under them is a
+    table of the designs by size: a row for each number of factors, a column for each band of
+    the number of experiments. A cell's color is the most that a design of that size can tell
+    you: each factor's own effect, how factors act together, or curvature, in three colors of
+    the charts' own color map. A row's number is a button that opens the row into its families
+    of design, each mark colored the same way, and a press on a cell or a mark lists its
+    designs. Search in words, or filter by family, field, runs, factors and model. Where a
+    design is from, a book or paper or Factorial itself, is a filter that says what the two
+    kinds are. The lists by book and by field are links at the foot of the page. The filter for the years has a strip of bars over its two boxes: a
     bar's height is the number of designs published in its five years, and a drag across the
     strip, or a press on a bar, fills the boxes. A design's page links to where its source
     prints it, projects its runs onto two or three factors, and draws its correlation map. A
@@ -1048,8 +1053,8 @@ What a careful reader, or an organization, asks before using a tool.
     feed, and forms to propose a published design or share a case study.
 - **[Is it accurate?](validation.html).** What Factorial is checked against, on one page: the
   books and papers that print its designs, and the other software that builds them.
-  - *Details:* The footer's link and the design catalog's door have the page's name, "Is it
-    accurate?", and both open it. The page counts the sources and the packages, and the differences found: the
+  - *Details:* The footer's link has the page's name, "Is it accurate?", on every page. The
+    page counts the sources and the packages, and the differences found: the
     misprints in the books, the differences reported to other packages, and the gaps in
     Factorial. A grid has a row for each kind of design, with the packages it was compared
     with: a point where a package gives the same design, and a ring where it differs in
