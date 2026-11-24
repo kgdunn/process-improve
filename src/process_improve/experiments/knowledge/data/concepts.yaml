@@ -219,7 +219,10 @@
       effects, and their interactions with the whole-plot factors, are tested
       against the variation inside whole plots and are estimated more
       precisely. An analysis that treats the runs as completely randomized
-      understates the error of the whole-plot effects.
+      understates the error of the whole-plot effects, so a hard-to-change
+      factor can show an effect that it does not have. A hard-to-change
+      factor is set again for each whole plot, also when its setting stays
+      the same.
     expert: >
       The model is a mixed model with a random effect for each whole plot,
       fitted by REML; generalized least squares gives the coefficients at an
@@ -237,9 +240,10 @@
   topic: design_properties
   content:
     novice: >
-      A Latin square tests one factor while blocking on two sources of
-      unwanted variation. It is laid out as a square in which each treatment
-      appears once in every row and once in every column.
+      A Latin square tests one factor while blocking on two disturbances:
+      sources of variation that are not of interest. It is laid out as a
+      square in which each treatment appears once in every row and once in
+      every column.
     intermediate: >
       A p x p Latin square compares p treatments in p^2 runs, where crossing
       the treatments with both blocking factors takes p^3. The rows and the

@@ -392,18 +392,19 @@
   category: screening
   description:
     novice: >
-      A table of runs, such as L8, L9 or L18, in which every pair of factors
-      meets at each combination of their levels equally often. Taguchi made
-      these arrays widely used for improving the quality of a product.
+      A table of runs, such as L8, L9 or L18, in which each combination of the
+      levels of any two factors appears equally often. Taguchi brought these
+      arrays into wide use for improving the quality of a product.
     intermediate: >
       An orthogonal array of strength 2, written L_N, has N runs and a column
       for each factor. In any two columns every pair of levels appears equally
       often, so the main effects are estimated independently of each other.
       Columns can have different numbers of levels: L18 holds one two-level
       and seven three-level factors. Two-factor interactions are aliased with
-      main effects unless columns are left free for them. In robust parameter
-      design the control factors are in an inner array and the noise factors
-      in an outer array, and the two are crossed.
+      main effects. In some arrays, such as L8, L9, L16 and L27, an
+      interaction falls in known columns, which can be left empty for it. In
+      robust parameter design the control factors are in an inner array and
+      the noise factors in an outer array, and the two are crossed.
     expert: >
       Orthogonal arrays were introduced by Rao (1947); Taguchi tabulated a
       standard set for quality engineering. L4, L8, L16 and L32 are regular
@@ -415,9 +416,9 @@
       arrays by signal-to-noise ratios has been criticized (Box 1988; Nair
       1992): a combined array often needs fewer runs.
   suitable_for:
-    - "Many factors, some with three or more levels"
-    - "Each factor's own effect is wanted from few runs"
-    - "A product must stay on target while conditions it cannot control vary (an inner and an outer array)"
+    - "Many factors are studied, some of them at three or more levels"
+    - "The main effect of each factor is wanted from few runs"
+    - "A product must stay on target while its conditions of use vary (an inner and an outer array)"
   properties:
     resolution: "III in general: main effects are clear of each other, not of two-factor interactions"
     orthogonal: true
@@ -437,11 +438,10 @@
     - "Factors with different numbers of levels fit in one array"
     - "Tabulated arrays: the runs can be laid out by hand"
   disadvantages:
-    - "Interactions between factors are mixed with the main effects unless columns are kept free for them"
-    - "A full array leaves no runs to estimate the error from"
-    - "Crossing an inner and an outer array multiplies their runs"
+    - "An interaction is aliased (mixed) with main effects unless the columns it falls in are left empty"
+    - "In L12, L18 and L36 the interactions are spread over many columns: no column can be left empty for them"
+    - "L4, L8 and L16 are the runs of two-level fractional factorials, and L12 of a Plackett-Burman design"
   common_misconceptions:
-    - "Taguchi arrays are a kind of design of their own - several are the same runs as a two-level fractional factorial or a Plackett-Burman design"
     - "An orthogonal array shows that interactions are absent - a saturated array cannot detect them"
   references:
     - "Rao (1947)"
@@ -456,8 +456,8 @@
     novice: >
       An experiment on a blend, where the factors are the proportions of the
       ingredients and add up to a fixed total. Raising one ingredient lowers
-      the others, so the runs are placed on a simplex: a triangle, for three
-      ingredients.
+      at least one other, so the runs are placed on a simplex: a triangle, for
+      three ingredients.
     intermediate: >
       The q components of a mixture are proportions that sum to 1, so the
       region is a simplex of q - 1 dimensions. A polynomial with an intercept
@@ -481,7 +481,6 @@
   suitable_for:
     - "The response depends on the proportions of the ingredients, not on the amount of the blend"
     - "A product is being formulated: a food, a fuel, a polymer, a coating"
-    - "Some ingredients have a lower or an upper limit"
   properties:
     resolution: "Not applicable: the design is sized to a Scheffé model"
     orthogonal: false
@@ -502,9 +501,10 @@
     - "Sized to the Scheffé model that will be fitted"
     - "Takes limits on single components and on sums of components"
   disadvantages:
-    - "A model with an intercept cannot be fitted: a Scheffé model is used, and its terms are read as blending"
-    - "The effect of one ingredient is not separate from the others: raising it lowers them"
-    - "Limits on the ingredients cut the simplex down, and the design is built for what is left of it"
+    - "The proportions add up to one, so an intercept cannot be fitted beside them: a Scheffé model has none"
+    - "A coefficient is not the effect of one ingredient: no ingredient changes while the others stay fixed"
+    - "Limits on the ingredients cut the simplex down, and the design is then built for what is left of it"
+    - "Where the amount of the blend matters too, it is one more factor (a component-amount design)"
   common_misconceptions:
     - "The components can be set independently, like the factors of a factorial - the proportions sum to 1, so a change in one changes at least one other"
     - "The x_i x_j terms of a Scheffé model are interactions - they measure nonlinear blending of two components"
@@ -562,9 +562,9 @@
     - "Screens more factors than it has runs"
     - "Each factor is at each of its two levels in half of the runs"
   disadvantages:
-    - "The effects are correlated with one another, so an active factor can be missed or a wrong one chosen"
-    - "Least squares cannot fit all the factors at once: the analysis selects among them"
-    - "Fails when many factors are active, or when the effects are small beside the noise"
+    - "The columns of the factors are correlated, so an active factor can be missed or an inactive one chosen"
+    - "The analysis selects among the factors: least squares cannot fit them all at once"
+    - "The factors it selects are candidates, to be confirmed in a further experiment"
   common_misconceptions:
     - "A supersaturated design estimates every main effect - it has fewer degrees of freedom than factors, and can only point to a few dominant ones"
   references:
@@ -579,9 +579,8 @@
   description:
     novice: >
       A design that a computer search builds for your model, your number of
-      runs and your region, where no standard design fits. It places the runs
-      so that the coefficients of the model are estimated as precisely as
-      possible.
+      runs and your region, where no standard design fits. The search keeps
+      the design that estimates the coefficients of the model most precisely.
     intermediate: >
       A D-optimal design maximizes the determinant of X'X for a stated model,
       which minimizes the volume of the joint confidence region of the
@@ -603,7 +602,7 @@
       D-optimality (DuMouchel and Jones 1994) guards against terms left out
       of the model.
   suitable_for:
-    - "Constraints rule out some combinations of settings, so the region is not a cube or a sphere"
+    - "Limits rule out some combinations of settings, so the region is not a cube or a sphere"
     - "The number of runs is fixed and no standard design has that size"
     - "Numeric and categorical factors are studied together"
     - "Runs already made are kept, and more are added to them"
@@ -625,15 +624,15 @@
     - {target: d_optimal, method: "Add runs chosen with the runs already made held fixed"}
   advantages:
     - "Any model, number of runs and region"
-    - "The most precise joint estimate of the coefficients of the model named"
+    - "Aims at the most precise joint estimate of the coefficients of the model named"
     - "Takes fixed runs, blocks, constraints and hard-to-change factors"
   disadvantages:
-    - "Optimal only for the model named: a term left out of it may not be estimable"
-    - "No replicates and no runs to test lack of fit, unless they are asked for"
-    - "The search finds a local optimum: another random start can give a different design"
-    - "Not orthogonal in general: the estimates are correlated"
+    - "The design is built for the model that was named, and may say little about a term left out of it"
+    - "Repeated runs, and runs that test the fit of the model, are in the design only when they are asked for"
+    - "The search keeps the best design it found: a longer search, or another start, can find a better one"
+    - "The design is not orthogonal in general, so the estimates are correlated"
   common_misconceptions:
-    - "An optimal design is the best design - it is the best by one criterion, for one model and one number of runs, and a standard design is often D-optimal for its own model"
+    - "An optimal design is the best design - it is the best the search found, by one criterion, for one model and one number of runs; a standard design is often D-optimal for its own model"
   references:
     - "Kiefer (1959)"
     - "Meyer & Nachtsheim (1995)"
@@ -645,9 +644,9 @@
   category: optimal
   description:
     novice: >
-      A design that a computer search builds to predict well. It places the
-      runs so that the predicted response is as precise as possible on
-      average over the whole region.
+      A design that a computer search builds to predict well. The search keeps
+      the design whose predictions are the most precise on average over the
+      whole region.
     intermediate: >
       An I-optimal design minimizes the average variance of prediction over
       the experimental region for a stated model. Like a D-optimal design it
@@ -669,8 +668,8 @@
       2012).
   suitable_for:
     - "The aim is to predict or to optimize the response, not to test which factors matter"
-    - "A response surface model in a region that constraints cut down"
-    - "A number of runs that no central composite or Box-Behnken design has"
+    - "A response surface model is fitted in a region that limits cut down"
+    - "The number of runs is one that no central composite or Box-Behnken design has"
   properties:
     resolution: "Set by the model that is named"
     orthogonal: "Not in general"
@@ -687,12 +686,12 @@
   can_augment_to:
     - {target: i_optimal, method: "Add runs chosen with the runs already made held fixed"}
   advantages:
-    - "The lowest average variance of prediction for the model named"
+    - "Aims at the lowest average variance of prediction for the model named"
     - "Any model, number of runs and region"
   disadvantages:
-    - "Optimal only for the model named: a term left out of it may not be estimable"
+    - "The design is built for the model that was named, and may say little about a term left out of it"
     - "The coefficients are estimated less precisely than by a D-optimal design"
-    - "The search finds a local optimum: another random start can give a different design"
+    - "The search keeps the best design it found: a longer search, or another start, can find a better one"
   common_misconceptions:
     - "D-optimal and I-optimal designs are the same - for a model of main effects and interactions on a cube they often are, and for a quadratic model they differ"
   references:
