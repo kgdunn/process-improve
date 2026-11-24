@@ -90,7 +90,9 @@ class Family:
 
 
 #: Every family a record can belong to. ``year`` and ``reference`` name the work that first published
-#: the family, where one work is generally credited with it.
+#: the family, where one work is generally credited with it. Credited is not always first: sheep were fed
+#: in the layout of a Latin square in 1788 (Cretté de Palluel), and Fisher (1925) made it a design, with
+#: its random arrangement and its analysis, as he did the blocks and the split plot (#1479).
 FAMILIES: dict[str, Family] = {
     "full_factorial": Family(
         "Full factorial", 1926, "Fisher, R. A. (1926), The arrangement of field experiments, J. Ministry of Agriculture"
@@ -174,6 +176,8 @@ FAMILIES: dict[str, Family] = {
     ),
     "latin_square": Family(
         "Latin square",
+        1925,
+        "Fisher, R. A. (1925), Statistical Methods for Research Workers, section 49, Oliver and Boyd",
         about=(
             "A design that tests one factor while blocking on two disturbances: sources of variation that are not of "
             "interest. It is laid out as a square in which each treatment appears once in every row and once in every "
@@ -191,6 +195,8 @@ FAMILIES: dict[str, Family] = {
     ),
     "block_design": Family(
         "Randomized blocks",
+        1925,
+        "Fisher, R. A. (1925), Statistical Methods for Research Workers, section 48, Oliver and Boyd",
         about=(
             "A design whose runs are grouped into blocks of like conditions, such as a day, a batch of raw material "
             "or an operator. The treatments are run in random order inside each block, and compared there. A complete "
@@ -208,6 +214,8 @@ FAMILIES: dict[str, Family] = {
     ),
     "split_plot": Family(
         "Split plot",
+        1925,
+        "Fisher, R. A. (1925), Statistical Methods for Research Workers, section 42, Oliver and Boyd",
         about=(
             "A design for factors that are hard to change. A hard-to-change factor is set once for a group of runs, "
             "the whole plot, and the easy-to-change factors are varied inside it."

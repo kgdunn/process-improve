@@ -186,6 +186,12 @@ def test_every_family_with_a_year_names_the_work_that_published_it():
         assert (family["year"] is None) == (family["reference"] == ""), key
         if family["year"] is not None:
             assert f"({family['year']})" in family["reference"], key
+    # A group of the catalog has no one first work. Every family of designs has one (#1479): the Latin square,
+    # the randomized blocks and the split plot are in Fisher's book of 1925, each in a section of its own.
+    assert {key for key, family in families.items() if family["year"] is None} == {"comparison", "other"}
+    for key, section in (("block_design", 48), ("latin_square", 49), ("split_plot", 42)):
+        assert families[key]["year"] == 1925, key
+        assert f"Statistical Methods for Research Workers, section {section}" in families[key]["reference"], key
 
 
 # --------------------------------------------------------------------------- what a design estimates
