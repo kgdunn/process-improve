@@ -559,4 +559,8 @@ pytest_add_cli_args_test_selection = [
     "tests/test_multivariate_unobserved.py",
     "tests/test_contributions_same_x.py",
     "tests/test_confidence_levels.py",
+    # The only test of the former `warn_on_uncentred=` keyword on PRM and PLSDA: without it, a mutant that
+    # drops the keyword on its way to PLS.__init__ survived in both (#1463). One test, by its id: the rest
+    # of its file tests other packages.
+    "tests/test_american_spelling_aliases.py::test_warn_on_uncentred_keyword_warns_and_is_taken",
 ]
