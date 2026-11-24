@@ -33,6 +33,7 @@ from functools import lru_cache
 from string import ascii_uppercase
 from typing import TYPE_CHECKING
 
+import numpy as np
 import pandas as pd
 
 if TYPE_CHECKING:
@@ -53,6 +54,9 @@ _FACTOR_NAMES = tuple(letter for letter in ascii_uppercase if letter != "I")
 # Above this many candidate generator sets the exhaustive minimum-aberration
 # search stops being interactive, so it refuses rather than hanging.
 _MAX_CANDIDATE_SETS = 500_000
+
+# The most generator sets scored at once, times the number of codewords: bounds the memory of one step.
+_SCORED_AT_ONCE = 4_000_000
 
 
 @dataclass
@@ -217,19 +221,67 @@ def minimum_aberration_generators(n_runs: int, n_factors: int) -> tuple[str, ...
             "yourself, via the `generators` argument of `generate_design`."
         )
 
-    names = _factor_names(n_factors)
-    extra_names = names[n_base:]
+    return _search_minimum_aberration(n_base, n_factors)
 
-    best_pattern: tuple[int, ...] | None = None
-    best_generators: tuple[str, ...] = ()
-    for combo in itertools.combinations(candidates, n_extra):
-        generators = tuple(f"{name}={word}" for name, word in zip(extra_names, combo, strict=True))
-        pattern = _word_length_pattern(generators, names, n_factors)
-        if best_pattern is None or pattern < best_pattern:
-            best_pattern = pattern
-            best_generators = generators
 
-    return best_generators
+def _krawtchouk(n_factors: int) -> np.ndarray:
+    """Return ``K[w, j]``, the Krawtchouk polynomial of degree ``j`` at ``w`` for length ``n_factors``.
+
+    ``K[w, j]`` is the sum over ``i`` of ``(-1)**i * C(w, i) * C(n_factors - w, j - i)``.
+    """
+    return np.array(
+        [
+            [
+                sum((-1) ** i * math.comb(w, i) * math.comb(n_factors - w, j - i) for i in range(min(w, j) + 1))
+                for j in range(n_factors + 1)
+            ]
+            for w in range(n_factors + 1)
+        ],
+        dtype=np.int64,
+    )
+
+
+def _search_minimum_aberration(n_base: int, n_factors: int) -> tuple[str, ...]:
+    """Score every generator set of ``2^(k-p)`` with ``k = n_factors`` and ``k - p = n_base``; return the best.
+
+    The columns of the design are vectors of ``n_base`` bits, one per base factor, and its defining words are the
+    words of the dual of the code they span. By the MacWilliams identities the number of words of each length
+    follows from the ``2**n_base`` weights of that code: for each vector ``u``, the number ``w`` of columns with
+    an odd number of bits in common with it. Words of length ``j`` number ``sum(K[w, j]) / 2**n_base``, over the
+    ``u`` (see :func:`_krawtchouk`). A set is then scored from ``2**n_base`` weights, not from its ``2**p`` words,
+    which makes a search of millions of sets take seconds. The sets are scored in the order of
+    ``itertools.combinations`` over :func:`_candidate_words`, and the first set with the smallest word-length
+    pattern is kept, so ties go to the shorter, alphabetically earlier generators.
+    """
+    candidates = _candidate_words(n_base)
+    letters = _factor_names(n_base)
+    n_extra = n_factors - n_base
+    vectors = np.arange(1, 2**n_base)
+    masks = [sum(1 << letters.index(c) for c in word) for word in candidates]
+    odd = np.array([[(u & m).bit_count() & 1 for m in masks] for u in vectors.tolist()], dtype=np.int16)
+    base_weight = np.array([u.bit_count() for u in vectors.tolist()], dtype=np.int16)  # each base factor's column
+    kraw = _krawtchouk(n_factors)
+    lengths = range(3, n_factors + 1)
+    at_once = max(1, _SCORED_AT_ONCE // (len(vectors) * n_extra))
+
+    best: tuple[tuple[int, ...], int] | None = None
+    combos = itertools.combinations(range(len(candidates)), n_extra)
+    start = 0
+    while (chunk := np.array(list(itertools.islice(combos, at_once)), dtype=np.int16)).size:
+        weights = base_weight[:, None] + odd[:, chunk].sum(axis=2)  # (codewords, sets)
+        kept = np.arange(len(chunk))
+        pattern = []
+        for j in lengths:  # lexicographic: keep the sets with the fewest words of each length in turn
+            counts = kraw[weights[:, kept], j].sum(axis=0)
+            fewest = counts.min()
+            pattern.append(int(fewest + kraw[0, j]) >> n_base)
+            kept = kept[counts == fewest]
+        if best is None or tuple(pattern) < best[0]:
+            best = (tuple(pattern), start + int(kept[0]))
+        start += len(chunk)
+
+    chosen = next(itertools.islice(itertools.combinations(candidates, n_extra), best[1], None))  # type: ignore[index]
+    return tuple(f"{name}={word}" for name, word in zip(_factor_names(n_factors)[n_base:], chosen, strict=True))
 
 
 def _check_runs(n_runs: int) -> int:
