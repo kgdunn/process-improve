@@ -28,6 +28,7 @@ import signal
 import subprocess
 import sys
 import time
+from collections import Counter
 from pathlib import Path
 
 import numpy as np
@@ -48,6 +49,8 @@ ONLY = set(filter(None, os.environ.get("DOE_ENTRIES", "").split(",")))  # these 
 pyDOE3 = importlib.import_module(LIB) if LIB in ("pyDOE3", "pydoe") else None  # noqa: N816 - the package's name
 _star = (getattr(pyDOE3, "star", None) or pyDOE3.doe_star.star) if pyDOE3 else None
 _ENGINE = [LIB]  # the package that built the design of the check in hand
+_SIDE = ["process_improve"]  # which library builds the designs: "process_improve" or "other"
+_DECLINED = [False]  # rsm declined the axial distance asked for, and built the runs with another
 
 
 class Unsupported(Exception):  # noqa: N818 - pyDOE3 has no construction for this request
@@ -494,6 +497,7 @@ def _r_ccd(k: int, opts: dict, names: list[str], nc: int) -> tuple[np.ndarray, f
         # rsm declines "rotatable" on a cube below resolution V. Build the same runs with the star on the faces,
         # so that run counts can still be read, and report no axial distance.
         out, declined = r({**req, "alpha": "faces"}), True
+        _DECLINED[0] = True
     m = np.array(out["matrix"], float)[:, order]
     blocks = np.array(out["blocks"]) if n_blocks and out.get("blocks") else None
     return m, float("nan") if declined else float(np.abs(m).max()), blocks
@@ -611,6 +615,7 @@ def built_by(engine: str):
 
         return inner
 
+    _SIDE[0] = engine
     if engine == "other":
         if LIB == "R":
             rc.generate_design, rc.minimum_aberration_generators = r_generate_design, r_min_aberration
@@ -637,13 +642,83 @@ def _alarm(*_):  # noqa: ANN202
     raise TimeoutError
 
 
+def _outside_scope(check: dict) -> str | None:
+    """Say why the other package was asked for an axial distance it does not offer, though it built the runs."""
+    design = check.get("design") or {}
+    opts = design.get("options") or {}
+    if _SIDE[0] != "other" or design.get("design_type") != "ccd" or check.get("property") != "alpha":
+        return None
+    if _DECLINED[0]:
+        return "rsm declines a rotatable axial distance on a cube below resolution V"
+    if opts.get("alpha") == "orthogonal" and not opts.get("n_blocks") and _ENGINE[0] in ("rsm", "pydoe", "pyDOE3"):
+        # Davies' orthogonal design, by process-improve's and dexpy's meaning of the word. rsm's and pydoe's
+        # "orthogonal" is the distance for orthogonal blocking, a different design (rsm's help, pydoe's docstring).
+        return f"{_ENGINE[0]}'s 'orthogonal' is the distance for orthogonal blocking, not Davies' orthogonal design"
+    return None
+
+
+def _relabel_levels(
+    first: np.ndarray, second: np.ndarray, *, signs: bool = True, most: int = 200_000
+) -> list[tuple[int, int]] | None:
+    """``relabelling`` for an orthogonal array: any one-to-one map of a column's levels, not only a change of sign.
+
+    An orthogonal array is the same array whatever the order of its runs and columns and the labels of each
+    column's levels, and packages print it in different layouts (Taguchi's tables, DoE.base's, OApackage's).
+    """
+    del signs  # any map of the levels is allowed, a change of sign among them
+    first, second = np.asarray(first, float), np.asarray(second, float)
+    if first.shape[0] != second.shape[0]:
+        return None
+    steps, chosen = [0], []
+
+    def search(j: int, left: list, right: list) -> bool:
+        if j == first.shape[1]:
+            return True
+        want = np.unique(first[:, j])
+        for c in range(second.shape[1]):
+            have = np.unique(second[:, c])
+            if c in chosen or len(have) != len(want):
+                continue
+            for labels in itertools.permutations(want):
+                steps[0] += 1
+                if steps[0] > most:
+                    return False
+                mapped = np.array([dict(zip(have, labels, strict=True))[v] for v in second[:, c]])
+                runs_left, runs_right = [*left, first[:, j]], [*right, mapped]
+                if Counter(map(tuple, np.column_stack(runs_left))) != Counter(map(tuple, np.column_stack(runs_right))):
+                    continue
+                chosen.append(c)
+                if search(j + 1, runs_left, runs_right):
+                    return True
+                chosen.pop()
+        return False
+
+    return [(c, 1) for c in chosen] if search(0, [], []) else None
+
+
+def _same_array(entry: dict, expected: dict, check: dict) -> tuple[str, bool]:
+    """Check an orthogonal array the other package built against the printed one, in any layout (_relabel_levels)."""
+    saved = rc.relabelling
+    rc.relabelling = _relabel_levels
+    try:
+        found, ok = rc._reproduce(entry, expected, {**check, "relabel": "columns and signs"}, rc._Fits())
+    finally:
+        rc.relabelling = saved
+    return f"the same array in another layout: {found}" if ok else found, ok
+
+
 def check_row(entry: dict, expected: dict, check: dict) -> tuple[bool, str, bool | None]:
     """Return (a design was built, value found, agrees) for one check."""
-    _BUILT[0], _ENGINE[0] = False, LIB
+    _BUILT[0], _ENGINE[0], _DECLINED[0] = False, LIB, False
     signal.signal(signal.SIGALRM, _alarm)
     signal.alarm(TIMEOUT_S)
     try:
         found, ok = rc._reproduce(entry, expected, check, rc._Fits())
+        if why := _outside_scope(check):
+            raise Unsupported(why)  # noqa: TRY301 - a request outside the package, as one it has no function for
+        array = (check.get("design") or {}).get("design_type") == "taguchi"
+        if not ok and _SIDE[0] == "other" and check.get("kind") == "same_runs" and array:
+            found, ok = _same_array(entry, expected, check)
     except Unsupported as exc:
         found, ok = f"unsupported: {exc}", None
     except TimeoutError:
