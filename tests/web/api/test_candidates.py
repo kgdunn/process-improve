@@ -214,3 +214,5 @@ def test_a_two_level_categorical_factor_has_no_square_so_the_optimal_designs_fit
     assert all(v["fits"] for v in values.values()), values
     assert "I(RM ** 2)" not in listed["result"]["terms"]
     assert "I(conc ** 2)" in listed["result"]["terms"]
+    assert listed["result"]["measures"], "scored on the nine measures, RM at its two levels (#790)"
+    assert set(listed["result"]["fds"]) == set(values), "with a curve each"

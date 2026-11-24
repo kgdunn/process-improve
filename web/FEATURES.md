@@ -193,9 +193,9 @@ Also:
   precision. A switch sets a design aside.
   - *Details:* Nine measures of each design (precision of the coefficients and of the
     predictions, correlation between terms, power), fraction-of-design-space curves on one
-    chart, and a correlation map of each design. With a categorical factor of three levels or
-    more, or a categorical factor and an aim with squares (a categorical factor has no square),
-    the designs are listed with their runs, spare runs and power only.
+    chart, and a correlation map of each design. A categorical factor of two levels has no
+    square, and the predictions are made at its two levels only. With a categorical factor of
+    three levels or more, the designs are listed with their runs, spare runs and power only.
 - **What each factor can be set to.** A pressure cannot go below zero, nor a share past 100.
   Type a factor's lowest or highest possible setting under the factors, and the path of
   steepest ascent stops before it, and the next study's ranges stay inside it.

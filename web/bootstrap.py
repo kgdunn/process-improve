@@ -7412,11 +7412,26 @@ def _effect_size(request: dict) -> float:
     return 1.0
 
 
-def _comparison_formula(model: str, names: list[str]) -> str:
-    """Write the comparison's model as ``evaluate_design`` takes it."""
+def _comparison_formula(model: str, names: list[str], categorical: list[str]) -> str:
+    """Write the comparison's model as ``evaluate_design`` takes it: a categorical factor has no square."""
     if model == "main_quadratic":
-        return " + ".join([*names, *(f"I({n} ** 2)" for n in names)])
+        return " + ".join([*names, *(f"I({n} ** 2)" for n in names if n not in categorical)])
+    if model == "quadratic" and categorical:
+        return " + ".join(_model_terms(model, names, tuple(categorical)))
     return model
+
+
+def _compared(runs: pd.DataFrame, factors: list[dict]) -> pd.DataFrame:
+    """Code the factors as :func:`_coded` does, a two-level categorical factor's labels kept as labels.
+
+    ``compare_designs`` and ``evaluate_design`` read a column of labels as a categorical factor: no
+    square, and its two levels the only settings a prediction is made at.
+    """
+    coded = _coded(runs, factors)
+    for f in factors:
+        if _categorical(f):
+            coded[f["name"]] = np.array(_levels_of(f), dtype=object)[_level_indices(runs, f)]
+    return coded
 
 
 def compare(request: dict) -> dict:
@@ -7437,7 +7452,7 @@ def compare(request: dict) -> dict:
     region = None
     for item in request.get("designs") or []:
         spec = _checked_spec(item.get("spec") or {})
-        designs[str(item["label"])] = _coded(_runs_frame(item, spec), spec["factors"])
+        designs[str(item["label"])] = _compared(_runs_frame(item, spec), spec["factors"])
         if region is None and spec.get("constraints"):
             region = _region(_factors(spec), [limit["expression"] for limit in spec["constraints"]])
     # shortcut: with a limit for some levels the designs are scored over the whole ranges, since the library scores
@@ -7453,8 +7468,9 @@ def compare(request: dict) -> dict:
     result["limits_by_level"] = by_level
     table = comparison.table
     result["display"] = {label: table[label].tolist() for label in comparison.designs}
-    names = list(next(iter(designs.values())).columns)
-    formula = _comparison_formula(model, names)
+    first = next(iter(designs.values()))
+    names = list(first.columns)
+    formula = _comparison_formula(model, names, [n for n in names if not pd.api.types.is_numeric_dtype(first[n])])
     fds = {}
     for coded, sized in zip(designs.values(), comparison.designs, strict=True):
         if not comparison.values[sized]["fits"]:
@@ -7705,13 +7721,7 @@ def candidates(request: dict) -> dict:
     info = _response_info(request.get("response_info"))
     scored = [{"label": m["label"], **{key: m["design"][key] for key in ("spec", "columns", "rows")}} for m in made]
     asked = {"model": plan["model"], "designs": scored, **{k: info.get(k) for k in ("noise", "smallest_change")}}
-    kept = made[0]["design"]["spec"]["factors"] if made else []
-    # The comparison squares every factor, and a categorical one has no square: coded -1 and +1, its square is the
-    # intercept, so every design would read as unable to fit the model.
-    # shortcut: scored as a factor of several levels is, without the nine measures; score them on the nine once
-    # compare_designs knows which factors are categorical (#790).
-    squared = plan["model"] in {MAIN_QUADRATIC, "quadratic"} and any(_categorical(f) for f in kept)
-    several = squared or any(_several(f) for f in kept)
+    several = made and any(_several(f) for f in made[0]["design"]["spec"]["factors"])
     if k > MAX_COMPARED_FACTORS:
         notes.append(_compared_sentence(k))
     result = (_powers(asked) if several or k > MAX_COMPARED_FACTORS else compare(asked)) if made else None
@@ -12293,7 +12303,7 @@ def _extension(spec: dict, design: pd.DataFrame, kind: str) -> dict[str, Any] | 
             return None
         if target == "quadratic" and _extension(spec, design, "axial") is not None:
             return None  # the axial runs fit it, and keep the runs on a few levels
-        formula = _comparison_formula(target, names) if target == MAIN_QUADRATIC else target
+        formula = _comparison_formula(target, names, []) if target == MAIN_QUADRATIC else target
         n_new = n_terms - rank + SPARE_RUNS
         with _listening():  # the exchange's own notes are about its budget, which the page sets
             result = augment_design(
