@@ -20,7 +20,7 @@
       orthogonal two-level designs. Center points can be added to test for
       curvature without inflating the factorial portion.
   suitable_for:
-    - "k <= 5 factors, adequate budget"
+    - "Five factors or fewer, with the budget to run every combination"
     - "Need all interactions estimated cleanly"
     - "Confirmation or follow-up after screening"
   properties:
@@ -45,8 +45,8 @@
     - "Simple to plan and analyze"
     - "Provides a baseline for comparison with other designs"
   disadvantages:
-    - "Run count grows exponentially (2^k)"
-    - "Cannot estimate quadratic effects without center points"
+    - "The number of runs multiplies with each added factor: it doubles at two levels"
+    - "At two levels, curvature cannot be detected without center points"
     - "Inefficient when many factors are likely inert"
   common_misconceptions:
     - "A full factorial is always the best design - it is only best when you can afford it and need all interactions"
@@ -78,7 +78,7 @@
       of two-factor interactions. Folding over a resolution IV fraction does not
       raise its resolution, since its defining words all have even length.
   suitable_for:
-    - "k >= 4 factors when budget is limited"
+    - "Four or more factors on a limited budget"
     - "Screening or characterization studies"
     - "When higher-order interactions are assumed negligible"
   properties:
@@ -136,7 +136,7 @@
       the 20-run design. Foldover can de-alias specific effects.
   suitable_for:
     - "Screening 6–47 factors"
-    - "Tight budget (want N close to k+1)"
+    - "A tight budget: little more than one run for each factor"
     - "Initial exploratory experiments"
   properties:
     resolution: "III"
@@ -151,8 +151,8 @@
     - main_effects
   can_augment_to:
     - {target: fractional_factorial, method: "Use active factors in a resolution V fraction"}
-    - {target: dsd, method: "Re-screen active factors in a DSD"}
-    - {target: ccd, method: "Follow up active factors with RSM"}
+    - {target: dsd, method: "Screen the active factors again in a definitive screening design"}
+    - {target: ccd, method: "Follow up the active factors with a response surface design"}
   advantages:
     - "Very run-efficient for screening"
     - "Orthogonal for main effects"
@@ -189,7 +189,7 @@
   suitable_for:
     - "3–7 factors, response surface modeling"
     - "When extreme factor combinations should be avoided"
-    - "When budget is tighter than CCD allows"
+    - "When the budget is tighter than a central composite design allows"
   properties:
     resolution: "Full for quadratic model"
     orthogonal: false
@@ -211,7 +211,7 @@
     - "Nearly rotatable"
     - "Three levels per factor (simpler to run)"
   disadvantages:
-    - "Not available for k = 2"
+    - "Not available for two factors"
     - "Not fully rotatable"
     - "Prediction variance higher at corners"
     - "Cannot be built sequentially from a factorial base"
@@ -266,9 +266,9 @@
     - "Well-understood statistical properties"
     - "Supports orthogonal blocking"
   disadvantages:
-    - "More runs than BBD for same k"
+    - "More runs than a Box-Behnken design for the same number of factors"
     - "Axial points may extend beyond the feasible region"
-    - "Five levels per factor (if alpha != 1)"
+    - "Five levels for each factor, unless the axial points are on the faces of the cube"
   common_misconceptions:
     - "CCD always requires 5 factor levels - face-centered CCD (alpha=1) uses only 3"
     - "You must start with a full factorial - a resolution V fraction works as the cube portion"
@@ -303,7 +303,7 @@
   suitable_for:
     - "6–30 continuous factors"
     - "When curvature detection is needed during screening"
-    - "When budget allows about 2k+1 runs but not full RSM"
+    - "When the budget allows about two runs for each factor, but not a response surface design"
   properties:
     resolution: "III+"
     orthogonal: "Main effects orthogonal to 2FI and quadratic"
@@ -317,15 +317,15 @@
     - main_effects
     - "quadratic (limited active factors)"
   can_augment_to:
-    - {target: ccd, method: "Follow up active factors with RSM"}
-    - {target: box_behnken, method: "Follow up active factors with BBD"}
+    - {target: ccd, method: "Follow up the active factors with a response surface design"}
+    - {target: box_behnken, method: "Follow up the active factors with a Box-Behnken design"}
   advantages:
     - "Screens and detects curvature in one design"
     - "Main effects orthogonal to 2FI and quadratic"
     - "Efficient run count (2k+1 for even k)"
   disadvantages:
     - "Requires three levels per factor"
-    - "Cannot estimate full quadratic model if more than ~3 factors are active"
+    - "Cannot estimate the full quadratic model when more than about three factors are active"
     - "Relatively new - less practitioner experience"
   common_misconceptions:
     - "DSDs replace RSM designs - they supplement screening, but follow-up RSM is needed when many factors are active"
@@ -356,9 +356,9 @@
       omars_properties() / is_omars() to verify the defining orthogonality
       properties of any candidate design.
   suitable_for:
-    - "3+ continuous factors needing both screening and curvature information"
+    - "Three or more continuous factors, to screen and to detect curvature in one design"
     - "When main effects must be clear of all two-factor interactions and quadratics"
-    - "When a flexible run count between screening and full RSM is desired"
+    - "When a number of runs between a screening design and a response surface design is wanted"
   properties:
     resolution: "Main effects clear of all second-order terms"
     orthogonal: "Main effects mutually orthogonal and orthogonal to 2FI and quadratic"
@@ -372,7 +372,7 @@
     - main_effects
     - "quadratic (limited active factors)"
   can_augment_to:
-    - {target: ccd, method: "Follow up active factors with RSM"}
+    - {target: ccd, method: "Follow up the active factors with a response surface design"}
   advantages:
     - "Main effects orthogonal to each other and to all second-order terms"
     - "Three-level, so curvature is detectable"
@@ -386,3 +386,311 @@
   references:
     - "Núñez Ares & Goos (2020), Technometrics 62(1):21-36"
     - "Jones & Nachtsheim (2011)"
+
+- id: taguchi
+  display_name: "Taguchi Orthogonal Array"
+  category: screening
+  description:
+    novice: >
+      A table of runs, such as L8, L9 or L18, in which each combination of the
+      levels of any two factors appears equally often. Taguchi brought these
+      arrays into wide use for improving the quality of a product.
+    intermediate: >
+      An orthogonal array of strength 2, written L_N, has N runs and a column
+      for each factor. In any two columns every pair of levels appears equally
+      often, so the main effects are estimated independently of each other.
+      Columns can have different numbers of levels: L18 holds one two-level
+      and seven three-level factors. Two-factor interactions are aliased with
+      main effects. In some arrays, such as L8, L9, L16 and L27, an
+      interaction falls in known columns, which can be left empty for it. In
+      robust parameter design the control factors are in an inner array and
+      the noise factors in an outer array, and the two are crossed.
+    expert: >
+      Orthogonal arrays were introduced by Rao (1947); Taguchi tabulated a
+      standard set for quality engineering. L4, L8, L16 and L32 are regular
+      2^(k-p) fractions, L12 is equivalent to the 12-run Plackett-Burman
+      design, and L9, L27 and L81 are regular 3^(k-p) fractions. In a regular
+      array the interaction of two columns falls in specific other columns, so
+      it is kept clear by leaving those empty. In L12, L18, L36 and L54 an
+      interaction is spread over the other columns. The analysis of crossed
+      arrays by signal-to-noise ratios has been criticized (Box 1988; Nair
+      1992): a combined array often needs fewer runs.
+  suitable_for:
+    - "Many factors are studied, some of them at three or more levels"
+    - "The main effect of each factor is wanted from few runs"
+    - "A product must stay on target while its conditions of use vary (an inner and an outer array)"
+  properties:
+    resolution: "III in general: main effects are clear of each other, not of two-factor interactions"
+    orthogonal: true
+    rotatable: false
+    supports_quadratic: "For a factor at three or more levels, the curvature of its own effect"
+    supports_interaction: "Only an interaction that columns were left free for, in a regular array"
+  min_runs:
+    formula: "The smallest standard array with a column for every factor"
+    examples: {"3_two_level": 4, "7_two_level": 8, "11_two_level": 12, "15_two_level": 16, "4_three_level": 9, "13_three_level": 27}
+  supports_models:
+    - main_effects
+  can_augment_to:
+    - {target: fractional_factorial, method: "Study the active two-level factors in a fraction that keeps their interactions clear"}
+    - {target: ccd, method: "Follow up the active factors with a response surface design"}
+  advantages:
+    - "Main effects of many factors from few runs"
+    - "Factors with different numbers of levels fit in one array"
+    - "Tabulated arrays: the runs can be laid out by hand"
+  disadvantages:
+    - "An interaction is aliased (mixed) with main effects unless the columns it falls in are left empty"
+    - "In L12, L18 and L36 the interactions are spread over many columns: no column can be left empty for them"
+  common_misconceptions:
+    - "An orthogonal array shows that interactions are absent - a saturated array cannot detect them"
+  references:
+    - "Rao (1947)"
+    - "Taguchi (1987), System of Experimental Design"
+    - "Phadke (1989), Quality Engineering Using Robust Design"
+    - "Wu & Hamada (2009), Ch. 8 and 11"
+
+- id: mixture
+  display_name: "Mixture Design"
+  category: mixture
+  description:
+    novice: >
+      An experiment on a blend, where the factors are the proportions of the
+      ingredients and add up to a fixed total, so raising one ingredient
+      lowers at least one other. The runs are placed on a simplex: a triangle,
+      for three ingredients.
+    intermediate: >
+      The q components of a mixture are proportions that sum to 1, so the
+      region is a simplex of q - 1 dimensions. A polynomial with an intercept
+      cannot be estimated under that constraint, and a Scheffé model is fitted
+      instead: a term for each component, and in the quadratic model a
+      blending term for each pair. A simplex-lattice design {q, m} takes every
+      blend whose proportions are multiples of 1/m; a simplex-centroid design
+      takes the pure components and the equal blends of two, three and more of
+      them. Limits on the components leave a polytope inside the simplex, and
+      the runs come from its vertices, edge midpoints and centroid.
+    expert: >
+      Scheffé (1958) introduced the simplex-lattice designs and the canonical
+      polynomials, and Scheffé (1963) the simplex-centroid design of 2^q - 1
+      blends. The coefficient of x_i x_j measures nonlinear blending of two
+      components (synergism or antagonism), not an interaction of independent
+      factors. With lower bounds alone the region is a smaller simplex, which
+      L-pseudocomponents rescale to the full one. With upper bounds, or
+      constraints on several components, the extreme-vertices designs of
+      McLean and Anderson (1966) apply, and a D- or I-optimal selection among
+      candidate blends fits the design to a budget.
+  suitable_for:
+    - "The response depends on the proportions of the ingredients, not on the amount of the blend"
+    - "A product is being formulated: a food, a fuel, a polymer, a coating"
+  properties:
+    resolution: "Not applicable: the design is sized to a Scheffé model"
+    orthogonal: false
+    rotatable: false
+    supports_quadratic: "The Scheffé quadratic model: a blending term for each pair of components"
+    supports_interaction: "Blending terms of two or three components, not interactions of independent factors"
+  min_runs:
+    formula: "q(q+1)/2 for the Scheffé quadratic model; generate_design builds one more, the centroid, as a check on the fit"
+    examples: {"3": 7, "4": 11, "5": 16}
+  supports_models:
+    - scheffe_linear
+    - scheffe_quadratic
+    - scheffe_special_cubic
+    - scheffe_cubic
+  can_augment_to: []
+  advantages:
+    - "Keeps to the constraint that the proportions add up to a fixed total"
+    - "Sized to the Scheffé model that will be fitted"
+    - "Takes limits on single components and on sums of components"
+  disadvantages:
+    - "The model has no intercept, and a coefficient is not the effect of one ingredient alone"
+  common_misconceptions:
+    - "The components can be set independently, like the factors of a factorial - the proportions sum to 1, so a change in one changes at least one other"
+    - "The x_i x_j terms of a Scheffé model are interactions - they measure nonlinear blending of two components"
+  references:
+    - "Scheffé (1958)"
+    - "Scheffé (1963)"
+    - "McLean & Anderson (1966)"
+    - "Cornell (2002), Experiments with Mixtures, 3rd ed."
+
+- id: supersaturated
+  display_name: "Supersaturated Design"
+  category: screening
+  description:
+    novice: >
+      A screening design with no more runs than factors. It cannot estimate
+      each factor's effect apart from the others, and relies on only a few of
+      the factors having a large effect.
+    intermediate: >
+      A supersaturated design studies k factors in n < k + 1 runs, so the
+      main-effects model has more terms than there are runs and least squares
+      cannot fit it. The columns cannot all be orthogonal; the design keeps
+      them as close to orthogonal as possible, measured by E(s^2), the average
+      of the squared inner products of pairs of columns. The analysis selects
+      a few active factors, by forward selection, the lasso or the Dantzig
+      selector, and is reliable only when few factors are active.
+    expert: >
+      Satterthwaite (1959) proposed random balance designs, and Booth and Cox
+      (1962) the first systematic supersaturated designs, with the E(s^2)
+      criterion. Lin (1993) takes the rows of a Hadamard matrix of order N in
+      which one column is +1: N/2 runs for up to N - 2 balanced, nearly
+      orthogonal columns, such as 6 runs for 10 factors from the 12-run
+      Plackett-Burman design. Later constructions search by exchange (Nguyen
+      1996; Li and Wu 1997), and Bayesian D-optimal designs (Jones, Lin and
+      Nachtsheim 2008) allow any number of runs. This package uses Lin's
+      construction, and keeps the branching column that gives the fewest fully
+      aliased pairs of columns, then the smallest E(s^2).
+  suitable_for:
+    - "A very large number of factors is to be screened and each run is costly"
+    - "Only a few of the factors are expected to matter"
+  properties:
+    resolution: "Below III: main effects are partially aliased with each other"
+    orthogonal: false
+    rotatable: false
+    supports_quadratic: false
+    supports_interaction: false
+  min_runs:
+    formula: "N/2 runs for up to N - 2 factors, N the order of a Hadamard matrix"
+    examples: {"10": 6, "18": 10, "22": 12, "30": 16}
+  supports_models:
+    - "main_effects (a few active factors, found by variable selection)"
+  can_augment_to:
+    - {target: fractional_factorial, method: "Confirm the factors selected in a fraction with orthogonal columns"}
+    - {target: dsd, method: "Study the factors selected in a design that also detects curvature"}
+  advantages:
+    - "Screens more factors than it has runs"
+    - "Each factor is at each of its two levels in half of the runs"
+  disadvantages:
+    - "The columns of the factors are correlated, so an active factor can be missed or an inactive one chosen"
+    - "The analysis selects among the factors: least squares cannot fit them all at once"
+  common_misconceptions:
+    - "A supersaturated design estimates every main effect - it has fewer degrees of freedom than factors, and can only point to a few dominant ones"
+  references:
+    - "Booth & Cox (1962)"
+    - "Lin (1993)"
+    - "Jones, Lin & Nachtsheim (2008)"
+    - "Wu & Hamada (2009), Ch. 9"
+
+- id: d_optimal
+  display_name: "D-Optimal Design"
+  category: optimal
+  description:
+    novice: >
+      A design that a computer search builds for your model, your number of
+      runs and your region, where no standard design fits. The search keeps
+      the design that estimates the coefficients of the model most precisely.
+    intermediate: >
+      A D-optimal design maximizes the determinant of X'X for a stated model,
+      which minimizes the volume of the joint confidence region of the
+      coefficients. The experimenter gives the model, the number of runs and
+      the region: factor ranges, constraints, categorical levels and any runs
+      already made. An exchange algorithm searches for the best set of runs.
+      The design is optimal for that model only. Replicates and runs to
+      test lack of fit are not planned for: some numbers of runs give them
+      and others give none, so they are asked for when they are needed.
+    expert: >
+      Kiefer (1959) and Kiefer and Wolfowitz (1960) set up the theory; their
+      equivalence theorem ties D-optimality of a continuous design to
+      G-optimality. Exact designs are found by point exchange over a candidate
+      set (Fedorov 1972) or by coordinate exchange (Meyer and Nachtsheim
+      1995), from several random starts because the search finds local
+      optima. For a second-order model a D-optimal design places most runs on
+      the boundary of the region. With hard-to-change factors the design is a
+      split-plot design, optimal at an assumed ratio of whole-plot to subplot
+      variance (Goos and Vandebroek 2003; Jones and Goos 2007). Bayesian
+      D-optimality (DuMouchel and Jones 1994) guards against terms left out
+      of the model.
+  suitable_for:
+    - "Limits rule out some combinations of settings, so the region is not a cube or a sphere"
+    - "The number of runs is fixed and no standard design has that size"
+    - "Numeric and categorical factors are studied together"
+    - "Runs already made are kept, and more are added to them"
+    - "Some factors are hard to change (a split-plot design)"
+  properties:
+    resolution: "Set by the model that is named"
+    orthogonal: "Not in general"
+    rotatable: false
+    supports_quadratic: "When the model named has quadratic terms"
+    supports_interaction: "When the model named has interaction terms"
+  min_runs:
+    formula: "The number of coefficients of the model: (k+1)(k+2)/2 for the full quadratic model"
+    examples: {"2": 6, "3": 10, "4": 15, "5": 21}
+  supports_models:
+    - main_effects
+    - two_factor_interactions
+    - quadratic
+  can_augment_to:
+    - {target: d_optimal, method: "Add runs chosen with the runs already made held fixed"}
+  advantages:
+    - "Any model, number of runs and region"
+    - "Aims at the most precise joint estimate of the coefficients of the model named"
+    - "Takes fixed runs, blocks, constraints and hard-to-change factors"
+  disadvantages:
+    - "The design is built for the model that was named, and may say little about a term left out of it"
+    - "The design plans for neither repeated runs nor a test of the model's fit: some sizes give them, others none"
+    - "The search keeps the best design it found: a longer search, or another start, can find a better one"
+    - "The design is not orthogonal in general, so the estimates are correlated"
+  common_misconceptions:
+    - "An optimal design is the best design - it is the best the search found, by one criterion, for one model and one number of runs; a standard design is often D-optimal for its own model"
+  references:
+    - "Kiefer (1959)"
+    - "Meyer & Nachtsheim (1995)"
+    - "Atkinson, Donev & Tobias (2007), Optimum Experimental Designs, with SAS"
+    - "Goos & Jones (2011), Optimal Design of Experiments: A Case Study Approach"
+
+- id: i_optimal
+  display_name: "I-Optimal Design"
+  category: optimal
+  description:
+    novice: >
+      A design that a computer search builds to predict well. The search keeps
+      the design whose predictions are the most precise on average over the
+      whole region.
+    intermediate: >
+      An I-optimal design minimizes the average variance of prediction over
+      the experimental region for a stated model. Like a D-optimal design it
+      is found by an exchange algorithm, for the model, the number of runs and
+      the region that are given. For a second-order model it puts more runs
+      in the interior and at the center than a D-optimal design does, and so
+      predicts better there. It suits response surface work in a constrained
+      region, or with a number of runs that no central composite or
+      Box-Behnken design has.
+    expert: >
+      The criterion is the integral over the region of the prediction
+      variance f(x)'(X'X)^-1 f(x), which equals trace[(X'X)^-1 M] with M the
+      moment matrix of the region; it is also called IV- or V-optimality. M
+      has a closed form for a cube and is found by sampling the region when
+      it is constrained. G-optimality minimizes the maximum prediction
+      variance instead, and A-optimality the average variance of the
+      coefficients. For a split-plot structure the criterion uses the
+      covariance of the generalized least squares estimator (Jones and Goos
+      2012).
+  suitable_for:
+    - "The aim is to predict or to optimize the response, not to test which factors matter"
+    - "A response surface model is fitted in a region that limits cut down"
+    - "The number of runs is one that no central composite or Box-Behnken design has"
+  properties:
+    resolution: "Set by the model that is named"
+    orthogonal: "Not in general"
+    rotatable: false
+    supports_quadratic: "When the model named has quadratic terms"
+    supports_interaction: "When the model named has interaction terms"
+  min_runs:
+    formula: "The number of coefficients of the model: (k+1)(k+2)/2 for the full quadratic model"
+    examples: {"2": 6, "3": 10, "4": 15, "5": 21}
+  supports_models:
+    - main_effects
+    - two_factor_interactions
+    - quadratic
+  can_augment_to:
+    - {target: i_optimal, method: "Add runs chosen with the runs already made held fixed"}
+  advantages:
+    - "Aims at the lowest average variance of prediction for the model named"
+    - "Any model, number of runs and region"
+  disadvantages:
+    - "The design is built for the model that was named, and may say little about a term left out of it"
+    - "The coefficients are estimated less precisely than by a D-optimal design"
+    - "The search keeps the best design it found: a longer search, or another start, can find a better one"
+  common_misconceptions:
+    - "D-optimal and I-optimal designs are the same - for a model of main effects and interactions on a cube they often are, and for a quadratic model they differ"
+  references:
+    - "Atkinson, Donev & Tobias (2007), Optimum Experimental Designs, with SAS"
+    - "Goos & Jones (2011), Optimal Design of Experiments: A Case Study Approach"
+    - "Jones & Goos (2012)"

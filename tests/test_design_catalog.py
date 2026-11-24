@@ -1115,43 +1115,70 @@ def test_the_feed_is_atom_with_an_entry_per_source_newest_first():
     assert "5 printed numbers, 4 of them recomputed" in entries[0].find(f"{atom}summary").text
 
 
-def test_a_family_the_knowledge_base_describes_says_what_it_is_in_plain_words():
+def test_a_family_one_design_type_makes_is_described_by_the_knowledge_base():
+    """The knowledge base of design types says what such a family is: the catalog keeps no second copy of it."""
+    from process_improve.experiments.knowledge.engine import load_knowledge_graph
+
     families = catalog_families()
+    types = load_knowledge_graph().design_types
     assert families["full_factorial"]["description"].startswith("Tests every combination of factor levels.")
     assert "\n" not in families["dsd"]["description"]
     assert "Cannot estimate interactions" in families["plackett_burman"]["watch_for"], "the knowledge base's own"
     assert "Initial exploratory experiments" in families["plackett_burman"]["use_when"]
+    # Taguchi's arrays are the family "orthogonal_array", and generate_design's type "taguchi".
+    assert families["orthogonal_array"]["description"].startswith("A table of runs, such as L8, L9 or L18")
+    assert families["orthogonal_array"]["use_when"] == types["taguchi"].suitable_for
+    for key, design_type in design_catalog._DESIGN_TYPES.items():
+        assert design_type in types, f"{key}: the knowledge base has no entry for {design_type}"
+        assert not FAMILIES[key].about, f"{key}: its words are the knowledge base's"
+        assert not FAMILIES[key].use_when, f"{key}: its words are the knowledge base's"
+        # A caution is not always a disadvantage: the design's disadvantages, then the family's own cautions.
+        assert families[key]["watch_for"] == [*types[design_type].disadvantages, *FAMILIES[key].watch_for], key
+    assert FAMILIES["orthogonal_array"].watch_for[0].startswith("L4, L8 and L16 are two-level fractional factorials")
+    assert not any("Plackett-Burman" in line for line in types["taguchi"].disadvantages), "a fact, not a disadvantage"
 
 
-def test_a_family_the_knowledge_base_lacks_says_what_it_is_in_its_own_words():
-    """A reader who meets a Taguchi array or a split plot for the first time is told what it is, by its family.
+def test_a_family_no_one_design_type_makes_says_what_it_is_in_its_own_words():
+    """A family of several design types, an arrangement of other designs' runs, or a group of the catalog.
 
-    Nine families had no description: the catalog named them and said no more. Each now says what it is, when it
-    is used and what to watch for; "Other" is a mixed group, and says what it holds.
+    ``generate_design`` has no design type named for an optimal design of any criterion, a Latin square, a
+    block design or a split plot, so the knowledge base of design types has no entry for one. "Other" is a
+    mixed group, and says what it holds.
     """
     families = catalog_families()
     own = {key for key, family in FAMILIES.items() if family.about}
-    assert len(own) == 9, "the families the knowledge base has no entry for"
-    for key, family in families.items():
+    assert own == {"optimal", "latin_square", "block_design", "split_plot", "comparison", "other"}
+    assert own == set(FAMILIES) - set(design_catalog._DESIGN_TYPES)
+    assert families["latin_square"]["description"].startswith("A design that tests one factor while blocking on two")
+
+
+def test_every_family_s_words_fit_its_card():
+    """A reader who meets a Taguchi array or a split plot for the first time is told what it is, by its family.
+
+    Each family says what it is, when it is used and what to watch for. A phrase of the two lists is one line
+    of a card: it starts with a capital or a number, has no period, and is at most 110 characters. A card stays
+    a card: what the family is in at most 300 characters, and at most four lines to a list.
+    """
+    for key, family in catalog_families().items():
         assert family["description"].endswith("."), key
+        assert len(family["description"]) <= 300, key
         assert "\u2014" not in family["description"], key
         if key == "other":
             assert family["use_when"] == family["watch_for"] == [], "a mixed group has no one use"
             continue
-        assert family["use_when"], key
-        assert family["watch_for"], key
-        if key not in own:
-            continue  # the knowledge base's lists, in its own form
-        for phrase in [*family["use_when"], *family["watch_for"]]:
-            assert phrase[0].isupper(), f"{key}: {phrase}"
+        assert 1 <= len(family["use_when"]) <= 4, key
+        assert 1 <= len(family["watch_for"]) <= 4, key
+        for phrase in [*family["use_when"], *family["watch_for"], *(step["how"] for step in family["next"])]:
+            assert not phrase[0].islower(), f"{key}: {phrase}"
             assert not phrase.endswith("."), f"{key}: a phrase of a list, with no period: {phrase}"
             assert len(phrase) <= 110, f"{key}: one line of a card: {phrase}"
-    assert families["orthogonal_array"]["description"].startswith("A table of runs, such as L8, L9 or L18")
-    assert families["latin_square"]["description"].startswith("A design that tests one factor while blocking on two")
 
 
 def test_a_family_says_which_families_it_can_lead_to():
     families = catalog_families()
     assert {"family": "ccd", "how": "Add center + axial points"} in families["full_factorial"]["next"]
     assert families["latin_square"]["next"] == []
+    # A step names a design type, and leads to the family that type's designs are in.
+    assert [step["family"] for step in families["orthogonal_array"]["next"]] == ["fractional_factorial", "ccd"]
+    assert "orthogonal_array" not in design_catalog._DESIGN_TYPES.values(), "the type is named taguchi"
     assert all(step["family"] in FAMILIES for f in families.values() for step in f["next"])
