@@ -375,7 +375,7 @@ def test_how_the_map_was_made_is_read_from_its_data(context, site):
 def test_the_catalog_and_the_start_page_lead_to_it(context, site):
     page = context.new_page()
     page.goto(f"{site}catalog/")
-    page.click("text=How the ideas link")
+    page.click(".site-foot a:has-text('Learn experimental design')")
     page.wait_for_url("**/map/")
     page.wait_for_function("() => window.conceptMap && document.querySelector('#card h2')")
     page.click("text=Back to Factorial")
