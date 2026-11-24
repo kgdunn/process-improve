@@ -234,8 +234,8 @@ FAMILIES: dict[str, Family] = {
         "Comparison or regression",
         about=(
             "A study of one factor, or of measured data with no design of several factors: a sample is compared with "
-            "a target, two or more groups with each other, a line or a curve is fitted to observations, or variation "
-            "is divided among its sources. The catalog holds these as worked examples."
+            "a target, two or more groups with each other, a line, a curve or a surface is fitted, or variation is "
+            "divided among its sources. The catalog holds these as worked examples."
         ),
         use_when=(
             "Two or more treatments, methods or groups are compared on one response",
@@ -251,8 +251,8 @@ FAMILIES: dict[str, Family] = {
     "other": Family(
         "Other",
         about=(
-            "Designs and worked calculations that belong to none of the other families: Koshal, equiradial and "
-            "third-order designs, paths of steepest ascent, and small designs that show how a calculation is done."
+            "Designs and worked calculations that belong to none of the other families: Koshal, simplex, equiradial "
+            "and third-order designs, paths of steepest ascent, and small designs that show how a calculation is done."
         ),
     ),
 }

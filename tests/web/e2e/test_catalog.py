@@ -319,7 +319,7 @@ def test_a_design_whose_runs_differ_in_leverage_lists_it_beside_each_run(context
     assert cells.nth(1).evaluate(tinted), "a coded setting is tinted in its own cell"
     assert re.fullmatch(r"0\.\d\d", cells.last.text_content()), "the first run's leverage, beside its bar"
     assert "how much the model leans on a run" in page.text_content("#detail-body")
-    projectivity = next(line for line in page.locator("#detail-body p").all_text_contents() if "two-level" in line)
+    projectivity = next(line for line in page.locator("#detail-body p").all_text_contents() if "two-level runs" in line)
     assert projectivity == "Its 8 two-level runs, of 17, hold every combination of its 3 factors' levels."
 
 
@@ -778,6 +778,27 @@ def test_a_family_no_one_work_first_published_has_a_card_in_its_own_words(contex
     assert card.locator("dt").all_text_contents() == ["What it is", "Use it when", "Watch for"]
     assert card.locator("dd").first.text_content().startswith("A study of one factor, or of measured data")
     assert card.locator(".famcard__more").is_hidden(), "nothing to press under it"
+
+
+def test_every_family_of_designs_has_a_first_work_on_its_card(context, site):
+    """The Latin square, the randomized blocks and the split plot had none: each is in Fisher's book of 1925 (#1479).
+
+    A Box-Behnken design's card led on to a central composite design. It has no run at a corner of the cube,
+    so no added runs make it one, and its card leads nowhere now.
+    """
+    page = open_catalog(context, site)
+    card = page.locator("#family")
+    for family, section in (("latin_square", 49), ("block_design", 48), ("split_plot", 42)):
+        page.evaluate(f"location.hash = 'fam={family}'")
+        page.wait_for_function(f"document.querySelector('#family .famcard__first')?.textContent.includes('{section}')")
+        assert card.locator(".famcard__first").text_content() == (
+            "First published: Fisher, R. A. (1925), Statistical Methods for Research Workers, "
+            f"section {section}, Oliver and Boyd."
+        )
+    page.evaluate("location.hash = 'fam=box_behnken'")
+    page.wait_for_function("document.querySelector('#family h2')?.textContent === 'Box-Behnken'")
+    assert card.locator("dt").all_text_contents() == ["What it is", "Use it when", "Watch for"]
+    assert card.locator("dd").nth(2).locator("li").count() == 4, "its four disadvantages, a line each"
 
 
 def test_a_family_s_name_in_an_open_row_lists_its_designs_of_the_row_under_its_card(context, site):
