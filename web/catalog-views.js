@@ -300,7 +300,10 @@ export function drawSizeMap(holder, rows, { opened, moved = null }) {
           dot.setAttribute("aria-label", `${words} Press to list ${mark.count === 1 ? "it" : "them"}.`);
           block.append(titled(dot, words));
         }
-        block.append(shape("text", { class: "sizemap__family", x: head, y: ly + 11, "aria-hidden": "true" }, `${lane.label} · ${lane.count}`));
+        // The family's name is a button: a press lists the family's designs of this row, under its card.
+        const named = shape("text", { class: "sizemap__family", x: head, y: ly + 11, role: "button", tabindex: "-1", "data-row": row.row, "data-family": lane.family, "data-all": "1" }, `${lane.label} · ${lane.count}`);
+        named.setAttribute("aria-label", `${lane.label}: ${designs(lane.count)} of ${rowWords(row.row)}. Press to read what it is, and to list ${lane.count === 1 ? "it" : "them"}.`);
+        block.append(named);
         ly += nameH + laneH + 4;
       });
       tall = ly + 8;

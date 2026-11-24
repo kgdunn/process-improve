@@ -1715,13 +1715,27 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
 .sizemap__line--main { stroke-dasharray: 1 6; }
 .sizemap text.sizemap__name, .sizemap text.sizemap__family { fill: var(--fg); stroke: var(--panel); stroke-linejoin: round; paint-order: stroke; }
 .sizemap text.sizemap__name { stroke-width: 4px; }
-.sizemap text.sizemap__family { font-size: 12px; stroke-width: 6px; }
+.sizemap text.sizemap__family { font-size: 12px; stroke-width: 6px; fill: var(--accent); cursor: pointer; }
+.sizemap text.sizemap__family:hover { text-decoration: underline; }
+.sizemap text.sizemap__family:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 .sizemap text.sizemap__fewest { stroke: var(--panel); stroke-width: 4px; stroke-linejoin: round; paint-order: stroke; }
 /* A row opened into its families: a lane for each, a mark for each run size, ringed so that marks read on marks. */
 .sizemap__rule { stroke: var(--line); stroke-width: 1; }
 .sizemap__lane { fill: transparent; cursor: pointer; }
 .sizemap__mark { stroke: var(--panel); stroke-width: 2; }
 .sizemap__mark.fill-0 { stroke: var(--muted); stroke-width: 1.5; }
+/* A family's card, over the list: what a design of the family is, in a few labelled lines. */
+.famcard { margin: 14px 0; padding: 12px 16px; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: var(--corner); }
+.famcard h2 { margin: 0; font-size: 1.15rem; }
+.famcard__first { margin: 2px 0 0; color: var(--muted); font-size: 0.85rem; }
+.famcard dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; margin: 8px 0 0; }
+.famcard dt { color: var(--muted); font-size: 0.9rem; padding-top: 1px; }
+.famcard dd { margin: 0; }
+.famcard ul { margin: 0; padding: 0; list-style: none; }
+.famcard__more { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 8px 0 0; font-size: 0.92rem; }
+.famcard__more .link { padding: 0; }
+.famcard__more:empty { display: none; }
+@media (max-width: 520px) { .famcard dl { grid-template-columns: 1fr; gap: 0; } .famcard dt { margin-top: 6px; } }
 /* Over the list: what a design's picture is, and the order of the list. */
 .catalog__listhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 16px; margin: 0 0 6px; font-size: 0.9rem; }
 .catalog__listhead select { margin-left: 6px; }
