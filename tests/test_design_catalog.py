@@ -1152,16 +1152,18 @@ def test_every_family_s_words_fit_its_card():
     """A reader who meets a Taguchi array or a split plot for the first time is told what it is, by its family.
 
     Each family says what it is, when it is used and what to watch for. A phrase of the two lists is one line
-    of a card: it starts with a capital or a number, has no period, and is at most 110 characters.
+    of a card: it starts with a capital or a number, has no period, and is at most 110 characters. A card stays
+    a card: what the family is in at most 300 characters, and at most four lines to a list.
     """
     for key, family in catalog_families().items():
         assert family["description"].endswith("."), key
+        assert len(family["description"]) <= 300, key
         assert "\u2014" not in family["description"], key
         if key == "other":
             assert family["use_when"] == family["watch_for"] == [], "a mixed group has no one use"
             continue
-        assert family["use_when"], key
-        assert family["watch_for"], key
+        assert 1 <= len(family["use_when"]) <= 4, key
+        assert 1 <= len(family["watch_for"]) <= 4, key
         for phrase in [*family["use_when"], *family["watch_for"], *(step["how"] for step in family["next"])]:
             assert not phrase[0].islower(), f"{key}: {phrase}"
             assert not phrase.endswith("."), f"{key}: a phrase of a list, with no period: {phrase}"

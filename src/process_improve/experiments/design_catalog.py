@@ -122,8 +122,8 @@ FAMILIES: dict[str, Family] = {
         1959,
         "Kiefer, J. (1959), Optimum experimental designs, J. Royal Statistical Society B",
         about=(
-            "A design that a computer search builds for a model the experimenter names and a number of runs the "
-            "experimenter sets. The search keeps the design that scores best on a stated criterion."
+            "A design that a computer search builds for a model and a number of runs that the experimenter chooses. "
+            "The search keeps the best design it finds by a stated criterion."
         ),
         use_when=(
             "Limits rule out some combinations of settings, so the region is not a cube or a sphere",
@@ -131,10 +131,9 @@ FAMILIES: dict[str, Family] = {
             "Factors of different kinds are studied together: numeric, categorical and mixture",
         ),
         watch_for=(
-            "The design is built for the model that was named, and may say little about a term left out of it",
+            "The design is built for the model that was chosen, and may say little about a term left out of it",
             "The criteria give different designs: D to estimate the coefficients, I and G to predict the response",
-            "The search keeps the best design it found: a longer search, or another start, can find a better one",
-            "Repeated runs, and runs that test the fit of the model, are in the design only when they are asked for",
+            "It has no repeated runs, and no runs to test the fit of the model, unless they are asked for",
         ),
     ),
     "box_behnken": Family(
@@ -169,12 +168,12 @@ FAMILIES: dict[str, Family] = {
         ),
         use_when=(
             "Two known disturbances, such as the day and the operator, are to be kept out of the comparison",
-            "The treatments and both disturbances have the same number of levels (a Youden square has fewer rows)",
+            "The treatments and both disturbances have the same number of levels",
         ),
         watch_for=(
             "It assumes that the rows, the columns and the treatments do not interact",
-            "A small square leaves little to estimate the error from: a 3 x 3 square, 2 degrees of freedom",
-            "The square is drawn at random: its rows, its columns and its treatments are put in random order",
+            "A small square leaves little to estimate the error from: 2 degrees of freedom for a 3 x 3 square",
+            "A square taken as printed is not random: put its rows, its columns and its treatments in random order",
         ),
     ),
     "block_design": Family(
@@ -189,9 +188,9 @@ FAMILIES: dict[str, Family] = {
             "Runs that share a day, a batch or an operator are more alike than runs that do not",
         ),
         watch_for=(
-            "A block is not a factor under study: its effect is removed, and no best block is looked for",
+            "A block is not a factor under study: its effect is removed, not interpreted or optimized",
             "It assumes that the treatments act in the same way in every block",
-            "A block removes a known disturbance: the random order inside it guards against the unknown ones",
+            "A block removes a known disturbance only: the random order inside it guards against the unknown ones",
         ),
     ),
     "split_plot": Family(
@@ -205,7 +204,6 @@ FAMILIES: dict[str, Family] = {
             "A whole batch is made at one setting and then divided for further treatment",
         ),
         watch_for=(
-            "There are two sources of error, between whole plots and inside them, and the analysis uses both",
             "Analyzed as a fully randomized design, a hard-to-change factor can show an effect that it does not have",
             "A hard-to-change factor is set again for each whole plot, also when its setting stays the same",
             "The effects of the hard-to-change factors are estimated less precisely than the others",
@@ -214,18 +212,17 @@ FAMILIES: dict[str, Family] = {
     "comparison": Family(
         "Comparison or regression",
         about=(
-            "A study of one factor, or of measured data with no design of several factors: a sample is set against a "
-            "target, two or more groups are compared, a line or a curve is fitted to observations, or variation is "
-            "divided among its sources. The catalog holds these as worked examples."
+            "A study of one factor, or of measured data with no design of several factors: a sample is compared with "
+            "a target, two or more groups with each other, a line or a curve is fitted to observations, or variation "
+            "is divided among its sources. The catalog holds these as worked examples."
         ),
         use_when=(
             "Two or more treatments, methods or groups are compared on one response",
             "The relationship between two measured variables is to be described",
         ),
         watch_for=(
+            "Without random assignment to the groups, another difference between them can be mistaken for an effect",
             "Data that were not set by design show that two variables move together, not that one causes the other",
-            "Without random assignment to the groups, another difference between them can pass for an effect",
-            "Measurements made in pairs are a block of two: the differences inside the pairs are analyzed",
             "A fitted line describes the range of the data, and not what lies beyond it",
         ),
     ),
@@ -233,8 +230,7 @@ FAMILIES: dict[str, Family] = {
         "Other",
         about=(
             "Designs and worked calculations that belong to none of the other families: Koshal, equiradial and "
-            "third-order designs, fitted second-order equations, paths of steepest ascent, and small designs that "
-            "show how a calculation is done."
+            "third-order designs, paths of steepest ascent, and small designs that show how a calculation is done."
         ),
     ),
 }

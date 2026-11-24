@@ -440,7 +440,7 @@
   disadvantages:
     - "An interaction is aliased (mixed) with main effects unless the columns it falls in are left empty"
     - "In L12, L18 and L36 the interactions are spread over many columns: no column can be left empty for them"
-    - "L4, L8 and L16 are the runs of two-level fractional factorials, and L12 of a Plackett-Burman design"
+    - "L4, L8 and L16 are two-level fractional factorials and L12 a Plackett-Burman design: they alias as those do"
   common_misconceptions:
     - "An orthogonal array shows that interactions are absent - a saturated array cannot detect them"
   references:
@@ -455,9 +455,9 @@
   description:
     novice: >
       An experiment on a blend, where the factors are the proportions of the
-      ingredients and add up to a fixed total. Raising one ingredient lowers
-      at least one other, so the runs are placed on a simplex: a triangle, for
-      three ingredients.
+      ingredients and add up to a fixed total, so raising one ingredient
+      lowers at least one other. The runs are placed on a simplex: a triangle,
+      for three ingredients.
     intermediate: >
       The q components of a mixture are proportions that sum to 1, so the
       region is a simplex of q - 1 dimensions. A polynomial with an intercept
@@ -501,10 +501,9 @@
     - "Sized to the Scheffé model that will be fitted"
     - "Takes limits on single components and on sums of components"
   disadvantages:
-    - "The proportions add up to one, so an intercept cannot be fitted beside them: a Scheffé model has none"
-    - "A coefficient is not the effect of one ingredient: no ingredient changes while the others stay fixed"
+    - "The model has no intercept, and a coefficient is not the effect of one ingredient alone"
     - "Limits on the ingredients cut the simplex down, and the design is then built for what is left of it"
-    - "Where the amount of the blend matters too, it is one more factor (a component-amount design)"
+    - "Where the amount matters too, the amounts of the ingredients can be the factors (a component-amount design)"
   common_misconceptions:
     - "The components can be set independently, like the factors of a factorial - the proportions sum to 1, so a change in one changes at least one other"
     - "The x_i x_j terms of a Scheffé model are interactions - they measure nonlinear blending of two components"
