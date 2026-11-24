@@ -27,6 +27,7 @@ process-improve
    :doc:`Get started <quickstart>`
    `Try it in your browser <app/>`__
    :doc:`User guide <user_guide/index>`
+   :doc:`Is it accurate? <validation>`
    :doc:`API reference <api/index>`
    `The textbook <https://learnche.org/pid>`__
 

@@ -6,7 +6,8 @@ Validation
 This page records how the numbers this package computes are checked against references that
 do not depend on it: what a source prints, and what other software computes. Each comparison
 names its reference, with its version and date, and gives its result and what it found. The
-last sections say what the comparisons do not show, and how to repeat them.
+last sections say what the comparisons do not show, and how to repeat them. The page
+`Is it accurate? <https://factori.al/validation.html>`__ sums it up on one screen.
 
 .. list-table:: The comparisons
    :header-rows: 1
