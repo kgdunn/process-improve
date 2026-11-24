@@ -202,3 +202,61 @@
       satisfy), s = 1 is linear. Optimization is typically done via numerical
       search (Nelder-Mead or grid search) on the fitted response surfaces.
   related_to: [ccd, box_behnken]
+
+- id: split_plot
+  title: "Split-Plot Designs"
+  topic: design_properties
+  content:
+    novice: >
+      A split-plot design is for factors that are hard to change. A
+      hard-to-change factor is set once for a group of runs, the whole plot,
+      and the easy-to-change factors are varied inside it.
+    intermediate: >
+      The runs of one whole plot share one setting of the hard-to-change
+      factors, so they share one whole-plot error, and each run has its own
+      subplot error as well. Whole-plot effects are tested against the
+      variation between whole plots, with few degrees of freedom. Subplot
+      effects, and their interactions with the whole-plot factors, are tested
+      against the variation inside whole plots and are estimated more
+      precisely. An analysis that treats the runs as completely randomized
+      understates the error of the whole-plot effects.
+    expert: >
+      The model is a mixed model with a random effect for each whole plot,
+      fitted by REML; generalized least squares gives the coefficients at an
+      assumed ratio of the whole-plot to the subplot variance. D- and
+      I-optimal split-plot designs are built for a given number and size of
+      whole plots (Goos and Vandebroek 2003; Jones and Goos 2007, 2012). In
+      generate_design the hard-to-change factors of a D-optimal design are
+      named with hard_to_change=[...]. A split-split-plot design has one more
+      level of nesting, and a strip-plot design applies two sets of factors
+      to the rows and the columns of a grid of plots.
+  related_to: [randomization, blocking, d_optimal]
+
+- id: latin_square
+  title: "Latin Square Designs"
+  topic: design_properties
+  content:
+    novice: >
+      A Latin square tests one factor while blocking on two sources of
+      unwanted variation. It is laid out as a square in which each treatment
+      appears once in every row and once in every column.
+    intermediate: >
+      A p x p Latin square compares p treatments in p^2 runs, where crossing
+      the treatments with both blocking factors takes p^3. The rows and the
+      columns are the two blocking factors, such as days and operators, and
+      each has p levels. The model is additive: it has no interactions among
+      rows, columns and treatments. The error has (p - 1)(p - 2) degrees of
+      freedom, only 2 for a 3 x 3 square, so small squares are replicated.
+      The square is randomized by permuting its rows, its columns and the
+      labels of the treatments.
+    expert: >
+      A Graeco-Latin square superimposes two orthogonal Latin squares and
+      blocks on three factors. A set of p - 1 mutually orthogonal squares
+      exists when p is a prime power, and no orthogonal pair exists for
+      p = 6. A Youden square is a Latin rectangle, a Latin square with some
+      rows removed, whose columns form a balanced incomplete block design. A
+      p x p Latin square is an orthogonal array of p^2 runs for three factors
+      of p levels: rows, columns and treatments; the 3 x 3 square is the L9
+      array with one column unused. Crossover trials use Latin squares
+      balanced for first-order carryover (Williams 1949).
+  related_to: [blocking, randomization, taguchi]
