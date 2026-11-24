@@ -744,12 +744,12 @@ def _coded_runs(design: object, levels: Mapping[str, list[str]] | None = None) -
     """
     frame = _frame(design)
     if frame is not None:
-        for name, ordered in (levels or {}).items():
-            if name not in frame.columns:
-                continue
+        levels = levels or {}
+        for name in [c for c in frame.columns if c in levels]:
             if pd.api.types.is_numeric_dtype(frame[name]):
                 raise ValueError(f"{name} is a column of labels in one design and of numbers in another.")
-            frame = frame.assign(**{name: frame[name].astype(str).map(dict(zip(ordered, (-1.0, 1.0), strict=False)))})
+            coded = dict(zip(levels[name], (-1.0, 1.0), strict=False))
+            frame = frame.assign(**{name: frame[name].astype(str).map(coded)})
     try:
         runs = np.asarray(design if frame is None else frame, dtype=float)
     except (TypeError, ValueError) as exc:
