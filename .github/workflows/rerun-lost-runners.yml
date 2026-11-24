@@ -7,6 +7,9 @@
 # jobs again, once (the first attempt only), and the run, the checks and the badge go
 # green on their own. A run with any other failure is left as it is, so a test that fails
 # is never re-run to make it pass.
+#
+# A job that waits for a runner and never gets one is lost in the same way, but it is
+# cancelled, not failed, and has no annotation to read: it has no runner at all (#1466).
 name: Re-run jobs whose runner was lost
 
 on:
@@ -31,17 +34,22 @@ jobs:
         REPO: ${{ github.repository }}
         RUN: ${{ github.event.workflow_run.id }}
       run: |
-        # `CI passed` only gathers the others, so it fails whenever one of them does.
+        # `CI passed` only gathers the others, so it fails whenever one of them does. A job that
+        # was cancelled with no runner never started: `CI passed` reads it as abandoned. Any other
+        # cancelled job is left out, as it always was.
         failed=0
         lost=0
-        for job in $(gh api "repos/$REPO/actions/runs/$RUN/jobs?per_page=100" --paginate \
-            --jq '.jobs[] | select(.conclusion == "failure" and .name != "CI passed") | .id'); do
+        while read -r job never_started; do
           failed=$((failed + 1))
-          if gh api "repos/$REPO/check-runs/$job/annotations" --jq '.[].message' |
+          if [ "$never_started" = true ] || gh api "repos/$REPO/check-runs/$job/annotations" --jq '.[].message' |
               grep -qE 'lost communication with the server|runner has received a shutdown signal|was not acquired by Runner'; then
             lost=$((lost + 1))
           fi
-        done
+        done < <(gh api "repos/$REPO/actions/runs/$RUN/jobs?per_page=100" --paginate --jq '
+          .jobs[] | select(.name != "CI passed")
+          | (.conclusion == "cancelled" and (.runner_id // 0) == 0) as $never_started
+          | select(.conclusion == "failure" or $never_started)
+          | "\(.id) \($never_started)"')
         echo "Failed jobs: $failed; of them, lost runners: $lost."
         if [ "$failed" -gt 0 ] && [ "$lost" -eq "$failed" ]; then
           gh run rerun "$RUN" --failed --repo "$REPO"
