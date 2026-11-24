@@ -89,7 +89,8 @@ class Family:
 #: Every family a record can belong to. ``year`` and ``reference`` name the work that first published
 #: the family, where one work is generally credited with it.
 # shortcut: seven of these families are design types the knowledge base (knowledge/data/design_types.yaml) does not
-# describe yet, so their words are here; move them there when it gains the type, and catalog_families reads them.
+# describe yet (#1475), so their words are here; move them there when it gains the type, and catalog_families reads
+# them.
 FAMILIES: dict[str, Family] = {
     "full_factorial": Family(
         "Full factorial", 1926, "Fisher, R. A. (1926), The arrangement of field experiments, J. Ministry of Agriculture"
