@@ -164,14 +164,13 @@
           <p class="sizemap__axis"><b>Factors</b>: press a number to open its design families</p>
           <button type="button" class="link map__reset" id="map-reset">Reset the table</button>
         </div>
+        <!-- The key, a few words a label so that it is one line on a wide page: the fold under the table says more. -->
         <ul class="sizemap__key" aria-label="What the table's colors and lines say">
-          <li class="sizemap__asks">The most a design of that size can tell you:</li>
-          <li><svg viewBox="0 0 12 12" aria-hidden="true"><rect class="fill-2" width="12" height="12" rx="2"></rect></svg>each factor's own effect (main effects)</li>
-          <li><svg viewBox="0 0 12 12" aria-hidden="true"><rect class="fill-3" width="12" height="12" rx="2"></rect></svg>+ how factors act together (two-factor interactions)</li>
-          <li><svg viewBox="0 0 12 12" aria-hidden="true"><rect class="fill-4" width="12" height="12" rx="2"></rect></svg>+ curvature, to find an optimum (the full quadratic)</li>
-          <li><svg viewBox="0 0 12 12" aria-hidden="true"><rect class="fill-0" x="1" y="1" width="10" height="10" rx="2"></rect></svg>none of these, or none is stated</li>
-          <li><svg class="sizemap__stroke" viewBox="0 0 26 8" aria-hidden="true"><line class="sizemap__line sizemap__line--main" x1="2" x2="24" y1="4" y2="4"></line></svg>fewest experiments for the main effects</li>
-          <li><svg class="sizemap__stroke" viewBox="0 0 26 8" aria-hidden="true"><line class="sizemap__line" x1="2" x2="24" y1="4" y2="4"></line></svg>fewest experiments for the full quadratic</li>
+          <li><svg viewBox="0 0 12 12" aria-hidden="true"><rect class="fill-2" width="12" height="12" rx="2"></rect></svg>main effects</li>
+          <li><svg viewBox="0 0 12 12" aria-hidden="true"><rect class="fill-3" width="12" height="12" rx="2"></rect></svg>+ interactions</li>
+          <li><svg viewBox="0 0 12 12" aria-hidden="true"><rect class="fill-4" width="12" height="12" rx="2"></rect></svg>+ quadratic</li>
+          <li><svg viewBox="0 0 12 12" aria-hidden="true"><rect class="fill-0" x="1" y="1" width="10" height="10" rx="2"></rect></svg>none stated</li>
+          <li><svg class="sizemap__stroke" viewBox="0 0 44 8" aria-hidden="true"><line class="sizemap__line sizemap__line--main" x1="2" x2="20" y1="4" y2="4"></line><line class="sizemap__line" x1="26" x2="42" y1="4" y2="4"></line></svg>fewest experiments</li>
         </ul>
         <p class="sizemap__axis sizemap__axis--runs"><b>Number of experiments</b> (scales with cost)</p>
         <div id="map" class="sizemap" role="group" aria-label="Designs by factors and runs"></div>
@@ -181,11 +180,14 @@
           <summary>How to read this table</summary>
           <p class="hint">A row is a number of factors, and a column a band of experiments, or runs, named by its
             largest size. The number in a cell is how many designs it holds; a pale cell has none in the list. A
-            cell's color is the most that one of its designs estimates. Press a row's number to open the row into its
-            families, where a mark is one size of design. Press a cell or a mark to list its designs below, each with
-            its details and a button that opens it in Factorial. A design left of a line has too few runs for that
-            model; one right of it has enough, and may still not estimate it. The arrow keys move between the
-            cells.</p>
+            cell's color is the most that one of its designs estimates: the main effects, which are each factor's
+            own effect; the two-factor interactions too, which are how factors act together; or the full quadratic,
+            which adds the curvature that finding an optimum needs. The dotted line is the fewest experiments the
+            main effects need, and the solid line the fewest the full quadratic needs: a design left of a line has
+            too few for that model; one right of it has enough, and may still not estimate it. Press a row's number
+            to open the row into its families, where a mark is one size of design. Press a cell or a mark to list
+            its designs below, each with its details and a button that opens it in Factorial. The arrow keys move
+            between the cells.</p>
         </details>
       </figure>
       <div class="catalog__listhead">
