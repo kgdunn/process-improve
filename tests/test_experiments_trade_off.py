@@ -142,6 +142,16 @@ class TestTradeOffTableEntry:
         assert result.n_replicates == 1
         assert result.label == "2^4 (full)"
 
+    def test_a_relation_too_long_to_list_still_gives_the_resolution(self, capsys):
+        """25 factors in 32 runs have 2^20 - 1 defining words; listing them and their alias chains took hours."""
+        result = get_trade_off_table_entry(n_runs=32, n_factors=25, display=True)
+        assert result.label == "2^(25-20) III"
+        assert result.defining_relation == []
+        assert result.aliases == []
+        assert "Not listed: the defining relation has 1,048,575 words." in capsys.readouterr().out
+        assert get_trade_off_table_entry(n_runs=32, n_factors=16, display=False).resolution == 4
+        assert len(get_trade_off_table_entry(n_runs=16, n_factors=14, display=False).defining_relation) == 1023
+
     def test_spare_budget_is_reported_as_replication(self):
         result = get_trade_off_table_entry(n_runs=32, n_factors=3, display=False)
         assert result.n_replicates == 4
@@ -218,9 +228,9 @@ class TestMinimumAberrationGenerators:
         assert get_trade_off_table_entry(n_runs=n_runs, n_factors=n_factors, display=False).label == label
 
     def test_existing_but_unsearched_cell_is_not_blank(self):
-        """12 factors fit into 32 runs (at resolution IV); a blank cell would say they cannot."""
-        table = trade_off_table(runs=[32], factors=[12], display=False)
-        assert table.loc[32, 12] == "?"
+        """12 factors fit into 64 runs; a blank cell would say they cannot, though no design is searched or listed."""
+        table = trade_off_table(runs=[64], factors=[12], display=False)
+        assert table.loc[64, 12] == "?"
 
     def test_messages_say_runs_and_factors(self):
         """The messages used to read '8 n_runs cannot accommodate 8 n_factors'."""
@@ -304,3 +314,52 @@ def test_generate_design_table_has_minimum_aberration(k: int, n_runs: int, gener
     names = _factor_names(k)
     searched = minimum_aberration_generators(n_runs, k)
     assert _word_length_pattern(generators, names, k) == _word_length_pattern(searched, names, k)
+
+
+#: The word-length patterns (A3 to A7) of the minimum-aberration fractions in 32 runs that the search is too slow
+#: to run on request, as Chen, Sun and Wu (1993) give them; their table is complete for 32 runs.
+_PATTERNS_IN_32_RUNS = {
+    12: (0, 38, 0, 52, 0),
+    13: (0, 55, 0, 96, 0),
+    14: (0, 77, 0, 168, 0),
+    15: (0, 105, 0, 280, 0),
+    16: (0, 140, 0, 448, 0),
+    17: (8, 140, 112, 448, 504),
+    18: (16, 148, 224, 560, 1008),
+    19: (24, 164, 344, 784, 1624),
+    20: (32, 188, 480, 1128, 2464),
+    21: (40, 220, 641, 1608, 3640),
+    22: (48, 263, 832, 2224, 5312),
+    23: (56, 315, 1064, 3024, 7616),
+    24: (64, 378, 1344, 4032, 10752),
+    25: (76, 442, 1656, 5376, 15004),
+}
+
+
+@pytest.mark.parametrize("k", sorted(_PATTERNS_IN_32_RUNS))
+def test_the_listed_32_run_fractions_have_the_published_word_length_patterns(k: int) -> None:
+    """Past the search limit, 12 to 25 factors in 32 runs come from the table: each has the published pattern."""
+    from process_improve.experiments.trade_off import _factor_names, _word_length_pattern
+
+    generators = minimum_aberration_generators(32, k)
+    assert _word_length_pattern(generators, _factor_names(k), k)[:5] == _PATTERNS_IN_32_RUNS[k]
+
+
+@pytest.mark.parametrize(
+    "k", [pytest.param(k, marks=[pytest.mark.slow] if 13 <= k <= 23 else []) for k in sorted(_PATTERNS_IN_32_RUNS)]
+)
+def test_the_listed_32_run_fractions_are_what_the_search_returns(k: int) -> None:
+    """The table holds what the exhaustive search finds; it is listed only because the search takes seconds."""
+    from process_improve.experiments.designs_screening import _MIN_ABERRATION
+    from process_improve.experiments.trade_off import _search_minimum_aberration
+
+    assert _search_minimum_aberration(5, k) == _MIN_ABERRATION[k][32]
+
+
+def test_a_fractional_factorial_of_20_factors_in_32_runs_is_built_from_the_table() -> None:
+    """generate_design builds the minimum-aberration fraction, where the search used to refuse it."""
+    from process_improve.experiments import Factor, generate_design
+
+    factors = [Factor(name=f"x{i}", low=-1, high=1) for i in range(20)]
+    result = generate_design(factors, design_type="fractional_factorial", budget=32, n_center_points=0)
+    assert (result.n_runs, result.resolution) == (32, 3)

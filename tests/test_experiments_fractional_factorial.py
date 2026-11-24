@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 
 from process_improve.experiments import Factor, generate_design
-from process_improve.experiments.designs_screening import _MIN_ABERRATION, _TABLE_LETTERS
+from process_improve.experiments.designs_screening import _MAX_TABULATED_FACTORS, _MIN_ABERRATION, _TABLE_LETTERS
 from process_improve.experiments.evaluate import evaluate_design
 
 NAMES = "ABCDEFGHJKLMN"
@@ -178,13 +178,17 @@ class TestTable:
     """Every entry of the table is a minimum-aberration fraction."""
 
     def test_every_run_count_is_listed(self) -> None:
-        """Each k lists every fraction from the smallest (resolution III) to the quarter fraction.
+        """Each k up to 11 lists every fraction from the smallest (resolution III) to the quarter fraction.
 
         The selection returns the half fraction when no entry reaches a resolution; that
-        is only right if no smaller fraction is missing.
+        is only right if no smaller fraction is missing. From 12 factors on the table lists
+        32-run fractions only, which the search reads when it is too slow to run
+        (tests/test_experiments_trade_off.py pins them).
         """
-        assert set(_MIN_WLP) == {(k, n) for k, cells in _MIN_ABERRATION.items() for n in cells}
-        for k, cells in _MIN_ABERRATION.items():
+        listed = {k: cells for k, cells in _MIN_ABERRATION.items() if k <= _MAX_TABULATED_FACTORS}
+        assert set(_MIN_WLP) == {(k, n) for k, cells in listed.items() for n in cells}
+        assert all(set(cells) == {32} for k, cells in _MIN_ABERRATION.items() if k > _MAX_TABULATED_FACTORS)
+        for k, cells in listed.items():
             smallest = math.ceil(math.log2(k + 1))  # 2^m runs hold at most 2^m - 1 factors
             assert sorted(cells) == [2**m for m in range(smallest, k - 1)], k
 

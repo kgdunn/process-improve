@@ -450,7 +450,8 @@ def test_a_design_the_library_makes_says_what_its_kind_was_checked_against(conte
     page.keyboard.press("Escape")
     composite = checked["designs"]["ccd"]["factors"]["3"]["packages"]
     badges = page.locator(".result", has=page.locator(f".result__title[data-id='{CCD}']")).locator(".badge")
-    assert {"no source prints it", f"checked: {len(composite)} package"} <= set(badges.all_text_contents())
+    counted = f"checked: {len(composite)} package{'' if len(composite) == 1 else 's'}"
+    assert {"no source prints it", counted} <= set(badges.all_text_contents())
     press_title(page, CCD)
     page.wait_for_function("document.querySelector('#detail-title').textContent.includes('composite')")
     assert page.locator("#detail-body .detail__against h4").all_text_contents() == ["In other software"]

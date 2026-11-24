@@ -36,6 +36,7 @@ def dispatch_ccd(  # noqa: PLR0913
     resolution: int | None = None,
     n_replicates: int = 1,
     n_blocks: int | None = None,
+    center_runs_per_block: list[int] | None = None,
 ) -> tuple[np.ndarray, dict]:
     """Generate a Central Composite Design (CCD).
 
@@ -78,6 +79,10 @@ def dispatch_ccd(  # noqa: PLR0913
         others. Without *alpha*, the axial distance is then the one that blocks the
         design orthogonally (:func:`blocking_alpha`), recorded as ``alpha_rule``
         ``"orthogonal_blocks"``.
+    center_runs_per_block : list[int] or None
+        The center runs of each block, the cube blocks first and the axial block last,
+        summing to *n_center_points*. ``None`` puts half of *n_center_points*, rounded
+        down, with the cube runs and the rest with the axial runs.
 
     Returns
     -------
@@ -112,27 +117,33 @@ def dispatch_ccd(  # noqa: PLR0913
     else:
         cube_runs, cube_meta = np.array(list(itertools.product((-1.0, 1.0), repeat=k)))[:, ::-1], {}
 
+    # The center runs with the cube runs and with the axial runs: as given block by block, or half and half.
+    n_center_cube = n_center_points // 2 if center_runs_per_block is None else sum(center_runs_per_block[:-1])
+    centers = (n_center_cube, n_center_points - n_center_cube)
     if n_blocks is not None and n_blocks > 1 and alpha is None:
         # Blocked, with no axial distance asked for: the one that blocks orthogonally.
-        n_center_cube = n_center_points // 2
-        distance = blocking_alpha(
-            n_replicates * len(cube_runs), n_center_cube, k, n_center_points - n_center_cube, n_replicates
-        )
-        coded_matrix = _stack_ccd(cube_runs, distance, n_center_points)
+        distance = blocking_alpha(n_replicates * len(cube_runs), centers[0], k, centers[1], n_replicates)
+        coded_matrix = _stack_ccd(cube_runs, distance, centers)
         meta = {"alpha_value": distance, "face": _geometry(distance), "alpha_rule": "orthogonal_blocks"}
     elif cube == "fractional":
         distance, rule = _resolve_fractional_axial_distance(alpha, len(cube_runs), k, n_center_points, n_replicates)
-        coded_matrix = _stack_ccd(cube_runs, distance, n_center_points)
+        coded_matrix = _stack_ccd(cube_runs, distance, centers)
         meta = {"alpha_value": distance, "face": _geometry(distance), "alpha_rule": rule}
     else:
-        coded_matrix, meta = _full_ccd(k, n_center_points, alpha, n_replicates)
+        coded_matrix, meta = _full_ccd(k, centers, alpha, n_replicates)
     # Rows run cube, cube center runs, axial runs, axial center runs; mark the axial portion.
-    axial = np.arange(len(coded_matrix)) >= len(cube_runs) + n_center_points // 2
+    axial = np.arange(len(coded_matrix)) >= len(cube_runs) + centers[0]
     return coded_matrix, {**meta, **cube_meta, "axial_portion": axial.tolist()}
 
 
-def _full_ccd(k: int, n_center_points: int, alpha: str | float | None, n_replicates: int) -> tuple[np.ndarray, dict]:
-    """Build a CCD on the full 2^k cube, with *alpha* as :func:`dispatch_ccd` takes it."""
+def _full_ccd(
+    k: int, centers: tuple[int, int], alpha: str | float | None, n_replicates: int
+) -> tuple[np.ndarray, dict]:
+    """Build a CCD on the full 2^k cube, with *alpha* as :func:`dispatch_ccd` takes it.
+
+    *centers* is the number of center runs with the cube runs and with the axial runs.
+    """
+    n_center_points = sum(centers)
     kind = _axial_kind(alpha)
     rule = _ALPHA_NAMES[kind][0] if isinstance(kind, str) else "user"
     if kind == "spherical":
@@ -144,13 +155,11 @@ def _full_ccd(k: int, n_center_points: int, alpha: str | float | None, n_replica
     if isinstance(kind, float):
         # An axial distance ccdesign cannot take: build the 2^k cube, the 2k axial runs and the center runs here.
         cube_runs = np.array(list(itertools.product((-1.0, 1.0), repeat=k)))[:, ::-1]
-        coded_matrix = _stack_ccd(cube_runs, kind, n_center_points)
+        coded_matrix = _stack_ccd(cube_runs, kind, centers)
         return coded_matrix, {"alpha_value": kind, "face": _geometry(kind), "alpha_rule": rule}
 
-    # Center runs are split between the cube and axial blocks, as ccdesign does.
-    n_center_cube = n_center_points // 2
     face = {"faced": "faced", "inscribed": "inscribed"}.get(kind, "circumscribed")
-    coded_matrix = ccdesign(k, center=(n_center_cube, n_center_points - n_center_cube), alpha="rotatable", face=face)
+    coded_matrix = ccdesign(k, center=centers, alpha="rotatable", face=face)
     if face == "inscribed":
         # The axial runs sit at +/-1 and the cube is shrunk to +/-1/alpha.
         cube_rows = coded_matrix[np.all(coded_matrix != 0, axis=1)]
@@ -742,18 +751,17 @@ def _fractional_cube(
     }
 
 
-def _stack_ccd(cube: np.ndarray, axial_distance: float, n_center_points: int) -> np.ndarray:
-    """Stack a CCD: the cube, half the center runs, the ``2k`` axial runs, the other center runs.
+def _stack_ccd(cube: np.ndarray, axial_distance: float, centers: tuple[int, int]) -> np.ndarray:
+    """Stack a CCD: the cube, its center runs, the ``2k`` axial runs, their center runs.
 
-    The center runs are split between the cube and axial portions as ``ccdesign`` does,
-    so each portion can be a block of its own.
+    *centers* is the number of center runs with the cube runs and with the axial runs, so
+    each portion can be a block of its own.
     """
     k = cube.shape[1]
     star = np.zeros((2 * k, k))
     for i in range(k):
         star[2 * i : 2 * i + 2, i] = (-axial_distance, axial_distance)
-    n_center_cube = n_center_points // 2
-    return np.vstack([cube, np.zeros((n_center_cube, k)), star, np.zeros((n_center_points - n_center_cube, k))])
+    return np.vstack([cube, np.zeros((centers[0], k)), star, np.zeros((centers[1], k))])
 
 
 def _cyclic_blocks(base: tuple[int, ...], k: int) -> tuple[tuple[int, ...], ...]:

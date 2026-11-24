@@ -67,25 +67,30 @@ def main() -> None:
         mine = mine[
             ~mine["other"].str.contains("harness does not map", na=False)
         ]  # a limit of compare.py, not the package
-        # A package is measured on the designs it built. A request it does not offer (blocks, a kind of design,
-        # an option) or did not finish in time is its scope, not a fault, and is not counted. A number that
-        # neither library gives as printed is the catalog's subject, not this comparison's.
+        # A package is measured on the designs it built, against the number the source prints, as process-improve
+        # is. A request it does not offer (blocks, a kind of design, an option) or did not finish in time is its
+        # scope, not a fault, and is not counted. A number that neither library gives as printed is the catalog's
+        # subject, not this comparison's; one that only process-improve misses is process-improve's.
         built = mine["outcome"].isin(["agree", "other differs", "process-improve differs"])
         builds = mine.loc[built, "design_type"].unique()
         mine = mine[built]
         count = mine["outcome"].value_counts()
+        as_printed = count.get("agree", 0) + count.get("process-improve differs", 0)
         table.append(
             {
                 "Package": label,
                 "Designs compared": ", ".join(text for kind, text in DESIGNS.items() if kind in builds),
                 "Checks": f"{len(mine):,}",
-                "Agree": f"{count.get('agree', 0):,}",
-                "Differ": f"{count.get('other differs', 0) + count.get('process-improve differs', 0):,}",
+                "As printed": f"{as_printed:,}",
+                "Differ": f"{count.get('other differs', 0):,}",
             }
         )
-        differs = mine[mine["outcome"].isin(["other differs", "process-improve differs"])]
+        differs = mine[mine["outcome"] == "other differs"]
+        kept = DOCS / f"differences_{name}.csv"
         if len(differs):
-            differs.drop(columns=["design_type", "built_by"]).to_csv(DOCS / f"differences_{name}.csv", index=False)
+            differs.drop(columns=["design_type", "built_by"]).to_csv(kept, index=False)
+        else:
+            kept.unlink(missing_ok=True)
     pd.DataFrame(table).to_csv(DOCS / "design_crosscheck.csv", index=False)
     print(pd.DataFrame(table).to_string(index=False))
     write_checked(rows)
