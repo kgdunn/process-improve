@@ -1688,9 +1688,10 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
 /* What a design estimates at most, in three steps of batlow (charts.js), the color map of the app's charts: far
    apart in hue and in lightness, so they tell apart on a light page, on a dark one, and without color. */
 .catalog__map .fill-0 { --cell: var(--panel); --ink: var(--fg); fill: var(--panel); stroke: var(--muted); stroke-width: 1; }
-.catalog__map .fill-2 { --cell: #226061; --ink: #ffffff; }
-.catalog__map .fill-3 { --cell: #a48a33; --ink: #111111; }
-.catalog__map .fill-4 { --cell: #fdb4b6; --ink: #111111; }
+.catalog { --step-1: #226061; --step-2: #a48a33; --step-3: #fdb4b6; }
+.catalog__map .fill-2 { --cell: var(--step-1); --ink: #ffffff; }
+.catalog__map .fill-3 { --cell: var(--step-2); --ink: #111111; }
+.catalog__map .fill-4 { --cell: var(--step-3); --ink: #111111; }
 .catalog__map rect[class^="fill-"], .sizemap__cell rect, .sizemap__mark { fill: var(--cell); }
 .sizemap .out { opacity: 0.3; }
 .sizemap__cell:focus-visible rect, .sizemap__mark:focus-visible { stroke: var(--fg); stroke-width: 2.5; }
@@ -1721,23 +1722,60 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
 .sizemap__lane { fill: transparent; cursor: pointer; }
 .sizemap__mark { stroke: var(--panel); stroke-width: 2; }
 .sizemap__mark.fill-0 { stroke: var(--muted); stroke-width: 1.5; }
-.catalog__listhead { display: flex; justify-content: flex-end; margin: 0 0 6px; font-size: 0.9rem; }
+/* Over the list: what a design's picture is, and the order of the list. */
+.catalog__listhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 16px; margin: 0 0 6px; font-size: 0.9rem; }
 .catalog__listhead select { margin-left: 6px; }
-.results { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.results__key { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; margin: 0; color: var(--muted); font-size: 0.85rem; }
+.results__key span { display: inline-flex; align-items: center; gap: 4px; }
+.results__key i { width: 10px; height: 10px; border-radius: 2px; border: 1px solid var(--line); }
+/* The list: a line a design, in two rows of text beside its picture, with what opens it at the line's end. A card
+   a design, with its picture across it and a wide button, held three or four designs to a screen. */
+.results { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
 .result {
-  display: grid; grid-template-columns: 132px minmax(0, 1fr) auto; gap: 14px; align-items: center;
-  padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner);
+  display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; column-gap: 12px; align-items: center;
+  padding: 7px 2px; border-bottom: 1px solid var(--line);
 }
-@media (max-width: 640px) {
-  .result { grid-template-columns: 96px minmax(0, 1fr); gap: 10px; }
-  .result__actions { grid-column: 1 / -1; }
+.result .glyph { justify-self: center; }
+/* A line's text holds its column: what is too long is cut, and never runs under the buttons. */
+.result__body { min-width: 0; overflow: hidden; container-type: inline-size; }
+/* The first row: the design's family and size. A long name runs on to a second line: its runs are at its end,
+   and are not to be cut. The second row starts with the mark of what the design estimates. */
+.result__name { margin: 0; font-size: 0.98rem; font-weight: 600; }
+.result__step, .result__also { font-size: 0.85rem; font-weight: 400; color: var(--muted); white-space: nowrap; }
+.result__step { flex: none; display: inline-flex; align-items: center; gap: 5px; }
+/* The families a design's runs also are: on the first row where it has the room, and always under the fold. */
+.result__also { display: none; margin-left: 12px; }
+@container (min-width: 700px) { .result__also { display: inline; } }
+/* What a design estimates, in the color of its cell in the table. */
+.result__step i { width: 10px; height: 10px; border-radius: 2px; border: 1px solid var(--muted); }
+.result__step[data-step="1"] i { background: var(--step-1); border-color: var(--step-1); }
+.result__step[data-step="2"] i { background: var(--step-2); border-color: var(--step-2); }
+.result__step[data-step="3"] i { background: var(--step-3); border-color: var(--step-3); }
+/* The second row, and each entry under a fold: one line, its title cut first, then its notes. */
+.result__said, .result__uses li { display: flex; align-items: baseline; gap: 0 10px; min-width: 0; margin: 2px 0 0; font-size: 0.88rem; white-space: nowrap; }
+.result__title { flex: 0 1 auto; min-width: 4em; padding: 0; text-align: left; font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; }
+.result__source { flex: none; color: var(--muted); }
+.result__fold { flex: none; padding: 0; font-size: 0.88rem; }
+.result__fold::after { content: " \25B8"; }
+.result__fold[aria-expanded="true"]::after { content: " \25BE"; }
+.result__notes { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* In a line a note is quiet text, not a ringed mark: a line may carry five. */
+.result .badge { display: inline; margin-right: 10px; padding: 0; border: none; background: none; font-size: 0.85rem; font-weight: 400; color: var(--muted); white-space: nowrap; }
+.result .badge--data, .result .badge--checked { color: var(--ok); }
+.result .badge--warn { color: var(--warn); }
+.result__uses { list-style: none; margin: 4px 0 2px; padding: 0 0 0 10px; border-left: 2px solid var(--line); }
+.result__uses .link { flex: none; padding: 0; font-size: 0.88rem; }
+.result__uses .result__title { flex: 0 1 auto; }
+.result__uses .result__same { color: var(--muted); white-space: normal; }
+/* On a phone an entry's title has a line to itself, and the notes are left to the design's details, but for a limit
+   its runs break. */
+@media (max-width: 520px) {
+  .result__said, .result__uses li { flex-wrap: wrap; }
+  .result__title, .result__uses .result__title { flex: 1 1 100%; }
+  .result__notes:not(:has(.badge--warn)) { display: none; }
 }
-.result h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; font-size: 1rem; }
-.result__title { padding: 0; text-align: left; font-size: 1rem; font-weight: 600; }
-.result__facts, .result__source { margin: 2px 0 0; font-size: 0.88rem; }
-.result__source { color: var(--muted); overflow-wrap: anywhere; }
-.glyph { display: block; max-width: 100%; border-radius: 3px; }
-.glyph--none { width: 132px; height: 18px; border: 1px dashed var(--line); }
+.glyph { display: block; max-width: 100%; border-radius: 2px; }
+.glyph--none { width: 20px; height: 20px; border: 1px dashed var(--line); }
 .badge--data { border-color: var(--ok); color: var(--ok); }
 .badge--topic { max-width: 100%; font-weight: 500; white-space: normal; }
 #more { display: block; margin: 12px auto 0; }
@@ -1803,7 +1841,11 @@ table.factors-table td:nth-child(2) { white-space: nowrap; }
 .timeline__brush { fill: var(--accent); opacity: 0.18; pointer-events: none; }
 .timeline__ends { display: flex; justify-content: space-between; margin: 2px 0 6px; font-size: 0.75rem; color: var(--muted);
   font-variant-numeric: tabular-nums; }
-.result__actions { display: flex; flex-direction: column; gap: 6px; }
+.result__actions { display: flex; gap: 6px; align-items: center; }
+.result__actions .button { padding: 4px 12px; font-size: 0.9rem; }
+@media (max-width: 520px) {
+  .result__actions { flex-direction: column; align-items: stretch; }
+}
 .compare-toggle[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
 .tray {
   position: fixed; z-index: 20; left: 50%; bottom: 12px; transform: translateX(-50%); width: min(820px, 100vw - 32px);

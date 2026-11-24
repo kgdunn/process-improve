@@ -1040,7 +1040,13 @@ What a careful reader, or an organization, asks before using a tool.
     of design, each mark colored the same way, and a press on a cell or a mark lists its
     designs. Search in words, or filter by family, field, runs, factors and model. Where a
     design is from, a book or paper or Factorial itself, is a filter that says what the two
-    kinds are. The lists by book and by field are links at the foot of the page. The filter for the years has a strip of bars over its two boxes: a
+    kinds are. The lists by book and by field are links at the foot of the page. The list has
+    one line for each design: its family and size, a mark for what it estimates in its cell's
+    color, a small picture of its runs with a key over the list, and a button that opens it in
+    Factorial. Entries that are the same runs are one line: a button under its name says in how
+    many places the design is printed, and opens onto them, each with its source and its own way
+    to open. The count over the list says how many designs it holds, and how many of them are
+    different. The filter for the years has a strip of bars over its two boxes: a
     bar's height is the number of designs published in its five years, and a drag across the
     strip, or a press on a bar, fills the boxes. A design's page links to where its source
     prints it, projects its runs onto two or three factors, and draws its correlation map. A
