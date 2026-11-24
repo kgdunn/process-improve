@@ -1074,7 +1074,8 @@ What a careful reader, or an organization, asks before using a tool.
 - **[Learn experimental design](map/).** Three ways to learn, on one page with the concept
   map: read the chapter of *Process Improvement using Data*, take the Coursera course
   Experimentation for Improvement, or watch the course's videos on YouTube.
-  - *Details:* The videos are the course's own, without its quizzes and course material. The
+  - *Details:* The course is free to preview on Coursera; its certificate is paid. The videos
+    are the course's own, without its quizzes and course material. The
     book's DOI is under the chapter, as text: one press selects it, to copy. A press anywhere
     on a card follows its link. On a phone the three are one under the other, with the map's
     heading on the first screen.
