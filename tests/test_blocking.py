@@ -184,6 +184,45 @@ class TestCentralCompositeBlocks:
         assert result.metadata["blocking"]["orthogonal"]
         assert self._block_correlation(result, 3) == pytest.approx(0.0, abs=1e-12)
 
+    @pytest.mark.parametrize(
+        ("k", "centers", "cube", "printed"),
+        [(3, [2, 2, 2], "full", 1.63299), (4, [2, 2, 2], "full", 2.0), (5, [6, 1], "fractional", 2.0)],
+    )
+    def test_center_runs_given_by_block_give_nist_s_axial_distances(
+        self, k: int, centers: list[int], cube: str, printed: float
+    ) -> None:
+        """NIST/SEMATECH e-Handbook 5.3.3.6.4, Tables 3.30 to 3.32: each block holds the center runs it is given."""
+        result = generate_design(_factors(k), "ccd", n_blocks=len(centers), n_center_points=centers, cube=cube)
+        assert result.alpha == pytest.approx(printed, abs=5e-6)
+        x = result.design[[f"x{i}" for i in range(k)]].to_numpy(dtype=float)
+        center = np.all(np.isclose(x, 0.0), axis=1)
+        counts = np.bincount(result.design["Block"][center], minlength=len(centers) + 1)[1:]
+        assert counts.tolist() == centers
+        assert result.metadata["blocking"]["orthogonal"]
+        assert self._block_correlation(result, k) == pytest.approx(0.0, abs=1e-12)
+
+    @pytest.mark.parametrize(
+        ("centers", "n_blocks", "design_type", "message"),
+        [
+            ([2, 3, 2], 3, "ccd", "same number of center runs"),
+            ([2, 2], 3, "ccd", "each block of a blocked central composite design"),
+            ([2, 2, 2], None, "ccd", "each block of a blocked central composite design"),
+            ([-1, 2, 2], 3, "ccd", "whole number >= 0"),
+            ([2.5, 2.5, 2], 3, "ccd", "whole number >= 0"),
+            ([2, 2], 2, "full_factorial", "each block of a blocked central composite design"),
+        ],
+    )
+    def test_center_runs_by_block_are_refused_where_they_cannot_be_honored(
+        self, centers: list[float], n_blocks: int | None, design_type: str, message: str
+    ) -> None:
+        with pytest.raises(ValueError, match=message):
+            generate_design(_factors(3), design_type, n_blocks=n_blocks, n_center_points=centers)
+
+    def test_a_total_still_puts_half_the_center_runs_with_the_cube(self) -> None:
+        """Without a list, three of six center runs go to the cube blocks: Table 3.30's distance needs four."""
+        result = generate_design(_factors(3), "ccd", n_blocks=3, n_center_points=6)
+        assert result.alpha == pytest.approx(1.80907, abs=5e-6)
+
     def test_a_chosen_alpha_is_kept_and_its_blocks_reported(self) -> None:
         result = generate_design(_factors(3), "ccd", n_blocks=2, alpha="rotatable")
         assert result.alpha == pytest.approx(8**0.25)

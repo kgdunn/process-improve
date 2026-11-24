@@ -189,6 +189,7 @@ def _dispatch_ccd(
         resolution=kwargs.get("resolution"),
         n_replicates=kwargs.get("n_replicates", 1),
         n_blocks=kwargs.get("blocks"),
+        center_runs_per_block=kwargs.get("center_runs_per_block"),
     )
 
 
@@ -671,6 +672,42 @@ def _center_points_by_rule(
     return int(ccd_center_points(n_center_points, cube_runs, k, ccd["n_replicates"])), "rotatable"
 
 
+def _center_runs_by_block(
+    n_center_points: int | str | list[int] | None, design_type: str | None, n_blocks: int | None
+) -> tuple[int | str | None, list[int] | None]:
+    """Split center runs given block by block into their total and the list, for a blocked central composite design.
+
+    A number, a rule's name or ``None`` passes through, with no list. A list or tuple is the center runs of each
+    block of a blocked CCD, the cube blocks first and the axial block last, as a source prints them (NIST/SEMATECH
+    e-Handbook 5.3.3.6.4); the axial distance that blocks the design orthogonally depends on them.
+
+    Raises
+    ------
+    ValueError
+        If the list is not for a CCD with as many blocks, a count is not a whole number >= 0, or the cube blocks
+        take different numbers of center runs.
+    """
+    if not isinstance(n_center_points, (list, tuple)):
+        return n_center_points, None
+    counts = list(n_center_points)
+    if design_type != "ccd" or n_blocks is None or len(counts) != n_blocks or n_blocks < 2:
+        raise ValueError(
+            "A list of center runs gives those of each block of a blocked central composite design, the cube "
+            f"blocks first and the axial block last: design_type='ccd' with n_blocks={len(counts)}. Got "
+            f"n_center_points={counts!r} with design_type={design_type!r} and n_blocks={n_blocks!r}."
+        )
+    if any(isinstance(c, bool) or int(c) != c or c < 0 for c in counts):
+        raise ValueError(f"Each block's center runs must be a whole number >= 0; got n_center_points={counts!r}.")
+    if len(set(counts[:-1])) > 1:
+        # The cube blocks are halves (quarters, ...) of the cube: blocked orthogonally, each takes as many.
+        raise ValueError(
+            f"The cube blocks take the same number of center runs, as orthogonal blocking needs; got {counts[:-1]} "
+            f"for the {len(counts) - 1} cube blocks."
+        )
+    counts = [int(c) for c in counts]
+    return sum(counts), counts
+
+
 def _check_counts(n_center_points: int | None, n_replicates: int, n_blocks: int | None) -> None:
     """Raise for a center-point, replicate or block count that cannot be meant literally."""
     if n_center_points is not None and (int(n_center_points) != n_center_points or n_center_points < 0):
@@ -872,7 +909,7 @@ def generate_design(  # noqa: PLR0913
     factors: list[Factor],
     design_type: str | None = None,
     budget: int | None = None,
-    n_center_points: int | str | None = None,
+    n_center_points: int | str | list[int] | None = None,
     n_replicates: int = 1,
     n_blocks: int | None = None,
     resolution: int | None = None,
@@ -931,7 +968,7 @@ def generate_design(  # noqa: PLR0913
         odd number of factors (5, 7, 9 or 11, all continuous), a budget of ``2k + 1``
         or ``2k + 2`` runs gives Jones and Nachtsheim's (2011) design of ``2k + 1``
         runs, two fewer than the default, whose main effects are slightly correlated.
-    n_center_points : int, str or None
+    n_center_points : int, str, list of int or None
         Number of center runs in the whole design: they are not replicated with
         *n_replicates*. ``None`` (the default) means 3 for the full and
         fractional factorials, Plackett-Burman, CCD and Box-Behnken designs, and the
@@ -947,7 +984,11 @@ def generate_design(  # noqa: PLR0913
         raises ``ValueError``. For a CCD, ``"uniform_precision"`` or ``"orthogonal"``
         sets the number by Box and Hunter's rule for a rotatable design in one block
         (:func:`~process_improve.experiments.designs_response_surface.ccd_center_points`),
-        and makes the design rotatable: four factors get 7 or 12 center runs.
+        and makes the design rotatable: four factors get 7 or 12 center runs. For a CCD in
+        *n_blocks* blocks, a list gives the center runs of each block, the cube blocks
+        first and the axial block last, as a source prints them: ``[2, 2, 2]`` for three
+        blocks. The cube blocks take the same number. Without the list, half the total,
+        rounded down, goes to the cube blocks and the rest to the axial block.
     n_replicates : int
         Number of replicates of the design's runs, center runs excepted (default 1 =
         no replication): a 2^3 factorial with ``n_center_points=3`` and
@@ -1107,6 +1148,7 @@ def generate_design(  # noqa: PLR0913
     constraints = _as_constraints(constraints)
     ccd = {"cube": cube, "generators": generators, "resolution": resolution, "n_replicates": n_replicates}
     ccd["n_blocks"] = n_blocks
+    n_center_points, center_runs_per_block = _center_runs_by_block(n_center_points, design_type, n_blocks)
     n_center_points, alpha = _center_points_by_rule(n_center_points, design_type, factors, alpha, ccd)
     _check_counts(n_center_points, n_replicates, n_blocks)
 
@@ -1178,6 +1220,7 @@ def generate_design(  # noqa: PLR0913
         "n_replicates": n_replicates,
         # A CCD is blocked by its portions, replicated or not; its axial distance depends on it.
         "blocks": n_blocks,
+        "center_runs_per_block": center_runs_per_block,
     }
 
     coded_matrix, meta = dispatch_fn(factors, **dispatch_kwargs)
