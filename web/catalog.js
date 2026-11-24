@@ -94,7 +94,6 @@ let shown = PAGE;
 let plotlyReady = Promise.resolve(null);
 /** The rows of the map opened into their families, what a cell's color says, and the width the map is drawn at. */
 const openedRows = new Set();
-let mapShade = "model";
 let mapWidth = 0;
 /** The family a mark of the map keeps in the list: it goes when another size is kept, or the map is reset. */
 let mapFamily = null;
@@ -210,8 +209,6 @@ function buildFacets() {
         element("input", { type: "checkbox", value: family }),
         swatch,
         element("span", { text: info.label }),
-        // The year the family was first published, where the catalog knows it.
-        ...(info.year ? [element("span", { class: "facets__year", text: info.year, title: `First published in ${info.year}` })] : []),
         element("span", { class: "count", "data-family": family }),
       );
       return label;
@@ -610,7 +607,7 @@ function renderMap(moved = null) {
   mapWidth = holder.clientWidth;
   if (!mapWidth) return; // not on show: it is drawn when it has a width (wireMap)
   const held = holder.contains(document.activeElement) ? mapKey(document.activeElement) : "";
-  drawSizeMap(holder, sizeMap(catalog, state), { opened: openedRows, shade: mapShade, moved });
+  drawSizeMap(holder, sizeMap(catalog, state), { opened: openedRows, moved });
   if (held) $(held, holder)?.focus({ preventScroll: true });
 }
 
@@ -695,14 +692,6 @@ function wireMap() {
       mapNeighbour(button, ARROWS[event.key])?.focus();
     }
   });
-  for (const choice of $$("[data-shade]")) {
-    choice.addEventListener("click", () => {
-      mapShade = choice.dataset.shade;
-      for (const other of $$("[data-shade]")) other.setAttribute("aria-pressed", String(other === choice));
-      for (const key of $$("[data-key]")) key.hidden = key.dataset.key !== mapShade;
-      renderMap();
-    });
-  }
   $("#map-reset").addEventListener("click", resetMap);
   // The designs a press kept are in the list, further down the page: its first one, for the keyboard too.
   $("#map-list").addEventListener("click", () => {
@@ -1272,25 +1261,6 @@ async function downloadCsv(id) {
   }
 }
 
-// ---------------------------------------------------------------- the reader's field
-/** Offer the fields the build wrote (catalog/fields.json); without them, the form still leads to the list of fields. */
-async function loadFields() {
-  $("#field-form").addEventListener("submit", (event) => {
-    event.preventDefault();
-    const slug = $("#field").value;
-    location.href = slug ? `fields/${encodeURIComponent(slug)}/` : "fields/";
-  });
-  try {
-    const res = await fetch(app("catalog/fields.json"));
-    if (!res.ok) return;
-    const { fields } = await res.json();
-    const ordered = Object.entries(fields).sort(([, a], [, b]) => a.label.localeCompare(b.label));
-    $("#field").append(...ordered.map(([slug, field]) => element("option", { value: slug, text: field.label })));
-  } catch {
-    /* the list of fields, one page on, names them all */
-  }
-}
-
 async function start() {
   try {
     // What the designs were checked against is asked for beside the index; without it the catalog has no such note.
@@ -1318,5 +1288,4 @@ async function start() {
   openViews();
 }
 
-loadFields();
 start();

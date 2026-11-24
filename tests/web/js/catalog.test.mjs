@@ -409,8 +409,25 @@ describe("the map of factors and runs", () => {
     };
     const [, , three] = sizeMap(more, state({ runs: [8, 8] }));
     assert.deepEqual(three.lanes.map((lane) => [lane.label, lane.count]), [["Full factorial", 3], ["Central composite", 1], ["other", 1]]);
-    assert.deepEqual(three.lanes[0].marks, [{ runs: 8, count: 3, step: 2, listed: 3 }], "what most of the three estimate");
+    assert.deepEqual(three.lanes[0].marks, [{ runs: 8, count: 3, step: 2, listed: 3 }], "the most that one of the three estimates");
     assert.deepEqual(three.lanes[1].marks, [{ runs: 17, count: 1, step: 3, listed: 0 }]);
+  });
+  test("a cell's step is the most that one of its designs estimates, not what most of them do", () => {
+    // Two screening designs and one that fits the full quadratic, all of 3 factors in 9 to 12 runs: a design of that
+    // size can fit the quadratic, and that is what the cell says, whichever kind the sources happen to print most.
+    const screen = { main_effects: true, interactions: false, quadratic: false };
+    const curved = { main_effects: true, interactions: true, quadratic: true };
+    const sized = {
+      ...CATALOG,
+      designs: [
+        design({ id: "screen-a", n_runs: 12, models: screen }),
+        design({ id: "screen-b", n_runs: 12, models: screen }),
+        design({ id: "curved", n_runs: 10, models: curved }),
+      ],
+    };
+    const map = sizeMap(sized, state());
+    assert.deepEqual(cellOf(map, 3, 12), { count: 3, step: 3, listed: 3 });
+    assert.deepEqual(map[2].lanes[0].marks.map((mark) => [mark.runs, mark.step]), [[10, 3], [12, 1]], "a mark is one size: its own most");
   });
 });
 
@@ -963,9 +980,15 @@ describe("the count of the designs listed", () => {
 
   test("facts about designs and a single sample are listed, but counted apart from the designs", () => {
     assert.deepEqual(designs.map(isDesign), [true, true, false, false]);
-    assert.equal(countSentence(designs, catalog), "2 of 2 designs: 1 published, 1 generated; and 2 entries of facts about designs or a single sample");
-    assert.equal(countSentence(designs.slice(0, 3), catalog), "2 of 2 designs: 1 published, 1 generated; and 1 entry of facts about designs or a single sample");
-    assert.equal(countSentence(designs.slice(0, 1), catalog), "1 of 2 designs: 1 published, 0 generated");
+    assert.equal(countSentence(designs, catalog), "2 designs", "the whole catalog: its designs, and no word on where they are from");
+    assert.equal(countSentence(designs.slice(0, 3), catalog), "2 of 2 designs, and 1 entry of facts about designs or a single sample");
+    assert.equal(countSentence(designs.slice(1), catalog), "1 of 2 designs, and 2 entries of facts about designs or a single sample");
+    assert.equal(countSentence(designs.slice(0, 1), catalog), "1 of 2 designs");
     assert.equal(countSentence([], catalog), "0 of 2 designs: change a filter or the search to see more");
+  });
+  test("a count of a thousand or more is written with its comma", () => {
+    const many = { designs: Array.from({ length: 1404 }, (_, i) => ({ id: String(i), kind: "design" })) };
+    assert.equal(countSentence(many.designs, many), "1,404 designs");
+    assert.equal(countSentence(many.designs.slice(0, 1200), many), "1,200 of 1,404 designs");
   });
 });
