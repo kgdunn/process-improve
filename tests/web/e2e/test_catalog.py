@@ -642,7 +642,7 @@ def test_the_table_s_cells_are_coloured_by_the_most_a_design_of_that_size_estima
     assert page.locator("#map .sizemap__cell").evaluate_all(fills) == ["fill-2", "fill-3", "fill-4", "fill-2"]
     assert page.locator("[data-shade]").count() == 0, "no second coloring to choose"
     key = [" ".join(words.split()) for words in page.locator(".sizemap__key li").all_text_contents()]
-    assert key == ["main effects", "+ interactions", "+ quadratic", "none stated", "fewest experiments"]
+    assert key == ["main effects", "+ interactions", "+ quadratic", "none stated", "fewest needed"]
     assert all(len(label.split()) <= 5 for label in key), "a few words a label"
     tops = page.locator(".sizemap__key li").evaluate_all(
         "(items) => items.map((item) => item.getBoundingClientRect().top)"
@@ -659,11 +659,18 @@ def test_the_table_s_cells_are_coloured_by_the_most_a_design_of_that_size_estima
 def test_on_a_tablet_the_table_s_key_is_one_line(context, site):
     """The key took three lines of a tablet's screen over the table, with seven long labels."""
     page = open_map(context, site)
-    tops = page.locator(".sizemap__key li").evaluate_all(
-        "(items) => items.map((item) => Math.round(item.getBoundingClientRect().top))"
+    # In a wide font, as a device without the page's own may show it: the key was one line in a narrow font only.
+    tops = page.locator(".sizemap__key").evaluate(
+        """(key) => { key.style.fontFamily = '"DejaVu Sans", Verdana, sans-serif';
+             return [...key.querySelectorAll('li')].map((item) => Math.round(item.getBoundingClientRect().top)); }"""
     )
     assert len(tops) == 5
     assert len(set(tops)) == 1, "one line"
+    room = page.locator(".sizemap__key").evaluate(
+        """(key) => { const last = key.lastElementChild.getBoundingClientRect();
+             return key.getBoundingClientRect().right - last.right; }"""
+    )
+    assert room > 24, f"with room to spare for a wider font still: {room} px"
 
 
 def test_the_table_names_its_two_sides_and_a_row_s_number_looks_like_the_button_it_is(context, site):

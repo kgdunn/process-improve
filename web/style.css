@@ -1673,10 +1673,10 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
 /* The map of the designs by their factors and runs (drawSizeMap, catalog-views.js), with its key above it. */
 .sizemap__tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin: 0 0 6px; }
 .sizemap__tools .link { font-size: 0.85rem; }
-.sizemap__key { display: flex; flex-wrap: wrap; gap: 3px 14px; margin: 0 0 8px; padding: 0; list-style: none; font-size: 0.8rem; color: var(--muted); }
+.sizemap__key { display: flex; flex-wrap: wrap; gap: 3px 10px; margin: 0 0 8px; padding: 0; list-style: none; font-size: 0.8rem; color: var(--muted); }
 .sizemap__key li { display: flex; align-items: center; gap: 5px; }
 .sizemap__key svg { flex: none; width: 12px; height: 12px; }
-.sizemap__key .sizemap__stroke { width: 44px; height: 8px; }
+.sizemap__key .sizemap__stroke { width: 36px; height: 8px; }
 /* What a press on the map kept in the list, with the way down to it: the list is a screen or more below. */
 .sizemap__said { margin: 6px 4px 0; font-size: 0.9rem; }
 .sizemap svg { display: block; width: 100%; height: auto; overflow: visible; touch-action: pan-y; user-select: none; }
