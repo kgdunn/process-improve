@@ -177,8 +177,8 @@ FAMILIES: dict[str, Family] = {
         1962,
         "Booth, K. H. V. and Cox, D. R. (1962), Some systematic supersaturated designs, Technometrics",
         about=(
-            "A screening design with fewer runs than factors. It cannot estimate each factor's effect apart from the "
-            "others, and relies on only a few of the factors having a large effect."
+            "A screening design with no more runs than factors. It cannot estimate each factor's effect apart from "
+            "the others, and relies on only a few of the factors having a large effect."
         ),
         use_when=(
             "A very large number of factors is to be screened and each run is costly",
