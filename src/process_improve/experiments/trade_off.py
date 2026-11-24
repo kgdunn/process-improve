@@ -39,7 +39,7 @@ import pandas as pd
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-from process_improve.experiments.designs_screening import _MIN_ABERRATION
+from process_improve.experiments.designs_screening import _MAX_LISTED_WORDS, _MIN_ABERRATION
 from process_improve.experiments.evaluate import (
     _defining_relation_from_generators,
     _multiply_words,
@@ -84,10 +84,11 @@ class TradeOffTableEntry:
         complementary fraction, which is equally valid.
     defining_relation : list[str]
         The full defining relation, e.g. ``["I=ABD", "I=ACE", "I=BCDE"]``.
-        Empty for a full factorial.
+        Empty for a full factorial, and for a design of more than ten
+        generators, whose ``2^p - 1`` words are too many to list.
     aliases : list[str]
         Alias chains for the main effects and the two-factor interactions,
-        e.g. ``"A = BD + CE + ..."``. Empty for a full factorial.
+        e.g. ``"A = BD + CE + ..."``. Empty when the defining relation is.
     n_replicates : int
         How many times the full factorial fits into the run budget. ``1`` in
         the usual case; ``2`` means the budget pays for the full factorial
@@ -239,6 +240,19 @@ def _krawtchouk(n_factors: int) -> np.ndarray:
         ],
         dtype=np.int64,
     )
+
+
+def _word_counts(n_base: int, generators: Sequence[str]) -> list[int]:
+    """Return the number of defining words of each length ``0, 1, ..., k`` of a ``2^(k-p)`` design.
+
+    Counted from the ``2**n_base`` weights of the code its columns span, by the MacWilliams identities (see
+    :func:`_search_minimum_aberration`), so a defining relation of millions of words is never listed.
+    """
+    letters = _factor_names(n_base)
+    masks = [1 << i for i in range(n_base)] + [sum(1 << letters.index(c) for c in g.split("=")[1]) for g in generators]
+    kraw = _krawtchouk(len(masks))
+    weights = [sum((u & m).bit_count() & 1 for m in masks) for u in range(2**n_base)]
+    return [sum(int(kraw[w, j]) for w in weights) >> n_base for j in range(len(masks) + 1)]
 
 
 def _search_minimum_aberration(n_base: int, n_factors: int) -> tuple[str, ...]:
@@ -393,8 +407,9 @@ def get_trade_off_table_entry(n_runs: int = 8, n_factors: int = 7, display: bool
         # one. So the unsigned `_word_to_str` below is exact; a signed generator would need `_signed_defining_relation`.
         # TestDefiningWordsArePositive fails if one ever arrives.
         generators = list(minimum_aberration_generators(n_runs, n_factors))
-        words = _defining_relation_from_generators(generators, names)
-        resolution = min(len(word) for word in words)
+        listed = 2 ** len(generators) - 1 <= _MAX_LISTED_WORDS  # 2^20 words of 25 factors in 32 runs take hours
+        words = _defining_relation_from_generators(generators, names) if listed else []
+        resolution = next(j for j, count in enumerate(_word_counts(n_base, generators)) if j and count)
         roman = _ROMAN.get(resolution, str(resolution))
         result = TradeOffTableEntry(
             n_runs=n_runs,
@@ -404,7 +419,7 @@ def get_trade_off_table_entry(n_runs: int = 8, n_factors: int = 7, display: bool
             roman=roman,
             generators=generators,
             defining_relation=[f"I={_word_to_str(word, names)}" for word in words],
-            aliases=_alias_chains(generators, names),
+            aliases=_alias_chains(generators, names) if listed else [],
             label=f"2^({n_factors}-{n_factors - n_base}) {roman}",
         )
 
@@ -431,6 +446,8 @@ def _format_entry(result: TradeOffTableEntry) -> str:
     if result.resolution is not None and result.resolution > 3:
         lines.append("      Main effects are not aliased with 2-factor interactions.")
     lines.extend(f"      {chain}" for chain in result.aliases)
+    if not result.aliases:
+        lines.append(f"      Not listed: the defining relation has {2**result.n_generators - 1:,} words.")
     return "\n".join(lines) + "\n"
 
 

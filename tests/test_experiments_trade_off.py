@@ -142,6 +142,16 @@ class TestTradeOffTableEntry:
         assert result.n_replicates == 1
         assert result.label == "2^4 (full)"
 
+    def test_a_relation_too_long_to_list_still_gives_the_resolution(self, capsys):
+        """25 factors in 32 runs have 2^20 - 1 defining words; listing them and their alias chains took hours."""
+        result = get_trade_off_table_entry(n_runs=32, n_factors=25, display=True)
+        assert result.label == "2^(25-20) III"
+        assert result.defining_relation == []
+        assert result.aliases == []
+        assert "Not listed: the defining relation has 1,048,575 words." in capsys.readouterr().out
+        assert get_trade_off_table_entry(n_runs=32, n_factors=16, display=False).resolution == 4
+        assert len(get_trade_off_table_entry(n_runs=16, n_factors=14, display=False).defining_relation) == 1023
+
     def test_spare_budget_is_reported_as_replication(self):
         result = get_trade_off_table_entry(n_runs=32, n_factors=3, display=False)
         assert result.n_replicates == 4
