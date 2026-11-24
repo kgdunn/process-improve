@@ -132,16 +132,17 @@ patterns, axial distances and block arrangements.
 checker: on the design process-improve builds, and on the design the other package builds.
 Only the construction changes, so a difference is a difference in the design.
 
-.. csv-table:: Design construction against other packages, 22 November 2026 (commit ``37f81b6``); pydoe 1.7.0 on 23 November (commit ``22f507f``)
+.. csv-table:: Design construction against other packages, 22 to 24 November 2026
    :file: validation/design_crosscheck.csv
    :header-rows: 1
-   :widths: 30 46 8 8 8
+   :widths: 30 42 8 12 8
 
 How to read the table:
 
-- **Checks** are the printed numbers measured on a design the package built. **Agree** means
-  both packages give the number the source prints. **Differ** means they give different
-  answers.
+- **Checks** are the printed numbers measured on a design the package built. **As printed**
+  means the package gives the number the source prints. **Differ** means it gives another.
+  Each package is measured against the source, as process-improve is: a number that only
+  process-improve misses is process-improve's finding (:ref:`validation-findings`).
 - A request outside what a package offers, such as blocks or a kind of design it does not
   build, is not counted: it is the package's scope, not a fault. Each package's section below
   says what it does not offer.
@@ -176,9 +177,9 @@ orthogonal arrays.
 - **Minimum aberration.** For the 30 sizes from 8 to 128 runs that both packages build, the two
   designs have the same word length pattern. For 69 larger sizes FrF2's catalog has a design
   and process-improve's search stops at its limit (A12 in `issue 788 <https://github.com/kgdunn/process-improve/issues/788>`__).
-- **Orthogonal arrays.** DoE.base's arrays have the size and the levels of Taguchi's L8, L9,
-  L12, L16 and L27, but not the layout of the printed tables, so the checks that compare runs
-  differ. Their equivalence was not tested.
+- **Orthogonal arrays.** DoE.base's arrays are Taguchi's L8, L9, L12, L16 and L27 in another
+  layout: the same runs once the order of the runs and columns and the labels of each column's
+  levels are changed. An array is the same array in any layout, so they agree.
 - **Not counted.** A factorial of one factor, which FrF2 does not offer, and a Plackett-Burman
   design of 136 runs (Schmidt and Launsby, 2000), for the second reason below.
 
@@ -207,8 +208,6 @@ Two observations on FrF2:
       # Error in pb.list[[2]][[which(pb.list[[1]] == nruns)]] :
       #   attempt to select less than one element in get1index
 
-:download:`The checks on which DoE.base differs <validation/differences_DoE.base.csv>`.
-
 .. _validation-rsm:
 
 rsm (R)
@@ -217,19 +216,16 @@ rsm (R)
 rsm 2.10.6 built the central composite and Box-Behnken designs.
 
 - **Box-Behnken designs.** No difference.
-- **Central composite designs.** Run counts and axial distances agree: on full and fractional
-  cubes, for a rotatable, a spherical or a given distance, and in blocks.
-- **Center runs in each block.** rsm takes them block by block (``n0``), and so gives axial
-  distances of NIST 5.3.3.6.4 that process-improve does not, because it takes one total (A11 in
-  `issue 788 <https://github.com/kgdunn/process-improve/issues/788>`__).
-- **A rotatable distance on a small cube.** rsm declines ``alpha = "rotatable"`` when the cube is
-  below resolution V, where no distance makes the design rotatable. Box and Draper (2007) print
-  the fourth root of the cube's run count for such cubes, and process-improve gives that number.
-- **The word "orthogonal".** rsm's ``alpha = "orthogonal"`` is the distance for orthogonal
-  blocking. Davies (1956) uses the word for the distance that makes the quadratic terms
-  orthogonal, which is the one process-improve gives for his designs.
-
-:download:`The checks on which rsm differs <validation/differences_rsm.csv>`.
+- **Central composite designs.** No difference. Run counts and axial distances are as printed:
+  on full and fractional cubes, for a rotatable, a spherical or a given distance, and in
+  blocks.
+- **Center runs in each block.** rsm takes them block by block (``n0``), and so gives the axial
+  distances that NIST 5.3.3.6.4 prints. process-improve does not, because it takes one total
+  (A11 in `issue 788 <https://github.com/kgdunn/process-improve/issues/788>`__).
+- **Outside what rsm offers.** A rotatable distance on a cube below resolution V, where no
+  distance makes the design rotatable: rsm declines it, and Box and Draper (2007) print the
+  fourth root of the cube's run count. Davies' (1956) orthogonal design: rsm's
+  ``alpha = "orthogonal"`` is the distance for orthogonal blocking, a different design.
 
 .. _validation-daewr:
 
@@ -240,10 +236,10 @@ daewr 1.2-11 built the definitive screening designs, with ``DefScreen``.
 
 - **4, 6, 8 and 10 factors.** No difference.
 - **5, 7, 9, 11 and 12 factors.** ``DefScreen`` returns the designs of Jones and Nachtsheim
-  (2011) run for run, which process-improve does not. process-improve builds these sizes from a
-  conference matrix (Xiao, Lin and Bai, 2012): 2m + 3 runs for an odd number of factors m, the
-  run count later sources print, and 25 runs for 12 factors. The checks of run counts, and of
-  the measures that follow from them, therefore differ.
+  (2011) run for run, and gives the numbers that paper prints. Later sources print the designs
+  built from a conference matrix (Xiao, Lin and Bai, 2012): 2m + 3 runs for an odd number of
+  factors m, and 25 runs for 12 factors. process-improve builds those, and daewr differs on the
+  20 checks of these later sources: run counts, and the measures that follow from them.
 - **Outside what DefScreen offers.** Designs for 3 factors, and for more than 12.
 
 :download:`The checks on which daewr differs <validation/differences_daewr.csv>`.
@@ -272,18 +268,14 @@ correlated, where the conference-matrix designs are orthogonal.
 pydoe (Python)
 ~~~~~~~~~~~~~~
 
-pydoe 1.7.0 built every kind of design in the table. No design differs.
+pydoe 1.7.0 built every kind of design in the table. No difference.
 
-- **The word "orthogonal".** The four checks that differ are axial distances of Davies (1956):
-  ``alpha="orthogonal"`` is the distance for orthogonal blocking, as in rsm. This is a
-  difference of definition, not of the design.
 - **Outside what pydoe offers.** A blocked factorial whose block generators the source does not
-  give, a blocked fraction, and a spherical axial distance.
+  give, a blocked fraction, and a spherical axial distance. Davies' (1956) orthogonal design:
+  pydoe's ``alpha="orthogonal"`` is the distance for orthogonal blocking, as in rsm.
 - **Slow searches.** ``fracfact_opt`` searches exhaustively, so a fraction of 10 or 11 factors
   takes minutes: the search for a 2\ :sup:`10-4` fraction took 8 minutes. The 14 checks that
   did not finish in 3 minutes are not counted.
-
-:download:`The four checks on which pydoe differs <validation/differences_pydoe.csv>`.
 
 .. _validation-dexpy:
 
@@ -308,12 +300,9 @@ OApackage 2.7.21 built the definitive screening designs, from the conference des
 enumerates, and the orthogonal arrays, by extending an array one column at a time.
 
 - **Definitive screening designs.** No difference, for an even or an odd number of factors.
-- **Orthogonal arrays.** The 12-run array has the size and the levels of Taguchi's L12 but not
-  the layout of the printed table, so the one check that compares its runs differs. The others
-  agree.
+- **Orthogonal arrays.** No difference. The 12-run array is Taguchi's L12 in another layout,
+  as DoE.base's arrays are (:ref:`validation-frf2`).
 - **Not counted.** The search for a 24-factor design did not end in 3 minutes.
-
-:download:`The check on which OApackage differs <validation/differences_oapackage.csv>`.
 
 .. _validation-dsd-package:
 
@@ -451,9 +440,9 @@ What this page does not show
   checks the criteria of the designs a source prints.
 - **OMARS designs have no second implementation here.** They are checked against the papers
   that define them only.
-- **Equal numbers, not equal layouts.** A design passes when it gives the printed numbers. Two
-  orthogonal arrays that differ in the order of their rows and columns were not tested for
-  equivalence.
+- **Equal numbers, and equal arrays.** A design passes when it gives the printed numbers. An
+  orthogonal array that another package lays out differently passes when a change of the order
+  of its runs and columns and of its level labels gives the printed array.
 - **Agreement with pydoe on the basic arrays is by construction**, as said above.
 - **A result is one run.** The versions and dates are those named in each table. A later
   release of a package can change its row.
