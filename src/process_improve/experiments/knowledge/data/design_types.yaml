@@ -183,13 +183,15 @@
     intermediate: >
       Box-Behnken designs (BBD) are three-level response surface designs that
       estimate all main effects, interactions, and quadratic terms. They avoid
-      the extreme vertices of the cube - all design points are at the midpoints
-      of edges or at center. This makes them useful when factor extremes are
-      operationally difficult.
+      the vertices of the cube: apart from the center runs, each run has two
+      or three factors at an extreme and the others at their middle level. For
+      three factors these are the midpoints of the cube's edges. This makes
+      them useful when factor extremes are operationally difficult.
     expert: >
       BBD designs are formed by combining 2^2 factorials in pairs of factors
       with the remaining factors at center. They are nearly rotatable and
-      require fewer runs than CCD for 3–7 factors. They do not include axial
+      need as few runs as a CCD built on a full factorial, or fewer, for 3–7
+      factors: the same number at 4. They do not include axial
       points, so prediction variance is slightly higher at the corners. BBDs
       exist for k = 3, 4, 5, 6, 7 and selected higher k.
   suitable_for:
@@ -211,7 +213,7 @@
     - quadratic
   can_augment_to: []
   advantages:
-    - "As few runs as a central composite design or fewer, and far fewer from six factors on"
+    - "As few runs as a central composite design built on a full factorial, or fewer: far fewer from six factors"
     - "Avoids extreme corner points"
     - "Nearly rotatable"
     - "Three levels per factor (simpler to run)"
@@ -272,7 +274,7 @@
     - "Well-understood statistical properties"
     - "Supports orthogonal blocking"
   disadvantages:
-    - "It needs as many runs as a Box-Behnken design or more, and far more from six factors on"
+    - "Built on a full factorial, it needs as many runs as a Box-Behnken design or more: far more from six factors"
     - "The axial points can lie outside the range of the factorial, at settings that cannot be run"
     - "Each factor needs five levels, unless the axial points are on the faces of the cube"
   common_misconceptions:

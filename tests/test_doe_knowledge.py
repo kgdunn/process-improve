@@ -652,9 +652,10 @@ def test_what_a_card_shows_of_a_design_type_is_in_plain_words() -> None:
 def test_a_central_composite_design_has_as_many_runs_as_a_box_behnken_design_or_more() -> None:
     """The entry said a central composite design has more runs for the same number of factors. At four it has as many.
 
-    The two designs are compared by the runs ``generate_design`` builds for them, as the entries now say:
-    as many or more, and far more from six factors on. A Box-Behnken design has no run at a corner of the
-    cube, so no added runs make it a central composite design: the entry named that as a next step.
+    The two designs are compared by the runs ``generate_design`` builds for them, the composite design on a
+    full factorial, as the entries now say: as many or more, and far more from six factors on. A Box-Behnken
+    design has no run at a corner of the cube, so no added runs make it a central composite design: the entry
+    named that as a next step.
     """
     from process_improve.experiments import generate_design
     from process_improve.experiments.factor import Factor

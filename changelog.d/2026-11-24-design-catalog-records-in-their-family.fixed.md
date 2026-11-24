@@ -9,7 +9,8 @@
   table is a record of its own, `montgomery-plackett-burman-12-run-sorted`, and the design is the same runs as
   `generate_design(..., design_type="supersaturated")` makes for ten factors.
 - **Three statements of the knowledge base about response surface designs were not true of the designs the
-  library builds.** A central composite design has as many runs as a Box-Behnken design or more, not more
-  for every number of factors: both have 27 for four. A Box-Behnken design does not lead to a central
-  composite design: it has no run at a corner of the cube, so `can_augment_to` of `box_behnken` is empty.
+  library builds.** A central composite design built on a full factorial has as many runs as a Box-Behnken
+  design or more, not more for every number of factors: both have 27 for four. A Box-Behnken design does
+  not lead to a central composite design: it has no run at a corner of the cube, so `can_augment_to` of
+  `box_behnken` is empty.
   The `min_runs` of a mixture design gives one number: its formula is the model's terms and the centroid.
