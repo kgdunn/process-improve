@@ -632,15 +632,52 @@ def test_what_a_card_shows_of_a_design_type_is_in_plain_words() -> None:
     import re
 
     unexplained = re.compile(r"\b(k|N|BBD|CCD|RSM|DSD|PB|2FI|alpha)\b|[~<>]|!=")
+    # A line is a sentence, not a label: a range of factors with a dash and "Add center + axial points" were
+    # labels. The card's heading says "Use it when", so a line under it does not say "When" again.
+    label = re.compile(r"\d\u2013\d| - | \+ ")
     for design in load_knowledge_graph().design_types.values():
         shown = [*design.suitable_for, *design.disadvantages, *(step["method"] for step in design.can_augment_to)]
         assert design.suitable_for, design.id
         assert design.disadvantages, design.id
+        assert not unexplained.search(design.description["novice"]), f"{design.id}: what the card says it is"
         for phrase in shown:
             assert not unexplained.search(phrase), f"{design.id}: {phrase}"
+            assert not label.search(phrase), f"{design.id}: {phrase}"
+            assert not (phrase in design.suitable_for and phrase.startswith("When ")), f"{design.id}: {phrase}"
             assert not phrase[0].islower(), f"{design.id}: {phrase}"
             assert not phrase.endswith("."), f"{design.id}: {phrase}"
             assert len(phrase) <= 110, f"{design.id}: {phrase}"
+
+
+def test_a_central_composite_design_has_as_many_runs_as_a_box_behnken_design_or_more() -> None:
+    """The entry said a central composite design has more runs for the same number of factors. At four it has as many.
+
+    The two designs are compared by the runs ``generate_design`` builds for them, as the entries now say:
+    as many or more, and far more from six factors on. A Box-Behnken design has no run at a corner of the
+    cube, so no added runs make it a central composite design: the entry named that as a next step.
+    """
+    from process_improve.experiments import generate_design
+    from process_improve.experiments.factor import Factor
+
+    runs = {}
+    for k in range(3, 8):
+        factors = [Factor(name=f"X{i}", low=-1, high=1) for i in range(k)]
+        # Axial points on the faces of the cube: the same number of runs, and none outside the factors' ranges.
+        built = {
+            "ccd": generate_design(factors, design_type="ccd", alpha="face_centered"),
+            "box_behnken": generate_design(factors, design_type="box_behnken"),
+        }
+        runs[k] = (built["ccd"].n_runs, built["box_behnken"].n_runs)
+        at_an_extreme = (built["box_behnken"].design[built["box_behnken"].factor_names].abs() == 1).sum(axis=1)
+        assert set(at_an_extreme) <= {0, 2, 3}, f"{k} factors: two or three factors high or low in a run, or none"
+    assert all(composite >= behnken for composite, behnken in runs.values()), runs
+    assert runs[4][0] == runs[4][1], "as many at four factors: 'more' was not true of every number"
+    assert all(runs[k][0] > 1.5 * runs[k][1] for k in (6, 7)), runs
+    assert "as many runs as a Box-Behnken design or more" in _design_type("ccd").disadvantages[0]
+    assert _design_type("box_behnken").can_augment_to == []
+    assert "sets two or three of the factors high or low" in " ".join(
+        _design_type("box_behnken").description["novice"].split()
+    )
 
 
 def test_every_node_a_concept_names_as_related_exists() -> None:

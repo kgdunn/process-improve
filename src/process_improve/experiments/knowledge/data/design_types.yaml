@@ -6,8 +6,9 @@
   category: factorial
   description:
     novice: >
-      Tests every combination of factor levels. Simple and complete, but the
-      number of runs doubles with each added factor.
+      A design that runs every combination of the levels of its factors. Every
+      main effect and every interaction can be estimated, and the number of
+      runs multiplies with each added factor.
     intermediate: >
       A 2^k full factorial runs all 2^k combinations of k factors at two levels.
       It estimates every main effect and every interaction cleanly (resolution
@@ -20,9 +21,9 @@
       orthogonal two-level designs. Center points can be added to test for
       curvature without inflating the factorial portion.
   suitable_for:
-    - "Five factors or fewer, with the budget to run every combination"
-    - "Need all interactions estimated cleanly"
-    - "Confirmation or follow-up after screening"
+    - "There are five factors or fewer, and the budget to run every combination"
+    - "Every interaction is to be estimated, with no effect aliased with another"
+    - "The few factors that a screening experiment found are studied further"
   properties:
     resolution: "Full (infinite)"
     orthogonal: true
@@ -38,8 +39,8 @@
     - three_factor_interactions
     - full_interaction
   can_augment_to:
-    - {target: ccd, method: "Add center + axial points"}
-    - {target: fractional_factorial, method: "Use a fraction for more factors"}
+    - {target: ccd, method: "Add center points and axial points, to estimate curvature"}
+    - {target: fractional_factorial, method: "Run a fraction of the combinations, to study more factors in as many runs"}
   advantages:
     - "Estimates all effects and interactions without aliasing"
     - "Simple to plan and analyze"
@@ -47,7 +48,7 @@
   disadvantages:
     - "The number of runs multiplies with each added factor: it doubles at two levels"
     - "At two levels, curvature cannot be detected without center points"
-    - "Inefficient when many factors are likely inert"
+    - "When only a few of the factors matter, a fraction would find them in far fewer runs"
   common_misconceptions:
     - "A full factorial is always the best design - it is only best when you can afford it and need all interactions"
   references:
@@ -59,8 +60,10 @@
   category: factorial
   description:
     novice: >
-      Runs only a fraction of the full factorial combinations. Saves runs but
-      some effects become tangled together (aliased).
+      A design that runs a chosen fraction of the combinations of a full
+      factorial: a half, a quarter or less. It saves runs, and in exchange
+      some effects are aliased: mixed together, so that the data cannot tell
+      them apart.
     intermediate: >
       A 2^(k-p) fractional factorial uses 2^(k-p) runs to study k factors.
       The generators determine which effects are aliased. Resolution indicates
@@ -78,9 +81,9 @@
       of two-factor interactions. Folding over a resolution IV fraction does not
       raise its resolution, since its defining words all have even length.
   suitable_for:
-    - "Four or more factors on a limited budget"
-    - "Screening or characterization studies"
-    - "When higher-order interactions are assumed negligible"
+    - "There are four or more factors, and too few runs for a full factorial"
+    - "The aim is to screen the factors, or to estimate main effects and two-factor interactions"
+    - "Interactions of three or more factors can be taken as negligible"
   properties:
     resolution: "III, IV, or V depending on generators"
     orthogonal: true
@@ -94,17 +97,17 @@
     - main_effects
     - "two_factor_interactions (resolution >= V)"
   can_augment_to:
-    - {target: full_factorial, method: "Run the complementary fraction"}
-    - {target: ccd, method: "Add center + axial points to resolution V fraction"}
-    - {target: fractional_factorial, method: "Foldover a resolution III fraction to reach resolution IV"}
+    - {target: full_factorial, method: "Run the other fractions of the family: together they are the full factorial"}
+    - {target: ccd, method: "Add center points and axial points to a fraction of resolution V"}
+    - {target: fractional_factorial, method: "Fold over a fraction of resolution III: the two together have resolution IV"}
   advantages:
     - "Dramatically reduces run count compared to full factorial"
     - "Orthogonal - clean estimation of non-aliased effects"
     - "Can augment (foldover, add runs) sequentially"
   disadvantages:
-    - "Aliased effects cannot be separated without additional runs"
-    - "Requires understanding of confounding structure"
-    - "Low-resolution fractions may miss important interactions"
+    - "Aliased effects cannot be separated without more runs"
+    - "The alias structure must be read before the analysis: it says what each estimate is a mix of"
+    - "At resolution III, a two-factor interaction can be mistaken for a main effect"
   common_misconceptions:
     - "Resolution IV means all two-factor interactions are estimable - they are aliased with each other"
     - "You must always use the minimum-aberration generator - other generators may be better for specific alias priorities"
@@ -117,8 +120,9 @@
   category: screening
   description:
     novice: >
-      A screening design for finding the few important factors among many. Very
-      efficient: screens up to N-1 factors in N runs (N a multiple of 4).
+      A two-level screening design for finding the few factors that matter
+      among many. Its number of runs is a multiple of four, and it screens up
+      to one factor fewer than it has runs: eleven factors in 12 runs.
     intermediate: >
       Plackett-Burman (PB) designs are resolution III screening designs where
       N is a multiple of 4. They estimate main effects only; two-factor
@@ -135,9 +139,9 @@
       two columns divided by N, ±1/3 in the 12-run design and ±0.2 or ±0.6 in
       the 20-run design. Foldover can de-alias specific effects.
   suitable_for:
-    - "Screening 6–47 factors"
-    - "A tight budget: little more than one run for each factor"
-    - "Initial exploratory experiments"
+    - "From 6 to 47 factors are to be screened for the few that matter"
+    - "The budget is tight: little more than one run for each factor"
+    - "It is a first experiment, run to find which factors to study further"
   properties:
     resolution: "III"
     orthogonal: true
@@ -150,7 +154,7 @@
   supports_models:
     - main_effects
   can_augment_to:
-    - {target: fractional_factorial, method: "Use active factors in a resolution V fraction"}
+    - {target: fractional_factorial, method: "Study the active factors in a fraction of resolution V, where their interactions are clear"}
     - {target: dsd, method: "Screen the active factors again in a definitive screening design"}
     - {target: ccd, method: "Follow up the active factors with a response surface design"}
   advantages:
@@ -158,9 +162,9 @@
     - "Orthogonal for main effects"
     - "Scales to large numbers of factors"
   disadvantages:
-    - "Cannot estimate interactions"
-    - "Complex partial aliasing makes interpretation harder than regular fractions"
-    - "No information on curvature"
+    - "Interactions cannot be estimated, and a large one can mislead the choice of factors"
+    - "An interaction is aliased in part with many main effects: harder to untangle than in a regular fraction"
+    - "With two levels for each factor, curvature cannot be seen"
   common_misconceptions:
     - "PB designs estimate two-factor interactions - they do not; interactions are partially aliased with every main effect"
   references:
@@ -172,8 +176,10 @@
   category: response_surface
   description:
     novice: >
-      An efficient design for fitting curved (quadratic) models. Uses three
-      levels per factor but never runs extreme corner combinations.
+      A three-level design for fitting a curved (quadratic) model. Apart from
+      its center runs, each run sets two or three of the factors high or low
+      and holds the others at their middle level, so no run is at a corner of
+      the cube.
     intermediate: >
       Box-Behnken designs (BBD) are three-level response surface designs that
       estimate all main effects, interactions, and quadratic terms. They avoid
@@ -187,9 +193,9 @@
       points, so prediction variance is slightly higher at the corners. BBDs
       exist for k = 3, 4, 5, 6, 7 and selected higher k.
   suitable_for:
-    - "3–7 factors, response surface modeling"
-    - "When extreme factor combinations should be avoided"
-    - "When the budget is tighter than a central composite design allows"
+    - "A quadratic model is to be fitted in three to seven factors"
+    - "A run with every factor at an extreme is unsafe, costly or impossible"
+    - "The budget is tighter than a central composite design allows, most of all with six or seven factors"
   properties:
     resolution: "Full for quadratic model"
     orthogonal: false
@@ -203,18 +209,17 @@
     - main_effects
     - two_factor_interactions
     - quadratic
-  can_augment_to:
-    - {target: ccd, method: "Add axial points for rotatability"}
+  can_augment_to: []
   advantages:
-    - "Fewer runs than CCD for same number of factors"
+    - "As few runs as a central composite design or fewer, and far fewer from six factors on"
     - "Avoids extreme corner points"
     - "Nearly rotatable"
     - "Three levels per factor (simpler to run)"
   disadvantages:
-    - "Not available for two factors"
-    - "Not fully rotatable"
-    - "Prediction variance higher at corners"
-    - "Cannot be built sequentially from a factorial base"
+    - "It needs three factors or more: there is no design for two"
+    - "For most numbers of factors, predictions are not equally precise in every direction (not rotatable)"
+    - "It has no runs at the corners of the cube, so predictions there are less precise"
+    - "It cannot be built by adding runs to a two-level factorial that was run before"
   common_misconceptions:
     - "BBD is always better than CCD because it uses fewer runs - CCD may be preferred when corner points are feasible and rotatability matters"
   references:
@@ -226,8 +231,9 @@
   category: response_surface
   description:
     novice: >
-      The most popular design for fitting curved models. Combines a factorial
-      base with star (axial) points and center points.
+      A widely used design for fitting a curved (quadratic) model. It joins
+      three sets of runs: a two-level factorial or fraction, axial points (star
+      points) on the axis of each factor, and center points.
     intermediate: >
       A CCD consists of a 2^k (or 2^(k-p)) factorial, 2k axial (star) points
       at distance alpha from center, and center points. The alpha value controls
@@ -243,9 +249,9 @@
       for three-level simplicity and is common in constrained experimental
       regions.
   suitable_for:
-    - "2–6 factors, response surface modeling"
-    - "Sequential experimentation (factorial first, then augment)"
-    - "When rotatability or orthogonal blocking is desired"
+    - "A quadratic model is to be fitted in two to six factors"
+    - "A factorial has been run already: axial points and center points are added to it"
+    - "Predictions equally precise in every direction (rotatable) are wanted, or the runs are made in blocks"
   properties:
     resolution: "Full for quadratic model"
     orthogonal: "With proper blocking"
@@ -266,9 +272,9 @@
     - "Well-understood statistical properties"
     - "Supports orthogonal blocking"
   disadvantages:
-    - "More runs than a Box-Behnken design for the same number of factors"
-    - "Axial points may extend beyond the feasible region"
-    - "Five levels for each factor, unless the axial points are on the faces of the cube"
+    - "It needs as many runs as a Box-Behnken design or more, and far more from six factors on"
+    - "The axial points can lie outside the range of the factorial, at settings that cannot be run"
+    - "Each factor needs five levels, unless the axial points are on the faces of the cube"
   common_misconceptions:
     - "CCD always requires 5 factor levels - face-centered CCD (alpha=1) uses only 3"
     - "You must start with a full factorial - a resolution V fraction works as the cube portion"
@@ -281,9 +287,9 @@
   category: screening
   description:
     novice: >
-      A modern screening design that can also detect curvature and some
-      interactions. Needs only 2k+1 runs for an even number k of factors
-      (2k+3 for an odd number).
+      A three-level screening design that also detects curvature. Its main
+      effects are clear of two-factor interactions and of curvature, in about
+      twice as many runs as factors: 13 runs for six factors.
     intermediate: >
       Jones & Nachtsheim (2011) DSDs use 2k+1 runs for an even number k of
       continuous factors and 2k+3 for an odd number
@@ -301,9 +307,9 @@
       columns) can improve estimation. Categorical factors can be incorporated
       via the CDSD extension (Jones & Nachtsheim, 2013).
   suitable_for:
-    - "6–30 continuous factors"
-    - "When curvature detection is needed during screening"
-    - "When the budget allows about two runs for each factor, but not a response surface design"
+    - "From 6 to 30 continuous factors are to be screened"
+    - "Curvature must be detected in the screening experiment itself"
+    - "The budget allows about two runs for each factor, but not a response surface design"
   properties:
     resolution: "III+"
     orthogonal: "Main effects orthogonal to 2FI and quadratic"
@@ -324,9 +330,9 @@
     - "Main effects orthogonal to 2FI and quadratic"
     - "Efficient run count (2k+1 for even k)"
   disadvantages:
-    - "Requires three levels per factor"
-    - "Cannot estimate the full quadratic model when more than about three factors are active"
-    - "Relatively new - less practitioner experience"
+    - "Each factor is set at three levels: one that has only two settings does not fit the plain design"
+    - "The full quadratic model cannot be estimated when more than about three factors are active"
+    - "It dates from 2011: there is less experience with it in practice than with the older designs"
   common_misconceptions:
     - "DSDs replace RSM designs - they supplement screening, but follow-up RSM is needed when many factors are active"
   references:
@@ -356,9 +362,9 @@
       omars_properties() / is_omars() to verify the defining orthogonality
       properties of any candidate design.
   suitable_for:
-    - "Three or more continuous factors, to screen and to detect curvature in one design"
-    - "When main effects must be clear of all two-factor interactions and quadratics"
-    - "When a number of runs between a screening design and a response surface design is wanted"
+    - "Three or more continuous factors are screened, and curvature is to be detected in the same design"
+    - "The main effects must be clear of every two-factor interaction and every quadratic effect"
+    - "The budget lies between that of a screening design and that of a response surface design"
   properties:
     resolution: "Main effects clear of all second-order terms"
     orthogonal: "Main effects mutually orthogonal and orthogonal to 2FI and quadratic"
@@ -378,9 +384,9 @@
     - "Three-level, so curvature is detectable"
     - "Flexible run count across the enumerated family"
   disadvantages:
-    - "Requires three levels per factor"
-    - "Second-order terms are mutually aliased"
-    - "Larger members require enumeration rather than a closed-form construction"
+    - "Each factor is set at three levels: one that has only two settings does not fit the plain design"
+    - "Interactions and quadratic effects are aliased in part with one another: only a few can be estimated"
+    - "The larger designs have no rule of construction: a computer search finds them"
   common_misconceptions:
     - "OMARS designs are unrelated to DSDs - in fact the DSD is the minimal OMARS design"
   references:
@@ -487,7 +493,7 @@
     supports_quadratic: "The Scheffé quadratic model: a blending term for each pair of components"
     supports_interaction: "Blending terms of two or three components, not interactions of independent factors"
   min_runs:
-    formula: "q(q+1)/2 for the Scheffé quadratic model; generate_design builds one more, the centroid, as a check on the fit"
+    formula: "q(q+1)/2 + 1: the q(q+1)/2 terms of the Scheffé quadratic model, and the centroid that generate_design adds as a check on the fit"
     examples: {"3": 7, "4": 11, "5": 16}
   supports_models:
     - scheffe_linear

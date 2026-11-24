@@ -1191,10 +1191,12 @@ def test_a_family_one_design_type_makes_is_described_by_the_knowledge_base():
 
     families = catalog_families()
     types = load_knowledge_graph().design_types
-    assert families["full_factorial"]["description"].startswith("Tests every combination of factor levels.")
+    assert families["full_factorial"]["description"].startswith("A design that runs every combination of the levels")
     assert "\n" not in families["dsd"]["description"]
-    assert "Cannot estimate interactions" in families["plackett_burman"]["watch_for"], "the knowledge base's own"
-    assert "Initial exploratory experiments" in families["plackett_burman"]["use_when"]
+    assert families["plackett_burman"]["watch_for"][0].startswith("Interactions cannot be estimated"), "its own"
+    assert (
+        families["plackett_burman"]["use_when"][0] == "From 6 to 47 factors are to be screened for the few that matter"
+    )
     # Taguchi's arrays are the family "orthogonal_array", and generate_design's type "taguchi".
     assert families["orthogonal_array"]["description"].startswith("A table of runs, such as L8, L9 or L18")
     assert families["orthogonal_array"]["use_when"] == types["taguchi"].suitable_for
@@ -1246,7 +1248,9 @@ def test_every_family_s_words_fit_its_card():
 
 def test_a_family_says_which_families_it_can_lead_to():
     families = catalog_families()
-    assert {"family": "ccd", "how": "Add center + axial points"} in families["full_factorial"]["next"]
+    assert {"family": "ccd", "how": "Add center points and axial points, to estimate curvature"} in families[
+        "full_factorial"
+    ]["next"]
     assert families["latin_square"]["next"] == []
     # A step names a design type, and leads to the family that type's designs are in.
     assert [step["family"] for step in families["orthogonal_array"]["next"]] == ["fractional_factorial", "ccd"]

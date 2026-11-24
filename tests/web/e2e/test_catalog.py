@@ -748,7 +748,7 @@ def test_a_list_of_one_family_has_a_card_that_says_what_the_family_is(context, s
     assert card.locator("h2").text_content() == "Full factorial"
     assert card.locator(".famcard__first").text_content().startswith("First published: Fisher, R. A. (1926), ")
     assert card.locator("dt").all_text_contents() == ["What it is", "Use it when", "Watch for", "Where next"]
-    assert card.locator("dd").first.text_content().startswith("Tests every combination of factor levels.")
+    assert card.locator("dd").first.text_content().startswith("A design that runs every combination of the levels")
     assert card.locator("dd").nth(1).locator("li").count() == 3, "when it is used: a line each"
     assert card.locator(".famcard__more a").get_attribute("href").endswith("map/#full-factorial")
     assert card.locator("#family-all").count() == 0, "no size is kept: the list is the whole family already"
