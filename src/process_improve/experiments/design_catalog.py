@@ -250,15 +250,18 @@ FAMILIES: dict[str, Family] = {
 }
 
 #: The free-text design types of the reference catalog, read into a family: the first rule that matches wins.
+#: A rule names a design by words that only it uses. "simplex" alone is also a regular simplex, a first-order
+#: design in independent factors, and "crossed" alone is also a crossed classification of laboratories or
+#: batches: neither word is a rule by itself (#1478).
 _FAMILY_RULES: tuple[tuple[str, str], ...] = (
-    (r"mixture|simplex|extreme vertices|component-amount", "mixture"),
+    (r"mixture|simplex[- ](?:lattice|centroid)|axial simplex|extreme vertices|component-amount", "mixture"),
     (r"omars", "omars"),
     (r"\bdsd\b|definitive screening|conference matrix", "dsd"),
     (r"split|strip|whole.plot|restricted randomi", "split_plot"),
     (r"box-behnken|\bbbd\b", "box_behnken"),
     (r"composite|\bccd\b|\bcc[cif]\b|axial|star points", "ccd"),
     (r"supersaturated", "supersaturated"),
-    (r"taguchi|orthogonal arra|inner array|outer array|crossed", "orthogonal_array"),
+    (r"taguchi|orthogonal arra|inner array|outer array|crossed arrays?", "orthogonal_array"),
     (r"plackett", "plackett_burman"),
     (r"latin|youden", "latin_square"),
     (r"block design|complete block|incomplete block|randomi[sz]ed blocks", "block_design"),
@@ -274,8 +277,9 @@ _FAMILY_RULES: tuple[tuple[str, str], ...] = (
     (
         (
             r"regression|comparison|single sample|single.factor|one categorical|one factor at|process record|"
-            r"illustration|confirmat|observational|search along|path of steepest|selection|second-degree|nested|"
-            r"hierarchical|two-way|completely randomi|sampling plan|design types|straight line"
+            r"illustration|confirmat|observational|search along|path of steepest|selection|second-degree|"
+            r"fitted second-order|fitted equation|nested|hierarchical|two-way|completely randomi|sampling plan|"
+            r"design types|straight line"
         ),
         "comparison",
     ),
