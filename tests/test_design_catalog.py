@@ -1128,10 +1128,14 @@ def test_a_family_one_design_type_makes_is_described_by_the_knowledge_base():
     # Taguchi's arrays are the family "orthogonal_array", and generate_design's type "taguchi".
     assert families["orthogonal_array"]["description"].startswith("A table of runs, such as L8, L9 or L18")
     assert families["orthogonal_array"]["use_when"] == types["taguchi"].suitable_for
-    assert families["orthogonal_array"]["watch_for"] == types["taguchi"].disadvantages
     for key, design_type in design_catalog._DESIGN_TYPES.items():
         assert design_type in types, f"{key}: the knowledge base has no entry for {design_type}"
         assert not FAMILIES[key].about, f"{key}: its words are the knowledge base's"
+        assert not FAMILIES[key].use_when, f"{key}: its words are the knowledge base's"
+        # A caution is not always a disadvantage: the design's disadvantages, then the family's own cautions.
+        assert families[key]["watch_for"] == [*types[design_type].disadvantages, *FAMILIES[key].watch_for], key
+    assert FAMILIES["orthogonal_array"].watch_for[0].startswith("L4, L8 and L16 are two-level fractional factorials")
+    assert not any("Plackett-Burman" in line for line in types["taguchi"].disadvantages), "a fact, not a disadvantage"
 
 
 def test_a_family_no_one_design_type_makes_says_what_it_is_in_its_own_words():

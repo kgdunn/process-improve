@@ -77,7 +77,8 @@ class Family:
     watch for, in plain words. They are for a family that no one ``generate_design`` type makes: a family of
     several design types (optimal), an arrangement of the runs of other designs (Latin squares, blocks, split
     plots), and the catalog's two groups (comparison, other). A family that one design type makes takes the three
-    from the knowledge base of design types (:func:`catalog_families`).
+    from the knowledge base of design types (:func:`catalog_families`). Its ``watch_for`` then holds only the
+    cautions that are not disadvantages of the design, which a card shows after the knowledge base's disadvantages.
     """
 
     label: str
@@ -109,6 +110,9 @@ FAMILIES: dict[str, Family] = {
         1947,
         "Rao, C. R. (1947), Factorial experiments derivable from combinatorial arrangements of arrays, "
         "Supplement to the J. Royal Statistical Society",
+        watch_for=(
+            "L4, L8 and L16 are two-level fractional factorials, L12 a Plackett-Burman design: they alias as those do",
+        ),
     ),
     "ccd": Family(
         "Central composite",
@@ -116,7 +120,15 @@ FAMILIES: dict[str, Family] = {
         "Box, G. E. P. and Wilson, K. B. (1951), On the experimental attainment of optimum conditions, "
         "J. Royal Statistical Society B",
     ),
-    "mixture": Family("Mixture", 1958, "Scheffé, H. (1958), Experiments with mixtures, J. Royal Statistical Society B"),
+    "mixture": Family(
+        "Mixture",
+        1958,
+        "Scheffé, H. (1958), Experiments with mixtures, J. Royal Statistical Society B",
+        watch_for=(
+            "Limits on the ingredients cut the simplex down, and the design is then built for what is left of it",
+            "Where the amount matters too, the ingredients' amounts can be the factors (a component-amount design)",
+        ),
+    ),
     "optimal": Family(
         "Optimal (D, I, G)",
         1959,
@@ -133,7 +145,7 @@ FAMILIES: dict[str, Family] = {
         watch_for=(
             "The design is built for the model that was chosen, and may say little about a term left out of it",
             "The criteria give different designs: D to estimate the coefficients, I and G to predict the response",
-            "It has no repeated runs, and no runs to test the fit of the model, unless they are asked for",
+            "It plans for neither repeated runs nor a test of the model's fit: some sizes give them, others give none",
         ),
     ),
     "box_behnken": Family(
@@ -146,6 +158,7 @@ FAMILIES: dict[str, Family] = {
         "Supersaturated",
         1962,
         "Booth, K. H. V. and Cox, D. R. (1962), Some systematic supersaturated designs, Technometrics",
+        watch_for=("The factors it selects are candidates, to be confirmed in a further experiment",),
     ),
     "dsd": Family(
         "Definitive screening",
@@ -204,7 +217,7 @@ FAMILIES: dict[str, Family] = {
             "A whole batch is made at one setting and then divided for further treatment",
         ),
         watch_for=(
-            "Analyzed as a fully randomized design, a hard-to-change factor can show an effect that it does not have",
+            "It has two sources of error: analyzed with one, a hard-to-change factor can show a false effect",
             "A hard-to-change factor is set again for each whole plot, also when its setting stays the same",
             "The effects of the hard-to-change factors are estimated less precisely than the others",
         ),
@@ -224,6 +237,7 @@ FAMILIES: dict[str, Family] = {
             "Without random assignment to the groups, another difference between them can be mistaken for an effect",
             "Data that were not set by design show that two variables move together, not that one causes the other",
             "A fitted line describes the range of the data, and not what lies beyond it",
+            "Measurements made in pairs are analyzed by their differences, not as two separate groups",
         ),
     ),
     "other": Family(
@@ -1431,8 +1445,9 @@ def catalog_families() -> dict[str, dict[str, Any]]:
 
     A family that one ``generate_design`` type makes is described by the knowledge base's entry for that type:
     ``description`` says what a design of the family is in plain words (its ``description["novice"]``),
-    ``use_when`` lists when one is used (its ``suitable_for``), and ``watch_for`` what to watch for (its
-    ``disadvantages``). Any other family gives the three in its own words (:class:`Family`).
+    ``use_when`` lists when one is used (its ``suitable_for``), and ``watch_for`` what to watch for: its
+    ``disadvantages``, then the family's own cautions, which are not disadvantages of the design. Any other family
+    gives the three in its own words (:class:`Family`).
     ``next`` lists the families a design of this one can be augmented to, each with how (``how``), as
     the knowledge base records them (its ``can_augment_to``).
     """
@@ -1444,7 +1459,7 @@ def catalog_families() -> dict[str, dict[str, Any]]:
             "label": f.label,
             "description": " ".join(known.description.get("novice", "").split()) if known else f.about,
             "use_when": list(known.suitable_for) if known else list(f.use_when),
-            "watch_for": list(known.disadvantages) if known else list(f.watch_for),
+            "watch_for": [*(known.disadvantages if known else ()), *f.watch_for],
             "year": f.year,
             "reference": f.reference,
             # A step names a design type: the family that type's designs are in, where the two names differ.

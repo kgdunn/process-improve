@@ -45,8 +45,8 @@
     - "Simple to plan and analyze"
     - "Provides a baseline for comparison with other designs"
   disadvantages:
-    - "The number of runs doubles with each added factor"
-    - "Cannot detect curvature without center points"
+    - "The number of runs multiplies with each added factor: it doubles at two levels"
+    - "At two levels, curvature cannot be detected without center points"
     - "Inefficient when many factors are likely inert"
   common_misconceptions:
     - "A full factorial is always the best design - it is only best when you can afford it and need all interactions"
@@ -440,7 +440,6 @@
   disadvantages:
     - "An interaction is aliased (mixed) with main effects unless the columns it falls in are left empty"
     - "In L12, L18 and L36 the interactions are spread over many columns: no column can be left empty for them"
-    - "L4, L8 and L16 are two-level fractional factorials and L12 a Plackett-Burman design: they alias as those do"
   common_misconceptions:
     - "An orthogonal array shows that interactions are absent - a saturated array cannot detect them"
   references:
@@ -488,7 +487,7 @@
     supports_quadratic: "The Scheffé quadratic model: a blending term for each pair of components"
     supports_interaction: "Blending terms of two or three components, not interactions of independent factors"
   min_runs:
-    formula: "q(q+1)/2 + 1 for the Scheffé quadratic model: the pure components, the 50:50 blends and the centroid"
+    formula: "q(q+1)/2 for the Scheffé quadratic model; generate_design builds one more, the centroid, as a check on the fit"
     examples: {"3": 7, "4": 11, "5": 16}
   supports_models:
     - scheffe_linear
@@ -502,8 +501,6 @@
     - "Takes limits on single components and on sums of components"
   disadvantages:
     - "The model has no intercept, and a coefficient is not the effect of one ingredient alone"
-    - "Limits on the ingredients cut the simplex down, and the design is then built for what is left of it"
-    - "Where the amount matters too, the amounts of the ingredients can be the factors (a component-amount design)"
   common_misconceptions:
     - "The components can be set independently, like the factors of a factorial - the proportions sum to 1, so a change in one changes at least one other"
     - "The x_i x_j terms of a Scheffé model are interactions - they measure nonlinear blending of two components"
@@ -563,7 +560,6 @@
   disadvantages:
     - "The columns of the factors are correlated, so an active factor can be missed or an inactive one chosen"
     - "The analysis selects among the factors: least squares cannot fit them all at once"
-    - "The factors it selects are candidates, to be confirmed in a further experiment"
   common_misconceptions:
     - "A supersaturated design estimates every main effect - it has fewer degrees of freedom than factors, and can only point to a few dominant ones"
   references:
@@ -586,8 +582,9 @@
       coefficients. The experimenter gives the model, the number of runs and
       the region: factor ranges, constraints, categorical levels and any runs
       already made. An exchange algorithm searches for the best set of runs.
-      The design is optimal for that model only, and has no replicates or
-      runs to test lack of fit unless they are asked for.
+      The design is optimal for that model only. Replicates and runs to
+      test lack of fit are not planned for: some numbers of runs give them
+      and others give none, so they are asked for when they are needed.
     expert: >
       Kiefer (1959) and Kiefer and Wolfowitz (1960) set up the theory; their
       equivalence theorem ties D-optimality of a continuous design to
@@ -627,7 +624,7 @@
     - "Takes fixed runs, blocks, constraints and hard-to-change factors"
   disadvantages:
     - "The design is built for the model that was named, and may say little about a term left out of it"
-    - "Repeated runs, and runs that test the fit of the model, are in the design only when they are asked for"
+    - "The design plans for neither repeated runs nor a test of the model's fit: some sizes give them, others none"
     - "The search keeps the best design it found: a longer search, or another start, can find a better one"
     - "The design is not orthogonal in general, so the estimates are correlated"
   common_misconceptions:

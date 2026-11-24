@@ -564,6 +564,27 @@ def test_an_optimal_design_needs_a_run_for_each_coefficient_of_its_model(design_
             generate_design(factors, design_type=design_id, model_type="quadratic", budget=runs - 1)
 
 
+def test_an_optimal_design_repeats_runs_at_one_size_and_not_at_another() -> None:
+    """The entry said an optimal design has no repeated runs unless they are asked for. The library's own do.
+
+    A D-optimal design repeats a point when repeating it scores best: eight runs for the main effects of two
+    factors are the four corners, twice. With as many runs as its model has coefficients it repeats none.
+    """
+    from process_improve.experiments import generate_design
+    from process_improve.experiments.factor import Factor
+
+    def distinct_points(k: int, model_type: str, budget: int) -> int:
+        factors = [Factor(name=f"X{i}", low=0, high=1) for i in range(k)]
+        built = generate_design(factors, design_type="d_optimal", model_type=model_type, budget=budget, random_state=0)
+        return len({tuple(row) for row in built.design[built.factor_names].to_numpy(dtype=float).round(6)})
+
+    assert distinct_points(2, "main_effects", 8) == 4, "each corner twice, with nothing asked for"
+    assert distinct_points(3, "quadratic", 10) == 10, "ten coefficients, ten runs: none to repeat"
+    design = _design_type("d_optimal")
+    assert "are not planned for" in " ".join(design.description["intermediate"].split())
+    assert not any("only when they are asked for" in line for line in design.disadvantages)
+
+
 def test_the_two_level_taguchi_arrays_are_the_designs_the_knowledge_base_says_they_are() -> None:
     """L4, L8, L16 and L32 are regular fractions; L12 is a Hadamard array, as the 12-run Plackett-Burman design is.
 
