@@ -219,9 +219,8 @@ rsm 2.10.6 built the central composite and Box-Behnken designs.
 - **Central composite designs.** No difference. Run counts and axial distances are as printed:
   on full and fractional cubes, for a rotatable, a spherical or a given distance, and in
   blocks.
-- **Center runs in each block.** rsm takes them block by block (``n0``), and so gives the axial
-  distances that NIST 5.3.3.6.4 prints. process-improve does not, because it takes one total
-  (A11 in `issue 788 <https://github.com/kgdunn/process-improve/issues/788>`__).
+- **Center runs in each block.** rsm takes them block by block (``n0``), as process-improve does
+  (``n_center_points=[2, 2, 2]``), and both give the axial distances that NIST 5.3.3.6.4 prints.
 - **Outside what rsm offers.** A rotatable distance on a cube below resolution V, where no
   distance makes the design rotatable: rsm declines it, and Box and Draper (2007) print the
   fourth root of the cube's run count. Davies' (1956) orthogonal design: rsm's
@@ -422,9 +421,9 @@ What the comparisons found
        factors.
      - :ref:`validation-daewr`
    * - process-improve
-     - No way to give the center runs of each block of a central composite design, and a
-       minimum-aberration search that stops where published designs exist.
-     - A11 and A12 in `issue 788 <https://github.com/kgdunn/process-improve/issues/788>`__
+     - A minimum-aberration search that stops where published designs exist. A second gap, no
+       way to give the center runs of each block of a central composite design, is closed.
+     - A12 in `issue 788 <https://github.com/kgdunn/process-improve/issues/788>`__
    * - process-improve
      - 1,555 printed numbers that need a function the library does not have yet, 275 that
        differ for a cause not known yet, and 1 that differs for a bug or limit of the library.

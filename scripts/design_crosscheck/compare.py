@@ -57,6 +57,23 @@ class Unsupported(Exception):  # noqa: N818 - pyDOE3 has no construction for thi
     pass
 
 
+def _center_total(opts: dict) -> int:
+    """Return the center runs asked for, in all: a number, or the sum of those given block by block."""
+    centers = opts.get("n_center_points") or 0
+    return int(sum(centers)) if isinstance(centers, (list, tuple)) else int(centers)
+
+
+def _center_split(opts: dict, nc: int, cube_blocks: int = 1) -> list[int]:
+    """Return the center runs of each cube block and of the axial block: as given, else as process-improve puts them.
+
+    process-improve puts half the total, rounded down, with the cube runs, shared out among the cube blocks in turn.
+    """
+    centers = opts.get("n_center_points")
+    if isinstance(centers, (list, tuple)):
+        return [int(centers[0]), int(centers[-1])]
+    return [(nc // 2) // cube_blocks, nc - ((nc // 2) // cube_blocks) * cube_blocks]
+
+
 # --------------------------------------------------------------------------- pyDOE3 constructions
 def _gen_string(names: list[str], generators: list[str]) -> str:
     """Translate generators such as ``E=-ABCD`` into pyDOE3's ``"a b c d -abcd"``."""
@@ -150,8 +167,8 @@ def _ccd(k: int, opts: dict, names: list[str]) -> tuple[np.ndarray, float]:
         raise Unsupported(f"no {alpha!r} axial distance in ccdesign or star")
     face = {"face_centered": "faced", "inscribed": "inscribed"}.get(alpha, "circumscribed")
     kind = alpha if alpha in ("rotatable", "orthogonal") else "rotatable"
-    nc = int(opts.get("n_center_points") or 0)
-    center = (nc // 2, nc - nc // 2)
+    nc = _center_total(opts)
+    center = tuple(_center_split(opts, nc))
     if opts.get("cube") == "fractional":
         gens, res = opts.get("generators"), opts.get("resolution")
         if not gens and not res:  # the same default as process-improve: the half fraction, last = all others
@@ -180,7 +197,7 @@ def pydoe3_generate_design(factors, design_type=None, **opts):  # noqa: C901
     blocked = opts.get("n_blocks") or opts.get("block_generators")
     if blocked:
         return _blocked(factors, design_type, opts)
-    nc = int(opts.get("n_center_points") or 0)
+    nc = _center_total(opts)
     gens = rel = res = alpha = None
     centers_inside = False
     if design_type == "full_factorial":
@@ -224,7 +241,7 @@ def pydoe3_generate_design(factors, design_type=None, **opts):  # noqa: C901
 def _blocked(factors, design_type, opts):  # noqa: ANN202
     """Pydoe's blocked designs: block_full_factorial (generators given), block_ccdesign (two blocks, full cube)."""
     names, k = [f.name for f in factors], len(factors)
-    nc = int(opts.get("n_center_points") or 0)
+    nc = _center_total(opts)
     if design_type == "full_factorial" and opts.get("block_generators") and hasattr(pyDOE3, "block_full_factorial"):
         m, labels = pyDOE3.block_full_factorial(k, [tuple(names.index(c) for c in g) for g in opts["block_generators"]])
     elif design_type == "full_factorial":
@@ -236,7 +253,7 @@ def _blocked(factors, design_type, opts):  # noqa: ANN202
         and opts.get("alpha") in (None, "orthogonal")
         and hasattr(pyDOE3, "block_ccdesign")
     ):
-        m, labels = pyDOE3.block_ccdesign(k, center=(nc // 2, nc - nc // 2))
+        m, labels = pyDOE3.block_ccdesign(k, center=tuple(_center_split(opts, nc)))
         nc = 0
     else:
         raise Unsupported(f"no blocking for a {design_type} design with these options")
@@ -262,7 +279,7 @@ def other_generate_design(factors, design_type=None, **opts):
     _BUILT[0] = True
     if opts.get("n_blocks") or opts.get("block_generators"):
         raise Unsupported(f"{LIB} has no blocking")
-    k, nc = len(factors), int(opts.get("n_center_points") or 0)
+    k, nc = len(factors), _center_total(opts)
     deadline = time.monotonic() + TIMEOUT_S - 5
     if LIB == "dsdpkg" and design_type == "dsd":
         import definitive_screening_design as dsdp  # noqa: PLC0415
@@ -320,7 +337,7 @@ def dexpy_generate_design(factors, design_type=None, **opts):  # noqa: C901
     _BUILT[0] = True
     if opts.get("n_blocks") or opts.get("block_generators"):
         raise Unsupported("dexpy has no blocking")
-    names, k, nc = [f.name for f in factors], len(factors), int(opts.get("n_center_points") or 0)
+    names, k, nc = [f.name for f in factors], len(factors), _center_total(opts)
     gens = rel = res = alpha = None
     inside = False
     if any(f.levels for f in factors):
@@ -467,10 +484,12 @@ def _r_ccd(k: int, opts: dict, names: list[str], nc: int) -> tuple[np.ndarray, f
     n_blocks = opts.get("n_blocks")
     alpha = opts.get("alpha", "orthogonal" if n_blocks else "rotatable")  # as process-improve, when blocked
     cube_blocks = (n_blocks or 2) - 1
-    if nc % (cube_blocks + 1) == 0:  # rsm takes center runs per block: equal counts when they divide
+    if isinstance(opts.get("n_center_points"), (list, tuple)):  # given block by block, as rsm takes them
+        n0 = _center_split(opts, nc)
+    elif nc % (cube_blocks + 1) == 0:  # rsm takes center runs per block: equal counts when they divide
         n0 = [nc // (cube_blocks + 1)] * 2
     else:  # else process-improve's split: half to the cube portion, the rest to the star
-        n0 = [(nc // 2) // cube_blocks, nc - ((nc // 2) // cube_blocks) * cube_blocks]
+        n0 = _center_split(opts, nc, cube_blocks)
     req = {"kind": "ccd", "k": k, "n0": n0, "inscribed": alpha == "inscribed"}
     req["alpha"] = (
         alpha if not isinstance(alpha, str) else {"face_centered": "faces", "inscribed": "rotatable"}.get(alpha, alpha)
@@ -507,7 +526,7 @@ def r_generate_design(factors, design_type=None, **opts):  # noqa: C901, PLR0912
     """generate_design's signature, built with FrF2, DoE.base, rsm or daewr."""
     _BUILT[0] = True
     names, k = [f.name for f in factors], len(factors)
-    nc = int(opts.get("n_center_points") or 0)
+    nc = _center_total(opts)
     lv = [len(f.levels) if f.levels else 2 for f in factors]
     gens = rel = res = alpha = blocks = None
     inside = False
