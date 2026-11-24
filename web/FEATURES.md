@@ -1046,7 +1046,11 @@ What a careful reader, or an organization, asks before using a tool.
     Factorial. Entries that are the same runs are one line: a button under its name says in how
     many places the design is printed, and opens onto them, each with its source and its own way
     to open. The count over the list says how many designs it holds, and how many of them are
-    different. The filter for the years has a strip of bars over its two boxes: a
+    different. A list of one family has the family's card over it: what a design of the family
+    is, when it is used, what to watch for, the families it can lead to, the work that first
+    published it, and a link to it on the concept map. A family's name in an open row of the
+    table is a button that lists the family's designs of the row under that card. The filter
+    for the years has a strip of bars over its two boxes: a
     bar's height is the number of designs published in its five years, and a drag across the
     strip, or a press on a bar, fills the boxes. A design's page links to where its source
     prints it, projects its runs onto two or three factors, and draws its correlation map. A

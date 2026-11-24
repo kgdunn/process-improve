@@ -1119,7 +1119,35 @@ def test_a_family_the_knowledge_base_describes_says_what_it_is_in_plain_words():
     families = catalog_families()
     assert families["full_factorial"]["description"].startswith("Tests every combination of factor levels.")
     assert "\n" not in families["dsd"]["description"]
-    assert families["latin_square"]["description"] == ""
+    assert "Cannot estimate interactions" in families["plackett_burman"]["watch_for"], "the knowledge base's own"
+    assert "Initial exploratory experiments" in families["plackett_burman"]["use_when"]
+
+
+def test_a_family_the_knowledge_base_lacks_says_what_it_is_in_its_own_words():
+    """A reader who meets a Taguchi array or a split plot for the first time is told what it is, by its family.
+
+    Nine families had no description: the catalog named them and said no more. Each now says what it is, when it
+    is used and what to watch for; "Other" is a mixed group, and says what it holds.
+    """
+    families = catalog_families()
+    own = {key for key, family in FAMILIES.items() if family.about}
+    assert len(own) == 9, "the families the knowledge base has no entry for"
+    for key, family in families.items():
+        assert family["description"].endswith("."), key
+        assert "\u2014" not in family["description"], key
+        if key == "other":
+            assert family["use_when"] == family["watch_for"] == [], "a mixed group has no one use"
+            continue
+        assert family["use_when"], key
+        assert family["watch_for"], key
+        if key not in own:
+            continue  # the knowledge base's lists, in its own form
+        for phrase in [*family["use_when"], *family["watch_for"]]:
+            assert phrase[0].isupper(), f"{key}: {phrase}"
+            assert not phrase.endswith("."), f"{key}: a phrase of a list, with no period: {phrase}"
+            assert len(phrase) <= 110, f"{key}: one line of a card: {phrase}"
+    assert families["orthogonal_array"]["description"].startswith("A table of runs, such as L8, L9 or L18")
+    assert families["latin_square"]["description"].startswith("A design that tests one factor while blocking on two")
 
 
 def test_a_family_says_which_families_it_can_lead_to():

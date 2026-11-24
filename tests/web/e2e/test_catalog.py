@@ -738,6 +738,110 @@ def test_the_map_says_what_a_press_listed_and_leads_to_the_list_where_a_design_o
     assert "fam=" not in page.url, "the reset takes the mark's family with its size"
 
 
+def test_a_list_of_one_family_has_a_card_that_says_what_the_family_is(context, site):
+    """A reader who meets a family for the first time reads what it is, over its designs."""
+    page = open_catalog(context, site)
+    assert page.is_hidden("#family"), "every family is listed: there is no one family to describe"
+
+    page = open_catalog(context, site, "#fam=full_factorial")
+    card = page.locator("#family")
+    assert card.locator("h2").text_content() == "Full factorial"
+    assert card.locator(".famcard__first").text_content().startswith("First published: Fisher, R. A. (1926), ")
+    assert card.locator("dt").all_text_contents() == ["What it is", "Use it when", "Watch for", "Where next"]
+    assert card.locator("dd").first.text_content().startswith("Tests every combination of factor levels.")
+    assert card.locator("dd").nth(1).locator("li").count() == 3, "when it is used: a line each"
+    assert card.locator(".famcard__more a").get_attribute("href").endswith("map/#full-factorial")
+    assert card.locator("#family-all").count() == 0, "no size is kept: the list is the whole family already"
+    assert page.get_attribute("#family", "aria-labelledby") == "family-name"
+    assert card.locator("h2").get_attribute("id") == "family-name"
+
+    # "Where next" leads to a family this one can be augmented to, whose card takes this one's place.
+    card.locator("dd a", has_text="Central composite").click()
+    counted(page, "1 of 5")
+    page.wait_for_function("document.querySelector('#family h2').textContent === 'Central composite'")
+    assert card.locator("dt").all_text_contents() == ["What it is", "Use it when", "Watch for"], "it leads nowhere on"
+
+    # Two families ticked: no card, as neither is the one the list is of.
+    page.check("#families input[value='full_factorial']")
+    counted(page, "3 of 5")
+    assert page.is_hidden("#family")
+    assert page.locator("#family").text_content() == ""
+
+
+def test_a_family_no_one_work_first_published_has_a_card_in_its_own_words(context, site):
+    """Nine families had no description. One with no first work and no place on the concept map says the rest."""
+    page = open_catalog(context, site, "#fam=comparison")
+    card = page.locator("#family")
+    assert card.locator("h2").text_content() == "Comparison or regression"
+    assert card.locator(".famcard__first").count() == 0
+    assert "null" not in card.text_content(), "a part that is not there is left out, and not written as a word"
+    assert card.locator("dt").all_text_contents() == ["What it is", "Use it when", "Watch for"]
+    assert card.locator("dd").first.text_content().startswith("A study of one factor, or of measured data")
+    assert card.locator(".famcard__more").is_hidden(), "nothing to press under it"
+
+
+def test_a_family_s_name_in_an_open_row_lists_its_designs_of_the_row_under_its_card(context, site):
+    page = open_map(context, site)
+    page.click("#map [data-unfold='3']")
+    name = page.locator("#map .sizemap__family", has_text="Central composite")
+    assert name.get_attribute("role") == "button"
+    assert name.get_attribute("aria-label") == (
+        "Central composite: 1 design of 3 factors. Press to read what it is, and to list it."
+    )
+    name.click()
+    counted(page, "1 of 5")
+    assert shown(page) == [CCD]
+    assert "fam=ccd" in page.url
+    assert "k=3-3" in page.url, "the family's designs of this row"
+    assert "runs=" not in page.url, "of every run size"
+    assert page.text_content("#map-said-text") == "1 listed: Central composite, 3 factors."
+    assert page.text_content("#family h2") == "Central composite"
+
+    # The way down from the table is to the card, which is over the list.
+    page.click("#map-list")
+    page.wait_for_function("document.querySelector('#family').getBoundingClientRect().top < 0.6 * innerHeight")
+    every = page.locator("#family-all")
+    assert every.text_content() == "Show every Central composite design", "the row's size is kept: the way out of it"
+    every.click()
+    page.wait_for_function("!location.hash.includes('k=')")
+    assert "fam=ccd" in page.url
+    assert page.locator("#family-all").count() == 0
+    assert page.text_content("#family h2") == "Central composite"
+
+    # From the keyboard: down from the row's first cell is its first family's name, and Enter presses it.
+    page.click("#map-reset")
+    counted(page, "5 designs")
+    assert page.is_hidden("#family"), "the reset takes the family with it"
+    page.click("#map [data-unfold='3']")
+    page.wait_for_function("document.getAnimations().length === 0")
+    page.focus(cell(3, 1))
+    page.keyboard.press("ArrowDown")
+    focused = "JSON.stringify({ ...document.activeElement.dataset })"
+    assert json.loads(page.evaluate(focused)) == {"row": "3", "family": "full_factorial", "all": "1"}
+    page.keyboard.press("Enter")
+    counted(page, "2 of 5")
+    assert json.loads(page.evaluate(focused)) == {"row": "3", "family": "full_factorial", "all": "1"}, (
+        "the name keeps the focus when the table is redrawn"
+    )
+    assert page.text_content("#family h2") == "Full factorial"
+    page.keyboard.press("Enter")
+    counted(page, "5 designs")
+    assert page.is_hidden("#family"), "a second press on the name shows every design again"
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
+def test_on_a_phone_a_family_s_card_keeps_inside_the_screen(context, site):
+    page = open_catalog(context, site, "#fam=full_factorial")
+    page.wait_for_selector("#family h2")
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), "nothing to scroll sideways"
+    # Its labels are over their text, which has the card's width.
+    tops = page.eval_on_selector_all(
+        "#family :is(dt, dd)", "(parts) => parts.map((p) => p.getBoundingClientRect().top)"
+    )
+    assert tops == sorted(tops)
+    assert len(set(tops)) == len(tops), "one under another"
+
+
 def test_the_table_s_cells_are_coloured_by_the_most_a_design_of_that_size_estimates(context, site):
     """One coloring, in three steps a reader can tell apart, with a key of a few words a label.
 

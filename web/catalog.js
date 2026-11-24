@@ -386,6 +386,49 @@ function line({ key, lead, entries }) {
   );
 }
 
+/**
+ * A family's card, over the list while the list holds one family: what a design of it is, when it is used and what
+ * to watch for, the work that first published it, and the families it can lead to. It is for a reader who meets
+ * the family for the first time, as a Taguchi array in an open row of the table.
+ */
+function renderFamily() {
+  const card = $("#family");
+  const chosen = filtersOf(state).families;
+  const key = chosen.length === 1 ? chosen[0] : null;
+  const family = key ? catalog.families[key] : null;
+  card.hidden = !family;
+  if (!family) {
+    card.replaceChildren();
+    return;
+  }
+  const part = (name, content) => [element("dt", { text: name }), element("dd", {}, content)];
+  const phrases = (list) => element("ul", {}, ...list.map((text) => element("li", { text })));
+  const steps = nextSteps({ family: key }, catalog);
+  const sized = state.factors.some((n) => n !== null) || state.runs.some((n) => n !== null);
+  const term = ON_THE_MAP[key];
+  const parts = [
+    element("h2", { id: "family-name", text: family.label }),
+    family.reference ? element("p", { class: "famcard__first", text: `First published: ${family.reference}.` }) : null,
+    element(
+      "dl",
+      {},
+      ...(family.description ? part("What it is", family.description) : []),
+      ...(family.use_when?.length ? part("Use it when", phrases(family.use_when)) : []),
+      ...(family.watch_for?.length ? part("Watch for", phrases(family.watch_for)) : []),
+      ...(steps.length
+        ? part("Where next", element("ul", {}, ...steps.map((step) => element("li", {}, element("a", { href: step.hash, text: step.label }), `: ${step.how}`))))
+        : []),
+    ),
+    element(
+      "p",
+      { class: "famcard__more" },
+      term ? element("a", { href: app(`map/#${term.replaceAll("_", "-")}`), text: "See it on the concept map" }) : null,
+      sized ? element("button", { type: "button", class: "link", id: "family-all", text: `Show every ${family.label} design` }) : null,
+    ),
+  ];
+  card.replaceChildren(...parts.filter(Boolean));
+}
+
 /** The button that puts a design in the comparison, or takes it out: pressed while the design is in it. */
 function compareButton(design) {
   const chosen = state.compare.includes(design.id);
@@ -420,6 +463,7 @@ function render() {
   $("#count").textContent = countSentence(list, catalog);
   renderCounts();
   renderTimeline();
+  renderFamily();
   renderList(list);
   renderTray();
   renderMap();
@@ -732,10 +776,12 @@ function wireMap() {
       button = marks.reduce((best, mark) => (away(mark) < away(best) ? mark : best));
     }
     if (!button) return;
-    const { unfold, row, band, runs, family } = button.dataset;
+    const { unfold, row, band, runs, family, all } = button.dataset;
     if (unfold) {
       if (!openedRows.delete(Number(unfold))) openedRows.add(Number(unfold));
       renderMap(Number(unfold));
+    } else if (all) {
+      keepSize(rowFactors(Number(row)), [null, null], family); // a family's name: its designs of every run size
     } else {
       keepSize(rowFactors(Number(row)), runs ? [Number(runs), Number(runs)] : bandRuns(Number(band)), family ?? null);
     }
@@ -756,7 +802,8 @@ function wireMap() {
   // The designs a press kept are in the list, further down the page: its first one, for the keyboard too.
   $("#map-list").addEventListener("click", () => {
     const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    $(".catalog__listhead").scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "start" });
+    // To the family's card when it is shown, which is over the list: the reader reads what the family is first.
+    ($("#family").hidden ? $(".catalog__listhead") : $("#family")).scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "start" });
     // The first line's first thing to press: its fold where it holds several entries, or its entry's title.
     $("#results .result :is(.result__fold, .result__title)")?.focus({ preventScroll: true });
   });
@@ -1213,6 +1260,13 @@ function wire() {
     update({ keepPage: true });
   });
   document.addEventListener("click", (event) => {
+    if (event.target.closest("#family-all")) {
+      state.factors = [null, null];
+      state.runs = [null, null];
+      writeForm();
+      update();
+      return;
+    }
     const fold = event.target.closest("[data-fold]");
     if (fold) {
       const shut = fold.getAttribute("aria-expanded") === "true";
