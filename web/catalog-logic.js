@@ -388,6 +388,9 @@ export function sizeSentence(catalog, state, count) {
   return `${count} listed: ${[...families.map((f) => catalog.families?.[f]?.label ?? f), ...size].join(", ")}.`;
 }
 
+/** The steps of the map's colors in the few words of its key, which a design's line in the list says too. */
+export const STEP_NAMES = ["none stated", "main effects", "+ interactions", "+ quadratic"];
+
 /** What the designs of each step of the map's colors estimate, in words. */
 export const STEP_WORDS = ["none of these models, or none is stated", "the main effects", "the main effects and the two-factor interactions", "the full quadratic"];
 
@@ -610,18 +613,24 @@ export const isDesign = (design) => design.kind !== "facts" && design.kind !== "
 const counted = (n) => n.toLocaleString("en-US");
 
 /**
- * Say how many of the catalog's designs the list shows: all of them, or so many of them. An entry of facts about
+ * Say how many of the catalog's designs the list shows: all of them, or so many of them, and how many of those
+ * are different designs when some are the same runs. An entry of facts about
  * designs, or of one sample with nothing varied, is no design: a narrowed list that holds some counts them apart,
  * and the whole catalog's count leaves them out, as the page's first line is about its designs.
  */
 export function countSentence(list, catalog) {
-  const designs = list.filter(isDesign).length;
+  const listed = list.filter(isDesign);
+  const designs = listed.length;
   const all = catalog.designs.filter(isDesign).length;
-  if (list.length === catalog.designs.length) return `${counted(all)} design${all === 1 ? "" : "s"}`;
+  // The list has a line for each different design: where some are the same runs, the count says how many are not.
+  const lines = designLines(listed).length;
+  const different = lines < designs ? `, ${counted(lines)} different` : "";
+  if (list.length === catalog.designs.length) return `${counted(all)} design${all === 1 ? "" : "s"}${different}`;
   const of = `${counted(designs)} of ${counted(all)} design${all === 1 ? "" : "s"}`;
   if (!list.length) return `${of}: change a filter or the search to see more`;
   const others = list.length - designs;
-  return others ? `${of}, and ${plural(others, "entry", "entries")} of facts about designs or a single sample` : of;
+  const more = others ? `, and ${plural(others, "entry", "entries")} of facts about designs or a single sample` : "";
+  return `${of}${different}${more}`;
 }
 
 /** The largest model a design estimates in full, in words; null when the catalog does not state it. */
@@ -640,8 +649,19 @@ export function caseFacts(design) {
   return sizeFacts(design).map((fact) => fact[0].toUpperCase() + fact.slice(1));
 }
 
-/** A design's factors, runs, the largest model it estimates, and its blocks, in words. */
-function sizeFacts(design) {
+/**
+ * A design's family and size, as the name of its line in the list: "Full factorial · 3 factors · 8 runs". What it
+ * estimates is left out: the line shows that as a mark in the table's own colors (STEP_NAMES).
+ */
+export function sizeLine(design, catalog) {
+  const label = catalog.families?.[design.family]?.label ?? design.family;
+  // A split plot of the family Split plot says so once.
+  const facts = sizeFacts(design, { model: false }).filter((fact) => fact.toLowerCase() !== label.toLowerCase());
+  return [label, ...facts].join(" · ");
+}
+
+/** A design's factors, runs, the largest model it estimates (unless ``model`` is false), and its blocks, in words. */
+function sizeFacts(design, { model: withModel = true } = {}) {
   const parts = [];
   if (design.n_factors) {
     const kinds = [];
@@ -651,8 +671,8 @@ function sizeFacts(design) {
   }
   if (design.n_runs) parts.push(plural(design.n_runs, "run"));
   const model = largestModel(design.models);
-  if (model) parts.push(`estimates ${MODELS[model]}`);
-  else if (model === "") parts.push("estimates fewer coefficients than it has factors");
+  if (withModel && model) parts.push(`estimates ${MODELS[model]}`);
+  else if (withModel && model === "") parts.push("estimates fewer coefficients than it has factors");
   if (design.blocked) parts.push(design.n_blocks ? `${design.n_blocks} blocks` : "in blocks");
   if (design.split_plot) parts.push("split plot");
   return parts;
@@ -664,6 +684,48 @@ export function checkLine(checks) {
   if (!checks.checked) return `${plural(checks.printed, "printed number")}, none recomputed`;
   const agree = `${checks.agree} of ${plural(checks.checked, "recomputed number")} agree`;
   return checks.explained ? `${agree}; ${checks.explained} known to differ, with the reason` : agree;
+}
+
+/**
+ * The list's lines: one for each design, with the entries that hold its runs. Entries of one design class are one
+ * design, with its runs, factors or signs in another order, printed or made in several places: listed one by one
+ * they filled the page with the same runs, 73 times for the 2^3 factorial. An entry with no class is a line of its
+ * own. The lines are in the order of their first entries. Each is led by the entry a reader opens first: one the
+ * library makes, which is the design alone, before a source's, which opens with its study around it.
+ */
+export function designLines(list) {
+  const lines = new Map();
+  for (const design of list) {
+    const key = design.design_class ?? `entry:${design.id}`;
+    if (!lines.has(key)) lines.set(key, []);
+    lines.get(key).push(design);
+  }
+  return [...lines].map(([key, entries]) => ({
+    key,
+    lead: entries.find((d) => d.collection === "generated" && d.open) ?? entries.find((d) => d.open) ?? entries[0],
+    entries,
+  }));
+}
+
+/**
+ * Where a line's entries are from, in a few words: "printed in 3 places", or "made by Factorial" where no source
+ * prints the design. A design that is printed and made says the first: the fold under it lists the one that is made.
+ */
+export function usesWords(entries) {
+  const printed = entries.filter((d) => d.collection === "published").length;
+  return printed ? `printed in ${plural(printed, "place")}` : "made by Factorial";
+}
+
+/** The families, other than its own, that a design's runs also are: an L4 array is a half fraction too. */
+export function alsoFamilies(catalog, design) {
+  const others = sameDesigns(catalog, design).map((d) => d.family).filter((family) => family !== design.family);
+  return [...new Set(others)].map((family) => catalog.families?.[family]?.label ?? family);
+}
+
+/** A design's source in a few words, for its line in the list: its authors and year, with no page. */
+export function shortSource(design, catalog) {
+  const source = catalog.sources?.[design.source];
+  return source ? `${source.short} (${source.year})` : "Made by Factorial";
 }
 
 /** The other designs of the catalog that are this one, with its runs, factors or signs in another order. */

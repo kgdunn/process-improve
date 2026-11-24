@@ -190,7 +190,12 @@
             between the cells.</p>
         </details>
       </figure>
+      <!-- A family's card, while the list holds one family: what a design of it is, for a reader new to it. -->
+      <section class="famcard" id="family" aria-labelledby="family-name" hidden></section>
       <div class="catalog__listhead">
+        <!-- What a design's picture is: its colors are the pictures' own, set by catalog.js. -->
+        <p class="results__key">A picture is the design: a row is a run, a column a factor.
+          <span><i data-setting="-1"></i>low</span> <span><i data-setting="0"></i>middle</span> <span><i data-setting="1"></i>high</span></p>
         <label>Order <select id="sort"></select></label>
       </div>
       <ol id="results" class="results"></ol>

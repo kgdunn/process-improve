@@ -16,12 +16,13 @@ import {
   NOT_COMPARED,
   OTHER_COLOUR,
   SORTS,
+  STEP_NAMES,
   applicationLine,
   bandRuns,
   caseFacts,
+  alsoFamilies,
   applications,
   checkIndex,
-  checkLine,
   checkedAgainst,
   checkedBadge,
   countSentence,
@@ -29,9 +30,9 @@ import {
   correlationMap,
   csvText,
   decodeGlyph,
+  designLines,
   errataCounts,
   errataShown,
-  factLine,
   familyCounts,
   filtersOf,
   fromHash,
@@ -46,6 +47,7 @@ import {
   leverageWords,
   levelsText,
   manyLabels,
+  modelStep,
   mapTermsSentence,
   projectionLines,
   pythonCode,
@@ -55,6 +57,8 @@ import {
   sameDesigns,
   settingColour,
   sharedModel,
+  shortSource,
+  sizeLine,
   sizeMap,
   sizeSentence,
   sourceLine,
@@ -63,6 +67,7 @@ import {
   toggled,
   topicCounts,
   topicOrder,
+  usesWords,
   placesAfter,
   whereParts,
   yearBins,
@@ -242,6 +247,8 @@ function buildFacets() {
   const added = [...new Set(catalog.designs.map((d) => d.added).filter(Boolean))].sort().reverse();
   $("#added").append(...added.map((date) => element("option", { value: date, text: date })));
   $("#sort").replaceChildren(...Object.entries(SORTS).map(([value, text]) => element("option", { value, text })));
+  // The key over the list is in the pictures' own colors.
+  for (const mark of $$(".results__key [data-setting]")) mark.style.background = settingColour(Number(mark.dataset.setting));
   const sources = Object.entries(catalog.sources).sort(([, a], [, b]) => a.year - b.year);
   $("#source").append(...sources.map(([key, source]) => element("option", { value: key, text: `${source.short} (${source.year})` })));
 }
@@ -272,59 +279,154 @@ function renderTimeline() {
 }
 
 // ---------------------------------------------------------------- the list
-function card(design) {
+/** The lines whose uses are open: a line stays open when the list is drawn again. */
+const openLines = new Set();
+
+/** A design's picture: its runs down, its factors across, each setting in its color (the key over the list). */
+function picture(design) {
   const canvas = element("canvas", { class: "glyph", "aria-hidden": "true" });
   const rows = decodeGlyph(design.glyph, design.n_factors);
-  if (rows.length) drawGlyph(canvas, rows, { across: true, width: 132, height: Math.min(52, Math.max(18, 6 * design.n_factors)) });
-  else canvas.classList.add("glyph--none");
-  const checks = checkLine(design.checks);
-  const badge = design.collection === "generated" ? element("span", { class: "badge", text: "generated" }) : null;
-  const data = design.has_responses ? element("span", { class: "badge badge--data", text: "with results" }) : null;
+  if (!rows.length) {
+    canvas.classList.add("glyph--none");
+    return canvas;
+  }
+  const width = Math.min(32, Math.max(10, 5 * design.n_factors));
+  drawGlyph(canvas, rows, { across: false, width, height: Math.min(48, Math.max(14, 3 * rows.length)) });
+  return canvas;
+}
+
+/** What is said of an entry beside its title: that it has results, and the fields it was run in. */
+function entryBadges(design) {
+  return [
+    design.has_responses ? element("span", { class: "badge badge--data", text: "with results" }) : null,
+    ...applications(design, catalog).map((name) => element("span", { class: "badge badge--topic", text: name })),
+  ];
+}
+
+/** What is said of a design whichever entry holds it: what it withstands, what it was checked against, a limit. */
+function designBadges(design) {
   const robust = design.survives_run_loss ? element("span", { class: "badge", text: "survives a lost run" }) : null;
   const projects = design.quadratic_projection >= 2 && design.quadratic_projection < design.n_numeric
     ? element("span", { class: "badge", text: `any ${design.quadratic_projection} factors: quadratic` })
     : null;
-  const twins = sameDesigns(catalog, design).length;
-  const elsewhere = twins ? element("span", { class: "badge", text: `same design in ${twins} more ${twins === 1 ? "place" : "places"}` }) : null;
   const gap = design.collection === "generated" && !design.in_source ? element("span", { class: "badge", text: "no source prints it" }) : null;
   const against = checkedAgainst(checked, design);
   const proven = against ? element("span", { class: "badge badge--checked", text: checkedBadge(against) }) : null;
   const limited = filtersOf(state).limit && design.limit_outside > 0
     ? element("span", { class: "badge badge--warn", text: `${design.limit_outside} of ${design.n_runs} runs outside the limit` })
     : null;
+  return [limited, gap, proven, robust, projects]; // what a reader must not miss first: the row is cut at its end
+}
+
+/** An entry's title, which opens its details, and its source in a few words. */
+function entryTitle(design) {
+  return [
+    element("button", { type: "button", class: "link result__title", "data-id": design.id, text: design.title }),
+    element("span", { class: "result__source", text: shortSource(design, catalog) }),
+  ];
+}
+
+/**
+ * A line of the list: a design, with the entries that hold its runs (designLines). Its name is its family and
+ * size, with a mark for what it estimates in the table's own color. A design in one entry shows the entry beside
+ * it; one in several folds them under a button that says where they are from, each with its own way to open.
+ */
+function line({ key, lead, entries }) {
+  const step = modelStep(lead);
+  const also = alsoFamilies(catalog, lead);
+  const name = element(
+    "h3",
+    { class: "result__name" },
+    element("span", { class: "result__size", text: sizeLine(lead, catalog) }),
+    also.length ? element("span", { class: "result__also", text: `same runs as: ${also.join(", ")}` }) : null,
+  );
+  const several = entries.length > 1;
+  const open = openLines.has(key);
+  const uses = several
+    ? element("button", { type: "button", class: "link result__fold", "data-fold": key, "aria-expanded": String(open), "aria-controls": `uses-${key}`, text: usesWords(entries) })
+    : null;
+  // The notes are last on the row and are cut where the row ends: a design's details hold them all.
+  // What the design estimates starts the row, so the marks stand one under another down the list.
+  const said = element(
+    "p",
+    { class: "result__said" },
+    element("span", { class: "result__step", "data-step": String(step) }, element("i", { "aria-hidden": "true" }), STEP_NAMES[step]),
+    ...(several ? [uses] : entryTitle(lead)),
+    element("span", { class: "result__notes" }, ...designBadges(lead), ...(several ? [] : entryBadges(lead))),
+  );
+  const folded = several
+    ? element(
+        "ul",
+        { class: "result__uses", id: `uses-${key}`, hidden: !open },
+        also.length ? element("li", { class: "result__same", text: `The same runs as: ${also.join(", ")}.` }) : null,
+        ...entries.map((design) =>
+          element(
+            "li",
+            {},
+            ...entryTitle(design),
+            element("span", { class: "result__notes" }, ...entryBadges(design)),
+            design.open ? element("button", { type: "button", class: "link", "data-open": design.id, "aria-label": `Open ${design.title} in Factorial`, text: "Open" }) : null,
+          ),
+        ),
+      )
+    : null;
   return element(
     "li",
     { class: "result" },
-    canvas,
-    element(
-      "div",
-      { class: "result__body" },
-      element(
-        "h3",
-        {},
-        element("button", { type: "button", class: "link result__title", "data-id": design.id, text: design.title }),
-        badge,
-        data,
-        robust,
-        projects,
-        elsewhere,
-        proven,
-        gap,
-        limited,
-        ...applications(design, catalog).map((name) => element("span", { class: "badge badge--topic", text: name })),
-      ),
-      element("p", { class: "result__facts", text: factLine(design, catalog) }),
-      element("p", { class: "result__source", text: [sourceLine(design, catalog), checks].filter(Boolean).join(" · ") }),
-    ),
+    picture(lead),
+    element("div", { class: "result__body" }, name, said, folded),
     element(
       "div",
       { class: "result__actions" },
-      design.open
-        ? element("button", { type: "button", class: "button primary", "data-open": design.id, text: "Open in Factorial" })
-        : element("button", { type: "button", class: "button", "data-id": design.id, text: "Details" }),
-      design.compared ? compareButton(design) : null,
+      lead.open
+        ? element("button", { type: "button", class: "button primary", "data-open": lead.id, "aria-label": "Open in Factorial", title: "Open in Factorial", text: "Open" })
+        : element("button", { type: "button", class: "button", "data-id": lead.id, text: "Details" }),
+      lead.compared ? compareButton(lead) : null,
     ),
   );
+}
+
+/**
+ * A family's card, over the list while the list holds one family: what a design of it is, when it is used and what
+ * to watch for, the work that first published it, and the families it can lead to. It is for a reader who meets
+ * the family for the first time, as a Taguchi array in an open row of the table.
+ */
+function renderFamily() {
+  const card = $("#family");
+  const chosen = filtersOf(state).families;
+  const key = chosen.length === 1 ? chosen[0] : null;
+  const family = key ? catalog.families[key] : null;
+  card.hidden = !family;
+  if (!family) {
+    card.replaceChildren();
+    return;
+  }
+  const part = (name, content) => [element("dt", { text: name }), element("dd", {}, content)];
+  const phrases = (list) => element("ul", {}, ...list.map((text) => element("li", { text })));
+  const steps = nextSteps({ family: key }, catalog);
+  const sized = state.factors.some((n) => n !== null) || state.runs.some((n) => n !== null);
+  const term = ON_THE_MAP[key];
+  const parts = [
+    element("h2", { id: "family-name", text: family.label }),
+    family.reference ? element("p", { class: "famcard__first", text: `First published: ${family.reference}.` }) : null,
+    element(
+      "dl",
+      {},
+      ...(family.description ? part("What it is", family.description) : []),
+      ...(family.use_when?.length ? part("Use it when", phrases(family.use_when)) : []),
+      ...(family.watch_for?.length ? part("Watch for", phrases(family.watch_for)) : []),
+      ...(steps.length
+        ? part("Where next", element("ul", {}, ...steps.map((step) => element("li", {}, element("a", { href: step.hash, text: step.label }), `: ${step.how}`))))
+        : []),
+    ),
+    element(
+      "p",
+      { class: "famcard__more" },
+      term ? element("a", { href: app(`map/#${term.replaceAll("_", "-")}`), text: "See it on the concept map" }) : null,
+      sized ? element("button", { type: "button", class: "link", id: "family-all", text: `Show every ${family.label} design` }) : null,
+    ),
+  ];
+  card.replaceChildren(...parts.filter(Boolean));
 }
 
 /** The button that puts a design in the comparison, or takes it out: pressed while the design is in it. */
@@ -340,8 +442,9 @@ function compareButton(design) {
 }
 
 function renderList(list) {
-  $("#results").replaceChildren(...list.slice(0, shown).map(card));
-  const left = list.length - shown;
+  const lines = designLines(list);
+  $("#results").replaceChildren(...lines.slice(0, shown).map(line));
+  const left = lines.length - shown;
   $("#more").hidden = left <= 0;
   $("#more").textContent = `Show ${Math.min(PAGE, left)} more (${left} not shown)`;
 }
@@ -360,6 +463,7 @@ function render() {
   $("#count").textContent = countSentence(list, catalog);
   renderCounts();
   renderTimeline();
+  renderFamily();
   renderList(list);
   renderTray();
   renderMap();
@@ -672,10 +776,12 @@ function wireMap() {
       button = marks.reduce((best, mark) => (away(mark) < away(best) ? mark : best));
     }
     if (!button) return;
-    const { unfold, row, band, runs, family } = button.dataset;
+    const { unfold, row, band, runs, family, all } = button.dataset;
     if (unfold) {
       if (!openedRows.delete(Number(unfold))) openedRows.add(Number(unfold));
       renderMap(Number(unfold));
+    } else if (all) {
+      keepSize(rowFactors(Number(row)), [null, null], family); // a family's name: its designs of every run size
     } else {
       keepSize(rowFactors(Number(row)), runs ? [Number(runs), Number(runs)] : bandRuns(Number(band)), family ?? null);
     }
@@ -696,8 +802,10 @@ function wireMap() {
   // The designs a press kept are in the list, further down the page: its first one, for the keyboard too.
   $("#map-list").addEventListener("click", () => {
     const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    $(".catalog__listhead").scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "start" });
-    $("#results .result__title")?.focus({ preventScroll: true });
+    // To the family's card when it is shown, which is over the list: the reader reads what the family is first.
+    ($("#family").hidden ? $(".catalog__listhead") : $("#family")).scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "start" });
+    // The first line's first thing to press: its fold where it holds several entries, or its entry's title.
+    $("#results .result :is(.result__fold, .result__title)")?.focus({ preventScroll: true });
   });
   // The map is drawn to the width it has: again when that changes, and first when the page gives it one.
   new ResizeObserver(() => holder.clientWidth !== mapWidth && renderMap()).observe(holder);
@@ -1152,6 +1260,22 @@ function wire() {
     update({ keepPage: true });
   });
   document.addEventListener("click", (event) => {
+    if (event.target.closest("#family-all")) {
+      state.factors = [null, null];
+      state.runs = [null, null];
+      writeForm();
+      update();
+      return;
+    }
+    const fold = event.target.closest("[data-fold]");
+    if (fold) {
+      const shut = fold.getAttribute("aria-expanded") === "true";
+      fold.setAttribute("aria-expanded", String(!shut));
+      document.getElementById(fold.getAttribute("aria-controls")).hidden = shut;
+      if (shut) openLines.delete(fold.dataset.fold);
+      else openLines.add(fold.dataset.fold);
+      return;
+    }
     const target = event.target.closest(
       "[data-id], [data-open], [data-open-limited], [data-copy-link], [data-copy-code], [data-show-code], [data-csv], [data-compare], [data-close]",
     );

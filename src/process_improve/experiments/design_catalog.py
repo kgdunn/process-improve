@@ -71,15 +71,26 @@ Collection = Literal["published", "generated", "both"]
 # --------------------------------------------------------------------------- families
 @dataclass(frozen=True)
 class Family:
-    """A family of designs: its name on the page, and the year and work that first published it."""
+    """A family of designs: its name on the page, and the year and work that first published it.
+
+    ``about``, ``use_when`` and ``watch_for`` say what a design of the family is, when it is used and what to
+    watch for, in plain words. They are for the families the knowledge base of design types has no entry for:
+    where it has one, :func:`catalog_families` takes the three from it.
+    """
 
     label: str
     year: int | None = None
     reference: str = ""
+    about: str = ""
+    use_when: tuple[str, ...] = ()
+    watch_for: tuple[str, ...] = ()
 
 
 #: Every family a record can belong to. ``year`` and ``reference`` name the work that first published
 #: the family, where one work is generally credited with it.
+# shortcut: seven of these families are design types the knowledge base (knowledge/data/design_types.yaml) does not
+# describe yet (#1475), so their words are here; move them there when it gains the type, and catalog_families reads
+# them.
 FAMILIES: dict[str, Family] = {
     "full_factorial": Family(
         "Full factorial", 1926, "Fisher, R. A. (1926), The arrangement of field experiments, J. Ministry of Agriculture"
@@ -99,6 +110,20 @@ FAMILIES: dict[str, Family] = {
         1947,
         "Rao, C. R. (1947), Factorial experiments derivable from combinatorial arrangements of arrays, "
         "Supplement to the J. Royal Statistical Society",
+        about=(
+            "A table of runs, such as L8, L9 or L18, in which each combination of the levels of any two factors "
+            "appears equally often. Taguchi brought these arrays into wide use for improving the quality of a product."
+        ),
+        use_when=(
+            "Many factors are studied, some of them at three or more levels",
+            "The main effect of each factor is wanted from few runs",
+            "A product must stay on target while its conditions of use vary (an inner and an outer array)",
+        ),
+        watch_for=(
+            "An interaction is aliased (mixed) with main effects unless the columns it falls in are left empty",
+            "In L12, L18 and L36 the interactions are spread over many columns: no column can be left empty for them",
+            "L4, L8 and L16 are the runs of two-level fractional factorials, and L12 of a Plackett-Burman design",
+        ),
     ),
     "ccd": Family(
         "Central composite",
@@ -106,9 +131,45 @@ FAMILIES: dict[str, Family] = {
         "Box, G. E. P. and Wilson, K. B. (1951), On the experimental attainment of optimum conditions, "
         "J. Royal Statistical Society B",
     ),
-    "mixture": Family("Mixture", 1958, "Scheffé, H. (1958), Experiments with mixtures, J. Royal Statistical Society B"),
+    "mixture": Family(
+        "Mixture",
+        1958,
+        "Scheffé, H. (1958), Experiments with mixtures, J. Royal Statistical Society B",
+        about=(
+            "An experiment on a blend, where the factors are the proportions of the ingredients and add up to a fixed "
+            "total. Raising one ingredient lowers at least one other, so the runs are placed on a simplex: a triangle, "
+            "for three ingredients."
+        ),
+        use_when=(
+            "The response depends on the proportions of the ingredients, not on the amount of the blend",
+            "A product is being formulated: a food, a fuel, a polymer, a coating",
+        ),
+        watch_for=(
+            "The proportions add up to one, so an intercept cannot be fitted beside them: a Scheffé model has none",
+            "A coefficient is not the effect of one ingredient: no ingredient changes while the others stay fixed",
+            "Limits on the ingredients cut the simplex down, and the design is then built for what is left of it",
+            "Where the amount of the blend matters too, it is one more factor (a component-amount design)",
+        ),
+    ),
     "optimal": Family(
-        "Optimal (D, I, G)", 1959, "Kiefer, J. (1959), Optimum experimental designs, J. Royal Statistical Society B"
+        "Optimal (D, I, G)",
+        1959,
+        "Kiefer, J. (1959), Optimum experimental designs, J. Royal Statistical Society B",
+        about=(
+            "A design that a computer search builds for a model the experimenter names and a number of runs the "
+            "experimenter sets. The search keeps the design that scores best on a stated criterion."
+        ),
+        use_when=(
+            "Limits rule out some combinations of settings, so the region is not a cube or a sphere",
+            "The number of runs is fixed and no standard design has that size",
+            "Factors of different kinds are studied together: numeric, categorical and mixture",
+        ),
+        watch_for=(
+            "The design is built for the model that was named, and may say little about a term left out of it",
+            "The criteria give different designs: D to estimate the coefficients, I and G to predict the response",
+            "The search keeps the best design it found: a longer search, or another start, can find a better one",
+            "Repeated runs, and runs that test the fit of the model, are in the design only when they are asked for",
+        ),
     ),
     "box_behnken": Family(
         "Box-Behnken",
@@ -120,6 +181,19 @@ FAMILIES: dict[str, Family] = {
         "Supersaturated",
         1962,
         "Booth, K. H. V. and Cox, D. R. (1962), Some systematic supersaturated designs, Technometrics",
+        about=(
+            "A screening design with no more runs than factors. It cannot estimate each factor's effect apart from "
+            "the others, and relies on only a few of the factors having a large effect."
+        ),
+        use_when=(
+            "A very large number of factors is to be screened and each run is costly",
+            "Only a few of the factors are expected to matter",
+        ),
+        watch_for=(
+            "The columns of the factors are correlated, so an active factor can be missed or an inactive one chosen",
+            "The analysis selects among the factors: least squares cannot fit them all at once",
+            "The factors it selects are candidates, to be confirmed in a further experiment",
+        ),
     ),
     "dsd": Family(
         "Definitive screening",
@@ -133,11 +207,83 @@ FAMILIES: dict[str, Family] = {
         "Núñez Ares, J. and Goos, P. (2020), Enumeration and multicriteria selection of orthogonal minimally "
         "aliased response surface designs, Technometrics",
     ),
-    "latin_square": Family("Latin square"),
-    "block_design": Family("Randomized blocks"),
-    "split_plot": Family("Split plot"),
-    "comparison": Family("Comparison or regression"),
-    "other": Family("Other"),
+    "latin_square": Family(
+        "Latin square",
+        about=(
+            "A design that tests one factor while blocking on two disturbances: sources of variation that are not of "
+            "interest. It is laid out as a square in which each treatment appears once in every row and once in every "
+            "column. A Graeco-Latin square blocks on a third disturbance in the same number of runs."
+        ),
+        use_when=(
+            "Two known disturbances, such as the day and the operator, are to be kept out of the comparison",
+            "The treatments and both disturbances have the same number of levels (a Youden square has fewer rows)",
+        ),
+        watch_for=(
+            "It assumes that the rows, the columns and the treatments do not interact",
+            "A small square leaves little to estimate the error from: a 3 x 3 square, 2 degrees of freedom",
+            "The square is drawn at random: its rows, its columns and its treatments are put in random order",
+        ),
+    ),
+    "block_design": Family(
+        "Randomized blocks",
+        about=(
+            "A design whose runs are grouped into blocks of like conditions, such as a day, a batch of raw material "
+            "or an operator. The treatments are run in random order inside each block, and compared there. A complete "
+            "block holds every treatment, and an incomplete block a planned part of them."
+        ),
+        use_when=(
+            "A known disturbance cannot be held constant over all the runs",
+            "Runs that share a day, a batch or an operator are more alike than runs that do not",
+        ),
+        watch_for=(
+            "A block is not a factor under study: its effect is removed, and no best block is looked for",
+            "It assumes that the treatments act in the same way in every block",
+            "A block removes a known disturbance: the random order inside it guards against the unknown ones",
+        ),
+    ),
+    "split_plot": Family(
+        "Split plot",
+        about=(
+            "A design for factors that are hard to change. A hard-to-change factor is set once for a group of runs, "
+            "the whole plot, and the easy-to-change factors are varied inside it."
+        ),
+        use_when=(
+            "A factor is costly or slow to reset between runs, such as the temperature of an oven",
+            "A whole batch is made at one setting and then divided for further treatment",
+        ),
+        watch_for=(
+            "There are two sources of error, between whole plots and inside them, and the analysis uses both",
+            "Analyzed as a fully randomized design, a hard-to-change factor can show an effect that it does not have",
+            "A hard-to-change factor is set again for each whole plot, also when its setting stays the same",
+            "The effects of the hard-to-change factors are estimated less precisely than the others",
+        ),
+    ),
+    "comparison": Family(
+        "Comparison or regression",
+        about=(
+            "A study of one factor, or of measured data with no design of several factors: a sample is set against a "
+            "target, two or more groups are compared, a line or a curve is fitted to observations, or variation is "
+            "divided among its sources. The catalog holds these as worked examples."
+        ),
+        use_when=(
+            "Two or more treatments, methods or groups are compared on one response",
+            "The relationship between two measured variables is to be described",
+        ),
+        watch_for=(
+            "Data that were not set by design show that two variables move together, not that one causes the other",
+            "Without random assignment to the groups, another difference between them can pass for an effect",
+            "Measurements made in pairs are a block of two: the differences inside the pairs are analyzed",
+            "A fitted line describes the range of the data, and not what lies beyond it",
+        ),
+    ),
+    "other": Family(
+        "Other",
+        about=(
+            "Designs and worked calculations that belong to none of the other families: Koshal, equiradial and "
+            "third-order designs, fitted second-order equations, paths of steepest ascent, and small designs that "
+            "show how a calculation is done."
+        ),
+    ),
 }
 
 #: The free-text design types of the reference catalog, read into a family: the first rule that matches wins.
@@ -1335,7 +1481,9 @@ def catalog_families() -> dict[str, dict[str, Any]]:
     """Return each family's name on the page, what it is, the work that first published it, and where it can lead.
 
     ``description`` says what a design of the family is in plain words, as the knowledge base of design
-    types describes it to a newcomer (its ``description["novice"]``), or ``""`` where it has none.
+    types describes it to a newcomer (its ``description["novice"]``). ``use_when`` lists when a design of
+    the family is used (its ``suitable_for``), and ``watch_for`` what to watch for (its ``disadvantages``).
+    A family the knowledge base has no entry for gives the three in its own words (:class:`Family`).
     ``next`` lists the families a design of this one can be augmented to, each with how (``how``), as
     the knowledge base records them (its ``can_augment_to``).
     """
@@ -1343,7 +1491,9 @@ def catalog_families() -> dict[str, dict[str, Any]]:
     return {
         key: {
             "label": f.label,
-            "description": " ".join(types[key].description.get("novice", "").split()) if key in types else "",
+            "description": " ".join(types[key].description.get("novice", "").split()) if key in types else f.about,
+            "use_when": list(types[key].suitable_for) if key in types else list(f.use_when),
+            "watch_for": list(types[key].disadvantages) if key in types else list(f.watch_for),
             "year": f.year,
             "reference": f.reference,
             "next": [
