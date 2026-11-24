@@ -338,7 +338,6 @@ function line({ key, lead, entries }) {
     "h3",
     { class: "result__name" },
     element("span", { class: "result__size", text: sizeLine(lead, catalog) }),
-    element("span", { class: "result__step", "data-step": String(step) }, element("i", { "aria-hidden": "true" }), STEP_NAMES[step]),
     also.length ? element("span", { class: "result__also", text: `same runs as: ${also.join(", ")}` }) : null,
   );
   const several = entries.length > 1;
@@ -347,9 +346,11 @@ function line({ key, lead, entries }) {
     ? element("button", { type: "button", class: "link result__fold", "data-fold": key, "aria-expanded": String(open), "aria-controls": `uses-${key}`, text: usesWords(entries) })
     : null;
   // The notes are last on the row and are cut where the row ends: a design's details hold them all.
+  // What the design estimates starts the row, so the marks stand one under another down the list.
   const said = element(
     "p",
     { class: "result__said" },
+    element("span", { class: "result__step", "data-step": String(step) }, element("i", { "aria-hidden": "true" }), STEP_NAMES[step]),
     ...(several ? [uses] : entryTitle(lead)),
     element("span", { class: "result__notes" }, ...designBadges(lead), ...(several ? [] : entryBadges(lead))),
   );

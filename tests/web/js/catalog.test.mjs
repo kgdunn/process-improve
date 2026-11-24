@@ -692,6 +692,9 @@ describe("what a design withstands, in words", () => {
     assert.equal(usesWords([printed]), "printed in 1 place");
     assert.equal(usesWords([made, made]), "made by Factorial");
     assert.equal(sizeLine(design({ blocked: true, n_blocks: 2 }), CATALOG), "Full factorial · 3 factors · 8 runs · 2 blocks", "what it estimates is the line's mark");
+    const split = { ...CATALOG, families: { ...CATALOG.families, split_plot: { label: "Split plot" } } };
+    assert.equal(sizeLine(design({ family: "split_plot", split_plot: true }), split), "Split plot · 3 factors · 8 runs", "said once");
+    assert.equal(sizeLine(design({ split_plot: true }), CATALOG), "Full factorial · 3 factors · 8 runs · split plot");
     assert.equal(shortSource(printed, CATALOG), "Box, Hunter and Hunter (1978)", "with no page: the details have it");
     assert.equal(shortSource(made, CATALOG), "Made by Factorial");
     assert.deepEqual(STEP_NAMES.map((name) => name.split(" ").length <= 2), [true, true, true, true], "the table's key, word for word");

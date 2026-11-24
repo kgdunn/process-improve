@@ -654,7 +654,10 @@ export function caseFacts(design) {
  * estimates is left out: the line shows that as a mark in the table's own colors (STEP_NAMES).
  */
 export function sizeLine(design, catalog) {
-  return [catalog.families?.[design.family]?.label ?? design.family, ...sizeFacts(design, { model: false })].join(" · ");
+  const label = catalog.families?.[design.family]?.label ?? design.family;
+  // A split plot of the family Split plot says so once.
+  const facts = sizeFacts(design, { model: false }).filter((fact) => fact.toLowerCase() !== label.toLowerCase());
+  return [label, ...facts].join(" · ");
 }
 
 /** A design's factors, runs, the largest model it estimates (unless ``model`` is false), and its blocks, in words. */
