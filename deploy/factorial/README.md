@@ -68,8 +68,9 @@ So that usage can be followed for longer than the log is kept, a daily job adds 
 day's counts to `/var/lib/factorial/usage.csv`: a row a day of numbers (each page's views,
 readers, Python starts, link previews), with no address, browser or path of anyone's in it.
 
-The footer of every page draws how many readers each of the last 90 days had, with today's count
-beside the line. An hourly job writes those numbers, and when they were written, to
+The footer of every page draws how many readers each of the last 90 finished days had, then the
+last 24 hours as the line's last point, with that count beside it: the last 24 hours rather than
+today so far, which would start each day near nothing. An hourly job writes those numbers, and when they were written, to
 `/var/lib/factorial/public/usage.json`, which Caddy serves as `https://factori.al/usage.json` in
 place of the build's own, a file of no days. It reads the kept counts and a day or two of the log,
 not a year of it:
@@ -101,13 +102,23 @@ ready: the median, and the time 9 in 10 starts took no longer than, for first vi
 returning readers apart. The log can time a start only when the browser downloaded the app's
 Python (`wheels/<digest>/bootstrap.zip`), which is the last file the worker asks factori.al for:
 a reader's first visit, and their first after a deploy. A returning reader's browser already has
-Pyodide, so their starts are quicker. A start that finds the archive kept asks for nothing to
-time. The time leaves out the second or so it takes to unpack and import the archive.
+Pyodide, so the gap between the two rows is what downloading it adds. A start that finds the
+archive kept asks for nothing to time. The time leaves out the second or so it takes to unpack
+and import the archive.
+
+Then it splits each start in three, where the log holds the worker's requests that mark the
+seams: the page, from opening it to the worker reading `runtime.json`; Pyodide and its packages,
+from there to the worker asking for the process-improve wheel; and process-improve, from there
+to the end of the archive's download. Each part's median is given, so the parts need not add up
+to the median start.
 
 ```text
 From opening the app to Python ready, where the browser downloaded the app's Python:
   First visit  median 8.0 s, 9 in 10 within 30.0 s, of 5
   Returning    median 2.5 s, 9 in 10 within 3.0 s, of 2
+
+Where the time went, the median of each part (medians, so they need not add up to the one above):
+  First visit  page 1.5 s, Pyodide 6.0 s, process-improve 1.5 s, of 2
 ```
 
 Last, the report lists where readers came from: the site that linked here, as the browser names

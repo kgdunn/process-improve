@@ -3,19 +3,33 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 
-import { USAGE_PAGE, USAGE_URL, sparkPoints, usageDays, usageWords } from "../../../web/usage.js";
+import { USAGE_PAGE, USAGE_URL, sparkPoints, usageCounts, usageWords } from "../../../web/usage.js";
+
+const NOW = Date.parse("2026-11-25T10:30:00Z");
+const DAYS = [["2026-11-23", 81], ["2026-11-24", 89]];
 
 describe("the counts", () => {
-  test("are the file's days as the server writes them, oldest first", () => {
-    const days = [["2026-11-24", 81], ["2026-11-25", 89]];
-    assert.deepEqual(usageDays({ updated: "2026-11-25T10:17:00Z", days }), days);
+  test("are the file's finished days, oldest first, and the last 24 hours, as the server writes them", () => {
+    const data = { updated: "2026-11-25T10:17:00Z", days: DAYS, last_24_hours: 30 };
+    assert.deepEqual(usageCounts(data, NOW), { days: DAYS, recent: 30 });
+    assert.deepEqual(usageCounts({ ...data, days: [] }, NOW), { days: [], recent: 30 }, "a site's first day");
   });
-  test("are none for a file of no days, as a build carries, or one not as the server writes it", () => {
+  test("are none for a file a day or more old, which is stale: the line is left out", () => {
+    const data = { days: DAYS, last_24_hours: 30 };
+    assert.ok(usageCounts({ ...data, updated: "2026-11-24T10:31:00Z" }, NOW), "23 hours 59 minutes old");
+    assert.equal(usageCounts({ ...data, updated: "2026-11-24T10:30:00Z" }, NOW), null, "a day old");
+    assert.equal(usageCounts({ ...data, updated: null }, NOW), null, "no time written");
+  });
+  test("are none for the build's file, an older server's, or one not as the server writes it", () => {
     const build = JSON.parse(readFileSync(new URL("../../../web/usage.json", import.meta.url), "utf8"));
-    assert.equal(usageDays(build), null, "a copy of Factorial elsewhere draws nothing");
-    for (const data of [null, {}, { days: "89" }, { days: [["2026-11-25"]] }, { days: [["25 Nov", 89]] }, { days: [["2026-11-25", -1]] }, { days: [["2026-11-25", 1.5]] }]) {
-      assert.equal(usageDays(data), null, JSON.stringify(data));
+    assert.equal(usageCounts(build, NOW), null, "a copy of Factorial elsewhere draws nothing");
+    const updated = "2026-11-25T10:17:00Z";
+    assert.equal(usageCounts({ updated, days: DAYS }, NOW), null, "a server that does not count the last 24 hours");
+    for (const wrong of [{ days: "89" }, { days: [["2026-11-25"]] }, { days: [["25 Nov", 89]] }, { days: [["2026-11-25", -1]] }, { days: [["2026-11-25", 1.5]] }, { last_24_hours: -1 }, { last_24_hours: "30" }]) {
+      const data = { updated, days: DAYS, last_24_hours: 30, ...wrong };
+      assert.equal(usageCounts(data, NOW), null, JSON.stringify(wrong));
     }
+    for (const data of [null, {}]) assert.equal(usageCounts(data, NOW), null, JSON.stringify(data));
   });
   test("are read beside the module, at the site's root, and lead to what the server counts", () => {
     assert.ok(USAGE_URL.href.endsWith("/web/usage.json"));
@@ -24,17 +38,10 @@ describe("the counts", () => {
 });
 
 describe("the words beside the line", () => {
-  test("say the last day's count, as today", () => {
-    assert.deepEqual(usageWords("2026-11-25", 89, "2026-11-25"), { count: "89 users", when: "today" });
-    assert.deepEqual(usageWords("2026-11-25", 1, "2026-11-25"), { count: "1 user", when: "today" });
-    assert.deepEqual(usageWords("2026-11-25", 1234, "2026-11-25"), { count: "1,234 users", when: "today" });
-  });
-  test("say yesterday in the hour after midnight, before the server writes the new day, across a month's end", () => {
-    assert.deepEqual(usageWords("2026-11-30", 40, "2026-12-01"), { count: "40 users", when: "yesterday" });
-    assert.deepEqual(usageWords("2026-12-31", 40, "2027-01-01"), { count: "40 users", when: "yesterday" });
-  });
-  test("are none for an older count, which is stale: the line is left out", () => {
-    assert.equal(usageWords("2026-11-23", 89, "2026-11-25"), null);
+  test("say the count of the last 24 hours", () => {
+    assert.deepEqual(usageWords(30), { count: "30 users", when: "last 24 hours" });
+    assert.deepEqual(usageWords(1), { count: "1 user", when: "last 24 hours" });
+    assert.deepEqual(usageWords(1234), { count: "1,234 users", when: "last 24 hours" });
   });
 });
 

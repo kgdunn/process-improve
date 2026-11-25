@@ -216,6 +216,55 @@ def test_the_report_gives_the_median_start_and_the_time_9_in_10_took_no_longer_t
     assert lines[-4] == "", "a blank line sets it apart"
 
 
+#: The process-improve wheel, beside the archive: the worker asks for it once Pyodide and its packages are in.
+WHEEL = "/wheels/0123456789abcdef/process_improve-2.7.0-py3-none-any.whl"
+
+
+def started_in_parts(opened: str, worker: str, wheel: str, ready: str, **fields) -> list[dict]:
+    """Return a start with the worker's requests that split it: runtime.json as it starts, then the wheel."""
+    return [
+        logged("/", when=opened, duration=0, **fields),
+        logged("/runtime.json", when=worker, referer=FROM_THE_WORKER, duration=0, **fields),
+        logged(WHEEL, when=wheel, referer=FROM_THE_WORKER, duration=0, **fields),
+        logged(ARCHIVE, when=ready, referer=FROM_THE_WORKER, **fields),
+    ]
+
+
+def test_a_start_splits_into_the_page_pyodide_and_process_improve():
+    seen = day(
+        *started_in_parts("2026-10-12T10:00:00", "2026-10-12T10:00:01", "2026-10-12T10:00:07", "2026-10-12T10:00:08"),
+        logged("/runtime.json", when="2026-10-12T10:00:02", referer=FROM_THE_PAGE),  # the page's own copy: no mark
+    )
+    assert seen.starts == {"First visit": [pytest.approx(8)]}
+    assert seen.parts == {"First visit": [(pytest.approx(1), pytest.approx(6), pytest.approx(1))]}
+
+
+def test_a_start_whose_worker_requests_are_missing_is_timed_but_not_split():
+    seen = day(
+        logged("/", when="2026-10-12T10:00:00", duration=0),
+        logged(WHEEL, when="2026-10-12T10:00:07", referer=FROM_THE_WORKER),  # no runtime.json from the worker
+        logged(ARCHIVE, when="2026-10-12T10:00:08", referer=FROM_THE_WORKER),
+        *started_in_parts("2026-10-12T11:00:00", "2026-10-12T11:00:01", "2026-10-12T11:00:07", "2026-10-12T11:00:08"),
+    )
+    assert seen.starts == {"First visit": [pytest.approx(8)], "Returning": [pytest.approx(8)]}
+    assert seen.parts == {"Returning": [(pytest.approx(1), pytest.approx(6), pytest.approx(1))]}, "the second only"
+
+
+def test_the_report_gives_the_median_of_each_part_of_a_start():
+    entries = [
+        *started_in_parts("2026-10-12T10:00:00", "2026-10-12T10:00:01", "2026-10-12T10:00:09", "2026-10-12T10:00:10"),
+        *started_in_parts(
+            "2026-10-12T10:00:00", "2026-10-12T10:00:02", "2026-10-12T10:00:06", "2026-10-12T10:00:08", ip="192.0.2.0"
+        ),
+    ]
+    days, referrers = usage.tally(entries, SINCE)
+    lines = usage.report(days, {}, referrers, date(2026, 10, 12), date(2026, 10, 12)).splitlines()
+    assert lines[-2:] == [
+        "Where the time went, the median of each part (medians, so they need not add up to the one above):",
+        "  First visit  page 1.5 s, Pyodide 6.0 s, process-improve 1.5 s, of 2",
+    ]
+
+
 def test_a_link_card_fetched_by_a_chat_or_social_site_is_a_preview():
     seen = day(
         logged("/og-card.png", "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)"),
@@ -485,7 +534,7 @@ def write_log(path: Path, *entries: dict, written: datetime = NOW) -> Path:
 
 
 def test_the_public_file_holds_the_readers_of_each_day_kept_and_logged_and_nothing_else(tmp_path):
-    """The footer draws it: the kept days, then yesterday and today from the log, as numbers alone."""
+    """The footer draws it: the kept days, then yesterday from the log, then the last 24 hours, as numbers alone."""
     kept = tmp_path / "usage.csv"
     kept.write_text("Day,Home,Readers\n2026-10-08,9,5\n2026-10-09,12,7\n", encoding="utf-8")
     log = write_log(
@@ -496,10 +545,13 @@ def test_the_public_file_holds_the_readers_of_each_day_kept_and_logged_and_nothi
         logged("/", HEADLESS, when="2026-10-12T08:05"),  # the deploy's own check is no reader
     )
     public = tmp_path / "public" / "usage.json"
-    days = usage.publish(public, [log], kept, NOW)
-    assert days == [["2026-10-08", 5], ["2026-10-09", 7], ["2026-10-10", 0], ["2026-10-11", 2], ["2026-10-12", 1]]
-    written = json.loads(public.read_text(encoding="utf-8"))
-    assert written == {"updated": "2026-10-12T10:30:00Z", "days": days}, "the days before the first count are left out"
+    written = usage.publish(public, [log], kept, NOW)
+    assert written == {
+        "updated": "2026-10-12T10:30:00Z",
+        "days": [["2026-10-08", 5], ["2026-10-09", 7], ["2026-10-10", 0], ["2026-10-11", 2]],  # none before the first
+        "last_24_hours": 2,  # since 2026-10-11T10:30: the phone at 21:00, and the browser this morning, not at 09:00
+    }
+    assert json.loads(public.read_text(encoding="utf-8")) == written
     if os.name == "posix":  # the server's: Windows keeps no such mode
         assert public.stat().st_mode & 0o777 == 0o644, "Caddy reads it as another user"
     assert not public.with_name("usage.json.part").exists()
@@ -519,8 +571,9 @@ def test_the_public_file_reads_the_log_from_the_first_day_not_kept_and_no_rolled
     rolled = write_log(tmp_path / "factorial-access-old.log", logged("/", PHONE, when="2026-10-12T09:00"),
                        written=datetime(2026, 10, 5, tzinfo=UTC))  # fmt: skip
     assert usage.written_since([log, rolled], datetime(2026, 10, 10, tzinfo=UTC)) == [log]
-    days = usage.publish(tmp_path / "usage.json", [log, rolled], kept, NOW)
-    assert days == [["2026-10-09", 7], ["2026-10-10", 1], ["2026-10-11", 0], ["2026-10-12", 1]]
+    written = usage.publish(tmp_path / "usage.json", [log, rolled], kept, NOW)
+    assert written["days"] == [["2026-10-09", 7], ["2026-10-10", 1], ["2026-10-11", 0]]
+    assert written["last_24_hours"] == 1
 
 
 def test_the_public_file_holds_ninety_days_at_most(tmp_path):
@@ -529,10 +582,10 @@ def test_the_public_file_holds_ninety_days_at_most(tmp_path):
     rows = "".join(f"{(first + timedelta(days=i)).isoformat()},{i}\n" for i in range(199))
     kept.write_text("Day,Readers\n" + rows, encoding="utf-8")
     log = write_log(tmp_path / "factorial-access.log", logged("/", when="2026-10-12T09:00"))
-    days = usage.publish(tmp_path / "usage.json", [log], kept, NOW)
+    days = usage.publish(tmp_path / "usage.json", [log], kept, NOW)["days"]
     assert len(days) == usage.PUBLIC_DAYS
-    assert days[0][0] == (NOW.date() - timedelta(days=usage.PUBLIC_DAYS - 1)).isoformat()
-    assert days[-1] == ["2026-10-12", 1]
+    assert days[0][0] == (NOW.date() - timedelta(days=usage.PUBLIC_DAYS)).isoformat()
+    assert days[-1] == ["2026-10-11", 0], "yesterday, the last finished day: neither kept nor in the log"
 
 
 def test_public_writes_the_file_and_prints_nothing(tmp_path, capsys):
@@ -542,7 +595,8 @@ def test_public_writes_the_file_and_prints_nothing(tmp_path, capsys):
     paths = ["--log", str(tmp_path / "factorial-access*.log*"), "--kept", str(tmp_path / "none.csv")]
     assert usage.main([*paths, "--public", str(public)]) == 0
     assert capsys.readouterr().out == ""
-    assert json.loads(public.read_text(encoding="utf-8"))["days"] == [[datetime.now(UTC).date().isoformat(), 1]]
+    written = json.loads(public.read_text(encoding="utf-8"))
+    assert (written["days"], written["last_24_hours"]) == ([], 1), "no finished day yet, and one reader today"
 
 
 def test_the_hourly_job_writes_the_file_caddy_serves():
