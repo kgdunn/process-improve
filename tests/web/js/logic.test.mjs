@@ -409,7 +409,7 @@ describe("a study of more factors than the page models the interactions of", () 
     for (const plain of ["Run 3 is the best of them so far.", "matched by the Run order column", "Yield [%], [run] and [Runs]"]) {
       assert.deepEqual(stageParts(plain), [plain]);
     }
-    assert.deepEqual(stageParts(""), []);
+    for (const nothing of ["", null, undefined]) assert.deepEqual(stageParts(nothing), []);
   });
 
   for (const k of [13, 24, 40]) {

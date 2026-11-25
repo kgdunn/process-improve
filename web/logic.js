@@ -258,7 +258,7 @@ export const STAGE_KEYS = { Design: "plan", Run: "run", Learn: "learn", Next: "n
  * then never taken for one. A part is a string, or ``{ stage, name }`` for a stage.
  */
 export function stageParts(text) {
-  const parts = String(text).split(/\[(Design|Run|Learn|Next)\]/);
+  const parts = String(text ?? "").split(/\[(Design|Run|Learn|Next)\]/); // no text is no part, as textContent has it
   return parts.map((part, i) => (i % 2 ? { stage: STAGE_KEYS[part], name: part } : part)).filter((part) => part !== "");
 }
 
