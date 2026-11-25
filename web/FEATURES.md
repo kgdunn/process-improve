@@ -958,7 +958,8 @@ What a careful reader, or an organization, asks before using a tool.
   - *Details:* One access-log line per request, with the address cut to its network before
     it is written, kept for 366 days to count visits. A usage report for the operator gives
     the visits to each page by day, week or month, from the access log, with nothing of a
-    reader's in it. A link someone posted may name the place it was posted
+    reader's in it, and how long Python took to start where the browser downloaded the
+    app's Python. A link someone posted may name the place it was posted
     (`?ref=newsletter`), so that its visits are counted apart: a word for the place, never
     for a person. The app drops it from the address once open.
 - **How many people used it, in the footer.** Under "Behind it", a line of the last 90 days

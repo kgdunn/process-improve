@@ -13,7 +13,10 @@ The log has one line per request, written with the reader's address cut to its n
                starts
     previews   the link card fetched by a chat or a social site, to show a link to the app
 
-Under the table it lists where readers came from: the site that linked here, or the tag a link
+Under the table it says how long Python took to start, from opening the app to Python ready, where the log
+can time it: when the browser downloaded the app's Python, on a reader's first visit and after a deploy.
+
+Then it lists where readers came from: the site that linked here, or the tag a link
 carried. A link posted somewhere can name the place, as ``https://factori.al/?ref=linkedin``,
 which counts its visits apart even when the browser names no site, as an app's own browser
 often does not. A tag is a word for a place, never for a person: the report counts visits.
@@ -43,7 +46,9 @@ import argparse
 import csv
 import gzip
 import json
+import math
 import re
+import statistics
 import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -82,6 +87,14 @@ COLUMNS = (*PAGES, "Readers", "Python", "Previews")
 PYTHON = "/runtime.json"
 WORKER = "/worker.js"
 CARD = "/og-card.png"
+#: The last file the app's worker asks factori.al for before Python is ready: the archive of the page's own Python,
+#: in the build's folder named by digest. Pyodide and its packages come from jsDelivr, which this log never sees, so
+#: from opening the app to the end of this download is the start, all but the second or so to unpack and import it.
+#: A browser downloads it once a build, and keeps it: a start that finds it kept asks for nothing here, and is not
+#: timed.
+ARCHIVE = re.compile(r"/wheels/\w+/bootstrap\.zip")
+#: A start that took longer is a page left open while it waited for a network: not a time to start.
+LONGEST_START = 600
 #: The query parameter a link says where it was posted by, and the tag it can hold. The app drops the parameter
 #: from its address once open (REF_PARAM in web/campaign.js), so a reload is not one more visit from that place.
 #: The log holds whatever a request sent and the report prints to a terminal, so a tag is a short plain word;
@@ -118,11 +131,34 @@ class Day:
     readers: set[tuple[str, str]] = field(default_factory=set)
     python: int = 0
     previews: int = 0
+    #: Seconds from opening the app to Python ready, each start the log can time: a reader's first in the log read
+    #: ("First visit"), and any later one ("Returning"), whose browser has Pyodide kept already. Not in the kept file.
+    starts: dict[str, list[float]] = field(default_factory=lambda: defaultdict(list))
 
     def counts(self) -> dict[str, int]:
         """Return the day's counts, as the report's columns and the file that keeps them name them."""
         pages = {name: self.pages[name] for name in PAGES}
         return {**pages, "Readers": len(self.readers), "Python": self.python, "Previews": self.previews}
+
+
+@dataclass
+class Stopwatch:
+    """Time each start the log can: from when a reader's last opening of the app began to when the download of
+    :data:`ARCHIVE` ended. A line's ``ts`` is when the response ended, and ``duration`` how long it took.
+    """
+
+    opened: dict[tuple[str, str], float] = field(default_factory=dict)  # each reader's opening not yet timed
+    timed: set[tuple[str, str]] = field(default_factory=set)  # the readers with a start timed already
+
+    def see(self, path: str, reader: tuple[str, str], entry: dict, day: Day) -> None:
+        """Note a reader's request: an opening of the app is remembered, and the archive's download times it."""
+        if page(path) == "Home":
+            self.opened[reader] = entry["ts"] - entry.get("duration", 0)
+        elif ARCHIVE.fullmatch(path) and reader in self.opened:
+            seconds = entry["ts"] - self.opened.pop(reader)
+            if seconds <= LONGEST_START:
+                day.starts["Returning" if reader in self.timed else "First visit"].append(seconds)
+                self.timed.add(reader)
 
 
 def page(path: str) -> str | None:
@@ -176,6 +212,7 @@ def tally(entries: Iterable[dict], since: datetime) -> tuple[dict[str, Day], Cou
     days: dict[str, Day] = defaultdict(Day)
     came: list[tuple[tuple[str, str], str]] = []  # each page view that names a place: its reader, and the place
     browsers: set[tuple[str, str]] = set()
+    stopwatch = Stopwatch()
     for entry in entries:
         when = datetime.fromtimestamp(entry.get("ts", 0), UTC)
         request = entry["request"]
@@ -186,9 +223,11 @@ def tally(entries: Iterable[dict], since: datetime) -> tuple[dict[str, Day], Cou
         path, reader = asked.path, (request.get("client_ip") or request.get("remote_ip", ""), agent)
         if path == CARD and PREVIEWER.search(agent):
             day.previews += 1
-        elif NOT_A_READER.search(agent):
             continue
-        elif name := page(path):
+        if NOT_A_READER.search(agent):
+            continue
+        stopwatch.see(path, reader, entry, day)
+        if name := page(path):
             day.pages[name] += 1
             day.readers.add(reader)
             if source := came_from(asked.query, header(request, "Referer")):
@@ -294,6 +333,26 @@ def bars(values: list[float]) -> str:
     return "".join(BARS[0] if not v else BARS[max(1, round(v / top * (len(BARS) - 1)))] for v in values)
 
 
+def start_times(days: dict[str, Day], first: date, last: date) -> list[str]:
+    """Say how long Python took to start from ``first`` to ``last``: the median, and the time 9 in 10 starts took no
+    longer than, for first visits and returning ones apart. Nothing where the log timed no start.
+    """
+    starts: dict[str, list[float]] = defaultdict(list)
+    for name, seen in days.items():
+        if first.isoformat() <= name <= last.isoformat():
+            for kind, seconds in seen.starts.items():
+                starts[kind] += seconds
+    if not starts:
+        return []
+    out = ["", "From opening the app to Python ready, where the browser downloaded the app's Python:"]
+    for kind in ("First visit", "Returning"):
+        if seconds := sorted(starts[kind]):
+            nine_in_ten = seconds[math.ceil(0.9 * len(seconds)) - 1]
+            middle = statistics.median(seconds)
+            out.append(f"  {kind:<12} median {middle:.1f} s, 9 in 10 within {nine_in_ten:.1f} s, of {len(seconds)}")
+    return out
+
+
 def report(
     days: dict[str, Day],
     keeps: dict[str, dict[str, int]],
@@ -344,6 +403,7 @@ def report(
                 for counts in rows.values()
             ]
             out.append(f"  {name:<13} {bars(values)}".rstrip())  # a page no one opened shows its name alone
+    out += start_times(days, first, last)
     if referrers:
         out += ["", "Where readers came from", *(f"  {host:<30} {n:>6}" for host, n in referrers.most_common(10))]
     return "\n".join(out)

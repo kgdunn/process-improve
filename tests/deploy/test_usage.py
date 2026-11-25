@@ -40,7 +40,8 @@ def logged(uri: str, agent: str = BROWSER, *, when: str = "2026-10-12T10:00", **
                "host": "factori.al", "uri": uri, "headers": headers}  # fmt: skip
     ts = datetime.fromisoformat(when).replace(tzinfo=UTC).timestamp()
     return {"level": "info", "ts": ts, "logger": "http.log.access.log0", "msg": "handled request",
-            "request": request, "status": fields.get("status", 200), "size": 10, "duration": 0.001}  # fmt: skip
+            "request": request, "status": fields.get("status", 200), "size": 10,
+            "duration": fields.get("duration", 0.001)}  # fmt: skip
 
 
 def visit(uri: str, agent: str = BROWSER, **fields) -> list[dict]:
@@ -52,6 +53,10 @@ def visit(uri: str, agent: str = BROWSER, **fields) -> list[dict]:
 def day(*entries: dict, on: str = "2026-10-12"):
     days, _ = usage.tally(entries, SINCE)
     return days.get(on, usage.Day())
+
+
+#: The archive of the app's own Python, in the folder a build names by digest: the last file its worker asks for.
+ARCHIVE = "/wheels/0123456789abcdef/bootstrap.zip"
 
 
 #: What a fetch from the app's worker, from the app itself and from the multivariate page's worker says it came from.
@@ -150,9 +155,65 @@ def test_python_started_is_the_app_s_worker_reading_runtime_json():
         logged("/runtime.json", referer=FROM_THE_MVA_WORKER),
         logged("/runtime.json"),  # no Referer at all: not the worker
         logged("/bootstrap.py", referer=FROM_THE_WORKER),  # an older build's worker read this too, after runtime.json
-        logged("/wheels/0123456789abcdef/bootstrap.zip", referer=FROM_THE_WORKER),
+        logged(ARCHIVE, referer=FROM_THE_WORKER),
     )
     assert seen.python == 2
+
+
+def opened_and_started(opened: str, ready: str, agent: str = BROWSER, *, duration: float = 0, **fields) -> list[dict]:
+    """Return a start as the log holds it: the app's page, its response ended at ``opened`` after ``duration``
+    seconds, and its Python's archive downloaded by ``ready``. Pyodide, from jsDelivr, is not in this log.
+    """
+    return [
+        logged("/", agent, when=opened, duration=duration, **fields),
+        logged(ARCHIVE, agent, when=ready, referer=FROM_THE_WORKER, **fields),
+    ]
+
+
+def test_a_start_is_timed_from_when_the_app_began_to_load_to_the_end_of_its_pythons_download():
+    # The page's line is written when its response ended, half a second after it began.
+    seen = day(*opened_and_started("2026-10-12T10:00:00", "2026-10-12T10:00:07", duration=0.5))
+    assert seen.starts == {"First visit": [pytest.approx(7.5)]}
+
+
+def test_a_readers_first_timed_start_is_a_first_visit_and_any_later_one_returning():
+    seen = day(
+        *opened_and_started("2026-10-12T10:00:00", "2026-10-12T10:00:09"),
+        *opened_and_started("2026-10-12T10:00:30", "2026-10-12T10:00:42", PHONE),  # another reader's first
+        *opened_and_started("2026-10-12T15:00:00", "2026-10-12T15:00:03"),  # after a deploy: Pyodide is kept
+    )
+    assert seen.starts == {"First visit": [pytest.approx(9), pytest.approx(12)], "Returning": [pytest.approx(3)]}
+
+
+def test_a_start_is_not_timed_without_an_opening_before_it_or_long_after_it():
+    seen = day(
+        logged(ARCHIVE, when="2026-10-12T09:00", referer=FROM_THE_WORKER),  # no opening of the app before it
+        *opened_and_started("2026-10-12T10:00", "2026-10-12T10:11"),  # the page was left open for 11 minutes
+        logged(ARCHIVE, when="2026-10-12T10:12", referer=FROM_THE_WORKER),  # that opening was paired already
+        *opened_and_started("2026-10-12T11:00", "2026-10-12T11:00:08", HEADLESS),  # the deploy's own check
+        logged("/map/", when="2026-10-12T12:00"),  # a page that is not the app starts no Python
+        logged(ARCHIVE, when="2026-10-12T12:00:05", referer=FROM_THE_WORKER),
+    )
+    assert seen.starts == {}
+
+
+def test_the_report_gives_the_median_start_and_the_time_9_in_10_took_no_longer_than():
+    first_visits = [8, 4, 6, 30, 10]  # seconds, a reader each; 9 in 10 of five is the fifth fastest, the slowest
+    entries = [
+        entry
+        for n, seconds in enumerate(first_visits)
+        for entry in opened_and_started("2026-10-11T10:00", f"2026-10-11T10:00:{seconds:02}", ip=f"198.51.100.{n}")
+    ]
+    entries += opened_and_started("2026-10-12T10:00", "2026-10-12T10:00:02", ip="198.51.100.0")  # two returning
+    entries += opened_and_started("2026-10-12T11:00", "2026-10-12T11:00:03", ip="198.51.100.1")
+    days, referrers = usage.tally(entries, SINCE)
+    lines = usage.report(days, {}, referrers, date(2026, 10, 10), date(2026, 10, 12)).splitlines()
+    assert lines[-3:] == [
+        "From opening the app to Python ready, where the browser downloaded the app's Python:",
+        "  First visit  median 8.0 s, 9 in 10 within 30.0 s, of 5",
+        "  Returning    median 2.5 s, 9 in 10 within 3.0 s, of 2",
+    ]
+    assert lines[-4] == "", "a blank line sets it apart"
 
 
 def test_a_link_card_fetched_by_a_chat_or_social_site_is_a_preview():
