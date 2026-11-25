@@ -603,7 +603,8 @@ at the boundary.
 These designs come from the built-in exchange, which is the default for every optimal
 design, so the same call gives the same design whether or not the optional pyoptex
 package is installed. A split-plot design (``hard_to_change``) comes from the built-in
-coordinate exchange; pyoptex is used only when asked for with ``backend="pyoptex"``.
+coordinate exchange. pyoptex is used only when asked for with ``backend="pyoptex"``,
+which is deprecated since 2.7.0 and will be removed in 3.0.
 
 Choosing runs from a list: candidate sets
 -----------------------------------------

@@ -1106,6 +1106,10 @@ def generate_design(  # noqa: PLR0913
         :func:`~process_improve.experiments.designs_split_plot.split_plot_design` for a
         split-plot design (``hard_to_change``), the candidate exchange otherwise.
         ``"pyoptex"`` asks for pyoptex's coordinate exchange.
+
+        .. deprecated:: 2.7.0
+            ``backend="pyoptex"`` will be removed in 3.0. The default built-in engines
+            build every optimal design, split-plot designs included.
     block_generators : list[str] or None
         The interaction words that define the blocks of a two-level full or fractional
         factorial, in place of the words the library would choose: ``["ADE", "BCE"]``
