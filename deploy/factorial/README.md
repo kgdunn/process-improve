@@ -68,8 +68,9 @@ So that usage can be followed for longer than the log is kept, a daily job adds 
 day's counts to `/var/lib/factorial/usage.csv`: a row a day of numbers (each page's views,
 readers, Python starts, link previews), with no address, browser or path of anyone's in it.
 
-The footer of every page draws how many readers each of the last 90 days had, with today's count
-beside the line. An hourly job writes those numbers, and when they were written, to
+The footer of every page draws how many readers each of the last 90 finished days had, then the
+last 24 hours as the line's last point, with that count beside it: the last 24 hours rather than
+today so far, which would start each day near nothing. An hourly job writes those numbers, and when they were written, to
 `/var/lib/factorial/public/usage.json`, which Caddy serves as `https://factori.al/usage.json` in
 place of the build's own, a file of no days. It reads the kept counts and a day or two of the log,
 not a year of it:
