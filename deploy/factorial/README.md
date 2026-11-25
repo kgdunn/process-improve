@@ -96,6 +96,20 @@ other page (Other). Readers are distinct networks and browsers in a day, and ove
 month their average a day; Python counts the app's worker starting Python. Under the table, a
 line of bars for each page shows its use over the period. Robots, link-preview fetchers and the deploy's own checks are not counted.
 
+Under the bars, the report says how long Python took to start, from opening the app to Python
+ready: the median, and the time 9 in 10 starts took no longer than, for first visits and
+returning readers apart. The log can time a start only when the browser downloaded the app's
+Python (`wheels/<digest>/bootstrap.zip`), which is the last file the worker asks factori.al for:
+a reader's first visit, and their first after a deploy. A returning reader's browser already has
+Pyodide, so their starts are quicker. A start that finds the archive kept asks for nothing to
+time. The time leaves out the second or so it takes to unpack and import the archive.
+
+```text
+From opening the app to Python ready, where the browser downloaded the app's Python:
+  First visit  median 8.0 s, 9 in 10 within 30.0 s, of 5
+  Returning    median 2.5 s, 9 in 10 within 3.0 s, of 2
+```
+
 Last, the report lists where readers came from: the site that linked here, as the browser names
 it. Many apps open a link in a browser of their own that names no site, so a link you post can
 name the place itself:
