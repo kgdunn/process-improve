@@ -607,9 +607,6 @@ def _split_plot_refusal(criterion: str, req: _OptimalRequest) -> str | None:
 
     asked = {
         "a candidate set is given": req.candidates is not None,
-        "fixed runs are given (only backend='pyoptex', deprecated, keeps them in a split-plot design)": (
-            req.fixed_runs is not None
-        ),
         "blocks are asked for": bool(req.n_blocks and req.n_blocks > 1),
         f"the split-plot search has no {criterion[0].upper()}-optimality criterion": criterion not in CRITERIA,
     }
@@ -629,6 +626,7 @@ def _native_split_plot(criterion: str, req: _OptimalRequest, budget: int) -> tup
         n_whole_plots=_whole_plot_count(req.factors, hard_to_change, budget, req.model_type),
         variance_ratio=_WHOLE_PLOT_VARIANCE_RATIO,
         region=DesignRegion(req.factors, req.constraints) if req.constraints else None,
+        fixed_runs=req.fixed_runs,
     )
     return split_plot_design(req.factors, hard_to_change, budget, options, req.random_state)
 
@@ -764,9 +762,10 @@ _DISPATCH_PARAMETERS = """
         :func:`~process_improve.experiments.designs_split_plot.split_plot_design`), or by
         pyoptex with ``backend="pyoptex"``. A name that is not a factor raises
         ``ValueError``. The built-in search keeps to ``constraints``, on the grid of levels inside
-        them. Ignored, with a warning, and recorded as ``hard_to_change_ignored``, when the
-        design is built by the candidate exchange: with a candidate set, fixed runs (unless
-        ``backend="pyoptex"``), blocks, or the E-, G- or K-criterion.
+        them, and keeps ``fixed_runs`` as the design's first runs: a whole plot that holds one
+        keeps its hard-to-change settings. Ignored, with a warning, and recorded as
+        ``hard_to_change_ignored``, when the design is built by the candidate exchange: with a
+        candidate set, blocks, or the E-, G- or K-criterion.
     constraints : list[Constraint] or None
         Inequalities in actual units over the continuous factors, e.g.
         ``"3*T + 5*D <= 600"``. Enforced: every run the optimizer places satisfies

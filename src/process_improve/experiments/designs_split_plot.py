@@ -35,7 +35,8 @@ search updates :math:`M` by the runs a change touches.
 from __future__ import annotations
 
 import itertools
-from dataclasses import dataclass
+import logging
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -47,8 +48,12 @@ from process_improve.experiments.factor import FactorType
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    import pandas as pd
+
     from process_improve.experiments.factor import Factor
     from process_improve.experiments.region import DesignRegion
+
+logger = logging.getLogger(__name__)
 
 #: The criteria the search optimizes.
 CRITERIA = ("d_optimal", "a_optimal", "i_optimal")
@@ -97,6 +102,14 @@ class SplitPlotOptions:
         factor among them; None for the whole box. The search starts from runs inside them and
         takes no exchange that leaves them, so a design's runs lie on the grid of levels inside the
         limits, not on the limits' own corners.
+    fixed_runs : pandas.DataFrame or None
+        Runs kept as given, one column per factor (continuous factors coded, categorical factors
+        as their labels), validated as ``generate_design`` validates them. They are the design's
+        first runs, so they fill its first whole plots in order. A whole plot that holds one keeps
+        its hard-to-change settings for all its runs, as the pyoptex backend does, and the search
+        chooses the rest. Fixed runs that share a whole plot must share its hard-to-change
+        settings. A fixed run may lie off the grid of levels, or outside the limits (with a
+        warning).
     """
 
     criterion: str = "d_optimal"
@@ -105,6 +118,7 @@ class SplitPlotOptions:
     variance_ratio: float = 0.5
     n_starts: int = 10
     region: DesignRegion | None = None
+    fixed_runs: pd.DataFrame | None = None
 
 
 @dataclass(frozen=True)
@@ -115,6 +129,7 @@ class _Model:
     parts: np.ndarray  # (p, k) which part of each factor a model column takes
     moments: np.ndarray  # (p, p) averages of the products of the columns over the factor box
     settings: tuple[list, ...]  # per factor: the coded value or the label of each level
+    choices: tuple[int, ...]  # per factor: the levels the search may give a run, the first of its levels
 
     def rows(self, levels: np.ndarray) -> np.ndarray:
         """Return the model columns of runs given as level indices, one run per row (any leading shape)."""
@@ -126,10 +141,24 @@ class _Model:
 
 @dataclass(frozen=True)
 class _Layout:
-    """Each run's whole plot (from 0), and the hard-to-change factors' columns."""
+    """Each run's whole plot (from 0), the hard-to-change factors' columns, and the fixed runs' levels."""
 
     whole_plot: np.ndarray
     hard: tuple[int, ...]
+    fixed: np.ndarray  # (n_fixed, k) the levels of the runs kept as given, which are the design's first
+
+    @property
+    def pinned(self) -> np.ndarray:
+        """Return the whole plots that hold a fixed run, whose hard-to-change settings are therefore fixed too."""
+        return np.unique(self.whole_plot[: len(self.fixed)])
+
+    def pin(self, levels: np.ndarray) -> np.ndarray:
+        """Set the fixed runs, and the hard-to-change levels of their whole plots' other runs to theirs."""
+        levels[: len(self.fixed)] = self.fixed
+        for w in self.pinned:
+            runs = self.whole_plot == w
+            levels[np.ix_(runs, self.hard)] = levels[np.argmax(runs), list(self.hard)]  # its first run is fixed
+        return levels
 
 
 def split_plot_design(
@@ -177,10 +206,10 @@ def split_plot_design(
     if n_runs < len(model.parts):
         msg = f"{n_runs} runs cannot estimate the {len(model.parts)} terms of the {options.model_type} model."
         raise ValueError(msg)
+    model, fixed = _with_fixed_runs(model, factors, options.fixed_runs, n_runs)
     hard_names = set(hard_to_change)
-    layout = _Layout(
-        _whole_plots(n_runs, options.n_whole_plots), tuple(j for j, f in enumerate(factors) if f.name in hard_names)
-    )
+    hard = tuple(j for j, f in enumerate(factors) if f.name in hard_names)
+    layout = _layout(_whole_plots(n_runs, options.n_whole_plots), hard, fixed, factors)
     rng = check_random_state(random_state)
     feasible = _feasibility(model, factors, options.region)
     best_levels, best_score = None, np.inf
@@ -207,6 +236,7 @@ def split_plot_design(
         "whole_plot_variance_ratio": options.variance_ratio,
         "n_starts": options.n_starts,
         **({"constraints_enforced": True} if feasible is not None else {}),
+        **_fixed_run_metadata(layout.fixed, feasible),
         **_criterion_value(information, model.moments, options.criterion),
     }
     return _settings(model, best_levels, factors), meta
@@ -265,7 +295,73 @@ def _build_model(factors: list[Factor], model_type: str) -> _Model:
     joint = np.ones((len(parts), len(parts)))
     for j, moment in enumerate(moments):
         joint *= moment[np.ix_(parts[:, j], parts[:, j])]  # the factors vary independently over the box
-    return _Model(tuple(tables), parts, joint, tuple(settings))
+    return _Model(tuple(tables), parts, joint, tuple(settings), tuple(len(table) for table in tables))
+
+
+def _with_fixed_runs(
+    model: _Model, factors: list[Factor], fixed_runs: pd.DataFrame | None, n_runs: int
+) -> tuple[_Model, np.ndarray]:
+    """Return the model with a level for each fixed setting off the grid, and the fixed runs as levels.
+
+    A fixed run is kept as given, so a continuous setting between the grid's levels becomes a level of
+    its own, after the grid's: ``model.choices`` keeps the search to the grid for every other run.
+
+    Raises
+    ------
+    ValueError
+        If the fixed runs are not as ``generate_design`` takes them, or span less of the model than the
+        other runs can make up.
+    """
+    if fixed_runs is None:
+        return model, np.zeros((0, len(factors)), dtype=int)
+    from process_improve.experiments.designs_constrained import refuse_budget_short_of_fixed_runs  # noqa: PLC0415
+    from process_improve.experiments.designs_optimal import _prepare_prior_runs  # noqa: PLC0415
+
+    prior = _prepare_prior_runs(fixed_runs, factors, n_runs)
+    tables, settings = list(model.tables), list(model.settings)
+    levels = np.zeros((len(prior), len(factors)), dtype=int)
+    for j, f in enumerate(factors):
+        for r, value in enumerate(prior[f.name]):
+            if f.type == FactorType.categorical:
+                levels[r, j] = [str(label) for label in settings[j]].index(str(value))
+                continue
+            known = np.flatnonzero(np.isclose(settings[j], value))
+            if len(known):
+                levels[r, j] = known[0]
+                continue
+            settings[j] = [*settings[j], float(value)]  # off the grid: a level of its own
+            tables[j] = np.vstack([tables[j], [1.0, value, value**2]])
+            levels[r, j] = len(settings[j]) - 1
+    model = replace(model, tables=tuple(tables), settings=tuple(settings))
+    refuse_budget_short_of_fixed_runs(model.rows(levels), len(model.parts), n_runs)
+    return model, levels
+
+
+def _layout(whole_plot: np.ndarray, hard: tuple[int, ...], fixed: np.ndarray, factors: list[Factor]) -> _Layout:
+    """Return the layout, the fixed runs first; refuse fixed runs that share a whole plot but not its settings."""
+    for w in np.unique(whole_plot[: len(fixed)]):
+        sharing = fixed[whole_plot[: len(fixed)] == w]
+        for j in hard:
+            if len(set(sharing[:, j])) > 1:
+                msg = (
+                    f"The fixed runs that fall in whole plot {w + 1} set the hard-to-change factor "
+                    f"{factors[j].name!r} to different levels. The fixed runs are the design's first runs, "
+                    f"{np.sum(whole_plot == 0)} to a whole plot, and the runs of a whole plot share its "
+                    "hard-to-change settings: order the fixed runs so that those sharing a whole plot share them."
+                )
+                raise ValueError(msg)
+    return _Layout(whole_plot, hard, fixed)
+
+
+def _fixed_run_metadata(fixed: np.ndarray, feasible: Callable[[np.ndarray], np.ndarray] | None) -> dict:
+    """Return how many runs were kept as given and, with limits, how many of them lie outside, as a warning says."""
+    if not len(fixed):
+        return {}
+    meta = {"n_fixed_runs": len(fixed)}
+    if feasible is not None and (n_outside := int((~feasible(fixed)).sum())):
+        logger.warning("%d fixed run(s) lie outside the constrained region; they are kept as given.", n_outside)
+        meta["n_fixed_runs_outside_region"] = n_outside
+    return meta
 
 
 def _one_part(k: int, chosen: dict[int, int]) -> np.ndarray:
@@ -283,12 +379,14 @@ def _whole_plots(n_runs: int, n_whole_plots: int) -> np.ndarray:
 
 
 def _random_start(model: _Model, layout: _Layout, rng: np.random.Generator) -> np.ndarray:
-    """Return random levels: one for each whole plot of a hard-to-change factor, one for each run of the rest."""
-    n_levels = [len(table) for table in model.tables]
-    levels = np.column_stack([rng.integers(n, size=len(layout.whole_plot)) for n in n_levels])
+    """Return random levels: one for each whole plot of a hard-to-change factor, one for each run of the rest.
+
+    The fixed runs, and the hard-to-change levels of their whole plots, are then set to theirs.
+    """
+    levels = np.column_stack([rng.integers(n, size=len(layout.whole_plot)) for n in model.choices])
     for j in layout.hard:
-        levels[:, j] = rng.integers(n_levels[j], size=layout.whole_plot.max() + 1)[layout.whole_plot]
-    return levels
+        levels[:, j] = rng.integers(model.choices[j], size=layout.whole_plot.max() + 1)[layout.whole_plot]
+    return layout.pin(levels)
 
 
 def _feasibility(
@@ -316,24 +414,26 @@ def _feasible_start(
     """Return random levels, as :func:`_random_start` draws them, with every run inside the limits.
 
     Each whole plot's hard-to-change levels are drawn, then each of its runs' other levels until the run is
-    inside; a whole plot whose runs cannot all be is drawn again.
+    inside; a whole plot whose runs cannot all be is drawn again. A fixed run is kept as given, inside or
+    not, and so are the hard-to-change levels of its whole plot.
     """
     levels = _random_start(model, layout, rng)
     if feasible is None:
         return levels
-    n_levels = [len(table) for table in model.tables]
-    easy = [j for j in range(len(n_levels)) if j not in layout.hard]
+    easy = [j for j in range(len(model.choices)) if j not in layout.hard]
     for w in range(layout.whole_plot.max() + 1):
         rows = np.flatnonzero(layout.whole_plot == w)
+        free = rows[rows >= len(layout.fixed)]
+        drawn = [] if len(free) < len(rows) else layout.hard  # a fixed run's whole plot keeps its settings
         for _ in range(_START_DRAWS):
-            for j in layout.hard:
-                levels[rows, j] = rng.integers(n_levels[j])
-            for r in rows:
+            for j in drawn:
+                levels[rows, j] = rng.integers(model.choices[j])
+            for r in free:
                 for _ in range(_START_DRAWS):
                     if feasible(levels[r])[()]:
                         break
-                    levels[r, easy] = [rng.integers(n_levels[j]) for j in easy]
-            if feasible(levels[rows]).all():
+                    levels[r, easy] = [rng.integers(model.choices[j]) for j in easy]
+            if feasible(levels[free]).all():
                 break
         else:
             msg = "No whole plot of runs inside the limits on the settings was found; check that the limits leave room."
@@ -395,9 +495,12 @@ def _climb(
 ) -> tuple[np.ndarray, float]:
     """Exchange coordinates from a start until a pass improves nothing; return the levels and their criterion.
 
-    With limits (``feasible``), an exchange that puts a run of the whole plot outside them is not taken.
+    With limits (``feasible``), an exchange that puts a run of the whole plot outside them is not taken. A
+    fixed run is never changed, nor are the hard-to-change levels of a whole plot that holds one.
     """
     plots = [np.flatnonzero(layout.whole_plot == w) for w in range(layout.whole_plot.max() + 1)]
+    free = [np.flatnonzero(rows >= len(layout.fixed)) for rows in plots]  # each whole plot's runs to search
+    pinned = set(layout.pinned.tolist())
     shrinks = [options.variance_ratio / (1.0 + len(rows) * options.variance_ratio) for rows in plots]
     terms = [_plot_terms(model.rows(levels[rows]), s) for rows, s in zip(plots, shrinks, strict=True)]
     information = np.sum(terms, axis=0)
@@ -406,18 +509,21 @@ def _climb(
     easy = [j for j in range(levels.shape[1]) if j not in layout.hard]
     # Each coordinate is (whole plot, factor, the positions in the whole plot of the runs it sets).
     for _ in range(_MAX_PASSES):
-        moves = [(w, j, np.arange(len(plots[w]))) for w in rng.permutation(len(plots)) for j in layout.hard]
-        moves += [
-            (w, j, np.array([r])) for w in rng.permutation(len(plots)) for r in range(len(plots[w])) for j in easy
+        moves = [
+            (w, j, np.arange(len(plots[w])))
+            for w in rng.permutation(len(plots))
+            if w not in pinned
+            for j in layout.hard
         ]
+        moves += [(w, j, np.array([r])) for w in rng.permutation(len(plots)) for r in free[w] for j in easy]
         improved = False
         for w, j, runs in moves:
-            options_here = np.repeat(levels[plots[w]][None], len(model.tables[j]), axis=0)
-            options_here[:, runs, j] = np.arange(len(model.tables[j]))[:, None]
+            options_here = np.repeat(levels[plots[w]][None], model.choices[j], axis=0)
+            options_here[:, runs, j] = np.arange(model.choices[j])[:, None]
             candidates = _plot_terms(model.rows(options_here), shrinks[w])
             scores = _scores(information - terms[w] + candidates, options.criterion, model.moments, ridge)
             if feasible is not None:
-                scores = np.where(feasible(options_here).all(axis=1), scores, np.inf)
+                scores = np.where(feasible(options_here[:, free[w]]).all(axis=1), scores, np.inf)
             best = int(np.argmin(scores))
             if scores[best] < score - _IMPROVEMENT * max(1.0, abs(score)):
                 levels[plots[w]] = options_here[best]

@@ -120,7 +120,9 @@ Combining with other options
 * ``fixed_runs`` keeps runs already performed (continuous factors in coded units,
   categorical as labels) and fills the rest of the budget around them. A fixed run
   outside the region is kept and a warning is logged.
-* ``hard_to_change`` (split-plot) is not available together with constraints; it is
+* ``hard_to_change`` (split-plot) keeps to the constraints too, on the grid of levels
+  inside them, and keeps ``fixed_runs`` as the design's first runs: a whole plot that
+  holds one keeps its hard-to-change settings. With a candidate set or blocks it is
   ignored and recorded as ``metadata["hard_to_change_ignored"]``.
 * Other design types do not enforce constraints. They log a warning and set
   ``metadata["constraints_enforced"] = False``. A constraint that names a categorical

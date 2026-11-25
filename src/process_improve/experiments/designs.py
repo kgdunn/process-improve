@@ -1084,8 +1084,10 @@ def generate_design(  # noqa: PLR0913
         components as proportions that sum to 1 (blends already made, to which an optimal
         mixture design adds the blends that say most beside them).
         The fixed runs occupy the first rows of the result and ``budget`` counts them, so
-        ``budget`` must exceed ``len(fixed_runs)``. A common use is to seed a center point. Raises
-        ``ValueError`` if given for a non-optimal ``design_type``.
+        ``budget`` must exceed ``len(fixed_runs)``. A common use is to seed a center point. In a
+        split-plot design (``hard_to_change``) they fill the first whole plots in order, and a whole
+        plot that holds one keeps its hard-to-change settings. Raises ``ValueError`` if given for a
+        non-optimal ``design_type``.
     candidates : pandas.DataFrame or None
         The settings the runs must be chosen from, for the optimal families only: for
         example historical operating points, the discrete settings a piece of

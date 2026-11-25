@@ -16,6 +16,7 @@ import pytest
 
 pytest.importorskip("pyoptex")
 
+from process_improve.experiments import evaluate_design
 from process_improve.experiments.designs import generate_design
 from process_improve.experiments.designs_optimal import (
     _convert_factors_to_pyoptex,
@@ -392,3 +393,25 @@ class TestPyoptexBackendIsDeprecated:
             warnings.simplefilter("error", DeprecationWarning)
             result = generate_design(_continuous(3), design_type="d_optimal", budget=12, hard_to_change=["A"])
         assert result.metadata["backend"] == "split_plot_exchange"
+
+
+class TestTheBuiltInSearchKeepsFixedRunsAsPyoptexDoes:
+    """Fixed runs in a split-plot design no longer need pyoptex, so its removal in 3.0 loses nothing (#1494)."""
+
+    def test_the_same_fixed_runs_give_a_design_as_good_as_pyoptex(self) -> None:
+        """Two runs already made, A and B hard to change: both searches keep them and reach the same |X'V^-1 X|."""
+        fixed = pd.DataFrame({"A": [1.0, 1.0], "B": [-1.0, -1.0], "C": [1.0, -1.0], "D": [0.0, 0.0]})
+        found = {}
+        for backend in ("auto", "pyoptex"):
+            result = generate_design(
+                _continuous(4), design_type="d_optimal", budget=16, hard_to_change=["A", "B"], fixed_runs=fixed,
+                backend=backend, random_state=0,
+            )  # fmt: skip
+            runs = result.design[[*"ABCD", "WholePlot"]]
+            assert runs.iloc[:2][list("ABCD")].to_numpy().tolist() == fixed.to_numpy().tolist(), backend
+            ratio = result.metadata["whole_plot_variance_ratio"]
+            information = evaluate_design(
+                runs, model="interactions", metric="information_matrix", random_effects={"WholePlot": ratio}
+            )["information_matrix"]
+            found[result.metadata["backend"]] = information["log_determinant"]
+        assert found["split_plot_exchange"] >= found["pyoptex"] - 1e-6
