@@ -11,8 +11,10 @@ from __future__ import annotations
 
 import contextlib
 import itertools
+import json
 import math
 import warnings
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -38,7 +40,8 @@ if TYPE_CHECKING:
 # tests pin its word-length pattern. Those in 32 runs for 12 to 25 factors are what that search
 # (trade_off._search_minimum_aberration) returns, over 0.66 to 10.4 million generator sets each;
 # they are listed because the search takes seconds, and their word-length patterns are those of
-# Chen, Sun and Wu (1993, International Statistical Review 61, 131-145).
+# Chen, Sun and Wu (1993, International Statistical Review 61, 131-145). The fractions of 12 to 50
+# factors in 64 and 128 runs are read from a data file (_read_minimum_aberration_file).
 _MIN_ABERRATION: dict[int, dict[int, tuple[str, ...]]] = {
     5: {8: ("D=AB", "E=AC")},
     6: {16: ("E=ABC", "F=BCD"), 8: ("D=AB", "E=AC", "F=BC")},
@@ -246,7 +249,24 @@ _MIN_ABERRATION: dict[int, dict[int, tuple[str, ...]]] = {
         )
     },
 }
-_TABLE_LETTERS = "ABCDEFGHJKLMNOPQRSTUVWXYZ"  # the alphabet without I, as trade_off._FACTOR_NAMES
+_TABLE_LETTERS = "ABCDEFGHJKLMNOPQRSTUVWXYZabcdefghjklmnopqrstuvwxyz"  # without I and i, as trade_off._FACTOR_NAMES
+
+
+def _read_minimum_aberration_file() -> None:
+    """Add the fractions of 12 to 50 factors in 64 and 128 runs to the table.
+
+    No exhaustive search reaches them. ``scripts/minimum_aberration_table.py`` found them, and the tests check
+    that each has the word-length pattern of the published minimum-aberration design that the file's sources give.
+    """
+    path = Path(__file__).resolve().parents[1] / "datasets" / "experiments" / "minimum_aberration.json"
+    for runs, by_factors in json.loads(path.read_text(encoding="utf-8"))["designs"].items():
+        n_base = int(runs).bit_length() - 1
+        for k, words in by_factors.items():
+            named = zip(_TABLE_LETTERS[n_base : int(k)], words.split(), strict=True)
+            _MIN_ABERRATION.setdefault(int(k), {})[int(runs)] = tuple(f"{name}={word}" for name, word in named)
+
+
+_read_minimum_aberration_file()
 _MAX_TABULATED_FACTORS = 11
 
 # (derived factor index, base factor indices): one generator, e.g. D=ABC is (3, [0, 1, 2]).
