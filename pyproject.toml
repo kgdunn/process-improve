@@ -174,11 +174,26 @@ override-dependencies = [
     "numba>=0.63.1",
     "pandas>=2.3.3",
 ]
-# fonttools 4.69.0 was published with cp311 wheels only and no sdist, so every
-# CI job on Python 3.12 to 3.14t failed to install it. Remove on or after
-# 2026-12-02 once fonttools has a complete release (#1492).
-constraint-dependencies = [
-    "fonttools!=4.69.0",
+# Each platform and Python a CI job installs on (tests/test_tooling_versions.py
+# checks this against the test job's matrix). For a package that publishes no
+# sdist, uv takes, for each of these, the newest release with a wheel for it,
+# so a release whose upload has reached only some Pythons is skipped where its
+# wheels are missing, not installed and failed (#1490: fonttools 4.69.0 had
+# Python 3.11 wheels alone for four hours). A release with an sdist is taken
+# as before. No marker names a free-threaded build, so 3.14t is not covered.
+required-environments = [
+    "sys_platform == 'linux' and platform_machine == 'x86_64' and python_version == '3.11'",
+    "sys_platform == 'linux' and platform_machine == 'x86_64' and python_version == '3.12'",
+    "sys_platform == 'linux' and platform_machine == 'x86_64' and python_version == '3.13'",
+    "sys_platform == 'linux' and platform_machine == 'x86_64' and python_version == '3.14'",
+    "sys_platform == 'win32' and platform_machine == 'AMD64' and python_version == '3.11'",
+    "sys_platform == 'win32' and platform_machine == 'AMD64' and python_version == '3.12'",
+    "sys_platform == 'win32' and platform_machine == 'AMD64' and python_version == '3.13'",
+    "sys_platform == 'win32' and platform_machine == 'AMD64' and python_version == '3.14'",
+    "sys_platform == 'darwin' and platform_machine == 'arm64' and python_version == '3.11'",
+    "sys_platform == 'darwin' and platform_machine == 'arm64' and python_version == '3.12'",
+    "sys_platform == 'darwin' and platform_machine == 'arm64' and python_version == '3.13'",
+    "sys_platform == 'darwin' and platform_machine == 'arm64' and python_version == '3.14'",
 ]
 
 
