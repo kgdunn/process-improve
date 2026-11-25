@@ -10273,6 +10273,7 @@ const feedback = installFeedback({
   context: feedbackContext,
   study: () => packCampaign(shareable(currentCampaign(), true)),
   hasStudy: () => Boolean(state.design),
+  writeSentence: say, // a stage the dialog names is a link to it, as on the page
 });
 addFactor();
 addFactor();
