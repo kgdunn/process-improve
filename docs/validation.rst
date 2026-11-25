@@ -133,7 +133,7 @@ patterns, axial distances and block arrangements.
 checker: on the design process-improve builds, and on the design the other package builds.
 Only the construction changes, so a difference is a difference in the design.
 
-.. csv-table:: Design construction against other packages, 22 to 24 November 2026
+.. csv-table:: Design construction against other packages, 22 to 25 November 2026
    :file: validation/design_crosscheck.csv
    :header-rows: 1
    :widths: 30 42 8 12 8
@@ -276,9 +276,10 @@ pydoe 1.7.0 built every kind of design in the table. No difference.
 - **Outside what pydoe offers.** A blocked factorial whose block generators the source does not
   give, a blocked fraction, and a spherical axial distance. Davies' (1956) orthogonal design:
   pydoe's ``alpha="orthogonal"`` is the distance for orthogonal blocking, as in rsm.
-- **Slow searches.** ``fracfact_opt`` searches exhaustively, so a fraction of 10 or 11 factors
-  takes minutes: the search for a 2\ :sup:`10-4` fraction took 8 minutes. The 14 checks that
-  did not finish in 3 minutes are not counted.
+- **Slow searches.** ``fracfact_opt`` searches every generator set, so a fraction of 10 or 11
+  factors takes minutes to hours: 7 minutes for a 2\ :sup:`10-4` fraction and 4.9 hours for a
+  2\ :sup:`11-4` fraction. The 14 checks of these sizes were run with each search done once, and
+  all agree.
 
 .. _validation-dexpy:
 
