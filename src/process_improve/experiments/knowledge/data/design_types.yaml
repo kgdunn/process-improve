@@ -205,8 +205,8 @@
     supports_quadratic: true
     supports_interaction: true
   min_runs:
-    formula: "Depends on k"
-    examples: {"3": 15, "4": 27, "5": 46, "6": 54, "7": 62}
+    formula: "Depends on k; generate_design adds 3 center points"
+    examples: {"3": 15, "4": 27, "5": 43, "6": 51, "7": 59}
   supports_models:
     - main_effects
     - two_factor_interactions
@@ -261,8 +261,8 @@
     supports_quadratic: true
     supports_interaction: true
   min_runs:
-    formula: "2^k + 2k + center_points"
-    examples: {"2": 13, "3": 20, "4": 30, "5": 52}
+    formula: "2^k + 2k + 3: the full factorial, two axial runs a factor, and generate_design's 3 center points"
+    examples: {"2": 11, "3": 17, "4": 27, "5": 45, "6": 79, "7": 145}
   supports_models:
     - main_effects
     - two_factor_interactions
