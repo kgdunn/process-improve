@@ -509,9 +509,20 @@ def test_min_run_examples_are_the_designs_the_library_builds() -> None:
         resolution = {"III": 3, "IV": 4, "V": 5}[roman]
         built = generate_design(factors(int(k)), design_type="fractional_factorial", resolution=resolution)
         assert built.n_runs - 3 == runs, key  # generate_design adds 3 center points by default
-    for design_id, design_type in (("omars", "omars"), ("dsd", "dsd")):
+    for design_id in ("omars", "dsd", "ccd", "box_behnken"):
         for k, runs in _design_type(design_id).min_runs["examples"].items():
-            assert generate_design(factors(int(k)), design_type=design_type).n_runs == runs, (design_id, k)
+            assert generate_design(factors(int(k)), design_type=design_id).n_runs == runs, (design_id, k)
+
+
+def test_the_box_behnken_rule_compares_the_runs_the_knowledge_base_gives() -> None:
+    """The rule quoted a textbook's 15 against 20 and 27 against 30 runs; the library builds 15 against 17 and 27."""
+    bbd, ccd = (_design_type(d).min_runs["examples"] for d in ("box_behnken", "ccd"))
+    rule = next(r for r in load_knowledge_graph().decision_rules if r.id == "rsm_few_factors_fresh")
+    text = " ".join(rule.explanation["expert"].split())
+    assert f"BBD needs {bbd['3']} runs against {ccd['3']} for a CCD at k=3" in text
+    assert bbd["4"] == ccd["4"]
+    assert f"the same {bbd['4']} at k=4" in text
+    assert f"({bbd['6']} against {ccd['6']})" in text
 
 
 def test_foldover_raises_the_resolution_of_a_resolution_iii_fraction_only() -> None:

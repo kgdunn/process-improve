@@ -1,0 +1,1 @@
+- Seven records of the book in the design catalog that were filed under "Other" are in their family: a 3^3 full factorial, two mixtures, a path of steepest ascent and a one-factor-at-a-time search (comparison), and a point exchange worked by hand (optimal) (#1483).
