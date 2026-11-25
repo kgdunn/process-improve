@@ -605,10 +605,16 @@ def r_min_aberration(n_runs: int, k: int) -> list[str]:
     return _relation_from_matrix(m, list(rc._LETTERS[:k]))[0]
 
 
+@functools.cache
+def _pydoe3_fraction(k: int, p: int) -> str:
+    """Return the generators of pydoe's search, once per size: it scores every set, for up to 4.9 hours (11 factors)."""
+    return pyDOE3.fracfact_opt(k, p)[0]
+
+
 def pydoe3_min_aberration(n_runs: int, k: int) -> list[str]:
     _BUILT[0] = True
     p = k - int(np.log2(n_runs))
-    gen = pyDOE3.fracfact_opt(k, p)[0]
+    gen = _pydoe3_fraction(k, p)
     letters = list(rc._LETTERS[:k])
     gens, _, _ = _relation_from_matrix(pyDOE3.fracfact(gen), letters)
     return gens

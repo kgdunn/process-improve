@@ -28,6 +28,18 @@ DOE_TIMEOUT=180 DOE_ENTRIES=montgomery-table-x-2-10-5 DOE_LIB=pydoe DOE_OUT=agai
     uv run --with pydoe python scripts/design_crosscheck/compare.py all
 ```
 
+pydoe's `fracfact_opt` scores every generator set, which takes up to 4.9 hours for 11 factors in
+128 runs. A run searches each size once, and the checks of that size share it. The 14 checks of
+10 and 11 factors that pass 180 seconds come from five entries, run with a limit of 6 hours
+(about nine hours in all):
+
+```bash
+DOE_TIMEOUT=21600 DOE_LIB=pydoe DOE_OUT=again \
+DOE_ENTRIES=box-draper-5-table-5-15-fractional-designs,fries-hunter-table-2-maximum-resolution,\
+montgomery-2-k-p-selection,montgomery-table-x-2-10-4,montgomery-table-x-2-11-6 \
+    uv run --with pydoe python scripts/design_crosscheck/compare.py all
+```
+
 ## What each library needs
 
 | `DOE_LIB` | Builds with | Environment |

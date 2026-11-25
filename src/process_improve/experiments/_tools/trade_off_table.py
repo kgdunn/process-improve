@@ -10,8 +10,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from process_improve.experiments._tools import _TOOL_EXPECTED_EXCEPTIONS, _register, logger
 from process_improve.tool_spec import clean, tool_spec
 
-# Beyond this the exhaustive minimum-aberration search behind each cell stops
-# being interactive, so the tool refuses the request at the schema layer.
+# The tool's limits. Within them every design that exists has its minimum-aberration generators, searched or
+# tabulated, so a cell is a design or blank, never unknown.
 _MAX_RUNS = 128
 _MAX_FACTORS = 12
 
@@ -42,9 +42,7 @@ class TradeOffTableInput(BaseModel):
         "and number of factors, the design that fits and what it costs in aliasing. "
         "Each cell reports the design label (e.g. '2^(7-4) III'), its resolution, and the "
         "generators that build it; cells where the budget exceeds the full factorial report "
-        "replication instead ('2^3 (twice)'), and impossible combinations are blank. A cell marked '?' "
-        "(exists: null) is a design that exists but whose minimum-aberration generators are too costly "
-        "to search for and are not tabulated; it is not impossible. "
+        "replication instead ('2^3 (twice)'), and impossible combinations are blank. "
         "Use this tool when the user is choosing how many experiments to run, asks how many "
         "factors they can screen on a given budget, or asks what they give up by running "
         "fewer experiments. For the full alias chains of one specific design, use "
@@ -66,7 +64,7 @@ class TradeOffTableInput(BaseModel):
 def trade_off_table_tool(spec: TradeOffTableInput) -> dict[str, Any]:
     """Return the runs-against-factors trade-off table, with per-cell detail."""
     try:
-        from process_improve.experiments.trade_off import SearchLimitError, get_trade_off_table_entry  # noqa: PLC0415
+        from process_improve.experiments.trade_off import get_trade_off_table_entry  # noqa: PLC0415
 
         for n_runs in spec.runs:
             if n_runs < 2 or n_runs > _MAX_RUNS or (n_runs & (n_runs - 1)) != 0:
@@ -82,13 +80,6 @@ def trade_off_table_tool(spec: TradeOffTableInput) -> dict[str, Any]:
             for n_factors in spec.factors:
                 try:
                     result = get_trade_off_table_entry(n_runs=n_runs, n_factors=n_factors, display=False)
-                except SearchLimitError as exc:
-                    # The design exists; only its generators were not searched for.
-                    row[str(n_factors)] = "?"
-                    cells.append(
-                        {"runs": n_runs, "factors": n_factors, "label": "?", "exists": None, "reason": str(exc)}
-                    )
-                    continue
                 except ValueError as exc:
                     # No such design: too many factors for the budget, a blank cell. The
                     # reason is kept in `cells`.

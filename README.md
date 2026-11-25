@@ -24,6 +24,7 @@ variable moved, and how sure am I?*
 **[Try it in your browser](https://factori.al/)** ·
 [Documentation](https://kgdunn.github.io/process-improve/) ·
 [Free textbook](https://learnche.org/pid) ·
+[Is it accurate?](https://factori.al/validation.html) ·
 [Design gallery](#designed-experiments-in-one-call)
 
 ```bash
@@ -86,7 +87,9 @@ run_sheet = design.design_actual  # in your units, ready to run
 ```
 
 Change `design_type` and the same call builds any of these, each true to its
-[published definition](https://kgdunn.github.io/process-improve/user_guide/doe_coverage.html).
+[published definition](https://kgdunn.github.io/process-improve/user_guide/doe_coverage.html)
+and checked against the books that print it and against other packages in R and Python
+([Is it accurate?](https://factori.al/validation.html)).
 Leave `design_type` out and give a `budget`, and one is chosen for you.
 
 <a href="https://kgdunn.github.io/process-improve/user_guide/doe_coverage.html"><picture>

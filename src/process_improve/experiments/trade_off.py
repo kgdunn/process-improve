@@ -30,7 +30,7 @@ import itertools
 import math
 from dataclasses import dataclass, field
 from functools import lru_cache
-from string import ascii_uppercase
+from string import ascii_lowercase, ascii_uppercase
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -48,8 +48,9 @@ from process_improve.experiments.evaluate import (
 
 _ROMAN = {3: "III", 4: "IV", 5: "V", 6: "VI", 7: "VII", 8: "VIII", 9: "IX", 10: "X"}
 
-# "I" is the identity column in a defining relation, so it is never a factor name.
-_FACTOR_NAMES = tuple(letter for letter in ascii_uppercase if letter != "I")
+# "I" is the identity column in a defining relation, so it is never a factor name. After Z come the lower-case
+# letters, as FrF2 names factors, so 50 factors have single-letter names.
+_FACTOR_NAMES = tuple(letter for letter in ascii_uppercase + ascii_lowercase if letter not in "Ii")
 
 # Above this many candidate generator sets the exhaustive minimum-aberration
 # search stops being interactive, so it refuses rather than hanging.
@@ -111,7 +112,7 @@ class TradeOffTableEntry:
 
 
 def _factor_names(k: int) -> list[str]:
-    """Return the first *k* single-letter factor names, skipping ``I``."""
+    """Return the first *k* single-letter factor names: ``A`` to ``Z``, then ``a`` to ``z``, without ``I`` and ``i``."""
     if k > len(_FACTOR_NAMES):
         raise ValueError(f"At most {len(_FACTOR_NAMES)} factors can be given single-letter names; {k} were requested.")
     return list(_FACTOR_NAMES[:k])

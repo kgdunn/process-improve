@@ -78,6 +78,7 @@ def test_a_goal_writes_a_search_and_the_ways_in_by_book_and_by_field_are_at_the_
     assert [" ".join(words.split()) for words in foot] == [
         "Browse by book",
         "Browse by field",
+        "Is it accurate?",
         "Errata: every printed number that does not reproduce",
         "Propose a design for the catalog",
         "Share a case study of your own",

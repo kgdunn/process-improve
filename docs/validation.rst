@@ -6,7 +6,8 @@ Validation
 This page records how the numbers this package computes are checked against references that
 do not depend on it: what a source prints, and what other software computes. Each comparison
 names its reference, with its version and date, and gives its result and what it found. The
-last sections say what the comparisons do not show, and how to repeat them.
+last sections say what the comparisons do not show, and how to repeat them. The page
+`Is it accurate? <https://factori.al/validation.html>`__ sums it up on one screen.
 
 .. list-table:: The comparisons
    :header-rows: 1
@@ -132,7 +133,7 @@ patterns, axial distances and block arrangements.
 checker: on the design process-improve builds, and on the design the other package builds.
 Only the construction changes, so a difference is a difference in the design.
 
-.. csv-table:: Design construction against other packages, 22 to 24 November 2026
+.. csv-table:: Design construction against other packages, 22 to 25 November 2026
    :file: validation/design_crosscheck.csv
    :header-rows: 1
    :widths: 30 42 8 12 8
@@ -174,10 +175,12 @@ orthogonal arrays.
 - **Blocks.** FrF2's default blocking confounds interactions of the same orders as the sources
   for every blocked full factorial, and the same alias classes for the blocked fractions of Box
   and Draper (2007), Table 5.14.
-- **Minimum aberration.** For the 44 sizes from 8 to 128 runs that both packages build, the two
-  designs have the same word length pattern: every size up to 32 runs and 25 factors, and 64
-  and 128 runs up to 11 factors. For 55 larger sizes, in 64 and 128 runs, FrF2's catalog has a
-  design and process-improve's search stops at its limit (A12 in `issue 788 <https://github.com/kgdunn/process-improve/issues/788>`__).
+- **Minimum aberration.** For all 128 sizes from 8 to 128 runs and up to 50 factors, the two
+  designs have the same word length pattern. Up to 32 runs, and to 11 factors in 64 and 128
+  runs, process-improve searches every generator set. Past that no search of every set ends, so
+  the 78 sizes of 12 to 50 factors in 64 and 128 runs come from a table that a heuristic search
+  wrote (``scripts/minimum_aberration_table.py``), and the tests hold each one to the pattern of
+  the published catalogs, which were searched in full.
 - **Orthogonal arrays.** DoE.base's arrays are Taguchi's L8, L9, L12, L16 and L27 in another
   layout: the same runs once the order of the runs and columns and the labels of each column's
   levels are changed. An array is the same array in any layout, so they agree.
@@ -273,9 +276,10 @@ pydoe 1.7.0 built every kind of design in the table. No difference.
 - **Outside what pydoe offers.** A blocked factorial whose block generators the source does not
   give, a blocked fraction, and a spherical axial distance. Davies' (1956) orthogonal design:
   pydoe's ``alpha="orthogonal"`` is the distance for orthogonal blocking, as in rsm.
-- **Slow searches.** ``fracfact_opt`` searches exhaustively, so a fraction of 10 or 11 factors
-  takes minutes: the search for a 2\ :sup:`10-4` fraction took 8 minutes. The 14 checks that
-  did not finish in 3 minutes are not counted.
+- **Slow searches.** ``fracfact_opt`` searches every generator set, so a fraction of 10 or 11
+  factors takes minutes to hours: 7 minutes for a 2\ :sup:`10-4` fraction and 4.9 hours for a
+  2\ :sup:`11-4` fraction. The 14 checks of these sizes were run with each search done once, and
+  all agree.
 
 .. _validation-dexpy:
 
@@ -422,10 +426,10 @@ What the comparisons found
        factors.
      - :ref:`validation-daewr`
    * - process-improve
-     - A minimum-aberration search that stops where published designs exist, in 64 and 128
-       runs. The same gap in 32 runs, and a second one, no way to give the center runs of each
-       block of a central composite design, are closed.
-     - A12 in `issue 788 <https://github.com/kgdunn/process-improve/issues/788>`__
+     - Two gaps, both closed: minimum-aberration designs that the search did not reach, in 32,
+       64 and 128 runs, and no way to give the center runs of each block of a central composite
+       design.
+     - A11 and A12 in `issue 788 <https://github.com/kgdunn/process-improve/issues/788>`__
    * - process-improve
      - 1,555 printed numbers that need a function the library does not have yet, 275 that
        differ for a cause not known yet, and 1 that differs for a bug or limit of the library.
