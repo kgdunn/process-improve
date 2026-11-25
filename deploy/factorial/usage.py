@@ -30,6 +30,11 @@ are not readers. Run it on the server, as a user that can read the log:
 The log forgets a day after 366 days, so ``--keep`` adds each finished day's counts, and nothing
 else, to a file of its own (``/var/lib/factorial/usage.csv``). A daily job that ``setup.sh``
 installs runs it, and the report reads the file for the days the log no longer holds.
+
+``--public FILE`` writes the readers of each of the last 90 days, today so far included, and nothing
+else, as JSON: the footer of every page of factori.al draws them, as a line with today's count
+beside it. An hourly job that ``setup.sh`` installs writes ``/var/lib/factorial/public/usage.json``,
+which Caddy serves as ``https://factori.al/usage.json``.
 """
 
 from __future__ import annotations
@@ -53,6 +58,8 @@ if TYPE_CHECKING:
 LOGS = "/var/log/caddy/factorial-access*.log*"
 #: Each finished day's counts, kept after the log forgets the day.
 KEPT = "/var/lib/factorial/usage.csv"
+#: How many days the public file holds: the footer's line draws them all.
+PUBLIC_DAYS = 90
 SITE = "factori.al"
 #: The site's pages, in the order the report lists them, each by the paths it is served at. The design catalog is
 #: every page under /catalog/; a page no name claims is counted as Other. factori.al/map is redirected to
@@ -223,6 +230,52 @@ def keep(path: Path, days: dict[str, Day], today: date) -> list[str]:
     return added
 
 
+def written_since(paths: Iterable[Path], since: datetime) -> list[Path]:
+    """Return the log files written to since ``since``: a rolled file last written before then holds nothing after."""
+    return [path for path in paths if datetime.fromtimestamp(path.stat().st_mtime, UTC) >= since]
+
+
+def readers(days: dict[str, Day], kept_days: dict[str, dict[str, int]], first: date, last: date) -> list[list]:
+    """Return ``[day, readers]`` for each day from ``first`` to ``last``: from the log where it holds the day, else as
+    kept. The days before the first that either knows are left out, as the site had no count then; a day after it
+    that neither holds had no reader.
+    """
+    out = []
+    for offset in range((last - first).days + 1):
+        name = (first + timedelta(days=offset)).isoformat()
+        if name in days:
+            out.append([name, len(days[name].readers)])
+        elif name in kept_days:
+            out.append([name, kept_days[name]["Readers"]])
+        elif out:
+            out.append([name, 0])
+    return out
+
+
+def publish(path: Path, paths: list[Path], kept_path: Path, now: datetime) -> list[list]:
+    """Write the readers of each of the last :data:`PUBLIC_DAYS` days to ``path``, as JSON, and return them.
+
+    The finished days the file of kept counts holds are read from it; the log is read from the day after its last
+    one, or from yesterday, which the daily job may not have kept yet. So an hourly run reads a day or two of the log,
+    not a year of it. The file holds numbers alone, and when they were written: nothing of a reader's.
+    """
+    last = now.date()
+    first = last - timedelta(days=PUBLIC_DAYS - 1)
+    kept_days = kept(kept_path)
+    after = max((date.fromisoformat(name) for name in kept_days), default=first - timedelta(days=1))
+    from_day = min(after + timedelta(days=1), last - timedelta(days=1))  # yesterday may not be kept yet
+    since = datetime.combine(max(first, from_day), time.min, tzinfo=UTC)
+    days, _ = tally(requests(lines(written_since(paths, since))), since)
+    counts = readers(days, kept_days, first, last)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    part = path.with_name(f"{path.name}.part")
+    written = {"updated": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "days": counts}
+    part.write_text(json.dumps(written, separators=(",", ":")) + "\n", encoding="utf-8")
+    part.chmod(0o644)  # Caddy reads it, as another user
+    part.replace(path)
+    return counts
+
+
 def start(when: date, by: str) -> date:
     """Return the first day of the row a day falls in: the day itself, the Monday of its week, or its month's first."""
     if by == "week":
@@ -297,12 +350,18 @@ def report(
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Print the report for the last ``--days`` days, today included; or, with ``--keep``, keep the finished days."""
+    """Print the report for the last ``--days`` days, today included.
+
+    ``--keep`` keeps the finished days instead, and ``--public`` writes the public file: neither prints anything.
+    """
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--days", type=int, default=28, help="how many days to report, today included (%(default)s)")
     parser.add_argument("--by", choices=("day", "week", "month"), default="day", help="a row a day, week or month")
     parser.add_argument(
         "--keep", action="store_true", help="add the finished days the file lacks to it, and print nothing"
+    )
+    parser.add_argument(
+        "--public", metavar="FILE", help=f"write the readers of each of the last {PUBLIC_DAYS} days there, as JSON"
     )
     parser.add_argument("--log", default=LOGS, help="the access log's files, a pattern in the last part (%(default)s)")
     parser.add_argument("--kept", default=KEPT, help="the file that keeps each finished day's counts (%(default)s)")
@@ -312,6 +371,9 @@ def main(argv: list[str] | None = None) -> int:
     if not paths:
         print(f"no log files match {args.log}", file=sys.stderr)
         return 1
+    if args.public:
+        publish(Path(args.public), paths, Path(args.kept), datetime.now(UTC))
+        return 0
     last = datetime.now(UTC).date()
     if args.keep:
         days, _ = tally(requests(lines(paths)), datetime.fromtimestamp(0, UTC))

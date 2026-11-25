@@ -32,6 +32,13 @@ factori.al {
 		}
 	}
 
+	# How many readers each of the last 90 days had, numbers alone: usage.py --public writes it each hour, and the
+	# footer of every page draws it. A build carries a usage.json of no days, which this file takes the place of.
+	handle /usage.json {
+		root * /var/lib/factorial/public
+		file_server
+	}
+
 	# A deploy reaches a reader at their next visit: the browser checks each file is unchanged
 	# before using its copy. The app's Python (the wheel, and the page's own in an archive) sits
 	# in a folder named by its digest, so its address changes whenever it does, and it is kept

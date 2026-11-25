@@ -5,6 +5,7 @@ from __future__ import annotations
 import gzip
 import importlib.util
 import json
+import os
 import sys
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -409,3 +410,85 @@ def test_the_report_reads_the_live_log_and_the_rolled_ones_gzipped(tmp_path, cap
 def test_the_report_says_when_no_log_matches(tmp_path, capsys):
     assert usage.main(["--log", str(tmp_path / "factorial-access*.log*")]) == 1
     assert "no log files match" in capsys.readouterr().err
+
+
+# --------------------------------------------------------------------------- the public file
+NOW = datetime(2026, 10, 12, 10, 30, tzinfo=UTC)
+
+
+def write_log(path: Path, *entries: dict, written: datetime = NOW) -> Path:
+    """Write the entries as a log file, last written at ``written``, and return its path."""
+    path.write_text("".join(json.dumps(entry) + "\n" for entry in entries), encoding="utf-8")
+    os.utime(path, (written.timestamp(), written.timestamp()))
+    return path
+
+
+def test_the_public_file_holds_the_readers_of_each_day_kept_and_logged_and_nothing_else(tmp_path):
+    """The footer draws it: the kept days, then yesterday and today from the log, as numbers alone."""
+    kept = tmp_path / "usage.csv"
+    kept.write_text("Day,Home,Readers\n2026-10-08,9,5\n2026-10-09,12,7\n", encoding="utf-8")
+    log = write_log(
+        tmp_path / "factorial-access.log",
+        logged("/", when="2026-10-11T09:00"),
+        logged("/map/", PHONE, when="2026-10-11T21:00"),
+        logged("/", when="2026-10-12T08:00"),
+        logged("/", HEADLESS, when="2026-10-12T08:05"),  # the deploy's own check is no reader
+    )
+    public = tmp_path / "public" / "usage.json"
+    days = usage.publish(public, [log], kept, NOW)
+    assert days == [["2026-10-08", 5], ["2026-10-09", 7], ["2026-10-10", 0], ["2026-10-11", 2], ["2026-10-12", 1]]
+    written = json.loads(public.read_text(encoding="utf-8"))
+    assert written == {"updated": "2026-10-12T10:30:00Z", "days": days}, "the days before the first count are left out"
+    assert public.stat().st_mode & 0o777 == 0o644, "Caddy reads it as another user"
+    assert not public.with_name("usage.json.part").exists()
+
+
+def test_the_public_file_reads_the_log_from_the_first_day_not_kept_and_no_rolled_file_before_it(tmp_path):
+    """An hourly run reads a day or two of the log, not a year of it: a kept day is never counted again."""
+    kept = tmp_path / "usage.csv"
+    kept.write_text("Day,Readers\n2026-10-09,7\n", encoding="utf-8")
+    log = write_log(
+        tmp_path / "factorial-access.log",
+        logged("/", when="2026-10-09T10:00"),  # a kept day, which the file says
+        logged("/", when="2026-10-10T10:00"),  # not kept: the daily job did not run
+        logged("/", when="2026-10-12T10:00"),
+    )
+    # A rolled file last written before the first day read: never opened, whatever it holds.
+    rolled = write_log(tmp_path / "factorial-access-old.log", logged("/", PHONE, when="2026-10-12T09:00"),
+                       written=datetime(2026, 10, 5, tzinfo=UTC))  # fmt: skip
+    assert usage.written_since([log, rolled], datetime(2026, 10, 10, tzinfo=UTC)) == [log]
+    days = usage.publish(tmp_path / "usage.json", [log, rolled], kept, NOW)
+    assert days == [["2026-10-09", 7], ["2026-10-10", 1], ["2026-10-11", 0], ["2026-10-12", 1]]
+
+
+def test_the_public_file_holds_ninety_days_at_most(tmp_path):
+    kept = tmp_path / "usage.csv"
+    first = NOW.date() - timedelta(days=200)
+    rows = "".join(f"{(first + timedelta(days=i)).isoformat()},{i}\n" for i in range(199))
+    kept.write_text("Day,Readers\n" + rows, encoding="utf-8")
+    log = write_log(tmp_path / "factorial-access.log", logged("/", when="2026-10-12T09:00"))
+    days = usage.publish(tmp_path / "usage.json", [log], kept, NOW)
+    assert len(days) == usage.PUBLIC_DAYS
+    assert days[0][0] == (NOW.date() - timedelta(days=usage.PUBLIC_DAYS - 1)).isoformat()
+    assert days[-1] == ["2026-10-12", 1]
+
+
+def test_public_writes_the_file_and_prints_nothing(tmp_path, capsys):
+    write_log(tmp_path / "factorial-access.log", logged("/", when=datetime.now(UTC).strftime("%Y-%m-%dT%H:%M")),
+              written=datetime.now(UTC))  # fmt: skip
+    public = tmp_path / "usage.json"
+    paths = ["--log", str(tmp_path / "factorial-access*.log*"), "--kept", str(tmp_path / "none.csv")]
+    assert usage.main([*paths, "--public", str(public)]) == 0
+    assert capsys.readouterr().out == ""
+    assert json.loads(public.read_text(encoding="utf-8"))["days"] == [[datetime.now(UTC).date().isoformat(), 1]]
+
+
+def test_the_hourly_job_writes_the_file_caddy_serves():
+    here = SCRIPT.parent
+    job = (here / "usage-hourly.sh").read_text(encoding="utf-8")
+    assert "exec /usr/local/bin/factorial-usage --public /var/lib/factorial/public/usage.json" in job
+    assert (here / "usage-hourly.sh").stat().st_mode & 0o111, "run-parts runs only what may be run"
+    caddy = (here / "factorial.caddy").read_text(encoding="utf-8")
+    assert "handle /usage.json {\n\t\troot * /var/lib/factorial/public\n\t\tfile_server\n\t}" in caddy
+    setup = (here / "setup.sh").read_text(encoding="utf-8")
+    assert '"$here/usage-hourly.sh" /etc/cron.hourly/factorial-usage-public' in setup
