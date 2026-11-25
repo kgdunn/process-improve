@@ -164,6 +164,7 @@ import {
   interactionOf,
   screeningSentence,
   screensOnly,
+  stageParts,
   tradeOffBeyond,
   MAX_OPTIMAL_TERMS,
   SLOW_SEARCH,
@@ -391,8 +392,24 @@ describe("a study of more factors than the page models the interactions of", () 
     );
     assert.equal(
       screeningSentence(40, "learn"),
-      "Past 12 factors, Learn fits the main effects, or the terms you choose: 40 factors have 780 two-factor interactions, more than a screening design has runs.",
+      "Past 12 factors, [Learn] fits the main effects, or the terms you choose: 40 factors have 780 two-factor interactions, more than a screening design has runs.",
     );
+  });
+
+  test("a sentence is cut at the stages it names, and at nothing that only looks like one", () => {
+    assert.deepEqual(stageParts("No results yet: enter them in [Run], or practice."), [
+      "No results yet: enter them in ",
+      { stage: "run", name: "Run" },
+      ", or practice.",
+    ]);
+    const stages = (text) => stageParts(text).flatMap((part) => (typeof part === "string" ? [] : [part.stage]));
+    assert.deepEqual(stages("[Design], [Run], [Learn] and [Next]."), ["plan", "run", "learn", "next"]);
+    assert.deepEqual(stageParts("[Learn] fits it"), [{ stage: "learn", name: "Learn" }, " fits it"]);
+    // A run's number, a column's name, a unit in brackets and a word in another case are no stage.
+    for (const plain of ["Run 3 is the best of them so far.", "matched by the Run order column", "Yield [%], [run] and [Runs]"]) {
+      assert.deepEqual(stageParts(plain), [plain]);
+    }
+    for (const nothing of ["", null, undefined]) assert.deepEqual(stageParts(nothing), []);
   });
 
   for (const k of [13, 24, 40]) {

@@ -138,7 +138,7 @@ export function screenshotProblem(dataUrl) {
 /** What stops a study from going with a report, as a sentence; "" when it can go. */
 export function studyProblem(packed) {
   if (packed.length > MAX_STUDY) {
-    return "Your study is too large to go with a report, so the report goes without it: its workbook, from Run, can go by email.";
+    return "Your study is too large to go with a report, so the report goes without it: its workbook, from [Run], can go by email.";
   }
   return /^[A-Za-z0-9_-]+$/.test(packed) ? "" : "Your study could not be packed, so the report goes without it.";
 }
@@ -427,9 +427,11 @@ const NO_STUDY = "There is no run sheet yet, so there is no study to send.";
  * Make the Feedback dialog, and open it from every button with a ``data-feedback`` attribute, on the topic that names
  * (General when it names none). The page lends it ``context()``, which resolves to what the page sends of itself (the
  * keys of CONTEXT), ``study()``, which resolves to the study's packed text, and ``hasStudy()``, whether there is one.
+ * A page with stages lends ``writeSentence(node, text)``, which writes a sentence with each stage it names, "[Run]",
+ * as a link to it: a press on one closes the dialog, so the stage is in sight. Without it the name is plain text.
  * Returns ``open(topic)``.
  */
-export function installFeedback({ context, study = null, hasStudy = () => false }) {
+export function installFeedback({ context, study = null, hasStudy = () => false, writeSentence = null }) {
   let dialog = null;
   let form = null;
   let about = {}; // the page's context, as it was when the dialog opened
@@ -550,6 +552,9 @@ export function installFeedback({ context, study = null, hasStudy = () => false 
     }
     dialog.querySelector("#feedback-copy").onclick = copy;
     for (const button of dialog.querySelectorAll("[data-close]")) button.onclick = () => dialog.close();
+    dialog.addEventListener("click", (event) => {
+      if (event.target.closest("[data-go]")) dialog.close(); // the page goes to the stage: the dialog makes way
+    });
     if (!relay) {
       // Nothing goes from here: no screenshot to take, no study to pack, and no address to keep out of a public issue.
       part("extras").hidden = true;
@@ -635,7 +640,9 @@ export function installFeedback({ context, study = null, hasStudy = () => false 
     field("screenshot").checked = true;
     shot = null;
     showShot();
-    note("thanks").textContent = [thanksWords({ ...sent, email: report.email }), ...left].join(" ");
+    const thanks = [thanksWords({ ...sent, email: report.email }), ...left].join(" ");
+    if (writeSentence) writeSentence(note("thanks"), thanks);
+    else note("thanks").textContent = thanks.replace(/\[(Design|Run|Learn|Next)\]/g, "$1");
     part("write").hidden = true;
     part("sent").hidden = false;
     render();

@@ -605,7 +605,7 @@ describe("what the confirmation runs show", () => {
 
   test("before their results: where to make them, and what to expect", () => {
     assert.deepEqual(confirmationSentences(group, FACTORS, WORDS), [
-      "3 confirmation runs at T = 200 degC, P = 1 bar and F = 18.04 L/min. Enter their results in Run. " +
+      "3 confirmation runs at T = 200 degC, P = 1 bar and F = 18.04 L/min. Enter their results in [Run]. " +
         "When their average is between 65.98 and 70.52%, the model holds there.",
     ]);
   });
@@ -847,7 +847,7 @@ describe("the settings that balance the responses", () => {
     ]);
     const waiting = { ...group, responses: [group.responses[0], { name: "Purity", done: 0, mean: null, predicted: 98, interval: [97, 99], inside: null }] };
     assert.equal(balanceConfirmation(waiting, FACTORS, BALANCE.responses).state, "waiting");
-    assert.equal(balanceConfirmation(waiting, FACTORS, BALANCE.responses).said[2], "Purity: no result yet; enter it in Run.");
+    assert.equal(balanceConfirmation(waiting, FACTORS, BALANCE.responses).said[2], "Purity: no result yet; enter it in [Run].");
     const both = { ...group, responses: [group.responses[0], { ...group.responses[1], mean: 98, inside: true }] };
     assert.equal(balanceConfirmation(both, FACTORS, BALANCE.responses).state, "inside");
   });
@@ -1160,7 +1160,7 @@ describe("what if", () => {
     ];
     assert.deepEqual(whatIfRows(responses), [
       ["Yield", "15%", "10.76 to 19.24%", "8.526 to 21.47%", "0.75, above 0.5"],
-      ["Cost", "No results yet: enter them in Run.", "", "", ""],
+      ["Cost", "No results yet: enter them in [Run].", "", "", ""],
       ["Purity", "The term Supplier·Batch needs Supplier in the model too.", "", "", ""],
     ]);
     const broken = [{ index: 1, expression: "T + 25 * P <= 215" }];

@@ -11652,7 +11652,7 @@ def next_runs(request: dict) -> dict:
             continue
         if not _runnable(spec, made["new"]):
             name = EXTENSIONS[kind]["name"]
-            notes.append(f"{name} would fall outside your limits on the settings, so Learn does not offer them.")
+            notes.append(f"{name} would fall outside your limits on the settings, so [Learn] does not offer them.")
             continue
         shown = {key: made[key] for key in ("kind", "label", "why", "model", "blocked")}
         runs = [{f["name"]: _setting(f, row[j]) for j, f in enumerate(spec["factors"])} for row in made["new"]]
@@ -11936,7 +11936,7 @@ def suggest_runs(request: dict) -> dict:
     if goal not in ("maximize", "minimize", "target") or (goal == "target" and target is None):
         raise ValueError(
             "Runs from a model of every run are suggested for a goal of making the response as large or as small as "
-            "it can be, or of bringing it to a target: choose that goal in Design."
+            "it can be, or of bringing it to a target: choose that goal in [Design]."
         )
     if _mixture(spec) or any(_categorical(f) for f in spec["factors"]):
         raise ValueError("Runs from a model of every run are suggested for numeric factors only on this page.")
@@ -12018,10 +12018,12 @@ def _suggested_made(request: dict, spec: dict, design: pd.DataFrame) -> dict[str
 #: What Learn says of a mixture, to which it offers to add no runs.
 #: Why a design with factors that are hard to change is offered no runs to add.
 WHOLE_PLOT_EXTENSIONS = (
-    "This design sets a factor once for each group of runs, and the runs Learn adds to a design are made one by one, "
+    "This design sets a factor once for each group of runs, and the runs [Learn] adds to a design are made one by one, "
     "so it offers none here."
 )
-MIXTURE_EXTENSIONS = "A mixture's runs are blends, and the runs Learn adds to a design are not, so it offers none here."
+MIXTURE_EXTENSIONS = (
+    "A mixture's runs are blends, and the runs [Learn] adds to a design are not, so it offers none here."
+)
 
 
 def add_runs(request: dict) -> dict:
@@ -12106,10 +12108,10 @@ def add_runs(request: dict) -> dict:
 def _made_for(request: dict, spec: dict, design: pd.DataFrame, kind: str) -> dict[str, Any]:
     """Make the runs ``add_runs`` adds of one kind, or refuse, saying why the study cannot take them."""
     if _mixture(spec):
-        raise ValueError("A mixture's runs are blends, and the runs Learn adds to a design are not.")
+        raise ValueError("A mixture's runs are blends, and the runs [Learn] adds to a design are not.")
     if (spec.get("options") or {}).get("hard_to_change"):
         raise ValueError(
-            "This design sets a factor once for each group of runs, and the runs Learn adds are made one by one."
+            "This design sets a factor once for each group of runs, and the runs [Learn] adds are made one by one."
         )
     if kind == RECOMMENDED:
         made = _recommended_runs(request, spec, design)

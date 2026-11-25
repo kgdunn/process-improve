@@ -792,6 +792,10 @@ Also:
 
 - **Four stages, one page.** One bar at the top holds Design, Run, Learn and Next, each marked
   with how far it has got. It stays in view as the page scrolls.
+- **A stage named in a sentence leads to it.** Where the page says "enter them in Run" or "once
+  Learn has analyzed them", the stage's name is a link, with the dot of that stage, in its
+  color, before it. So is a stage named in the line under the bar, in what Learn says, and in
+  the Feedback dialog, which closes to show it.
 - **The study's name heads the page.** It is under the bar, with the page's width, so a long
   name is read whole on a phone and on a desk.
 - **A new study in one press.** The bar has a button for it, in words, on every stage.

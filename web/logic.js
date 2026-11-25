@@ -249,6 +249,19 @@ export const INTERACTION_MODELS = ["interactions", "quadratic"];
 /** Whether a study of k factors is fitted for its main effects, or the terms the reader names, and nothing more. */
 export const screensOnly = (k) => k > MAX_INTERACTION_FACTORS;
 
+/** The four stages of a study as a sentence names them, each with the key the page shows it by (app.js showPhase). */
+export const STAGE_KEYS = { Design: "plan", Run: "run", Learn: "learn", Next: "next" };
+
+/**
+ * A sentence cut at the stages it names, for the page to make each a link with the stage's dot (app.js staged).
+ * A sentence names a stage in square brackets, "enter them in [Run]": the Run of "Run 3" and of "Run order" is
+ * then never taken for one. A part is a string, or ``{ stage, name }`` for a stage.
+ */
+export function stageParts(text) {
+  const parts = String(text ?? "").split(/\[(Design|Run|Learn|Next)\]/); // no text is no part, as textContent has it
+  return parts.map((part, i) => (i % 2 ? { stage: STAGE_KEYS[part], name: part } : part)).filter((part) => part !== "");
+}
+
 /**
  * What the page says of a study of k factors, more than it models the interactions of: the aims and the models
  * it keeps to, and why. "" for fewer factors. ``where`` is "brief" for the aim, or "learn" for the model.
@@ -256,7 +269,7 @@ export const screensOnly = (k) => k > MAX_INTERACTION_FACTORS;
 export function screeningSentence(k, where) {
   if (!screensOnly(k)) return "";
   const why = `${k} factors have ${(k * (k - 1)) / 2} two-factor interactions, more than a screening design has runs.`;
-  if (where === "learn") return `Past ${MAX_INTERACTION_FACTORS} factors, Learn fits the main effects, or the terms you choose: ${why}`;
+  if (where === "learn") return `Past ${MAX_INTERACTION_FACTORS} factors, [Learn] fits the main effects, or the terms you choose: ${why}`;
   return `Past ${MAX_INTERACTION_FACTORS} factors, a study finds which factors matter, and a fraction is made at resolution III or IV: ${why}`;
 }
 
