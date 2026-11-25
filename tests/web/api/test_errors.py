@@ -1514,7 +1514,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         },
         (
             "Runs from a model of every run are suggested for a goal of making the response as large or as small as "
-            "it can be, or of bringing it to a target: choose that goal in Design."
+            "it can be, or of bringing it to a target: choose that goal in [Design]."
         ),
     ),
     "suggested runs: a categorical factor": (
@@ -1652,7 +1652,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     "add runs: a mixture": (
         "api_add_runs",
         _mixed(kind="replicate"),
-        "A mixture's runs are blends, and the runs Learn adds to a design are not.",
+        "A mixture's runs are blends, and the runs [Learn] adds to a design are not.",
     ),
     # Mixtures: the factors are the components of a blend, each a proportion.
     "mixture: a categorical factor": (
@@ -1864,7 +1864,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     "hard to change: runs added": (
         "api_add_runs",
         lambda _: {**SPLIT_PLOT, "kind": "replicate"},
-        "This design sets a factor once for each group of runs, and the runs Learn adds are made one by one.",
+        "This design sets a factor once for each group of runs, and the runs [Learn] adds are made one by one.",
     ),
     "correlation map: more factors than the page models the interactions of": (
         "api_correlations",

@@ -434,6 +434,13 @@ button, .button {
 .primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
 button:disabled { opacity: 0.5; cursor: progress; }
 .link { border: none; background: none; color: var(--accent); padding: 4px; }
+/* A stage named in a sentence (app.js stageLink, and the page's own sentences): the stage's dot, in its color, and its
+   name, underlined as a link is. It has no padding, so the comma or the word after it follows as in any text. */
+.stage-link { padding: 0; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
+.stage-link::before {
+  content: ""; display: inline-block; width: 0.62em; height: 0.62em; margin-right: 0.3em; border-radius: 50%;
+  background: var(--stage);
+}
 .factors { border-collapse: collapse; margin-bottom: 4px; }
 .factors th { text-align: left; font-weight: 600; font-size: 0.85rem; color: var(--muted); padding: 0 6px 4px 0; }
 .factors td { padding: 2px 6px 2px 0; }

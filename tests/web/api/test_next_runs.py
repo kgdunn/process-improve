@@ -164,7 +164,7 @@ def test_a_way_that_breaks_a_limit_is_noted_and_not_offered(api):
     assert "foldover" not in {o["kind"] for o in reply["offers"]}
     assert "center" in {o["kind"] for o in reply["offers"]}  # the center meets the limit
     assert reply["notes"] == [
-        "The runs of a fold-over would fall outside your limits on the settings, so Learn does not offer them."
+        "The runs of a fold-over would fall outside your limits on the settings, so [Learn] does not offer them."
     ]
 
 
