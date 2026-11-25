@@ -14,7 +14,9 @@ The log has one line per request, written with the reader's address cut to its n
     previews   the link card fetched by a chat or a social site, to show a link to the app
 
 Under the table it says how long Python took to start, from opening the app to Python ready, where the log
-can time it: when the browser downloaded the app's Python, on a reader's first visit and after a deploy.
+can time it: when the browser downloaded the app's Python, on a reader's first visit and after a deploy. Each
+start is split where the worker's requests allow: opening the page to the worker's start, Pyodide and its packages,
+and process-improve with the page's own Python.
 
 Then it lists where readers came from: the site that linked here, or the tag a link
 carried. A link posted somewhere can name the place, as ``https://factori.al/?ref=linkedin``,
@@ -93,6 +95,11 @@ CARD = "/og-card.png"
 #: A browser downloads it once a build, and keeps it: a start that finds it kept asks for nothing here, and is not
 #: timed.
 ARCHIVE = re.compile(r"/wheels/\w+/bootstrap\.zip")
+#: The process-improve wheel, beside the archive: the worker asks for it once Pyodide and its packages are loaded, so
+#: it splits a start into its parts, with the worker's reading of :data:`PYTHON`, which marks the worker's start.
+WHEEL = re.compile(r"/wheels/\w+/process_improve-[^/]+\.whl")
+#: The two kinds of start the report times apart: a returning reader's browser has Pyodide kept already.
+KINDS = ("First visit", "Returning")
 #: A start that took longer is a page left open while it waited for a network: not a time to start.
 LONGEST_START = 600
 #: The query parameter a link says where it was posted by, and the tag it can hold. The app drops the parameter
@@ -134,6 +141,9 @@ class Day:
     #: Seconds from opening the app to Python ready, each start the log can time: a reader's first in the log read
     #: ("First visit"), and any later one ("Returning"), whose browser has Pyodide kept already. Not in the kept file.
     starts: dict[str, list[float]] = field(default_factory=lambda: defaultdict(list))
+    #: The same starts in three parts, in seconds, where the log holds the requests that split them: opening the page
+    #: to the worker's start, Pyodide and its packages, and process-improve with the page's own Python.
+    parts: dict[str, list[tuple[float, float, float]]] = field(default_factory=lambda: defaultdict(list))
 
     def counts(self) -> dict[str, int]:
         """Return the day's counts, as the report's columns and the file that keeps them name them."""
@@ -144,21 +154,41 @@ class Day:
 @dataclass
 class Stopwatch:
     """Time each start the log can: from when a reader's last opening of the app began to when the download of
-    :data:`ARCHIVE` ended. A line's ``ts`` is when the response ended, and ``duration`` how long it took.
+    :data:`ARCHIVE` ended. A line's ``ts`` is when the response ended, and ``duration`` how long it took. On the way,
+    the worker's reading of :data:`PYTHON` and its asking for :data:`WHEEL` mark where the start's parts meet.
     """
 
     opened: dict[tuple[str, str], float] = field(default_factory=dict)  # each reader's opening not yet timed
+    marks: dict[tuple[str, str], dict[str, float]] = field(default_factory=dict)  # since that opening
     timed: set[tuple[str, str]] = field(default_factory=set)  # the readers with a start timed already
 
     def see(self, path: str, reader: tuple[str, str], entry: dict, day: Day) -> None:
-        """Note a reader's request: an opening of the app is remembered, and the archive's download times it."""
+        """Note a reader's request: an opening of the app is remembered, the worker's requests mark the start's
+        parts, and the archive's download times it.
+        """
+        began = entry["ts"] - entry.get("duration", 0)
         if page(path) == "Home":
-            self.opened[reader] = entry["ts"] - entry.get("duration", 0)
-        elif ARCHIVE.fullmatch(path) and reader in self.opened:
-            seconds = entry["ts"] - self.opened.pop(reader)
-            if seconds <= LONGEST_START:
-                day.starts["Returning" if reader in self.timed else "First visit"].append(seconds)
-                self.timed.add(reader)
+            self.opened[reader], self.marks[reader] = began, {}
+        elif reader not in self.opened:
+            return
+        elif path == PYTHON and urlsplit(header(entry["request"], "Referer")).path == WORKER:
+            self.marks[reader].setdefault("worker", began)
+        elif WHEEL.fullmatch(path):
+            self.marks[reader].setdefault("wheel", began)
+        elif ARCHIVE.fullmatch(path):
+            self.time(reader, entry["ts"], day)
+
+    def time(self, reader: tuple[str, str], ready: float, day: Day) -> None:
+        """Time the start whose archive's download ended at ``ready``, and its parts where both marks were seen."""
+        opened, marks = self.opened.pop(reader), self.marks.pop(reader)
+        if ready - opened > LONGEST_START:
+            return
+        kind = "Returning" if reader in self.timed else "First visit"
+        self.timed.add(reader)
+        day.starts[kind].append(ready - opened)
+        if {"worker", "wheel"} <= marks.keys():
+            worker, wheel = marks["worker"], marks["wheel"]
+            day.parts[kind].append((worker - opened, wheel - worker, ready - wheel))
 
 
 def page(path: str) -> str | None:
@@ -333,23 +363,39 @@ def bars(values: list[float]) -> str:
     return "".join(BARS[0] if not v else BARS[max(1, round(v / top * (len(BARS) - 1)))] for v in values)
 
 
-def start_times(days: dict[str, Day], first: date, last: date) -> list[str]:
-    """Say how long Python took to start from ``first`` to ``last``: the median, and the time 9 in 10 starts took no
-    longer than, for first visits and returning ones apart. Nothing where the log timed no start.
-    """
-    starts: dict[str, list[float]] = defaultdict(list)
+def pooled(days: dict[str, Day], first: date, last: date, record: str) -> dict[str, list]:
+    """Pool a record of the days from ``first`` to ``last``, ``"starts"`` or ``"parts"``, by kind of start."""
+    out: dict[str, list] = defaultdict(list)
     for name, seen in days.items():
         if first.isoformat() <= name <= last.isoformat():
-            for kind, seconds in seen.starts.items():
-                starts[kind] += seconds
+            for kind, values in getattr(seen, record).items():
+                out[kind] += values
+    return out
+
+
+def start_times(days: dict[str, Day], first: date, last: date) -> list[str]:
+    """Say how long Python took to start from ``first`` to ``last``: the median, and the time 9 in 10 starts took no
+    longer than, for first visits and returning ones apart; then the median of each of its parts. Nothing where the
+    log timed no start.
+    """
+    starts, parts = pooled(days, first, last, "starts"), pooled(days, first, last, "parts")
     if not starts:
         return []
     out = ["", "From opening the app to Python ready, where the browser downloaded the app's Python:"]
-    for kind in ("First visit", "Returning"):
+    for kind in KINDS:
         if seconds := sorted(starts[kind]):
             nine_in_ten = seconds[math.ceil(0.9 * len(seconds)) - 1]
             middle = statistics.median(seconds)
             out.append(f"  {kind:<12} median {middle:.1f} s, 9 in 10 within {nine_in_ten:.1f} s, of {len(seconds)}")
+    if parts:
+        out += ["", "Where the time went, the median of each part (medians, so they need not add up to the one above):"]
+    for kind in KINDS:
+        if each := parts[kind]:
+            page_s, pyodide_s, ours_s = (statistics.median(part) for part in zip(*each, strict=True))
+            out.append(
+                f"  {kind:<12} page {page_s:.1f} s, Pyodide {pyodide_s:.1f} s, process-improve {ours_s:.1f} s, "
+                f"of {len(each)}"
+            )
     return out
 
 

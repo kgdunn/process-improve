@@ -216,6 +216,55 @@ def test_the_report_gives_the_median_start_and_the_time_9_in_10_took_no_longer_t
     assert lines[-4] == "", "a blank line sets it apart"
 
 
+#: The process-improve wheel, beside the archive: the worker asks for it once Pyodide and its packages are in.
+WHEEL = "/wheels/0123456789abcdef/process_improve-2.7.0-py3-none-any.whl"
+
+
+def started_in_parts(opened: str, worker: str, wheel: str, ready: str, **fields) -> list[dict]:
+    """Return a start with the worker's requests that split it: runtime.json as it starts, then the wheel."""
+    return [
+        logged("/", when=opened, duration=0, **fields),
+        logged("/runtime.json", when=worker, referer=FROM_THE_WORKER, duration=0, **fields),
+        logged(WHEEL, when=wheel, referer=FROM_THE_WORKER, duration=0, **fields),
+        logged(ARCHIVE, when=ready, referer=FROM_THE_WORKER, **fields),
+    ]
+
+
+def test_a_start_splits_into_the_page_pyodide_and_process_improve():
+    seen = day(
+        *started_in_parts("2026-10-12T10:00:00", "2026-10-12T10:00:01", "2026-10-12T10:00:07", "2026-10-12T10:00:08"),
+        logged("/runtime.json", when="2026-10-12T10:00:02", referer=FROM_THE_PAGE),  # the page's own copy: no mark
+    )
+    assert seen.starts == {"First visit": [pytest.approx(8)]}
+    assert seen.parts == {"First visit": [(pytest.approx(1), pytest.approx(6), pytest.approx(1))]}
+
+
+def test_a_start_whose_worker_requests_are_missing_is_timed_but_not_split():
+    seen = day(
+        logged("/", when="2026-10-12T10:00:00", duration=0),
+        logged(WHEEL, when="2026-10-12T10:00:07", referer=FROM_THE_WORKER),  # no runtime.json from the worker
+        logged(ARCHIVE, when="2026-10-12T10:00:08", referer=FROM_THE_WORKER),
+        *started_in_parts("2026-10-12T11:00:00", "2026-10-12T11:00:01", "2026-10-12T11:00:07", "2026-10-12T11:00:08"),
+    )
+    assert seen.starts == {"First visit": [pytest.approx(8)], "Returning": [pytest.approx(8)]}
+    assert seen.parts == {"Returning": [(pytest.approx(1), pytest.approx(6), pytest.approx(1))]}, "the second only"
+
+
+def test_the_report_gives_the_median_of_each_part_of_a_start():
+    entries = [
+        *started_in_parts("2026-10-12T10:00:00", "2026-10-12T10:00:01", "2026-10-12T10:00:09", "2026-10-12T10:00:10"),
+        *started_in_parts(
+            "2026-10-12T10:00:00", "2026-10-12T10:00:02", "2026-10-12T10:00:06", "2026-10-12T10:00:08", ip="192.0.2.0"
+        ),
+    ]
+    days, referrers = usage.tally(entries, SINCE)
+    lines = usage.report(days, {}, referrers, date(2026, 10, 12), date(2026, 10, 12)).splitlines()
+    assert lines[-2:] == [
+        "Where the time went, the median of each part (medians, so they need not add up to the one above):",
+        "  First visit  page 1.5 s, Pyodide 6.0 s, process-improve 1.5 s, of 2",
+    ]
+
+
 def test_a_link_card_fetched_by_a_chat_or_social_site_is_a_preview():
     seen = day(
         logged("/og-card.png", "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)"),

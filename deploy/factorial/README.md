@@ -101,13 +101,23 @@ ready: the median, and the time 9 in 10 starts took no longer than, for first vi
 returning readers apart. The log can time a start only when the browser downloaded the app's
 Python (`wheels/<digest>/bootstrap.zip`), which is the last file the worker asks factori.al for:
 a reader's first visit, and their first after a deploy. A returning reader's browser already has
-Pyodide, so their starts are quicker. A start that finds the archive kept asks for nothing to
-time. The time leaves out the second or so it takes to unpack and import the archive.
+Pyodide, so the gap between the two rows is what downloading it adds. A start that finds the
+archive kept asks for nothing to time. The time leaves out the second or so it takes to unpack
+and import the archive.
+
+Then it splits each start in three, where the log holds the worker's requests that mark the
+seams: the page, from opening it to the worker reading `runtime.json`; Pyodide and its packages,
+from there to the worker asking for the process-improve wheel; and process-improve, from there
+to the end of the archive's download. Each part's median is given, so the parts need not add up
+to the median start.
 
 ```text
 From opening the app to Python ready, where the browser downloaded the app's Python:
   First visit  median 8.0 s, 9 in 10 within 30.0 s, of 5
   Returning    median 2.5 s, 9 in 10 within 3.0 s, of 2
+
+Where the time went, the median of each part (medians, so they need not add up to the one above):
+  First visit  page 1.5 s, Pyodide 6.0 s, process-improve 1.5 s, of 2
 ```
 
 Last, the report lists where readers came from: the site that linked here, as the browser names
