@@ -390,6 +390,7 @@ import { installImport, openedWords } from "./import.js";
 import { pythonLine } from "./worker-rpc.js";
 import { installOffline } from "./offline.js";
 import { REQUEST_PARAM, installFeedback, keepError, requestWords } from "./feedback.js";
+import { drawUsage } from "./usage.js";
 
 // Where Process Improvement using Data explains each design, method and measure the page uses.
 const BOOK = "https://learnche.org/pid/design-analysis-experiments";
@@ -10275,6 +10276,7 @@ const feedback = installFeedback({
   hasStudy: () => Boolean(state.design),
   writeSentence: say, // a stage the dialog names is a link to it, as on the page
 });
+drawUsage($("#foot-usage")); // the footer's line of use: left out when the counts cannot be had
 addFactor();
 addFactor();
 setAim(defaultAim(0));

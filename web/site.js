@@ -5,6 +5,10 @@
 // The footer names a page in one to three words, and one page for each question a reader has: the textbooks'
 // answers are reached from "Is it accurate?", and the book, the course and its videos from the page for learning.
 import { MODES, nextMode } from "./logic.js";
+import { drawUsage } from "./usage.js";
+
+/** The group of the footer that ends with how many people used Factorial each day (usage.js). */
+const USAGE_GROUP = "Behind it";
 
 /** The footer's links, in groups: each a heading and its links, a path from the site's root or a whole address. */
 export const SITE_LINKS = [
@@ -107,6 +111,11 @@ function footer() {
       const item = document.createElement("li");
       item.append(link);
       list.append(item);
+    }
+    if (group.head === USAGE_GROUP) {
+      const usage = Object.assign(document.createElement("li"), { className: "foot__usage", hidden: true });
+      list.append(usage);
+      drawUsage(usage);
     }
     box.append(head, list);
     nav.append(box);

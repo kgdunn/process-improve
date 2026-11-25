@@ -68,6 +68,16 @@ So that usage can be followed for longer than the log is kept, a daily job adds 
 day's counts to `/var/lib/factorial/usage.csv`: a row a day of numbers (each page's views,
 readers, Python starts, link previews), with no address, browser or path of anyone's in it.
 
+The footer of every page draws how many readers each of the last 90 days had, with today's count
+beside the line. An hourly job writes those numbers, and when they were written, to
+`/var/lib/factorial/public/usage.json`, which Caddy serves as `https://factori.al/usage.json` in
+place of the build's own, a file of no days. It reads the kept counts and a day or two of the log,
+not a year of it:
+
+```bash
+sudo factorial-usage --public /var/lib/factorial/public/usage.json   # what the hourly job runs
+```
+
 The one exception is a report a reader sends with the app's Feedback button, and only when they
 press Send: the relay emails it to the maintainer, and keeps no copy and no line of it
 ([Feedback](#feedback)). Its request is logged as any other, without its body. A reader who gives
@@ -278,6 +288,7 @@ The last line rolls back without GitHub, as the workflow would.
 | [`factorial_deploy.py`](factorial_deploy.py) | `/usr/local/bin/factorial-deploy` | The deploy key's one command |
 | [`usage.py`](usage.py) | `/usr/local/bin/factorial-usage` | The usage report |
 | [`usage-daily.sh`](usage-daily.sh) | `/etc/cron.daily/factorial-usage` | Keeps each finished day's counts |
+| [`usage-hourly.sh`](usage-hourly.sh) | `/etc/cron.hourly/factorial-usage-public` | Writes the public `usage.json` the footer draws |
 | [`sshd.conf`](sshd.conf) | `/etc/ssh/sshd_config.d/factorial.conf` | What sshd allows the deploy account |
 | [`factorial.caddy`](factorial.caddy) | `/etc/caddy/factorial.caddy` | The site, its headers and its log |
 | [`feedback_relay.py`](feedback_relay.py) | `/usr/local/bin/factorial-feedback` | The relay that emails a reader's report |

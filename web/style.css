@@ -603,6 +603,14 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 .foot__head { margin: 0 0 6px; color: var(--fg); font-weight: 600; }
 .foot ul { margin: 0; padding: 0; list-style: none; }
 .foot li { margin: 4px 0; }
+/* How many people used Factorial each day (usage.js): a line of the last 90 days, a red dot on today, and its count. */
+.foot__usage { margin-top: 8px; }
+.usage { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; }
+.usage svg { flex: none; overflow: visible; }
+.usage polyline { fill: none; stroke: var(--muted); stroke-width: 1.4; stroke-linejoin: round; stroke-linecap: round; }
+.usage circle { fill: var(--error); }
+.usage span { font-size: 0.85rem; line-height: 1.2; color: var(--muted); }
+.usage:hover span, .usage:focus-visible span { color: var(--fg); text-decoration: underline; }
 .foot__device p { margin: 0 0 6px; }
 .foot__actions { display: flex; flex-wrap: wrap; gap: 6px 8px; }
 .foot__actions button { padding: 4px 10px; font-size: inherit; }

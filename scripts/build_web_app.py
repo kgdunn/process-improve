@@ -78,6 +78,8 @@ APP_FILES = (
     "reproduced.js",
     "reproduced-logic.js",
     "site.js",
+    "usage.js",
+    "usage.json",
     "field-chart.js",
     "app.js",
     "logic.js",
