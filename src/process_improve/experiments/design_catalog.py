@@ -90,7 +90,9 @@ class Family:
 
 
 #: Every family a record can belong to. ``year`` and ``reference`` name the work that first published
-#: the family, where one work is generally credited with it.
+#: the family, where one work is generally credited with it. Credited is not always first: sheep were fed
+#: in the layout of a Latin square in 1788 (Cretté de Palluel), and Fisher (1925) made it a design, with
+#: its random arrangement and its analysis, as he did the blocks and the split plot (#1479).
 FAMILIES: dict[str, Family] = {
     "full_factorial": Family(
         "Full factorial", 1926, "Fisher, R. A. (1926), The arrangement of field experiments, J. Ministry of Agriculture"
@@ -174,6 +176,8 @@ FAMILIES: dict[str, Family] = {
     ),
     "latin_square": Family(
         "Latin square",
+        1925,
+        "Fisher, R. A. (1925), Statistical Methods for Research Workers, section 49, Oliver and Boyd",
         about=(
             "A design that tests one factor while blocking on two disturbances: sources of variation that are not of "
             "interest. It is laid out as a square in which each treatment appears once in every row and once in every "
@@ -191,6 +195,8 @@ FAMILIES: dict[str, Family] = {
     ),
     "block_design": Family(
         "Randomized blocks",
+        1925,
+        "Fisher, R. A. (1925), Statistical Methods for Research Workers, section 48, Oliver and Boyd",
         about=(
             "A design whose runs are grouped into blocks of like conditions, such as a day, a batch of raw material "
             "or an operator. The treatments are run in random order inside each block, and compared there. A complete "
@@ -208,6 +214,8 @@ FAMILIES: dict[str, Family] = {
     ),
     "split_plot": Family(
         "Split plot",
+        1925,
+        "Fisher, R. A. (1925), Statistical Methods for Research Workers, section 42, Oliver and Boyd",
         about=(
             "A design for factors that are hard to change. A hard-to-change factor is set once for a group of runs, "
             "the whole plot, and the easy-to-change factors are varied inside it."
@@ -226,8 +234,8 @@ FAMILIES: dict[str, Family] = {
         "Comparison or regression",
         about=(
             "A study of one factor, or of measured data with no design of several factors: a sample is compared with "
-            "a target, two or more groups with each other, a line or a curve is fitted to observations, or variation "
-            "is divided among its sources. The catalog holds these as worked examples."
+            "a target, two or more groups with each other, a line, a curve or a surface is fitted, or variation is "
+            "divided among its sources. The catalog holds these as worked examples."
         ),
         use_when=(
             "Two or more treatments, methods or groups are compared on one response",
@@ -243,22 +251,25 @@ FAMILIES: dict[str, Family] = {
     "other": Family(
         "Other",
         about=(
-            "Designs and worked calculations that belong to none of the other families: Koshal, equiradial and "
-            "third-order designs, paths of steepest ascent, and small designs that show how a calculation is done."
+            "Designs and worked calculations that belong to none of the other families: Koshal, simplex, equiradial "
+            "and third-order designs, paths of steepest ascent, and small designs that show how a calculation is done."
         ),
     ),
 }
 
 #: The free-text design types of the reference catalog, read into a family: the first rule that matches wins.
+#: A rule names a design by words that only it uses. "simplex" alone is also a regular simplex, a first-order
+#: design in independent factors, and "crossed" alone is also a crossed classification of laboratories or
+#: batches: neither word is a rule by itself (#1478).
 _FAMILY_RULES: tuple[tuple[str, str], ...] = (
-    (r"mixture|simplex|extreme vertices|component-amount", "mixture"),
+    (r"mixture|simplex[- ](?:lattice|centroid)|axial simplex|extreme vertices|component-amount", "mixture"),
     (r"omars", "omars"),
     (r"\bdsd\b|definitive screening|conference matrix", "dsd"),
     (r"split|strip|whole.plot|restricted randomi", "split_plot"),
     (r"box-behnken|\bbbd\b", "box_behnken"),
     (r"composite|\bccd\b|\bcc[cif]\b|axial|star points", "ccd"),
     (r"supersaturated", "supersaturated"),
-    (r"taguchi|orthogonal arra|inner array|outer array|crossed", "orthogonal_array"),
+    (r"taguchi|orthogonal arra|inner array|outer array|crossed arrays?", "orthogonal_array"),
     (r"plackett", "plackett_burman"),
     (r"latin|youden", "latin_square"),
     (r"block design|complete block|incomplete block|randomi[sz]ed blocks", "block_design"),
@@ -274,8 +285,9 @@ _FAMILY_RULES: tuple[tuple[str, str], ...] = (
     (
         (
             r"regression|comparison|single sample|single.factor|one categorical|one factor at|process record|"
-            r"illustration|confirmat|observational|search along|path of steepest|selection|second-degree|nested|"
-            r"hierarchical|two-way|completely randomi|sampling plan|design types|straight line"
+            r"illustration|confirmat|observational|search along|path of steepest|selection|second-degree|"
+            r"fitted second-order|fitted equation|nested|hierarchical|two-way|completely randomi|sampling plan|"
+            r"design types|straight line"
         ),
         "comparison",
     ),
