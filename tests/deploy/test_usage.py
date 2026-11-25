@@ -439,7 +439,8 @@ def test_the_public_file_holds_the_readers_of_each_day_kept_and_logged_and_nothi
     assert days == [["2026-10-08", 5], ["2026-10-09", 7], ["2026-10-10", 0], ["2026-10-11", 2], ["2026-10-12", 1]]
     written = json.loads(public.read_text(encoding="utf-8"))
     assert written == {"updated": "2026-10-12T10:30:00Z", "days": days}, "the days before the first count are left out"
-    assert public.stat().st_mode & 0o777 == 0o644, "Caddy reads it as another user"
+    if os.name == "posix":  # the server's: Windows keeps no such mode
+        assert public.stat().st_mode & 0o777 == 0o644, "Caddy reads it as another user"
     assert not public.with_name("usage.json.part").exists()
 
 
@@ -487,8 +488,8 @@ def test_the_hourly_job_writes_the_file_caddy_serves():
     here = SCRIPT.parent
     job = (here / "usage-hourly.sh").read_text(encoding="utf-8")
     assert "exec /usr/local/bin/factorial-usage --public /var/lib/factorial/public/usage.json" in job
-    assert (here / "usage-hourly.sh").stat().st_mode & 0o111, "run-parts runs only what may be run"
     caddy = (here / "factorial.caddy").read_text(encoding="utf-8")
     assert "handle /usage.json {\n\t\troot * /var/lib/factorial/public\n\t\tfile_server\n\t}" in caddy
     setup = (here / "setup.sh").read_text(encoding="utf-8")
-    assert '"$here/usage-hourly.sh" /etc/cron.hourly/factorial-usage-public' in setup
+    # run-parts runs only what may be run: setup.sh installs it so, whatever mode a checkout gave it.
+    assert 'install -o root -g root -m 755 "$here/usage-hourly.sh" /etc/cron.hourly/factorial-usage-public' in setup
