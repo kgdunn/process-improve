@@ -47,7 +47,7 @@ from process_improve.multivariate._cv_criteria import _CompareSettings, _PseudoV
 from process_improve.multivariate._diagnostics import cumulative_block_t2, t2_precision
 from process_improve.multivariate._impute import impute_low_rank
 from process_improve.multivariate._pca import _leverage_corrected_press, _low_rank_reconstruction, _pca_ekf_press
-from process_improve.multivariate._pls import _direct_weights, _held_out_scores
+from process_improve.multivariate._pls import MAX_BOOTSTRAP_DRAWS, _bootstrap_rows, _direct_weights, _held_out_scores
 from process_improve.multivariate._projection import operator_for_pattern, project_rows
 from process_improve.multivariate.methods import (
     ASCA,
@@ -56,6 +56,7 @@ from process_improve.multivariate.methods import (
     OPLS,
     PCA,
     PLS,
+    PLSDA,
     PRM,
     TPLS,
     DataFrameDict,
@@ -5359,6 +5360,56 @@ def test_pls_cross_validate_bootstrap() -> None:
     assert cv_result.y_hat_cv is None
     assert cv_result.press is None
     assert cv_result.q_squared is None
+
+
+def test_a_bootstrap_resample_of_one_class_is_drawn_again() -> None:
+    """A PLS-DA's bootstrap drew all its rows from one class now and then, and its fit refused that resample.
+
+    Twelve rows, six of each class, as tests/test_family_contract.py has them: the first resample that seed 63 draws
+    is all of one class. The cross-validation failed on main about once in 300 runs without a seed.
+    """
+    labels = np.array(["high", "high", "low", "high", "high", "low", "low", "low", "high", "high", "low", "low"])
+    draws = np.random.default_rng(63)
+    plain = [draws.choice(12, size=12) for _ in range(4)]
+    assert [len(set(labels[rows])) for rows in plain] == [1, 2, 2, 2], "the resample the fit refused"
+    X = pd.DataFrame(np.random.default_rng(0).standard_normal((12, 3)), columns=["a", "b", "c"])
+
+    # The one-class resample is drawn again: the next draws take its place, each with both classes.
+    Y = pd.get_dummies(pd.Series(labels), dtype=float)
+    rows = _bootstrap_rows(np.random.default_rng(63), X, Y, 4)
+    assert [list(r) for r in rows[:3]] == [list(r) for r in plain[1:]]
+    assert all(len(set(labels[r])) == 2 for r in rows)
+    # A seed whose draws all vary gives the resamples it gave before: no result that was given changes.
+    draws = np.random.default_rng(3)
+    plain = [draws.choice(12, size=12) for _ in range(4)]
+    assert all(len(set(labels[r])) == 2 for r in plain)
+    assert [list(r) for r in _bootstrap_rows(np.random.default_rng(3), X, Y, 4)] == [list(r) for r in plain]
+
+    result = PLSDA(n_components=1).fit(X, labels).cross_validate(X, labels, n_bootstrap=4, random_state=63)
+    assert result.n_resamples == 4
+    assert np.isfinite(result.beta_samples).all()
+
+
+def test_a_bootstrap_with_no_rows_that_vary_is_refused_in_words() -> None:
+    """Rows whose Y never varies cannot be redrawn into a fit: the draws stop, and say why.
+
+    One column that varies is enough: a constant column beside it, in X or in Y, is no reason to draw again.
+    """
+    X = pd.DataFrame({"a": [1.0, 2.0, 3.0, 4.0], "flat": 7.0})
+    Y = pd.DataFrame({"y": [5.0, 5.0, 5.0, np.nan]})
+    said = (
+        f"^No bootstrap resample of the 4 rows in {MAX_BOOTSTRAP_DRAWS} draws has a column of X and a column of Y "
+        "that vary, so there is no fit to make: the rows that vary are too few.$"
+    )
+    with pytest.raises(NotEnoughVarianceError, match=said):
+        _bootstrap_rows(np.random.default_rng(1), X, Y, 2)
+    Y = pd.DataFrame({"y": [1.0, 2.0, 3.0, 4.0], "flat": 5.0})
+    with pytest.raises(NotEnoughVarianceError, match=said):  # Y varies, and X does not
+        _bootstrap_rows(np.random.default_rng(1), X[["flat"]], Y, 2)
+    draws = np.random.default_rng(1)
+    plain = [draws.choice(4, size=4) for _ in range(3)]
+    assert all(len(set(r)) > 1 for r in plain)
+    assert [list(r) for r in _bootstrap_rows(np.random.default_rng(1), X, Y, 3)] == [list(r) for r in plain]
 
 
 def test_pls_cross_validate_significance() -> None:

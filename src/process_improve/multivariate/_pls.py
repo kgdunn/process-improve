@@ -33,6 +33,7 @@ from ._common import (
     Q2_MIN_INCREMENT,
     DataMatrix,
     DiagnoseResult,
+    NotEnoughVarianceError,
     SelectionRule,
     SpecificationWarning,
     UncenteredDataWarning,
@@ -231,6 +232,47 @@ def _standard_error(per_fold: np.ndarray) -> np.ndarray:
     if folds < 2:
         return np.full(per_fold.shape[0], np.nan)
     return np.std(per_fold, axis=1, ddof=1) / np.sqrt(folds)
+
+
+#: The draws a bootstrap resample is given to find rows its fit can be made on (see :func:`_bootstrap_rows`).
+MAX_BOOTSTRAP_DRAWS = 1000  # pragma: no mutate - 1001 draws refuse the same rows, and say so in the same words
+
+
+def _varies(block: pd.DataFrame) -> bool:
+    """Say whether a column of ``block`` takes two observed values or more over its rows."""
+    values = block.to_numpy(dtype=float)
+    # fmax and fmin pass over a missing cell, and give NaN for a column with none observed, which is not > NaN.
+    return bool((np.fmax.reduce(values, axis=0) > np.fmin.reduce(values, axis=0)).any())
+
+
+def _bootstrap_rows(rng: np.random.Generator, X: pd.DataFrame, Y: pd.DataFrame, n_bootstrap: int) -> list[np.ndarray]:
+    """Draw ``n_bootstrap`` resamples of the rows, with replacement, each one a fit can be made on.
+
+    A resample on whose rows no column of Y varies has nothing for X to explain, and the fit refuses it
+    (:func:`check_y_varies`): a PLS-DA of 12 rows, 6 of each class, draws every row from one class about once in
+    2,000 resamples. Such a resample, or one on whose rows no column of X varies, is drawn again. A seed whose draws
+    all varied gives the same resamples as before, so no result that was given changes; one that did not is given
+    now, from the bootstrap conditioned on the rows varying.
+
+    Raises
+    ------
+    NotEnoughVarianceError
+        If no resample in :data:`MAX_BOOTSTRAP_DRAWS` draws varies in both X and Y.
+    """
+    n_rows = len(X)
+    resamples = []
+    for _ in range(n_bootstrap):
+        for _draw in range(MAX_BOOTSTRAP_DRAWS):
+            rows = rng.choice(n_rows, size=n_rows)  # with replacement, choice's default
+            if _varies(Y.iloc[rows]) and _varies(X.iloc[rows]):
+                resamples.append(rows)
+                break
+        else:
+            raise NotEnoughVarianceError(
+                f"No bootstrap resample of the {n_rows} rows in {MAX_BOOTSTRAP_DRAWS} draws has a column of X and a "
+                "column of Y that vary, so there is no fit to make: the rows that vary are too few."
+            )
+    return resamples
 
 
 def _fit_fold(
@@ -2870,7 +2912,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         n_bootstrap : int, default 0
             If > 0, use bootstrap resampling instead of CV folds.
             The value specifies the number of bootstrap rounds.
-            Overrides the ``cv`` parameter when set.
+            Overrides the ``cv`` parameter when set. A resample on whose
+            rows Y does not vary, such as one that draws every row of a
+            PLS-DA from one class, is drawn again (:func:`_bootstrap_rows`).
         conf_level : float, default 0.95
             Confidence level for the beta-coefficient intervals, in (0, 1).
         random_state : int, numpy.random.Generator or None, default None
@@ -2962,7 +3006,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         if n_bootstrap > 0:
             method = "bootstrap"
             rng = np.random.default_rng(random_state)
-            resamples = [(rng.choice(N, size=N), None) for _ in range(n_bootstrap)]  # with replacement
+            resamples = [(rows, None) for rows in _bootstrap_rows(rng, X, Y, n_bootstrap)]
             desc = "Bootstrap"
         elif cv == "loo":
             method = "jackknife"
