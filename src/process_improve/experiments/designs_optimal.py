@@ -607,7 +607,9 @@ def _split_plot_refusal(criterion: str, req: _OptimalRequest) -> str | None:
 
     asked = {
         "a candidate set is given": req.candidates is not None,
-        "fixed runs are given (backend='pyoptex' keeps them in a split-plot design)": req.fixed_runs is not None,
+        "fixed runs are given (only backend='pyoptex', deprecated, keeps them in a split-plot design)": (
+            req.fixed_runs is not None
+        ),
         "blocks are asked for": bool(req.n_blocks and req.n_blocks > 1),
         f"the split-plot search has no {criterion[0].upper()}-optimality criterion": criterion not in CRITERIA,
     }
@@ -686,7 +688,8 @@ def _dispatch_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray,
       which handles every criterion, constraints, candidate sets, categorical factors and
       fixed runs. When the split-plot search cannot honor the request (see
       :func:`_split_plot_refusal`), ``hard_to_change`` is ignored and recorded.
-    - pyoptex's coordinate exchange runs for ``backend="pyoptex"``.
+    - pyoptex's coordinate exchange runs for ``backend="pyoptex"``, which is deprecated since 2.7.0
+      and will be removed in 3.0.
     """
     from process_improve.experiments.factor import FactorType  # noqa: PLC0415
 
@@ -709,7 +712,15 @@ def _dispatch_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray,
 
     if req.backend not in ("auto", "exchange", "pyoptex"):
         raise ValueError(f"backend must be 'auto', 'exchange' or 'pyoptex'; got {req.backend!r}.")
-    if req.backend != "pyoptex":
+    if req.backend == "pyoptex":
+        warnings.warn(
+            "process_improve.experiments.generate_design(backend='pyoptex') is deprecated since 2.7.0 and will be "
+            "removed in 3.0; use the default backend='auto' instead, whose built-in engines build every optimal "
+            "design, split-plot designs included.",
+            DeprecationWarning,
+            stacklevel=user_stacklevel(),
+        )
+    else:
         # The built-in engines are the default, so a design does not depend on which optional packages
         # are installed: the coordinate exchange for split-plot structure, the candidate exchange otherwise.
         refusal = _split_plot_refusal(criterion, req) if req.hard_to_change else None
@@ -776,7 +787,8 @@ _DISPATCH_PARAMETERS = """
         each row (by index label) was picked.
     backend : {"auto", "exchange", "pyoptex"}
         ``"auto"`` and ``"exchange"`` use the built-in engines: the coordinate exchange for a
-        split-plot design, the candidate exchange otherwise. ``"pyoptex"`` asks for pyoptex.
+        split-plot design, the candidate exchange otherwise. ``"pyoptex"`` asks for pyoptex;
+        it is deprecated since 2.7.0 and will be removed in 3.0.
     n_blocks : int or None
         Blocks the design is run in. With the built-in exchange, the blocks are fixed
         effects in the model the runs are chosen for, and ``metadata["block_labels"]``

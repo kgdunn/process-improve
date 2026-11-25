@@ -8,6 +8,8 @@ run-order preservation branch in ``generate_design``.
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -373,3 +375,20 @@ class TestDefaultBackend:
                 constraints=[Constraint(expression="A + B <= 10")],
                 backend="pyoptex",
             )
+
+
+class TestPyoptexBackendIsDeprecated:
+    """``backend="pyoptex"`` warns that it goes in 3.0; the default built-in engines never warn."""
+
+    def test_asking_for_pyoptex_warns_and_still_builds_the_design(self) -> None:
+        message = r"generate_design\(backend='pyoptex'\) is deprecated since 2\.7\.0 and will be removed in 3\.0; use"
+        with pytest.warns(DeprecationWarning, match=message) as caught:
+            result = generate_design(_continuous(3), design_type="d_optimal", budget=12, backend="pyoptex")
+        assert result.metadata["backend"] == "pyoptex"
+        assert caught[0].filename == __file__, "the warning names the caller's line"
+
+    def test_the_default_backend_does_not_warn(self) -> None:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            result = generate_design(_continuous(3), design_type="d_optimal", budget=12, hard_to_change=["A"])
+        assert result.metadata["backend"] == "split_plot_exchange"

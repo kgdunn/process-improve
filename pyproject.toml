@@ -85,15 +85,13 @@ fast = ["numba>=0.63.1"]
 # for every platform CI tests, so no system package is required.
 control = ["osqp>=1.0"]
 
-# NOTE: ``pyoptex`` (coordinate-exchange I-/A-optimal and split-plot designs in
-# ``experiments.designs_optimal``) is intentionally *not* a declared extra. Its
-# latest release (1.2.1) pins ``plotly~=5.24`` (i.e. < 6), which conflicts with
-# this project's ``plotly>=6.5.2`` floor in the ``plotting``/``all`` extras. A
-# single environment cannot satisfy both, so declaring a ``pyoptex`` extra would
-# make ``uv sync --all-extras`` (used by CI) unresolvable. Install pyoptex
-# separately in its own environment. It is needed only for split-plot designs
-# (hard_to_change) or backend="pyoptex": every optimal design otherwise uses the
-# built-in candidate exchange.
+# NOTE: ``pyoptex`` is intentionally *not* a declared extra. Its latest release
+# (1.2.1) pins ``plotly~=5.24`` (i.e. < 6), which conflicts with this project's
+# ``plotly>=6.5.2`` floor in the ``plotting``/``all`` extras. A single environment
+# cannot satisfy both, so declaring a ``pyoptex`` extra would make
+# ``uv sync --all-extras`` (used by CI) unresolvable. It is used only when asked
+# for with backend="pyoptex", deprecated since 2.7.0 and removed in 3.0: every
+# optimal design, split-plot designs included, comes from the built-in engines.
 
 # Meta extra: reproduces the pre-ENG-13 install closure.
 all = [
@@ -169,22 +167,17 @@ dev = [
 # plotly>=5.24,<7) but not yet released; numba and pandas are still pinned
 # strictly upstream. These overrides match this project's own floors, so they
 # change nothing else. Drop the plotly override once a pyoptex release ships
-# the relaxed pin.
+# the relaxed pin, and all three when backend="pyoptex" is removed in 3.0 and
+# pyoptex leaves the dev group.
 override-dependencies = [
     "plotly>=6.5.2",
     "numba>=0.63.1",
     "pandas>=2.3.3",
 ]
-# scipy 1.18.1 was published without CPython 3.13 wheels (cp312 only), and CI
-# re-resolves on a stale lockfile whenever this file changes, so a fresh
-# resolution on Python 3.13 picks it and fails to install. Exclude that one
-# release; drop this constraint once scipy uploads cp313 wheels for it or
-# publishes a newer release.
 # fonttools 4.69.0 was published with cp311 wheels only and no sdist, so every
 # CI job on Python 3.12 to 3.14t failed to install it. Remove on or after
 # 2026-12-02 once fonttools has a complete release (#1492).
 constraint-dependencies = [
-    "scipy!=1.18.1",
     "fonttools!=4.69.0",
 ]
 
