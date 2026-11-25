@@ -51,6 +51,12 @@ install -o root -g root -m 755 "$here/usage.py" /usr/local/bin/factorial-usage
 install -d -o root -g root -m 755 /var/lib/factorial
 install -o root -g root -m 755 "$here/usage-daily.sh" /etc/cron.daily/factorial-usage
 
+# The readers of each of the last 90 days, numbers alone, which the footer of every page draws: written each hour,
+# and served as https://factori.al/usage.json (usage.py, --public). Written once now, so Caddy has a file to serve.
+install -d -o root -g root -m 755 /var/lib/factorial/public
+install -o root -g root -m 755 "$here/usage-hourly.sh" /etc/cron.hourly/factorial-usage-public
+/etc/cron.hourly/factorial-usage-public || echo "No usage.json yet: there is no access log to count. The hourly job writes it."
+
 # The deploy key, where only root can change it, and restricted again on its own line.
 install -d -o root -g root -m 755 /etc/ssh/authorized_keys
 printf 'restrict %s\n' "$(cat "$key")" > /etc/ssh/authorized_keys/factorial

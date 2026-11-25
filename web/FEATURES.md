@@ -961,6 +961,12 @@ What a careful reader, or an organization, asks before using a tool.
     reader's in it. A link someone posted may name the place it was posted
     (`?ref=newsletter`), so that its visits are counted apart: a word for the place, never
     for a person. The app drops it from the address once open.
+- **How many people used it, in the footer.** Under "Behind it", a line of the last 90 days
+  with a red dot on today, and today's count: "89 users today".
+  - *Details:* A user is a network and a browser in a day, so the count is approximate. The
+    server writes the numbers, and nothing else, to a public file each hour, and the footer of
+    every page draws it. A copy of Factorial at another address has no such file and leaves
+    the line out.
 - **Feedback is the one thing sent.** It goes only when you press Send, and holds only what the
   form lists.
   - *Details:* The relay emails it and keeps nothing.

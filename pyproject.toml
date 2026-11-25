@@ -180,8 +180,12 @@ override-dependencies = [
 # resolution on Python 3.13 picks it and fails to install. Exclude that one
 # release; drop this constraint once scipy uploads cp313 wheels for it or
 # publishes a newer release.
+# fonttools 4.69.0 was published with cp311 wheels only and no sdist, so every
+# CI job on Python 3.12 to 3.14t failed to install it. Remove on or after
+# 2026-12-02 once fonttools has a complete release (#1492).
 constraint-dependencies = [
     "scipy!=1.18.1",
+    "fonttools!=4.69.0",
 ]
 
 
