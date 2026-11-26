@@ -47,7 +47,7 @@ Please include, as far as you can:
 
 ## What to expect
 
-- **Acknowledgement** within 7 days that the report was received.
+- **Acknowledgment** within 7 days that the report was received.
 - **An initial assessment** (severity, threat model, whether it reproduces)
   within 14 days.
 - **A fix or mitigation plan** communicated before any public disclosure. Fixes
@@ -62,7 +62,7 @@ public disclosure (coordinated disclosure).
 
 ## Scope and threat model
 
-The project's own catalogue of past findings, the threat models, and the
+The project's own catalog of past findings, the threat models, and the
 hardening already in place live in [`SECURITY_AUDIT.md`](SECURITY_AUDIT.md).
 In summary:
 

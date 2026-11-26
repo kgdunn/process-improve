@@ -236,7 +236,7 @@ def _factors_named(spec: DOEProblemSpec, names: list[str]) -> list[Factor]:
 
 
 def _constraint_params(spec: DOEProblemSpec) -> dict[str, Any]:
-    """Return the ``constraints`` keyword for a stage that honours them (empty without constraints)."""
+    """Return the ``constraints`` keyword for a stage that honors them (empty without constraints)."""
     return {"constraints": [c.model_dump() for c in spec.constraints]} if spec.constraints else {}
 
 
@@ -372,8 +372,8 @@ def _dsd_params(n_factors: int) -> dict[str, Any]:
 
     The staged analysis (:func:`analyze_omars`) estimates the error from what the full
     second-order model cannot fit. The DSD of an even number of factors leaves it nothing,
-    and of an odd number one degree of freedom less than its centre runs; each centre run
-    added gives one more. Centre runs are added until :data:`_DSD_ERROR_DF` are left: five
+    and of an odd number one degree of freedom less than its center runs; each center run
+    added gives one more. Center runs are added until :data:`_DSD_ERROR_DF` are left: five
     in all for an even number of factors, four for an odd number.
     """
     return {"n_center_points": _DSD_ERROR_DF + 1 if n_factors % 2 == 0 else _DSD_ERROR_DF}
@@ -390,13 +390,13 @@ def _screening_design_params(
 ) -> dict[str, Any]:
     """Build the ``generate_design`` keyword arguments for a large-factor screening stage.
 
-    A definitive screening design takes the centre runs that leave its analysis four
-    degrees of freedom for error (see :func:`_dsd_params`). A Plackett-Burman design gets three centre runs when
+    A definitive screening design takes the center runs that leave its analysis four
+    degrees of freedom for error (see :func:`_dsd_params`). A Plackett-Burman design gets three center runs when
     every factor is continuous, for two reasons: they test for curvature, which is
-    what decides whether the optimisation stage is needed at all, and the extra
+    what decides whether the optimization stage is needed at all, and the extra
     degrees of freedom let a stepwise search hold an interaction beside the main
     effects, which removes the bias that interaction puts on them. A categorical
-    factor has no centre, so then it gets none.
+    factor has no center, so then it gets none.
     """
     if design_type == "fractional_factorial":
         return {"resolution": 4, "n_center_points": 3}
@@ -512,7 +512,7 @@ def _mixture_optimization_stage(spec: DOEProblemSpec, stage_number: int) -> Expe
 
 
 def _rsm_factor_names(spec: DOEProblemSpec, has_screening: bool) -> list[str]:
-    """Factors the optimisation stage is planned over.
+    """Factors the optimization stage is planned over.
 
     Without screening these are the factors the prior knowledge names as significant when
     that knowledge is strong enough to skip screening, and otherwise every factor. After
@@ -534,7 +534,7 @@ def _optimal_rsm_design(spec: DOEProblemSpec, factors: list[Factor]) -> tuple[st
     if spec.has_constraints:
         reason = "D-optimal RSM design over the constrained factor space."
     elif len(factors) == 1:
-        reason = "A three-level D-optimal design (low, centre and high settings, replicated) fits the quadratic."
+        reason = "A three-level D-optimal design (low, center and high settings, replicated) fits the quadratic."
     else:
         reason = (
             "D-optimal RSM design: a CCD or Box-Behnken design needs continuous factors, so the categorical "
@@ -549,9 +549,9 @@ def _rsm_design(
     template: dict[str, Any],
     has_screening: bool,
 ) -> tuple[str, dict[str, Any], str]:
-    """Choose the optimisation design over ``factors``: (design_type, design_params, reason).
+    """Choose the optimization design over ``factors``: (design_type, design_params, reason).
 
-    A CCD is face-centred. The factors' low and high settings are all the planner knows
+    A CCD is face-centered. The factors' low and high settings are all the planner knows
     of the region, which makes it a cube, and a rotatable CCD's axial runs leave that
     cube (by 1.68 times the half-range for three factors), at settings that may not
     be possible to run, such as a negative concentration.
@@ -565,13 +565,13 @@ def _rsm_design(
     # Box-Behnken designs exist for 3 to 7 factors.
     if has_screening and domain_pref in ("ccd", "ccd_face_centered", None):
         reason = (
-            "A face-centred CCD adds axial and centre runs to a two-level base, with every run inside the factor "
+            "A face-centered CCD adds axial and center runs to a two-level base, with every run inside the factor "
             "ranges."
         )
     elif 3 <= n_rsm <= 7 and (domain_pref == "box_behnken" or not has_screening):
         return "box_behnken", params, "BBD for response surface modeling - fewer runs, avoids extreme corners."
     else:
-        reason = "Face-centred CCD keeps every run within the factor ranges."
+        reason = "Face-centered CCD keeps every run within the factor ranges."
     params["alpha"] = "face_centered"
     if n_rsm >= 6:
         params["cube"] = "fractional"  # a resolution V half fraction, not the full 2^k cube
@@ -584,7 +584,7 @@ def _select_rsm_design(
     template: dict[str, Any],
     has_screening: bool,
 ) -> ExperimentalStage | None:
-    """Select the RSM optimisation design."""
+    """Select the RSM optimization design."""
     if not spec.goal_includes_optimization and classification["n_factors"] > 5:
         return None
     stage_number = 2 if has_screening else 1
@@ -666,16 +666,16 @@ def _build_confirmation_stage(
 # Conditional stages
 # ---------------------------------------------------------------------------
 
-#: Two-level screening designs whose centre runs, when they have some, test for curvature.
+#: Two-level screening designs whose center runs, when they have some, test for curvature.
 _TWO_LEVEL_SCREENING = frozenset({"full_factorial", "fractional_factorial", "plackett_burman"})
 
 
 def _curvature_gate(screening: ExperimentalStage, spec: DOEProblemSpec) -> str:
-    """Say what ``screening`` must show for the optimisation stage after it to be run; "" if it cannot show it.
+    """Say what ``screening`` must show for the optimization stage after it to be run; "" if it cannot show it.
 
-    A DSD runs every factor at three levels, and a two-level design with centre runs
-    compares its centre with its corners, so either can show whether a response
-    surface is needed. Any other screening design cannot, and the optimisation stage
+    A DSD runs every factor at three levels, and a two-level design with center runs
+    compares its center with its corners, so either can show whether a response
+    surface is needed. Any other screening design cannot, and the optimization stage
     after it is planned unconditionally.
     """
     if screening.design_type == "dsd":
@@ -688,7 +688,7 @@ def _curvature_gate(screening: ExperimentalStage, spec: DOEProblemSpec) -> str:
             )
         else:
             analysis = (
-                "analyze_experiment with analysis_type='model_selection', since without extra centre runs "
+                "analyze_experiment with analysis_type='model_selection', since without extra center runs "
                 "analyze_omars has no degrees of freedom for error"
             )
         return (
@@ -700,7 +700,7 @@ def _curvature_gate(screening: ExperimentalStage, spec: DOEProblemSpec) -> str:
     has_centre = bool(screening.design_params.get("n_center_points"))
     if screening.design_type in _TWO_LEVEL_SCREENING and has_centre and spec.n_continuous == spec.n_factors:
         return (
-            "the centre runs show curvature (analyze_experiment with analysis_type='curvature_test'). Without "
+            "the center runs show curvature (analyze_experiment with analysis_type='curvature_test'). Without "
             "it, the screening model of main effects and interactions puts the best settings at a corner of "
             "the region, so the study goes straight to confirmation there."
         )
@@ -708,10 +708,10 @@ def _curvature_gate(screening: ExperimentalStage, spec: DOEProblemSpec) -> str:
 
 
 def _mark_conditional_stages(stages: list[ExperimentalStage], spec: DOEProblemSpec) -> list[ExperimentalStage]:
-    """Make an optimisation stage conditional when the screening stage before it can test for curvature.
+    """Make an optimization stage conditional when the screening stage before it can test for curvature.
 
     Run last, on the stages as the budget left them: a tight budget can take the
-    centre runs out of a screening design, and then there is nothing to decide with.
+    center runs out of a screening design, and then there is nothing to decide with.
     """
     marked = list(stages)
     for i in range(1, len(marked)):
@@ -736,7 +736,7 @@ def _apply_split_plot(
 
     ``generate_design`` builds split-plot structure only in the optimal families, so such
     a stage becomes a D-optimal design of the same size, for main effects when screening
-    and the quadratic model when optimising, with ``hard_to_change`` naming its
+    and the quadratic model when optimizing, with ``hard_to_change`` naming its
     whole-plot factors.
     """
     if not spec.has_hard_to_change:
@@ -821,8 +821,8 @@ _SHRINKABLE_SCREENING = frozenset({"full_factorial", "fractional_factorial", "pl
 def _stage_variants(stage: ExperimentalStage, factors: list[Factor]) -> list[tuple[str, dict[str, Any]]]:
     """Versions of ``stage`` from its ideal design down to the smallest the planner accepts.
 
-    Screening drops its centre points, then becomes a Plackett-Burman design. Optimisation
-    keeps two centre points (one degree of freedom for pure error), then becomes a D-optimal
+    Screening drops its center points, then becomes a Plackett-Burman design. Optimization
+    keeps two center points (one degree of freedom for pure error), then becomes a D-optimal
     quadratic design with three runs more than the model has coefficients, as does any
     optimal design. Confirmation drops to three replicates.
     """
@@ -862,9 +862,9 @@ def _variant_runs(stage: ExperimentalStage, spec: DOEProblemSpec) -> list[tuple[
 def _single_dsd_plan(
     stages: list[ExperimentalStage], spec: DOEProblemSpec, *, extra_centres: bool = True
 ) -> list[ExperimentalStage] | None:
-    """One definitive screening design in place of separate screening and optimisation stages.
+    """One definitive screening design in place of separate screening and optimization stages.
 
-    The DSD has the centre runs that leave its analysis :data:`_DSD_ERROR_DF` degrees of
+    The DSD has the center runs that leave its analysis :data:`_DSD_ERROR_DF` degrees of
     freedom for error, or, with ``extra_centres=False``, only its own. Returns None when the
     plan has no such pair, or when a DSD cannot take the factors (fewer than three, any not
     continuous, or hard-to-change factors needing a split plot).
@@ -900,10 +900,10 @@ def _single_dsd_plan(
 
 
 def _few_error_df_note(spec: DOEProblemSpec) -> str:
-    """Say what a DSD without its extra centre runs leaves its analysis."""
+    """Say what a DSD without its extra center runs leaves its analysis."""
     error_df = _dsd_error_df(spec.n_factors, {})
     return (
-        f" To fit the budget it has no extra centre runs, so its analysis has {error_df} degree(s) of freedom for "
+        f" To fit the budget it has no extra center runs, so its analysis has {error_df} degree(s) of freedom for "
         "error and can miss a smaller active effect."
     )
 
@@ -969,9 +969,9 @@ def _apply_budget_constraints(
     Each step takes the stage furthest over its share of the budget (from
     ``allocate_budget``) to its next smaller design, so ``estimated_runs`` is always what
     the stage's ``design_params`` build. One definitive screening design replaces the
-    screening and optimisation stages, if it fits, in two cases: when every stage is as
+    screening and optimization stages, if it fits, in two cases: when every stage is as
     small as it goes and the plan still does not fit, and when the reduction took away
-    the screening design's test for curvature, which would leave the optimisation stage
+    the screening design's test for curvature, which would leave the optimization stage
     to be run whatever the screening shows. Otherwise the warning says the budget is too
     small.
     """
@@ -988,7 +988,7 @@ def _apply_budget_constraints(
         return single, [
             (
                 f"Budget of {budget} runs is below the {ideal_total} runs of the ideal plan, and reducing it would "
-                "leave a screening design that cannot test for curvature followed by an optimisation stage that "
+                "leave a screening design that cannot test for curvature followed by an optimization stage that "
                 "must then always be run. One definitive screening design instead screens the factors and tests "
                 "for curvature; it fits a full quadratic model if at most three factors are active."
             )
@@ -1006,7 +1006,7 @@ def _apply_budget_constraints(
         if plan is not None and sum(s.estimated_runs for s in plan) <= budget:
             return plan, [
                 (
-                    f"Budget of {budget} runs cannot hold separate screening and optimisation stages (at least "
+                    f"Budget of {budget} runs cannot hold separate screening and optimization stages (at least "
                     f"{smallest_total} runs), so one definitive screening design screens the factors and detects "
                     f"curvature; it fits a full quadratic model only if at most three factors are active.{note}"
                 )
@@ -1031,7 +1031,7 @@ def _compute_strategy_id(spec: DOEProblemSpec) -> str:
     """Compute a deterministic strategy ID from every input that can change the strategy.
 
     The factors are hashed in order with their types, ranges and levels, because the
-    order picks the optimisation stage's placeholder factors.
+    order picks the optimization stage's placeholder factors.
     """
     canonical = json.dumps(
         {
@@ -1063,7 +1063,7 @@ def _build_assumptions(spec: DOEProblemSpec, has_screening: bool) -> list[str]:
     assumptions = [
         "Factor ranges are set wide enough to detect effects.",
         "Measurement system is adequate (repeatability << effect sizes).",
-        "Runs are randomised to avoid confounding with lurking variables.",
+        "Runs are randomized to avoid confounding with lurking variables.",
     ]
     hard = [f.name for f in spec.factors if f.hard_limits]
     if hard:
@@ -1072,7 +1072,7 @@ def _build_assumptions(spec: DOEProblemSpec, has_screening: bool) -> list[str]:
             "does not move or widen them."
         )
     if has_screening:
-        assumptions.append("Screening will identify 2-4 significant factors for optimisation.")
+        assumptions.append("Screening will identify 2-4 significant factors for optimization.")
         assumptions.append("Effect sparsity: only a few factors dominate the response.")
         assumptions.append("Effect heredity: interactions are only important if parent main effects are active.")
     if spec.prior_knowledge and spec.prior_knowledge.confidence >= 0.6:
@@ -1096,14 +1096,14 @@ def _build_risks(
             "Use analyze_experiment(..., analysis_type='split_plot')."
         )
     if spec.has_mixture:
-        risks.append("Mixture constraints require specialised designs and Scheffe polynomial models.")
+        risks.append("Mixture constraints require specialized designs and Scheffe polynomial models.")
     if classification["n_factors"] >= 8:
         risks.append("With 8+ factors, screening may miss important interactions (resolution III/IV limitation).")
     risks.extend(template.get("special_considerations", []))
     if not any(f.hard_limits for f in spec.factors):
         risks.extend(template.get("soft_range_considerations", []))
     if not risks:
-        risks.append("Standard risks: ensure randomisation, verify measurement system, check for outliers.")
+        risks.append("Standard risks: ensure randomization, verify measurement system, check for outliers.")
     return risks
 
 
@@ -1121,9 +1121,9 @@ def _build_alternatives(
         )
     elif n >= 6 and spec.n_continuous == n:
         alternatives.append(
-            f"Plackett-Burman design with 3 centre runs ({plackett_burman_runs(n) + 3} runs) if runs are scarcer "
+            f"Plackett-Burman design with 3 center runs ({plackett_burman_runs(n) + 3} runs) if runs are scarcer "
             "than the DSD allows: each two-factor interaction then biases the main effects of the factors "
-            "outside it, so analyse it with a stepwise search that can take interactions in."
+            "outside it, so analyze it with a stepwise search that can take interactions in."
         )
     if n <= 5:
         alternatives.append(f"Full factorial 2^{n} ({2**n} runs) if budget allows complete information.")
@@ -1231,7 +1231,7 @@ def recommend_strategy(  # noqa: C901, PLR0913
     """Recommend a multi-stage experimental strategy.
 
     Given a DOE problem description, apply deterministic decision rules
-    to recommend a staged experimental plan (screening → optimisation →
+    to recommend a staged experimental plan (screening → optimization →
     confirmation).
 
     Parameters
@@ -1239,7 +1239,7 @@ def recommend_strategy(  # noqa: C901, PLR0913
     factors : list[Factor]
         All candidate experimental factors.
     responses : list[Response] or None
-        Response variables with optimisation goals.
+        Response variables with optimization goals.
     budget : int or None
         Total run budget across all stages.  ``None`` = no constraint.
     constraints : list[Constraint] or None
@@ -1258,7 +1258,7 @@ def recommend_strategy(  # noqa: C901, PLR0913
     Returns
     -------
     dict
-        JSON-serialisable dictionary with the ``ExperimentalStrategy`` fields.
+        JSON-serializable dictionary with the ``ExperimentalStrategy`` fields.
 
     Examples
     --------
@@ -1289,7 +1289,7 @@ def recommend_strategy(  # noqa: C901, PLR0913
     factor_names = [f.name for f in factors]
     pk = _parse_prior_knowledge(prior_knowledge, factor_names)
 
-    # --- Summarise existing data ---
+    # --- Summarize existing data ---
     data_summary = None
     if existing_data is not None:
         try:
@@ -1328,7 +1328,7 @@ def recommend_strategy(  # noqa: C901, PLR0913
     if screening:
         stages.append(screening)
 
-    # RSM optimisation stage
+    # RSM optimization stage
     rsm = _select_rsm_design(spec, classification, template, has_screening)
     if rsm:
         stages.append(rsm)

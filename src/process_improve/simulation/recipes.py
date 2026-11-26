@@ -73,7 +73,7 @@ _GOLDEN_BATCH_BASELINE = AnalysisRecipe(
             directive=(
                 "Repeat the campaign with identical measured initial conditions for every batch: "
                 "simulate_batch_campaign(n_batches=50, policy='replay', ic_scale=0.0, random_state=0). The "
-                "spread that remains cannot be removed by characterising incoming materials better; it "
+                "spread that remains cannot be removed by characterizing incoming materials better; it "
                 "arises during the batch."
             ),
             tools=["simulate_batch_campaign"],
@@ -102,7 +102,7 @@ _MIDCOURSE_CORRECTION = AnalysisRecipe(
         "Demonstrate, with executed (re-simulated) counterfactuals rather than model predictions, how a "
         "latent-variable mid-course correction recovers quality on batches headed for a shortfall. Establish "
         "the replay baseline first, correct a handful of fresh batches at a decision point to see the "
-        "workflow per batch (validity gate, dead band, corrected schedule, realised outcome), then run the "
+        "workflow per batch (validity gate, dead band, corrected schedule, realized outcome), then run the "
         "campaign-level policy comparison, optionally against the perfect-feedforward and "
         "oracle-from-the-decision-point ceilings that bracket what any scheme could achieve."
     ),
@@ -145,9 +145,9 @@ _MIDCOURSE_CORRECTION = AnalysisRecipe(
             order=3,
             directive=(
                 "Run the campaign-level comparison: evaluate_batch_control_policy(n_test=40, "
-                "decision_point=8, y_target=8.0, random_state=0). Report the realised mean and spread per "
-                "policy and the mean realised gain of the corrected batches. If the discussion needs the "
-                "ceilings (what a perfect feedforward or a mechanistic optimiser could still recover), "
+                "decision_point=8, y_target=8.0, random_state=0). Report the realized mean and spread per "
+                "policy and the mean realized gain of the corrected batches. If the discussion needs the "
+                "ceilings (what a perfect feedforward or a mechanistic optimizer could still recover), "
                 "re-run with include_ceilings=True. The gap to the oracle mixes three things: the error of "
                 "an empirical model restricted to the region its history explored, the oracle's knowledge "
                 "of the disturbances still to come (it runs with each batch's own seed), and the "

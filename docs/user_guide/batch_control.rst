@@ -5,7 +5,7 @@ Replaying a golden batch's schedule is open-loop control, and the
 :doc:`batch simulator <batch_simulator>` page measures what that costs.
 This page closes the loop: predict the final quality of a *running* batch
 from its initial conditions and its trajectories so far, and, when the
-prediction falls short, re-optimise the remaining setpoint schedule. The
+prediction falls short, re-optimize the remaining setpoint schedule. The
 machinery lives in :mod:`process_improve.batch.control` and needs the
 ``control`` extra (``pip install 'process-improve[control]'``, which brings
 in the `osqp <https://osqp.org>`_ QP solver).
@@ -27,10 +27,10 @@ The pieces
   a batch whose future columns are still missing (trimmed score regression
   by default).
 - :func:`~process_improve.batch.control.midcourse_correction` solves the
-  correction as a convex program: track the target (or maximise quality),
+  correction as a convex program: track the target (or maximize quality),
   move as little as possible from the nominal remaining schedule, stay where
   the model has data (SPE and Hotelling's T2), and respect setpoint bounds
-  and rate-of-change limits, with an optional knot parameterisation so the
+  and rate-of-change limits, with an optional knot parameterization so the
   corrected schedule stays smooth. With the validity terms as penalties this
   is a quadratic program; the hard SPE and T2 caps are quadratic constraints,
   handled by an outer iteration on their penalty weights.
@@ -61,9 +61,9 @@ depends on the feed class (a warm hold in mid-batch helps a slow batch and,
 on average, costs a fast one; with one global model the comparison below
 corrects five batches for about a third of the per-class models' mean gain),
 so the evaluation fits one model per feed class and
-assigns a fresh batch to the nearest class centroid in standardised Z; with
+assigns a fresh batch to the nearest class centroid in standardized Z; with
 the class ranges overlapping along the feed-quality axis that assignment is
-right about 85% of the time, and a miss hands the batch the neighbouring
+right about 85% of the time, and a miss hands the batch the neighboring
 range's model.
 
 The executed comparison
@@ -100,7 +100,7 @@ stopped by the SPE validity gate. Reading the table:
 - The campaign standard deviation fell from 1.20 to 0.75 g/L, a 37%
   reduction, with the mean up 0.28 g/L: mid-course correction works on the
   low tail, which is where the money is when the target is a floor.
-- The **oracle-from-k** row re-optimises the remaining schedule of those
+- The **oracle-from-k** row re-optimizes the remaining schedule of those
   same corrected batches against the simulator itself (the true process) at
   the same decision point, with each batch's own seed: an estimate of the
   ceiling for any mid-course scheme there, which also knows the disturbances
@@ -109,7 +109,7 @@ stopped by the SPE validity gate. Reading the table:
   to the region its history explored, that foresight, and the corrector's
   own limits (movement penalty, validity caps, tighter bounds and rate
   limits).
-- The **adapted** row runs every batch on the schedule that maximises the
+- The **adapted** row runs every batch on the schedule that maximizes the
   disturbance-free titer for its own initial conditions, computed before the
   batch starts from the simulator's own equations: an estimate of the
   feedforward ceiling. It raises the mean and the best batches, but
@@ -155,18 +155,18 @@ batches are behind, and day 3 harms one batch where day 4 harms none.
 Practical notes
 ---------------
 
-- The model is fitted on *recorded* trajectories (the realised values plus
+- The model is fitted on *recorded* trajectories (the realized values plus
   measurement noise), but the corrector outputs *setpoints*. The
   substitution is sound where the control loops track their setpoints, and
-  the executed evaluation measures the realised effect either way.
+  the executed evaluation measures the realized effect either way.
 - Setpoint bounds handed to the corrector are tightened inward by about two
-  control-error standard deviations, so optimised schedules do not sit on
-  actuator rails where clipping would bias the realised mean.
+  control-error standard deviations, so optimized schedules do not sit on
+  actuator rails where clipping would bias the realized mean.
 - The exploration weights (``weights["t2"]``, ``weights["spe"]``, and the
   hard caps) are the manufacturing-versus-development dial. On this
   configuration, relaxing the T2 penalty monotonically improved both the
   predicted and the executed gains of the corrected batches, because the
-  poorest class's best schedules lie far from the centre of the historical
+  poorest class's best schedules lie far from the center of the historical
   data, where the T2 penalty holds the correction back; the harmed batches at
   late decision points show the same freedom working against you when the
   model's estimate of the leverage is wrong. There is no

@@ -13,7 +13,12 @@ The log has one line per request, written with the reader's address cut to its n
                starts
     previews   the link card fetched by a chat or a social site, to show a link to the app
 
-Under the table it lists where readers came from: the site that linked here, or the tag a link
+Under the table it says how long Python took to start, from opening the app to Python ready, where the log
+can time it: when the browser downloaded the app's Python, on a reader's first visit and after a deploy. Each
+start is split where the worker's requests allow: opening the page to the worker's start, Pyodide and its packages,
+and process-improve with the page's own Python.
+
+Then it lists where readers came from: the site that linked here, or the tag a link
 carried. A link posted somewhere can name the place, as ``https://factori.al/?ref=linkedin``,
 which counts its visits apart even when the browser names no site, as an app's own browser
 often does not. A tag is a word for a place, never for a person: the report counts visits.
@@ -30,6 +35,11 @@ are not readers. Run it on the server, as a user that can read the log:
 The log forgets a day after 366 days, so ``--keep`` adds each finished day's counts, and nothing
 else, to a file of its own (``/var/lib/factorial/usage.csv``). A daily job that ``setup.sh``
 installs runs it, and the report reads the file for the days the log no longer holds.
+
+``--public FILE`` writes the readers of each of the last 90 finished days and of the last 24 hours,
+and nothing else, as JSON: the footer of every page of factori.al draws them, as a line whose last
+point is the last 24 hours, with that count beside it. An hourly job that ``setup.sh`` installs
+writes ``/var/lib/factorial/public/usage.json``, which Caddy serves as ``https://factori.al/usage.json``.
 """
 
 from __future__ import annotations
@@ -38,7 +48,9 @@ import argparse
 import csv
 import gzip
 import json
+import math
 import re
+import statistics
 import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -53,6 +65,8 @@ if TYPE_CHECKING:
 LOGS = "/var/log/caddy/factorial-access*.log*"
 #: Each finished day's counts, kept after the log forgets the day.
 KEPT = "/var/lib/factorial/usage.csv"
+#: How many days the public file holds: the footer's line draws them all.
+PUBLIC_DAYS = 90
 SITE = "factori.al"
 #: The site's pages, in the order the report lists them, each by the paths it is served at. The design catalog is
 #: every page under /catalog/; a page no name claims is counted as Other. factori.al/map is redirected to
@@ -75,6 +89,19 @@ COLUMNS = (*PAGES, "Readers", "Python", "Previews")
 PYTHON = "/runtime.json"
 WORKER = "/worker.js"
 CARD = "/og-card.png"
+#: The last file the app's worker asks factori.al for before Python is ready: the archive of the page's own Python,
+#: in the build's folder named by digest. Pyodide and its packages come from jsDelivr, which this log never sees, so
+#: from opening the app to the end of this download is the start, all but the second or so to unpack and import it.
+#: A browser downloads it once a build, and keeps it: a start that finds it kept asks for nothing here, and is not
+#: timed.
+ARCHIVE = re.compile(r"/wheels/\w+/bootstrap\.zip")
+#: The process-improve wheel, beside the archive: the worker asks for it once Pyodide and its packages are loaded, so
+#: it splits a start into its parts, with the worker's reading of :data:`PYTHON`, which marks the worker's start.
+WHEEL = re.compile(r"/wheels/\w+/process_improve-[^/]+\.whl")
+#: The two kinds of start the report times apart: a returning reader's browser has Pyodide kept already.
+KINDS = ("First visit", "Returning")
+#: A start that took longer is a page left open while it waited for a network: not a time to start.
+LONGEST_START = 600
 #: The query parameter a link says where it was posted by, and the tag it can hold. The app drops the parameter
 #: from its address once open (REF_PARAM in web/campaign.js), so a reload is not one more visit from that place.
 #: The log holds whatever a request sent and the report prints to a terminal, so a tag is a short plain word;
@@ -111,11 +138,57 @@ class Day:
     readers: set[tuple[str, str]] = field(default_factory=set)
     python: int = 0
     previews: int = 0
+    #: Seconds from opening the app to Python ready, each start the log can time: a reader's first in the log read
+    #: ("First visit"), and any later one ("Returning"), whose browser has Pyodide kept already. Not in the kept file.
+    starts: dict[str, list[float]] = field(default_factory=lambda: defaultdict(list))
+    #: The same starts in three parts, in seconds, where the log holds the requests that split them: opening the page
+    #: to the worker's start, Pyodide and its packages, and process-improve with the page's own Python.
+    parts: dict[str, list[tuple[float, float, float]]] = field(default_factory=lambda: defaultdict(list))
 
     def counts(self) -> dict[str, int]:
         """Return the day's counts, as the report's columns and the file that keeps them name them."""
         pages = {name: self.pages[name] for name in PAGES}
         return {**pages, "Readers": len(self.readers), "Python": self.python, "Previews": self.previews}
+
+
+@dataclass
+class Stopwatch:
+    """Time each start the log can: from when a reader's last opening of the app began to when the download of
+    :data:`ARCHIVE` ended. A line's ``ts`` is when the response ended, and ``duration`` how long it took. On the way,
+    the worker's reading of :data:`PYTHON` and its asking for :data:`WHEEL` mark where the start's parts meet.
+    """
+
+    opened: dict[tuple[str, str], float] = field(default_factory=dict)  # each reader's opening not yet timed
+    marks: dict[tuple[str, str], dict[str, float]] = field(default_factory=dict)  # since that opening
+    timed: set[tuple[str, str]] = field(default_factory=set)  # the readers with a start timed already
+
+    def see(self, path: str, reader: tuple[str, str], entry: dict, day: Day) -> None:
+        """Note a reader's request: an opening of the app is remembered, the worker's requests mark the start's
+        parts, and the archive's download times it.
+        """
+        began = entry["ts"] - entry.get("duration", 0)
+        if page(path) == "Home":
+            self.opened[reader], self.marks[reader] = began, {}
+        elif reader not in self.opened:
+            return
+        elif path == PYTHON and urlsplit(header(entry["request"], "Referer")).path == WORKER:
+            self.marks[reader].setdefault("worker", began)
+        elif WHEEL.fullmatch(path):
+            self.marks[reader].setdefault("wheel", began)
+        elif ARCHIVE.fullmatch(path):
+            self.time(reader, entry["ts"], day)
+
+    def time(self, reader: tuple[str, str], ready: float, day: Day) -> None:
+        """Time the start whose archive's download ended at ``ready``, and its parts where both marks were seen."""
+        opened, marks = self.opened.pop(reader), self.marks.pop(reader)
+        if ready - opened > LONGEST_START:
+            return
+        kind = "Returning" if reader in self.timed else "First visit"
+        self.timed.add(reader)
+        day.starts[kind].append(ready - opened)
+        if {"worker", "wheel"} <= marks.keys():
+            worker, wheel = marks["worker"], marks["wheel"]
+            day.parts[kind].append((worker - opened, wheel - worker, ready - wheel))
 
 
 def page(path: str) -> str | None:
@@ -169,6 +242,7 @@ def tally(entries: Iterable[dict], since: datetime) -> tuple[dict[str, Day], Cou
     days: dict[str, Day] = defaultdict(Day)
     came: list[tuple[tuple[str, str], str]] = []  # each page view that names a place: its reader, and the place
     browsers: set[tuple[str, str]] = set()
+    stopwatch = Stopwatch()
     for entry in entries:
         when = datetime.fromtimestamp(entry.get("ts", 0), UTC)
         request = entry["request"]
@@ -179,9 +253,11 @@ def tally(entries: Iterable[dict], since: datetime) -> tuple[dict[str, Day], Cou
         path, reader = asked.path, (request.get("client_ip") or request.get("remote_ip", ""), agent)
         if path == CARD and PREVIEWER.search(agent):
             day.previews += 1
-        elif NOT_A_READER.search(agent):
             continue
-        elif name := page(path):
+        if NOT_A_READER.search(agent):
+            continue
+        stopwatch.see(path, reader, entry, day)
+        if name := page(path):
             day.pages[name] += 1
             day.readers.add(reader)
             if source := came_from(asked.query, header(request, "Referer")):
@@ -223,6 +299,59 @@ def keep(path: Path, days: dict[str, Day], today: date) -> list[str]:
     return added
 
 
+def written_since(paths: Iterable[Path], since: datetime) -> list[Path]:
+    """Return the log files written to since ``since``: a rolled file last written before then holds nothing after."""
+    return [path for path in paths if datetime.fromtimestamp(path.stat().st_mtime, UTC) >= since]
+
+
+def readers(days: dict[str, Day], kept_days: dict[str, dict[str, int]], first: date, last: date) -> list[list]:
+    """Return ``[day, readers]`` for each day from ``first`` to ``last``: from the log where it holds the day, else as
+    kept. The days before the first that either knows are left out, as the site had no count then; a day after it
+    that neither holds had no reader.
+    """
+    out = []
+    for offset in range((last - first).days + 1):
+        name = (first + timedelta(days=offset)).isoformat()
+        if name in days:
+            out.append([name, len(days[name].readers)])
+        elif name in kept_days:
+            out.append([name, kept_days[name]["Readers"]])
+        elif out:
+            out.append([name, 0])
+    return out
+
+
+def publish(path: Path, paths: list[Path], kept_path: Path, now: datetime) -> dict:
+    """Write to ``path``, as JSON, the readers of each of the last :data:`PUBLIC_DAYS` finished days and of the last
+    24 hours, and return what was written.
+
+    The last 24 hours, not today so far, is what the footer says and puts its dot on: a count from midnight would
+    start each day near nothing. The finished days the file of kept counts holds are read from it; the log is read
+    from the day after its last one, or from yesterday, which the daily job may not have kept yet, and which the
+    last 24 hours reach back into. So an hourly run reads a day or two of the log, not a year of it. The file holds
+    numbers alone, and when they were written: nothing of a reader's.
+    """
+    last = now.date() - timedelta(days=1)  # the last finished day
+    first = last - timedelta(days=PUBLIC_DAYS - 1)
+    kept_days = kept(kept_path)
+    after = max((date.fromisoformat(name) for name in kept_days), default=first - timedelta(days=1))
+    since = datetime.combine(max(first, min(after + timedelta(days=1), last)), time.min, tzinfo=UTC)
+    entries = list(requests(lines(written_since(paths, since))))
+    days, _ = tally(entries, since)
+    recent, _ = tally(entries, now - timedelta(hours=24))  # its two calendar days, whose readers may overlap
+    written = {
+        "updated": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "days": readers(days, kept_days, first, last),
+        "last_24_hours": len(set().union(*(day.readers for day in recent.values()))),
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    part = path.with_name(f"{path.name}.part")
+    part.write_text(json.dumps(written, separators=(",", ":")) + "\n", encoding="utf-8")
+    part.chmod(0o644)  # Caddy reads it, as another user
+    part.replace(path)
+    return written
+
+
 def start(when: date, by: str) -> date:
     """Return the first day of the row a day falls in: the day itself, the Monday of its week, or its month's first."""
     if by == "week":
@@ -239,6 +368,42 @@ def bars(values: list[float]) -> str:
     """Draw values as a line of bars, the largest the tallest; a row with none is a blank."""
     top = max(values, default=0) or 1
     return "".join(BARS[0] if not v else BARS[max(1, round(v / top * (len(BARS) - 1)))] for v in values)
+
+
+def pooled(days: dict[str, Day], first: date, last: date, record: str) -> dict[str, list]:
+    """Pool a record of the days from ``first`` to ``last``, ``"starts"`` or ``"parts"``, by kind of start."""
+    out: dict[str, list] = defaultdict(list)
+    for name, seen in days.items():
+        if first.isoformat() <= name <= last.isoformat():
+            for kind, values in getattr(seen, record).items():
+                out[kind] += values
+    return out
+
+
+def start_times(days: dict[str, Day], first: date, last: date) -> list[str]:
+    """Say how long Python took to start from ``first`` to ``last``: the median, and the time 9 in 10 starts took no
+    longer than, for first visits and returning ones apart; then the median of each of its parts. Nothing where the
+    log timed no start.
+    """
+    starts, parts = pooled(days, first, last, "starts"), pooled(days, first, last, "parts")
+    if not starts:
+        return []
+    out = ["", "From opening the app to Python ready, where the browser downloaded the app's Python:"]
+    for kind in KINDS:
+        if seconds := sorted(starts[kind]):
+            nine_in_ten = seconds[math.ceil(0.9 * len(seconds)) - 1]
+            middle = statistics.median(seconds)
+            out.append(f"  {kind:<12} median {middle:.1f} s, 9 in 10 within {nine_in_ten:.1f} s, of {len(seconds)}")
+    if parts:
+        out += ["", "Where the time went, the median of each part (medians, so they need not add up to the one above):"]
+    for kind in KINDS:
+        if each := parts[kind]:
+            page_s, pyodide_s, ours_s = (statistics.median(part) for part in zip(*each, strict=True))
+            out.append(
+                f"  {kind:<12} page {page_s:.1f} s, Pyodide {pyodide_s:.1f} s, process-improve {ours_s:.1f} s, "
+                f"of {len(each)}"
+            )
+    return out
 
 
 def report(
@@ -291,18 +456,25 @@ def report(
                 for counts in rows.values()
             ]
             out.append(f"  {name:<13} {bars(values)}".rstrip())  # a page no one opened shows its name alone
+    out += start_times(days, first, last)
     if referrers:
         out += ["", "Where readers came from", *(f"  {host:<30} {n:>6}" for host, n in referrers.most_common(10))]
     return "\n".join(out)
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Print the report for the last ``--days`` days, today included; or, with ``--keep``, keep the finished days."""
+    """Print the report for the last ``--days`` days, today included.
+
+    ``--keep`` keeps the finished days instead, and ``--public`` writes the public file: neither prints anything.
+    """
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--days", type=int, default=28, help="how many days to report, today included (%(default)s)")
     parser.add_argument("--by", choices=("day", "week", "month"), default="day", help="a row a day, week or month")
     parser.add_argument(
         "--keep", action="store_true", help="add the finished days the file lacks to it, and print nothing"
+    )
+    parser.add_argument(
+        "--public", metavar="FILE", help=f"write the readers of the last {PUBLIC_DAYS} days and 24 hours there, as JSON"
     )
     parser.add_argument("--log", default=LOGS, help="the access log's files, a pattern in the last part (%(default)s)")
     parser.add_argument("--kept", default=KEPT, help="the file that keeps each finished day's counts (%(default)s)")
@@ -312,6 +484,9 @@ def main(argv: list[str] | None = None) -> int:
     if not paths:
         print(f"no log files match {args.log}", file=sys.stderr)
         return 1
+    if args.public:
+        publish(Path(args.public), paths, Path(args.kept), datetime.now(UTC))
+        return 0
     last = datetime.now(UTC).date()
     if args.keep:
         days, _ = tally(requests(lines(paths)), datetime.fromtimestamp(0, UTC))

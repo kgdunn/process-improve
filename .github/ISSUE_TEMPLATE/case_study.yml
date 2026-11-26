@@ -21,7 +21,7 @@ body:
     id: credit
     attributes:
       label: Name to credit
-      description: Your name, your organisation's, or your GitHub user name. The catalog cites the case study by it.
+      description: Your name, your organization's, or your GitHub user name. The catalog cites the case study by it.
       placeholder: "A. Engineer, Example Foods Ltd."
     validations:
       required: true
@@ -34,7 +34,7 @@ body:
         (a 2^(4-1) fraction, a central composite design, a D-optimal design made in some software).
       placeholder: |
         A batch reactor made too little product. We changed temperature, concentration and catalyst to find
-        settings that raise the yield. The design was a 2^3 factorial with 3 centre points.
+        settings that raise the yield. The design was a 2^3 factorial with 3 center points.
     validations:
       required: true
   - type: textarea
@@ -61,12 +61,12 @@ body:
     id: conduct
     attributes:
       label: How the runs were done
-      description: This decides how the runs are analysed, so it matters as much as the results.
+      description: This decides how the runs are analyzed, so it matters as much as the results.
       options:
         - In a random order, all under the same conditions
         - In blocks (days, batches, operators, machines); the table has a column naming each run's block
         - Some factors were hard to change, so runs were grouped (a split plot); the table has a column naming each group
-        - In a planned order, not randomised
+        - In a planned order, not randomized
         - I do not know
     validations:
       required: true
@@ -76,7 +76,7 @@ body:
       label: The runs
       description: >-
         A header line, then one line per run in the order the runs were done, separated by commas: the settings
-        as actually run (not as planned), then each result. Give each replicate and centre point its own line,
+        as actually run (not as planned), then each result. Give each replicate and center point its own line,
         and leave a result empty if it was not measured. Or attach a CSV or spreadsheet.
       placeholder: |
         run, T, C, K, yield
@@ -107,8 +107,8 @@ body:
   - type: dropdown
     id: licence
     attributes:
-      label: Licence for the data
-      description: The catalog holds the data under this licence, not under the library's MIT licence.
+      label: License for the data
+      description: The catalog holds the data under this license, not under the library's MIT license.
       options:
         - CC BY 4.0 (anyone may reuse the data if they credit you)
         - CC0 1.0 (anyone may reuse the data with no conditions)

@@ -74,7 +74,7 @@ class DOEPlotType(str, Enum):
     cube_plot = "cube_plot"
     square_plot = "square_plot"
 
-    # Optimisation plots
+    # Optimization plots
     desirability_contour = "desirability_contour"
     overlay = "overlay"
     ridge_trace = "ridge_trace"

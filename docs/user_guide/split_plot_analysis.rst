@@ -36,7 +36,7 @@ random in the furnace in every heat. The heats are the whole plots.
    from process_improve.experiments import analyze_experiment, datasets
 
    df = datasets.corrosion().drop(columns="Position")
-   df["Temperature"] = df["Temperature"].astype(str)  # three settings, analysed as categories, as in the book
+   df["Temperature"] = df["Temperature"].astype(str)  # three settings, analyzed as categories, as in the book
 
    result = analyze_experiment(
        df, response_column="Resistance", whole_plot="Heat", analysis_type=["anova", "split_plot"]
@@ -89,7 +89,7 @@ From a split-plot design to its analysis
 
 ``generate_design`` builds a split-plot design when ``hard_to_change`` names the slow
 factors: a coordinate exchange sets them once for each whole plot, and chooses the runs
-for the generalised least squares information. The design records each run's whole plot
+for the generalized least squares information. The design records each run's whole plot
 in a ``WholePlot`` column, numbered from 1, so the analysis finds the whole plots without
 being told:
 
@@ -118,7 +118,7 @@ being told:
    3         3          1.0      -1.0    1.0          1
    4         4          1.0      -1.0   -1.0          2
 
-Run the experiment, join the responses on, and analyse. Here the responses are
+Run the experiment, join the responses on, and analyze. Here the responses are
 simulated, with a whole-plot error whose standard deviation is four times the run-to-run error's:
 
 .. code-block:: python
@@ -194,7 +194,7 @@ The result, under ``result["split_plot"]``, holds:
      - Contents
    * - ``variance_components``
      - ``whole_plot`` and ``residual`` variances, and their ratio ``eta``, which a
-       split-plot design is optimised for (``generate_design`` assumes 0.5)
+       split-plot design is optimized for (``generate_design`` assumes 0.5)
    * - ``error_df``
      - Degrees of freedom of the ``whole_plot`` and ``subplot`` error strata
    * - ``tests``

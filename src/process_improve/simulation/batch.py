@@ -66,7 +66,7 @@ on the batch's own conditions:
   phase, not a scaled-down copy of the same batch.
 
 The gamma hypothesis (temperature and pH acting independently on growth) is a
-modelling choice, not an established fact: published work finds the cardinal
+modeling choice, not an established fact: published work finds the cardinal
 temperatures themselves shift with pH. It is adopted here because it keeps the
 true optimum interpretable in closed form.
 
@@ -107,7 +107,7 @@ zero (``ic_scale``, ``within_batch_scale``, ``noise_scale``):
 
 1. Measured initial conditions: an 11-variable upstream ``Z`` block generated
    from three latent factors (seed viability, medium richness, inhibitor
-   level) with three cluster centres, the feed classes A, B and C. Only the
+   level) with three cluster centers, the feed classes A, B and C. Only the
    three latent factors drive the process, so ``Z`` also carries directions
    that do not matter, as real upstream data do.
 2. Within-batch, unmeasured but observable: an Ornstein-Uhlenbeck process on
@@ -117,7 +117,7 @@ zero (``ic_scale``, ``within_batch_scale``, ``noise_scale``):
    present partly predicts its own future, which is exactly why observing
    the running batch helps.
 3. Control-loop and measurement noise: autocorrelated zero-mean deviation of
-   the realised trajectory from its setpoints, plus independent measurement
+   the realized trajectory from its setpoints, plus independent measurement
    noise on every recorded tag, at instrument scale.
 
 All random draws are made on every call and multiplied by their channel
@@ -194,7 +194,7 @@ _Z_SDS: np.ndarray = np.array([4.0, 10.0, 0.5, 0.5, 0.5, 15.0, 12.0, 0.2, 0.4, 0
 # Residual (non-latent) standardized noise on each Z variable.
 _Z_RESIDUAL_SD: float = 0.35
 
-# Cluster centres of the three feed-disturbance classes in latent space, and
+# Cluster centers of the three feed-disturbance classes in latent space, and
 # the within-cluster standard deviation.
 _CLASS_CENTRES: dict[str, tuple[float, float, float]] = {
     "A": (0.8, 0.6, -0.8),
@@ -376,7 +376,7 @@ class BioreactorConfig:
         measured initial-condition channel perturbs these per batch.
     temp_bounds, ph_bounds : tuple[float, float]
         Recipe-allowed operating window for the setpoints; requested and
-        realised trajectories are validated or clipped against these.
+        realized trajectories are validated or clipped against these.
     shift_start_day, shift_end_day : float
         Start and end [day] of the nominal biphasic temperature ramp from
         ``temp_opt`` down to ``temp_production``.
@@ -404,9 +404,9 @@ class BioreactorConfig:
     ou_sd : float
         Stationary standard deviation of ``log phi(t)`` [-].
     feed_drift_sd : float
-        Per-batch fractional standard deviation of the realised feed rate [-].
+        Per-batch fractional standard deviation of the realized feed rate [-].
     control_sd_temp, control_sd_ph : float
-        Stationary standard deviation of the realised-minus-setpoint control
+        Stationary standard deviation of the realized-minus-setpoint control
         error for temperature [degC] and pH [-].
     control_tau_h : float
         Correlation time of the control error [hour].
@@ -714,7 +714,7 @@ def sample_initial_conditions(
     """Draw upstream (initial-condition) data for a campaign of batches.
 
     Each batch belongs to one of three feed-disturbance classes, A, B or C,
-    with a cluster centre in the three-dimensional latent space (seed
+    with a cluster center in the three-dimensional latent space (seed
     viability, medium richness, inhibitor level). The observed ``Z`` block has
     11 variables generated from those latent factors through a fixed loading
     matrix plus residual noise, so a PCA of ``Z`` recovers about three
@@ -727,7 +727,7 @@ def sample_initial_conditions(
     proportions : dict[str, float], optional
         Expected class proportions keyed by ``"A"``, ``"B"``, ``"C"``. They
         must be non-negative and sum to a positive number (they are
-        normalised). Default ``{"A": 0.40, "B": 0.35, "C": 0.25}``.
+        normalized). Default ``{"A": 0.40, "B": 0.35, "C": 0.25}``.
     ic_scale : float, default=1.0
         Scale of the initial-condition variation. 0 collapses every batch to
         the nominal upstream values while keeping the class labels.
@@ -879,7 +879,7 @@ class BioreactorSimulator:
     # Disturbance channels
     # ------------------------------------------------------------------
     def _draw_disturbances(self, rng: np.random.Generator) -> Bunch:
-        """Draw one batch's worth of disturbance realisations.
+        """Draw one batch's worth of disturbance realizations.
 
         Every random quantity is drawn on every call, in a fixed order, and
         multiplied by its channel scale afterwards. Setting a scale to zero
@@ -1205,15 +1205,15 @@ class BioreactorSimulator:
         n_starts: int = 5,
         random_state: int | np.random.Generator | None = 0,
     ) -> Bunch:
-        """Optimise the setpoint schedule for a batch's initial conditions on the simulator's own model.
+        """Optimize the setpoint schedule for a batch's initial conditions on the simulator's own model.
 
-        Maximises the deterministic (disturbance-free) final titer over pH and
-        temperature schedules parameterised by ``n_knots`` values each,
+        Maximizes the deterministic (disturbance-free) final titer over pH and
+        temperature schedules parameterized by ``n_knots`` values each,
         linearly interpolated across the batch and held per interval. Because
-        the optimiser queries the simulator's own model rather than a fitted
+        the optimizer queries the simulator's own model rather than a fitted
         one, the result is the feedforward reference any data-driven scheme
         can be scored against. The search is a multi-start local one within
-        the knot parameterisation, so its titer is a lower bound on the true
+        the knot parameterization, so its titer is a lower bound on the true
         optimum for these initial conditions.
 
         Parameters
@@ -1282,7 +1282,7 @@ class BioreactorSimulator:
             if best_result is None or result.fun < best_result.fun:
                 best_result = result
         if best_result is None:  # pragma: no cover - n_starts >= 1 guarantees a result
-            raise RuntimeError("internal: the optimiser produced no result; this is a bug.")
+            raise RuntimeError("internal: the optimizer produced no result; this is a bug.")
 
         ph_set, temp_set = expand(best_result.x)
         trajectory = pd.DataFrame(
@@ -1340,7 +1340,7 @@ class BioreactorSimulator:
               perfectly consistent history contains no information about how
               the controls affect quality; this policy produces a history
               that does.
-            - ``"adapted"``: each batch runs the schedule that maximises the
+            - ``"adapted"``: each batch runs the schedule that maximizes the
               disturbance-free titer for its own initial conditions,
               computed from the simulator's model via
               :meth:`optimal_trajectory`. This estimates the ceiling a
@@ -1371,7 +1371,7 @@ class BioreactorSimulator:
             historical data alone.
         n_knots, n_starts : int
             Passed to :meth:`optimal_trajectory` for the ``"adapted"``
-            policy, which runs the optimiser once per batch; lower values
+            policy, which runs the optimizer once per batch; lower values
             trade optimality for speed. Ignored by the other policies.
         random_state : int, np.random.Generator, or None
             Seed or generator; child seeds are spawned per batch, so a

@@ -86,7 +86,7 @@ tests for both basic functionality and edge cases.
 
 ### Test tiers
 
-Tests are categorised via pytest markers so contributors can skip the ones
+Tests are categorized via pytest markers so contributors can skip the ones
 that are slow or network-dependent during local iteration. The full suite
 runs in CI; the markers exist so a contributor doesn't pay for
 multi-second or network-bound tests on every save.
@@ -177,8 +177,11 @@ The README is the first code a new user runs, so CI checks it like code:
   lines match `pyproject.toml`, so a new extra has to be documented.
 - `tools/check_readme_links.py` requests every link to another site, and checks
   that the openmv.net data files still match the bundled copies behind the
-  README's numbers. `.github/workflows/readme-links.yml` runs it weekly and on
-  pull requests that touch the README, and opens an issue when a weekly run fails.
+  README's numbers. It also requests the links out of factori.al's page for
+  learning (`web/map/index.html`): the book's chapter, the course, and the
+  course's videos, which it asks YouTube for through oEmbed.
+  `.github/workflows/readme-links.yml` runs it weekly and on pull requests that
+  touch one of these pages, and opens an issue when a weekly run fails.
 
 ### The browser app is tested
 
@@ -291,7 +294,7 @@ The app is described from one document, [`web/FEATURES.md`](web/FEATURES.md): wh
 today, grouped by kind. A change a reader of the app would notice (a design, a chart, a
 calculation, a control, a file it reads or writes, a limit: added, changed or taken away)
 changes that document in the same pull request, and nothing planned goes in it.
-`tests/web/page/test_features.py` fails while a design, a chart, a process to practise on, a
+`tests/web/page/test_features.py` fails while a design, a chart, a process to practice on, a
 limit or a count the document states is not the app's. The rest is prose, which a reviewer
 reads against the change. The app shows the document as a page, `web/features.html`, from the
 line `<!-- features.html shows what follows -->` on, so below that line it is written for a
@@ -374,7 +377,7 @@ The page is read on a phone first, so each screen carries one idea that a reader
   legend in words.
 - **Exact numbers go behind a "Show the numbers" link,** and on the page a reader opens to check
   them, such as a case's printed values next to Factorial's.
-- **Use the names the reader knows:** a book, a field, an example. Do not use the catalogue's own
+- **Use the names the reader knows:** a book, a field, an example. Do not use the catalog's own
   terms (tier, cause, check).
 - **Claim no more than the data hold.** Where a difference has no known cause, say so.
 
@@ -474,8 +477,8 @@ Concretely, across a family of siblings (`PCA` / `PLS` / `TPLS` / `MBPLS` /
 - **Sibling methods return the same shape of thing.** A method that returns a
   `DataFrame` on one estimator should not return a `Series` on its sibling.
 - **A convention chosen once applies everywhere.** Degrees of freedom,
-  permutation-test corrections, centred versus uncentred moments, and similar
-  choices should not vary between neighbouring functions. If two conventions
+  permutation-test corrections, centered versus uncentered moments, and similar
+  choices should not vary between neighboring functions. If two conventions
   are genuinely both needed, name the difference in both docstrings.
 
 When a fix makes one member of a family better, check the others in the same
@@ -513,7 +516,7 @@ estimator's public surface updates that file in the same change:
   compatibility.
 - **Name arguments and result keys for what they are, not by a letter or a
   source's label.** Sources label the same thing differently: Box and Draper's
-  "B canonical form" is the surface centred on the stationary point, while
+  "B canonical form" is the surface centered on the stationary point, while
   earlier notes here used "B" for the ridge form, and the key `b_canonical`
   held neither. So the forms are `canonical_axes` and `ridge_form`, and each
   docstring gives the source's label with its citation. A retired name is not
@@ -568,7 +571,9 @@ mcp_server` raises the module's own `ImportError`.
    same API signature.
 5. Verify with `pytest tests/test_multivariate.py -v -o "addopts="`.
 
-## Adding a case to the reference catalogue
+<a id="adding-a-case-to-the-reference-catalogue"></a>
+
+## Adding a case to the reference catalog
 
 A case is an experiment or a design in one of the source files of
 `src/process_improve/datasets/experiments/reference_catalogue/`. It holds the
@@ -627,7 +632,7 @@ and `curve.argument` says where each is read: its `name` and `units`, and either
 points every run shares) or `columns` (the run table's columns that hold each run's own times, so
 runs may be sampled at different times or a different number of times, with `null` for a point a
 run lacks). A check that names no `response` is about the first response that is not a curve.
-For example, the colour-development case of the book:
+For example, the color-development case of the book:
 
 ```json
 {"name": "colour", "units": "absorbance", "description": "...",
@@ -651,10 +656,10 @@ The package uses three-part semantic versioning: `MAJOR.MINOR.PATCH`.
 
 - **PATCH** (`1.22.8 -> 1.22.9`): bug fixes, CI / workflow changes,
   documentation updates, dependency bumps, small refactors. Public
-  signatures are unchanged. Behaviour changes are only allowed when
+  signatures are unchanged. Behavior changes are only allowed when
   fixing a documented bug.
 - **MINOR** (`1.22.9 -> 1.23.0`): new features, new modules,
-  significant API additions, or meaningful behavioural changes.
+  significant API additions, or meaningful behavioral changes.
   Backwards-compatible by default; deprecations follow the schedule
   in [`docs/development/deprecation_policy.rst`](docs/development/deprecation_policy.rst).
 - **MAJOR** (`1.x.x -> 2.0.0`): incompatible removals. Anything
@@ -744,13 +749,13 @@ A change is breaking if any of these are true:
 - A `Bunch` return type loses or renames a field.
 - A `@tool_spec` tool is renamed, has a schema field removed, or
   changes the meaning of an existing field.
-- A documented behaviour (e.g. "PCA returns sign-flipped loadings
+- A documented behavior (e.g. "PCA returns sign-flipped loadings
   by the Wold convention") is silently changed.
 
 A change is **not** breaking if:
 
 - A new optional kwarg is added with a default that preserves the
-  previous behaviour.
+  previous behavior.
 - A new public function or attribute is added.
 - A `Bunch` return type gains a field.
 - A documented bug is fixed.

@@ -4,7 +4,7 @@ Agent-callable tool wrappers for the descriptive panel-data pipeline.
 
 Each function is decorated with ``@tool_spec`` so it can be passed straight to
 an LLM tool-use API. Inputs are plain JSON (lists of row-records), and every
-result is a JSON-serialisable ``dict``. ``analyze_descriptive`` validates its
+result is a JSON-serializable ``dict``. ``analyze_descriptive`` validates its
 input first and refuses to run when validation fails, mirroring the in-process
 gate enforced by :func:`process_improve.sensory.validate_descriptive`.
 """
@@ -276,7 +276,7 @@ class _AnalyzeInput(BaseModel):
     rng={"uses_rng": True, "seed_param": "random_state", "default_seed": 0},
 )
 def sensory_analyze_descriptive(spec: _AnalyzeInput) -> dict:
-    """Validate then analyse; see tool spec for details."""
+    """Validate then analyze; see tool spec for details."""
     validated = _validate_descriptive(
         pd.DataFrame(spec.panel),
         pd.DataFrame(spec.covariates),

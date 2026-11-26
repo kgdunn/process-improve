@@ -13,11 +13,11 @@ Seven methods, in two groups:
 
   - ``"latin_hypercube"``: each factor's range is cut into ``n`` equal slices, and
     each slice is used exactly once (McKay, Beckman and Conover 1979).
-  - ``"maximin_lhs"``: a Latin hypercube, with each run at the centre of its slices,
+  - ``"maximin_lhs"``: a Latin hypercube, with each run at the center of its slices,
     whose smallest distance between two runs is made large by swapping values within a
     column while the Morris-Mitchell criterion improves.
-  - ``"uniform"``: a Latin hypercube on the slice centres (a U-type design) with low
-    centred L2 discrepancy, the criterion of uniform designs (Fang and Wang).
+  - ``"uniform"``: a Latin hypercube on the slice centers (a U-type design) with low
+    centered L2 discrepancy, the criterion of uniform designs (Fang and Wang).
 
 - **On any region**, including constrained boxes and constrained mixtures:
 
@@ -83,7 +83,7 @@ def _phi_p(points: np.ndarray) -> float:
 def _maximin_lhs(n: int, k: int, rng: np.random.Generator) -> np.ndarray:
     """Latin hypercube with a large smallest distance: best of several starts, then in-column swaps.
 
-    The runs sit at the centres of their slices, as in Morris and Mitchell's (1995)
+    The runs sit at the centers of their slices, as in Morris and Mitchell's (1995)
     maximin Latin hypercubes: a random offset inside each slice could only bring two
     runs closer. Swapping two values within one column keeps every slice of every
     factor used exactly once, so the design stays a Latin hypercube while ``phi_p``
@@ -126,7 +126,7 @@ def _unit_cube_design(method: str, n: int, k: int, rng: np.random.Generator) -> 
     if method == "latin_hypercube":
         return qmc.LatinHypercube(d=k, rng=rng).random(n)
     if method == "uniform":
-        # A U-type design: runs at the slice centres (2i - 1) / 2n, as in Fang's uniform designs;
+        # A U-type design: runs at the slice centers (2i - 1) / 2n, as in Fang's uniform designs;
         # a random offset inside each slice would raise the discrepancy the search lowers.
         return qmc.LatinHypercube(d=k, scramble=False, optimization="random-cd", rng=rng).random(n)
     return _maximin_lhs(n, k, rng)
@@ -348,8 +348,8 @@ def space_filling_design(
     -------
     tuple[np.ndarray, dict]
         Coded points (proportions for a mixture) and metadata: the smallest and the
-        mean nearest-neighbour distance between runs, and on the plain box
-        ``centered_l2_discrepancy``, Hickernell's *squared* centred L2 discrepancy
+        mean nearest-neighbor distance between runs, and on the plain box
+        ``centered_l2_discrepancy``, Hickernell's *squared* centered L2 discrepancy
         ``CD^2`` of the points mapped to ``[0, 1]^k`` (lower is more uniform), as
         :func:`scipy.stats.qmc.discrepancy` computes it.
 

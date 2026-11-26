@@ -237,6 +237,32 @@ def test_a_message_too_short_or_an_address_that_is_not_one_is_said_and_nothing_i
     assert len(relay.reports) == 1
 
 
+def test_a_study_too_large_to_go_says_so_with_run_as_a_link_that_closes_the_dialog(context, site, relay):
+    """The dialog names Run as the page does: its dot and a link, and a press on it shows Run with the dialog closed.
+
+    A study is too large to go when it packs to more than ``MAX_STUDY`` characters, which the worked example does
+    not come near; the page is served a feedback.js whose limit is 16 characters, so it does.
+    """
+    source = (WEB / "feedback.js").read_text(encoding="utf-8")
+    assert "export const MAX_STUDY = 2 ** 18;" in source
+    small = source.replace("export const MAX_STUDY = 2 ** 18;", "export const MAX_STUDY = 2 ** 4;")
+    context.route(f"{site}feedback.js", lambda route: route.fulfill(body=small, content_type="text/javascript"))
+    page = context.new_page()
+    page.goto(f"{site}?example=worked")
+    first_paint_done(page)
+    open_feedback(page)
+    page.check("#feedback-study")
+    send(page)
+    thanks = page.locator(f'{DIALOG} [data-note="thanks"]')
+    assert thanks.text_content().endswith("its workbook, from Run, can go by email.")
+    run = thanks.locator("button.stage-link")
+    assert run.text_content() == "Run"
+    assert "study" not in relay.reports[0], "the study did not go"
+    run.click()
+    page.wait_for_selector(f"{DIALOG}:not([open])", state="attached")
+    assert page.get_attribute("#workspace", "data-phase") == "run"
+
+
 def test_the_footer_and_a_report_name_the_version_the_app_was_built_from(context, site, relay, plotly_js):
     """The build's manifest names the commit and its day: the foot of the page shows them, and a report carries them."""
     commit = "88ccccbbe212e09c53d9f69b3ee7193262cc165a"
@@ -467,7 +493,7 @@ WORDS = """() => { const on = [...document.querySelectorAll('#feedback span')]
     .filter((s) => getComputedStyle(s).display !== 'none');
   return { read: on.filter((s) => getComputedStyle(s).position !== 'absolute').map((s) => s.textContent).join(' | '),
            named: on.map((s) => s.textContent).join(' | ') }; }"""
-# The button, its words and the header's other parts, as boxes: for whether the words are cut or lie on a neighbour.
+# The button, its words and the header's other parts, as boxes: for whether the words are cut or lie on a neighbor.
 FITS = """() => { const button = document.querySelector('#feedback'), box = (e) => e.getBoundingClientRect();
   const row = button.closest('.feedback-slot').parentElement, b = box(button);
   const beside = [...row.children].filter((c) => !c.contains(button)).map((c) => box(c.querySelector('h1') || c));

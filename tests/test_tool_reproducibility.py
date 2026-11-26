@@ -91,7 +91,7 @@ _SIMULATOR = {
 
 
 def _dsd_runs() -> list[dict[str, Any]]:
-    """Return a six-factor DSD with three centre runs, coded, and a response in which A, C and A:C are active."""
+    """Return a six-factor DSD with three center runs, coded, and a response in which A, C and A:C are active."""
     design = generate_design([Factor(name=n, low=-1, high=1) for n in "ABCDEF"], design_type="dsd", n_center_points=3)
     runs = design.design.drop(columns="RunOrder")
     truth = TrueProcess({"Intercept": 50, "A": 6, "C": -4, "A:C": 4}, sigma=0.5)
@@ -235,6 +235,12 @@ SAMPLE_INPUTS: dict[str, dict[str, Any] | Callable[[], dict[str, Any]]] = {
         "model": "M * T",
         "strata": "rep/M",
         "response_column": "y",
+    },
+    "yates_table": {"design_matrix": _FACTORIAL[:4], "response_column": "y", "keep": ["A"]},
+    "interaction_components": {
+        "design_matrix": [dict(r, y=v) for r, v in zip(_THREE_LEVELS, _VALUES, strict=False)],
+        "response_column": "y",
+        "factor_names": ["A", "B"],
     },
     # simulation: reveal_simulator reads the hidden model from the host context the test sets up
     "reveal_simulator": {"sim_id": "sim"},

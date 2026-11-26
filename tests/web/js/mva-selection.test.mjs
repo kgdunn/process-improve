@@ -103,7 +103,7 @@ describe("excluding", () => {
 });
 
 describe("saved sets", () => {
-  test("a lasso saved under a name keeps its rows and takes the next colour", () => {
+  test("a lasso saved under a name keeps its rows and takes the next color", () => {
     const store = new Selection();
     store.select("rows", ["1", "2"]);
     store.saveSet("Upset");
@@ -136,7 +136,7 @@ describe("saved sets", () => {
     assert.deepEqual([...store.selected("rows")], ["1", "2"]);
   });
 
-  test("renaming keeps a set's rows, colour and place; a clash or an empty name is refused", () => {
+  test("renaming keeps a set's rows, color and place; a clash or an empty name is refused", () => {
     const store = new Selection();
     store.saveSet("A", ["1"]);
     store.saveSet("B", ["2"]);
@@ -162,7 +162,7 @@ describe("the project file", () => {
     assert.deepEqual(again.toJSON(), store.toJSON());
   });
 
-  test("what a file holds is read as data: a bad colour or a non-list is ignored", () => {
+  test("what a file holds is read as data: a bad color or a non-list is ignored", () => {
     const store = Selection.fromJSON({
       selections: { A: ["1"], B: "not a list" },
       colours: { A: "red; background: url(x)" },

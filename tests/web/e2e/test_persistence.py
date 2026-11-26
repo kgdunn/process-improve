@@ -33,7 +33,7 @@ from tests.web.e2e._page import (
 
 BANNER = "#campaign-banner"
 #: How a study made from the worked example's brief is titled: its response, then its design and factors.
-YIELD = "Yield (%), maximise: "
+YIELD = "Yield (%), maximize: "
 
 
 def results(page) -> list[str]:
@@ -47,7 +47,7 @@ def saved(page, count: int) -> None:
 
 
 def come_back(context) -> object:
-    """Open the page again in the same browser, and wait until it has picked up and analysed the design."""
+    """Open the page again in the same browser, and wait until it has picked up and analyzed the design."""
     page = context.new_page()
     page.goto(page_url(context))
     page.wait_for_selector(BANNER, state="visible")
@@ -97,7 +97,7 @@ def test_a_reader_who_comes_back_picks_up_where_they_left_off(context, page):
     again.click("#go-learn")
     assert run_sheet(again) == sheet
     assert results(again) == typed, "the simulated results, as they were"
-    assert again.text_content("#analysis table") == coefficients, "analysed again once Python started"
+    assert again.text_content("#analysis table") == coefficients, "analyzed again once Python started"
     assert again.input_value("#design-type") == "full_factorial"
 
 

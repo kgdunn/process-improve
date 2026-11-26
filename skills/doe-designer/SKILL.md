@@ -1,6 +1,6 @@
 ---
 name: doe-designer
-description: Plan, generate, verify and analyse designed experiments (DOE) using the process-improve library. Use whenever the user wants to design an experiment, screen factors, optimise a process or formulation, build a response surface, choose a fractional factorial or Plackett-Burman or Box-Behnken or central composite or definitive screening design, check a design's resolution or aliasing or power, analyse experimental results, fit effects and interactions, produce a Pareto or half-normal or main-effects or interaction or contour plot, or find optimal factor settings. Also use when asked to check whether an existing design matrix is any good.
+description: Plan, generate, verify and analyze designed experiments (DOE) using the process-improve library. Use whenever the user wants to design an experiment, screen factors, optimize a process or formulation, build a response surface, choose a fractional factorial or Plackett-Burman or Box-Behnken or central composite or definitive screening design, check a design's resolution or aliasing or power, analyze experimental results, fit effects and interactions, produce a Pareto or half-normal or main-effects or interaction or contour plot, or find optimal factor settings. Also use when asked to check whether an existing design matrix is any good.
 license: MIT
 ---
 
@@ -25,7 +25,7 @@ plausible on the page. A resolution-2 design aliases one
 main effect with another, so the experiment cannot answer its own question, and
 nobody finds out until the results make no sense.
 
-The catalogues in this library do not have that failure mode. So:
+The catalogs in this library do not have that failure mode. So:
 
 1. Call `generate_design` (or `create_factorial_design`) to build the matrix.
 2. Run `verify_design.py` on it, or call `evaluate_design` with the
@@ -33,7 +33,7 @@ The catalogues in this library do not have that failure mode. So:
 3. Report the resolution and what it costs the user, in words, every time.
 
 If a user pastes in a design from a chatbot, a spreadsheet or an old report,
-verify it before analysing anything. `moment_aberration` works on any
+verify it before analyzing anything. `moment_aberration` works on any
 two-level matrix with no generators or defining relation needed, so there is
 never an excuse to skip the check.
 
@@ -48,14 +48,14 @@ You need these before a design is meaningful. Ask for whatever is missing,
 but ask in one batch, not one question at a time:
 
 - **Response(s)**: what is measured, in what units, and is the goal to
-  maximise, minimise or hit a target? How repeatable is the measurement?
+  maximize, minimize or hit a target? How repeatable is the measurement?
 - **Factors**: what can actually be *set*, with a plausible low and high for
   each. Distinguish factors from things that are merely recorded.
 - **Budget**: how many runs are affordable, and over what calendar time.
 - **Constraints**: combinations that are impossible or unsafe; factors that
   are expensive to change between runs (these force a split-plot).
 - **Prior knowledge**: what is already known or suspected to matter. This is
-  what separates a screening problem from an optimisation problem.
+  what separates a screening problem from an optimization problem.
 
 A common and important correction: users often arrive asking for a response
 surface when they have eleven candidate factors. That is a screening problem.
@@ -65,14 +65,14 @@ Say so, and explain the staging.
 
 `recommend_strategy` takes the interview answers and returns a staged plan
 with run counts, transition rules, budget allocation, assumptions and risks.
-It applies deterministic decision rules rather than judgement, so use it
+It applies deterministic decision rules rather than judgment, so use it
 instead of reasoning from scratch about which design to pick.
 
 ```bash
 python scripts/doe_tool.py call recommend_strategy --input strategy.json
 ```
 
-Experiments are almost always staged: screen, then optimise, then confirm.
+Experiments are almost always staged: screen, then optimize, then confirm.
 Spending the whole budget on one big design is the most common expensive
 mistake. Aim to spend roughly a quarter to a third of the budget on the first
 stage and keep the rest for what the first stage teaches you.
@@ -104,16 +104,16 @@ use as a gate. Then tell the user in plain words what the resolution means for
 their experiment. `references/verification.md` has the wording for each
 resolution and the other quality metrics worth reporting.
 
-### 5. Randomise and hand over the run sheet
+### 5. Randomize and hand over the run sheet
 
 Give the user a run sheet in *real units*, not coded ones, with the run order
-randomised and a column to write results into. Randomisation is not optional:
+randomized and a column to write results into. Randomization is not optional:
 it is what protects the experiment against drift in ambient conditions,
-operator fatigue and raw-material lots. If the user cannot randomise (a
+operator fatigue and raw-material lots. If the user cannot randomize (a
 factor is too expensive to change), say that the analysis will need to treat
 it as a split-plot, and record which factor it was.
 
-### 6. Analyse
+### 6. Analyze
 
 ```bash
 python scripts/doe_tool.py call analyze_experiment --input results.json
@@ -141,7 +141,7 @@ Lead with a Pareto or half-normal plot of the effects, then main-effects and
 interaction plots for whatever turned out to matter. Write `.png` for a
 static image or `.html` for an interactive page that needs nothing installed.
 
-### 8. Optimise and confirm
+### 8. Optimize and confirm
 
 `optimize_responses` finds settings that balance several responses via
 desirability. Whatever it returns is a *prediction*, and predictions at the
@@ -182,9 +182,11 @@ calling, rather than guessing at field names.
 | `create_factorial_design` | Quick 2^k full factorial |
 | `evaluate_design` | Resolution, aliasing, moment aberration, D/I/G-efficiency, VIF, power |
 | `compare_designs` | Several designs side by side for one model: A, D, E, G, I, max correlation, power |
-| `simulate_design_performance` | "Would this design find what I expect?" Designs run many times on the process you expect and analysed as the next step analyses them: the share that finds each term, false alarms, distance from the best settings |
+| `simulate_design_performance` | "Would this design find what I expect?" Designs run many times on the process you expect and analyzed as the next step analyzes them: the share that finds each term, false alarms, distance from the best settings |
 | `analyze_experiment` | ANOVA, effects, diagnostics, Lenth, Box-Cox, confirmation |
-| `analyze_omars` | The staged analysis of a definitive screening (DSD) or OMARS design; returns a model formula to fit and optimise |
+| `analyze_omars` | The staged analysis of a definitive screening (DSD) or OMARS design; returns a model formula to fit and optimize |
+| `yates_table` | The working a textbook prints for a full 2^k or 3^k factorial: Yates's columns, effects and sums of squares; with `keep`, a 2^k model's fitted values by the reverse algorithm |
+| `interaction_components` | The two-degree-of-freedom components of interactions of three-level factors: AB and AB^2 (Yates's J and I), ABC to AB^2C^2 (Z, Y, X, W) |
 | `recommend_next_step` | "What do I run next?" After every round: confirm, axial runs, fold-over, the path of steepest ascent, or stop, with the runs in real units |
 | `suggest_next_runs` | "Where do I run next?" when no quadratic fits, for a computer experiment, or for runs made one at a time: the runs (1 to 50) where a Gaussian process of every run expects the most improvement, inside the limits, to raise or lower a response or to bring it to a `target`; `little_to_gain` says when to confirm instead |
 | `fit_gaussian_process` | A model of a computer experiment (passes through every run), or with `noise` of runs no quadratic fits: each input's correlation parameter and its share of the variance (`sensitivity`), and predictions with standard errors |
@@ -192,7 +194,7 @@ calling, rather than guessing at field names.
 | `multistratum_anova` | Runs made in groups of several sizes (split-plot, strip-plot, blocks): each term tested against its own stratum's error; without a response, the skeleton's degrees of freedom, to judge a design before it is run |
 | `fit_linear_model` | Explicit model formula when you need control |
 | `augment_design` | Add runs: fold-over, axial points, replicates, de-aliasing |
-| `optimize_responses` | Multi-response desirability optimisation |
+| `optimize_responses` | Multi-response desirability optimization |
 | `visualize_doe` | 21 plot types, returns Plotly and ECharts specs |
 | `trade_off_table` | Two-level runs-against-factors table: what each budget buys, and its aliasing |
 
@@ -210,7 +212,7 @@ textbook that states it.
 
 Give the user, every time:
 
-- The design, in real units, with the run order randomised.
+- The design, in real units, with the run order randomized.
 - Its resolution, and one sentence on what that costs them.
 - What the design *cannot* answer. This is the most commonly omitted and most
   valuable part of the report.
@@ -225,7 +227,7 @@ effect quoted to six figures invites more confidence than eight runs support.
 Load these as needed; they are not required reading for every task.
 
 - `references/choosing-a-design.md` - which design for which situation, run
-  counts, and the screening-versus-optimisation distinction.
+  counts, and the screening-versus-optimization distinction.
 - `references/verification.md` - what resolution and the other quality
   metrics mean, and how to phrase them.
 - `references/analysis-workflow.md` - the analysis sequence, unreplicated

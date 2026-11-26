@@ -20,8 +20,10 @@ from tests.web._support import source
 PAGES = (
     "index.html",
     "technical-details-how-factorial-works.html",
+    "validation.html",
     "catalog/index.html",
     "catalog/reproduced/index.html",
+    "map/index.html",
 )
 LINK_OUT = re.compile(r'<a href="https?://[^"]*"[^>]*>')
 OWN_TAB = re.compile(r'target="(?!_self"|_top"|_parent")[^"]+"')

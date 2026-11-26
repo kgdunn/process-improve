@@ -54,7 +54,7 @@ def unfolded_layout(feature_columns: pd.Index) -> Bunch:
     ----------
     feature_columns : pd.MultiIndex
         The model's ``feature_columns_``: 2-level ``(tag, sequence)`` labels,
-        with initial-condition columns labelled ``(name, "")``.
+        with initial-condition columns labeled ``(name, "")``.
 
     Returns
     -------
@@ -75,7 +75,7 @@ def unfolded_layout(feature_columns: pd.Index) -> Bunch:
 def coerce_single_initial_conditions(
     model: OnlineModel, initial_conditions: pd.Series | pd.DataFrame | None
 ) -> pd.DataFrame | None:
-    """Normalise a single batch's initial conditions to a 1-row DataFrame.
+    """Normalize a single batch's initial conditions to a 1-row DataFrame.
 
     Accepts a Series (one value per initial condition) or a single-row
     DataFrame, and validates presence against how ``model`` was fitted.

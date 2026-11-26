@@ -168,7 +168,7 @@ class BasePlot(ABC):
         and the 3D surface leaves them out; the other plots ignore it.
     extent : float, dict or None
         How far the grid of the contour, 3D surface and prediction-variance plots
-        reaches from the centre, in coded units: one number for both axes, or one per
+        reaches from the center, in coded units: one number for both axes, or one per
         factor. By default each axis covers every run in ``design_data``, the axial runs
         of a composite design included, and at least -1 to 1. The other plots ignore it.
     """

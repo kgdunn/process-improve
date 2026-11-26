@@ -19,7 +19,7 @@ exactly from a seed:
 
 Because the simulator's own kinetics are known, the *true* optimal schedule
 for any batch's initial conditions is computable. That gives later,
-data-driven schemes (latent-variable models, trajectory optimisation,
+data-driven schemes (latent-variable models, trajectory optimization,
 mid-course correction) a ceiling to be scored against, which no historical
 dataset can offer.
 
@@ -122,7 +122,7 @@ The golden batch and the adaptation ceiling
 
 :meth:`~process_improve.simulation.batch.BioreactorSimulator.golden_trajectory`
 finds the true optimal schedule for the *nominal* initial conditions by
-optimising over the simulator's own kinetics; it recovers the industrial
+optimizing over the simulator's own kinetics; it recovers the industrial
 biphasic shape (a warm growth phase near 37.5 degC, a smooth downshift into a
 production hold near 29 degC) without being told it. On the defaults it
 reaches 8.54 g/L against 8.01 g/L for the built-in nominal recipe.
@@ -131,8 +131,8 @@ reaches 8.54 g/L against 8.01 g/L for the built-in nominal recipe.
 does the same for any batch's own initial conditions. The gap between
 replaying the golden schedule and each batch's own optimum is the value a
 perfect feedforward adaptation could recover; on the default configuration it
-ranges from about 3% at the centre of the good feed class to over 40% at the
-centre of the poorest.
+ranges from about 3% at the center of the good feed class to over 40% at the
+center of the poorest.
 The ``"adapted"`` campaign policy runs every batch at its own optimum, as
 that ceiling, and the ``"historical"`` policy adds deliberate setpoint
 variation, since a perfectly consistent history carries no information about
@@ -146,7 +146,7 @@ how the controls affect quality.
 Campaign outputs use the package's standard batch dictionary format
 (``dict[batch_id, DataFrame]``), so they feed directly into
 :func:`process_improve.batch.data_input.dict_to_wide` and the alignment
-tooling for latent-variable modelling.
+tooling for latent-variable modeling.
 
 Agent tools
 -----------

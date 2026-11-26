@@ -17,7 +17,7 @@ from process_improve.experiments.design_catalog import FAMILIES
 from tests.web._support import APP_SOURCES, WEB, javascript, source
 
 GRAPH = json.loads((WEB / "map" / "graph.json").read_text(encoding="utf-8"))
-APART = 0.15  # in OKLab: closer than this, two colours start to read as one
+APART = 0.15  # in OKLab: closer than this, two colors start to read as one
 
 #: The page's words the map has no term for, and none near: their definitions end without "See it in context".
 NO_CONTEXT = {
@@ -139,6 +139,26 @@ def test_the_page_never_says_the_book_teaches():
     )
 
 
+def test_the_page_names_three_ways_to_learn_over_the_map_and_the_book_s_doi_as_text():
+    """The chapter, the course and the course's videos are links over the map; the book's DOI is text, in no link."""
+    page = " ".join(source("map/index.html").split())
+    ways = page[page.index('<ul class="learn">') : page.index("</ul>")]
+    links = re.findall(r'<li><a href="([^"]+)"[^>]*>([^<]+)</a>', ways)
+    assert [name for _, name in links] == ["Read the chapter", "Take the course", "Watch the videos"]
+    chapter, course, videos = (address for address, _ in links)
+    assert chapter == "https://learnche.org/pid/design-analysis-experiments/index", "the chapter, not the whole book"
+    assert course == "https://yint.org/experiment", "the address kept pointing at the course as it is offered now"
+    assert "list=PLHUnYbefLmeOPRuT1sukKmRyOVd4WSxJE" in videos, "the first video of the chapter, in the book's playlist"
+    assert "index=" not in videos, "a place in the playlist moves when the playlist is reordered; the video does not"
+    assert "The same videos as the course" in ways, "so a reader does not take the two for two courses"
+    assert "no quizzes" in ways
+    assert "Free to preview; the certificate is paid." in ways, "what the course costs, as Coursera offers it"
+    doi = re.search(r'<span class="learn__doi">Book DOI: (10\.5281/zenodo\.\d+)</span>', ways)
+    assert doi, "the DOI of the book, to read and to copy"
+    assert "doi.org" not in page, "and not a link"
+    assert page.index("</ul>") < page.index('<h2 class="learn__map">Concept map</h2>') < page.index('id="box"')
+
+
 def test_a_link_to_the_map_shows_the_map():
     """A chat or a blog shows og:image beside a link: for the map, the map's own card, drawn by map_card.py."""
     page = source("map/index.html")
@@ -166,7 +186,7 @@ def test_each_catalog_family_the_map_has_links_to_its_term():
 
 
 def _oklab(colour: str) -> tuple[float, float, float]:
-    """One ``#rrggbb`` colour in OKLab, where equal distances look equally far apart."""
+    """One ``#rrggbb`` color in OKLab, where equal distances look equally far apart."""
     red, green, blue = (int(colour[i : i + 2], 16) / 255 for i in (1, 3, 5))
     red, green, blue = (c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in (red, green, blue))
     long = (0.4122214708 * red + 0.5363325363 * green + 0.0514459929 * blue) ** (1 / 3)
@@ -180,10 +200,10 @@ def _oklab(colour: str) -> tuple[float, float, float]:
 
 
 def test_another_textbook_s_colour_is_no_other_colour_of_the_links():
-    """In each theme a book's colour stands apart from the accent and from the other colours a link can take.
+    """In each theme a book's color stands apart from the accent and from the other colors a link can take.
 
     While the other textbooks are shown a link is this book's alone (the muted neutral), one other book's, or every
-    book's (the text colour). Book B's blue was once a third of ``APART`` from the accent, which a selected term's
+    book's (the text color). Book B's blue was once a third of ``APART`` from the accent, which a selected term's
     links then took.
     """
     css = source("style.css")

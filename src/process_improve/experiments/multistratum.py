@@ -1,7 +1,7 @@
 # (c) Kevin Dunn, 2010-2026. MIT License.
 r"""Multistratum analysis of variance: split-plot, strip-plot and other designs with several sizes of unit.
 
-A design that restricts its randomisation (a hard-to-change factor set once for several runs, a
+A design that restricts its randomization (a hard-to-change factor set once for several runs, a
 batch that holds four strips, a furnace load that crosses an implanter batch) has runs that fall
 into *strata*: the whole plots, the subplots within them, and so on. Each stratum is a set of
 contrasts among the runs with its own error, and each treatment term is estimated in the stratum

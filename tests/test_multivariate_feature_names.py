@@ -4,7 +4,7 @@ Before #195, PCA / PLS only checked the *number* of columns passed to
 ``transform`` / ``predict``. A correctly-shaped frame whose columns were
 reordered or renamed was projected positionally (PCA) or silently label-aligned
 to all-``NaN`` (PLS ``X @ direct_weights_``), producing wrong results with no
-error. These tests pin the corrected behaviour:
+error. These tests pin the corrected behavior:
 
 * reordered columns are realigned to the training order (same result);
 * renamed / wrong columns raise ``ValueError``;

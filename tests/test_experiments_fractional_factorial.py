@@ -2,7 +2,7 @@
 
 pyDOE3's ``fracfact_by_res`` could not build the 2^(3-1), 2^(4-1) or 2^(5-1) half
 fractions ("design not possible"), and for 7 to 11 factors at resolution V it
-returned resolution IV designs labelled V. Designs up to 11 factors now come from a
+returned resolution IV designs labeled V. Designs up to 11 factors now come from a
 table of minimum-aberration generators, and the reported resolution is always the
 one the design has: these tests measure it from the runs themselves.
 """
@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 
 from process_improve.experiments import Factor, generate_design
-from process_improve.experiments.designs_screening import _MIN_ABERRATION, _TABLE_LETTERS
+from process_improve.experiments.designs_screening import _MAX_TABULATED_FACTORS, _MIN_ABERRATION, _TABLE_LETTERS
 from process_improve.experiments.evaluate import evaluate_design
 
 NAMES = "ABCDEFGHJKLMN"
@@ -178,13 +178,18 @@ class TestTable:
     """Every entry of the table is a minimum-aberration fraction."""
 
     def test_every_run_count_is_listed(self) -> None:
-        """Each k lists every fraction from the smallest (resolution III) to the quarter fraction.
+        """Each k up to 11 lists every fraction from the smallest (resolution III) to the quarter fraction.
 
         The selection returns the half fraction when no entry reaches a resolution; that
-        is only right if no smaller fraction is missing.
+        is only right if no smaller fraction is missing. From 12 factors on the table lists
+        the fractions of 32, 64 and 128 runs that the search reads when it is too slow to run
+        (tests/test_experiments_trade_off.py pins them).
         """
-        assert set(_MIN_WLP) == {(k, n) for k, cells in _MIN_ABERRATION.items() for n in cells}
-        for k, cells in _MIN_ABERRATION.items():
+        listed = {k: cells for k, cells in _MIN_ABERRATION.items() if k <= _MAX_TABULATED_FACTORS}
+        assert set(_MIN_WLP) == {(k, n) for k, cells in listed.items() for n in cells}
+        larger = {k: set(cells) for k, cells in _MIN_ABERRATION.items() if k > _MAX_TABULATED_FACTORS}
+        assert larger == {k: ({32} if k <= 25 else set()) | {64, 128} for k in range(12, 51)}
+        for k, cells in listed.items():
             smallest = math.ceil(math.log2(k + 1))  # 2^m runs hold at most 2^m - 1 factors
             assert sorted(cells) == [2**m for m in range(smallest, k - 1)], k
 
@@ -238,7 +243,7 @@ class TestReportedMetadata:
     def test_fractional_ccd_cube_really_is_resolution_v(self) -> None:
         """A resolution-V cube for 7 factors needs 64 runs.
 
-        pyDOE3 gave a 32-run cube labelled V that was resolution IV, so the CCD's check
+        pyDOE3 gave a 32-run cube labeled V that was resolution IV, so the CCD's check
         for resolution V passed while two-factor interactions were aliased.
         """
         result = generate_design(
@@ -361,11 +366,11 @@ class TestBudgetSizesTheFraction:
         assert result.n_runs == 32
 
     def test_centre_runs_and_replicates_are_counted(self) -> None:
-        """35 runs hold the 32-run fraction and 3 centre runs; 32 runs with 3 centre runs hold only 16."""
+        """35 runs hold the 32-run fraction and 3 center runs; 32 runs with 3 center runs hold only 16."""
         factors = _factors(7)
         result = generate_design(factors, design_type="fractional_factorial", budget=35, n_center_points=3)
         assert result.n_runs == 35
-        with pytest.warns(UserWarning, match="29 run.*after 3 centre run"):
+        with pytest.warns(UserWarning, match="29 run.*after 3 center run"):
             result = generate_design(factors, design_type="fractional_factorial", budget=32, n_center_points=3)
         assert result.n_runs == 16 + 3
         result = _fraction(6, budget=32, n_replicates=2)
@@ -392,15 +397,15 @@ class TestBudgetSizesTheFraction:
             generate_design(
                 [Factor(name=f"X{i}", low=-1, high=1) for i in range(12)],
                 design_type="fractional_factorial",
-                budget=64,
+                budget=256,
                 n_center_points=0,
             )
 
     def test_more_factors_than_the_search_names_raises(self) -> None:
-        """The generator search names 25 factors; a fraction of 26 other than the half needs generators."""
-        with pytest.raises(ValueError, match="No minimum-aberration fraction of 26 factors"):
+        """The generator search names 50 factors; a fraction of 51 other than the half needs generators."""
+        with pytest.raises(ValueError, match="No minimum-aberration fraction of 51 factors"):
             generate_design(
-                [Factor(name=f"X{i}", low=-1, high=1) for i in range(26)],
+                [Factor(name=f"X{i}", low=-1, high=1) for i in range(51)],
                 design_type="fractional_factorial",
                 budget=64,
                 n_center_points=0,

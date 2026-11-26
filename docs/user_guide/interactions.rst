@@ -33,7 +33,7 @@ fitted from three points of support and will report whatever noise lives there.
 
 Two variables that co-vary occupy only the agreeing corners and fail this check.
 **That is the correct answer, not a defect to work around.** Their interaction
-is not identifiable from these observations, and no amount of regularisation
+is not identifiable from these observations, and no amount of regularization
 makes it so. The returned ``correlation`` is nearly always the explanation.
 
 Each variable is split at its own median, so the marginal split is balanced by
@@ -42,8 +42,8 @@ construction and only the *joint* distribution can fail.
 Building the terms
 ------------------
 
-The order is not negotiable: transform, centre and scale, multiply, then
-**re-centre and re-scale the products**.
+The order is not negotiable: transform, center and scale, multiply, then
+**re-center and re-scale the products**.
 
 .. code-block:: python
 
@@ -51,10 +51,10 @@ The order is not negotiable: transform, centre and scale, multiply, then
 
    terms, constants = interaction_terms(x_scaled, [("linalool", "geraniol")])
 
-The second pass is not tidiness. The product of two standardised columns is not
-itself centred: for approximately bivariate normal parents its mean is the
+The second pass is not tidiness. The product of two standardized columns is not
+itself centered: for approximately bivariate normal parents its mean is the
 parents' correlation :math:`r` and its variance is :math:`1 + r^2`. Skipping the
-re-centring therefore leaks correlation into the intercept, and skipping the
+re-centering therefore leaks correlation into the intercept, and skipping the
 re-scaling hands the model a column with more variance than a genuine predictor
 would have, inflating exactly the pairs whose interactions deserve the least
 trust.
@@ -62,7 +62,7 @@ trust.
 ``constants`` records ``center``, ``divisor`` and ``parent_correlation`` per
 term, so a held-out block can be built with training constants: multiply the
 same parents, subtract ``center``, divide by ``divisor``. Parents that do not
-look centred and unit-variance draw a
+look centered and unit-variance draw a
 :class:`~process_improve.multivariate.SpecificationWarning`, since both the
 reasoning above and the reported correlation depend on them being so.
 

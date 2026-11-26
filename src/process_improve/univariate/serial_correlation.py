@@ -1,5 +1,5 @@
 # (c) Kevin Dunn, 2010-2026. MIT License.
-r"""Records whose neighbours in time are correlated: a first-order moving average, and the variance of a difference.
+r"""Records whose neighbors in time are correlated: a first-order moving average, and the variance of a difference.
 
 Successive batches of a process are often not independent: a high yield tends to follow a low one,
 or another high one. Two consequences matter when such a record is used as a reference.
@@ -43,7 +43,7 @@ def difference_variance(n: int, rho1: float = 0.0, variance: float = 1.0, *, adj
     The observations have variance :math:`\sigma^2` and lag-1 autocorrelation :math:`\rho_1`, with
     none beyond lag 1 (a first-order moving average has that pattern). The variance of one average
     is :math:`(\sigma^2/n)\,[1 + 2\rho_1(n - 1)/n]`. Two adjacent averages, the second block
-    starting where the first ends, are themselves correlated through the one pair of neighbours that
+    starting where the first ends, are themselves correlated through the one pair of neighbors that
     straddles them, so the variance of their difference is
 
     .. math::
@@ -86,7 +86,7 @@ def difference_variance(n: int, rho1: float = 0.0, variance: float = 1.0, *, adj
     if not (math.isfinite(variance) and variance >= 0):
         msg = f"The variance must be a finite number, 0 or more; got {variance}."
         raise ValueError(msg)
-    pairs = 2 * n - 3 if adjacent else 2 * (n - 1)  # neighbours within the blocks, less the pair across them
+    pairs = 2 * n - 3 if adjacent else 2 * (n - 1)  # neighbors within the blocks, less the pair across them
     return 2 * variance / n * (1 + rho1 * pairs / n)
 
 

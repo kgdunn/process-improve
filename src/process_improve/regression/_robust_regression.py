@@ -590,7 +590,7 @@ def multiple_linear_regression(
     Keys present only for single-feature ``X`` (and only when ``fit_intercept``
     is True and there is enough non-degenerate data)::
 
-        x_ssq:                    sum of squares of the centred predictor
+        x_ssq:                    sum of squares of the centered predictor
         pi_range:                 prediction interval above and below, over the
                                   range of the predictor (``pi_resolution`` points)
     """
@@ -974,7 +974,8 @@ class OLS(RegressorMixin, BaseEstimator):
             prediction), and ``lower`` / ``upper`` (the prediction-interval
             bounds).
         """
-        assert getattr(self, "is_fitted_", False), "OLS must be fitted before calling prediction_interval()."
+        if not getattr(self, "is_fitted_", False):
+            raise NotFittedError("OLS must be fitted before calling prediction_interval().")
         cl = self.conflevel if conflevel is None else conflevel
         _check_probability("conflevel", cl)
 

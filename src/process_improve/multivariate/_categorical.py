@@ -49,7 +49,7 @@ from process_improve.visualization.themes import DEFAULT_THEME
 
 
 def _as_table(X: DataMatrix, what: str) -> pd.DataFrame:
-    """Coerce a contingency table to a labelled float DataFrame and check it is one.
+    """Coerce a contingency table to a labeled float DataFrame and check it is one.
 
     Raises
     ------
@@ -111,7 +111,7 @@ class CA(TransformerMixin, BaseEstimator):
     r"""Correspondence analysis of a two-way contingency table.
 
     With :math:`P = N / n` the table of relative frequencies, :math:`r` and :math:`c`
-    its row and column masses (the marginal proportions), the matrix of standardised
+    its row and column masses (the marginal proportions), the matrix of standardized
     residuals from independence,
 
     .. math::
@@ -201,7 +201,7 @@ class CA(TransformerMixin, BaseEstimator):
         column_mass = proportions.sum(axis=0)
 
         residuals = (proportions - np.outer(row_mass, column_mass)) / np.sqrt(np.outer(row_mass, column_mass))
-        # At most min(I, J) - 1 axes, since centring on the average profile removes one
+        # At most min(I, J) - 1 axes, since centering on the average profile removes one
         # (its singular value is rounding noise, far below the null inertia); fewer when
         # the table is rank-deficient.
         singular, left, right = _axes_with_inertia(residuals)
@@ -357,8 +357,8 @@ class CA(TransformerMixin, BaseEstimator):
 
                 {
                     "title": "Correspondence analysis map",  # str: plot title
-                    "row_color": None,        # str|None: marker colour for rows
-                    "column_color": None,     # str|None: marker colour for columns
+                    "row_color": None,        # str|None: marker color for rows
+                    "column_color": None,     # str|None: marker color for columns
                     "html_image_height": 600, # int: image height in pixels
                     "html_aspect_ratio_w_over_h": 1.0,  # float: width over height
                     "template": "pi_journal", # str: registered Plotly theme name
@@ -475,7 +475,7 @@ class MCA(CA):
     plot together, and levels that tend to occur together plot together.
 
     The raw eigenvalues of an indicator matrix are notoriously pessimistic: with
-    :math:`Q` variables, much of the inertia is an artefact of the coding, and the
+    :math:`Q` variables, much of the inertia is an artifact of the coding, and the
     first axes look as if they explain a small share when they explain nearly all of
     the real association. ``correction`` reports that share honestly.
 
@@ -543,7 +543,7 @@ class MCA(CA):
         Raises
         ------
         ValueError
-            If ``correction`` is not recognised, fewer than two variables are given,
+            If ``correction`` is not recognized, fewer than two variables are given,
             or a cell is missing.
         """
         if self.correction not in MCA_CORRECTIONS:
@@ -614,7 +614,7 @@ class MCA(CA):
     def transform_columns(self, X: DataMatrix) -> pd.DataFrame:
         """Place the levels of *supplementary* categorical variables on the fitted map.
 
-        Each level lands at the barycentre of the observations that have it, so a
+        Each level lands at the barycenter of the observations that have it, so a
         supplementary outcome label (good / bad batch) shows which combinations of the
         fitted attributes go with each outcome, without the outcome shaping the axes.
 
@@ -643,10 +643,10 @@ class FAMD(TransformerMixin, BaseEstimator):
     categorical columns without one-hot encoding them by hand, after which they are
     over- or under-weighted against the numeric ones, because PCA has no notion of
     balancing the two. FAMD gives every variable an equal say: each numeric column
-    is standardised, so it contributes an inertia of 1, and each categorical column
+    is standardized, so it contributes an inertia of 1, and each categorical column
     with :math:`k` levels contributes :math:`k - 1`, exactly as it would in MCA.
 
-    Concretely the numeric columns are centred and scaled to unit (population)
+    Concretely the numeric columns are centered and scaled to unit (population)
     variance, each level's indicator :math:`\delta` becomes
     :math:`\delta / \sqrt{p} - \sqrt{p}` for a level of frequency :math:`p`, and the
     combined matrix :math:`Z` is decomposed as :math:`Z / \sqrt{n} = U S V^T`. FAMD
@@ -687,7 +687,7 @@ class FAMD(TransformerMixin, BaseEstimator):
 
     References
     ----------
-    J. Pages, "Analyse factorielle de donnees mixtes", Revue de Statistique Appliquee,
+    J. Pages, "Analyze factorielle de donnees mixtes", Revue de Statistique Appliquee,
     52 (2004), 93-111.
 
     Examples
@@ -715,7 +715,7 @@ class FAMD(TransformerMixin, BaseEstimator):
         return numeric, categorical
 
     def _transformed(self, frame: pd.DataFrame) -> np.ndarray:
-        """Apply the fitted standardisation and level weighting to ``frame``."""
+        """Apply the fitted standardization and level weighting to ``frame``."""
         blocks = []
         if self.numeric_:
             values = frame[self.numeric_].to_numpy(dtype=float)
@@ -761,12 +761,12 @@ class FAMD(TransformerMixin, BaseEstimator):
         if self.numeric_:
             values = frame[self.numeric_].to_numpy(dtype=float)
             self._means = values.mean(axis=0)
-            # Population variance, so that each standardised column carries an inertia of
+            # Population variance, so that each standardized column carries an inertia of
             # exactly 1: that is what puts a numeric column on the same footing as a level.
             self._spreads = values.std(axis=0)
             # A column of equal values, in any units, as MCUVScaler reads one. Its standard
             # deviation is as often rounding noise (1e-17) as an exact 0, and dividing by the
-            # noise made it a column of +-1, uncentred, with an inertia of 1 of its own.
+            # noise made it a column of +-1, uncentered, with an inertia of 1 of its own.
             constant = pd.Index(self.numeric_)[np.ptp(values, axis=0) == 0].tolist()
             if constant:
                 raise ValueError(f"Numeric columns {constant} are constant, so they carry no information. Drop them.")
@@ -780,7 +780,7 @@ class FAMD(TransformerMixin, BaseEstimator):
         singular, _, right = _axes_with_inertia(transformed / np.sqrt(n_rows))
         rank = singular.size
         if rank == 0:
-            raise ValueError("The table has no variation to analyse: every observation is the same.")
+            raise ValueError("The table has no variation to analyze: every observation is the same.")
         eigenvalues = singular**2
 
         keep = int(self.n_components)
@@ -885,7 +885,7 @@ class MFA(TransformerMixin, BaseEstimator):
     Process data arrives in blocks (a spectrum, a lab panel, the process conditions)
     measured on the same observations. Concatenating them into one PCA lets the widest
     block win: a 600-wavelength spectrum outvotes a dozen lab results simply by having
-    more columns. MFA first analyses each group on its own and divides it by the square
+    more columns. MFA first analyzes each group on its own and divides it by the square
     root of its first eigenvalue, so that no group's leading direction can carry more
     than an inertia of 1, then runs one PCA on the balanced whole.
 
@@ -998,13 +998,13 @@ class MFA(TransformerMixin, BaseEstimator):
                     )
 
     def _group_block(self, frame: pd.DataFrame, name: str) -> np.ndarray:
-        """Centre (and scale) one group's columns with the fitted statistics, then weight it."""
+        """Center (and scale) one group's columns with the fitted statistics, then weight it."""
         values = frame[self.groups_[name]].to_numpy(dtype=float)
         centred = (values - self._means[name]) / self._spreads[name]
         return centred * np.sqrt(self.group_weights_[name])
 
     def _weigh_groups(self, frame: pd.DataFrame) -> None:
-        """Store each group's centre and spread, and weight it by one over its first eigenvalue."""
+        """Store each group's center and spread, and weight it by one over its first eigenvalue."""
         self._means, self._spreads = {}, {}
         weights = {}
         for name, columns in self.groups_.items():
@@ -1038,7 +1038,7 @@ class MFA(TransformerMixin, BaseEstimator):
         self.group_contributions_ = self.group_coordinates_ / self.eigenvalues_
 
     def fit(self, X: DataMatrix, y: object = None) -> MFA:  # noqa: ARG002
-        """Fit to a table whose columns are organised into ``groups``.
+        """Fit to a table whose columns are organized into ``groups``.
 
         Parameters
         ----------
@@ -1097,7 +1097,7 @@ class MFA(TransformerMixin, BaseEstimator):
         self._per_group(blocks, frame.index, axes)
 
         # A column's loading, undone of its group's weight and scaled to the axis's
-        # spread: for standardised columns, its correlation with the axis.
+        # spread: for standardized columns, its correlation with the axis.
         column_weights = self.group_weights_.to_numpy().repeat([len(c) for c in self.groups_.values()])
         self.column_coordinates_ = pd.DataFrame(
             self._loadings * singular[:keep] / np.sqrt(column_weights)[:, np.newaxis], index=used, columns=axes

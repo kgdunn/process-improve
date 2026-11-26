@@ -13,7 +13,7 @@ integer linear program (ILP).
 Method
 ------
 Every design here is a **foldover** ``[H; -H; 0]``: a half-design ``H``, its
-mirror image ``-H``, and a single centre run.  The foldover structure makes
+mirror image ``-H``, and a single center run.  The foldover structure makes
 three of the four OMARS-defining conditions hold automatically:
 
 * balance - ``h`` and ``-h`` cancel, so every main-effect column sums to zero;
@@ -22,7 +22,7 @@ three of the four OMARS-defining conditions hold automatically:
 * main effects clear of the pure quadratics - ``x_i x_j^2`` is odd in ``x_i``,
   so those contributions cancel too;
 
-and the centre run puts every factor at its middle level.  The condition that
+and the center run puts every factor at its middle level.  The condition that
 is *not* automatic is the mutual orthogonality of the main effects, which is
 linear in the binary "include this half-run" variables ``s_r``: for each pair
 ``i < j``, ``sum_r (x[r,i] x[r,j]) s_r = 0``.  Each factor must also reach an
@@ -47,18 +47,18 @@ search is reproducible for a fixed seed.  Designs from which the sizing model
 cannot be estimated are set aside, and each one teaches the solver a cover cut
 that keeps later solves away from every design sharing its rank deficiency
 (:func:`_estimability_cuts`).  Designs that differ only in run order, factor
-order or factor signs are recognised as one (:func:`_canonical_key`).  When
+order or factor signs are recognized as one (:func:`_canonical_key`).  When
 the selection is driven by D-efficiency, every design found is then improved by
 a local search over run swaps that keep the main effects orthogonal
 (:class:`_SwapIndex`).  The best design is chosen by a satisficing-and-dominance
 rule over D-efficiency and the maximum second-order correlation, following the
 selection philosophy of Nunez Ares and Goos (2020).  This makes the generator
-competitive with their enumerated catalogue without consulting it.
+competitive with their enumerated catalog without consulting it.
 
-This realises, for OMARS designs, the integer-programming construction of Nunez
+This realizes, for OMARS designs, the integer-programming construction of Nunez
 Ares and Goos (2020); the ILP-over-design-points framing is shared with their
 trend-robust run-order work (Nunez Ares and Goos, 2019).  An exhaustively
-enumerated OMARS catalogue exists but is unlicensed and is not redistributed
+enumerated OMARS catalog exists but is unlicensed and is not redistributed
 here.  Only the (dominant) foldover OMARS family is generated; the rarer
 non-foldover members are a documented future extension.
 
@@ -168,7 +168,7 @@ _CANONICAL_MAX_TRANSFORMS = 25_000
 # 0.8 s instead of 2.7 s, and the local search (see _descend in
 # _search_best_omars) more than makes up for the somewhat weaker designs.  The
 # root reduced-cost heuristic stays on: without it the designs found are much
-# weaker.  The feasibility and minimise-size solves keep the HiGHS defaults.  A
+# weaker.  The feasibility and minimize-size solves keep the HiGHS defaults.  A
 # HiGHS too old to know an option skips it.
 _RANDOM_OBJECTIVE_HIGHS_OPTIONS = {
     "mip_heuristic_run_rins": False,
@@ -183,7 +183,7 @@ _RANDOM_OBJECTIVE_HIGHS_OPTIONS = {
 # calibrated so the worst in-cap cell enumerates in seconds on ordinary hardware.
 _ENUM_MAX_HALF = {3: 18, 4: 12}
 _ENUM_MAX_LEAVES = 4_000_000
-# Batch size for the vectorised scoring of enumerated count vectors.
+# Batch size for the vectorized scoring of enumerated count vectors.
 _ENUM_SCORE_CHUNK = 65_536
 # Relative eigenvalue threshold below which an enumerated design's model Gram
 # matrix counts as singular (rank-deficient).
@@ -290,7 +290,7 @@ class OmarsSearchReport:
     size_proven_minimal : bool or None
         ``True`` when the returned run size was proven to be the smallest
         feasible one in the window.  ``False`` when a limit stopped the
-        minimise-size solve first, or when no design at the proven minimum could
+        minimize-size solve first, or when no design at the proven minimum could
         estimate the model and the search moved up.  ``None`` when the run size
         was pinned by ``n_runs`` or lies beyond the distinct half-runs (see
         *n_runs_range* in :func:`generate_omars`).
@@ -339,7 +339,7 @@ def _half_pool(n_factors: int) -> np.ndarray:
 
     These are the candidate half-runs: every nonzero run of the ``3**k`` grid
     whose first nonzero coordinate is ``+1``.  The full foldover design adds the
-    mirror ``-H`` and a centre run.
+    mirror ``-H`` and a center run.
     """
     grid = itertools.product((-1.0, 0.0, 1.0), repeat=n_factors)
     reps = []
@@ -491,12 +491,12 @@ def solve_omars_ilp(  # noqa: PLR0913
     half_bounds : tuple[int, int], optional
         Inclusive ``(min, max)`` half-run count.
     minimize_size : bool, optional
-        When ``True`` the objective minimises the half-run count (smallest
+        When ``True`` the objective minimizes the half-run count (smallest
         feasible design); otherwise the solve is a pure feasibility search.
     objective : np.ndarray, optional
         Per-candidate linear cost of shape ``(n_candidates,)``.  When given, the
-        solver minimises ``sum_r objective[r] * s_r`` instead of running a pure
-        feasibility (or minimise-size) search.  A random objective drives the
+        solver minimizes ``sum_r objective[r] * s_r`` instead of running a pure
+        feasibility (or minimize-size) search.  A random objective drives the
         solver towards a different feasible OMARS design, which is how
         :func:`generate_omars` samples diverse, high-quality designs.  Takes
         precedence over *minimize_size*.  Only solves with an *objective* are
@@ -553,8 +553,8 @@ def solve_omars_ilp(  # noqa: PLR0913
         if settings.node_limit is not None:
             options["node_limit"] = settings.node_limit
     else:
-        # Minimise-size and feasibility solves close at the root node, so they
-        # need no node budget, and a node-limited minimise-size solve could not
+        # Minimize-size and feasibility solves close at the root node, so they
+        # need no node budget, and a node-limited minimize-size solve could not
         # prove that its size is the smallest.
         cost = np.full(n_candidates, 1.0 if minimize_size else 0.0)
 
@@ -664,7 +664,7 @@ def _selection_constraints(
     """Linear constraints on the binary "include this half-run" variables.
 
     The foldover makes balance and clear-of-second-order automatic, and its
-    centre run puts every factor at its middle level.  Two OMARS conditions
+    center run puts every factor at its middle level.  Two OMARS conditions
     remain, and both are linear in ``s_r``:
 
     * main-effect orthogonality: each factor pair ``i < j`` contributes the
@@ -710,7 +710,7 @@ def _run_milp(
     integrality: np.ndarray | None = None,
     bounds: Bounds | None = None,
 ) -> OptimizeResult:
-    """Solve a mixed-integer linear programme with HiGHS on a single thread: the binary selection problem by default.
+    """Solve a mixed-integer linear program with HiGHS on a single thread: the binary selection problem by default.
 
     Every variable is binary unless ``integrality`` and ``bounds`` say otherwise, as
     :func:`scipy.optimize.milp` takes them.
@@ -851,7 +851,7 @@ def _half_bounds(
 
     For the full second-order model estimability is the binding floor; for
     ``"main_quadratic"`` the error-df floor usually is.  *n_runs_range* is in
-    total runs, centre runs included.
+    total runs, center runs included.
     """
     floor_half = max(1, min_half, (n_params - center_runs) // 2 + 1)
     if n_runs_range is not None:
@@ -949,7 +949,7 @@ def _max_second_order_correlation_metric(coded: np.ndarray, tol: float = 1e-9) -
     skips constant columns), this selection metric returns ``inf`` when any
     second-order column is constant: such a column belongs to a term the design
     cannot estimate, and skipping it would flatter exactly the degenerate
-    designs a correlation-minimising selection would then crown as winners.
+    designs a correlation-minimizing selection would then crown as winners.
     """
     second_order, _ = _second_order_terms(coded)
     if second_order.shape[1] < 2:
@@ -1029,7 +1029,7 @@ def _distinct_feature_cuts(features: np.ndarray, n_factors: int) -> list[list[in
     zero or two of them are identical, so an estimable design must select a
     run on which each column is nonzero and a run on which each pair of columns
     differs.  These are the sparsest null vectors (``e_a`` and ``e_a - e_b``)
-    of :func:`_estimability_cuts`, imposed up front rather than learnt one
+    of :func:`_estimability_cuts`, imposed up front rather than learned one
     rank-deficient design at a time.  The pairs are taken among the first
     *n_factors* columns only, the pure quadratics, whose supports most often
     coincide (two factors set to zero in the same runs): the interaction
@@ -1308,7 +1308,7 @@ def _enumerate_feasible_counts(  # noqa: C901, PLR0915
     # Deterministic order: widest-support rows first, so every orthogonality
     # constraint closes out (and prunes) as early as possible; the k singleton
     # rows, which touch no constraint, form the tail and are expanded
-    # vectorised below rather than recursed over.
+    # vectorized below rather than recursed over.
     support = (pool != 0).sum(axis=1)
     order = sorted(range(n_rows), key=lambda r: (-int(support[r]), tuple(-pool[r])))
     coeff: list[list[tuple[int, int]]] = []
@@ -1414,13 +1414,13 @@ def _score_count_vectors(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Score enumerated count vectors: D-efficiency, A-optimality, max second-order correlation.
 
-    Works from the count vectors alone, without materialising any design: for a
+    Works from the count vectors alone, without materializing any design: for a
     foldover the model Gram matrix is a count-weighted sum of per-sign-class
-    contributions plus the centre-run block, and the second-order columns are
+    contributions plus the center-run block, and the second-order columns are
     even functions, so their Gram doubles per half-row.  Scores match
     :func:`_d_efficiency`, :func:`_a_optimality` and
-    :func:`_max_second_order_correlation_metric` evaluated on the materialised
-    design (foldover plus ``center_runs - 1`` appended centre rows).
+    :func:`_max_second_order_correlation_metric` evaluated on the materialized
+    design (foldover plus ``center_runs - 1`` appended center rows).
     """
     n_rows = pool.shape[0]
     n_leaves = count_matrix.shape[0]
@@ -1518,11 +1518,11 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
     """Run the design search and return ``(coded_matrix, metadata)`` for the winner.
 
     *n_runs*, *n_runs_range*, and every reported run count are **totals**,
-    centre runs included.  *plateau*, when given, ends the multistart at a
+    center runs included.  *plateau*, when given, ends the multistart at a
     size after that many consecutive estimable designs fail to improve the
     Pareto front (see :data:`_PLATEAU`); *n_restarts* stays the ceiling.  The returned matrix is a foldover design and
-    contains exactly one centre run; callers append the remaining
-    ``center_runs - 1`` centre rows during post-processing, but all quality
+    contains exactly one center run; callers append the remaining
+    ``center_runs - 1`` center rows during post-processing, but all quality
     metrics here are computed with those rows included, so the metadata
     describes the design the caller receives.
     """
@@ -1551,7 +1551,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         if n_runs <= n_params:
             msg = (
                 f"n_runs={n_runs} leaves no error degrees of freedom: the {model} model has "
-                f"{n_params} parameters, so n_runs (the total run count, centre runs included) "
+                f"{n_params} parameters, so n_runs (the total run count, center runs included) "
                 f"must exceed {n_params}."
             )
             raise ValueError(msg)
@@ -1559,7 +1559,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
             msg = (
                 f"n_runs={n_runs} is incompatible with center_runs={center_runs}: a foldover OMARS "
                 f"design has n_runs = 2*h + center_runs runs (h half-runs, their h mirrors, and the "
-                f"centre runs), so n_runs - center_runs must be a positive even number. "
+                f"center runs), so n_runs - center_runs must be a positive even number. "
                 f"Try n_runs={n_runs + 1} or n_runs={n_runs - 1}."
             )
             raise ValueError(msg)
@@ -1592,7 +1592,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
     seen: dict[bytes, _Candidate | None] = {}
     # Cuts that keep the solves at the target size away from rank-deficient
     # designs: the necessary conditions known up front, then the cover cuts
-    # learnt from each rank-deficient design met (_estimability_cuts), or a
+    # learned from each rank-deficient design met (_estimability_cuts), or a
     # no-good cut when the deficiency yields no cover cut.
     features = _even_features(pool, model)
     cover_cuts: list[list[int]] = _distinct_feature_cuts(features, n_factors)
@@ -1610,7 +1610,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         nonlocal last_status
         started = time.perf_counter()
         if "n_half" in solve_kwargs:
-            # Not the minimise-size probe, which looks for the smallest OMARS
+            # Not the minimize-size probe, which looks for the smallest OMARS
             # design whether or not it is estimable.  The cover cuts are never
             # empty: the up-front ones include, for every even feature column,
             # the pool rows on which it is nonzero.
@@ -1633,7 +1633,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
 
         Distinct means not equivalent, under run order, factor order and factor
         signs, to a design met before.  A rank-deficient design is never new; the
-        cut learnt from it keeps later solves away from it and its subspace.
+        cut learned from it keeps later solves away from it and its subspace.
         """
         key = _canonical_key(coded)
         if key in seen:
@@ -1644,7 +1644,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         if verify and not is_omars(coded, tol=tol):  # pragma: no cover - re-check of exactly verified designs
             return False
         # Score the design the caller will actually receive: the foldover plus
-        # the extra centre runs appended during post-processing.
+        # the extra center runs appended during post-processing.
         scored = np.vstack([coded, extra_centers])
         if _model_rank(scored, model) < n_params:
             # A valid OMARS design that cannot fit the sizing model.  Its
@@ -1688,7 +1688,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
           that, polished, do not improve the Pareto front, counting those
           equivalent to a design already retained (rank-deficient designs do
           not count);
-        * when a solve proves the problem infeasible: the learnt cuts have then
+        * when a solve proves the problem infeasible: the learned cuts have then
           excluded every remaining design at this size, and none was estimable.
 
         With *polish*, each new estimable design is first improved by
@@ -1741,7 +1741,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
     def _descend(start: _Candidate) -> None:
         """Improve *start* by run swaps that keep the main effects orthogonal.
 
-        A variable-neighbourhood descent: take the best of the one- and
+        A variable-neighborhood descent: take the best of the one- and
         two-run swaps (:meth:`_SwapIndex.swaps`) while one improves the D-efficiency
         (ties going to the lower maximum second-order correlation, see
         :func:`_better`), and otherwise the first improving three-run swap
@@ -1820,7 +1820,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
             report.size_proven_minimal = status == _STATUS_OPTIMAL
             if not report.size_proven_minimal:
                 logger.info(
-                    "The OMARS minimise-size solve stopped early (%s); %d runs may not be the smallest.",
+                    "The OMARS minimize-size solve stopped early (%s); %d runs may not be the smallest.",
                     status,
                     2 * target_half + center_runs,
                 )
@@ -1858,7 +1858,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
             count_matrix, overflow = _enumerate_feasible_counts(pool, half, _ENUM_MAX_LEAVES)
             if not overflow:
                 # The enumeration replaces whatever the solver found at this
-                # size, including the minimise-size design and its count.
+                # size, including the minimize-size design and its count.
                 candidates.clear()
                 if half == probed_half:
                     report.rank_deficient_designs -= probe_rank_deficient
@@ -1948,7 +1948,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
             )
             msg = (
                 f"No feasible OMARS design was found at {target} with center_runs={center_runs}: the "
-                f"minimise-size solve ended with status {last_status!r}. {_no_design_advice(last_status)}"
+                f"minimize-size solve ended with status {last_status!r}. {_no_design_advice(last_status)}"
             )
         elif report.rank_deficient_designs:
             exhausted_all = report.search_mode == "exhaustive"
@@ -1992,7 +1992,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
 
     winner = _select(eligible, selection_criterion)
     report.run_size = winner.n_runs
-    # Describe the design the caller receives: the foldover plus the extra centre runs.
+    # Describe the design the caller receives: the foldover plus the extra center runs.
     received = np.vstack([winner.coded, extra_centers])
     received_rank = _model_rank(received, model)
     metadata = {
@@ -2060,10 +2060,10 @@ def generate_omars(  # noqa: PLR0913
     """Generate a foldover OMARS design by exhaustive or integer-programming run selection.
 
     Builds a three-level OMARS design large enough to leave error degrees of
-    freedom for the chosen analysis *model*, so it can be analysed with
+    freedom for the chosen analysis *model*, so it can be analyzed with
     :func:`process_improve.experiments.analyze_omars`.  The design is a foldover
-    ``[H; -H; 0]`` (half-runs, their mirrors, and a centre run) plus any further
-    centre runs, for ``2*h + center_runs`` runs in total.  Regardless of
+    ``[H; -H; 0]`` (half-runs, their mirrors, and a center run) plus any further
+    center runs, for ``2*h + center_runs`` runs in total.  Regardless of
     *model*, the design is a genuine OMARS design: the main effects stay
     orthogonal to every second-order term (quadratics and interactions alike).
 
@@ -2072,7 +2072,7 @@ def generate_omars(  # noqa: PLR0913
     factors : list[Factor]
         At least three continuous factors.
     n_runs : int, optional
-        Exact total run size of the returned design, centre runs included.
+        Exact total run size of the returned design, center runs included.
         ``n_runs - center_runs`` must be a positive even number (the half-runs
         and their mirrors), and *n_runs* must exceed the number of parameters in
         the chosen *model* (``1 + 2k + k(k-1)/2`` for ``"full_second_order"``,
@@ -2113,21 +2113,21 @@ def generate_omars(  # noqa: PLR0913
         example ``{"d_efficiency": 5.0, "max_second_order_correlation": 0.7}``.
         A ``ValueError`` is raised if no enumerated design meets the thresholds.
     center_runs : int, optional
-        Number of centre runs in the design (at least one; the foldover already
-        contributes one).  Centre runs count towards *n_runs*: asking for
-        ``n_runs=17, center_runs=3`` returns 17 rows, 3 of them centre runs.
+        Number of center runs in the design (at least one; the foldover already
+        contributes one).  Center runs count towards *n_runs*: asking for
+        ``n_runs=17, center_runs=3`` returns 17 rows, 3 of them center runs.
         Default 1.
     n_restarts : int, optional
         Number of randomized-objective ILP solves used to search for a
         high-quality design.  Each restart steers the solver towards a different
         feasible OMARS design; the best one (by *selection_criterion*) is kept.
         Higher values explore more of the feasible set and approach the
-        catalogue-optimal designs more closely, at a roughly linear cost in
+        catalog-optimal designs more closely, at a roughly linear cost in
         runtime; ``0`` runs only the plain feasibility solve at each size.  The
         search early-stops once the feasible set stops yielding new designs, so
         small factor counts finish quickly regardless.  The budget
         applies at each run size the search visits.  Default 50,
-        which reaches catalogue-competitive D-efficiency for up to seven factors.
+        which reaches catalog-competitive D-efficiency for up to seven factors.
         For the ``"dominance"`` and ``"d_efficiency"`` criteria each design
         found is also improved by a local search over run swaps, whose cost
         does not count against this budget.
@@ -2163,7 +2163,7 @@ def generate_omars(  # noqa: PLR0913
         :func:`is_omars` before it is accepted.
     random_state : int, numpy.random.Generator or None, default 42
         Seed for both the randomized-objective search (which design is found) and
-        the run-order randomisation of the returned design.  A fixed seed makes
+        the run-order randomization of the returned design.  A fixed seed makes
         the whole call reproducible on a given SciPy version: the node budget,
         not the clock, ends each solve.  A solve stopped by the wall-clock
         ``time_limit`` instead depends on machine speed;
@@ -2181,7 +2181,7 @@ def generate_omars(  # noqa: PLR0913
     ------
     ValueError
         If fewer than three factors are given, the factor count exceeds the
-        combinatorial cap, *model* is not recognised, *n_runs* is too small or
+        combinatorial cap, *model* is not recognized, *n_runs* is too small or
         incompatible with *center_runs*, *n_restarts* is negative,
         *solver_options* has an unknown key or an out-of-range value, or no
         feasible design from which the sizing model can be estimated is found.
@@ -2241,16 +2241,16 @@ def generate_omars(  # noqa: PLR0913
 def _dispatch_omars_ilp(factors: list[Factor], **kwargs: Any) -> tuple[np.ndarray, dict]:  # noqa: ANN401
     """Registry handler: ``generate_design(design_type="omars_ilp", budget=N)``.
 
-    Returns the raw coded matrix (with its single centre run) and metadata;
+    Returns the raw coded matrix (with its single center run) and metadata;
     :func:`process_improve.experiments.generate_design` handles post-processing,
-    appending the other ``center_runs - 1`` centre runs.
+    appending the other ``center_runs - 1`` center runs.
 
     The budget is an upper bound: the design is the largest foldover within it,
-    ``2h + center_runs`` runs, so an even budget with one centre run gives one run
+    ``2h + center_runs`` runs, so an even budget with one center run gives one run
     fewer. It is sized for the full second-order model when that size reaches the
-    ``k**2 + k + 1`` runs (with one centre run) a foldover needs to estimate it, and
+    ``k**2 + k + 1`` runs (with one center run) a foldover needs to estimate it, and
     otherwise for main effects plus pure quadratics, so any budget of at least
-    ``2k + 2 + center_runs`` runs (15 runs for 6 factors and one centre run) gives an
+    ``2k + 2 + center_runs`` runs (15 runs for 6 factors and one center run) gives an
     OMARS design.
 
     The multistart stops at a size once :data:`_PLATEAU` consecutive estimable
@@ -2286,7 +2286,7 @@ def _dispatch_omars_ilp(factors: list[Factor], **kwargs: Any) -> tuple[np.ndarra
         if budget is None:
             raise
         msg = (
-            f"No OMARS design fits budget={budget} with {center_runs} centre run(s): the largest foldover "
+            f"No OMARS design fits budget={budget} with {center_runs} center run(s): the largest foldover "
             f"within it has n_runs={n_runs} runs. {exc}"
         )
         raise ValueError(msg) from exc

@@ -19,7 +19,7 @@ every value (counts, flags, the five criteria, max |r| and the three powers), ev
 `g_points` and the book link. The correlation maps are pinned for the three-factor cases;
 for six and eleven factors they are large, and `max_r` already reads them.
 
-The cases cover the book's twelve-point design with one, three and five centre runs; four
+The cases cover the book's twelve-point design with one, three and five center runs; four
 three-factor designs under the full quadratic model at a non-default effect size and level,
 one with runs outside the cube and one that cannot fit the model; a saturated screening
 design; and six and eleven factors, where G is searched over a 5-level grid and over the

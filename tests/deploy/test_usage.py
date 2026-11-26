@@ -5,6 +5,7 @@ from __future__ import annotations
 import gzip
 import importlib.util
 import json
+import os
 import sys
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -39,7 +40,8 @@ def logged(uri: str, agent: str = BROWSER, *, when: str = "2026-10-12T10:00", **
                "host": "factori.al", "uri": uri, "headers": headers}  # fmt: skip
     ts = datetime.fromisoformat(when).replace(tzinfo=UTC).timestamp()
     return {"level": "info", "ts": ts, "logger": "http.log.access.log0", "msg": "handled request",
-            "request": request, "status": fields.get("status", 200), "size": 10, "duration": 0.001}  # fmt: skip
+            "request": request, "status": fields.get("status", 200), "size": 10,
+            "duration": fields.get("duration", 0.001)}  # fmt: skip
 
 
 def visit(uri: str, agent: str = BROWSER, **fields) -> list[dict]:
@@ -51,6 +53,10 @@ def visit(uri: str, agent: str = BROWSER, **fields) -> list[dict]:
 def day(*entries: dict, on: str = "2026-10-12"):
     days, _ = usage.tally(entries, SINCE)
     return days.get(on, usage.Day())
+
+
+#: The archive of the app's own Python, in the folder a build names by digest: the last file its worker asks for.
+ARCHIVE = "/wheels/0123456789abcdef/bootstrap.zip"
 
 
 #: What a fetch from the app's worker, from the app itself and from the multivariate page's worker says it came from.
@@ -149,9 +155,114 @@ def test_python_started_is_the_app_s_worker_reading_runtime_json():
         logged("/runtime.json", referer=FROM_THE_MVA_WORKER),
         logged("/runtime.json"),  # no Referer at all: not the worker
         logged("/bootstrap.py", referer=FROM_THE_WORKER),  # an older build's worker read this too, after runtime.json
-        logged("/wheels/0123456789abcdef/bootstrap.zip", referer=FROM_THE_WORKER),
+        logged(ARCHIVE, referer=FROM_THE_WORKER),
     )
     assert seen.python == 2
+
+
+def opened_and_started(opened: str, ready: str, agent: str = BROWSER, *, duration: float = 0, **fields) -> list[dict]:
+    """Return a start as the log holds it: the app's page, its response ended at ``opened`` after ``duration``
+    seconds, and its Python's archive downloaded by ``ready``. Pyodide, from jsDelivr, is not in this log.
+    """
+    return [
+        logged("/", agent, when=opened, duration=duration, **fields),
+        logged(ARCHIVE, agent, when=ready, referer=FROM_THE_WORKER, **fields),
+    ]
+
+
+def test_a_start_is_timed_from_when_the_app_began_to_load_to_the_end_of_its_pythons_download():
+    # The page's line is written when its response ended, half a second after it began.
+    seen = day(*opened_and_started("2026-10-12T10:00:00", "2026-10-12T10:00:07", duration=0.5))
+    assert seen.starts == {"First visit": [pytest.approx(7.5)]}
+
+
+def test_a_readers_first_timed_start_is_a_first_visit_and_any_later_one_returning():
+    seen = day(
+        *opened_and_started("2026-10-12T10:00:00", "2026-10-12T10:00:09"),
+        *opened_and_started("2026-10-12T10:00:30", "2026-10-12T10:00:42", PHONE),  # another reader's first
+        *opened_and_started("2026-10-12T15:00:00", "2026-10-12T15:00:03"),  # after a deploy: Pyodide is kept
+    )
+    assert seen.starts == {"First visit": [pytest.approx(9), pytest.approx(12)], "Returning": [pytest.approx(3)]}
+
+
+def test_a_start_is_not_timed_without_an_opening_before_it_or_long_after_it():
+    seen = day(
+        logged(ARCHIVE, when="2026-10-12T09:00", referer=FROM_THE_WORKER),  # no opening of the app before it
+        *opened_and_started("2026-10-12T10:00", "2026-10-12T10:11"),  # the page was left open for 11 minutes
+        logged(ARCHIVE, when="2026-10-12T10:12", referer=FROM_THE_WORKER),  # that opening was paired already
+        *opened_and_started("2026-10-12T11:00", "2026-10-12T11:00:08", HEADLESS),  # the deploy's own check
+        logged("/map/", when="2026-10-12T12:00"),  # a page that is not the app starts no Python
+        logged(ARCHIVE, when="2026-10-12T12:00:05", referer=FROM_THE_WORKER),
+    )
+    assert seen.starts == {}
+
+
+def test_the_report_gives_the_median_start_and_the_time_9_in_10_took_no_longer_than():
+    first_visits = [8, 4, 6, 30, 10]  # seconds, a reader each; 9 in 10 of five is the fifth fastest, the slowest
+    entries = [
+        entry
+        for n, seconds in enumerate(first_visits)
+        for entry in opened_and_started("2026-10-11T10:00", f"2026-10-11T10:00:{seconds:02}", ip=f"198.51.100.{n}")
+    ]
+    entries += opened_and_started("2026-10-12T10:00", "2026-10-12T10:00:02", ip="198.51.100.0")  # two returning
+    entries += opened_and_started("2026-10-12T11:00", "2026-10-12T11:00:03", ip="198.51.100.1")
+    days, referrers = usage.tally(entries, SINCE)
+    lines = usage.report(days, {}, referrers, date(2026, 10, 10), date(2026, 10, 12)).splitlines()
+    assert lines[-3:] == [
+        "From opening the app to Python ready, where the browser downloaded the app's Python:",
+        "  First visit  median 8.0 s, 9 in 10 within 30.0 s, of 5",
+        "  Returning    median 2.5 s, 9 in 10 within 3.0 s, of 2",
+    ]
+    assert lines[-4] == "", "a blank line sets it apart"
+
+
+#: The process-improve wheel, beside the archive: the worker asks for it once Pyodide and its packages are in.
+WHEEL = "/wheels/0123456789abcdef/process_improve-2.7.0-py3-none-any.whl"
+
+
+def started_in_parts(opened: str, worker: str, wheel: str, ready: str, **fields) -> list[dict]:
+    """Return a start with the worker's requests that split it: runtime.json as it starts, then the wheel."""
+    return [
+        logged("/", when=opened, duration=0, **fields),
+        logged("/runtime.json", when=worker, referer=FROM_THE_WORKER, duration=0, **fields),
+        logged(WHEEL, when=wheel, referer=FROM_THE_WORKER, duration=0, **fields),
+        logged(ARCHIVE, when=ready, referer=FROM_THE_WORKER, **fields),
+    ]
+
+
+def test_a_start_splits_into_the_page_pyodide_and_process_improve():
+    seen = day(
+        *started_in_parts("2026-10-12T10:00:00", "2026-10-12T10:00:01", "2026-10-12T10:00:07", "2026-10-12T10:00:08"),
+        logged("/runtime.json", when="2026-10-12T10:00:02", referer=FROM_THE_PAGE),  # the page's own copy: no mark
+    )
+    assert seen.starts == {"First visit": [pytest.approx(8)]}
+    assert seen.parts == {"First visit": [(pytest.approx(1), pytest.approx(6), pytest.approx(1))]}
+
+
+def test_a_start_whose_worker_requests_are_missing_is_timed_but_not_split():
+    seen = day(
+        logged("/", when="2026-10-12T10:00:00", duration=0),
+        logged(WHEEL, when="2026-10-12T10:00:07", referer=FROM_THE_WORKER),  # no runtime.json from the worker
+        logged(ARCHIVE, when="2026-10-12T10:00:08", referer=FROM_THE_WORKER),
+        *started_in_parts("2026-10-12T11:00:00", "2026-10-12T11:00:01", "2026-10-12T11:00:07", "2026-10-12T11:00:08"),
+    )
+    assert seen.starts == {"First visit": [pytest.approx(8)], "Returning": [pytest.approx(8)]}
+    assert seen.parts == {"Returning": [(pytest.approx(1), pytest.approx(6), pytest.approx(1))]}, "the second only"
+
+
+def test_the_report_gives_the_median_of_each_part_of_a_start():
+    entries = [
+        *started_in_parts("2026-10-12T10:00:00", "2026-10-12T10:00:01", "2026-10-12T10:00:09", "2026-10-12T10:00:10"),
+        *started_in_parts(
+            "2026-10-12T10:00:00", "2026-10-12T10:00:02", "2026-10-12T10:00:06", "2026-10-12T10:00:08", ip="192.0.2.0"
+        ),
+    ]
+    days, referrers = usage.tally(entries, SINCE)
+    lines = usage.report(days, {}, referrers, date(2026, 10, 12), date(2026, 10, 12)).splitlines()
+    assert lines[-2:] == [
+        "Where the time went, the median of each part (medians, so they need not add up to the one above):",
+        "  First visit  page 1.5 s, Pyodide 6.0 s, process-improve 1.5 s, of 2",
+    ]
 
 
 def test_a_link_card_fetched_by_a_chat_or_social_site_is_a_preview():
@@ -409,3 +520,91 @@ def test_the_report_reads_the_live_log_and_the_rolled_ones_gzipped(tmp_path, cap
 def test_the_report_says_when_no_log_matches(tmp_path, capsys):
     assert usage.main(["--log", str(tmp_path / "factorial-access*.log*")]) == 1
     assert "no log files match" in capsys.readouterr().err
+
+
+# --------------------------------------------------------------------------- the public file
+NOW = datetime(2026, 10, 12, 10, 30, tzinfo=UTC)
+
+
+def write_log(path: Path, *entries: dict, written: datetime = NOW) -> Path:
+    """Write the entries as a log file, last written at ``written``, and return its path."""
+    path.write_text("".join(json.dumps(entry) + "\n" for entry in entries), encoding="utf-8")
+    os.utime(path, (written.timestamp(), written.timestamp()))
+    return path
+
+
+def test_the_public_file_holds_the_readers_of_each_day_kept_and_logged_and_nothing_else(tmp_path):
+    """The footer draws it: the kept days, then yesterday from the log, then the last 24 hours, as numbers alone."""
+    kept = tmp_path / "usage.csv"
+    kept.write_text("Day,Home,Readers\n2026-10-08,9,5\n2026-10-09,12,7\n", encoding="utf-8")
+    log = write_log(
+        tmp_path / "factorial-access.log",
+        logged("/", when="2026-10-11T09:00"),
+        logged("/map/", PHONE, when="2026-10-11T21:00"),
+        logged("/", when="2026-10-12T08:00"),
+        logged("/", HEADLESS, when="2026-10-12T08:05"),  # the deploy's own check is no reader
+    )
+    public = tmp_path / "public" / "usage.json"
+    written = usage.publish(public, [log], kept, NOW)
+    assert written == {
+        "updated": "2026-10-12T10:30:00Z",
+        "days": [["2026-10-08", 5], ["2026-10-09", 7], ["2026-10-10", 0], ["2026-10-11", 2]],  # none before the first
+        "last_24_hours": 2,  # since 2026-10-11T10:30: the phone at 21:00, and the browser this morning, not at 09:00
+    }
+    assert json.loads(public.read_text(encoding="utf-8")) == written
+    if os.name == "posix":  # the server's: Windows keeps no such mode
+        assert public.stat().st_mode & 0o777 == 0o644, "Caddy reads it as another user"
+    assert not public.with_name("usage.json.part").exists()
+
+
+def test_the_public_file_reads_the_log_from_the_first_day_not_kept_and_no_rolled_file_before_it(tmp_path):
+    """An hourly run reads a day or two of the log, not a year of it: a kept day is never counted again."""
+    kept = tmp_path / "usage.csv"
+    kept.write_text("Day,Readers\n2026-10-09,7\n", encoding="utf-8")
+    log = write_log(
+        tmp_path / "factorial-access.log",
+        logged("/", when="2026-10-09T10:00"),  # a kept day, which the file says
+        logged("/", when="2026-10-10T10:00"),  # not kept: the daily job did not run
+        logged("/", when="2026-10-12T10:00"),
+    )
+    # A rolled file last written before the first day read: never opened, whatever it holds.
+    rolled = write_log(tmp_path / "factorial-access-old.log", logged("/", PHONE, when="2026-10-12T09:00"),
+                       written=datetime(2026, 10, 5, tzinfo=UTC))  # fmt: skip
+    assert usage.written_since([log, rolled], datetime(2026, 10, 10, tzinfo=UTC)) == [log]
+    written = usage.publish(tmp_path / "usage.json", [log, rolled], kept, NOW)
+    assert written["days"] == [["2026-10-09", 7], ["2026-10-10", 1], ["2026-10-11", 0]]
+    assert written["last_24_hours"] == 1
+
+
+def test_the_public_file_holds_ninety_days_at_most(tmp_path):
+    kept = tmp_path / "usage.csv"
+    first = NOW.date() - timedelta(days=200)
+    rows = "".join(f"{(first + timedelta(days=i)).isoformat()},{i}\n" for i in range(199))
+    kept.write_text("Day,Readers\n" + rows, encoding="utf-8")
+    log = write_log(tmp_path / "factorial-access.log", logged("/", when="2026-10-12T09:00"))
+    days = usage.publish(tmp_path / "usage.json", [log], kept, NOW)["days"]
+    assert len(days) == usage.PUBLIC_DAYS
+    assert days[0][0] == (NOW.date() - timedelta(days=usage.PUBLIC_DAYS)).isoformat()
+    assert days[-1] == ["2026-10-11", 0], "yesterday, the last finished day: neither kept nor in the log"
+
+
+def test_public_writes_the_file_and_prints_nothing(tmp_path, capsys):
+    write_log(tmp_path / "factorial-access.log", logged("/", when=datetime.now(UTC).strftime("%Y-%m-%dT%H:%M")),
+              written=datetime.now(UTC))  # fmt: skip
+    public = tmp_path / "usage.json"
+    paths = ["--log", str(tmp_path / "factorial-access*.log*"), "--kept", str(tmp_path / "none.csv")]
+    assert usage.main([*paths, "--public", str(public)]) == 0
+    assert capsys.readouterr().out == ""
+    written = json.loads(public.read_text(encoding="utf-8"))
+    assert (written["days"], written["last_24_hours"]) == ([], 1), "no finished day yet, and one reader today"
+
+
+def test_the_hourly_job_writes_the_file_caddy_serves():
+    here = SCRIPT.parent
+    job = (here / "usage-hourly.sh").read_text(encoding="utf-8")
+    assert "exec /usr/local/bin/factorial-usage --public /var/lib/factorial/public/usage.json" in job
+    caddy = (here / "factorial.caddy").read_text(encoding="utf-8")
+    assert "handle /usage.json {\n\t\troot * /var/lib/factorial/public\n\t\tfile_server\n\t}" in caddy
+    setup = (here / "setup.sh").read_text(encoding="utf-8")
+    # run-parts runs only what may be run: setup.sh installs it so, whatever mode a checkout gave it.
+    assert 'install -o root -g root -m 755 "$here/usage-hourly.sh" /etc/cron.hourly/factorial-usage-public' in setup

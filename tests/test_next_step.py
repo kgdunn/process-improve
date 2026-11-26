@@ -59,14 +59,14 @@ def _made(step: dict, truth: TrueProcess, seed: int) -> pd.DataFrame:
 
 @pytest.fixture(scope="module")
 def dsd_study() -> tuple[list[Factor], pd.DataFrame]:
-    """Return an 8-factor definitive screening design with five centre runs, on the adhesion process."""
+    """Return an 8-factor definitive screening design with five center runs, on the adhesion process."""
     factors = _factors("ABCDEFGH")
     return factors, _runs(factors, ADHESION, 1, design_type="dsd", n_center_points=5)
 
 
 @pytest.fixture(scope="module")
 def drifted() -> tuple[list[Factor], pd.DataFrame]:
-    """Return a 2^3 with centre runs, then the axial runs it calls for, made after the process rose by 8."""
+    """Return a 2^3 with center runs, then the axial runs it calls for, made after the process rose by 8."""
     factors = _factors("ABC")
     first = _runs(factors, CURVED, 2, design_type="full_factorial", n_center_points=3).assign(Round=1)
     step = recommend_next_step(factors, first, "y", block="Round")
@@ -151,7 +151,7 @@ class TestScreeningResults:
         added = pd.DataFrame(step["runs"])
         axial = added[(added != 0).sum(axis=1) == 1]
         assert sorted(axial.abs().idxmax(axis=1).unique()) == ["A", "B", "C"]
-        assert ((added.abs() <= 1).all()).all()  # face-centred: no run leaves the ranges
+        assert ((added.abs() <= 1).all()).all()  # face-centered: no run leaves the ranges
 
     def test_response_surface_confirms_an_interior_optimum(self) -> None:
         factors = _factors("ABC")
@@ -165,7 +165,7 @@ class TestScreeningResults:
 
 
 class TestSquaresAliasedWithEachOther:
-    """Centre runs give every factor's square one column: curvature in many factors is not yet anyone's."""
+    """Center runs give every factor's square one column: curvature in many factors is not yet anyone's."""
 
     CURVED_8 = TrueProcess({"Intercept": 100, "A": 2, "I(A ** 2)": -6, "I(C ** 2)": -4}, sigma=1)
 
@@ -213,7 +213,7 @@ class TestLackOfFit:
 
     @staticmethod
     def _study(three_factor: float, n_center: int = 5) -> _Study:
-        """Return a 2^3 factorial with centre runs: A large, B small, and A:B:C, which no model judged holds."""
+        """Return a 2^3 factorial with center runs: A large, B small, and A:B:C, which no model judged holds."""
         factors = _factors("ABC")
         runs = generate_design(factors, design_type="full_factorial", n_center_points=n_center).design_actual
         x = runs[list("ABC")].astype(float).to_numpy()
@@ -222,7 +222,7 @@ class TestLackOfFit:
         return _Study(factors, _with_blocks(_code(factors, runs[list("ABC")].assign(y=y), "y")), "y")
 
     def test_a_model_that_misses_is_judged_against_the_repeats(self) -> None:
-        """A:B:C goes into the residual and hides B; the centre runs' own spread shows it."""
+        """A:B:C goes into the residual and hides B; the center runs' own spread shows it."""
         study = self._study(three_factor=4)
         judged = _t_tests(study.data, study.names, [], "t-tests of the main effects", 0.05)
         again = _against_pure_error(study, judged, 0.05)
@@ -239,7 +239,7 @@ class TestLackOfFit:
         assert _against_pure_error(study, judged, 0.05) is judged
 
     def test_too_few_repeats_leave_the_judging_alone(self) -> None:
-        """Three centre runs: a lack of fit against two degrees of freedom is as often a close agreement by chance."""
+        """Three center runs: a lack of fit against two degrees of freedom is as often a close agreement by chance."""
         study = self._study(three_factor=4, n_center=3)
         judged = _t_tests(study.data, study.names, [], "t-tests of the main effects", 0.05)
         assert _against_pure_error(study, judged, 0.05) is judged
@@ -271,7 +271,7 @@ class TestLackOfFit:
 
     @staticmethod
     def _interacting() -> tuple[_Study, dict]:
-        """Return a 2^4 factorial with centre runs, A large and A:D, judged in the main effects model, which misses."""
+        """Return a 2^4 factorial with center runs, A large and A:D, judged in the main effects model, which misses."""
         factors = _factors("ABCD")
         runs = generate_design(factors, design_type="full_factorial", n_center_points=5).design_actual
         x = runs[list("ABCD")].astype(float).to_numpy()
@@ -303,7 +303,7 @@ class TestLackOfFit:
 
     @staticmethod
     def _fraction_context(misses: dict) -> SimpleNamespace:
-        """Return a 2^(4-1) fraction with centre runs, A and B active: A:C shares its column with B:D, A:D with B:C."""
+        """Return a 2^(4-1) fraction with center runs, A and B active: A:C shares its column with B:D, A:D with B:C."""
         factors = _factors("ABCD")
         runs = generate_design(factors, design_type="fractional_factorial", resolution=4, n_center_points=3)
         runs = runs.design_actual[list("ABCD")].astype(float)
@@ -479,7 +479,7 @@ class TestLenth:
     def test_the_curvature_of_the_centre_runs_counts_toward_the_signal(
         self, truth: TrueProcess, low: float, high: float
     ) -> None:
-        """No term of the two-level runs moves here, so only the centre runs can show the squares."""
+        """No term of the two-level runs moves here, so only the center runs can show the squares."""
         factors = _factors("ABCDEFGH")
         design = generate_design(factors, design_type="fractional_factorial", resolution=4, n_center_points=3)
         coded = design.design[[f.name for f in factors]]
@@ -538,7 +538,7 @@ class TestConfirmation:
         assert step["n_runs"] == 0
 
     def test_a_miss_on_a_two_level_design_adds_what_the_design_could_not_show(self) -> None:
-        """Axial runs first: the corners and centre cannot say which factor curves."""
+        """Axial runs first: the corners and center cannot say which factor curves."""
         factors = _factors("ABC")
         truth = TrueProcess({"Intercept": 50, "A": 5, "B": 3}, sigma=0.5)
         runs = _runs(factors, truth, 8, design_type="full_factorial", n_center_points=3)
@@ -710,7 +710,7 @@ class TestBlocks:
         ],
     )
     def test_centre_runs_in_a_block_of_their_own_do_not_show_the_shift_as_curvature(self, design: dict) -> None:
-        """Corners in round 1, centre runs in round 2: the shift between the rounds is not curvature (#998)."""
+        """Corners in round 1, center runs in round 2: the shift between the rounds is not curvature (#998)."""
         factors = _factors("ABC" if design["design_type"] == "full_factorial" else "ABCDE")
         truth = TrueProcess({"Intercept": 50, "A": 5, "B": 3}, sigma=0.5)  # linear: no curvature at all
         corners = _runs(factors, truth, 1, n_center_points=0, **design).assign(Round=1)
@@ -718,7 +718,7 @@ class TestBlocks:
         centre = centre.assign(y=truth.simulate(centre, random_state=2).to_numpy(), Round=2)
         runs = pd.concat([corners, centre], ignore_index=True)
 
-        # The centre runs' column is a combination of the intercept and the blocks: no fit can tell the two apart
+        # The center runs' column is a combination of the intercept and the blocks: no fit can tell the two apart
         blocks = np.column_stack([np.ones(len(runs)), runs["Round"].eq(2)])
         at_centre = (runs[[f.name for f in factors]] == 0).all(axis=1).to_numpy(dtype=float)
         assert np.linalg.matrix_rank(np.column_stack([blocks, at_centre])) == np.linalg.matrix_rank(blocks)

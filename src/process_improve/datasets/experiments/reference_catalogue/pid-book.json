@@ -666,7 +666,7 @@
     }
    ],
    "design": {
-    "type": "other",
+    "type": "one factor at a time (COST)",
     "details": "One factor at a time (COST / OFAT). Base point 346 K, 1.5 g/L. Temperature runs first (354 K, then 338 K, 330 K, 322 K); then substrate concentration at the best temperature, 330 K (1.75, 1.25, 1.0, 0.75 g/L). Budget of eight experimental runs, plus the base operating point. Four other variables (dissolved oxygen level, agitation rate, reaction duration, substrate type) are not changed.",
     "n_runs": 8
    },
@@ -5684,7 +5684,7 @@
     }
    ],
    "design": {
-    "type": "other",
+    "type": "runs along the path of steepest ascent",
     "details": "Single runs placed along the path of steepest ascent: runs 5, 6, 7 follow the first factorial's direction (134/55, steps of 5 K and 0.61 g/L from the baseline 325 K, 0.75 g/L); run 12 follows the second factorial's direction (-39/13, a step of 4 K and -0.6 g/L from run 6).",
     "n_runs": 4
    },
@@ -32436,7 +32436,7 @@
    ],
    "responses": [],
    "design": {
-    "type": "other",
+    "type": "mixture with lower bounds, in pseudocomponents",
     "details": "Constrained mixture region 0.2 <= a1 <= 0.8, 0.2 <= a2 <= 0.8, 0.0 <= a3 <= 0.6; still a simplex, so the same design as for the full simplex applies in pseudocomponents x_i = (a_i - L_i)/(1 - sum L_j). No specific runs are given.",
     "n_runs": null
    },
@@ -32535,7 +32535,7 @@
    ],
    "responses": [],
    "design": {
-    "type": "other",
+    "type": "mixture crossed with process variables",
     "details": "Quadratic Scheffe model in q = 3 ingredients crossed with a main-effects-plus-two-factor-interaction model in m = 2 process variables; p = [q + q(q-1)/2] x [1 + m + m(m-1)/2] (line 181). No runs given.",
     "n_runs": null
    },
@@ -33146,7 +33146,7 @@
    ],
    "responses": [],
    "design": {
-    "type": "other",
+    "type": "point exchange over a candidate set: the starting design",
     "details": "Starting design for point-exchange, drawn from the 3^2 candidate grid; model y = b_0 + b_1 x_1 + b_2 x_2 + b_{12} x_1 x_2 + e.",
     "n_runs": 4
    },
@@ -33224,7 +33224,7 @@
    ],
    "responses": [],
    "design": {
-    "type": "other",
+    "type": "point exchange over a candidate set: after the first swap",
     "details": "Point-exchange intermediate design; model y = b_0 + b_1 x_1 + b_2 x_2 + b_{12} x_1 x_2 + e.",
     "n_runs": 4
    },
@@ -45709,7 +45709,7 @@
    ],
    "responses": [],
    "design": {
-    "type": "other",
+    "type": "3^3 full factorial",
     "details": "3^3 full factorial",
     "n_runs": 27
    },

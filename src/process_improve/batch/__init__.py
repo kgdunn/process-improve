@@ -1,4 +1,4 @@
-"""Batch process data analysis: alignment, feature extraction, modelling, and visualization."""
+"""Batch process data analysis: alignment, feature extraction, modeling, and visualization."""
 
 from process_improve.batch._batch_monitor import BatchMonitor
 from process_improve.batch._batch_pca import BatchPCA
@@ -10,6 +10,7 @@ from process_improve.batch._batch_plots import (
 )
 from process_improve.batch._batch_pls import BatchPLS
 from process_improve.batch._gaps import fill_gaps, smooth_trajectories
+from process_improve.batch._transformers import BatchFeatureExtractor, DTWAligner, ResampleAligner
 from process_improve.batch.control import MidCourseCorrector, midcourse_correction
 from process_improve.batch.data_input import (
     check_valid_batch_dict,
@@ -57,12 +58,15 @@ from process_improve.batch.preprocessing import (
 )
 
 __all__ = [
-    # Modelling and monitoring
+    # Modeling and monitoring
+    "BatchFeatureExtractor",
     "BatchMonitor",
     "BatchPCA",
     "BatchPLS",
     "BatchScaler",
+    "DTWAligner",
     "MidCourseCorrector",
+    "ResampleAligner",
     # Preprocessing/alignment
     "batch_dtw",
     # Data input/conversion

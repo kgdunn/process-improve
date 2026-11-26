@@ -14,7 +14,7 @@ The estimators in ``process-improve`` (PCA, PLS, TPLS, MBPCA, MBPLS, and the
 batch feature pipeline) are **in-memory**: ``fit`` expects the (scaled) data
 matrix to fit in RAM, and the iterative NIPALS / SVD paths hold a small number
 of working copies on top of it. There is currently **no out-of-core or
-streaming code path** - the whole matrix is materialised as a dense
+streaming code path** - the whole matrix is materialized as a dense
 ``numpy``/``pandas`` array.
 
 This is the right trade-off for the data sizes these methods are normally

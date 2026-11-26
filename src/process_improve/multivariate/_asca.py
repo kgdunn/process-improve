@@ -58,7 +58,7 @@ def _sum_coded_rhs(factors: list[str], model: str) -> tuple[str, dict[str, str]]
     a regression against an arbitrary reference level: the coefficients for a factor sum
     to zero, so each effect matrix has zero column mean and the terms are mutually
     orthogonal whenever the design is balanced. Treatment coding would put the reference
-    level's mean into the intercept and leave the effect matrices neither centred nor
+    level's mean into the intercept and leave the effect matrices neither centered nor
     orthogonal.
 
     Parameters
@@ -133,7 +133,7 @@ class ASCA(BaseEstimator):
         back restores the scatter and shows whether the levels actually separate.
         Default False.
     scale : bool, optional
-        If True, unit-variance scale the columns of ``X`` after centring, so a variable
+        If True, unit-variance scale the columns of ``X`` after centering, so a variable
         measured in large units does not dominate the decomposition. Default False,
         which is the right choice when the columns are already on one scale (a spectrum,
         say) and the wrong one when they are not.
@@ -252,8 +252,8 @@ class ASCA(BaseEstimator):
         refuse_empty_block(X, "X")
         X, design = self._validated(X, design)
         self.feature_names_in_ = np.asarray(X.columns)
-        # MCUVScaler's centre and scale: a column is constant when its values are all
-        # equal, whatever its units, and is then centred to exactly 0 and left unscaled.
+        # MCUVScaler's center and scale: a column is constant when its values are all
+        # equal, whatever its units, and is then centered to exactly 0 and left unscaled.
         scaler = MCUVScaler().fit(X)
         self.grand_mean_ = scaler.center_
         self.column_scale_ = scaler.scale_ if self.scale else pd.Series(1.0, index=X.columns)
@@ -283,7 +283,7 @@ class ASCA(BaseEstimator):
             effect = block @ coefficients[columns, :]
             explained += effect
             if name == "Intercept":
-                # X is centred at its column means, which are the intercept on a balanced
+                # X is centered at its column means, which are the intercept on a balanced
                 # design only: on an unbalanced one, sum coding puts it elsewhere (at the mean
                 # of the cell means, for a full model). What it fits joins the grand mean, so
                 # the residuals are what no term explains; it is not a term anyone wants a
@@ -325,7 +325,7 @@ class ASCA(BaseEstimator):
             )
             raise ValueError(msg)
         # A category no row takes would be coded as a level of its own, so sum coding would no
-        # longer centre the factor's effect: only the levels the rows take are levels.
+        # longer center the factor's effect: only the levels the rows take are levels.
         return X, design.apply(
             lambda column: (
                 column.cat.remove_unused_categories() if isinstance(column.dtype, pd.CategoricalDtype) else column
@@ -531,7 +531,7 @@ class ASCA(BaseEstimator):
         observed = np.cumsum(per_variable[order])
 
         # Same reduced-model null as the per-term test: this term's effect plus the
-        # residual, nothing else, so a large neighbouring term cannot inflate it.
+        # residual, nothing else, so a large neighboring term cannot inflate it.
         reduced = (self.effect_matrices_[term] + self.residuals_).to_numpy()
         design_array = self._design_array
         columns = self._term_columns[term]
@@ -545,7 +545,7 @@ class ASCA(BaseEstimator):
             effect = block @ coefficients[columns, :]
             # The null subset is the top-m of *this* permutation, not of the observed
             # ranking: taking the observed ordering would let the null inherit it and
-            # rig the comparison in the observed statistic's favour.
+            # rig the comparison in the observed statistic's favor.
             draws[index, :] = np.cumsum(np.sort((effect**2).sum(axis=0))[::-1])
 
         raw = (1 + (draws >= observed).sum(axis=0)) / (1 + int(n_permutations))

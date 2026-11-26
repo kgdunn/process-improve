@@ -121,8 +121,8 @@ describe("the states and the reasons", () => {
     const found = examples(cases, "method", NAMES);
     assert.deepEqual(found.map((e) => [e.source, e.printed, e.found]), [["lenth", "1", "1.1"], ["davies", "3", "4"], ["lenth", "7", "8"]]);
     assert.deepEqual(found[0], { source: "lenth", where: "p. 1", what: "a coefficient", printed: "1", found: "1.1" });
-    assert.equal(found[1].what, "mode", "a quantity the catalogue has no name for is named by its term");
-    assert.equal(examples(cases, "method")[0].what, "coefficient", "the catalogue's own word, where no name is given");
+    assert.equal(found[1].what, "mode", "a quantity the catalog has no name for is named by its term");
+    assert.equal(examples(cases, "method")[0].what, "coefficient", "the catalog's own word, where no name is given");
     assert.deepEqual(examples(CASES, "unexplained"), []);
   });
 
@@ -148,12 +148,12 @@ describe("the words", () => {
     assert.equal(quantity({ what: "coefficient", term: "x1" }), "coefficient: x1");
   });
 
-  test("a quantity is named by its plain name, and one the catalogue calls other by its term alone", () => {
+  test("a quantity is named by its plain name, and one the catalog calls other by its term alone", () => {
     assert.equal(quantity({ what: "anova_sum_sq", term: "Error" }, NAMES), "a sum of squares: Error");
     assert.equal(quantity({ what: "f_regression", term: null }, NAMES), "an F ratio");
     assert.equal(quantity({ what: "other", term: "mode" }, NAMES), "mode");
     assert.equal(quantity({ what: "other", term: null }, NAMES), "");
-    assert.equal(quantityName("lack_of_fit_ss", NAMES), "lack of fit ss", "no name: the catalogue's own word");
+    assert.equal(quantityName("lack_of_fit_ss", NAMES), "lack of fit ss", "no name: the catalog's own word");
   });
 });
 
@@ -173,7 +173,7 @@ describe("the search", () => {
   test("reads a quantity by its plain name", () => {
     const cases = [{ ...CASES[2], differs: [{ ...number(0.004), what: "anova_sum_sq", term: "Error" }] }, CASES[3]];
     assert.deepEqual(ids(filterCases(cases, SOURCES, { query: "squares" }, { names: NAMES })), ["c"]);
-    assert.deepEqual(ids(filterCases(cases, SOURCES, { query: "squares" })), [], "no names: the catalogue's own words");
+    assert.deepEqual(ids(filterCases(cases, SOURCES, { query: "squares" })), [], "no names: the catalog's own words");
   });
 
   test("reads the title, the source's name and the reasons, every word of it", () => {
@@ -182,7 +182,7 @@ describe("the search", () => {
     assert.deepEqual(ids(filterCases(CASES, SOURCES, { query: "alias misprinted" })), ["b"]);
   });
 
-  test("keeps a source and a kind, the catalogue's two spellings of a case study as one", () => {
+  test("keeps a source and a kind, the catalog's two spellings of a case study as one", () => {
     assert.deepEqual(ids(filterCases(CASES, SOURCES, { source: "lenth" })), ["a", "b"]);
     assert.deepEqual(ids(filterCases(CASES, SOURCES, { kind: "case study" })), ["d"]);
     assert.deepEqual(kinds(CASES), [["example", 2], ["exercise", 2], ["case study", 1]]);

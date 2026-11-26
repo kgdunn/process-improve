@@ -247259,8 +247259,8 @@
    ]
   },
   {
-   "name": "montgomery-supersaturated-12-run",
-   "title": "A supersaturated design for ten factors in six runs, half of the 12-run Plackett-Burman design sorted by its last column",
+   "name": "montgomery-plackett-burman-12-run-sorted",
+   "title": "The 12-run Plackett-Burman design sorted by its last column, the table a supersaturated design for ten factors is taken from",
    "topics": [
     "general"
    ],
@@ -247409,8 +247409,8 @@
    ],
    "responses": [],
    "design": {
-    "type": "supersaturated design from a Hadamard matrix",
-    "details": "the 12-run Plackett-Burman design sorted by the branching column L; the six runs with L + are the supersaturated design in A to K",
+    "type": "Plackett-Burman design in 12 runs, sorted by its last column",
+    "details": "sorted by the branching column L; its six runs with L +, without L, are the supersaturated design montgomery-supersaturated-12-run",
     "n_runs": 12,
     "treatment_factors": 11
    },
@@ -247639,6 +247639,262 @@
       "kind": "fraction_runs",
       "generator": "L",
       "printed": "7, 8, 9, 10, 11, 12"
+     }
+    }
+   ]
+  },
+  {
+   "name": "montgomery-supersaturated-12-run",
+   "title": "A supersaturated design for ten factors in six runs, half of the 12-run Plackett-Burman design sorted by its last column",
+   "topics": [
+    "general"
+   ],
+   "kind": "design",
+   "where": {
+    "section": "8.8",
+    "pages": "374-375",
+    "tables": [
+     "Table 8.34"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "factor 1",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "factor 2",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "factor 3",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "factor 4",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "factor 5",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "F",
+     "description": "factor 6",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "G",
+     "description": "factor 7",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "H",
+     "description": "factor 8",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "J",
+     "description": "factor 9",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "K",
+     "description": "factor 10",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "supersaturated design from a Hadamard matrix",
+    "details": "the six runs of the 12-run Plackett-Burman design of Table 8.34 that have its branching column L +, in A to K; the table as printed is montgomery-plackett-burman-12-run-sorted",
+    "n_runs": 6,
+    "treatment_factors": 10
+   },
+   "runs": {
+    "columns": [
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "F",
+     "G",
+     "H",
+     "J",
+     "K"
+    ],
+    "rows": [
+     [
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      1,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      -1
+     ],
+     [
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      1
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 8.34's last six rows, its runs with L +, without the column of ones I and without L, as the text directs"
+   },
+   "expected": [
+    {
+     "what": "same runs",
+     "term": "supersaturated design for ten factors",
+     "value": "6",
+     "analysis": "the six runs, against the library's supersaturated design for ten factors with its columns in another order and some signs changed",
+     "where": {
+      "page": 374,
+      "source_kind": "prose",
+      "quote": "Now retain only the runs that are positive (say) in column L and delete column L from this group of runs. The resulting design is a supersaturated design for k = 10 factors in N = 6 runs"
+     },
+     "check": {
+      "kind": "same_runs",
+      "relabel": "columns and signs",
+      "design": {
+       "design_type": "supersaturated",
+       "k": 10
+      }
      }
     },
     {

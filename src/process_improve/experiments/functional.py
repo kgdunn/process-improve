@@ -2,7 +2,7 @@
 """Curve responses in a designed experiment: FPCA of the curves, a model of each score, bands on predicted curves.
 
 Each run's response is a curve (a time course, a profile, a spectrum). :class:`~process_improve.multivariate.FPCA`
-reduces the curves to a few scores, and each score is modelled against the design factors with
+reduces the curves to a few scores, and each score is modeled against the design factors with
 :func:`~process_improve.experiments.analyze_experiment`, so coding, mixture models and split-plot whole plots
 behave as they do for a scalar response. Because the eigenfunctions rebuild the curve, a prediction of the
 scores is a prediction of the whole curve. See ``docs/development/functional_doe.rst``.
@@ -51,7 +51,7 @@ class _Projection:
 def _projection(matrix: np.ndarray) -> _Projection:
     """Return the hat matrix of a model matrix, and the degrees of freedom of the F-test of a score on it.
 
-    The scores are centred, so the test is against the mean when the model can fit a constant (an intercept,
+    The scores are centered, so the test is against the mean when the model can fit a constant (an intercept,
     or mixture components that sum to one), and against zero when it cannot.
     """
     rank = int(np.linalg.matrix_rank(matrix))
@@ -87,7 +87,7 @@ def _refit(model: FPCA, curves: np.ndarray) -> _Components:
     coefficients = model._coefficients(curves, model.smoothing_)
     mean = coefficients.mean(axis=0)
     left, sizes, right = np.linalg.svd((coefficients - mean) @ model._root_gram, full_matrices=False)
-    keep = min(curves.shape[0] - 1, sizes.size)  # centred curves span one dimension fewer than there are curves
+    keep = min(curves.shape[0] - 1, sizes.size)  # centered curves span one dimension fewer than there are curves
     total = float(np.sum(sizes**2))
     ratio = sizes[:keep] ** 2 / total if total > 0 else np.zeros(keep)
     return _Components(mean, model._inverse_root_gram @ right[:keep].T, left[:, :keep] * sizes[:keep], ratio)
@@ -455,14 +455,14 @@ def _affine(
 def _bands(
     estimate: np.ndarray, replicates: np.ndarray, df_residual: int, level: float, labels: tuple[pd.Index, np.ndarray]
 ) -> dict[str, Any]:
-    """Return the bands from the bootstrap replicates of the predicted curves, labelled by new point and grid point."""
+    """Return the bands from the bootstrap replicates of the predicted curves, labeled by new point and grid point."""
     error = replicates.std(axis=0, ddof=1)
     quantile = stats.t.ppf(0.5 + level / 2, max(df_residual, 1))
-    # The simultaneous band's multiple is the level-quantile of each replicate's largest standardised departure.
+    # The simultaneous band's multiple is the level-quantile of each replicate's largest standardized departure.
     standardised = np.divide(np.abs(replicates - estimate), error, out=np.zeros_like(replicates), where=error > 0)
     # shortcut: the bootstrap's maximum is a large-sample quantity; it is widened by the same ratio of the t to the
     # normal quantile that the pointwise band carries, for the few residual degrees of freedom of a designed
-    # experiment. A studentised bootstrap would do this exactly, at the cost of a bootstrap in each replicate.
+    # experiment. A studentized bootstrap would do this exactly, at the cost of a bootstrap in each replicate.
     widening = quantile / stats.norm.ppf(0.5 + level / 2)
     critical = widening * np.quantile(standardised.max(axis=2), level, axis=0)
     frames = {
@@ -493,7 +493,7 @@ def analyze_functional_experiment(
     The curves are reduced by functional PCA. The components are kept up to 99% of the curves' variance, and
     any later component up to 99.9% is kept too when the design factors explain its score (an F-test at
     ``significance_level``): a factor can act on a shape that carries little of the variance. Each kept
-    score is then analysed with :func:`~process_improve.experiments.analyze_experiment`, under the same
+    score is then analyzed with :func:`~process_improve.experiments.analyze_experiment`, under the same
     ``model``. :meth:`FunctionalFit.predict` predicts whole curves at new factor settings, with bands.
 
     Parameters

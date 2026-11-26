@@ -100,7 +100,7 @@ def test_more_blocks_than_the_main_effects_leave_room_for_are_refused() -> None:
 
 
 def test_block_generators_on_an_irregular_factorial_are_refused() -> None:
-    """Centre runs at a label of a categorical factor leave the design not a regular two-level fraction."""
+    """Center runs at a label of a categorical factor leave the design not a regular two-level fraction."""
     factors = [*_coded("AB"), Factor(name="S", type="categorical", levels=["p", "q"])]
     with pytest.raises(ValueError, match="needs a regular two-level factorial; this design is not one"):
         generate_design(factors, "full_factorial", n_center_points=2, block_generators=["AB"])
@@ -155,7 +155,7 @@ def test_generators_that_define_no_word_fold_on_the_first_factor() -> None:
 
 
 def test_a_second_stage_after_text_block_labels_is_numbered_after_them() -> None:
-    """Two blocks labelled by text: the axial stage is block 3, its axial runs at the rotatable 8^(1/4)."""
+    """Two blocks labeled by text: the axial stage is block 3, its axial runs at the rotatable 8^(1/4)."""
     design = pd.concat([_two_level("AB")] * 2, ignore_index=True)
     design["Block"] = ["day 1"] * 4 + ["day 2"] * 4
     with warnings.catch_warnings():
@@ -176,7 +176,7 @@ def test_a_block_column_named_as_a_factor_gets_axial_runs_and_no_stage_label() -
         result = augment_design(design, "upgrade_to_rsm", factor_names=["A", "B", "Block"])
     runs = pd.DataFrame(result["augmented_design"])
     assert runs.columns.tolist() == ["A", "B", "Block"]
-    assert len(runs) == 4 + 6 + 5  # the cube, two axial runs per factor and five centre runs
+    assert len(runs) == 4 + 6 + 5  # the cube, two axial runs per factor and five center runs
     root_two = math.sqrt(2)
     assert sorted(runs["Block"].iloc[4:10].tolist()) == pytest.approx([-root_two, 0, 0, 0, 0, root_two])
 
@@ -197,7 +197,7 @@ def test_a_study_ends_at_the_round_cap(monkeypatch) -> None:
 def test_a_region_with_no_support_points_is_searched_without_them() -> None:
     """A disc that holds no grid point and crosses no grid edge is searched over its boundary and a sample."""
     # The four runs at 0.5 +/- 0.05 have sum of squares 0.01 in each factor, so the main-effects
-    # prediction variance at distance r from the centre is 1/n + r^2 / 0.01: 1/n + 1 on the rim.
+    # prediction variance at distance r from the center is 1/n + r^2 / 0.01: 1/n + 1 on the rim.
     region = DesignRegion(_coded("AB"), ["(A - 0.5)**2 + (B - 0.5)**2 <= 0.01"])
     square = np.array([[0.45, 0.45], [0.55, 0.45], [0.45, 0.55], [0.55, 0.55], [0.5, 0.5]])
     designs = {
@@ -211,7 +211,7 @@ def test_a_region_with_no_support_points_is_searched_without_them() -> None:
     assert comparison["values"]["six [n=6]"]["g"] == pytest.approx(1 / 6 + 1, rel=1e-6)
 
 
-# --------------------------------------------------------------------------- design catalogue
+# --------------------------------------------------------------------------- design catalog
 @pytest.mark.parametrize(
     ("note", "name"),
     [
@@ -394,7 +394,7 @@ def test_an_alpha_that_is_neither_a_number_nor_a_name_is_refused(alpha: object) 
 
 def test_a_dsd_budget_reaching_an_unbuildable_conference_order_steps_down() -> None:
     """45 runs would allow order 22, which has no conference matrix (21 is not a sum of two squares): 20 is used."""
-    # Folded over, a conference matrix of order 20 gives 40 runs with X'X = 2 (20 - 1) I; the centre run adds 0.
+    # Folded over, a conference matrix of order 20 gives 40 runs with X'X = 2 (20 - 1) I; the center run adds 0.
     factors = [Factor(name=f"x{i}", low=-1, high=1) for i in range(20)]
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)  # no error df for the full second-order model: not the point here
@@ -463,7 +463,7 @@ def test_dispatch_dsd_refuses_a_three_level_categorical_factor() -> None:
 
 def test_more_than_seven_categorical_factors_use_the_one_at_a_time_search() -> None:
     """Eight two-level categorical factors, past the exhaustive sign search: each takes each label in 11 of 22 runs."""
-    # The continuous factors keep the conference matrix's orthogonality, and sit at the centre in four
+    # The continuous factors keep the conference matrix's orthogonality, and sit at the center in four
     # runs: their two zeros in the foldover and the two added runs.
     categorical = [Factor(name=f"c{i}", type="categorical", levels=["lo", "hi"]) for i in range(8)]
     result = generate_design([*_coded("AB"), *categorical], "dsd", n_center_points=0)

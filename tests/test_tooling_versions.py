@@ -100,3 +100,31 @@ def test_every_mutated_function_is_in_exactly_one_mutation_job() -> None:
                 group["name"] for group in groups if any(fnmatch(mutant, glob) for glob in group["patterns"].split())
             ]
             assert len(jobs) == 1, f"{mutant} is mutated by {jobs or 'no job'} of mutation.yml; it needs exactly one."
+
+
+#: The platform markers of each runner the test job names in its matrix.
+RUNNER_PLATFORMS = {
+    "ubuntu-latest": "sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "windows-latest": "sys_platform == 'win32' and platform_machine == 'AMD64'",
+    "macos-latest": "sys_platform == 'darwin' and platform_machine == 'arm64'",
+}
+
+
+def test_uv_requires_a_wheel_for_every_platform_and_python_the_tests_run_on() -> None:
+    """Each runner and Python of the test job is in ``[tool.uv] required-environments`` (#1490).
+
+    For a package with no sdist, uv then takes a release only where it has a wheel, so a release
+    still being uploaded is skipped on the Pythons it has not reached; a CI row missing from the
+    list would install it and fail.
+    """
+    workflow = yaml.safe_load((ROOT / ".github" / "workflows" / "run-tests.yml").read_text(encoding="utf-8"))
+    matrix = workflow["jobs"]["test"]["strategy"]["matrix"]
+    required = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["uv"]
+    environments = set(required["required-environments"])
+    missing = [
+        f"{os} on Python {python}"
+        for os in matrix["os"]
+        for python in matrix["python-version"]
+        if f"{RUNNER_PLATFORMS[os]} and python_version == '{python}'" not in environments
+    ]
+    assert not missing, f"[tool.uv] required-environments lacks {missing}"

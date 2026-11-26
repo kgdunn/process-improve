@@ -95,6 +95,7 @@ import {
   levelProblem,
   levelValue,
   listNames,
+  nCoefficients,
   nTerms,
   namedModelTerms,
   needsCentre,
@@ -163,6 +164,7 @@ import {
   interactionOf,
   screeningSentence,
   screensOnly,
+  stageParts,
   tradeOffBeyond,
   MAX_OPTIMAL_TERMS,
   SLOW_SEARCH,
@@ -218,6 +220,18 @@ describe("the design's settings", () => {
     assert.equal(nTerms(3, "main_effects"), 4);
     assert.equal(nTerms(3, "interactions"), 7);
     assert.equal(nTerms(3, "quadratic"), 10);
+  });
+
+  test("a categorical factor has no square, and one of several levels is a column per level but one", () => {
+    const numeric = (name) => ({ name, low: 0, high: 1, units: "" });
+    const material = [categoricalFactor("RM", ["A", "B"]), numeric("conc"), numeric("temp")];
+    assert.equal(nCoefficients(material, "quadratic"), 9, "no square of RM");
+    assert.equal(nCoefficients(material, "interactions"), 7);
+    const catalyst = [categoricalFactor("Catalyst", ["A", "B", "C"]), numeric("T"), numeric("P")];
+    assert.equal(nCoefficients(catalyst, "main_effects"), 5, "two columns for Catalyst");
+    assert.equal(nCoefficients(catalyst, "interactions"), 10, "and two in each of its interactions");
+    assert.equal(nCoefficients(catalyst, "quadratic"), 12);
+    assert.equal(nCoefficients([numeric("A"), numeric("B"), numeric("C")], "quadratic"), nTerms(3, "quadratic"));
   });
 
   test("an optimal design's model is as large as the largest the page fits: the quadratic in 12 factors", () => {
@@ -298,7 +312,7 @@ describe("the trade-off grid of a fraction", () => {
     assert.equal(tradeOffCell(12, 5), null, "no row for a run count that is not a power of two");
   });
 
-  test("a cell shows Full or its resolution in roman numerals, coloured in three bands", () => {
+  test("a cell shows Full or its resolution in roman numerals, colored in three bands", () => {
     assert.deepEqual([FULL, 8, 5, 4, 3, null].map(cellText), ["Full", "VIII", "V", "IV", "III", ""]);
     assert.deepEqual([FULL, 8, 5, 4, 3, null].map(cellBand), ["high", "high", "high", "iv", "iii", null]);
   });
@@ -378,8 +392,24 @@ describe("a study of more factors than the page models the interactions of", () 
     );
     assert.equal(
       screeningSentence(40, "learn"),
-      "Past 12 factors, Learn fits the main effects, or the terms you choose: 40 factors have 780 two-factor interactions, more than a screening design has runs.",
+      "Past 12 factors, [Learn] fits the main effects, or the terms you choose: 40 factors have 780 two-factor interactions, more than a screening design has runs.",
     );
+  });
+
+  test("a sentence is cut at the stages it names, and at nothing that only looks like one", () => {
+    assert.deepEqual(stageParts("No results yet: enter them in [Run], or practice."), [
+      "No results yet: enter them in ",
+      { stage: "run", name: "Run" },
+      ", or practice.",
+    ]);
+    const stages = (text) => stageParts(text).flatMap((part) => (typeof part === "string" ? [] : [part.stage]));
+    assert.deepEqual(stages("[Design], [Run], [Learn] and [Next]."), ["plan", "run", "learn", "next"]);
+    assert.deepEqual(stageParts("[Learn] fits it"), [{ stage: "learn", name: "Learn" }, " fits it"]);
+    // A run's number, a column's name, a unit in brackets and a word in another case are no stage.
+    for (const plain of ["Run 3 is the best of them so far.", "matched by the Run order column", "Yield [%], [run] and [Runs]"]) {
+      assert.deepEqual(stageParts(plain), [plain]);
+    }
+    for (const nothing of ["", null, undefined]) assert.deepEqual(stageParts(nothing), []);
   });
 
   for (const k of [13, 24, 40]) {
@@ -463,8 +493,8 @@ describe("the response, as the reader names it", () => {
   });
 
   test("the study's title names the response, its units and its goal", () => {
-    assert.equal(responseTitle({ label: "Yield", units: "%", goal: "maximize" }), "Yield (%), maximise");
-    assert.equal(responseTitle({ label: "Cost", goal: "minimize" }), "Cost, minimise");
+    assert.equal(responseTitle({ label: "Yield", units: "%", goal: "maximize" }), "Yield (%), maximize");
+    assert.equal(responseTitle({ label: "Cost", goal: "minimize" }), "Cost, minimize");
     assert.equal(responseTitle({ label: "Purity", units: "%", goal: "target", target: 99.5 }), "Purity (%), target 99.5");
     assert.equal(responseTitle({ label: "Purity", goal: "target" }), "Purity, on target");
     assert.equal(responseTitle({ label: "Hardness", goal: "learn" }), "Hardness");
@@ -641,6 +671,7 @@ describe("words and numbers", () => {
     assert.match(CAPTIONS.contour(["T", "P"]), /over T and P, the two factors with the largest main effects/);
     assert.match(CAPTIONS.contour(["F", "T"], { chosen: true }), /over F and T, the two factors you chose/);
     assert.deepEqual([chartHeight("contour"), chartHeight("cube")], [340, 420]);
+    assert.deepEqual([chartHeight("cube", 1200), chartHeight("cube", 360), chartHeight("contour", 1200)], [540, 420, 340], "a scene on a row of its own, on a desk");
     for (const key of MORE_CHARTS) {
       assert.ok(TITLES[key], `${key} has a heading`);
       const caption = typeof CAPTIONS[key] === "function" ? CAPTIONS[key](["T", "P"]) : CAPTIONS[key];
@@ -658,17 +689,17 @@ describe("words and numbers", () => {
     assert.match(CAPTIONS.cox([], { starred: true }), /^Each line changes one component's share of the best blend .* which the star marks\.$/);
   });
 
-  test("with limits, the caption says what is grey, and where the others are held when the center cannot be run", () => {
+  test("with limits, the caption says what is gray, and where the others are held when the center cannot be run", () => {
     const factors = [{ name: "F", units: "L/min" }];
     assert.equal(
       CAPTIONS.contour(["T", "P"], { shaded: true, held: [], factors }),
-      "Drawn over T and P, the two factors with the largest main effects, with the others at their center; grey: " +
+      "Drawn over T and P, the two factors with the largest main effects, with the others at their center; gray: " +
         "settings outside your limits; the dots are the runs.",
     );
     assert.equal(
       CAPTIONS.contour(["T", "P"], { shaded: true, held: [{ name: "F", value: 16.666666667 }], factors }),
       "Drawn over T and P, the two factors with the largest main effects, with F at 16.67 L/min, since the center " +
-        "of the ranges cannot be run; grey: settings outside your limits; the dots are the runs.",
+        "of the ranges cannot be run; gray: settings outside your limits; the dots are the runs.",
     );
   });
 });
@@ -902,7 +933,7 @@ describe("a factor's levels", () => {
   });
 });
 
-describe("the colour mode", () => {
+describe("the color mode", () => {
   test("the switch offers the system's mode, light and dark, as the book's does", () => {
     assert.deepEqual(MODES, ["auto", "light", "dark"]);
   });
@@ -1043,7 +1074,7 @@ describe("what a study aims to learn", () => {
     assert.ok(!holds("main_effects", "interactions"));
   });
 
-  test("a run sheet is analysed for the aim when its design can fit it, and holds less", () => {
+  test("a run sheet is analyzed for the aim when its design can fit it, and holds less", () => {
     assert.equal(analysisModel("quadratic", "main_quadratic", true, numeric), "", "the design's own holds it");
     assert.deepEqual(analysisModel("main_effects", "main_quadratic", true, numeric), {
       terms: [["T"], ["P"], ["F"], ["T", "T"], ["P", "P"], ["F", "F"]],
@@ -1231,9 +1262,11 @@ describe("the designs that can learn the brief", () => {
   });
 
   test("a design that takes a number of runs opens on its own: ten a factor, or the model's coefficients and spare", () => {
-    assert.equal(defaultBudget("maximin_lhs", 3, "interactions"), 3 * SPACE_FILLING_RUNS, "a space-filling design has no model");
-    assert.equal(defaultBudget("d_optimal", 3, "interactions"), 7 + 4);
-    assert.equal(defaultBudget("i_optimal", 4, "quadratic"), 15 + 4);
+    const numeric = (n) => Array.from({ length: n }, (_, i) => ({ name: `X${i + 1}`, low: 0, high: 1, units: "" }));
+    assert.equal(defaultBudget("maximin_lhs", numeric(3), "interactions"), 3 * SPACE_FILLING_RUNS, "a space-filling design has no model");
+    assert.equal(defaultBudget("d_optimal", numeric(3), "interactions"), 7 + 4);
+    assert.equal(defaultBudget("i_optimal", numeric(4), "quadratic"), 15 + 4);
+    assert.equal(defaultBudget("d_optimal", [categoricalFactor("RM", ["A", "B"]), ...numeric(2)], "quadratic"), 9 + 4);
   });
 
   test("the Run tab counts the runs, then the results in", () => {
@@ -1514,7 +1547,7 @@ describe("several responses", () => {
   });
 
   test("a study's title names its responses", () => {
-    assert.equal(responsesTitle([YIELD]), "Yield (%), maximise");
+    assert.equal(responsesTitle([YIELD]), "Yield (%), maximize");
     assert.equal(responsesTitle([YIELD, COST, PURITY]), "Yield, Cost and Purity");
     assert.equal(responsesTitle([YIELD, { name: "Cost_2" }]), "Yield and Cost_2", "a response not described, by its column");
   });
@@ -1665,7 +1698,7 @@ describe("results pasted from a spreadsheet", () => {
   });
 });
 
-describe("the numbers a catalogue study's source prints", () => {
+describe("the numbers a catalog study's source prints", () => {
   const result = {
     summary: { r_squared: 0.9861, df_residual: 4 },
     anova: [
@@ -1758,7 +1791,7 @@ describe("what Box-Cox makes of the response", () => {
     assert.deepEqual(boxCoxSentence(hint(0.13, [-0.04, 0.31], "log"), "Yield"), {
       words: "Box-Cox's λ is 0.13 (95% interval -0.04 to 0.31): it points to the log of Yield.",
       apply: "log",
-      button: "Analyse its log",
+      button: "Analyze its log",
     });
   });
 
@@ -1771,7 +1804,7 @@ describe("what Box-Cox makes of the response", () => {
   test("a transformed response whose results need none is offered the results as measured", () => {
     const said = boxCoxSentence(hint(0.9, [0.6, 1.3], null, "sqrt"), "Yield");
     assert.equal(said.apply, "");
-    assert.equal(said.button, "Analyse Yield as measured");
+    assert.equal(said.button, "Analyze Yield as measured");
   });
 
   test("a power the page does not offer is said, with nothing to press", () => {
@@ -1950,8 +1983,8 @@ describe("the question in one line", () => {
 
   test("the line says what is measured, what is changed and what is to be learned", () => {
     assert.equal(
-      questionLine("Yield (%), maximise", [T, P], "Which factors matter"),
-      "Yield (%), maximise · T 150 to 200 degC and P 1 to 3 · to learn which factors matter",
+      questionLine("Yield (%), maximize", [T, P], "Which factors matter"),
+      "Yield (%), maximize · T 150 to 200 degC and P 1 to 3 · to learn which factors matter",
     );
   });
 

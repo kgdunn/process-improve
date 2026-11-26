@@ -76,7 +76,7 @@ class TestGenerateDesign:
         """10 factors in 6 runs has an unaliased design; 12 in 8 does not, so that falls back to Plackett-Burman."""
         result = generate_design(_factors(10), budget=6)
         assert result.design_type == "supersaturated"
-        assert result.n_runs == 6  # no centre points added
+        assert result.n_runs == 6  # no center points added
         assert generate_design(_factors(12), budget=8).design_type == "plackett_burman"
         assert set(result.design_actual["X1"]) == {0.0, 10.0}
 

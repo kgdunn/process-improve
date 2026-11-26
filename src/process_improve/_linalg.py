@@ -76,7 +76,7 @@ def safe_inverse(
             "one-hot set that includes every level); a constant or all-missing "
             "column; a component count that has exhausted the variance left in "
             "the deflated block; or values spanning so many orders of magnitude "
-            "that the cross-product loses precision (centre and scale first). "
+            "that the cross-product loses precision (center and scale first). "
             "Reduce the number of components/terms or remove the offending "
             "columns."
         )

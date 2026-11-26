@@ -61,7 +61,7 @@ const loaded = (runtime) => [...runtime.packages, ...runtime.fitting];
 
 /**
  * The files Python starts from and fits a model with: the Pyodide release with the packages every visit loads, the
- * wheel, the page's Python. A page that opens without a network designs and analyses there.
+ * wheel, the page's Python. A page that opens without a network designs and analyzes there.
  */
 export function startFiles({ scope, lock, runtime, manifest }) {
   const python = [manifest.wheel, manifest.glue].filter(Boolean).map((file) => `${scope}wheels/${file}`);
@@ -126,7 +126,7 @@ const TRY_AGAIN = "Try again";
  */
 export function copyWords(state, { reason = "", exact = true, size = null } = {}) {
   const saved = size ? `Factorial's tools are saved on this device (about ${size} MB).` : "Factorial's tools are saved on this device.";
-  const where = "for example when travelling, or in a factory or laboratory without internet";
+  const where = "for example when traveling, or in a factory or laboratory without internet";
   return {
     none: { said: "Needs internet. Factorial's tools are not saved on this device.", keep: KEEP_PAGE, remove: false },
     copying: { said: "Saving Factorial for offline use...", keep: null, remove: false },
@@ -203,11 +203,11 @@ const onDemand = (scope) => ["figure.js"].map((file) => scope + file);
 /**
  * The pages of the app this page never loads, which its footer leads to and which are small: the list of what
  * Factorial does (features.html), with the module that reads its document and the document; how Factorial works
- * (technical-details-how-factorial-works.html), which reads only files the copy holds; and the mark beside their way back. A copy holds them all
- * the same, so both open without a network. The design catalog and the concept map are megabytes each: they are
+ * (technical-details-how-factorial-works.html) and how it is checked (validation.html), which read only files the copy holds; and the mark
+ * beside their way back. A copy holds them all the same, so each opens without a network. The design catalog and the concept map are megabytes each: they are
  * kept once a visit with a network opens them, and until then the worker says they need one (sw.js).
  */
-const linked = (scope) => ["features.html", "features.js", "FEATURES.md", "technical-details-how-factorial-works.html", "favicon.svg", "site.js"].map((file) => scope + file);
+const linked = (scope) => ["features.html", "features.js", "FEATURES.md", "technical-details-how-factorial-works.html", "validation.html", "favicon.svg", "site.js"].map((file) => scope + file);
 
 /**
  * What else this visit loaded of the app, as the browser's record of the visit has it: its modules, its styles,

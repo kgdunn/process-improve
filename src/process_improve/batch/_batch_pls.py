@@ -13,7 +13,7 @@ The scaling of the unfolded ``[Z | X]`` block is owned by this class (a
 ``scale_`` are public fitted attributes), and the quality block has its own
 scaler (``y_center_``, ``y_scale_``). Downstream users that need to move
 between engineering units and the model's scaled space, such as the
-mid-course-correction optimiser in :mod:`process_improve.batch.control`, read
+mid-course-correction optimizer in :mod:`process_improve.batch.control`, read
 these public attributes instead of reaching into the inner PLS estimator.
 
 See Wold, Kettaneh-Wold, MacGregor and Dunn, "Batch Process Modeling and
@@ -72,7 +72,7 @@ class BatchPLS(RegressorMixin, BaseEstimator):
     """Batchwise-unfolded PLS from batch trajectories (and Z) to final quality Y.
 
     Unfolds an aligned batch-data dictionary batchwise (one row per batch),
-    optionally joins an initial-conditions (Z) block onto that row, centres and
+    optionally joins an initial-conditions (Z) block onto that row, centers and
     scales every column with its own :class:`~process_improve.multivariate.MCUVScaler`,
     and fits a :class:`process_improve.multivariate.PLS` model against a
     batch-indexed quality block ``Y``. The fitted model relates the initial
@@ -89,9 +89,9 @@ class BatchPLS(RegressorMixin, BaseEstimator):
         Number of PLS components.
     scale : bool, default=True
         Scale each unfolded ``[Z | X]`` column to unit variance after
-        centring. Centring always happens (it removes the average
-        trajectory); set this to False to keep the columns in their centred,
-        unscaled units. The quality block ``Y`` is always centred and scaled
+        centering. Centering always happens (it removes the average
+        trajectory); set this to False to keep the columns in their centered,
+        unscaled units. The quality block ``Y`` is always centered and scaled
         to unit variance internally, and every reported prediction is mapped
         back to the original quality units.
     group_by_batch : bool, default=False
@@ -133,9 +133,9 @@ class BatchPLS(RegressorMixin, BaseEstimator):
     scores_, spe_, hotellings_t2_ : pd.DataFrame
         Batch-level scores and diagnostics; one row per batch.
     center_, scale_ : pd.Series of length n_unfolded_features
-        The per-column centring and scaling of the ``[Z | X]`` block.
+        The per-column centering and scaling of the ``[Z | X]`` block.
     y_center_, y_scale_ : pd.Series of length n_targets
-        The centring and scaling of the quality block.
+        The centering and scaling of the quality block.
     n_batches_, n_tags_, n_timesteps_, n_initial_conditions_ : int
         Problem dimensions.
     batch_ids_, tag_names_, initial_condition_names_, target_names_, time_index_ : list
@@ -181,7 +181,7 @@ class BatchPLS(RegressorMixin, BaseEstimator):
         """Unfold the batches batchwise and join the initial-conditions block.
 
         Trajectory columns keep their ``(tag, sequence)`` labels; initial-
-        condition columns are labelled ``(name, "")`` (or ``("", name)`` when
+        condition columns are labeled ``(name, "")`` (or ``("", name)`` when
         ``group_by_batch`` is set) since they carry no time axis.
         """
         check_valid_batch_dict(batches, no_nan=True)
@@ -248,7 +248,7 @@ class BatchPLS(RegressorMixin, BaseEstimator):
             raise ValueError("No missing values allowed in Y.")
 
         # This class owns the scaling of both blocks (the inner PLS is fitted
-        # with scale=False), so the centring/scaling constants are public
+        # with scale=False), so the centering/scaling constants are public
         # fitted attributes rather than internals of the PLS estimator.
         x_scaler = MCUVScaler().fit(wide)
         if not self.scale:
@@ -486,7 +486,7 @@ class BatchPLS(RegressorMixin, BaseEstimator):
             The missing-data score estimator; see
             :meth:`process_improve.multivariate.PLS.project`.
         ridge : float, default=0.0
-            Regularisation for the ``"tsr"`` / ``"pmp"`` estimators.
+            Regularization for the ``"tsr"`` / ``"pmp"`` estimators.
 
         Returns
         -------
@@ -557,7 +557,7 @@ class BatchPLS(RegressorMixin, BaseEstimator):
         method : {"tsr", "scp", "pmp"}, default="tsr"
             The missing-data score estimator.
         ridge : float, default=0.0
-            Regularisation for the ``"tsr"`` / ``"pmp"`` estimators.
+            Regularization for the ``"tsr"`` / ``"pmp"`` estimators.
 
         Returns
         -------
@@ -630,7 +630,7 @@ class BatchPLS(RegressorMixin, BaseEstimator):
         method : {"tsr", "scp", "pmp"}, default="tsr"
             The missing-data score estimator.
         ridge : float, default=0.0
-            Regularisation for the ``"tsr"`` / ``"pmp"`` estimators.
+            Regularization for the ``"tsr"`` / ``"pmp"`` estimators.
 
         Returns
         -------
@@ -700,7 +700,7 @@ class BatchPLS(RegressorMixin, BaseEstimator):
         *,
         initial_conditions: pd.DataFrame | None = None,
     ) -> pd.DataFrame:
-        """Unfold batches batchwise and apply the training centring and scaling.
+        """Unfold batches batchwise and apply the training centering and scaling.
 
         Parameters
         ----------

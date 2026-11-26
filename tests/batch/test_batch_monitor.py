@@ -130,7 +130,7 @@ def test_reference_t2_averages_a_times_n_minus_one_over_n(good_model_and_monitor
     score covariance at that sample. Summing over the N reference batches
     gives the trace of S_k^-1 S_k scaled by N - 1, so the mean is
     A(N-1)/N, whatever the batch data. A departure from this value would
-    mean the covariance and the scores it standardises are out of step.
+    mean the covariance and the scores it standardizes are out of step.
     """
     model, monitor, good = good_model_and_monitor
     n_components, n_reference = model.n_components, len(good)
@@ -142,7 +142,7 @@ def test_reference_t2_averages_a_times_n_minus_one_over_n(good_model_and_monitor
 
 
 def test_spe_window_pools_neighbouring_samples(good_model_and_monitor: tuple) -> None:
-    """``spe_window`` pools the reference SPE of neighbouring samples before each limit is fitted.
+    """``spe_window`` pools the reference SPE of neighboring samples before each limit is fitted.
 
     A window of 0 is the per-sample fit; a window that spans the whole batch
     pools every reference value into one limit; a window of 1 at an interior

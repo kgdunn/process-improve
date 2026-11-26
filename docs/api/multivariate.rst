@@ -39,7 +39,7 @@ PRM
 
 Partial Robust M-regression (Serneels et al., 2005): PLS with a bounded influence per
 observation, so that a handful of outlying rows move the fit a little instead of a lot.
-X is centred at its L1 median and y at its median, each row carries the product of a
+X is centered at its L1 median and y at its median, each row carries the product of a
 residual weight and a leverage weight, and the fit and the weights are recomputed from
 each other until the regression on the scores changes by less than 1%. With
 ``scale=False`` it is the paper's algorithm, and reproduces the R package chemometrics.
@@ -111,7 +111,7 @@ TPLS
 
 A T-shaped model carries its response inside ``X["Y"]``, so
 :func:`~sklearn.model_selection.cross_val_score` is called without a ``y`` and a
-scorer *string* such as ``scoring="r2"`` cannot be honoured: sklearn's
+scorer *string* such as ``scoring="r2"`` cannot be honored: sklearn's
 ``_Scorer`` needs a ``y_true`` it was never given, the call fails before TPLS is
 reached, and every fold is recorded as ``NaN``. Build the scorer with
 :func:`make_tpls_scorer` instead; sklearn passes a callable ``scoring=`` through
@@ -158,7 +158,7 @@ FPCA
 ~~~~
 
 Functional PCA of curves: a time course, a profile or a spectrum per sample. Each curve is
-smoothed by one penalised B-spline smoother, and the components are found in the L2 metric of the
+smoothed by one penalized B-spline smoother, and the components are found in the L2 metric of the
 basis, so they are orthonormal functions of the curve's argument. Curves sampled at their own
 points share the union of the points as their grid, with ``NaN`` where a curve was not measured.
 The scores are ordinary numbers, ready to model against the factors of a designed experiment.
@@ -203,7 +203,7 @@ GPA
 ~~~
 
 Generalized Procrustes analysis: several configurations of the same objects (an
-assessor's scores, an instrument's measurements) are centred, rotated and scaled onto
+assessor's scores, an instrument's measurements) are centered, rotated and scaled onto
 one consensus. The residuals show which configuration disagrees about which object,
 and :meth:`GPA.consensus_test` shows whether the consensus is more than alignment
 alone would produce. Takes the same dict-of-DataFrames input as :class:`MBPCA`;
@@ -314,7 +314,7 @@ never has to name a private module.
 .. autoclass:: SpecificationWarning
    :show-inheritance:
 
-.. autoclass:: UncentredDataWarning
+.. autoclass:: UncenteredDataWarning
    :show-inheritance:
 
 Plots

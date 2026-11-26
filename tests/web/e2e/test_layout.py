@@ -90,7 +90,7 @@ def test_a_desktop_shows_the_brief_beside_design_and_the_question_as_one_line_ov
 def test_the_question_s_line_says_the_study_and_opens_to_the_form(page):
     page.click("#go-learn")
     assert page.text_content("#question-says") == (
-        "Yield (%), maximise · Temperature 150 to 200 degC, Pressure 1 to 3 bar and Flow 10 to 20 L/min"
+        "Yield (%), maximize · Temperature 150 to 200 degC, Pressure 1 to 3 bar and Flow 10 to 20 L/min"
         " · to learn where each factor's effect curves"
     )
     assert page.is_visible(f"{LINE} [data-when='closed']")
@@ -107,8 +107,8 @@ def test_the_question_s_line_says_the_study_and_opens_to_the_form(page):
 
     # The form is the one Design has: a change made here is the study's, and the line and the bar follow it.
     page.select_option("#response-goal", "minimize")
-    assert page.text_content("#study-title") == "Yield (%), minimise"
-    assert page.text_content("#question-says").startswith("Yield (%), minimise · Temperature 150 to 200 degC")
+    assert page.text_content("#study-title") == "Yield (%), minimize"
+    assert page.text_content("#question-says").startswith("Yield (%), minimize · Temperature 150 to 200 degC")
 
     page.click(LINE)
     assert page.is_hidden("#brief"), "closed again"
@@ -162,13 +162,13 @@ def test_the_bar_stays_in_view_and_the_page_under_it_names_the_study(page):
     page.mouse.wheel(0, 2000)
     page.wait_for_function("window.scrollY > 500")
     assert box(page, "#studybar")["y"] == 0, "kept at the top as the page scrolls"
-    assert page.text_content("#study-title") == "Yield (%), maximise"
+    assert page.text_content("#study-title") == "Yield (%), maximize"
     assert page.text_content("#study-about") == "· Box-Behnken, 15 runs"
     assert page.text_content("#badge-run") == "15 of 15"
 
 
 #: What the bar holds, each as its box when it is drawn: the mark, the name, the stages, a new study, the menu of
-#: studies, feedback and the colour mode.
+#: studies, feedback and the color mode.
 BAR = """() => Object.fromEntries(Object.entries({ mark: '.brand__home .mark', name: '.brand__home h1',
     stages: '.phases', new: '#bar-new', studies: '#study-button', feedback: '#feedback', mode: '#mode' })
   .map(([part, at]) => {
@@ -178,7 +178,7 @@ BAR = """() => Object.fromEntries(Object.entries({ mark: '.brand__home .mark', n
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 1440, "height": 900}}])
 def test_on_a_laptop_the_bar_is_one_row_no_taller_than_56_px(fresh_page):
-    """The mark, the name, the stages, a new study, feedback and the colour mode are one row; the work is under it."""
+    """The mark, the name, the stages, a new study, feedback and the color mode are one row; the work is under it."""
     bar = box(fresh_page, "#studybar")
     assert bar["y"] == 0, "the bar opens the page"
     assert bar["height"] <= 56

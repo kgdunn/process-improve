@@ -40,7 +40,7 @@ Column            Meaning
 ================  ========================================================
 
 Alongside it you supply a **product-covariate table**: one row per product,
-describing what each product *is*. This table comes in two flavours, and the
+describing what each product *is*. This table comes in two flavors, and the
 distinction decides how the relate step works.
 
 Designed versus observational
@@ -286,7 +286,7 @@ Instead of dropping a panelist who merely scales differently, you can *align*
 the panel: :func:`~process_improve.sensory.align_scores` rescales every panelist
 onto a common scale (a location lever removes their offset, a scale lever
 divides by ``beta``), keeping their data while removing the scale-usage
-artefact. ``analyze_descriptive`` exposes this through ``correction``:
+artifact. ``analyze_descriptive`` exposes this through ``correction``:
 
 .. code-block:: python
 
@@ -346,7 +346,7 @@ coefficients equal the closed form's.
 The fit is exact REML, in Python, with no R needed. The test suite checks it
 against SensMixed 2.1 on the TVbo panel from the R package lmerTest: F, variance
 components and ``beta`` agree to about 1e-6. SensMixed drops a term whose
-variance its optimiser estimates within 1e-7 of zero, and where the optimiser
+variance its optimizer estimates within 1e-7 of zero, and where the optimizer
 stops near zero differs from one attribute to the next. This implementation
 lands exactly on zero, so the two can differ in which zero-variance terms they
 list as dropped. That does not change the final model.
@@ -419,7 +419,7 @@ claim across the whole family of comparisons), but over different families:
      |\bar{y}_i - \bar{y}_j| \;>\; q_{\alpha,\,g,\,\nu}\,\sqrt{\text{MSE}/n}
 
   where :math:`g` is the number of treatments and :math:`\nu` the error degrees
-  of freedom. The compact-letter display in ``result.letters`` summarises it:
+  of freedom. The compact-letter display in ``result.letters`` summarizes it:
   treatments that share a letter are not separable.
 
 - **Dunnett** compares **each treatment to one control**. Because those

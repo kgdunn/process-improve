@@ -65,7 +65,7 @@ def test_the_confounded_component_is_constant_within_each_block(dyestuff):
 
 @pytest.mark.dataset
 def test_montgomery_s_syrup_loss_components():
-    """W = 3804.11 and X = 221.78; the book's Y and Z are each other's, as the catalogue records."""
+    """W = 3804.11 and X = 221.78; the book's Y and Z are each other's, as the catalog records."""
     runs = catalogue("montgomery-2013", "montgomery-syrup-loss")
     table = interaction_components(runs, "y", ["nozzle", "speed", "pressure"])
     found = components(table)
@@ -90,7 +90,7 @@ def test_an_interaction_s_components_add_up_to_its_sum_of_squares(dyestuff):
 
 @pytest.mark.dataset
 def test_the_runs_may_come_in_any_order(dyestuff):
-    """The catalogue holds the dyestuff runs by treatment; shuffled, they give the same components."""
+    """The catalog holds the dyestuff runs by treatment; shuffled, they give the same components."""
     shuffled = dyestuff.sample(frac=1, random_state=3)
     found, expected = (interaction_components(runs, "Yield", ["C", "V", "N"]) for runs in (shuffled, dyestuff))
     pd.testing.assert_frame_equal(found, expected)
@@ -145,6 +145,7 @@ def test_the_docstring_example_prints_what_it_shows():
         (pd.DataFrame({"A": [0, 1, 2], "y": [1.0, 2.0, 3.0]}), ["A", "A"], "distinct factors"),
         (pd.DataFrame({"A": [0, 1, 0], "y": [1.0, 2.0, 3.0]}), ["A"], "exactly three settings"),
         (pd.DataFrame({"A": [0, 1, 2], "y": [1.0, np.nan, 3.0]}), ["A"], "finite number in every run"),
+        (pd.DataFrame({"A": [0, 1, 2], "y": [1.0, 2.0, 3.0]}), ["A", "y"], "'y' cannot also be a factor"),
     ],
 )
 def test_data_that_cannot_be_split_are_refused(data, factors, message):

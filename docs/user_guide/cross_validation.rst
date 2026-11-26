@@ -71,7 +71,7 @@ differ in what they hold out and what they cost.
      - One decomposition
      - Comparing against ``FactoMineR`` or ``missMDA``, whose default it is.
 
-The three new schemes factorise the matrix directly, so they raise on a block
+The three new schemes factorize the matrix directly, so they raise on a block
 with missing cells, and they ignore ``scale_inside_folds``, ``n_repeats``,
 ``ekf_max_iter`` and ``ekf_tol``. They hold nothing out in folds that could disagree, so
 they report no per-fold spread and ``selection_rule="1se"`` has nothing to work
@@ -99,7 +99,7 @@ holds values out should be used instead.
    from process_improve.multivariate.methods import PCA
 
    # Pass the raw, unscaled X: with the default ``scale_inside_folds=True``
-   # the centring and scaling are fit inside each fold, so nothing about the
+   # the centering and scaling are fit inside each fold, so nothing about the
    # held-out cells leaks into the model that predicts them.
    result = PCA.select_n_components(
        X,
@@ -131,7 +131,7 @@ The result is a ``Bunch`` with:
 What PRESS is measured in
 --------------------------
 
-With ``scale_inside_folds=True`` each fold centres and scales the matrix
+With ``scale_inside_folds=True`` each fold centers and scales the matrix
 before fitting it, and the error is measured in that same space. Every
 variable therefore contributes to ``press`` in proportion to how much of its
 own variation the model predicts, not in proportion to its units. This
@@ -148,7 +148,7 @@ exact prediction, the same reading as ``r2_cumulative_``.
 
 Two consequences are worth knowing. Re-expressing a column in different units
 (kilograms instead of grams, say) leaves the whole curve unchanged. And
-passing the raw block gives the same curve as passing a mean-centred,
+passing the raw block gives the same curve as passing a mean-centered,
 unit-variance block, so the recommendation in the paragraph above costs
 nothing.
 
@@ -222,11 +222,11 @@ components are added.
    print(result.r2y_validated["total"])  # Validated R2 of Y
 
 Do not scale the blocks yourself before calling either selector. In-fold
-re-standardisation overwrites whatever scaling you applied, so two
+re-standardization overwrites whatever scaling you applied, so two
 deliberately different choices (autoscale versus Pareto, say) become the
 same model and a comparison between them shows no difference. Both
 selectors emit a ``SpecificationWarning`` when they receive an ``X`` that
-is already centred and unit-variance scaled. If you must keep your own
+is already centered and unit-variance scaled. If you must keep your own
 scaling, pass ``scale_inside_folds=False``, and for PLS ``scale=False`` as
 well, since a ``PLS(scale=True)`` fold model autoscales its own rows; the
 scaling then leaks from the full dataset into every fold, and a warning says so.

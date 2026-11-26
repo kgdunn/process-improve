@@ -2,7 +2,7 @@
 // in a shape the reader chooses, with Plotly's buttons to zoom and turn it, and saved as an image in that shape.
 // charts.js loads this module once a first chart is drawn and the browser is idle, so the page's start waits for none of it.
 
-import { chartImage, draw, erase, figureOf, figuresBeside, wordsOf } from "./charts.js";
+import { DARK, LIGHT, chartImage, draw, erase, figureOf, figuresBeside, wordsOf } from "./charts.js";
 import { closeOnBackdrop } from "./dialogs.js";
 
 /** The shapes a figure can be given at a press, each as its width over its height; "Fill" takes all the room there is. */
@@ -70,6 +70,7 @@ const MARKUP = `
       <button type="button" class="link" data-do="png" aria-label="Save image, as a PNG file">Save image</button>
       <button type="button" class="link" data-do="svg" aria-label="Save as vector, an SVG file">Save as vector</button>
       <button type="button" class="link" data-do="copy" aria-label="Copy the image">Copy</button>
+      <label class="figure__dark"><input type="checkbox" data-part="dark"> Dark background</label>
     </span>
     <span class="hint" role="status"></span>
   </div>
@@ -81,7 +82,7 @@ const MARKUP = `
   <details class="python">
     <summary>Show the Python code of this figure</summary>
     <p class="hint">The process-improve code that draws this figure, after the code of the analysis it draws:
-      copy it and it runs as it is. The page then puts the axes in your own units and its own colours.</p>
+      copy it and it runs as it is. The page then puts the axes in your own units and its own colors.</p>
     <pre><code></code></pre>
     <button type="button" class="link" data-do="code">Copy the code</button>
   </details>`;
@@ -160,11 +161,13 @@ function step(by) {
 
 const say = (text) => (part("[role=status]").textContent = text);
 
-/** The figure as a file, in the shape the window shows it: on white, in the light theme, with its title. */
+/** The figure as a file, in the shape the window shows it, with its title: on white in the light theme, or dark. */
 async function image(format) {
   const { width, height } = opened.size;
   const tall = Math.round((SAVED_WIDTH * height) / width);
-  return blobOf(await chartImage(part(".plot"), SAVED_WIDTH, { height: tall, title: opened.title, format, scale: SAVED_SCALE }));
+  const colours = part("[data-part=dark]").checked ? DARK : LIGHT;
+  const how = { height: tall, title: opened.title, format, scale: SAVED_SCALE, colours };
+  return blobOf(await chartImage(part(".plot"), SAVED_WIDTH, how));
 }
 
 async function save(format) {

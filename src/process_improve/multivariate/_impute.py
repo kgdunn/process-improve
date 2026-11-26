@@ -46,11 +46,11 @@ def impute_low_rank(
 ) -> Bunch:
     """Fill the NaN cells of ``data`` by EM on an ``n_components`` principal-component model.
 
-    Each round: standardise the currently completed matrix, fit its leading
+    Each round: standardize the currently completed matrix, fit its leading
     principal components, re-estimate every missing cell from the observed cells in
     its row, and stop once no missing cell moves by more than ``tol`` (measured in
     standard deviations, so the tolerance means the same thing whatever the units).
-    The centre and spread are re-estimated every round rather than fixed from the
+    The center and spread are re-estimated every round rather than fixed from the
     observed cells, because they are parameters of the model like the components
     are, and the completed data estimates them better than the observed cells alone.
 
@@ -89,7 +89,7 @@ def impute_low_rank(
     Raises
     ------
     ValueError
-        If ``method`` is not recognised, ``n_components`` is not positive, or a
+        If ``method`` is not recognized, ``n_components`` is not positive, or a
         column has no observed values at all.
     """
     if method not in IMPUTATION_METHODS:
@@ -105,7 +105,7 @@ def impute_low_rank(
         )
 
     # A column whose observed values are all equal is constant: its gaps hold that value,
-    # and it is standardised to exactly 0. Its standard deviation is more often rounding
+    # and it is standardized to exactly 0. Its standard deviation is more often rounding
     # noise (1e-17) than 0, and dividing by that made it a column of +-0.98, a direction
     # the components then fitted at the expense of the real ones.
     highest = np.nanmax(data, axis=0)
@@ -120,7 +120,7 @@ def impute_low_rank(
         rounds += 1
         centre = np.where(constant, highest, completed.mean(axis=0))
         spread = completed.std(axis=0, ddof=1)
-        # A column with no spread sits at its centre in every cell, so it standardises to 0, not 0 / 0.
+        # A column with no spread sits at its center in every cell, so it standardizes to 0, not 0 / 0.
         standardised = np.divide(completed - centre, spread, out=np.zeros_like(completed), where=spread > 0)
         components = _leading_components(standardised, n_components)
         # TSR is unchanged by any multiple of this matrix, so it is not divided by n - 1.
@@ -133,7 +133,7 @@ def impute_low_rank(
             )
 
         shift = float(np.max(np.abs(updated[missing] - standardised[missing])))
-        # Only the missing cells come back from the standardised space. The observed
+        # Only the missing cells come back from the standardized space. The observed
         # ones are restored from ``data`` itself, because the round trip through
         # ``(x - c) / s * s + c`` is not exact: left alone, observed values would
         # drift by rounding a little every round, and a caller would get back data
@@ -181,23 +181,23 @@ def _estimate_missing(
     Parameters
     ----------
     observed_values : np.ndarray of shape (n_rows, n_observed)
-        The standardised observed cells of those rows.
+        The standardized observed cells of those rows.
     observed : np.ndarray of shape (n_columns,), dtype bool
         Which columns the pattern observes.
     components : np.ndarray of shape (n_columns, n_components)
         The current principal components.
     covariance : np.ndarray of shape (n_columns, n_columns)
-        The cross-product of the standardised completed matrix: its covariance up to the
+        The cross-product of the standardized completed matrix: its covariance up to the
         factor ``n - 1``, which the estimates do not depend on.
     method : {"tsr", "pmp"}
 
     Returns
     -------
     np.ndarray of shape (n_rows, n_missing)
-        The estimates, in standardised units.
+        The estimates, in standardized units.
     """
     if not observed.any():
-        # Nothing observed: the estimate is the mean, which is zero once standardised.
+        # Nothing observed: the estimate is the mean, which is zero once standardized.
         return np.zeros((observed_values.shape[0], int((~observed).sum())))
 
     # Never more components than observed columns: that is what keeps a sparsely

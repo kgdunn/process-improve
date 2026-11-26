@@ -49,7 +49,7 @@ class TestFractionalFactorialDispatch:
         assert meta["generators_used"] == ["X6=X1X2X3X4X5"]
 
     def test_default_reports_the_resolution_reached(self) -> None:
-        """Seven factors used to give 32 runs labelled resolution V, which were resolution IV."""
+        """Seven factors used to give 32 runs labeled resolution V, which were resolution IV."""
         coded, meta = dispatch_fractional_factorial(_continuous(7))
         assert coded.shape == (64, 7)
         assert meta["resolution"] == 7

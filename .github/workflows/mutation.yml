@@ -19,13 +19,15 @@ permissions:
 
 jobs:
   # One job per group of modules, in parallel: the whole config in one job outgrew its
-  # 60 minutes. Each names its modules' mutants by pattern (a mutant is called
+  # 60 minutes. A group takes 60 minutes at most, or the `timeout` it names: pls and tpls
+  # outgrew 60 once tests/test_optimal_inversion.py, whose slow tests reach both, joined the
+  # test selection (#1092). Each names its modules' mutants by pattern (a mutant is called
   # `<module>.x_<function>__mutmut_<n>`), so a module in [tool.mutmut] needs a pattern
   # here too; tests/test_tooling_versions.py fails until every module has exactly one.
   mutmut:
     name: mutmut (${{ matrix.shard.name }})
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: ${{ matrix.shard.timeout || 60 }}
     strategy:
       fail-fast: false
       matrix:
@@ -59,12 +61,23 @@ jobs:
               process_improve.multivariate._pls.xǁPLSǁnested_cv*
               process_improve.multivariate._pls.xǁPLSǁcross_validate*
               process_improve.multivariate._pls.xǁPLSǁ_fit_nipals*
+          # The fit and the inversion reach tests/test_optimal_inversion.py's slow tests, and a
+          # mutant there that times out waits about 30 times their usual time: they are a group
+          # of their own, as the rest of PLS outran 120 minutes with them (#1092).
+          - name: pls fit and inversion
+            timeout: 120
+            patterns: >-
+              process_improve.multivariate._pls.xǁPLSǁfit*
+              process_improve.multivariate._pls.xǁPLSǁinvert*
+              process_improve.multivariate._pls.xǁPLSǁ_inversion_probe*
+              process_improve.multivariate._pls.xǁPLSǁ_fit_imputed*
           - name: pls
+            timeout: 120
             patterns: >-
               process_improve.multivariate._pls.x_*
-              process_improve.multivariate._pls.xǁPLSǁ[!_cns]*
-              process_improve.multivariate._pls.xǁPLSǁ_[!f]*
-              process_improve.multivariate._pls.xǁPLSǁ_fit_imputed*
+              process_improve.multivariate._pls.xǁPLSǁ[!_cnsfi]*
+              process_improve.multivariate._pls.xǁPLSǁ_[!fi]*
+              process_improve.multivariate._pls.xǁPLSǁ_in_*
               process_improve.multivariate._pls.xǁPLSǁcompare_cv_criteria*
               process_improve.multivariate._pls.xǁPLSǁscore*
           - name: mbpca
@@ -72,6 +85,7 @@ jobs:
           - name: mbpls
             patterns: process_improve.multivariate._mbpls.*
           - name: tpls
+            timeout: 120
             patterns: process_improve.multivariate._tpls.*
           - name: cv criteria
             patterns: process_improve.multivariate._cv_criteria.*
@@ -96,13 +110,19 @@ jobs:
       - name: Mutate the modules in [tool.mutmut] and rerun their tests
         env:
           PATTERNS: ${{ matrix.shard.patterns }}
+          # One BLAS thread in each of the four test runs on four cores, so a mutant's run takes the
+          # time mutmut measured for its tests, and the timeout of 3 times that holds.
+          OPENBLAS_NUM_THREADS: 1
+          OMP_NUM_THREADS: 1
+          MKL_NUM_THREADS: 1
         run: |
           set -f
           # shellcheck disable=SC2086 # one argument per pattern
           uv run --with mutmut==3.8.1 mutmut run --max-children 4 $PATTERNS
-      # A mutant whose tests overrun mutmut's CPU limit (about 30 times their usual time) made the
-      # code loop or slow down, which the tests noticed: mutmut's own score counts it as killed, and
-      # so does this gate. Whether one times out depends on the runner's speed, not on the tests.
+      # A mutant whose tests overrun 3 times their usual time (`timeout_multiplier` in pyproject.toml)
+      # made the code loop or slow down, which the tests noticed: mutmut's own score counts it as
+      # killed, and so does this gate. Whether one times out depends on the runner's speed, not on
+      # the tests.
       - name: Fail on any mutant the tests do not catch
         run: |
           uv run --with mutmut==3.8.1 mutmut export-cicd-stats

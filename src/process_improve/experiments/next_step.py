@@ -19,15 +19,15 @@ The decision is deterministic and follows the evidence in this order:
    else a miss that may be chance is confirmed again, judged on the new runs alone, and a
    gross or repeated miss calls for a look at the process (**investigate**).
 2. A model that leaves fewer than two **degrees of freedom for error** cannot be judged: add
-   centre runs to a two-level design of numeric factors, else replicate the runs.
+   center runs to a two-level design of numeric factors, else replicate the runs.
 3. **Nothing stands out from the noise**: with fewer than four degrees of freedom for error,
    add runs first; else widen the ranges, or replicate when they cannot move; and when that
    was done before (``history``), stop: no factor moves the response by more than the noise.
 4. An active effect is **aliased with a plausible interaction**, so the data cannot say which
    of the two is real: fold the design over, or add runs chosen for the model that holds both.
-5. **Curvature** (centre runs off the plane of the corners, lack of fit, or a square in the
-   model) that the design cannot model: add axial runs, which make a face-centred central
-   composite design, or runs chosen for the full quadratic model. Curvature the centre runs
+5. **Curvature** (center runs off the plane of the corners, lack of fit, or a square in the
+   model) that the design cannot model: add axial runs, which make a face-centered central
+   composite design, or runs chosen for the full quadratic model. Curvature the center runs
    show could be any factor's, so the axial runs go in every numeric factor (up to six).
 6. A **lack of fit** that the full quadratic model in the active factors does not remove: the
    model misses effects. Every factor with some evidence of an effect joins the active ones,
@@ -49,7 +49,7 @@ the active terms.
 
 A factor the selected model leaves out does not change the prediction, so any setting in its
 range will do. The runs recommended set it at the end its small, not significant, effect
-favours: a setting the study has run, and never a guess.
+favors: a setting the study has run, and never a guess.
 """
 
 from __future__ import annotations
@@ -122,7 +122,7 @@ _PATH_STEPS = (0.5, 1.0, 1.5, 2.0)
 _ALL_CORNERS = 6
 _RANDOM_STARTS = 8
 
-#: Centre runs added to a two-level design that has none.
+#: Center runs added to a two-level design that has none.
 _CENTER_RUNS = 3
 
 #: Runs beyond a model's coefficients that runs chosen for it leave, to estimate the noise.
@@ -254,7 +254,7 @@ class _Design:
 
     n_runs: int
     center: np.ndarray  # runs with every numeric factor at its middle (and at least one numeric factor)
-    two_level: bool  # every run that is not a centre run has every factor at an end
+    two_level: bool  # every run that is not a center run has every factor at an end
     three_level: bool  # not two-level, and every numeric factor at three levels or more: squares can be fitted
     pure_error_df: int
 
@@ -284,7 +284,7 @@ def _design(study: _Study) -> _Design:
 
 
 # --------------------------------------------------------------------------- the model
-#: The column marking the centre runs of a two-level design, so the curvature they show is fitted
+#: The column marking the center runs of a two-level design, so the curvature they show is fitted
 #: rather than left in the error, where it would hide the effects.
 _CURVATURE = "curvature"
 
@@ -301,7 +301,7 @@ class _Model:
     ``signal`` says whether anything stands out from the noise once the number of terms
     judged is allowed for. ``terms`` is the model for prediction: the active terms and the
     main effects their interactions and squares are built on. ``fit`` is that model's fit,
-    with the curvature column when the design has centre runs among two-level runs.
+    with the curvature column when the design has center runs among two-level runs.
     ``misses`` is the lack-of-fit test of the model the terms were judged in, when that model
     did not fit the repeated runs; empty otherwise.
     """
@@ -601,12 +601,12 @@ def _lenth(data: pd.DataFrame, terms: list[str], alpha: float) -> dict[str, Any]
 def _lenth_on_the_cube(
     study: _Study, design: _Design, terms: list[str], alpha: float, t_df: int
 ) -> dict[str, Any] | None:
-    """Judge a two-level design with centre runs by Lenth's method on its two-level runs, when t-tests see less.
+    """Judge a two-level design with center runs by Lenth's method on its two-level runs, when t-tests see less.
 
-    Centre runs added to a saturated two-level design leave a t-test few degrees of freedom for
-    error: two, with three centre runs in a 16-run fraction, where a t of 4.3 is needed to pass.
+    Center runs added to a saturated two-level design leave a t-test few degrees of freedom for
+    error: two, with three center runs in a 16-run fraction, where a t of 4.3 is needed to pass.
     The pseudo standard error of the two-level runs' m contrasts is worth about m / 3 degrees of
-    freedom (Lenth, 1989), so it judges the terms instead when that is more, and the centre runs
+    freedom (Lenth, 1989), so it judges the terms instead when that is more, and the center runs
     test curvature against their own repeats. Each of the two tests is made at ``alpha / 2`` for
     the signal, so together they raise a false alarm at most ``alpha`` of the time. None when
     t-tests have :data:`_FEW_ERROR_DF` or more, or Lenth's method does not apply to the two-level runs.
@@ -624,7 +624,7 @@ def _lenth_on_the_cube(
         f"Lenth's method on the {judged['contrasts']} contrasts of the two-level runs, with simulated p-values"
     )
     if "error" not in test:
-        judged["method"] += ", and a curvature test of the centre runs against their repeats"
+        judged["method"] += ", and a curvature test of the center runs against their repeats"
     return judged
 
 
@@ -690,8 +690,8 @@ def _judge_terms(study: _Study, design: _Design, alpha: float) -> dict[str, Any]
     the main effects. A two-level design too small for that is judged by Lenth's method on all
     its contrasts. A design whose second-order terms are partly aliased with each other, which
     no standard model separates, is judged by its own staged analysis when it is a definitive
-    screening design; with centre runs among two-level runs (a Plackett-Burman design with
-    centre runs), a stepwise search (AICc) proposes its interactions, which are then tested
+    screening design; with center runs among two-level runs (a Plackett-Burman design with
+    center runs), a stepwise search (AICc) proposes its interactions, which are then tested
     beside every main effect. Testing the main effects alone would leave an active interaction
     in the error, where it hides the effects. Returns None when the runs are too few to judge
     anything.
@@ -719,8 +719,8 @@ def _judge_in_standard_models(
 ) -> tuple[dict[str, Any] | None, bool]:
     """Judge the terms in the largest standard model the runs estimate, or by Lenth's method on all the contrasts.
 
-    Returns the judgement, None when even the main effects leave too few runs, and whether the
-    terms are partly aliased with each other, which no standard model separates (the judgement
+    Returns the judgment, None when even the main effects leave too few runs, and whether the
+    terms are partly aliased with each other, which no standard model separates (the judgment
     is then None, and the caller judges them another way). ``error_runs`` is the number of runs
     left for error once the intercept, the block contrasts and ``extra`` are fitted.
     """
@@ -780,9 +780,9 @@ def _estimable(data: pd.DataFrame, names: list[str], second: list[str], extra: l
 
 
 def _extra(data: pd.DataFrame, design: _Design, numeric: list[bool]) -> list[str]:
-    """Return the curvature column when the runs are two-level with centre runs, and the blocks do not hold it.
+    """Return the curvature column when the runs are two-level with center runs, and the blocks do not hold it.
 
-    Centre runs made in a block of their own would show the shift between the blocks as curvature: their
+    Center runs made in a block of their own would show the shift between the blocks as curvature: their
     column is then a combination of the block contrasts, and is left out.
     """
     if not (design.two_level and design.center.any() and any(numeric)):
@@ -967,7 +967,7 @@ def _internal_terms(study: _Study, model_terms: list[str]) -> list[str]:
 
 # --------------------------------------------------------------------------- the evidence
 def _favoured_ends(study: _Study, sense: float) -> np.ndarray:
-    """Each factor's end that its marginal effect favours for the goal (+1 or -1), from the runs at its ends."""
+    """Each factor's end that its marginal effect favors for the goal (+1 or -1), from the runs at its ends."""
     ends = np.ones(len(study.factors))
     y = _less_blocks(study.data)["y"].to_numpy(dtype=float)
     for j, name in enumerate(study.names):
@@ -991,10 +991,10 @@ def _sense(goal: Goal, target: float | None, predicted: float) -> float:
 def _optimum(study: _Study, model: _Model, goal: Goal, target: float | None, seed: int) -> np.ndarray:
     """Return the coded settings inside the ranges at which the model best meets the goal.
 
-    A polynomial of at most second order is searched from the centre, the corner its linear
+    A polynomial of at most second order is searched from the center, the corner its linear
     terms point to, every corner up to six factors, and eight random starts. A categorical
     factor is searched at each of its two levels; a factor the model leaves out is set at
-    the end it favours (:func:`_favoured_ends`). Many settings can meet a target; the search
+    the end it favors (:func:`_favoured_ends`). Many settings can meet a target; the search
     then prefers the one nearest the middle of the ranges.
     """
     in_model = set().union(*(_term_factors(t) for t in model.terms)) if model.terms else set()
@@ -1044,7 +1044,7 @@ def _starts(model: _Model, free: list[int], goal: Goal, rng: np.random.Generator
 
 
 def _curvature(study: _Study, design: _Design, model: _Model, alpha: float) -> dict[str, Any]:
-    """Say whether the response curves, and how the runs show it: centre runs, or squares in the model."""
+    """Say whether the response curves, and how the runs show it: center runs, or squares in the model."""
     squares = [t for t in model.terms if "**" in t]
     significant_squares = [t for t in squares if model.p_value(t) < alpha]
     if design.three_level:
@@ -1057,7 +1057,7 @@ def _curvature(study: _Study, design: _Design, model: _Model, alpha: float) -> d
         p = model.p_value(_CURVATURE)
         if np.isfinite(p):  # the curvature column's test in the judging fit, against its residual error
             return {"source": "center_runs", "significant": bool(p < alpha), "p_value": p}
-        if design.pure_error_df > 0:  # judged by Lenth's method: the centre runs' own repeats instead
+        if design.pure_error_df > 0:  # judged by Lenth's method: the center runs' own repeats instead
             test = _centre_runs_test(study, design, alpha)
             if "error" not in test:
                 return {"source": "center_runs", "significant": bool(test["significant"]), "p_value": test["p_value"]}
@@ -1065,18 +1065,18 @@ def _curvature(study: _Study, design: _Design, model: _Model, alpha: float) -> d
 
 
 def _centre_runs_test(study: _Study, design: _Design, alpha: float) -> dict[str, Any]:
-    """Test the centre runs' mean against the two-level runs' mean, against the repeats (:func:`_run_curvature_test`).
+    """Test the center runs' mean against the two-level runs' mean, against the repeats (:func:`_run_curvature_test`).
 
-    The test ignores the blocks, so it is not made when the blocks hold the centre runs
+    The test ignores the blocks, so it is not made when the blocks hold the center runs
     (:func:`_blocks_hold_the_centre_runs`): the result then holds an ``error``, as when there are no repeats.
     """
     if _blocks_hold_the_centre_runs(study, design):
-        return {"error": "The centre runs share no block with a two-level run: the blocks hide any curvature."}
+        return {"error": "The center runs share no block with a two-level run: the blocks hide any curvature."}
     return _run_curvature_test(study.data, "y", study.names, alpha, _repeats(study))["curvature_test"]
 
 
 def _blocks_hold_the_centre_runs(study: _Study, design: _Design) -> bool:
-    """Say whether the centre runs of a two-level design share no block with a two-level run: a round of their own.
+    """Say whether the center runs of a two-level design share no block with a two-level run: a round of their own.
 
     They then differ from the two-level runs by the shift between the blocks too, and their column is a
     combination of the block contrasts (see :func:`_extra`): no test can tell that shift from curvature.
@@ -1171,7 +1171,7 @@ def _edges(study: _Study, model: _Model, x: np.ndarray, sense: float) -> tuple[l
 
 # --------------------------------------------------------------------------- the runs of each action
 def _points(study: _Study, coded: np.ndarray) -> pd.DataFrame:
-    """Return coded settings as the model's fit reads them: the curvature column 1 at the centre, the latest block.
+    """Return coded settings as the model's fit reads them: the curvature column 1 at the center, the latest block.
 
     Runs made next are made after every run so far, so they are predicted as the process was in
     the latest block (every block contrast -1), not at the average of the blocks.
@@ -1295,7 +1295,7 @@ def _confirm(ctx: _Context) -> _Step:
     if left_out:
         reasons.append(
             f"{_names(ctx, left_out)} {'is' if len(left_out) == 1 else 'are'} not in the model, so set at the end "
-            "the small, not significant, effect favours; any setting in the range should do as well."
+            "the small, not significant, effect favors; any setting in the range should do as well."
         )
     reasons.extend(_held_at_limits(ctx))
     after = (
@@ -1317,12 +1317,12 @@ def _model_factor_indices(ctx: _Context) -> list[int]:
 
 
 def _add_center_points(ctx: _Context) -> _Step | None:
-    """Three centre runs, for a two-level design of numeric factors that has none."""
+    """Three center runs, for a two-level design of numeric factors that has none."""
     if not all(ctx.study.numeric) or not ctx.design.two_level or ctx.design.center.any():
         return None
     return _Step(
         "add_center_points",
-        f"Add {_CENTER_RUNS} runs at the centre of every range.",
+        f"Add {_CENTER_RUNS} runs at the center of every range.",
         [
             (
                 "Every run so far sets each factor at an end of its range, so nothing shows whether the response "
@@ -1330,7 +1330,7 @@ def _add_center_points(ctx: _Context) -> _Step | None:
             ),
         ],
         np.zeros((_CENTER_RUNS, ctx.k)),
-        "Analyse again with the centre runs: if their mean is off the plane of the corners "
+        "Analyze again with the center runs: if their mean is off the plane of the corners "
         "(analysis_type='curvature_test'), the next round adds axial runs; their spread estimates the noise.",
     )
 
@@ -1347,12 +1347,12 @@ def _replicate(ctx: _Context) -> _Step:
             ),
         ],
         runs,
-        "Analyse every run together: the repeats estimate the noise, and every coefficient's variance halves.",
+        "Analyze every run together: the repeats estimate the noise, and every coefficient's variance halves.",
     )
 
 
 def _more_error_df(ctx: _Context) -> _Step:
-    """Centre runs, or the runs again, when nothing stands out but the noise is estimated from too few runs."""
+    """Center runs, or the runs again, when nothing stands out but the noise is estimated from too few runs."""
     step = _add_center_points(ctx) or _replicate(ctx)
     step.reasons = [
         (
@@ -1413,7 +1413,7 @@ def _widen_ranges(ctx: _Context) -> _Step:
         f"Widen {which} by half again about the middle, and run the {len(runs)}-run design again.",
         reasons,
         runs,
-        "Analyse the new runs on their own ranges; if still nothing stands out, check the measurement system.",
+        "Analyze the new runs on their own ranges; if still nothing stands out, check the measurement system.",
         {"new_ranges": ranges},
     )
 
@@ -1461,7 +1461,7 @@ def _de_alias(ctx: _Context) -> _Step | None:
         headline,
         reasons,
         runs,
-        "Analyse every run together: the model can then tell each pair apart, and the next step follows from it.",
+        "Analyze every run together: the model can then tell each pair apart, and the next step follows from it.",
     )
 
 
@@ -1524,7 +1524,7 @@ def _separating_runs(ctx: _Context, numeric: list[int], suspects: list[int], sea
 
 
 def _quadratic_design(ctx: _Context, numeric: list[int], search: bool) -> tuple[pd.DataFrame, str]:
-    """Return the runs that complete a face-centred central composite design in ``numeric``, or D-optimal runs."""
+    """Return the runs that complete a face-centered central composite design in ``numeric``, or D-optimal runs."""
     names = [ctx.study.names[j] for j in numeric]
     frame = ctx.study.data[names]
     quadratic = _model_columns(frame, "quadratic")
@@ -1536,7 +1536,7 @@ def _quadratic_design(ctx: _Context, numeric: list[int], search: bool) -> tuple[
         result = augment_design(frame, "upgrade_to_rsm", alpha="face_centered", factor_names=names)
         added = pd.DataFrame(result["new_runs"])
         how = (
-            f"Add {len(added)} axial and centre runs in {_names(ctx, numeric)}: with the runs before, a face-centred "
+            f"Add {len(added)} axial and center runs in {_names(ctx, numeric)}: with the runs before, a face-centered "
             "central composite design, which fits the full quadratic model and keeps every run inside the ranges."
         )
     else:
@@ -1569,9 +1569,9 @@ def _d_optimal_runs(ctx: _Context, frame: pd.DataFrame, model: str, n_new: int, 
 def _quadratic_fits(ctx: _Context, numeric: list[int]) -> bool:
     """Say whether the runs fit the full quadratic model in these numeric factors, apart from every other square.
 
-    Centre runs among two-level runs give every factor three levels, so the quadratic model in
+    Center runs among two-level runs give every factor three levels, so the quadratic model in
     any one factor looks estimable; but its square is then the same column as every other
-    factor's, and the curvature the centre runs show could be any of theirs. The squares of
+    factor's, and the curvature the center runs show could be any of theirs. The squares of
     these factors must therefore be told apart from the other factors' squares. (A definitive
     screening design's squares are; that they are partly aliased with its interactions is
     what its own analysis resolves.)
@@ -1640,7 +1640,7 @@ def _move_region(ctx: _Context) -> _Step | None:
             *_held_at_limits(ctx),
         ],
         runs,
-        "Make the runs in order and stop at the first one that does worse than the run before it. Then centre a "
+        "Make the runs in order and stop at the first one that does worse than the run before it. Then center a "
         "new study on the best run, with ranges as wide as these, and start again with its screening or "
         "response surface design.",
         {
@@ -1705,7 +1705,7 @@ def _investigate_confirmation(ctx: _Context, why: str) -> _Step:
             ),
         ],
         np.zeros((0, ctx.k)),
-        "Once the cause is found, call recommend_next_step again; a shift between rounds is modelled as a block.",
+        "Once the cause is found, call recommend_next_step again; a shift between rounds is modeled as a block.",
     )
 
 
@@ -1774,8 +1774,8 @@ def _rsm_step(ctx: _Context, why: str) -> _Step | None:
 def _square_suspects(ctx: _Context, factors: list[int]) -> list[int]:
     """Return the numeric factors outside ``factors`` whose square the runs cannot tell from the curvature they show.
 
-    Centre runs among two-level runs give every factor's square the same column, so curvature
-    at the centre could be any factor's; and a square judged active stands for every square
+    Center runs among two-level runs give every factor's square the same column, so curvature
+    at the center could be any factor's; and a square judged active stands for every square
     with the same column, of which the analysis names only the first. Each such factor needs
     runs that separate its square, or the optimum is sought in the wrong factor.
     """
@@ -1829,8 +1829,8 @@ def _decide(ctx: _Context) -> _Step:
         )
     if _blocks_hold_the_centre_runs(ctx.study, ctx.design):
         step.reasons.append(
-            "The centre runs share no block with a corner run, so they differ from the corners by the shift between "
-            "the blocks as well: the runs cannot show curvature. Centre runs made in a block with corner runs test it."
+            "The center runs share no block with a corner run, so they differ from the corners by the shift between "
+            "the blocks as well: the runs cannot show curvature. Center runs made in a block with corner runs test it."
         )
     return step
 
@@ -1916,7 +1916,7 @@ def _interaction_runs(ctx: _Context) -> _Step | None:
             ),
         ],
         pd.DataFrame(new)[names].to_numpy(dtype=float),
-        "Analyse every run together: the interactions of the active factors are then tested, and the next step "
+        "Analyze every run together: the interactions of the active factors are then tested, and the next step "
         "follows from them.",
     )
 
@@ -1934,7 +1934,7 @@ def _curvature_step(ctx: _Context) -> _Step | None:
     """Return the runs a curved response needs before its optimum can be located, or None when the runs suffice."""
     if _curved(ctx):
         why = (
-            f"The centre runs are off the plane of the corners (curvature test p = {_g(ctx.curvature['p_value'])})."
+            f"The center runs are off the plane of the corners (curvature test p = {_g(ctx.curvature['p_value'])})."
             if ctx.curvature.get("source") == "center_runs"
             else f"The model does not fit the repeats (lack of fit p = {_g(ctx.lack_of_fit['p_value'])})."
         )

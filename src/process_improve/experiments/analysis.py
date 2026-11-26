@@ -55,6 +55,7 @@ from process_improve.experiments._analyses.lack_of_fit import _run_lack_of_fit
 from process_improve.experiments._analyses.lenth import _run_lenth_method
 from process_improve.experiments._analyses.mixture import (
     BLEND_SUM_TOLERANCE,
+    _mixture_components,
     run_mixture_anova,
     run_mixture_effects,
     run_mixture_lenth,
@@ -149,7 +150,7 @@ def build_formula(
         rhs = f"({joined}) ** 2 + {squared}" if squared else f"({joined}) ** 2"
     elif model in SCHEFFE_MODELS:
         # Mixture components sum to 1, so the intercept is dropped; the fit holds the implicit
-        # constant (see _as_mixture), which keeps R-squared and the model df centred.
+        # constant (see _as_mixture), which keeps R-squared and the model df centered.
         rhs = scheffe_formula_rhs(factors, model)
     else:
         # Treat as raw RHS
@@ -213,7 +214,7 @@ def _assemble_data(
     responses: pd.DataFrame | pd.Series | None,
     response_column: str | None,
 ) -> tuple[pd.DataFrame, str]:
-    """Join the responses onto the design and name the response column to analyse."""
+    """Join the responses onto the design and name the response column to analyze."""
     df = design_matrix.copy()
     if isinstance(responses, pd.Series):
         if responses.name is None:
@@ -251,42 +252,17 @@ def _looks_like_mixture(df: pd.DataFrame, factor_cols: list[str]) -> bool:
     return in_unit_interval and bool(np.allclose(finite.sum(axis=1), 1.0, rtol=0.0, atol=BLEND_SUM_TOLERANCE))
 
 
-def _mixture_components(df: pd.DataFrame, factor_cols: list[str]) -> list[str]:
-    """Return the factors that are mixture components beside other factors, or none.
-
-    They are the numeric factors whose settings all lie between 0 and 1, when there are at
-    least two of them, other factors besides, and every run's settings of them sum to 1: the
-    data of a mixture-process design. A process factor whose own settings lie between 0 and 1
-    hides them, and none are found. Columns that are only ever 0 or 1 blend nothing: they are
-    a categorical factor's indicators, one set per run, and none are found either.
-    """
-    numeric = [c for c in factor_cols if _is_numeric(df[c])]
-    values = df[numeric].to_numpy(dtype=float)
-    finite = values[np.isfinite(values).all(axis=1)]
-    if finite.size == 0:
-        return []
-    shares = [
-        c for c, column in zip(numeric, finite.T, strict=True) if np.all((column >= -1e-9) & (column <= 1 + 1e-9))
-    ]
-    if len(shares) < 2 or len(shares) == len(factor_cols):
-        return []
-    settings = finite[:, [numeric.index(c) for c in shares]]
-    if np.isin(settings, (0.0, 1.0)).all():
-        return []
-    return shares if np.allclose(settings.sum(axis=1), 1.0, rtol=0.0, atol=BLEND_SUM_TOLERANCE) else []
-
-
 def _as_mixture(
     ols_result: RegressionResultsWrapper, df: pd.DataFrame, factor_cols: list[str], model: str
 ) -> tuple[RegressionResultsWrapper, bool]:
-    """Return the fit, holding a constant when it is a mixture model, and whether to analyse it as one.
+    """Return the fit, holding a constant when it is a mixture model, and whether to analyze it as one.
 
     A mixture model has no intercept: the components sum to 1, so their terms make up the
     constant, and R², the model df and the overall F are taken about the mean. statsmodels finds
     that constant by an exact rank test, which blends printed to three decimals (sums of 0.999 or
     1.001) fail. So it is decided here: a fit with no intercept, on blends that sum to 1 to within
     ``BLEND_SUM_TOLERANCE``, holds the constant when its terms span the constant as closely. The fit
-    is analysed as a mixture model (its linear blending tested as one block) for a Scheffe model,
+    is analyzed as a mixture model (its linear blending tested as one block) for a Scheffe model,
     and for a formula that holds the constant over components alone.
     """
     pure = _looks_like_mixture(df, factor_cols)
@@ -342,7 +318,7 @@ def _polynomial_in(rhs: str, numeric: list[str]) -> bool:
     of the same model: ``A``, ``I(A ** 2)`` or ``I(A * B)``, coded, lie in the span of the
     terms the model already has below them. An ``I()`` term of any other shape can change
     what it means, or have no value at all: ``I(z2 - 0.2 * z1)`` is no longer orthogonal
-    to ``z1`` once ``z2`` is centred, and ``I(x ** 0.5)`` or ``I(1 / x)`` is undefined
+    to ``z1`` once ``z2`` is centered, and ``I(x ** 0.5)`` or ``I(1 / x)`` is undefined
     where the coded ``x`` is negative or zero. A categorical ``C(A)`` keeps its levels.
     """
     monomial = re.compile(r"I\((\w+(?: \*\* \d+)?(?: \* \w+(?: \*\* \d+)?)*)\)")
@@ -367,7 +343,7 @@ def _resolve_model(
 
     ``None`` becomes ``"scheffe_quadratic"`` for mixture data (every run's settings sum
     to 1) and ``"interactions"`` otherwise. An explicit formula must model the response
-    being analysed, and is rewritten to the stand-in name when that response is a Python
+    being analyzed, and is rewritten to the stand-in name when that response is a Python
     keyword. For a formula or a raw right-hand side, only the columns it names are factors.
     """
     if model is None:
@@ -379,7 +355,7 @@ def _resolve_model(
         lhs, rhs = (side.strip() for side in model.split("~", 1))
         if lhs not in (response_col, reported_response):
             raise ValueError(
-                f"The formula models {lhs!r}, but the response being analysed is {reported_response!r}. "
+                f"The formula models {lhs!r}, but the response being analyzed is {reported_response!r}. "
                 f"Write the formula as '{reported_response} ~ ...', or pass response_column={lhs!r}."
             )
         model = f"{response_col} ~ {rhs}"
@@ -541,7 +517,7 @@ def _drop_incomplete_runs(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     complete = df[columns].notna().all(axis=1)
     if not complete.any():
         raise ValueError(
-            f"No run has a value in every one of {', '.join(map(str, columns))}, so there is nothing to analyse: "
+            f"No run has a value in every one of {', '.join(map(str, columns))}, so there is nothing to analyze: "
             "each run is missing its response or a factor setting."
         )
     n_dropped = int((~complete).sum())
@@ -576,8 +552,8 @@ def _check_response_scale(response: pd.Series, name: str) -> None:
     largest = float(np.max(np.abs(response.to_numpy(dtype=float))))
     if largest > np.sqrt(np.finfo(float).max / len(response)):
         raise ValueError(
-            f"The response {name!r} is too large in its units to analyse: its sums of squares overflow, as its "
-            f"largest value is {largest:.3g}. Divide it by a power of 10 and analyse it again; the tests, "
+            f"The response {name!r} is too large in its units to analyze: its sums of squares overflow, as its "
+            f"largest value is {largest:.3g}. Divide it by a power of 10 and analyze it again; the tests, "
             "R-squared and p-values do not change."
         )
 
@@ -607,7 +583,7 @@ def _add_block_term(df: pd.DataFrame, formula: str, model: str) -> tuple[pd.Data
     ``Block:A`` is a difference in A's effect for each block but one, never the block's number
     times A. ``C(Block)`` is levels already, and is left to patsy. A Scheffe mixture model, and an
     explicit formula that does not name ``Block``, are not changed; a warning says the blocks are
-    not modelled.
+    not modeled.
 
     Returns
     -------
@@ -765,7 +741,7 @@ def _resolve_coding(
 ) -> str | Mapping[str, Mapping[str, float]]:
     """Check ``coding`` and return the scale it means: ``"actual"``, ``"coded"``, or ranges per numeric factor.
 
-    ``"auto"``, the default, is ``"coded"`` except for a fit analysed as a mixture model
+    ``"auto"``, the default, is ``"coded"`` except for a fit analyzed as a mixture model
     (``mixture``, from :func:`_as_mixture`: a Scheffe model, or a formula over blends alone
     that holds the constant), for data with mixture components beside process factors, and
     for a model ``rhs`` that is not a polynomial in the factors (see :func:`_polynomial_in`):
@@ -841,7 +817,7 @@ class _Fit:
     #: The error standard deviation known before the runs, which the standard errors use instead of the
     #: residual's (#789 B6); None for the residual's.
     sigma: float | None = None
-    #: Whether the fit is analysed as a mixture model: a Scheffe model, or a formula that holds the constant
+    #: Whether the fit is analyzed as a mixture model: a Scheffe model, or a formula that holds the constant
     #: over mixture components alone (see :func:`_as_mixture`).
     mixture: bool = False
 
@@ -889,13 +865,13 @@ class _Fit:
                 self._coded = (self.ols, {})
         return self._coded
 
-    def centred(self) -> RegressionResultsWrapper:
-        """Return the fit with each numeric factor coded to -1/+1, so that its terms are tested at the centre.
+    def centered(self) -> RegressionResultsWrapper:
+        """Return the fit with each numeric factor coded to -1/+1, so that its terms are tested at the center.
 
         In a model with an interaction or a square, a lower-order term is tested where the
         terms above it are zero. On the factors as given that is wherever their units put
         zero (0 degC, say, far outside the experiment, and somewhere else again in kelvin);
-        coded, it is the centre of the design. Only numeric factors are coded, so the term
+        coded, it is the center of the design. Only numeric factors are coded, so the term
         names do not change. The fit itself is kept for a mixture model and for data with
         mixture components beside process factors, whose components are proportions, and
         when coding would change the model rather than re-express it, as for an interaction
@@ -952,11 +928,11 @@ class _Fit:
         return self._coefficient_fit
 
     def reduced(self) -> tuple[RegressionResultsWrapper, dict[str, str]]:
-        """Return the centred fit on one column per alias chain, with the chain name of each retained column."""
+        """Return the centered fit on one column per alias chain, with the chain name of each retained column."""
         if self._reduced is None:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                self._reduced = chain_reduced_fit(self.centred())
+                self._reduced = chain_reduced_fit(self.centered())
         return self._reduced
 
 
@@ -984,7 +960,7 @@ def _warn_if_not_reparametrised(fit: RegressionResultsWrapper, coded: Regression
     reasons. Factors in units of very different size (pascals beside kelvin, say) can make
     the fit as given lose rank in floating point, which coding the factors repairs. Or the
     model is not hierarchical: with ``A:B`` and no ``B``, or ``I(A**2)`` and no ``A``, it
-    spans a different space once ``A`` and ``B`` are centred.
+    spans a different space once ``A`` and ``B`` are centered.
     """
     scale = 1.0 + float(np.abs(fit.fittedvalues).max())
     if np.allclose(coded.fittedvalues, fit.fittedvalues, rtol=0.0, atol=1e-8 * scale):
@@ -994,13 +970,13 @@ def _warn_if_not_reparametrised(fit: RegressionResultsWrapper, coded: Regression
             f"The factors' units are scaled so differently that the fit as given lost rank in floating point "
             f"({_rank(fit)} of {_rank(coded)} columns), so it, its model_summary and the analyses other than the "
             "coefficients are unreliable; the coded coefficients are not affected. Code the factors to -1/+1 "
-            "before analysing."
+            "before analyzing."
         )
     else:
         message = (
             "On the coded scale this model fits the data differently, so the coded coefficients do not describe "
             "the fit in model_summary. A model with an interaction or a square but not the main effects below it "
-            "is not the same model once its factors are centred; add those main effects, or use coding='actual'."
+            "is not the same model once its factors are centered; add those main effects, or use coding='actual'."
         )
     warnings.warn(message, category=UserWarning, stacklevel=user_stacklevel())
 
@@ -1071,16 +1047,18 @@ def _searched_formula(fit: _Fit) -> _Formula | None:
     """Return an explicit formula as model_selection searches it, less its blocks; None for a named model.
 
     The search is over the formula's own terms: a term the formula has, a square among them, is one the search
-    may keep, and no other comes in. One analysed as a mixture model is searched as a Scheffe model is: not as
-    the interactions model, whose intercept the blends already make up (#1129).
+    may keep, and no other comes in. One analyzed as a mixture model, or one without an intercept over mixture
+    components beside process factors that holds the constant, is searched as a Scheffe model is: its linear
+    blending terms stay in, and there is no intercept, which the blends already make up (#1129, #1169).
     """
     if fit.model in _NAMED_MODELS:
         return None
     terms = ModelDesc.from_formula(fit.model).rhs_termlist
     own = [t for t in terms if t.factors and not _references(t.name(), BLOCK_COL)]
+    components = _mixture_components(fit.df, fit.factor_cols)
     return _Formula(
         [tuple(factor.name() for factor in t.factors) for t in own],
-        mixture=fit.mixture,
+        mixture=fit.mixture or (bool(components) and spans_constant(fit.ols)),
         intercept=any(not t.factors for t in terms),
     )
 
@@ -1230,7 +1208,7 @@ def analyze_experiment(  # noqa: PLR0913
         residuals for serial dependence in that order. A ``Block`` column with two or more blocks
         is added to the named non-mixture models as a fixed effect (sum-coded contrast
         columns ``Block1``, ...; one ``"Block"`` row in the ANOVA), so block-to-block
-        differences do not inflate the error; drop the column to analyse without it. An
+        differences do not inflate the error; drop the column to analyze without it. An
         explicit formula gets the same fixed effect where it names ``Block`` as a term
         (``"y ~ Block + A + B + A:B"``). Pure error, for the lack of fit and the curvature
         test, is taken within blocks whenever the model has the blocks, in either form or
@@ -1244,7 +1222,7 @@ def analyze_experiment(  # noqa: PLR0913
     responses : DataFrame, Series, or None
         Response column(s).  If *None*, ``response_column`` must name a
         column already present in *design_matrix*. When a DataFrame with
-        more than one column is passed, only the first column is analysed;
+        more than one column is passed, only the first column is analyzed;
         the rest are added to the working frame but ignored by every
         subsequent step. Use ``response_column`` to pick a specific column
         explicitly. An unnamed Series takes the name ``response_column``.
@@ -1257,7 +1235,7 @@ def analyze_experiment(  # noqa: PLR0913
         settings are proportions summing to 1, and ``"interactions"`` otherwise.
         Blends that sum to 1 only to within 0.01, as proportions printed to three
         decimals do, are blends too, with a warning. A formula with no intercept, over
-        blends alone, whose terms make up the constant is analysed as a Scheffé model.
+        blends alone, whose terms make up the constant is analyzed as a Scheffé model.
         That default becomes ``"main_effects"``, with a warning and
         ``model_summary["model_note"]``, when the design cannot estimate the
         interactions and does not alias them in whole chains (a Plackett-Burman or
@@ -1271,7 +1249,7 @@ def analyze_experiment(  # noqa: PLR0913
         ``"confirmation_test"``, ``"split_plot"``, ``"glm"``.
 
         The ANOVA uses Type II sums of squares (reported as ``anova_type``). The ANOVA
-        and significance test each term at the centre of the design: they are computed
+        and significance test each term at the center of the design: they are computed
         with the numeric factors coded to -1/+1, so they do not depend on the factors'
         units. On the factors as given, a main effect alongside its interaction or square
         would be tested where those are zero (0 degC, say), and so would differ between
@@ -1347,7 +1325,7 @@ def analyze_experiment(  # noqa: PLR0913
         Roger's inflation of the standard errors and their scaling of the F tests, and
         ``information="observed"`` computes the df from the observed information: the
         two together are JMP's analysis. In a balanced design all of these agree. A
-        design run in random blocks is analysed the same way, the blocks named as the
+        design run in random blocks is analyzed the same way, the blocks named as the
         whole plots. With ``new_points``, the result also has ``predictions`` from the
         generalized least-squares fit: the ``predicted`` mean with its ``std_error``,
         ``df`` and interval (``ci_low``, ``ci_high``), and the interval for one new
@@ -1384,7 +1362,7 @@ def analyze_experiment(  # noqa: PLR0913
         analyses do not use it.
 
         - ``"auto"`` (default): ``"coded"``, except for a Scheffe mixture model (a keyword,
-          or a formula analysed as one), whose components are proportions, and a model with
+          or a formula analyzed as one), whose components are proportions, and a model with
           an ``I()`` term that is not a product of whole powers of the factors, such as
           ``I(x ** 0.5)``; these keep ``"actual"``, and asking for another scale raises
           ``ValueError``. ``None`` means the same.
@@ -1406,7 +1384,7 @@ def analyze_experiment(  # noqa: PLR0913
         predictions in actual units.
 
         On the coded scale a coefficient is half the change in response across its factor's
-        range, and in a model with interactions a main effect is tested at the centre of the
+        range, and in a model with interactions a main effect is tested at the center of the
         design. On the actual scale it is tested where the other factors are zero, which can
         be far outside the experiment (0 degC, say), so its sign and p-value can differ.
         ``optimize_responses`` evaluates models at coded settings, so pass it coded
@@ -1423,7 +1401,7 @@ def analyze_experiment(  # noqa: PLR0913
     response_column : str or None
         Name of the response column when it lives inside *design_matrix*.
     whole_plot : str, sequence of str, or None
-        The column labelling each run's whole plot, for ``"split_plot"``. ``None``
+        The column labeling each run's whole plot, for ``"split_plot"``. ``None``
         (default) uses the ``WholePlot`` column when there is one. The column is never
         a factor. Several columns are several crossed random effects: the rows and the
         columns of a two-way split-plot (strip-plot) design, whose runs share a row's
@@ -1856,7 +1834,7 @@ def _estimability(ols_result: RegressionResultsWrapper, design_rank: int) -> dic
             f"model matrix lost rank in floating point ({fit_rank} of {model_rank}): the units are very unequal, "
             "or a factor's span is tiny next to its distance from zero. The fit, its coefficients, model_summary "
             "and the analyses built on it are numerically unreliable. Code the factors to -1/+1 (or shift and "
-            "rescale them) before analysing."
+            "rescale them) before analyzing."
         )
         logger.warning("analyze_experiment: %s", message)
         warnings.warn(message, category=RuntimeWarning, stacklevel=user_stacklevel())

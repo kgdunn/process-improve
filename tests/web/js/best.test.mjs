@@ -325,7 +325,7 @@ describe("what the panel says first", () => {
   test("without a goal, one line that asks for one", () => {
     assert.equal(
       noGoalSentence({ goal: "learn" }, WORDS),
-      "Set a goal for Yield in the brief, to maximise, minimise or hit a target, and the page finds the best settings here.",
+      "Set a goal for Yield in the brief, to maximize, minimize or hit a target, and the page finds the best settings here.",
     );
     assert.match(noGoalSentence({ goal: "target", target: null }, WORDS), /^Type the target for Yield in the brief/);
     assert.equal(flatSentence(WORDS), "No term of the model changes Yield, so no setting is better than another.");
@@ -475,7 +475,7 @@ describe("the response surface drawn through the best settings", () => {
 
   test("a level held, the limits shaded, and no star", () => {
     const caption = bestContourCaption(["T", "P"], { held: [{ name: "S", value: "B" }], shaded: true, factors: FACTORS });
-    assert.match(caption, /with S at B, its best setting; grey: settings outside your limits; the dots are the runs\.$/);
+    assert.match(caption, /with S at B, its best setting; gray: settings outside your limits; the dots are the runs\.$/);
   });
 });
 
@@ -605,7 +605,7 @@ describe("what the confirmation runs show", () => {
 
   test("before their results: where to make them, and what to expect", () => {
     assert.deepEqual(confirmationSentences(group, FACTORS, WORDS), [
-      "3 confirmation runs at T = 200 degC, P = 1 bar and F = 18.04 L/min. Enter their results in Run. " +
+      "3 confirmation runs at T = 200 degC, P = 1 bar and F = 18.04 L/min. Enter their results in [Run]. " +
         "When their average is between 65.98 and 70.52%, the model holds there.",
     ]);
   });
@@ -702,7 +702,7 @@ describe("a mixture's best blend", () => {
 });
 
 describe("the settings that balance the responses", () => {
-  /** A balance as bootstrap.balance gives it: a yield to maximise and a purity with a target, at T and P. */
+  /** A balance as bootstrap.balance gives it: a yield to maximize and a purity with a target, at T and P. */
   const BALANCE = {
     balanced: true,
     composite: 0.7305,
@@ -723,8 +723,8 @@ describe("the settings that balance the responses", () => {
   };
 
   test("the goal as the table says it", () => {
-    assert.equal(goalWords({ goal: "maximize" }), "Maximise");
-    assert.equal(goalWords({ goal: "minimize" }), "Minimise");
+    assert.equal(goalWords({ goal: "maximize" }), "Maximize");
+    assert.equal(goalWords({ goal: "minimize" }), "Minimize");
     assert.equal(goalWords({ goal: "target", target: 98.5, units: "%" }), "Target 98.5%");
   });
 
@@ -804,7 +804,7 @@ describe("the settings that balance the responses", () => {
         "balanced setting. Shaded where every response is acceptable; each line is a response's acceptable boundary; the " +
         "star marks the balanced settings.",
     );
-    assert.match(overlayCaption({ ...overlay, held: [], runnable: [[1]] }, FACTORS), /, the two factors that move the responses' desirabilities most\. .*; grey: settings outside your limits;/);
+    assert.match(overlayCaption({ ...overlay, held: [], runnable: [[1]] }, FACTORS), /, the two factors that move the responses' desirabilities most\. .*; gray: settings outside your limits;/);
   });
 
   test("a boundary that misses the settings drawn has no line, and the caption says why", () => {
@@ -847,7 +847,7 @@ describe("the settings that balance the responses", () => {
     ]);
     const waiting = { ...group, responses: [group.responses[0], { name: "Purity", done: 0, mean: null, predicted: 98, interval: [97, 99], inside: null }] };
     assert.equal(balanceConfirmation(waiting, FACTORS, BALANCE.responses).state, "waiting");
-    assert.equal(balanceConfirmation(waiting, FACTORS, BALANCE.responses).said[2], "Purity: no result yet; enter it in Run.");
+    assert.equal(balanceConfirmation(waiting, FACTORS, BALANCE.responses).said[2], "Purity: no result yet; enter it in [Run].");
     const both = { ...group, responses: [group.responses[0], { ...group.responses[1], mean: 98, inside: true }] };
     assert.equal(balanceConfirmation(both, FACTORS, BALANCE.responses).state, "inside");
   });
@@ -1160,7 +1160,7 @@ describe("what if", () => {
     ];
     assert.deepEqual(whatIfRows(responses), [
       ["Yield", "15%", "10.76 to 19.24%", "8.526 to 21.47%", "0.75, above 0.5"],
-      ["Cost", "No results yet: enter them in Run.", "", "", ""],
+      ["Cost", "No results yet: enter them in [Run].", "", "", ""],
       ["Purity", "The term Supplier·Batch needs Supplier in the model too.", "", "", ""],
     ]);
     const broken = [{ index: 1, expression: "T + 25 * P <= 215" }];
@@ -1275,7 +1275,7 @@ describe("the settings that give a target", async () => {
     const said = targetCaption(two, factors, [yieldAt, { name: "Cost", label: "Cost per kg" }]);
     assert.match(said, /^Drawn over T and P\. Each line is where a response is predicted at its target: /);
     assert.match(said, /where the lines cross, the settings give every target\. The star marks/);
-    assert.match(said, / Grey: settings outside your limits\. No line for Cost per kg: no setting drawn brings it to its target\.$/);
+    assert.match(said, / Gray: settings outside your limits\. No line for Cost per kg: no setting drawn brings it to its target\.$/);
   });
 
   test("one factor solved from the others is said with the settings that still hold the target", () => {
@@ -1386,7 +1386,7 @@ describe("the settings that meet a specification", async () => {
     const said = windowCaption(overlay, [{ name: "F", units: "L/min" }]);
     assert.match(said, /^Drawn over T and P, with F at 15 L\/min, as What if has it\. Shaded where every response is predicted inside its window; /);
     assert.match(said, /Inside the line of 90%, a new run meets every window at least that often/);
-    assert.match(said, /The star marks the settings What if holds, and the dots your runs\. Grey: settings outside your limits\.$/);
-    assert.doesNotMatch(windowCaption({ ...overlay, probability: null, runnable: null, held: [] }), /Inside the line|Grey|as What if has/);
+    assert.match(said, /The star marks the settings What if holds, and the dots your runs\. Gray: settings outside your limits\.$/);
+    assert.doesNotMatch(windowCaption({ ...overlay, probability: null, runnable: null, held: [] }), /Inside the line|Gray|as What if has/);
   });
 });

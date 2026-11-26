@@ -36,7 +36,7 @@ Most experimental programs follow a three-stage sequence:
    Typical designs: Definitive Screening Design (DSD), Plackett-Burman, or
    fractional factorial.
 2. **Optimization** - Fit a response surface model for the significant
-   factors.  Typical designs: face-centred Central Composite Design (CCD),
+   factors.  Typical designs: face-centered Central Composite Design (CCD),
    Box-Behnken, or D-optimal.
 3. **Confirmation** - Run replicates at the predicted optimum to verify
    that the model predictions hold.
@@ -54,14 +54,14 @@ Six or more continuous factors are screened with a DSD by default. Its main
 effects are orthogonal to every two-factor interaction and square, whereas in a
 12-run Plackett-Burman design each interaction biases the main effects of the
 factors outside it by a third of its size, which can hide a real factor. The DSD
-gets the centre runs that leave its analysis (``analyze_omars``) four degrees of
+gets the center runs that leave its analysis (``analyze_omars``) four degrees of
 freedom for error; under a budget too tight for them, it keeps only its own.
 
 Conditional stages
 ~~~~~~~~~~~~~~~~~~
 
-An optimisation stage is often not needed. When the screening design can test
-for curvature (a DSD, or a two-level design with centre runs), the optimisation
+An optimization stage is often not needed. When the screening design can test
+for curvature (a DSD, or a two-level design with center runs), the optimization
 stage after it is *conditional*: ``stage["conditional"]`` is ``True`` and
 ``stage["run_if"]`` names the evidence that calls for it and the analysis that
 gives that evidence. Without that evidence, the screening model already locates
@@ -69,7 +69,7 @@ the best settings and the study goes straight to confirmation.
 ``minimum_total_runs`` counts the runs when no conditional stage is called for,
 and ``total_estimated_runs`` counts them all. A screening design that cannot
 test for curvature, such as a Plackett-Burman design with a categorical factor,
-is followed by an optimisation stage that is always run.
+is followed by an optimization stage that is always run.
 
 Budget allocation
 ~~~~~~~~~~~~~~~~~
@@ -131,9 +131,9 @@ This outputs::
      Purpose: Run replicates at the predicted optimum to verify the model predictions. ...
 
 The engine selected Plackett-Burman screening (the fermentation domain
-default) with 3 centre runs, a face-centred CCD for response surface
+default) with 3 center runs, a face-centered CCD for response surface
 optimization, and 3 confirmation replicates - all within the 40-run budget.
-The CCD is conditional on the centre runs showing curvature, so the study needs
+The CCD is conditional on the center runs showing curvature, so the study needs
 14 runs when they do not and 33 when they do.
 
 Interpreting the Output
@@ -218,7 +218,7 @@ counts: it drops center points, replaces a stage's design with a smaller one
 (a Plackett-Burman screen, a D-optimal quadratic design), and plans a single
 Definitive Screening Design when separate screening and optimization stages
 cannot fit. It plans that DSD too, for six or more factors, when the reduction
-would take the centre runs out of the screening design: the optimisation stage
+would take the center runs out of the screening design: the optimization stage
 would then have to be run whatever the screening showed, and one DSD both
 screens and tests for curvature. The budget must hold the conditional stages
 too, since the screening may call for them. ``estimated_runs`` is always the size of the design the
@@ -275,7 +275,7 @@ entirely:
    Low confidence: 2 stages
    High confidence: 1 stages
 
-(With no response to optimise, seven factors get no optimisation stage.)
+(With no response to optimize, seven factors get no optimization stage.)
 
 Domain-Specific Strategies
 --------------------------
@@ -334,7 +334,7 @@ Comparing two domains on the same factors shows how design choices differ:
    cell_culture: dsd, 20 screening runs
 
 Fermentation uses Plackett-Burman (efficient, many-factor screening, here with
-3 centre runs), while
+3 center runs), while
 cell culture uses a Definitive Screening Design because it combines screening
 and curvature detection in a single stage - saving an entire experimental
 cycle when each run takes 2–3 weeks.
@@ -377,7 +377,7 @@ to minimize the number of hard-to-change factor resets. The design records each
 run's whole plot in a ``WholePlot`` column. The output risks include a reminder
 that standard ANOVA gives incorrect p-values for split-plot experiments: runs in
 one whole plot share its error, so ordinary least squares makes the
-hard-to-change factors look more significant than they are. Analyse the results
+hard-to-change factors look more significant than they are. Analyze the results
 with ``analysis_type="split_plot"``, a restricted maximum likelihood (REML) fit
 that tests each factor against the right error; see :ref:`split-plot-analysis`.
 
@@ -409,10 +409,10 @@ running the experiments, fit each response with
 :func:`~process_improve.experiments.optimize_responses` with desirability
 functions to find the best trade-off across responses.
 
-The optimiser evaluates the models at coded settings, from -1 to +1, so it
+The optimizer evaluates the models at coded settings, from -1 to +1, so it
 needs coefficients on that scale. Fitted in actual units (degrees, minutes,
 bar), a model's coefficients would be searched over -1 to +1 of those units,
-so the optimiser refuses them and says how to refit. Coded coefficients
+so the optimizer refuses them and says how to refit. Coded coefficients
 carry the ranges they were coded from, so the optimum comes back in actual
 units as well. When the data's extremes are not the levels that should be
 -1 and +1, as with a central composite design's axial runs, give the ranges

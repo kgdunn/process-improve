@@ -100,7 +100,7 @@ if TYPE_CHECKING:
     from process_improve.experiments.true_process import TrueProcess
     from process_improve.experiments.variance_dispersion import variance_dispersion
     from process_improve.experiments.visualization import main_effects_plot, visualize_doe
-    from process_improve.experiments.yates import reverse_yates, yates_table
+    from process_improve.experiments.yates import reverse_yates, yates_table, yates_table_3k
 
 #: Each module of the package that has public names, and the names: what ``from process_improve.experiments import``
 #: offers.
@@ -166,7 +166,7 @@ _WHERE = {
     "true_process": ("TrueProcess",),
     "variance_dispersion": ("variance_dispersion",),
     "visualization": ("main_effects_plot", "visualize_doe"),
-    "yates": ("reverse_yates", "yates_table"),
+    "yates": ("reverse_yates", "yates_table", "yates_table_3k"),
 }
 
 _MODULE_OF = {name: module for module, names in _WHERE.items() for name in names}
@@ -312,4 +312,5 @@ __all__ = [
     "variance_dispersion",
     "visualize_doe",
     "yates_table",
+    "yates_table_3k",
 ]

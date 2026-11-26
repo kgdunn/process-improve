@@ -2,7 +2,7 @@
 
 Most of the document is prose, kept true by review: a change to the app a reader would notice changes it in the
 same pull request (``CONTRIBUTING.md``, "The browser app is tested"). What can be counted is checked here: a
-design, a chart or a process to practise on that the document leaves out, and a limit or a count it states that
+design, a chart or a process to practice on that the document leaves out, and a limit or a count it states that
 is no longer the app's. One part sets the library beside the app, so that the app's limits are not read as
 the library's: its table is checked against the tools the library registers.
 """
@@ -27,7 +27,7 @@ TEXT = re.sub(r"\s+", " ", FEATURES)
 #: Each row of the document's table of limits, and the app's own number for it (``web/bootstrap.py``).
 LIMITS = {
     "Factors in a study": lambda app: app.MAX_FACTORS,
-    "Factors whose interactions are modelled": lambda app: app.MAX_INTERACTION_FACTORS,
+    "Factors whose interactions are modeled": lambda app: app.MAX_INTERACTION_FACTORS,
     "Coefficients in the model of an optimal design": lambda app: app.MAX_OPTIMAL_TERMS,
     "Responses in a study": lambda app: app.MAX_RESPONSES,
     "Levels of a categorical factor": lambda app: app.MAX_LEVELS,
@@ -313,7 +313,7 @@ def test_the_numbers_the_document_repeats_in_its_sentences_are_the_app_s(bootstr
         f"and the main effects in up to {app.MAX_FACTORS}.",
         f"An optimal design whose search is expected to take {app.SLOW_SEARCH} seconds or more.",
         f"**Room for a large study.** Up to {app.MAX_FACTORS} factors.",
-        f"Interactions are modelled for up to {app.MAX_INTERACTION_FACTORS}.",
+        f"Interactions are modeled for up to {app.MAX_INTERACTION_FACTORS}.",
         f"interactions of up to {['', 'one', 'two', 'three'][app.MAX_ORDER]} factors",
         f"*Details:* Up to {app.MAX_OMARS_RUNS} runs.",
         f"*Details:* Maximin; up to {app.MAX_SPACE_FILLING_RUNS} runs.",
@@ -432,7 +432,7 @@ def test_the_document_is_published_with_the_page_that_shows_it(build_script, nod
 def test_the_app_s_footer_leads_to_the_page_with_a_button_and_names_each_group_of_its_links():
     html = " ".join(source("index.html").split())
     footer = html[html.index('<footer class="foot">') : html.index("</footer>")]
-    assert '<a class="button primary" href="features.html">See what Factorial does</a>' in footer
+    assert '<a class="button primary" href="features.html">Read the user guide</a>' in footer
     lists = re.findall(r'<ul aria-labelledby="([\w-]+)">', footer)
     assert lists == ["foot-app", "foot-behind", "foot-help"]
     assert set(lists) <= set(page().ids), "each list is named by the line above it"

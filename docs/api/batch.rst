@@ -13,6 +13,18 @@ Batch Data Analysis
    :members:
    :show-inheritance:
 
+.. autoclass:: process_improve.batch.ResampleAligner
+   :members:
+   :show-inheritance:
+
+.. autoclass:: process_improve.batch.DTWAligner
+   :members:
+   :show-inheritance:
+
+.. autoclass:: process_improve.batch.BatchFeatureExtractor
+   :members:
+   :show-inheritance:
+
 .. automodule:: process_improve.batch.control
    :members:
    :show-inheritance:

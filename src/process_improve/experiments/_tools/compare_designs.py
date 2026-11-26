@@ -64,7 +64,7 @@ class CompareDesignsInput(BaseModel):
     ),
     input_model=CompareDesignsInput,
     examples="""
-    # "Is a Box-Behnken or a face-centred CCD better for a quadratic in 3 factors?"
+    # "Is a Box-Behnken or a face-centered CCD better for a quadratic in 3 factors?"
         -> ``compare_designs(designs={"BBD": [...], "CCD": [...]}, model="quadratic")``
     """,
     category="experiments",

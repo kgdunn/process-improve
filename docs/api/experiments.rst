@@ -93,7 +93,7 @@ Designed Experiments
    :members: least_squares_means
 
 .. automodule:: process_improve.experiments.yates
-   :members: yates_table, reverse_yates
+   :members: yates_table, reverse_yates, yates_table_3k
 
 .. automodule:: process_improve.experiments.layouts
    :members: tukey_nonadditivity, estimate_missing

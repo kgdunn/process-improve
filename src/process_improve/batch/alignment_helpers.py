@@ -29,7 +29,7 @@ def full_band(n_test: int, n_ref: int) -> np.ndarray:
     """
     Build the unconstrained band: every reference row is reachable from every test sample.
 
-    This is the default, and reproduces the behaviour the module had before bands were
+    This is the default, and reproduces the behavior the module had before bands were
     configurable (#197).
 
     Parameters
@@ -54,7 +54,7 @@ def sakoe_chiba_band(n_test: int, n_ref: int, window: float) -> np.ndarray:
     """
     Build a Sakoe-Chiba band: a corridor of fixed width around the diagonal.
 
-    The corridor is centred on the line joining ``(0, 0)`` to ``(n_ref - 1, n_test - 1)``,
+    The corridor is centered on the line joining ``(0, 0)`` to ``(n_ref - 1, n_test - 1)``,
     so it is correct when the two batches have different lengths, and it always contains
     both corner cells.
 
@@ -505,7 +505,7 @@ def backtrack_optimal_path(D: np.ndarray) -> tuple[np.ndarray, float]:
     Only finite predecessors are considered. Cells outside a band constraint (#197)
     stay NaN, and NaN fails every ``<=`` comparison, so the previous three-way
     comparison chain fell through to a bare ``AssertionError`` the moment a NaN
-    neighbour was reached. On an unconstrained matrix the choice, ties included, is
+    neighbor was reached. On an unconstrained matrix the choice, ties included, is
     the same as before: the diagonal step wins a tie, then the horizontal.
     """
     nr, nt = D.shape

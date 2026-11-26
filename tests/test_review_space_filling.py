@@ -22,14 +22,14 @@ def test_uniform_design_sits_on_the_slice_centres() -> None:
         points, meta = space_filling_design(_box(2), n, "uniform", random_state=seed)
         unit = (points + 1.0) / 2.0
         np.testing.assert_allclose(np.sort(unit, axis=0), np.tile((2 * np.arange(1, n + 1) - 1) / (2 * n), (2, 1)).T)
-        # The metadata value is CD^2, the squared centred discrepancy scipy returns.
+        # The metadata value is CD^2, the squared centered discrepancy scipy returns.
         assert meta["centered_l2_discrepancy"] == pytest.approx(qmc.discrepancy(unit, method="CD"))
 
 
 def test_uniform_design_discrepancy_is_lower_than_with_jitter() -> None:
     metas = [space_filling_design(_box(2), 10, "uniform", random_state=s)[1] for s in range(10)]
     cd2 = [m["centered_l2_discrepancy"] for m in metas]
-    # The scrambled (jittered) version averaged 0.0046 over seeds; the centred one about 0.0030.
+    # The scrambled (jittered) version averaged 0.0046 over seeds; the centered one about 0.0030.
     assert np.mean(cd2) < 0.0035
 
 

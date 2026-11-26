@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.web.e2e._page import settled
+from tests.web.e2e._page import reveal, settled
 
 #: Whether a tab can reach the tab that opened it.
 TIED = "() => window.opener !== null"
@@ -69,9 +69,10 @@ def test_the_app_s_links_into_the_book_use_the_same_tab_as_the_map_s(sites, site
     # The same tab goes on to the app, as a reader who follows the map's way back does.
     page.bring_to_front()
     page.goto(f"{site}?example=worked")
-    page.wait_for_selector("footer a[target='pid-book']")
     settled(page)
-    link = page.locator("footer a[target='pid-book']")
+    # The footer no longer links to the book, which the page for learning does: the design's hint is a link of the app.
+    reveal(page, "#design-hint a")
+    link = page.locator("#design-hint a[target='pid-book']")
     assert link.get_attribute("rel") == "opener"
     link.click()
     book.wait_for_url(link.get_attribute("href"))

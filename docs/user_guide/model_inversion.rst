@@ -188,14 +188,14 @@ swept lines fill out a **multivariate specification region**. Bounding it by the
    limit. Treat per-input limits as a summary of the region, not as the
    specification.
 
-Inversion as an optimisation: cost, ingredients and safety limits
+Inversion as an optimization: cost, ingredients and safety limits
 -----------------------------------------------------------------
 
 A specification region says which inputs are acceptable; a product developer
 then has to choose one. Jaeckle and MacGregor chose by hand, "the most
 economical or most energy-efficient" point of the window.
 :meth:`~process_improve.multivariate.methods.PLS.optimal_inversion` makes that
-choice an optimisation, for PLS and TPLS models alike:
+choice an optimization, for PLS and TPLS models alike:
 
 .. math::
 

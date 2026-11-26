@@ -1,6 +1,6 @@
-"""The reference catalogue: designed experiments from published sources, reproduced with this library.
+"""The reference catalog: designed experiments from published sources, reproduced with this library.
 
-The reference catalogue holds worked examples, exercises, case studies and designs of published
+The reference catalog holds worked examples, exercises, case studies and designs of published
 sources (a textbook, an encyclopedia article, a course's quizzes, tutorial slides, journal
 papers), recorded so that software can be checked against them. Each entry holds its data
 exactly as printed (factors, responses, runs) and every number the source prints for it, as the
@@ -11,7 +11,7 @@ difference, one of :data:`DISAGREEMENT_CAUSES`; a number not recomputed records 
 of :data:`UNCHECKED_CAUSES`, which tells a number the library cannot compute yet from one with
 nothing to compute.
 
-:func:`reproduce_reference_catalogue` recomputes every checked number with this library and
+:func:`reproduce_reference_catalog` recomputes every checked number with this library and
 reports, row by row, the printed text, the value found, whether they agree to within the
 source's own rounding, and where the number is printed.
 
@@ -20,19 +20,19 @@ food and beverages, ...), as opposed to how it is designed. :func:`reference_top
 vocabulary, each topic with its nearest classes in UN ISIC Rev. 4 (industries) and OECD FORD
 (fields of research), and the ``topic`` argument of :func:`reference_experiments` selects by it.
 
-The catalogue's files hold facts and short quotations from their sources, not the sources
-themselves. The MIT licence of this package covers its code, not them: each source states its
+The catalog's files hold facts and short quotations from their sources, not the sources
+themselves. The MIT license of this package covers its code, not them: each source states its
 own terms in ``rights`` (see :func:`reference_sources` and the folder's ``NOTICE.md``).
 
 Examples
 --------
 >>> from process_improve.experiments.reference_catalogue import (
 ...     reference_experiments,
-...     reproduce_reference_catalogue,
+...     reproduce_reference_catalog,
 ... )
 >>> [e["name"] for e in reference_experiments("ullmann-doe-2012")][:2]
 ['ullmann-catalyst-temperature', 'ullmann-agitator']
->>> report = reproduce_reference_catalogue("ullmann-doe-2012")
+>>> report = reproduce_reference_catalog("ullmann-doe-2012")
 >>> bool(report.loc[report["checked"], "agrees"].all())
 True
 """
@@ -64,6 +64,7 @@ from scipy.stats import chi2 as chi2_distribution
 from scipy.stats import f as f_distribution
 from statsmodels.formula.api import ols
 
+from process_improve._warnings import user_stacklevel
 from process_improve.experiments._analyses.box_cox import _scaled_power
 from process_improve.experiments._analyses.transforms import transform_response
 from process_improve.experiments._blocking import squares_orthogonal_to_blocks
@@ -133,9 +134,9 @@ _CATALOGUE_DIR = Path(__file__).resolve().parents[1] / "datasets" / "experiments
 _TOPICS_FILE = "topics.json"  # the vocabulary of subject-matter topics, beside the sources but not one of them
 
 
-# --------------------------------------------------------------------------- reading the reference catalogue
+# --------------------------------------------------------------------------- reading the reference catalog
 def _files() -> list[dict[str, Any]]:
-    """Read every source file of the reference catalogue, in the order of their names."""
+    """Read every source file of the reference catalog, in the order of their names."""
     paths = sorted(path for path in _CATALOGUE_DIR.glob("*.json") if path.name != _TOPICS_FILE)
     return [json.loads(path.read_text(encoding="utf-8")) for path in paths]
 
@@ -159,13 +160,13 @@ def _about(entries: list[dict[str, Any]], topic: str | None) -> list[dict[str, A
 
 
 def reference_topics() -> dict[str, dict[str, Any]]:
-    """Return the subject-matter topics of the reference catalogue: what its experiments and designs are about.
+    """Return the subject-matter topics of the reference catalog: what its experiments and designs are about.
 
     Every entry lists one or two of these topics in ``topics``, its main topic first. A topic says
     what the experiment is about, not how it is designed (``design.type`` says that); an entry
     whose source states no application, such as a table of designs, is ``"general"``. The topics
-    are the catalogue's own classification, not the sources'. Each one names its nearest classes
-    in two standards, so the catalogue rolls up to either: an industry in UN ISIC Rev. 4, and a
+    are the catalog's own classification, not the sources'. Each one names its nearest classes
+    in two standards, so the catalog rolls up to either: an industry in UN ISIC Rev. 4, and a
     field of research in OECD FORD (Frascati Manual 2015).
 
     Returns
@@ -191,7 +192,7 @@ def reference_topics() -> dict[str, dict[str, Any]]:
 
 
 def reference_sources() -> dict[str, dict[str, Any]]:
-    """Return the citation of each source of the reference catalogue, by its key.
+    """Return the citation of each source of the reference catalog, by its key.
 
     Returns
     -------
@@ -199,7 +200,7 @@ def reference_sources() -> dict[str, dict[str, Any]]:
         For each source key, its citation: ``authors``, ``title``, ``url``, ``year``, and where they
         apply ``work``, ``volume``, ``pages``, ``publisher``, ``doi``, the ``version`` and ``commit``
         that was read, ``read``: when and from what the numbers were taken, and ``rights``: the terms
-        of the source's numbers and quotations, which the MIT licence of this package does not cover.
+        of the source's numbers and quotations, which the MIT license of this package does not cover.
 
     Examples
     --------
@@ -210,7 +211,7 @@ def reference_sources() -> dict[str, dict[str, Any]]:
 
 
 def reference_experiments(source: str | None = None, topic: str | None = None) -> list[dict[str, Any]]:
-    """Return the experiments of the reference catalogue: their data, where each was published, every printed number.
+    """Return the experiments of the reference catalog: their data, where each was published, every printed number.
 
     Parameters
     ----------
@@ -250,7 +251,7 @@ def reference_experiments(source: str | None = None, topic: str | None = None) -
 
 
 def reference_designs(source: str | None = None, topic: str | None = None) -> list[dict[str, Any]]:
-    """Return the designs of the reference catalogue: designs without responses whose properties a source states.
+    """Return the designs of the reference catalog: designs without responses whose properties a source states.
 
     Parameters
     ----------
@@ -365,7 +366,7 @@ _STATISTICS: dict[str, Callable[[pd.DataFrame], pd.Series]] = {
 
 
 def _summarised(table: pd.DataFrame, summary: dict) -> pd.DataFrame:
-    """Return each run's statistic of its repeated readings, as the one response a source then analyses.
+    """Return each run's statistic of its repeated readings, as the one response a source then analyzes.
 
     ``summary["of"]`` names the columns holding a run's readings and ``summary["statistic"]`` is
     ``"mean"``, ``"total"`` (the sum of the readings, as Yates's algorithm takes them),
@@ -809,7 +810,7 @@ def _normal_plot(out: dict, check: dict, _experiment: dict) -> float:
 def _prediction(out: dict, check: dict, experiment: dict) -> float:
     """Return the model's prediction at a point in coded units, as the library predicts new runs.
 
-    A factor ``check["point"]`` leaves out, as one the model does not hold, sits at its centre.
+    A factor ``check["point"]`` leaves out, as one the model does not hold, sits at its center.
     ``check["bound"]`` reads a limit of its 95% interval instead: ``"pi_low"`` or ``"pi_high"`` for
     a new observation, ``"ci_low"`` or ``"ci_high"`` for the mean, or ``"ci_half_width"`` and
     ``"pi_half_width"``, an interval's half-width, as a prediction profiler prints it beside the
@@ -860,7 +861,7 @@ def _best_corner(out: dict, check: dict, experiment: dict) -> float:
     """Return a factor's setting, -1 or +1, at the corner of the cube where the fitted model predicts the most.
 
     The corners are the two-level combinations of ``check["factors"]``, every other factor at its
-    centre, and each is scored by the library's prediction; ``"goal": "minimize"`` takes the least.
+    center, and each is scored by the library's prediction; ``"goal": "minimize"`` takes the least.
     ``check["factor"]`` names the setting returned, as a source tabulates the settings that each of
     several fitted models recommends.
     """
@@ -884,9 +885,9 @@ def _target_setting(out: dict, check: dict, experiment: dict) -> float:
 
     ``check["solve"]`` names the factor, ``check["target"]`` is the response wanted and
     ``check["point"]`` holds the other factors' coded settings (a factor it leaves out sits at its
-    centre). The prediction is a line or a parabola in the solved factor (a model of main effects,
+    center). The prediction is a line or a parabola in the solved factor (a model of main effects,
     interactions and squares), read through its values at -1, 0 and +1; of a parabola's two
-    settings, the one nearer the centre of the design is returned. The setting is in coded units,
+    settings, the one nearer the center of the design is returned. The setting is in coded units,
     or in the factor's own with ``"units": "actual"``.
     """
 
@@ -917,7 +918,7 @@ def _box_cox(out: dict, check: dict, _experiment: dict) -> float:
 
     ``"sse.<lambda>"`` is the residual sum of squares of the model fitted to the library's
     geometric-mean scaled power of the response at that power, SSE(lambda), the curve the power is
-    chosen to minimise; ``"sse"`` is its minimum, at the library's lambda, and ``"ln_sse.<lambda>"``
+    chosen to minimize; ``"sse"`` is its minimum, at the library's lambda, and ``"ln_sse.<lambda>"``
     its natural log, as Design-Expert plots it. Run on demand, so that a response that is not
     positive does not cost every other check its fit.
     """
@@ -983,7 +984,7 @@ def _steepest_path(out: dict, check: dict, experiment: dict) -> float:
     A source steps along the path by a round change in one factor (``check["change"]`` actual units
     of ``check["per"]``, its sign as the source prints it) and moves the others in proportion; the
     setting of ``check["key"]`` after ``check["steps"]`` such steps is returned, or its change from
-    the centre with ``"from_centre": true``. ``"units": "coded"`` returns it in coded units, as a
+    the center with ``"from_centre": true``. ``"units": "coded"`` returns it in coded units, as a
     source that steps in coded units prints it. A source that steps a distance rho in coded units
     along the gradient, to rho b / ||b||, gives ``check["radius"]`` instead of ``change`` and ``per``.
     """
@@ -1733,7 +1734,7 @@ def _same_projections(experiment: dict, check: dict, printed: str) -> tuple[str,
     as many runs and columns, and as many one-, two- and three-column J-characteristics of each
     size (see :func:`_j_counts`). Agreement in all three shows the printed columns are as balanced
     and as orthogonal as the library's, and their products of three as strongly aliased. It is the
-    test of :func:`_same_runs` with its relabelling, without the search over relabellings.
+    test of :func:`_same_runs` with its relabeling, without the search over relabellings.
     ``check["design_columns"]`` keeps that many of the library's columns, the first, as a source
     uses six columns of the 12-run design for eleven factors.
     """
@@ -1942,7 +1943,7 @@ def _mod3_sum(_experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
 
 @functools.cache
 def _entry(directory: str, name: str) -> dict[str, Any]:
-    """Return the catalogue's entry ``name``, an experiment or a design."""
+    """Return the catalog's entry ``name``, an experiment or a design."""
     for path in sorted(Path(directory).glob("*.json")):
         found = json.loads(path.read_text(encoding="utf-8"))
         for entry in [*found.get("experiments", []), *found.get("designs", [])]:
@@ -1952,7 +1953,7 @@ def _entry(directory: str, name: str) -> dict[str, Any]:
 
 
 def _entry_runs(directory: str, name: str) -> tuple[list[str], list[list[Any]]]:
-    """Return the runs of the catalogue's entry ``name``: its columns and its rows."""
+    """Return the runs of the catalog's entry ``name``: its columns and its rows."""
     runs = _entry(directory, name)["runs"]
     return runs["columns"], runs["rows"]
 
@@ -1978,7 +1979,7 @@ def _with_groups(settings: pd.DataFrame, experiment: dict, check: dict) -> pd.Da
 def _relative_efficiency(experiment: dict, check: dict) -> float:
     """Return the efficiency of the entry's runs relative to another design's, for the model ``check["model"]``.
 
-    ``check["versus"]`` names the other design, an entry of the catalogue with the same factors; or
+    ``check["versus"]`` names the other design, an entry of the catalog with the same factors; or
     ``check["design"]`` names one the library makes (``check["design_columns"]`` keeping its first
     columns, as :func:`_design_runs` reads them), its columns taken as the entry's factors in order.
     ``check["criterion"]`` is ``"d"``: (|X'X| / |X0'X0|)^(1/p) for p model terms, the two designs'
@@ -2176,8 +2177,8 @@ def _design_runs(experiment: dict, check: dict) -> pd.DataFrame:
 def _folded_over(runs: pd.DataFrame) -> pd.DataFrame:
     """Return a two-level design folded over, the sign of its two halves one more factor, the last.
 
-    The runs off the centre are followed by their mirror image, every sign reversed, and then by the
-    centre runs: the 12-run Plackett-Burman design becomes the 24-run design in 12 factors, its
+    The runs off the center are followed by their mirror image, every sign reversed, and then by the
+    center runs: the 12-run Plackett-Burman design becomes the 24-run design in 12 factors, its
     interactions orthogonal to every main effect, that Jones and Nachtsheim (2011) compare with.
     """
     centre = (runs == 0).all(axis=1)
@@ -2652,7 +2653,7 @@ def _estimate_missing(experiment: dict, check: dict) -> float:
 
     The runs ``check["runs"]`` (all by default), and the cells ``check["missing"]``, each a factor
     setting with no response, are given to :func:`~process_improve.experiments.estimate_missing` under
-    ``check["model"]``; ``check["decimals"]`` rounds the estimates as a source does before it analyses
+    ``check["model"]``; ``check["decimals"]`` rounds the estimates as a source does before it analyzes
     the completed table. ``check["key"]`` is ``"df"``, ``"sum_sq"``, ``"mean_sq"``, ``"f"`` or
     ``"p_value"`` of the row ``check["term"]`` (a term of the model, or ``"Residual"``) of that analysis.
     """
@@ -3044,7 +3045,7 @@ def _fold_over_pairs(experiment: dict, check: dict) -> float:
     """Return how many of the pairs of runs 1 and 2, 3 and 4, and so on are not a run and its fold-over.
 
     A definitive screening design is made of such pairs, each run the other with every sign changed,
-    and a centre run: a source that says so claims this count is 0. ``check["columns"]`` names the
+    and a center run: a source that says so claims this count is 0. ``check["columns"]`` names the
     factors (all the entry's by default) and ``check["pairs"]`` the number of pairs.
     """
     columns = check.get("columns") or [f["name"] for f in experiment["factors"]]
@@ -3053,9 +3054,9 @@ def _fold_over_pairs(experiment: dict, check: dict) -> float:
 
 
 def _run_radius(experiment: dict, check: dict) -> float:
-    """Return how far runs lie from the centre of the design, in coded units: ``check["key"]`` ``"max"`` or ``"min"``.
+    """Return how far runs lie from the center of the design, in coded units: ``check["key"]`` ``"max"`` or ``"min"``.
 
-    ``check["runs"]`` keeps the runs at these 1-based positions, as the runs off the centre of a
+    ``check["runs"]`` keeps the runs at these 1-based positions, as the runs off the center of a
     spherical design, which all lie at one distance. A categorical factor, such as a block, is left out.
     """
     settings, _ = _coded_runs(experiment, check.get("runs"))
@@ -3331,7 +3332,7 @@ def _variance_component(experiment: dict, check: dict) -> float:
       intercept-only fit, its standard error, their ratio and its Satterthwaite degrees of freedom;
     - ``"f.<factor>"``, ``"f_df.<factor>"`` and ``"f_p.<factor>"``, the F test of a fixed factor, on
       Satterthwaite's denominator degrees of freedom;
-    - ``"effect.<factor>.<level>"``, the generalised least-squares estimate of a level's effect, which
+    - ``"effect.<factor>.<level>"``, the generalized least-squares estimate of a level's effect, which
       with random blocks of an incomplete block design combines the intra- and interblock estimates.
 
     ``"bounded": false`` lets a component go negative, as JMP's unbounded REML does (lme4's, and the
@@ -3744,7 +3745,7 @@ def _checks(expected: dict) -> list[dict]:
 
 
 def _each_check(source: str | None = None) -> Iterator[tuple[str, dict, dict, dict]]:
-    """Yield each check of the reference catalogue, with its source's key, its entry and the number it checks."""
+    """Yield each check of the reference catalog, with its source's key, its entry and the number it checks."""
     for f in _selected(source):
         for entry in [*f["experiments"], *f.get("designs", [])]:
             for expected in entry["expected"]:
@@ -3752,8 +3753,8 @@ def _each_check(source: str | None = None) -> Iterator[tuple[str, dict, dict, di
                     yield f["source"]["key"], entry, expected, check
 
 
-def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
-    """Recompute every printed number of the reference catalogue with this library.
+def reproduce_reference_catalog(source: str | None = None) -> pd.DataFrame:
+    """Recompute every printed number of the reference catalog with this library.
 
     Each number with a check is recomputed: the experiment's runs are fitted with the model the
     check names (on the runs it names), and the result compared with the printed text to within
@@ -3763,7 +3764,7 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
     quadratic's stationary point and canonical form, and a setting on a path of steepest ascent,
     are recomputed with :func:`~process_improve.experiments.optimize_responses`, and a Box-Cox
     power with the library's Box-Cox analysis, and a variance component with its REML fit of random
-    intercepts. A run read several times can be analysed through each run's mean or standard
+    intercepts. A run read several times can be analyzed through each run's mean or standard
     deviation of its readings, or with every reading an observation of its own; the setting of a
     factor that brings a fitted model to a target is solved from the library's predictions, and a
     process capability index is the library's Cpk. A term's degrees of freedom, its share of the
@@ -3785,11 +3786,11 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
     compared on their main-effect and two-factor interaction columns; and JMP's relative variances
     code a categorical factor as JMP does. A response surface design is compared on the determinant
     of (X'X)^-1, its trace and the prediction variance at a point, and on how far its runs lie from
-    the centre, whether its blocks are orthogonal and whether its runs are fold-over pairs; several
+    the center, whether its blocks are orthogonal and whether its runs are fold-over pairs; several
     fitted responses are scored at a point by the library's desirability functions, and a mixture is
     fitted in pseudocomponents. A printed alias chain can be held to every alias up to an order, and
     the effects confounded with a fraction's blocks are read as alias chains. A response measured as
-    a curve is analysed by :class:`~process_improve.multivariate.FPCA`, for the share of variance its
+    a curve is analyzed by :class:`~process_improve.multivariate.FPCA`, for the share of variance its
     components explain and each run's scores. A number without a check is reported with the reason
     it is not recomputed.
 
@@ -3816,7 +3817,7 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
 
     Examples
     --------
-    >>> report = reproduce_reference_catalogue("ullmann-doe-2012")
+    >>> report = reproduce_reference_catalog("ullmann-doe-2012")
     >>> int(report["checked"].sum()) > 50
     True
     """
@@ -3844,3 +3845,14 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
                 row["agrees"], row["reason"] = False, f"{type(exc).__name__}: {exc}"
         rows.append(row)
     return pd.DataFrame(rows)
+
+
+def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
+    """Return :func:`reproduce_reference_catalog`, its new name: this one is deprecated since 2.7.0."""
+    warnings.warn(
+        "process_improve.experiments.reference_catalogue.reproduce_reference_catalogue is deprecated since 2.7.0 and "
+        "will be removed in 3.0; use reproduce_reference_catalog instead.",
+        DeprecationWarning,
+        stacklevel=user_stacklevel(),
+    )
+    return reproduce_reference_catalog(source)

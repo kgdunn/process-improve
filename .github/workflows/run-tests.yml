@@ -29,7 +29,7 @@ concurrency:
   # Only cancel redundant in-progress runs for pull requests. Pushes to main
   # share a single concurrency group (no pull_request.number), so a blanket
   # cancel-in-progress would abort an earlier merge commit's run as soon as the
-  # next commit lands, leaving it marked as cancelled rather than tested.
+  # next commit lands, leaving it marked as canceled rather than tested.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -197,7 +197,7 @@ jobs:
     runs-on: ubuntu-latest
     name: web-app (WebKit)
     # Playwright's own image holds WebKit's system packages, which were downloaded from Ubuntu's mirror on every
-    # run before: when the mirror was slow that alone took 27 minutes, and cancelled the job four times (#1315).
+    # run before: when the mirror was slow that alone took 27 minutes, and canceled the job four times (#1315).
     # Its tag is the Playwright the tests pin. The tests take 12 minutes.
     container:
       image: mcr.microsoft.com/playwright:v1.64.1-noble

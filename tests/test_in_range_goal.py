@@ -1,6 +1,6 @@
-"""The "in_range" goal: hold a response within limits while the others are optimised (#789 B4).
+"""The "in_range" goal: hold a response within limits while the others are optimized (#789 B4).
 
-Montgomery (Section 11.3.4) maximises the yield of a CCD and puts its viscosity on target 65,
+Montgomery (Section 11.3.4) maximizes the yield of a CCD and puts its viscosity on target 65,
 with the molecular weight held between 3200 and 3400 by Design-Expert's "is in range" goal. His
 printed composites (0.822 and 0.792) are the geometric means of the yield's and the viscosity's
 desirabilities alone, so the in-range goal is left out of the composite. The problem as he states
@@ -101,7 +101,7 @@ def test_the_composite_leaves_out_an_in_range_goal_that_is_met_and_is_0_when_one
 
 
 def test_the_desirability_contour_is_0_where_an_in_range_response_is_outside_its_limits():
-    """The response 80 + 5A is maximised from 75 to 85, and the response B is held between -0.5 and 0.5."""
+    """The response 80 + 5A is maximized from 75 to 85, and the response B is held between -0.5 and 0.5."""
     responses = [
         {
             "coefficients": [{"term": "Intercept", "coefficient": 80.0}, {"term": "A", "coefficient": 5.0}],

@@ -18,7 +18,7 @@ class TestCreateNames:
     """Factor-name generation."""
 
     def test_letters_skip_the_letter_i(self) -> None:
-        """The ambiguous letter 'I' is skipped in favour of the next letter."""
+        """The ambiguous letter 'I' is skipped in favor of the next letter."""
         names = create_names(9)
         assert "I" not in names
         assert len(names) == 9

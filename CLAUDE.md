@@ -322,9 +322,10 @@ Workflows in `.github/workflows/`:
   tries the newest Pyodide release and says whether moving the pin is safe.
 - **publish.yml**: tag-gated PyPI publish (see above).
 - **codeql.yml**: weekly and per-PR security scanning.
-- **readme-links.yml**: requests every external link in `README.md` and
-  `SKLEARN_COMPATIBILITY.md`, weekly (a failure opens an issue) and on PRs that
-  touch them. Links inside the repository, and the badges of its own workflows,
+- **readme-links.yml**: requests every external link in `README.md`,
+  `SKLEARN_COMPATIBILITY.md` and the three links out of factori.al's page for
+  learning (`web/map/index.html`), weekly (a failure opens an issue) and on PRs
+  that touch them. Links inside the repository, and the badges of its own workflows,
   are checked offline on every PR by `tests/test_readme_guards.py`.
 
 Docs are Sphinx with the PyData theme, NumPy docstrings via `sphinx.ext.napoleon`; build with `cd docs && make html`.

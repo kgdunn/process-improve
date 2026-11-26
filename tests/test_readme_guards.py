@@ -43,7 +43,7 @@ def text_outside_code_blocks(markdown: str) -> str:
 
 
 def package_name(requirement: str) -> str:
-    """Return the normalised distribution name of a requirement such as ``'scikit-learn>=1.7'``."""
+    """Return the normalized distribution name of a requirement such as ``'scikit-learn>=1.7'``."""
     match = re.match(r"[A-Za-z0-9._-]+", requirement.strip())
     assert match, requirement
     return re.sub(r"[-_.]+", "-", match.group()).lower()
@@ -156,14 +156,38 @@ def test_the_online_link_check_leaves_exactly_the_repository_links_to_this_file(
     assert spec.loader
     checker = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(checker)
-    every = {
-        url.rstrip(".,;:")
-        for page in checker.PAGES
-        for url in checker.URL.findall((ROOT / page).read_text(encoding="utf-8"))
-    }
+    every = {url.rstrip(".,;:") for page in checker.PAGES for url in checker.URL.findall(checker.text_of(page))}
     skipped = every - set(checker.page_urls())
     assert skipped == {url for url in every if REPOSITORY_LINK.match(url) or WORKFLOW_BADGE.match(url)}
     assert skipped, "the pages link to files in this repository, so some links are left to the test above"
+
+
+def test_the_online_link_check_asks_for_each_way_to_learn_and_for_a_video_through_oembed() -> None:
+    """factori.al's page for learning links to the chapter, the course and its videos: each is requested weekly.
+
+    YouTube refuses a script's request for a video's page, and answers a browser's when the video is gone, so the
+    video and its playlist are asked for through oEmbed, which says when either is gone.
+    """
+    spec = importlib.util.spec_from_file_location("check_readme_links", ROOT / "tools" / "check_readme_links.py")
+    assert spec
+    assert spec.loader
+    checker = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(checker)
+    learn = (ROOT / "web" / "map" / "index.html").read_text(encoding="utf-8")
+    ways = re.findall(r'<li><a href="([^"]+)"', learn[learn.index('<ul class="learn">') : learn.index("</ul>")])
+    assert len(ways) == 3
+    chapter, course, videos = (way.replace("&amp;", "&") for way in ways)
+    requested = checker.page_urls()
+    assert {chapter, course, videos} <= set(requested), "each link, with its address read as a browser reads it"
+    assert checker.to_request(chapter) == [chapter]
+    assert checker.to_request(course) == [course], "the redirect is followed to the course"
+    video, playlist = checker.to_request(videos)
+    assert video.startswith(checker.OEMBED)
+    assert playlist.startswith(checker.OEMBED)
+    assert "watch%3Fv%3D" in video
+    assert "playlist%3Flist%3DPLHUnYbefLmeOPRuT1sukKmRyOVd4WSxJE" in playlist
+    workflow = (ROOT / ".github" / "workflows" / "readme-links.yml").read_text(encoding="utf-8")
+    assert "- web/map/index.html" in workflow, "a pull request that changes the page runs the check"
 
 
 def test_installation_instructions_match_pyproject() -> None:

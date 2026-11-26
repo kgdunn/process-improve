@@ -35,7 +35,7 @@ __all__ = [
     "NotEnoughVarianceError",
     "SelectionRule",
     "SpecificationWarning",
-    "UncentredDataWarning",
+    "UncenteredDataWarning",
     "check_response_block",
     "components_with_spread",
     "constant_columns",
@@ -91,7 +91,7 @@ def components_with_spread(score_sd: np.ndarray) -> np.ndarray:
 
     A component whose training score standard deviation is at most ``epsqrt`` times the largest
     holds none of it: the last component of a rank-deficient fit has an sd near 1e-16 times the
-    first, for instance. Its standardised score is noise over noise for a training row and
+    first, for instance. Its standardized score is noise over noise for a training row and
     enormous for a new row off the model plane, so it adds 0 to T². It is also left out of every
     matrix that a T² or a trimmed score regression inverts, which it would make singular.
 
@@ -130,7 +130,7 @@ def column_mean(values: np.ndarray | pd.DataFrame) -> np.ndarray:
     """Return the mean of each column, missing values skipped, in any units.
 
     A column of values near the largest float has a sum beyond it, so ``numpy.nanmean`` gave
-    ``inf``, which became a centre of 0 without a word (#1149). Each column is divided first by the
+    ``inf``, which became a center of 0 without a word (#1149). Each column is divided first by the
     power of two just above its largest absolute value, and the mean multiplied back; a column whose
     sum did not overflow gives the same mean, bit for bit.
 
@@ -511,11 +511,11 @@ def resolve_loop_settings(
 def _reject_sparse(X: object, estimator_name: str) -> None:
     """Raise if ``X`` is a SciPy sparse matrix, naming the remedy that actually helps.
 
-    NIPALS centres and scales every column, which destroys sparsity, so there is nothing
+    NIPALS centers and scales every column, which destroys sparsity, so there is nothing
     to gain from a sparse representation here and every estimator in this package sets
     ``accept_sparse=False``. sklearn's own message for that says to call ``.toarray()``,
     which is the expensive way round when the sparsity came from a one-hot block: the
-    dense array is materialised anyway, but only after the sparse one has been built.
+    dense array is materialized anyway, but only after the sparse one has been built.
 
     The usual source is a :class:`~sklearn.compose.ColumnTransformer` whose one-hot block
     pushed the result over ``sparse_threshold`` (default 0.3), which flips the *whole*
@@ -537,7 +537,7 @@ def _reject_sparse(X: object, estimator_name: str) -> None:
     if not sparse.issparse(X):
         return
     msg = (
-        f"{estimator_name} does not accept sparse input: NIPALS centres and scales every "
+        f"{estimator_name} does not accept sparse input: NIPALS centers and scales every "
         "column, which destroys sparsity, so there is nothing to gain from it. This usually "
         "arrives from a ColumnTransformer whose one-hot block pushed the concatenated output "
         "over `sparse_threshold` (default 0.3). Pass `sparse_threshold=0` to the "
@@ -599,29 +599,56 @@ class DiagnoseResult(Bunch):
         return super().get(key, default)
 
 
-class UncentredDataWarning(SpecificationWarning):
-    """Emitted when a model that fits no intercept is handed an un-centred block.
+class UncenteredDataWarning(SpecificationWarning):
+    """Emitted when a model that fits no intercept is handed an un-centered block.
 
     Raised by :meth:`PLS.fit <process_improve.multivariate.PLS.fit>` under
-    ``scale=False``, which centres nothing and fits no intercept, so a block
+    ``scale=False``, which centers nothing and fits no intercept, so a block
     carrying a non-zero mean displaces every prediction.
 
-    It exists as its own class so a caller who fits un-centred data on purpose
+    It exists as its own class so a caller who fits un-centered data on purpose
     can permit *this* diagnostic without going blind to the rest. Under a
     ``filterwarnings = error`` policy::
 
         # pytest.ini / pyproject.toml, or @pytest.mark.filterwarnings on one test
         filterwarnings =
             error
-            ignore::process_improve.multivariate.UncentredDataWarning
+            ignore::process_improve.multivariate.UncenteredDataWarning
 
     Narrower still, and with no global filter at all, is the estimator flag:
-    ``PLS(..., scale=False, warn_on_uncentred=False)`` silences the check for
+    ``PLS(..., scale=False, warn_on_uncentered=False)`` silences the check for
     that one model and leaves every other ``SpecificationWarning`` in force.
 
     Subclasses :class:`SpecificationWarning`, so filters and ``pytest.warns``
     assertions written against the parent keep matching it.
+
+    ``UncentredDataWarning``, its former name, is deprecated since 2.7.0 and removed in 3.0.
+    It is this same class, so a filter or an ``except`` written with either name matches both.
     """
+
+
+#: The former names of the package's public classes, each with the class that replaced it.
+_FORMER_NAMES: dict[str, type] = {"UncentredDataWarning": UncenteredDataWarning}
+
+
+def _former_name(name: str) -> type:
+    """Return the class a former public name stands for, with the policy's warning (``__getattr__`` of a module).
+
+    Raises
+    ------
+    AttributeError
+        For any other name, as a module without the attribute does.
+    """
+    if name not in _FORMER_NAMES:
+        raise AttributeError(name)
+    replacement = _FORMER_NAMES[name]
+    warnings.warn(
+        f"process_improve.multivariate.{name} is deprecated since 2.7.0 and will be removed in 3.0; "
+        f"use {replacement.__name__} instead.",
+        DeprecationWarning,
+        stacklevel=user_stacklevel(),
+    )
+    return replacement
 
 
 class NotEnoughVarianceError(RuntimeError, ValueError):
@@ -677,7 +704,7 @@ def _align_to_fit_features(X: pd.DataFrame, fit_feature_names: pd.Index) -> pd.D
       of names must match (otherwise :class:`ValueError`); columns supplied in a
       different order are reordered to the training order.
     * If the training data had names but ``X`` does not (e.g. a bare ndarray was
-      passed), the columns are taken to correspond positionally and are labelled
+      passed), the columns are taken to correspond positionally and are labeled
       with the training names, so downstream label-aligned arithmetic stays
       correct rather than collapsing to ``NaN``.
     * If the training data itself had no (string) feature names, there is nothing
@@ -962,9 +989,9 @@ def _equal_weight_r2_total(per_target: np.ndarray) -> np.ndarray:
 
     The ``"total"`` column of a validated-:math:`R^2_Y` table is
     ``1 - sum_m PRESS_m / sum_m TSS_m`` on the *original* Y scale, so a target
-    whose spread is two orders of magnitude larger than its neighbours' decides
+    whose spread is two orders of magnitude larger than its neighbors' decides
     the number almost on its own. Autoscaling Y first fixes that, and costs
-    nothing to compute here: after mean-centring and unit-variance scaling every
+    nothing to compute here: after mean-centering and unit-variance scaling every
     target's TSS is the same, so the pooled ratio collapses to the arithmetic
     mean of the per-target values,
 
@@ -1164,7 +1191,7 @@ def informative_widths(blocks: dict[str, np.ndarray]) -> dict[str, int]:
     """Return, per preprocessed block, the number of columns whose values vary, at least 1 (#913).
 
     A multiblock model divides each block by the square root of its width, so that blocks
-    of unequal width carry equal weight. A constant column carries no information: centring
+    of unequal width carry equal weight. A constant column carries no information: centering
     and scaling turn it into a column of zeros. Counted in the width, it lowered the
     weight of its block, and the fit changed although the data had not. A column with
     fewer than two observed values is constant too.
@@ -1172,7 +1199,7 @@ def informative_widths(blocks: dict[str, np.ndarray]) -> dict[str, int]:
     Parameters
     ----------
     blocks : dict[str, np.ndarray]
-        Each block after centring and scaling, ``(n_samples, K_b)``, NaN where missing.
+        Each block after centering and scaling, ``(n_samples, K_b)``, NaN where missing.
 
     Returns
     -------
@@ -1290,14 +1317,14 @@ def check_y_varies(y: np.ndarray, *, label: str = "Y", explained_by: str = "X") 
 
     Every weight of such a fit is 0, so a new row would have no score. PLS refused it at its
     first component, as a Y with no variance *left*; MBPLS, OPLS and TPLS refused it in these
-    words, which are now the family's. ``y`` is the response as the fit centres it, where such
-    a column is 0 throughout, and a missing cell counts as 0. A model that does not centre
+    words, which are now the family's. ``y`` is the response as the fit centers it, where such
+    a column is 0 throughout, and a missing cell counts as 0. A model that does not center
     refuses a Y of zeros the same way.
 
     Parameters
     ----------
     y : np.ndarray of shape (n_samples, n_targets)
-        The response block over the rows the fit uses, as the fit centres and scales it.
+        The response block over the rows the fit uses, as the fit centers and scales it.
     label : str
         Where the block sits, as ``'Y'`` or ``'Y["name"]'``.
     explained_by : str
@@ -1389,7 +1416,7 @@ def check_response_block(Y: pd.DataFrame, n_samples: int) -> None:
     """Refuse a response block X's rows cannot pair with, or one with an infinite value, as X is refused (#1114).
 
     ``validate_data`` checks X alone. The next to meet Y was a scaler, which reported an infinite
-    response as "Input X contains infinity", and PRM's robust centring, which met a Y of another
+    response as "Input X contains infinity", and PRM's robust centering, which met a Y of another
     length as an ``IndexError``.
 
     Parameters
@@ -1543,7 +1570,7 @@ def _block_equal(mine: pd.DataFrame, theirs: object) -> bool:
 def _row_slice(block: pd.DataFrame, lookup: int | list | np.ndarray, name: str) -> pd.DataFrame:
     """Take rows from one block, keeping the result two-dimensional.
 
-    Every branch normalises the lookup to a *list* of row positions and the
+    Every branch normalizes the lookup to a *list* of row positions and the
     function has a single exit, so a scalar can never leak out as a Series: one
     row must still arrive at ``fit`` as a one-row frame.
     """

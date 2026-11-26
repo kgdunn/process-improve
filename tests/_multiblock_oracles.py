@@ -97,7 +97,7 @@ def mbpca_merged_then_recover(blocks: list[np.ndarray], n_components: int) -> MB
     """Compute MBPCA by running single-block PCA on the column-stacked,
     block-weighted matrix, then back-extracting per-block quantities.
 
-    Each block must already be preprocessed (mean-centred, unit-variance).
+    Each block must already be preprocessed (mean-centered, unit-variance).
 
     For each latent variable, the per-block recovery operates on the
     *currently-deflated* merged matrix, not on the original. This matches the

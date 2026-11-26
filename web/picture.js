@@ -295,7 +295,7 @@ function allowed(region, sx, sy, x, y) {
   return group;
 }
 
-/** The edges of the cells around sampled values: halfway between neighbours, and the range's ends outside. */
+/** The edges of the cells around sampled values: halfway between neighbors, and the range's ends outside. */
 function edges(values, { low, high }) {
   return [low, ...values.slice(1).map((v, i) => (values[i] + v) / 2), high];
 }

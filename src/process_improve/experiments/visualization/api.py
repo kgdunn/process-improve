@@ -2,7 +2,7 @@
 
 :func:`visualize_doe` is the single entry point.  It dispatches to the
 correct plot class, builds the ChartSpec IR, runs the requested backend
-adapters, and returns a JSON-serialisable dict.
+adapters, and returns a JSON-serializable dict.
 
 :func:`main_effects_plot` is a convenience wrapper that accepts either
 a fitted :class:`~process_improve.experiments.models.Model` or a
@@ -45,7 +45,7 @@ def visualize_doe(  # noqa: PLR0913
     model: str | None = None,
     region: DesignRegion | dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Generate a DOE visualisation.
+    """Generate a DOE visualization.
 
     Parameters
     ----------
@@ -179,7 +179,7 @@ def main_effects_plot(
     Returns
     -------
     plotly.graph_objects.Figure
-        Plotly figure ready for display or further customisation.
+        Plotly figure ready for display or further customization.
 
     Examples
     --------

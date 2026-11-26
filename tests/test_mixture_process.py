@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -99,7 +100,7 @@ class TestOrderBasedModels:
 
 
 class TestMatrixAndFormulaAgree:
-    """The model matrix the design engine optimises is the one the recorded formula builds."""
+    """The model matrix the design engine optimizes is the one the recorded formula builds."""
 
     @pytest.mark.parametrize(
         "model_type",
@@ -206,7 +207,7 @@ class TestRegion:
             DesignRegion([*BLENDS, *SETTINGS]).centroid()
 
 
-#: Goos and Jones (2011), Table 6.2: the 12-run D-optimal design for the reflectivity of aluminium sheet. The
+#: Goos and Jones (2011), Table 6.2: the 12-run D-optimal design for the reflectivity of aluminum sheet. The
 #: three mills share the reduction in thickness (each 0.1 to 0.8 of it), and spray volume and oil-water are
 #: two-level process variables, here -1 (Low) and +1 (High). The model is the second-order Scheffé model in the
 #: mills plus the main effects of the two process variables.
@@ -688,7 +689,7 @@ class TestPublishedDesignWithLabels:
             region=self.REGION,
             metric=["average_prediction_variance", "g_efficiency"],
         )
-        assert quality["average_prediction_variance"] == pytest.approx(0.483, abs=0.005)  # the catalogue's 0.483
+        assert quality["average_prediction_variance"] == pytest.approx(0.483, abs=0.005)  # the catalog's 0.483
         assert quality["max_prediction_variance"] == pytest.approx(2 / 3)
 
 
@@ -721,6 +722,21 @@ class TestCategoricalAnalysis:
         assert table.loc["x3:catalyst[S.A]", "coefficient"] == pytest.approx(
             -0.5, abs=5 * table.loc["x3:catalyst[S.A]", "std_error"]
         )
+
+    @pytest.mark.parametrize("model", ["formula", "interactions"])
+    def test_model_selection_codes_the_catalyst_in_two_columns(
+        self, catalyst_runs: tuple[pd.DataFrame, str], model: str
+    ) -> None:
+        """Without an intercept, patsy would give T:catalyst a column per level, which add up to T (#1169)."""
+        data, formula = catalyst_runs
+        data = data.assign(y=data["y"] + data["T"] * (data["catalyst"] == "C"))  # T matters with catalyst C
+        model = formula if model == "formula" else model
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")  # the standard model fitted for model_summary is rank deficient
+            chosen = analyze_experiment(data, response_column="y", model=model, analysis_type="model_selection")
+        chosen = chosen["model_selection"]
+        assert chosen["selected_terms"][-2:] == ["x3:catalyst", "T:catalyst"]
+        assert chosen["n_terms"] == len(chosen["selected_terms"]) + 2  # each catalyst term is two columns, not three
 
     @pytest.mark.parametrize("analysis_type", ["effects", "lenth_method"])
     def test_effects_are_refused_beside_components(

@@ -63,7 +63,7 @@ The method
 ----------
 
 Every design produced here is a **foldover** :math:`[H; -H; 0]`: a half-design
-:math:`H`, its mirror image :math:`-H`, and a single centre run.  The foldover
+:math:`H`, its mirror image :math:`-H`, and a single center run.  The foldover
 structure makes three of the four OMARS-defining conditions hold automatically,
 which is what keeps the construction tractable.
 
@@ -76,7 +76,7 @@ For a design coded to :math:`\{-1, 0, +1\}`:
   and :math:`-h` cancel.
 - **Main effects clear of the pure quadratics** is automatic: :math:`x_i x_j^2`
   is odd in :math:`x_i`, so those contributions cancel too.
-- **Quadratics are estimable** because the centre run makes each :math:`x_i^2`
+- **Quadratics are estimable** because the center run makes each :math:`x_i^2`
   column take the value 0 at least once (so it is not constant).
 
 The condition that is **not** automatic is the mutual orthogonality of the
@@ -139,7 +139,7 @@ Choosing the run size and the design
   be even, and ``n_runs`` must reach the **estimability frontier** described
   above; a smaller value is rejected rather than silently producing a design
   that cannot fit the model.
-- Otherwise the solver minimises the run count within a window to find the
+- Otherwise the solver minimizes the run count within a window to find the
   smallest feasible design that still leaves error degrees of freedom.  A
   feasible size is not always a usable one: when no design found at that size
   can estimate the model, the search moves up the window one size at a time
@@ -173,11 +173,11 @@ Choosing the run size and the design
   - ``"dominance"`` (default) keeps the Pareto front on D-efficiency (higher is
     better) and the maximum second-order correlation (lower is better), then
     prefers the smallest, most efficient design.
-  - ``"d_efficiency"`` maximises the D-efficiency of the model the design is
+  - ``"d_efficiency"`` maximizes the D-efficiency of the model the design is
     sized for.
-  - ``"min_second_order_correlation"`` minimises the largest second-order
+  - ``"min_second_order_correlation"`` minimizes the largest second-order
     correlation.
-  - ``"a_optimal"`` minimises the summed coefficient variance
+  - ``"a_optimal"`` minimizes the summed coefficient variance
     :math:`\operatorname{tr}\left((X^\top X)^{-1}\right)` of that model.
 
   Under every criterion, a design with a second-order column that never
@@ -210,7 +210,7 @@ The table below reports, for the automatic smallest-size search at
 ``n_restarts=8``, the size of the candidate half-pool, the run size of the
 design returned, the resulting error degrees of freedom, how the candidates were
 collected, the number of ILP solves performed (the *iteration count*: the
-minimise-size solve, plus a feasibility solve and the restarts on the multistart
+minimize-size solve, plus a feasibility solve and the restarts on the multistart
 path) and the wall-clock time of the whole call.  The run size is the
 estimability frontier :math:`k^2 + k + 1` described above, and the error degrees
 of freedom follow as :math:`N - (1 + 2k + k(k-1)/2)`; both are exact.  Times were
@@ -292,10 +292,10 @@ Limitations
 -----------
 
 - **Foldover family only.**  ``generate_omars`` builds the (dominant) foldover
-  OMARS family.  The rarer non-foldover members from the enumerated catalogue
+  OMARS family.  The rarer non-foldover members from the enumerated catalog
   are a documented future extension.
 - **Run-count parity.**  A foldover design has :math:`2h` half-runs and mirrors
-  plus its centre runs, so ``n_runs - center_runs`` must be even.
+  plus its center runs, so ``n_runs - center_runs`` must be even.
 - **Second-order aliasing remains.**  Reaching the estimability frontier makes
   the full second-order model *fittable*; it does not make the second-order
   block orthogonal.  The quadratics and interactions stay mutually aliased -

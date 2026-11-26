@@ -1,7 +1,7 @@
 """NIPALS variance-optimal starting score (issue #195).
 
 PCA / PLS NIPALS now seed the iteration from the column with the greatest
-sum-of-squares (variance, for centred data) instead of the arbitrary *first*
+sum-of-squares (variance, for centered data) instead of the arbitrary *first*
 column. NIPALS converges to the same component for any non-degenerate seed and a
 deterministic sign convention fixes the sign, so the *fitted result is
 unchanged*; the benefit is purely numerical - the highest-variance column is the

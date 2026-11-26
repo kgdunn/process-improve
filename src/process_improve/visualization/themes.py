@@ -12,14 +12,14 @@ Four themes are provided:
 
 ``pi_tufte``
     Minimal, maximum data-ink. White background, no gridlines,
-    range-frame axes, a muted colourway and a serif font.
+    range-frame axes, a muted colorway and a serif font.
 ``pi_economist``
-    Editorial style after *The Economist*: a pale blue-grey panel,
+    Editorial style after *The Economist*: a pale blue-gray panel,
     horizontal-only white gridlines, a heavy sans font and the
-    signature Economist colourway (deep blue with a red accent).
+    signature Economist colorway (deep blue with a red accent).
 ``pi_journal``
     Scientific-journal style (Nature / IEEE): white background, light
-    full grid, a black mirrored box and the Okabe-Ito colourblind-safe
+    full grid, a black mirrored box and the Okabe-Ito colorblind-safe
     palette.
 ``pi_brand``
     The process-improve house style, built on the existing
@@ -71,17 +71,45 @@ THEME_NAMES: tuple[str, ...] = (THEME_TUFTE, THEME_ECONOMIST, THEME_JOURNAL, THE
 DEFAULT_THEME: str = THEME_JOURNAL
 
 # ---------------------------------------------------------------------------
-# Semantic line colours
+# Semantic line colors
 # ---------------------------------------------------------------------------
 # Reference and confidence-limit lines are drawn as layout shapes, so they are
-# not coloured by a template ``colorway``. These constants give plot code a
-# single, theme-agnostic source for those semantic colours.
+# not colored by a template ``colorway``. These constants give plot code a
+# single, theme-agnostic source for those semantic colors.
 
-#: Colour for confidence-limit lines (SPE limit, Hotelling's T2 limit, ...).
+#: Color for confidence-limit lines (SPE limit, Hotelling's T2 limit, ...).
 LIMIT_LINE_COLOR: str = "#DC2626"
 
-#: Colour for neutral reference lines (zero lines, parity diagonals, ...).
+#: Color for neutral reference lines (zero lines, parity diagonals, ...).
 REFERENCE_LINE_COLOR: str = "#9CA3AF"
+
+
+def _scaled_traces(ink: str, paper: str) -> dict[str, list]:
+    """Return a theme's defaults for the traces that show their values on a color bar.
+
+    A slim color bar with its title along its side, where a wide one with its title on top takes the plot's
+    room; and a contour's numbers in the theme's ink with a halo in its paper's color, which reads on every band
+    of a ramp, where plain dark numbers are lost on the darkest bands (#1242).
+
+    Parameters
+    ----------
+    ink : str
+        The theme's text color.
+    paper : str
+        The theme's background color, which the halo is drawn in.
+
+    Returns
+    -------
+    dict[str, list]
+        A template's ``data``: one default trace each for contours, heatmaps and surfaces.
+    """
+    bar = dict(thickness=12, outlinewidth=0, title=dict(side="right"))
+    halo = ", ".join(f"{at} 1px {paper}" for at in ("1px 1px", "-1px -1px", "1px -1px", "-1px 1px"))
+    return dict(
+        contour=[go.Contour(colorbar=bar, contours=dict(labelfont=dict(color=ink, shadow=halo)))],
+        heatmap=[go.Heatmap(colorbar=bar)],
+        surface=[go.Surface(colorbar=bar)],
+    )
 
 
 def _tufte_template() -> go.layout.Template:
@@ -97,6 +125,7 @@ def _tufte_template() -> go.layout.Template:
         mirror=False,
     )
     return go.layout.Template(
+        data=_scaled_traces(ink="#2A2A2A", paper="#FFFFFF"),
         layout=dict(
             paper_bgcolor="#FFFFFF",
             plot_bgcolor="#FFFFFF",
@@ -123,9 +152,10 @@ def _tufte_template() -> go.layout.Template:
 
 def _economist_template() -> go.layout.Template:
     # The Economist red leads the accent palette but is kept out of the first
-    # slot: the first colourway entry styles the primary data series, and a red
+    # slot: the first colorway entry styles the primary data series, and a red
     # series would clash with the red confidence-limit lines (LIMIT_LINE_COLOR).
     return go.layout.Template(
+        data=_scaled_traces(ink="#121212", paper="#FFFFFF"),
         layout=dict(
             paper_bgcolor="#FFFFFF",
             plot_bgcolor="#D9E9F1",
@@ -183,6 +213,7 @@ def _journal_template() -> go.layout.Template:
         tickcolor="#000000",
     )
     return go.layout.Template(
+        data=_scaled_traces(ink="#000000", paper="#FFFFFF"),
         layout=dict(
             paper_bgcolor="#FFFFFF",
             plot_bgcolor="#FFFFFF",
@@ -208,8 +239,7 @@ def _journal_template() -> go.layout.Template:
                 x=0.0,
                 font=dict(size=11),
                 bgcolor="rgba(255,255,255,0.85)",
-                bordercolor="#000000",
-                borderwidth=1,
+                borderwidth=0,  # no box: a black one drew more ink than the plot it names (#1242)
             ),
             margin=dict(l=64, r=28, t=72, b=56),
             hoverlabel=dict(font=dict(family=FONT_SANS_COMPACT, size=11)),
@@ -234,6 +264,7 @@ def _brand_template() -> go.layout.Template:
         tickcolor="#D1D5DB",
     )
     return go.layout.Template(
+        data=_scaled_traces(ink="#1F2937", paper="#FFFFFF"),
         layout=dict(
             paper_bgcolor="#FFFFFF",
             plot_bgcolor="#FAFAFA",

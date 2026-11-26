@@ -8,7 +8,7 @@ gives a response of zero, which is rarely a question anyone asks. The questions 
 mean something are:
 
 - **Do the components blend differently at all?** The linear block is tested as one
-  hypothesis, ``beta_1 = beta_2 = ... = beta_q``, which is the mixture analogue of
+  hypothesis, ``beta_1 = beta_2 = ... = beta_q``, which is the mixture analog of
   testing every main effect at once (Cornell, *Experiments with Mixtures*).
 - **Is there non-linear blending?** Each ``x_i x_j`` (and ``x_i x_j x_k``) term is
   tested against zero, as in any regression; those hypotheses are meaningful.
@@ -34,6 +34,31 @@ from statsmodels.regression.linear_model import RegressionResultsWrapper
 #: How far from 1 a run's proportions may sum and still be read as a blend: proportions printed
 #: to three decimals (1/3 as 0.333) sum to 0.999 or 1.001.
 BLEND_SUM_TOLERANCE = 1e-2
+
+
+def _mixture_components(df: pd.DataFrame, factor_cols: list[str]) -> list[str]:
+    """Return the factors that are mixture components beside other factors, or none.
+
+    They are the numeric factors whose settings all lie between 0 and 1, when there are at
+    least two of them, other factors besides, and every run's settings of them sum to 1: the
+    data of a mixture-process design. A process factor whose own settings lie between 0 and 1
+    hides them, and none are found. Columns that are only ever 0 or 1 blend nothing: they are
+    a categorical factor's indicators, one set per run, and none are found either.
+    """
+    numeric = [c for c in factor_cols if pd.api.types.is_numeric_dtype(df[c]) and not pd.api.types.is_bool_dtype(df[c])]
+    values = df[numeric].to_numpy(dtype=float)
+    finite = values[np.isfinite(values).all(axis=1)]
+    if finite.size == 0:
+        return []
+    shares = [
+        c for c, column in zip(numeric, finite.T, strict=True) if np.all((column >= -1e-9) & (column <= 1 + 1e-9))
+    ]
+    if len(shares) < 2 or len(shares) == len(factor_cols):
+        return []
+    settings = finite[:, [numeric.index(c) for c in shares]]
+    if np.isin(settings, (0.0, 1.0)).all():
+        return []
+    return shares if np.allclose(settings.sum(axis=1), 1.0, rtol=0.0, atol=BLEND_SUM_TOLERANCE) else []
 
 
 def spans_constant(ols_result: RegressionResultsWrapper) -> bool:

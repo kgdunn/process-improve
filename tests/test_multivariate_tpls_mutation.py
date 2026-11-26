@@ -206,7 +206,7 @@ def test_the_inversion_probe_carries_the_limits_and_spreads_at_its_confidence_le
 
 
 def test_the_inversion_probe_reads_0_for_a_centre_and_1_for_a_spread_a_column_does_not_have() -> None:
-    """A lot never used has no centre and no spread, and a constant column no spread: the probe reads 0 and 1."""
+    """A lot never used has no center and no spread, and a constant column no spread: the probe reads 0 and 1."""
     d_matrix, blocks = _blocks()
     blocks["F"]["B"]["B4"] = np.nan
     blocks["Z"]["Conditions"]["time"] = 5.0
@@ -233,7 +233,7 @@ def test_the_inversion_probe_reads_0_for_a_centre_and_1_for_a_spread_a_column_do
 
 
 def test_the_inversion_probe_reads_each_lots_centre_and_spread_by_its_name() -> None:
-    """F may list a material's lots in another order than D does: the probe reads each lot's centre by its name."""
+    """F may list a material's lots in another order than D does: the probe reads each lot's center by its name."""
     d_matrix, blocks = _blocks()
     blocks["F"]["A"] = blocks["F"]["A"][LOTS["A"][::-1]]
     model = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(blocks))

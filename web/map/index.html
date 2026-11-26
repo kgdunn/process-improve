@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Experimental design concept map: Factorial</title>
-  <meta name="description" content="The ideas of designed experiments in the book Process Improvement using Data, and how they link: zoom from topics to the terms in them, and tap a term to read it with the line of the book it comes from.">
+  <title>Learn experimental design: Factorial</title>
+  <meta name="description" content="Learn designed experiments with the book Process Improvement using Data: its chapter, the Coursera course and the course's videos. Below them, a map of how the ideas link: tap a term to read it with the line of the book it comes from.">
   <link rel="canonical" href="https://factori.al/map/">
   <link rel="icon" href="../favicon.svg" type="image/svg+xml">
   <meta name="theme-color" content="#f5f6f4" media="(prefers-color-scheme: light)" data-scheme="light">
   <meta name="theme-color" content="#141517" media="(prefers-color-scheme: dark)" data-scheme="dark">
   <script>
-    /* The colour mode chosen with the switch (here or in the app), put on the page before it is drawn. */
+    /* The color mode chosen with the switch (here or in the app), put on the page before it is drawn. */
     try {
       const mode = localStorage.getItem("factorial-mode");
       const chosen = mode === "light" || mode === "dark";
@@ -22,8 +22,8 @@
   </script>
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="process-improve">
-  <meta property="og:title" content="Experimental design concept map: Factorial">
-  <meta property="og:description" content="The ideas of designed experiments and how they link, each one quoting the book it comes from.">
+  <meta property="og:title" content="Learn experimental design: Factorial">
+  <meta property="og:description" content="The book's chapter, the Coursera course and its videos, and a map of how the ideas of designed experiments link.">
   <meta property="og:url" content="https://factori.al/map/">
   <meta property="og:image" content="https://factori.al/map/og-card.png">
   <meta property="og:image:width" content="1200">
@@ -44,13 +44,25 @@
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 4.5h16v11H10l-4.5 4v-4H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8 8.5h8M8 11.5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span class="feedback-button__long">Provide critical feedback please</span><span class="feedback-button__medium">Feedback appreciated</span><span class="feedback-button__short">Feedback</span></button>
     </div>
     <!-- Light, dark, or the system's, in turn, as the start page's switch does: its icon shows the mode now. -->
-    <button type="button" id="mode" class="mode-switch" title="light/dark" aria-label="Colour mode: the system's">
+    <button type="button" id="mode" class="mode-switch" title="light/dark" aria-label="Color mode: the system's">
       <svg data-for="auto" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3.5a8.5 8.5 0 0 0 0 17z" fill="currentColor"/></svg>
       <svg data-for="light" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></g></svg>
       <svg data-for="dark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.5 14.2A8.5 8.5 0 1 1 9.8 3.5a6.8 6.8 0 0 0 10.7 10.7z" fill="currentColor"/></svg>
     </button>
   </div>
-  <h1>Experimental design concept map</h1>
+  <h1>Learn experimental design</h1>
+  <!-- Three ways to learn it, over the map: the book's chapter, the course, and the course's videos alone. A card's
+       name is its link, stretched over the whole card (style.css). The book's DOI is text to copy, not a link. -->
+  <ul class="learn">
+    <li><a href="https://learnche.org/pid/design-analysis-experiments/index" target="pid-book" rel="opener">Read the chapter</a>
+      <span>Design and Analysis of Experiments, in the book <cite>Process Improvement using Data</cite>.</span>
+      <span class="learn__doi">Book DOI: 10.5281/zenodo.20284934</span></li>
+    <li><a href="https://yint.org/experiment" target="_blank" rel="noopener">Take the course</a>
+      <span>Experimentation for Improvement, on Coursera: the videos, with quizzes and course material. Free to preview; the certificate is paid.</span></li>
+    <li><a href="https://www.youtube.com/watch?v=9Sljs2064u4&amp;list=PLHUnYbefLmeOPRuT1sukKmRyOVd4WSxJE" target="_blank" rel="noopener">Watch the videos</a>
+      <span>The same videos as the course, on YouTube. Videos only: no quizzes, no course material.</span></li>
+  </ul>
+  <h2 class="learn__map">Concept map</h2>
   <p class="lede">How the ideas of designed experiments link, in <em>Process Improvement using Data</em>.</p>
 
   <!-- Above the map, three rows: the search with the switches and the level, the kinds of term, the other textbooks. -->
@@ -118,7 +130,7 @@
   <section class="map-how" id="how" aria-labelledby="how-title"></section>
 </main>
 <script src="../map.js" type="module"></script>
-<!-- The colour-mode switch and the footer every page shares (site.js). -->
+<!-- The color-mode switch and the footer every page shares (site.js). -->
 <script src="../site.js" type="module"></script>
 </body>
 </html>

@@ -29,9 +29,11 @@ runs:
       # A release still being uploaded to PyPI can show only some of its wheels, and an
       # install that finds none for its platform fails before any test runs (#812). uv
       # compares each file's upload time with this cutoff, not the release's, so a release
-      # whose upload straddles it is seen half uploaded (hypothesis 6.170.7 on #920). The
-      # install below then tries once more with a cutoff a quarter of an hour earlier,
-      # before that upload began. The times are fixed here and exported, so every later uv
+      # whose upload straddles it is seen half uploaded (hypothesis 6.170.7 on #920). A
+      # release with no sdist is held back where its wheels are missing by
+      # `required-environments` in pyproject.toml, however long its upload takes (#1490).
+      # Against any other half upload, the install below tries once more with a cutoff a
+      # quarter of an hour earlier, before that upload began. The times are fixed here and exported, so every later uv
       # command in the job resolves against the same cutoff. GNU date (Linux, Git Bash on
       # Windows) takes -d; BSD date (macOS) takes -v.
       shell: bash

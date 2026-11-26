@@ -90,7 +90,7 @@ PAGE = "technical-details-how-factorial-works.html"
 
 
 def test_the_app_s_footer_links_to_it():
-    link = f'<li><a href="{PAGE}">See behind the scenes: how Factorial works</a></li>'
+    link = f'<li><a href="{PAGE}">How it works</a></li>'
     assert link in " ".join(source("index.html").split())
 
 

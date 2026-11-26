@@ -254,7 +254,7 @@ def _standardised(ols_result: RegressionResultsWrapper) -> np.ndarray:
 
     The coefficient times the standard deviation of its column of the model matrix, over the
     standard deviation of the response: unitless, so terms in different units compare. The
-    intercept's column does not vary, so its standardised coefficient is zero. Not a number when
+    intercept's column does not vary, so its standardized coefficient is zero. Not a number when
     the response does not vary.
     """
     columns = np.asarray(ols_result.model.exog, dtype=float)
@@ -265,7 +265,7 @@ def _standardised(ols_result: RegressionResultsWrapper) -> np.ndarray:
 
 
 def _run_coefficients(ols_result: RegressionResultsWrapper, alpha: float = 0.05) -> dict[str, Any]:
-    """Coefficients with standard errors, t-values, p-values, CIs at level 1 - alpha and standardised coefficients."""
+    """Coefficients with standard errors, t-values, p-values, CIs at level 1 - alpha and standardized coefficients."""
     ci = ols_result.conf_int(alpha=alpha)
     summary_df = pd.DataFrame(
         {

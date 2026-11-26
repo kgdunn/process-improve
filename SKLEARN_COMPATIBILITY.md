@@ -51,7 +51,7 @@ The following compositions are verified by tests in
 
 #### Mixing scaled numeric and one-hot columns
 
-`MCUVScaler` composes with `ColumnTransformer`, so only the columns that need centring and
+`MCUVScaler` composes with `ColumnTransformer`, so only the columns that need centering and
 scaling get it while categorical columns are encoded alongside. `tests/test_readme.py` runs
 this example and checks its output:
 
@@ -80,12 +80,12 @@ print(list(pipe.named_steps["pls"].x_loadings_.index))  # ['mcuvscaler__temp', '
 Two arguments there are doing real work:
 
 - **`OneHotEncoder(sparse_output=False)`.** The encoder's default output is a sparse matrix.
-  NIPALS centres and scales every column, which destroys sparsity, so `PLS` and `PCA` reject
+  NIPALS centers and scales every column, which destroys sparsity, so `PLS` and `PCA` reject
   sparse input rather than silently densifying it, and pandas output cannot hold a sparse
   block either: scikit-learn raises `ValueError` when `set_output(transform="pandas")` meets a
   sparse encoder.
 - **`set_output(transform="pandas")`.** Without it the transformer hands over a bare ndarray,
-  so a loading can only be labelled `0`, `1`, `2`; with it, `get_feature_names_out` reaches
+  so a loading can only be labeled `0`, `1`, `2`; with it, `get_feature_names_out` reaches
   `x_loadings_.index` and a loading reads as "the one-hot column for `batch_type == B`". The
   numbers are identical either way.
 
@@ -197,7 +197,7 @@ are gitignored and must not be committed.
 
 Pure ordering by yield-per-risk, not a dependency graph (all of these
 land independently; #391 benefits from #393 landing first because tags
-inform the `set_output` behaviour, but it's not a hard requirement):
+inform the `set_output` behavior, but it's not a hard requirement):
 
 1. **#401** (`validate_data` sweep). Biggest single yield (~22 audit
    failures). Mechanical. Smallest blast radius.
@@ -216,7 +216,7 @@ inform the `set_output` behaviour, but it's not a hard requirement):
 6. **#395** (multiblock `predict` rename). Same architectural decision
    as PR #390, applied to `TPLS` / `MBPLS`. Lower priority than PCA/PLS
    because users multi-pipeline these less often.
-7. **#394** (`sample_weight` in `PLS.fit`). Real new behaviour, not
+7. **#394** (`sample_weight` in `PLS.fit`). Real new behavior, not
    just a contract fix.
 8. **#397** (`TransformedTargetRegressor`), **#398**
    (`HalvingGridSearchCV`), **#399** (`make_column_transformer`).

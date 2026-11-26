@@ -1,27 +1,32 @@
-// What every page of factori.al beside the app shares (about, features, the catalog, the textbooks' answers, the
-// concept map): the colour-mode switch at the top, and one footer with the same links in the same place. A page
-// loads this module and gets both; the app's own footer (index.html) holds the same links, kept in step by
-// tests/web/js/site.test.mjs. No Python runs here.
+// What every page of factori.al beside the app shares (about, the user guide, the catalog, validation, the
+// textbooks' answers, the page for learning): the color-mode switch at the top, and one footer with the same links
+// in the same place. A page loads this module and gets both; the app's own footer (index.html) holds the same
+// links, kept in step by tests/web/js/site.test.mjs. No Python runs here.
+// The footer names a page in one to three words, and one page for each question a reader has: the textbooks'
+// answers are reached from "Is it accurate?", and the book, the course and its videos from the page for learning.
 import { MODES, nextMode } from "./logic.js";
+import { drawUsage } from "./usage.js";
+
+/** The group of the footer that ends with how many people used Factorial each day (usage.js). */
+const USAGE_GROUP = "Behind it";
 
 /** The footer's links, in groups: each a heading and its links, a path from the site's root or a whole address. */
 export const SITE_LINKS = [
   {
     head: "The app",
     links: [
-      ["./", "Factorial, the app"],
-      ["features.html", "What Factorial does"],
-      ["catalog/", "Catalog of experimental designs"],
-      ["catalog/reproduced/", "Validation & technical accuracy"],
-      ["map/", "Experimental design concept map"],
+      ["./", "Open the app"],
+      ["features.html", "User guide"],
+      ["catalog/", "Design catalog"],
+      ["validation.html", "Is it accurate?"],
+      ["map/", "Learn experimental design"],
     ],
   },
   {
     head: "Behind it",
     links: [
-      ["technical-details-how-factorial-works.html", "See behind the scenes: how Factorial works"],
-      ["https://github.com/kgdunn/process-improve", "process-improve, the Python package"],
-      ["https://learnche.org/pid", "Process Improvement using Data, the book"],
+      ["technical-details-how-factorial-works.html", "How it works"],
+      ["https://github.com/kgdunn/process-improve", "Python package"],
     ],
   },
 ];
@@ -37,7 +42,7 @@ const MODE_ICONS =
 /** A link's address from this page: a path from the site's root, which is where this module is served from. */
 const address = (path) => (/^https?:/.test(path) ? path : new URL(path, import.meta.url).href);
 
-/** Show a colour mode: the page's colours, the browser's own bar, and what the switch is called. */
+/** Show a color mode: the page's colors, the browser's own bar, and what the switch is called. */
 function applyMode(mode, button) {
   const root = document.documentElement;
   root.dataset.mode = mode;
@@ -48,11 +53,11 @@ function applyMode(mode, button) {
     meta.dataset.scheme = scheme;
     meta.media = mode === "auto" ? `(prefers-color-scheme: ${scheme})` : scheme === mode ? "all" : "not all";
   }
-  button.setAttribute("aria-label", `Colour mode: ${MODE_NAMES[mode]}`);
+  button.setAttribute("aria-label", `Color mode: ${MODE_NAMES[mode]}`);
 }
 
 /**
- * Put the colour-mode switch at the end of the page's top line, beside the way back: light, dark or the system's,
+ * Put the color-mode switch at the end of the page's top line, beside the way back: light, dark or the system's,
  * in turn, kept in this browser under the key the app and the concept map use. A page with a switch of its own
  * (the concept map) keeps it.
  */
@@ -106,6 +111,11 @@ function footer() {
       const item = document.createElement("li");
       item.append(link);
       list.append(item);
+    }
+    if (group.head === USAGE_GROUP) {
+      const usage = Object.assign(document.createElement("li"), { className: "foot__usage", hidden: true });
+      list.append(usage);
+      drawUsage(usage);
     }
     box.append(head, list);
     nav.append(box);

@@ -18,7 +18,7 @@ from process_improve.univariate import (
     dunnett_value,
     f_value,
     kruskal_wallis_test,
-    least_favourable_means,
+    least_favorable_means,
     one_way_power,
     one_way_sample_size,
     randomization_test,
@@ -243,7 +243,7 @@ class TestVarianceInterval:
 class TestOneWayPower:
     def test_montgomery_minitab_power_for_a_largest_difference(self) -> None:
         """Sigma 25, alpha 0.01, a difference of 75 among four powers: 0.804838 at five wafers, 0.915384 at six."""
-        means = least_favourable_means(75, 4)
+        means = least_favorable_means(75, 4)
         assert one_way_power(5, 25, means, alpha=0.01)["power"] == pytest.approx(0.804838, abs=5e-7)
         assert one_way_power(6, 25, means, alpha=0.01)["power"] == pytest.approx(0.915384, abs=5e-7)
 
@@ -256,7 +256,7 @@ class TestOneWayPower:
 
     def test_montgomery_portland_cement(self) -> None:
         """Two mortars, a difference of 0.5 and sigma 0.25: 0.929 at 7 each, 0.9602 at 8, so 8 of each (16 in all)."""
-        means = least_favourable_means(0.5, 2)
+        means = least_favorable_means(0.5, 2)
         assert round(one_way_power(7, 0.25, means)["power"], 3) == 0.929
         found = one_way_sample_size(0.95, 0.25, means)
         assert (found["n"], found["n_total"], round(found["power"], 4)) == (8, 16, 0.9602)
@@ -264,15 +264,15 @@ class TestOneWayPower:
 
     def test_montgomery_portland_cement_for_a_smaller_difference(self) -> None:
         """A difference of 0.25 at power 0.9 needs 23 of each: 0.8997 at 22, 0.9125 at 23."""
-        found = one_way_sample_size(0.90, 0.25, least_favourable_means(0.25, 2))
+        found = one_way_sample_size(0.90, 0.25, least_favorable_means(0.25, 2))
         assert (found["n"], round(found["power"], 4), round(found["power_below"], 4)) == (23, 0.9125, 0.8997)
 
     def test_the_text_chooses_six_wafers(self) -> None:
-        assert one_way_sample_size(0.90, 25, least_favourable_means(75, 4), alpha=0.01)["n"] == 6
+        assert one_way_sample_size(0.90, 25, least_favorable_means(75, 4), alpha=0.01)["n"] == 6
 
-    def test_least_favourable_means_have_the_least_spread(self) -> None:
+    def test_least_favorable_means_have_the_least_spread(self) -> None:
         """Two groups D apart and the rest midway: the sum of squared departures is D^2/2."""
-        means = np.array(least_favourable_means(10.0, 5))
+        means = np.array(least_favorable_means(10.0, 5))
         assert means.tolist() == [-5.0, 0.0, 0.0, 0.0, 5.0]
         assert float(np.sum((means - means.mean()) ** 2)) == 50.0
 
@@ -283,7 +283,7 @@ class TestOneWayPower:
             (lambda: one_way_power(3, 0.0, [0.0, 1.0]), "sigma must be positive"),
             (lambda: one_way_power(3, 1.0, [0.0, 1.0], alpha=1.5), "alpha must be"),
             (lambda: one_way_power(3, 1.0, [0.0]), "Two or more means"),
-            (lambda: least_favourable_means(1.0, 1), "n_groups must be at least 2"),
+            (lambda: least_favorable_means(1.0, 1), "n_groups must be at least 2"),
             (lambda: one_way_sample_size(1.0, 1.0, [0.0, 1.0]), "power must be between"),
             (lambda: one_way_sample_size(0.99, 1.0, [0.0, 0.01], max_n=5), "No number of runs up to 5"),
         ],

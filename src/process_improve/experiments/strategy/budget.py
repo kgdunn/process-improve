@@ -4,7 +4,7 @@
 
 Implements the **25-40-55-15 framework**:
     - Screening:     25-40 % of total budget
-    - Optimisation:  40-55 %
+    - Optimization:  40-55 %
     - Confirmation:  5-15 % (minimum 3 runs)
 
 Sources:
@@ -188,7 +188,7 @@ def allocate_budget(  # noqa: C901, PLR0913, PLR0915
     needs_screening : bool
         Whether a screening stage is needed.
     needs_rsm : bool
-        Whether an RSM optimisation stage is needed.
+        Whether an RSM optimization stage is needed.
     screening_design : str
         Preferred screening design type.
     rsm_design : str

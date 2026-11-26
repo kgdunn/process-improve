@@ -47,6 +47,8 @@ from process_improve.experiments._tools.suggest_next_runs import suggest_next_ru
 from process_improve.experiments._tools.fit_gaussian_process import fit_gaussian_process_tool
 from process_improve.experiments._tools.variance_components import variance_components_tool
 from process_improve.experiments._tools.multistratum_anova import multistratum_anova_tool
+from process_improve.experiments._tools.yates_table import yates_table_tool
+from process_improve.experiments._tools.interaction_components import interaction_components_tool
 from process_improve.experiments._tools.query_concept_graph import query_concept_graph_tool
 
 __all__ = [
@@ -61,6 +63,7 @@ __all__ = [
     "fit_linear_model",
     "generate_design_tool",
     "get_experiments_tool_specs",
+    "interaction_components_tool",
     "multistratum_anova_tool",
     "optimize_responses_tool",
     "query_concept_graph_tool",
@@ -74,6 +77,7 @@ __all__ = [
     "variance_components_tool",
     "visualize_doe_tool",
     "write_run_sheet_tool",
+    "yates_table_tool",
 ]
 
 

@@ -1,4 +1,4 @@
-"""Analysing the results: ``api_analyze_runs``, which Learn calls, and ``api_analyze`` for a workbook.
+"""Analyzing the results: ``api_analyze_runs``, which Learn calls, and ``api_analyze`` for a workbook.
 
 Factors are coded to -1 and +1 from their ranges. Terms a design cannot tell apart are
 estimated once, as their sum; a saturated two-level fit is judged with Lenth's method; and
@@ -320,7 +320,7 @@ def test_without_the_true_process_no_coefficient_has_a_true_value(api, held, sim
 
 
 def test_an_aliased_estimate_is_set_beside_the_sum_it_estimates(api):
-    """In a 2^(3-1) design F is aliased with T:P, so its estimate is centred on F + T:P."""
+    """In a 2^(3-1) design F is aliased with T:P, so its estimate is centered on F + T:P."""
     spec = {
         "design_type": "fractional_factorial",
         "resolution": 3,

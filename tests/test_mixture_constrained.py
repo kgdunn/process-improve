@@ -144,7 +144,7 @@ class TestExtremeVertices:
 
     @pytest.mark.parametrize("constraints", [None, [CAP], [CAP, Constraint(expression="x1 >= 2*x3")]])
     def test_every_linear_optimum_is_attained_at_a_vertex(self, constraints: list[Constraint] | None) -> None:
-        """A linear objective over a polytope is optimised at a vertex, so the LP optimum must be one of ours."""
+        """A linear objective over a polytope is optimized at a vertex, so the LP optimum must be one of ours."""
         a_mat, b_vec = mixture_inequalities(BOUNDED, constraints)
         vertices = extreme_vertices(a_mat, b_vec)
         assert _feasible(vertices, BOUNDED, constraints).all()
@@ -324,7 +324,7 @@ def test_build_formula_for_scheffe_models() -> None:
 
 
 def test_scheffe_fit_reports_a_centred_r_squared(fitted_mixture: tuple) -> None:
-    """No intercept is fitted, but sum(x) = 1 carries one implicitly: R2 and df_model must be centred."""
+    """No intercept is fitted, but sum(x) = 1 carries one implicitly: R2 and df_model must be centered."""
     _, x, y = fitted_mixture
     summary = analyze_experiment(x, y, model="scheffe_quadratic", analysis_type="coefficients")["model_summary"]
     assert summary["n_terms"] == 6
@@ -418,7 +418,7 @@ class TestEvaluateOverRegion:
 
 
 # ---------------------------------------------------------------------------
-# Optimisation inside the region
+# Optimization inside the region
 # ---------------------------------------------------------------------------
 
 HEAT_FACTORS = [Factor(name="T", low=100, high=150), Factor(name="D", low=20, high=60)]

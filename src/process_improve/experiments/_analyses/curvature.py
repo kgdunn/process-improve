@@ -1,9 +1,9 @@
 # (c) Kevin Dunn, 2010-2026. MIT License.
-"""Curvature test: centre-point mean against factorial-point mean (ENG-02).
+"""Curvature test: center-point mean against factorial-point mean (ENG-02).
 
 The single-degree-of-freedom test of Montgomery (*Design and Analysis of
 Experiments*, section 6.8): ``SS_curvature = nF nC (yF - yC)**2 / (nF + nC)`` on one
-degree of freedom, tested against **pure error** from the replicated runs (the centre
+degree of freedom, tested against **pure error** from the replicated runs (the center
 points, and any other replicated settings). The residual of a model fitted to every
 run cannot serve as the denominator: it holds the curvature contrast itself, so the
 two are not independent, and real curvature inflates the very error it is judged by.
@@ -26,7 +26,7 @@ def _run_curvature_test(
     alpha: float = 0.05,
     group_cols: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Test for curvature by comparing the centre-point and factorial-point means against pure error.
+    """Test for curvature by comparing the center-point and factorial-point means against pure error.
 
     Parameters
     ----------
@@ -35,7 +35,7 @@ def _run_curvature_test(
     response_col : str
         Name of the response column.
     factor_cols : list[str]
-        Factor column names. Centre points have every factor at 0, factorial points
+        Factor column names. Center points have every factor at 0, factorial points
         every factor at -1 or +1.
     alpha : float
         Significance level for the ``significant`` flag.
@@ -47,7 +47,7 @@ def _run_curvature_test(
     -------
     dict[str, Any]
         ``{"curvature_test": {...}}`` with the two means, their ``difference`` (the factorial
-        mean less the centre mean, ``yF - yC``, as Box, Hunter and Hunter and Montgomery write
+        mean less the center mean, ``yF - yC``, as Box, Hunter and Hunter and Montgomery write
         it: it estimates the sum of the pure quadratic coefficients, b11 + ... + bkk) and its
         ``std_error``, ``s * sqrt(1/nF + 1/nC)`` with ``s`` from pure error; the F statistic (and
         the equivalent t statistic, ``difference / std_error``) on ``(1, df_pure_error)`` degrees

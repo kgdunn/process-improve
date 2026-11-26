@@ -22,10 +22,10 @@ observational set of thirty products it usually does not.
 :func:`pair_coverage` says so before a model is fitted rather than after.
 
 The ordering inside :func:`interaction_terms` is not negotiable: transform,
-centre and scale, multiply, then **re-centre and re-scale the products**. The
-product of two standardised variables is not itself centred. For approximately
+center and scale, multiply, then **re-center and re-scale the products**. The
+product of two standardized variables is not itself centered. For approximately
 bivariate normal columns its mean is the parents' correlation :math:`r` and its
-variance is :math:`1 + r^2`, so skipping the second centring leaks correlation
+variance is :math:`1 + r^2`, so skipping the second centering leaks correlation
 into the intercept and systematically inflates the columns belonging to
 correlated pairs, exactly the pairs whose interactions are least trustworthy.
 
@@ -78,7 +78,7 @@ def pair_coverage(
     Two variables that co-vary populate only the agreeing corners and will fail
     this check. That is the correct answer, not a defect to work around: their
     interaction is not identifiable from these observations, and no amount of
-    regularisation makes it so.
+    regularization makes it so.
 
     Parameters
     ----------
@@ -167,11 +167,11 @@ def interaction_terms(
     x_log: pd.DataFrame,
     pairs: Sequence[tuple[str, str]],
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Build centred, scaled product terms from centred, scaled predictors.
+    """Build centered, scaled product terms from centered, scaled predictors.
 
     The order matters and is not negotiable: the parents must already be
-    transformed, centred and scaled; this function multiplies them and then
-    **centres and scales the products again**. A product of two standardised
+    transformed, centered and scaled; this function multiplies them and then
+    **centers and scales the products again**. A product of two standardized
     columns has mean :math:`r` and variance :math:`1 + r^2` (for approximately
     bivariate normal parents), so a term skipping the second pass carries its
     parents' correlation into the intercept and arrives at the model with more
@@ -184,21 +184,21 @@ def interaction_terms(
     Parameters
     ----------
     x_log : pandas.DataFrame
-        Predictors, already transformed, centred and scaled (see
+        Predictors, already transformed, centered and scaled (see
         :mod:`process_improve.chemistry`). A :class:`SpecificationWarning` is
-        raised when they do not look centred and unit-variance, because the
+        raised when they do not look centered and unit-variance, because the
         reasoning above, and the ``parent_correlation`` column below, assume it.
     pairs : sequence of (str, str)
         The pairs to build. Both names must be columns of ``x_log``. A pair
         naming the same column twice gives a quadratic term, whose mean before
-        re-centring is 1 rather than :math:`r`; that is allowed, but it is not
+        re-centering is 1 rather than :math:`r`; that is allowed, but it is not
         an interaction.
 
     Returns
     -------
     (terms, constants) : tuple of pandas.DataFrame
         ``terms`` has one column per pair, named ``"a_x_b"``, on the rows of
-        ``x_log``, centred and unit-variance scaled. ``constants`` has one row
+        ``x_log``, centered and unit-variance scaled. ``constants`` has one row
         per term with ``term``, ``left``, ``right``, ``center``, ``divisor``
         and ``parent_correlation``. ``divisor`` is divided by, not multiplied
         by, and the pair lets a held-out block be built with training constants:
@@ -242,11 +242,11 @@ def interaction_terms(
 
     if not _looks_prescaled(x_log):
         warnings.warn(
-            "x_log does not look centred and unit-variance scaled. interaction_terms assumes it "
+            "x_log does not look centered and unit-variance scaled. interaction_terms assumes it "
             "is: a product term's properties (mean equal to the parents' correlation, variance "
             "1 + r squared) and the parent_correlation column below both depend on it, and a "
-            "product of un-standardised columns is dominated by whichever parent has the larger "
-            "units. Transform, centre and scale the parents first.",
+            "product of un-standardized columns is dominated by whichever parent has the larger "
+            "units. Transform, center and scale the parents first.",
             SpecificationWarning,
             stacklevel=user_stacklevel(),
         )

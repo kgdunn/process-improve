@@ -1,13 +1,13 @@
 """MCP-boundary fuzz suite (ENG-15, acceptance item 4).
 
-Generalises ``test_robust_scale_sn_fuzz`` to *every* registered ``@tool_spec``
+Generalizes ``test_robust_scale_sn_fuzz`` to *every* registered ``@tool_spec``
 tool: for each tool we derive a hypothesis strategy from its published
 ``input_schema`` and throw schema-shaped (and deliberately ragged) payloads at
 the ``execute_tool_call`` dispatch path - exactly what the MCP server does.
 
 The invariant under test is the one that would have caught SEC-14..SEC-21:
 **a tool wrapper must never leak an undocumented exception**. Each call must
-either return a JSON-serialisable ``dict`` or raise one of the documented
+either return a JSON-serializable ``dict`` or raise one of the documented
 boundary exceptions; anything else means a wrapper's ``except`` clause is too
 narrow and an implementation-internal error would reach the caller.
 """
@@ -122,7 +122,7 @@ def test_fit_pls_huge_magnitude_seed_column_regression() -> None:
     convergence before its first iteration and ``fit_pls`` leaked
     ``UnboundLocalError`` for the never-assigned ``t_a``. The loop now always
     runs at least one iteration; the call must satisfy the boundary invariant
-    (a JSON-serialisable dict, or a documented exception).
+    (a JSON-serializable dict, or a documented exception).
     """
     payload = {
         "x_data": [[], [], [], [0.0], [1.0]],

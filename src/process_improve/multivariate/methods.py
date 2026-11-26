@@ -19,7 +19,14 @@ from ..visualization.themes import REFERENCE_LINE_COLOR
 from ._adaptive import AdaptivePCA, AdaptivePLS
 from ._asca import ASCA
 from ._categorical import CA, FAMD, MCA, MFA
-from ._common import BlockSet, NotEnoughVarianceError, SpecificationWarning, UncentredDataWarning, epsqrt
+from ._common import (
+    BlockSet,
+    NotEnoughVarianceError,
+    SpecificationWarning,
+    UncenteredDataWarning,
+    _former_name,
+    epsqrt,
+)
 from ._diagnostics import (
     eigenvalue_summary,
     group_contributions,
@@ -123,7 +130,7 @@ __all__ = [
     "Plot",
     "Resampler",
     "SpecificationWarning",
-    "UncentredDataWarning",
+    "UncenteredDataWarning",
     "affine_model",
     "center",
     "check_predictive_signal",
@@ -180,3 +187,11 @@ __all__ = [
     "terminate_check",
     "vip",
 ]
+
+
+def __getattr__(name: str) -> type:
+    """Return the class a former public name, such as ``UncentredDataWarning``, stands for, with a warning."""
+    try:
+        return _former_name(name)
+    except AttributeError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None

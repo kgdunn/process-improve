@@ -1,10 +1,10 @@
 # (c) Kevin Dunn, 2010-2026. MIT License.
-"""A model variant over a recipe's table: what is modelled, and which rows it leaves out.
+"""A model variant over a recipe's table: what is modeled, and which rows it leaves out.
 
 A :class:`Variant` names the model (PCA or PLS), its number of components, the X and
-Y columns, and the rows it **excludes**. Each block is mean-centred and scaled to unit
+Y columns, and the rows it **excludes**. Each block is mean-centered and scaled to unit
 variance (:class:`~process_improve.multivariate.MCUVScaler`) on the fitted rows.
-Excluding is not dropping: an excluded row is left out of the fit (its centring and
+Excluding is not dropping: an excluded row is left out of the fit (its centering and
 scaling too), then projected through the fitted model, so its scores, Hotelling's T²
 and SPE are still reported and it can still be drawn. That is how a reader sees where
 a suspect batch would fall in a model that never saw it.
@@ -49,7 +49,7 @@ class Variant:
     y_columns : tuple of str
         The Y block; PLS needs at least one column, PCA none.
     excluded : tuple of row ids
-        Rows left out of the fit (and of its centring and scaling), then projected.
+        Rows left out of the fit (and of its centering and scaling), then projected.
     name : str
         What the reader calls this variant.
     """
@@ -144,7 +144,7 @@ class Variant:
         cells and predicts each from a model that never saw it
         (:meth:`PCA.select_n_components`, element-wise k-fold), and PLS holds out whole
         rows, in shuffled folds repeated ten times (:meth:`PLS.select_n_components`).
-        Both fit the centring and scaling inside every fold, so they are given the raw
+        Both fit the centering and scaling inside every fold, so they are given the raw
         blocks. The answer does not depend on this variant's ``n_components``.
 
         Parameters
@@ -164,7 +164,7 @@ class Variant:
             y = cast("pd.DataFrame", y_all).loc[x.index]
             # Y in units of its own standard deviation, so the prediction error is pooled over the targets
             # with the equal weights the model gives them; in its own units, a target with large numbers (a
-            # molecular weight) would decide the count alone. The folds re-centre and re-scale it as before.
+            # molecular weight) would decide the count alone. The folds re-center and re-scale it as before.
             result = PLS.select_n_components(x, y / y.std(), random_state=random_state)
             q2, held_out, folds = result.r2y_validated["total"], "rows", result.per_fold_rmsecv.shape[1]
         else:

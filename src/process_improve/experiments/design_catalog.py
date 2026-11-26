@@ -4,15 +4,15 @@ Each record describes one design by the facets a reader searches and filters on:
 size, the kinds of factors it has, which models it can estimate, whether it is blocked or run as a
 split plot, where and when it was published, what it is applied to (its ``topics``), and a compact
 picture of its coded runs (the ``glyph``). The published records are the experiments and designs of
-the reference catalogue (:mod:`process_improve.experiments.reference_catalogue`); the generated
+the reference catalog (:mod:`process_improve.experiments.reference_catalogue`); the generated
 records are designs that :func:`~process_improve.experiments.generate_design` makes, one for each
 family and size listed in :data:`GENERATED`. The browser app's catalog page reads both, written once
 when the app is built.
 
 Examples
 --------
->>> from process_improve.experiments.design_catalog import catalog_records, normalise_family
->>> normalise_family("2^(5-2) fractional factorial")
+>>> from process_improve.experiments.design_catalog import catalog_records, normalize_family
+>>> normalize_family("2^(5-2) fractional factorial")
 'fractional_factorial'
 >>> record = next(r for r in catalog_records("generated") if r["id"] == "lib-ccd-k3-face-centered")
 >>> record["n_runs"], record["models"]["quadratic"]
@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
+from process_improve._warnings import user_stacklevel
 from process_improve.experiments._orthogonal_arrays import ORTHOGONAL_ARRAY_NAMES, orthogonal_array
 from process_improve.experiments.compare import MEASURES, compare_designs
 from process_improve.experiments.design_measures import (
@@ -70,15 +71,28 @@ Collection = Literal["published", "generated", "both"]
 # --------------------------------------------------------------------------- families
 @dataclass(frozen=True)
 class Family:
-    """A family of designs: its name on the page, and the year and work that first published it."""
+    """A family of designs: its name on the page, and the year and work that first published it.
+
+    ``about``, ``use_when`` and ``watch_for`` say what a design of the family is, when it is used and what to
+    watch for, in plain words. They are for a family that no one ``generate_design`` type makes: a family of
+    several design types (optimal), an arrangement of the runs of other designs (Latin squares, blocks, split
+    plots), and the catalog's two groups (comparison, other). A family that one design type makes takes the three
+    from the knowledge base of design types (:func:`catalog_families`). Its ``watch_for`` then holds only the
+    cautions that are not disadvantages of the design, which a card shows after the knowledge base's disadvantages.
+    """
 
     label: str
     year: int | None = None
     reference: str = ""
+    about: str = ""
+    use_when: tuple[str, ...] = ()
+    watch_for: tuple[str, ...] = ()
 
 
 #: Every family a record can belong to. ``year`` and ``reference`` name the work that first published
-#: the family, where one work is generally credited with it.
+#: the family, where one work is generally credited with it. Credited is not always first: sheep were fed
+#: in the layout of a Latin square in 1788 (Cretté de Palluel), and Fisher (1925) made it a design, with
+#: its random arrangement and its analysis, as he did the blocks and the split plot (#1479).
 FAMILIES: dict[str, Family] = {
     "full_factorial": Family(
         "Full factorial", 1926, "Fisher, R. A. (1926), The arrangement of field experiments, J. Ministry of Agriculture"
@@ -98,6 +112,9 @@ FAMILIES: dict[str, Family] = {
         1947,
         "Rao, C. R. (1947), Factorial experiments derivable from combinatorial arrangements of arrays, "
         "Supplement to the J. Royal Statistical Society",
+        watch_for=(
+            "L4, L8 and L16 are two-level fractional factorials, L12 a Plackett-Burman design: they alias as those do",
+        ),
     ),
     "ccd": Family(
         "Central composite",
@@ -105,9 +122,33 @@ FAMILIES: dict[str, Family] = {
         "Box, G. E. P. and Wilson, K. B. (1951), On the experimental attainment of optimum conditions, "
         "J. Royal Statistical Society B",
     ),
-    "mixture": Family("Mixture", 1958, "Scheffé, H. (1958), Experiments with mixtures, J. Royal Statistical Society B"),
+    "mixture": Family(
+        "Mixture",
+        1958,
+        "Scheffé, H. (1958), Experiments with mixtures, J. Royal Statistical Society B",
+        watch_for=(
+            "Limits on the ingredients cut the simplex down, and the design is then built for what is left of it",
+            "Where the amount matters too, the ingredients' amounts can be the factors (a component-amount design)",
+        ),
+    ),
     "optimal": Family(
-        "Optimal (D, I, G)", 1959, "Kiefer, J. (1959), Optimum experimental designs, J. Royal Statistical Society B"
+        "Optimal (D, I, G)",
+        1959,
+        "Kiefer, J. (1959), Optimum experimental designs, J. Royal Statistical Society B",
+        about=(
+            "A design that a computer search builds for a model and a number of runs that the experimenter chooses. "
+            "The search keeps the best design it finds by a stated criterion."
+        ),
+        use_when=(
+            "Limits rule out some combinations of settings, so the region is not a cube or a sphere",
+            "The number of runs is fixed and no standard design has that size",
+            "Factors of different kinds are studied together: numeric, categorical and mixture",
+        ),
+        watch_for=(
+            "The design is built for the model that was chosen, and may say little about a term left out of it",
+            "The criteria give different designs: D to estimate the coefficients, I and G to predict the response",
+            "It plans for neither repeated runs nor a test of the model's fit: some sizes give them, others give none",
+        ),
     ),
     "box_behnken": Family(
         "Box-Behnken",
@@ -119,6 +160,7 @@ FAMILIES: dict[str, Family] = {
         "Supersaturated",
         1962,
         "Booth, K. H. V. and Cox, D. R. (1962), Some systematic supersaturated designs, Technometrics",
+        watch_for=("The factors it selects are candidates, to be confirmed in a further experiment",),
     ),
     "dsd": Family(
         "Definitive screening",
@@ -132,23 +174,102 @@ FAMILIES: dict[str, Family] = {
         "Núñez Ares, J. and Goos, P. (2020), Enumeration and multicriteria selection of orthogonal minimally "
         "aliased response surface designs, Technometrics",
     ),
-    "latin_square": Family("Latin square"),
-    "block_design": Family("Randomised blocks"),
-    "split_plot": Family("Split plot"),
-    "comparison": Family("Comparison or regression"),
-    "other": Family("Other"),
+    "latin_square": Family(
+        "Latin square",
+        1925,
+        "Fisher, R. A. (1925), Statistical Methods for Research Workers, section 49, Oliver and Boyd",
+        about=(
+            "A design that tests one factor while blocking on two disturbances: sources of variation that are not of "
+            "interest. It is laid out as a square in which each treatment appears once in every row and once in every "
+            "column. A Graeco-Latin square blocks on a third disturbance in the same number of runs."
+        ),
+        use_when=(
+            "Two known disturbances, such as the day and the operator, are to be kept out of the comparison",
+            "The treatments and both disturbances have the same number of levels",
+        ),
+        watch_for=(
+            "It assumes that the rows, the columns and the treatments do not interact",
+            "A small square leaves little to estimate the error from: 2 degrees of freedom for a 3 x 3 square",
+            "A square taken as printed is not random: put its rows, its columns and its treatments in random order",
+        ),
+    ),
+    "block_design": Family(
+        "Randomized blocks",
+        1925,
+        "Fisher, R. A. (1925), Statistical Methods for Research Workers, section 48, Oliver and Boyd",
+        about=(
+            "A design whose runs are grouped into blocks of like conditions, such as a day, a batch of raw material "
+            "or an operator. The treatments are run in random order inside each block, and compared there. A complete "
+            "block holds every treatment, and an incomplete block a planned part of them."
+        ),
+        use_when=(
+            "A known disturbance cannot be held constant over all the runs",
+            "Runs that share a day, a batch or an operator are more alike than runs that do not",
+        ),
+        watch_for=(
+            "A block is not a factor under study: its effect is removed, not interpreted or optimized",
+            "It assumes that the treatments act in the same way in every block",
+            "A block removes a known disturbance only: the random order inside it guards against the unknown ones",
+        ),
+    ),
+    "split_plot": Family(
+        "Split plot",
+        1925,
+        "Fisher, R. A. (1925), Statistical Methods for Research Workers, section 42, Oliver and Boyd",
+        about=(
+            "A design for factors that are hard to change. A hard-to-change factor is set once for a group of runs, "
+            "the whole plot, and the easy-to-change factors are varied inside it."
+        ),
+        use_when=(
+            "A factor is costly or slow to reset between runs, such as the temperature of an oven",
+            "A whole batch is made at one setting and then divided for further treatment",
+        ),
+        watch_for=(
+            "It has two sources of error: analyzed with one, a hard-to-change factor can show a false effect",
+            "A hard-to-change factor is set again for each whole plot, also when its setting stays the same",
+            "The effects of the hard-to-change factors are estimated less precisely than the others",
+        ),
+    ),
+    "comparison": Family(
+        "Comparison or regression",
+        about=(
+            "A study of one factor, or of measured data with no design of several factors: a sample is compared with "
+            "a target, two or more groups with each other, a line, a curve or a surface is fitted, or variation is "
+            "divided among its sources. The catalog holds these as worked examples."
+        ),
+        use_when=(
+            "Two or more treatments, methods or groups are compared on one response",
+            "The relationship between two measured variables is to be described",
+        ),
+        watch_for=(
+            "Without random assignment to the groups, another difference between them can be mistaken for an effect",
+            "Data that were not set by design show that two variables move together, not that one causes the other",
+            "A fitted line describes the range of the data, and not what lies beyond it",
+            "Measurements made in pairs are analyzed by their differences, not as two separate groups",
+        ),
+    ),
+    "other": Family(
+        "Other",
+        about=(
+            "Designs and worked calculations that belong to none of the other families: Koshal, simplex, equiradial "
+            "and third-order designs, paths of steepest ascent, and small designs that show how a calculation is done."
+        ),
+    ),
 }
 
-#: The free-text design types of the reference catalogue, read into a family: the first rule that matches wins.
+#: The free-text design types of the reference catalog, read into a family: the first rule that matches wins.
+#: A rule names a design by words that only it uses. "simplex" alone is also a regular simplex, a first-order
+#: design in independent factors, and "crossed" alone is also a crossed classification of laboratories or
+#: batches: neither word is a rule by itself (#1478).
 _FAMILY_RULES: tuple[tuple[str, str], ...] = (
-    (r"mixture|simplex|extreme vertices|component-amount", "mixture"),
+    (r"mixture|simplex[- ](?:lattice|centroid)|axial simplex|extreme vertices|component-amount", "mixture"),
     (r"omars", "omars"),
     (r"\bdsd\b|definitive screening|conference matrix", "dsd"),
     (r"split|strip|whole.plot|restricted randomi", "split_plot"),
     (r"box-behnken|\bbbd\b", "box_behnken"),
     (r"composite|\bccd\b|\bcc[cif]\b|axial|star points", "ccd"),
     (r"supersaturated", "supersaturated"),
-    (r"taguchi|orthogonal arra|inner array|outer array|crossed", "orthogonal_array"),
+    (r"taguchi|orthogonal arra|inner array|outer array|crossed arrays?", "orthogonal_array"),
     (r"plackett", "plackett_burman"),
     (r"latin|youden", "latin_square"),
     (r"block design|complete block|incomplete block|randomi[sz]ed blocks", "block_design"),
@@ -164,8 +285,9 @@ _FAMILY_RULES: tuple[tuple[str, str], ...] = (
     (
         (
             r"regression|comparison|single sample|single.factor|one categorical|one factor at|process record|"
-            r"illustration|confirmat|observational|search along|path of steepest|selection|second-degree|nested|"
-            r"hierarchical|two-way|completely randomi|sampling plan|design types|straight line"
+            r"illustration|confirmat|observational|search along|path of steepest|selection|second-degree|"
+            r"fitted second-order|fitted equation|nested|hierarchical|two-way|completely randomi|sampling plan|"
+            r"design types|straight line"
         ),
         "comparison",
     ),
@@ -186,7 +308,7 @@ _DESIGN_TYPES = {
 }
 
 
-def normalise_family(text: str) -> str:
+def normalize_family(text: str) -> str:
     """Return the family a free-text design type names: a key of :data:`FAMILIES`.
 
     Parameters
@@ -197,17 +319,28 @@ def normalise_family(text: str) -> str:
     Returns
     -------
     str
-        The family's key; ``"other"`` when no rule recognises the text.
+        The family's key; ``"other"`` when no rule recognizes the text.
 
     Examples
     --------
-    >>> normalise_family("rotatable central composite design")
+    >>> normalize_family("rotatable central composite design")
     'ccd'
-    >>> normalise_family("Taguchi L18")
+    >>> normalize_family("Taguchi L18")
     'orthogonal_array'
     """
     lowered = text.lower()
     return next((family for pattern, family in _FAMILY_RULES if re.search(pattern, lowered)), "other")
+
+
+def normalise_family(text: str) -> str:
+    """Return :func:`normalize_family`; this, its former name, is deprecated since 2.7.0 and removed in 3.0."""
+    warnings.warn(
+        "process_improve.experiments.design_catalog.normalise_family is deprecated since 2.7.0 and will be removed "
+        "in 3.0; use normalize_family instead.",
+        DeprecationWarning,
+        stacklevel=user_stacklevel(),
+    )
+    return normalize_family(text)
 
 
 # --------------------------------------------------------------------------- what a design can estimate
@@ -320,7 +453,7 @@ def _runs_per_parameter(n_runs: int, k: int, models: dict[str, bool | None]) -> 
 
 
 # --------------------------------------------------------------------------- where a design is printed
-#: A figure's file, as a note of the catalogue names it: a path such as ``../figures/doe/x.png``, or a file name.
+#: A figure's file, as a note of the catalog names it: a path such as ``../figures/doe/x.png``, or a file name.
 _FIGURE_FILE = re.compile(r"(?:\.\./)*(?:[\w.-]+/)*[\w.-]+\.(?:png|svg|jpe?g|gif|pdf)\b", flags=re.IGNORECASE)
 #: A note of the lines of the source file that print a figure: ", lines 244-248", " (line 85", " at lines 135-146".
 _LINES_NOTE = re.compile(r"[,;]?\s*(?:\bat\s+)?\blines?\s+\d+(?:\s*-\s*\d+)?", flags=re.IGNORECASE)
@@ -373,9 +506,9 @@ def _file_title(path: str) -> str:
 
 
 def figure_name(note: str) -> str:
-    """Return the name a reader can use for a figure, from the catalogue's note of where it is printed.
+    """Return the name a reader can use for a figure, from the catalog's note of where it is printed.
 
-    The book's entries record each figure as a note for the catalogue's maintainers: its file, the
+    The book's entries record each figure as a note for the catalog's maintainers: its file, the
     lines of the source that print it, and its caption or alt text, in a few forms. The name is the
     first of these that the note holds: the figure's caption; its alt text; a description in
     brackets after the file; its Sphinx label made readable (``DOE-fig-Cube-plot`` is "Cube plot");
@@ -454,9 +587,9 @@ _MATH_ROLE = re.compile(r":math:`([^`]*)`")
 
 
 def table_name(note: str) -> str:
-    """Return the name a reader can use for a table, from the catalogue's note of where it is printed.
+    """Return the name a reader can use for a table, from the catalog's note of where it is printed.
 
-    The book's entries record each table as a note for the catalogue's maintainers: its caption, or
+    The book's entries record each table as a note for the catalog's maintainers: its caption, or
     its kind and columns when it has none, with the lines of the source that print it. The name keeps
     the caption and drops the note of lines and the column headings written after it; a table with no
     caption is named by its columns. A note that says no table is printed names none, and a table as
@@ -517,7 +650,7 @@ def where_url(where: dict[str, Any] | str | None) -> str | None:
     Parameters
     ----------
     where : dict, str or None
-        An entry's ``where``, as the reference catalogue records it.
+        An entry's ``where``, as the reference catalog records it.
 
     Returns
     -------
@@ -542,7 +675,7 @@ def shown_where(where: dict[str, Any] | str | None) -> dict[str, Any] | str | No
     """Return the place a source prints an entry as the catalog shows it: section, pages, tables and figures.
 
     Each table is named by :func:`table_name` and each figure by :func:`figure_name`; the notes kept
-    for the catalogue's maintainers (the source file, its lines and commit) are left out.
+    for the catalog's maintainers (the source file, its lines and commit) are left out.
     """
     if not isinstance(where, dict):
         return where
@@ -612,7 +745,7 @@ def published_runs(entry: dict[str, Any]) -> np.ndarray | None:
     Parameters
     ----------
     entry : dict
-        An experiment or design of the reference catalogue.
+        An experiment or design of the reference catalog.
 
     Returns
     -------
@@ -637,7 +770,7 @@ def published_runs(entry: dict[str, Any]) -> np.ndarray | None:
         dtype=float,
     )
     # A coded setting printed rounded is the exact one the source worked with, sign kept: 1.414 is the root of 2,
-    # as the reference catalogue fits it. A factor fitted in its own units keeps its printed settings.
+    # as the reference catalog fits it. A factor fitted in its own units keeps its printed settings.
     for printed, exact in ((float(k), float(v)) for k, v in (runs.get("exact") or {}).items()):
         for j, factor in enumerate(factors):
             if factor.get("coding") != "none":
@@ -834,7 +967,7 @@ def _compared_as_levels(entry: dict[str, Any], factors: list[dict[str, Any]]) ->
 
     A study of one numeric factor at three or more listed levels whose source fits it as levels, ``C(power)``, is a
     comparison of those levels, as Montgomery's plasma etching compares four RF powers: the catalog takes the factor
-    as categorical, labelled by its levels, so the page compares them as the source does. A source that also fits
+    as categorical, labeled by its levels, so the page compares them as the source does. A source that also fits
     the factor as a number keeps those models; the page shows numbers of the comparison only.
     """
     if len(factors) != 1:
@@ -849,7 +982,7 @@ def _compared_as_levels(entry: dict[str, Any], factors: list[dict[str, Any]]) ->
 
 
 def _kind(entry: dict[str, Any], factors: list[dict[str, Any]]) -> str:
-    """Say what an entry of the reference catalogue holds.
+    """Say what an entry of the reference catalog holds.
 
     ``experiment``: a design and its results. ``design``: a design's runs, or its factors, without results.
     ``sample``: results with no factor varied, one sample measured over and over. ``facts``: neither
@@ -861,10 +994,10 @@ def _kind(entry: dict[str, Any], factors: list[dict[str, Any]]) -> str:
 
 
 def _published_record(entry: dict[str, Any], source: dict[str, Any]) -> dict[str, Any]:
-    """Describe one entry of the reference catalogue as a record of the catalog."""
+    """Describe one entry of the reference catalog as a record of the catalog."""
     design = entry.get("design") or {}
     text = " ".join(str(design.get(key, "")) for key in ("type", "details"))
-    family = normalise_family(str(design.get("type", "")))
+    family = normalize_family(str(design.get("type", "")))
     # A run's block is no factor of the design: its column is kept apart as the run's block.
     columns, apart = _block_columns(entry), _set_apart(entry)
     factors = _compared_as_levels(entry, [f for f in entry.get("factors") or [] if f["name"] not in apart])
@@ -995,7 +1128,7 @@ def _terms(k: int, model: str) -> int:
 
 
 #: Every design the catalog generates, as ``{"design_type", "k", "options"}``: the shape the reference
-#: catalogue's checks name a library design in. Orthogonal arrays are named by ``array`` instead of ``k``.
+#: catalog's checks name a library design in. Orthogonal arrays are named by ``array`` instead of ``k``.
 GENERATED: tuple[dict[str, Any], ...] = tuple(_generated_specs())
 
 #: The names factors take in a generated design, as the library names them (no I, which reads as 1).
@@ -1150,15 +1283,15 @@ def _checks(entry: dict[str, Any]) -> list[tuple[dict[str, Any], dict[str, Any]]
 def printed_checks(entry: dict[str, Any]) -> dict[str, int]:
     """Count an entry's printed numbers: all of them, those recomputed, those that agree, those known not to.
 
-    :func:`~process_improve.experiments.reference_catalogue.reproduce_reference_catalogue` recomputes
+    :func:`~process_improve.experiments.reference_catalogue.reproduce_reference_catalog` recomputes
     every number that carries a check, and the test suite requires each to agree with the printed
-    text unless the catalogue records why it does not (its ``disagreement``). So, on a commit whose
+    text unless the catalog records why it does not (its ``disagreement``). So, on a commit whose
     tests pass, the counts here are what that report finds, without the minutes it takes to run.
 
     Parameters
     ----------
     entry : dict
-        An experiment or design of the reference catalogue.
+        An experiment or design of the reference catalog.
 
     Returns
     -------
@@ -1178,7 +1311,7 @@ def catalog_records(collection: Collection = "both") -> list[dict[str, Any]]:
     Parameters
     ----------
     collection : {"both", "published", "generated"}
-        Which designs to describe: the reference catalogue's, the ones :data:`GENERATED` lists, or both.
+        Which designs to describe: the reference catalog's, the ones :data:`GENERATED` lists, or both.
 
     Returns
     -------
@@ -1268,7 +1401,7 @@ SOURCE_FORMS: dict[str, str] = {
 
 
 def source_form(source: dict[str, Any]) -> str:
-    """Return the form of a published source, read from what the reference catalogue records of it.
+    """Return the form of a published source, read from what the reference catalog records of it.
 
     A source that is a work of its own, with no ``work`` it is printed in, is a ``"book"``; one printed in
     an issue of a journal is a ``"paper"``; any other (an encyclopedia article, a chapter of a handbook, a
@@ -1303,7 +1436,7 @@ GENERAL_LABEL = "General (no stated application)"
 def catalog_topics() -> dict[str, dict[str, str]]:
     """Return each application the catalog filters on: its name on the page, and what it covers.
 
-    The applications are the subject-matter topics of the reference catalogue (see
+    The applications are the subject-matter topics of the reference catalog (see
     :func:`~process_improve.experiments.reference_catalogue.reference_topics`), in its order:
     semiconductors, food and beverages, and so on. ``"general"``, the topic of an entry whose source
     states no application, is named :data:`GENERAL_LABEL`.
@@ -1322,26 +1455,33 @@ def catalog_topics() -> dict[str, dict[str, str]]:
 def catalog_families() -> dict[str, dict[str, Any]]:
     """Return each family's name on the page, what it is, the work that first published it, and where it can lead.
 
-    ``description`` says what a design of the family is in plain words, as the knowledge base of design
-    types describes it to a newcomer (its ``description["novice"]``), or ``""`` where it has none.
+    A family that one ``generate_design`` type makes is described by the knowledge base's entry for that type:
+    ``description`` says what a design of the family is in plain words (its ``description["novice"]``),
+    ``use_when`` lists when one is used (its ``suitable_for``), and ``watch_for`` what to watch for: its
+    ``disadvantages``, then the family's own cautions, which are not disadvantages of the design. Any other family
+    gives the three in its own words (:class:`Family`).
     ``next`` lists the families a design of this one can be augmented to, each with how (``how``), as
     the knowledge base records them (its ``can_augment_to``).
     """
     types = load_knowledge_graph().design_types
-    return {
-        key: {
+    families = {}
+    for key, f in FAMILIES.items():
+        known = types.get(_DESIGN_TYPES.get(key, ""))
+        families[key] = {
             "label": f.label,
-            "description": " ".join(types[key].description.get("novice", "").split()) if key in types else "",
+            "description": " ".join(known.description.get("novice", "").split()) if known else f.about,
+            "use_when": list(known.suitable_for) if known else list(f.use_when),
+            "watch_for": [*(known.disadvantages if known else ()), *f.watch_for],
             "year": f.year,
             "reference": f.reference,
+            # A step names a design type: the family that type's designs are in, where the two names differ.
             "next": [
-                {"family": step["target"], "how": step["method"]}
-                for step in (types[key].can_augment_to if key in types else [])
-                if step["target"] in FAMILIES
+                {"family": family, "how": step["method"]}
+                for step in (known.can_augment_to if known else [])
+                if (family := _GENERATED_FAMILY.get(step["target"], step["target"])) in FAMILIES
             ],
         }
-        for key, f in FAMILIES.items()
-    }
+    return families
 
 
 # --------------------------------------------------------------------------- errata, and the feed of sources
@@ -1361,11 +1501,11 @@ def _errata_where(where: dict[str, Any] | str | None) -> str:
 
 
 def catalog_errata() -> list[dict[str, Any]]:
-    """List every printed number of the reference catalogue that the library does not reproduce, with the reason.
+    """List every printed number of the reference catalog that the library does not reproduce, with the reason.
 
-    The test suite requires every recomputed number to agree with its source unless the catalogue records
+    The test suite requires every recomputed number to agree with its source unless the catalog records
     why it does not (its ``disagreement``): the source's rounding, a misprint, or a method that differs
-    from the library's. This lists each of those, in the catalogue's order.
+    from the library's. This lists each of those, in the catalog's order.
 
     Returns
     -------
@@ -1479,14 +1619,14 @@ def _printed(expected: dict[str, Any], check: dict[str, Any]) -> dict[str, Any]:
 
 
 def catalog_reproduction(source: str | None = None) -> list[dict[str, Any]]:
-    """Say, for every case of the reference catalogue, how closely the library reproduces what its source prints.
+    """Say, for every case of the reference catalog, how closely the library reproduces what its source prints.
 
     A number agrees when it is within the source's own rounding; the test suite requires that of every
-    recomputed number unless the catalogue records why it does not (its ``disagreement``) and the cause, one
+    recomputed number unless the catalog records why it does not (its ``disagreement``) and the cause, one
     of :data:`~process_improve.experiments.reference_catalogue.DISAGREEMENT_CAUSES`. Only those are
     recomputed here, to measure how far each one is from its source, so this takes a minute or two rather
     than the several minutes of
-    :func:`~process_improve.experiments.reference_catalogue.reproduce_reference_catalogue`. A case falls in
+    :func:`~process_improve.experiments.reference_catalogue.reproduce_reference_catalog`. A case falls in
     the best of :data:`REPRODUCTION_TIERS` that holds every number of it that differs, leaving out those in
     which the library's value is the right one (:data:`LIBRARY_RIGHT`).
 
@@ -1498,7 +1638,7 @@ def catalog_reproduction(source: str | None = None) -> list[dict[str, Any]]:
     Returns
     -------
     list[dict]
-        One per experiment and design, in the catalogue's order: ``id``, ``title``, ``source``, ``kind`` (a
+        One per experiment and design, in the catalog's order: ``id``, ``title``, ``source``, ``kind`` (a
         worked example, an exercise, ...), ``checked`` (how many of its printed numbers are recomputed),
         ``tier`` (``None`` when none is), ``worst`` (the largest relative difference of the numbers the tier
         holds, ``None`` when one has no relative size, 0 when none differs), ``differs``, ``unchecked`` and
@@ -1558,7 +1698,7 @@ def catalog_reproduction(source: str | None = None) -> list[dict[str, Any]]:
 
 
 def catalog_feed(records: Sequence[dict[str, Any]]) -> str:
-    """Return an Atom feed of the catalog's sources: one entry for each, by the date it entered the catalogue.
+    """Return an Atom feed of the catalog's sources: one entry for each, by the date it entered the catalog.
 
     A reader who follows the feed learns when a source is added. Each entry links to the catalog filtered
     to the source's designs, and says how many it holds and how many of their printed numbers the library

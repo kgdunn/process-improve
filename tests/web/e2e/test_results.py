@@ -1,6 +1,6 @@
 """Results typed into the run sheet, one at a time as the runs come in.
 
-The page analyses the completed runs a moment after the reader stops typing, lists the runs
+The page analyzes the completed runs a moment after the reader stops typing, lists the runs
 still to do, and takes the analysis away again when no result is left.
 """
 
@@ -60,7 +60,7 @@ def test_an_analysis_overtaken_by_clearing_the_results_is_dropped(page):
     settled(page)
     assert page.is_hidden("#analysis")
     assert page.is_hidden("#charts")
-    assert status(page) == ("No results to analyse yet.", "ok")
+    assert status(page) == ("No results to analyze yet.", "ok")
 
 
 def test_an_analysis_overtaken_by_a_new_design_is_dropped(blank_page):

@@ -413,7 +413,7 @@ def relabelling(
     -------
     list of (int, int) or None
         For each column of ``first``, the column of ``second`` and the sign (1 or -1); ``None`` when
-        no relabelling makes the runs one, or none was found within ``most`` steps.
+        no relabeling makes the runs one, or none was found within ``most`` steps.
     """
     chosen: list[tuple[int, int]] = []
     steps = 0
@@ -449,7 +449,7 @@ def same_design(first: np.ndarray, second: np.ndarray) -> bool:
     Returns
     -------
     bool
-        Whether a relabelling of ``second`` (see :func:`relabelling`) gives the runs of ``first``,
+        Whether a relabeling of ``second`` (see :func:`relabelling`) gives the runs of ``first``,
         with the same number of factors.
     """
     first, second = np.asarray(first, dtype=float), np.asarray(second, dtype=float)
@@ -548,12 +548,12 @@ def _same_or_none(counts: list[int]) -> int | None:
 def design_structure(
     coded: np.ndarray, names: Sequence[str] | None = None, blocks: np.ndarray | None = None
 ) -> dict[str, Any]:
-    """Describe what a design's runs are made of: levels, middle-level zeros, centre runs, mirror pairs, replicates.
+    """Describe what a design's runs are made of: levels, middle-level zeros, center runs, mirror pairs, replicates.
 
     These are the counts a three-level screening design is described by (Núñez Ares and Goos,
     2020): how often each factor sits at its middle level, and how often each product of two
-    three-level factors is zero, both counted over the runs that are not centre runs (``n0ME`` and
-    ``n0IE``). A centre run has every three-level factor at 0; a two-level factor, which has no
+    three-level factors is zero, both counted over the runs that are not center runs (``n0ME`` and
+    ``n0IE``). A center run has every three-level factor at 0; a two-level factor, which has no
     middle level, may take any value in it.
 
     Parameters
@@ -576,10 +576,10 @@ def design_structure(
         - ``n_two_level``, ``n_three_level``: how many factors have two and three levels;
         - ``n_center_runs``: the runs with every three-level factor at 0;
         - ``zeros``: ``main_effects``, each three-level factor's zeros, and ``interactions``, each
-          product of two three-level factors' zeros, both over the runs that are not centre runs,
+          product of two three-level factors' zeros, both over the runs that are not center runs,
           with ``n0ME`` and ``n0IE``, the value they all share (``None`` when they differ), and
           ``zeros_with_center_runs``, the same counted over every run;
-        - ``mirror_pairs``: how many pairs of the runs that are not centre runs are each other's
+        - ``mirror_pairs``: how many pairs of the runs that are not center runs are each other's
           negative, and ``foldover``, whether every such run is in one;
         - ``replicated``: the groups of runs (0-based) with the same settings, each of two or more;
         - with ``blocks``, ``block_sizes`` (runs per block) and ``blocks_balanced``.

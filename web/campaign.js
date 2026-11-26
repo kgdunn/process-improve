@@ -1,5 +1,5 @@
 // A campaign as the page keeps it: one design, its results, where they came from, and the model
-// they are analysed with. The page saves each one in this browser (store.js) and can carry one
+// they are analyzed with. The page saves each one in this browser (store.js) and can carry one
 // in a link, compressed into the part of the address after "#", which a browser never sends to
 // any server. Nothing here touches the document, so tests/web/js runs it under Node.
 //
@@ -11,7 +11,7 @@ import { SIGNIFICANCE_LEVELS } from "./numbers.js";
 /**
  * The latest format of a campaign this page reads; one of a later format is refused, not guessed at. Each study is
  * saved in the lowest format that holds it (studyFormat), so a page from before a format opens every study it can.
- * Format 2 holds a study of one factor, which a page of format 1 could not analyse. Format 3 holds a categorical
+ * Format 2 holds a study of one factor, which a page of format 1 could not analyze. Format 3 holds a categorical
  * factor that lists its levels: three or more, or two that read as numbers, which an earlier page would misread.
  * Format 4 holds a study of more than FEW_FACTORS factors, whose factor list an earlier page refuses as too long.
  * Format 5 holds the settings the reader kept from the what-if panel, which an earlier page would drop on its next save.
@@ -22,7 +22,7 @@ import { SIGNIFICANCE_LEVELS } from "./numbers.js";
  * the way back to the plan.
  * Format 11 holds a design that sets a factor once for a group of runs (``options.hard_to_change``), whose list of
  * factors an earlier page refuses as no setting of a design.
- * Format 12 holds the settings of a study (``settings``), such as the colour map its charts are drawn in. From this
+ * Format 12 holds the settings of a study (``settings``), such as the color map its charts are drawn in. From this
  * format on, a page keeps a setting it does not know and takes no notice of it, so a later setting that only changes
  * how a study looks needs no format of its own. A setting that changes a number or a verdict still does.
  * Format 13 holds a significance level of a study's own, which an earlier page would judge at 0.05.
@@ -77,7 +77,7 @@ export const TRADE_FORMAT = 14;
 /** The format of a study whose factors have a possible range (``possible``): settings past it cannot be made. */
 export const POSSIBLE_FORMAT = 15;
 
-/** What a study's trade-off chart colours its points by when it is the overall desirability, as app.js names it. */
+/** What a study's trade-off chart colors its points by when it is the overall desirability, as app.js names it. */
 export const OVERALL_D = "(D)";
 
 /** The most settings a study holds, known to this page or not. */
@@ -211,7 +211,7 @@ function options(value) {
  * A study's settings, such as ``colour_map``: each a short text, a number, or true or false, under a name in small
  * letters. A setting this page does not know is kept as it came and has no effect here, so a study from a later
  * page opens, and is saved again with it. What a setting this page knows may hold is for the page to judge where
- * it is used: a colour map it lacks is drawn as the default.
+ * it is used: a color map it lacks is drawn as the default.
  */
 export function studySettings(value) {
   if (value === undefined || value === null) return {};
@@ -360,7 +360,7 @@ export function roundsOf(records, id, digests = new Map()) {
 }
 
 /**
- * The best result so far among some results, for a response's goal: the greatest to maximise, the least to minimise,
+ * The best result so far among some results, for a response's goal: the greatest to maximize, the least to minimize,
  * the nearest to a target. ``info`` is the response as the brief describes it (its ``goal`` and ``target``). Returns
  * ``{ value, run }``, the run by its place on the run sheet; null with no result yet, or a goal that names no best
  * (to learn, or a target not typed).
@@ -560,7 +560,7 @@ function curvesOf(value, n, points) {
   });
 }
 
-/** The transforms a study's responses are analysed with, by their columns (keys of bootstrap.TRANSFORMS). */
+/** The transforms a study's responses are analyzed with, by their columns (keys of bootstrap.TRANSFORMS). */
 export const TRANSFORMS = ["log", "sqrt", "inverse"];
 
 /**
@@ -579,7 +579,7 @@ function transforms(value, names) {
 }
 
 /**
- * The model to analyse with: "" (the design's own), a named model, or {terms}, each a list of factor names. Terms
+ * The model to analyze with: "" (the design's own), a named model, or {terms}, each a list of factor names. Terms
  * the search for a simpler model picked from the study's results are marked ``picked``, so a later visit says so
  * still; a page from before the mark reads the terms and leaves it out.
  */
@@ -771,7 +771,7 @@ function setAside(data, names, n) {
 
 /** What a study keeps by its responses' columns, as pairs: refused when it names a response the study does not measure. */
 /**
- * What a study's trade-off chart shows, as Learn left it: the responses on its axes (``across``, ``up``), what colours
+ * What a study's trade-off chart shows, as Learn left it: the responses on its axes (``across``, ``up``), what colors
  * its points (``colour``: a response, or the overall desirability), each response's limits (``limits``, its two ends,
  * null for one open), the level each categorical factor is drawn at (``levels``), and the settings chosen
  * (``chosen``, by factor). The settings tried are not kept: Learn draws them again, and finds the choice among them.
@@ -786,7 +786,7 @@ function tradeKept(value, names, factors) {
     out[axis] = value[axis];
   }
   if (value.colour !== undefined) {
-    if (value.colour !== OVERALL_D && !names.includes(value.colour)) refuse("its trade-off chart is coloured by no response it measures");
+    if (value.colour !== OVERALL_D && !names.includes(value.colour)) refuse("its trade-off chart is colored by no response it measures");
     out.colour = value.colour;
   }
   const end = (v) => v === null || isFiniteNumber(v);
@@ -856,9 +856,9 @@ function results(values, marks, n) {
 }
 
 /**
- * The later responses' results, their sources and the model each is analysed with, by their columns, as a
+ * The later responses' results, their sources and the model each is analyzed with, by their columns, as a
  * campaign of several responses keeps them beside the first's: ``more_responses``, ``more_sources`` and
- * ``more_models``. A response without results yet has none, and one without a model is analysed as designed. What
+ * ``more_models``. A response without results yet has none, and one without a model is analyzed as designed. What
  * the reader set of each response's goal in the balance, ``goals``, is kept when there is some.
  */
 function laterResults(data, names, n, factorNames, first) {
@@ -1115,7 +1115,7 @@ export function sameCampaign(a, b) {
 // ---------------------------------------------------------------- words
 /**
  * A campaign's name in the list of saved studies: the design and the factors it varies, after the
- * response it is about when the reader described one ("Yield (%), maximise: Box-Behnken in T, P and F").
+ * response it is about when the reader described one ("Yield (%), maximize: Box-Behnken in T, P and F").
  */
 export function campaignTitle(designLabel, factorNames, response = "") {
   const names = factorNames.length > 1 ? `${factorNames.slice(0, -1).join(", ")} and ${factorNames.at(-1)}` : factorNames.join("");

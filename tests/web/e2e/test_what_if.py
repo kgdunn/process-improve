@@ -60,7 +60,7 @@ def predicted_by_hand(fit: dict, factors: list[dict], settings: dict) -> float:
 
 @pytest.fixture
 def three(fresh_page: Any) -> Any:  # noqa: ANN401 - a Playwright Page
-    """Return a study of a yield, a cost and a purity, each with a goal, its results simulated and analysed."""
+    """Return a study of a yield, a cost and a purity, each with a goal, its results simulated and analyzed."""
     three_responses(fresh_page)
     practise(fresh_page)
     return fresh_page
@@ -193,7 +193,7 @@ def in_learn(page: Any) -> Any:  # noqa: ANN401
 
 @pytest.fixture
 def studied(blank_page: Any) -> Any:  # noqa: ANN401 - a Playwright Page
-    """Return a study of the three factors, its results simulated and analysed, shown in Learn at the what-if panel."""
+    """Return a study of the three factors, its results simulated and analyzed, shown in Learn at the what-if panel."""
     generate(blank_page)
     practise(blank_page)
     return in_learn(blank_page)

@@ -27,6 +27,7 @@ process-improve
    :doc:`Get started <quickstart>`
    `Try it in your browser <app/>`__
    :doc:`User guide <user_guide/index>`
+   :doc:`Is it accurate? <validation>`
    :doc:`API reference <api/index>`
    `The textbook <https://learnche.org/pid>`__
 
@@ -47,7 +48,7 @@ What it does
       Factorial, response surface, definitive screening, OMARS, optimal and mixture designs
       from one ``generate_design`` call, and the analysis of the results.
 
-      :doc:`Plan an experimental programme <user_guide/doe_strategy>`
+      :doc:`Plan an experimental program <user_guide/doe_strategy>`
 
    .. container:: pi-card
 
@@ -151,7 +152,8 @@ Sixteen designs, one function call
       Screening, response surface, optimal, mixture and space-filling designs all come from
       ``generate_design(factors, design_type=...)``. Each construction is checked against its
       published definition by the test suite, so a change that breaks a design fails the
-      tests.
+      tests. :doc:`How the numbers are validated <validation>` gives the comparisons with
+      books and with other software.
 
       :doc:`See every design family <user_guide/doe_coverage>`
 
@@ -183,6 +185,7 @@ Learn the methods
    quickstart
    architecture
    scaling
+   validation
    user_guide/index
    api/index
 

@@ -6,6 +6,7 @@ from collections.abc import Callable
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.exceptions import NotFittedError
 
 from process_improve import tool_safety
 from process_improve.regression.methods import (
@@ -118,10 +119,10 @@ def multiple_linear_regression_data() -> tuple[np.ndarray, np.ndarray]:
 
 
 def test_inconsistent_sizes() -> None:
-    """Dimension mismatches are rejected, and the saturated boundary case is characterised.
+    """Dimension mismatches are rejected, and the saturated boundary case is characterized.
 
     These three shapes were listed as TODOs here for years while the test body asserted
-    nothing at all. The behaviour is correct; only the assertions were missing.
+    nothing at all. The behavior is correct; only the assertions were missing.
     """
     rng = np.random.default_rng(3)
 
@@ -371,7 +372,7 @@ def test_robust_regression_t_value_is_populated(
 ) -> None:
     """`t_value` holds the per-coefficient t-statistic, as in the OLS sibling.
 
-    Regression test: the key was documented but only ever initialised to NaN,
+    Regression test: the key was documented but only ever initialized to NaN,
     because the critical value was computed into a local variable, used for the
     interval widths, and never assigned back. This fails on the pre-fix code.
     """
@@ -659,6 +660,14 @@ def test_ols_predict_wrong_shape_raises(
     good = model.predict(np.array([[0.05], [0.10]]))
     assert good.shape == (2,)
     assert np.all(np.isfinite(good))
+
+
+@pytest.mark.parametrize("data", [None, ([1.0], [2.0])], ids=["never fitted", "fitted on one row"])
+def test_ols_prediction_interval_refuses_a_model_that_is_not_fitted(data: tuple[list, list] | None) -> None:
+    """It raises NotFittedError, as predict() does; an assert stood here, which python -O removes (#1169)."""
+    model = OLS() if data is None else OLS().fit(np.array(data[0]), np.array(data[1]))
+    with pytest.raises(NotFittedError, match=r"^OLS must be fitted before calling prediction_interval\(\)\.$"):
+        model.prediction_interval(1.0)
 
 
 def test_ols_prediction_interval_matches_pi_range_grid(
@@ -1086,6 +1095,50 @@ def test_robust_regression_tool_states_its_limit_and_accepts_it() -> None:
     assert len(RobustRegressionInput.model_validate({"x": x, "y": x}).x) == 1_500
 
 
+def test_robust_regression_tool_refuses_more_resamples_than_fit_in_time(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An explicit n_boot counts toward the work the contract allows, and the refusal says what to lower.
+
+    999 resamples of 1,500 points took about 26 s and timed out, although the points passed (#1169).
+    """
+
+    def no_worker(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("a worker was started")
+
+    monkeypatch.setattr(tool_safety, "_create_pool", no_worker)
+    x = np.arange(1_500.0).tolist()
+    with pytest.raises(
+        ToolInputInvalidError,
+        match=(
+            r"robust_regression draws at most 39 bootstrap resamples of 1,500 points as a tool; got n_boot=999\. "
+            r"Each resample refits the repeated median.*Pass n_boot=39 or fewer"
+        ),
+    ):
+        safe_execute_tool_call("robust_regression", {"x": x, "y": x, "n_boot": 999})
+
+
+@pytest.mark.parametrize(
+    ("n_points", "most"),
+    [(1_500, 39), (1_000, 89), (301, 992), (300, 999), (3, 1_000)],
+)
+def test_robust_regression_tool_takes_resamples_up_to_the_work_of_its_default_at_the_limit(
+    n_points: int, most: int
+) -> None:
+    """(n_boot + 1) fits of n_points ** 2 slopes may not exceed the fit and 39 resamples of 1,500 points."""
+    x = np.arange(float(n_points)).tolist()
+    assert RobustRegressionInput.model_validate({"x": x, "y": x, "n_boot": most}).n_boot == most
+    if most < 1_000:
+        with pytest.raises(ValueError, match=rf"at most {most:,} bootstrap resamples of {n_points:,} points"):
+            RobustRegressionInput.model_validate({"x": x, "y": x, "n_boot": most + 1})
+
+
+@pytest.mark.parametrize("n_points", [3, 197, 198, 500, 1_000, 1_001, 1_499, 1_500])
+def test_robust_regression_tool_takes_its_own_default_resamples(n_points: int) -> None:
+    """The default for any number of points the tool fits is within the work it allows."""
+    x = np.arange(float(n_points)).tolist()
+    n_boot = _default_n_boot(n_points)
+    assert RobustRegressionInput.model_validate({"x": x, "y": x, "n_boot": n_boot}).n_boot == n_boot
+
+
 def test_robust_regression_tool_needs_three_complete_pairs() -> None:
     """Three values that leave two complete pairs have no line to fit, and the error says so.
 
@@ -1262,7 +1315,7 @@ class TestRepeatedMedianSlopeMissingValues:
 
 
 # ---------------------------------------------------------------------------
-# #953: the vectorised repeated median, and intervals that resist outliers
+# #953: the vectorized repeated median, and intervals that resist outliers
 # ---------------------------------------------------------------------------
 
 

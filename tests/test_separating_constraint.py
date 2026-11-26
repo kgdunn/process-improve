@@ -26,7 +26,7 @@ from process_improve.experiments import (
 )
 from process_improve.experiments import separating as sep
 
-#: The three factors of the spec's examples, and their eight corners (first factor slowest) and centre.
+#: The three factors of the spec's examples, and their eight corners (first factor slowest) and center.
 TPF = [
     Factor(name="T", low=150, high=200, units="degC"),
     Factor(name="P", low=1, high=3, units="bar"),
@@ -45,14 +45,14 @@ _settings = settings(max_examples=60, deadline=None, suppress_health_check=[Heal
 
 
 def _split(rule, centre: bool = True) -> tuple[list[list[float]], list[list[float]]]:
-    """Return the corners ``rule`` marks as cannot, and the other corners (with the centre) as can."""
+    """Return the corners ``rule`` marks as cannot, and the other corners (with the center) as can."""
     cannot = [c for c in CORNERS if rule(*c)]
     can = [c for c in CORNERS if not rule(*c)] + ([CENTRE] if centre else [])
     return cannot, can
 
 
 def _six_factor_split() -> tuple[list[list[float]], list[list[float]]]:
-    """Return the corners of ``SIX`` with B to F all high as cannot, and the other corners (with the centre) as can."""
+    """Return the corners of ``SIX`` with B to F all high as cannot, and the other corners (with the center) as can."""
     corners = [list(c) for c in itertools.product(*[(f.low, f.high) for f in SIX])]
     cannot = [c for c in corners if all(v == f.high for v, f in zip(c[1:], SIX[1:], strict=True))]
     can = [c for c in corners if c not in cannot] + [[(f.low + f.high) / 2 for f in SIX]]
@@ -80,7 +80,7 @@ def _named(constraint: Constraint) -> set[str]:
 
 
 def _move(constraint: Constraint, factors: list[Factor], w: np.ndarray) -> float:
-    """Return how far the limit's coded, L1-normalised coefficients are from those of ``w``."""
+    """Return how far the limit's coded, L1-normalized coefficients are from those of ``w``."""
     got = _direction(constraint, factors)
     return float(np.abs(got / np.abs(got).sum() - w / np.abs(w).sum()).sum())
 
@@ -117,9 +117,9 @@ class TestPinnedProposals:
         assert w[2] == 0.0
 
     def test_the_settings_that_can_be_run_pull_the_cut(self):
-        # The centre (T = 175) can be run, so the cut sits halfway between it and T = 200: the plane of maximum
+        # The center (T = 175) can be run, so the cut sits halfway between it and T = 200: the plane of maximum
         # margin is T = 187.5, and 190 is the roundest number in the middle fifth of (175, 200). Without the
-        # centre the plane is T = 175, and 180 the roundest number in (170, 180).
+        # center the plane is T = 175, and 180 the roundest number in (170, 180).
         assert separating_constraint(TPF, *_split(lambda t, _p, _f: t == 200)).expression == "T <= 190"
         assert separating_constraint(TPF, *_split(lambda t, _p, _f: t == 200, centre=False)).expression == "T <= 180"
 
@@ -157,13 +157,13 @@ class TestPinnedProposals:
 
 
 # ---------------------------------------------------------------------------
-# Random threshold patterns on the corners and the centre
+# Random threshold patterns on the corners and the center
 # ---------------------------------------------------------------------------
 
 
 @st.composite
 def threshold_patterns(draw, free: bool = False):
-    """Draw factors and a pattern of corners (plus the centre) cut off by a random plane, in coded units.
+    """Draw factors and a pattern of corners (plus the center) cut off by a random plane, in coded units.
 
     With ``free``, the plane ignores at least one factor, which then splits no group of settings.
     """
@@ -261,7 +261,7 @@ class TestTiesAndDeterminism:
         assert separating_constraint(TPF, cannot, can).expression == "T <= 190"
 
     def test_a_pattern_symmetric_in_two_factors_gives_equal_coded_coefficients(self):
-        # Only (200, 3, 20) cannot be run, against the T-low corners and the centre: swapping P and F (in coded
+        # Only (200, 3, 20) cannot be run, against the T-low corners and the center: swapping P and F (in coded
         # units) leaves the pattern unchanged, so their coded coefficients agree.
         can = [c for c in CORNERS if c[0] == 150] + [CENTRE]
         limit = separating_constraint(TPF, [[200, 3, 20]], can)

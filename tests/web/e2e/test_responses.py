@@ -37,7 +37,7 @@ from tests.web.e2e.test_workbook import upload
 PHONE = {"viewport": {"width": 390, "height": 844}, "is_mobile": True}
 
 #: The later responses, as a reader types them: a name, units, a goal and a target. Practice results put the purity
-#: near 62, the scenario's own centre, so its target is one the settings can reach.
+#: near 62, the scenario's own center, so its target is one the settings can reach.
 LATER = [("Cost", "$/kg", "minimize", None), ("Purity", "%", "target", 63)]
 
 #: Each response's results on the run sheet, as the reader sees them: its column and the value in its box.
@@ -346,7 +346,7 @@ def test_a_study_of_one_response_saved_before_opens_as_it_was(context, site, api
     simulated = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 1})
     record = {
         "v": 1,
-        "title": "Yield (%), maximise: Box-Behnken in T, P and F",
+        "title": "Yield (%), maximize: Box-Behnken in T, P and F",
         "design": {**held, "model": design["model"], "n_runs": 15, "facts": design["facts"], "outside_range": []},
         "responses": simulated["responses"],
         "sources": ["simulated"] * 15,
@@ -396,7 +396,7 @@ def test_three_responses_fit_a_phone_without_sideways_scrolling(fresh_page):
 def test_a_notebook_asked_for_before_a_new_study_is_dropped(fresh_page):
     """A notebook of several responses, asked for and overtaken by a new study, is not written from the two (#1169).
 
-    It analyses each response in turn. A new study started meanwhile left it reading the new study's responses: it
+    It analyzes each response in turn. A new study started meanwhile left it reading the new study's responses: it
     failed part way, or mixed the two studies.
     """
     page = fresh_page

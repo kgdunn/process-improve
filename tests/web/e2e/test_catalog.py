@@ -13,7 +13,7 @@ import re
 
 import pytest
 
-from tests.web._support import BLOCKED_DESIGN, BOOK_DESIGN, CATALOG_SAMPLE, PAIRED_DESIGN
+from tests.web._support import BLOCKED_DESIGN, BOOK_DESIGN, CATALOG_SAMPLE, PAIRED_DESIGN, source
 from tests.web.e2e._page import headers, run_sheet, settled
 
 PILOT, COMPARISON, CCD, OMARS, CUBE = CATALOG_SAMPLE
@@ -36,25 +36,93 @@ def counted(page, text: str) -> None:
     page.wait_for_function(f"document.querySelector('#count').textContent.startsWith({text!r})")
 
 
-def test_the_reader_s_field_opens_its_page_and_a_goal_writes_a_search(context, site):
-    """The question at the top lists the fields the build wrote; a goal fills the search box, for the reader to edit."""
+def unfolded(page, selector: str) -> object:
+    """Return what ``selector`` finds in the list, with its line's fold open if it is under one.
+
+    The list has a line for each design. Where several entries hold the same runs, as the pilot plant and the
+    library's own 2^3 factorial do, they are under the line's fold, "printed in 1 place".
+    """
+    found = page.locator(f"#results {selector}")
+    if not found.is_visible():
+        page.locator("#results .result", has=page.locator(selector)).locator(".result__fold").click()
+    return found
+
+
+def press_title(page, design: str) -> None:
+    """Press an entry's title in the list, which opens its details."""
+    unfolded(page, f".result__title[data-id='{design}']").click()
+
+
+def press_open(page, design: str) -> None:
+    """Press the button that opens an entry of the list in Factorial."""
+    unfolded(page, f"[data-open='{design}']").click()
+
+
+def test_a_goal_writes_a_search_and_the_ways_in_by_book_and_by_field_are_at_the_foot(context, site):
+    """A goal fills the search box, for the reader to edit; the lists of books and of fields are a link each.
+
+    The page opened on a question about the reader's field and three doors, over the search: some twenty things to
+    press before the first design. The top is now the search and the goals, and the table follows.
+    """
     page = open_catalog(context, site)
-    page.wait_for_selector("#field option[value='chemical-processes']", state="attached")
+    assert page.locator("#field-form, .door").count() == 0
+    first = page.locator("main > :is(form, nav, div, h2, p):not(.about__back, .site-top, .lede)").first
+    assert first.get_attribute("class") == "catalog__search", (
+        "the search is the first thing under the page's first line"
+    )
+    assert page.text_content("#goals-title") == "Try:"
     page.click("text=Blend ingredients")
     assert page.input_value("#query") == "mixture"
     counted(page, "0 of 5")
-    # The build writes the field's page (tests/web/page/test_field_pages.py): this site stands in for it.
-    page.route("**/catalog/fields/**", lambda route: route.fulfill(body="<h1>A field</h1>", content_type="text/html"))
-    page.select_option("#field", "chemical-processes")
-    page.click("#field-form button")
-    page.wait_for_url("**/catalog/fields/chemical-processes/")
+    foot = page.locator(".catalog__views a, .catalog__views button").all_text_contents()
+    assert [" ".join(words.split()) for words in foot] == [
+        "Browse by book",
+        "Browse by field",
+        "Is it accurate?",
+        "Errata: every printed number that does not reproduce",
+        "Propose a design for the catalog",
+        "Share a case study of your own",
+    ]
+    assert page.evaluate(
+        "document.querySelector('.catalog__views').compareDocumentPosition(document.querySelector('#results')) & 2"
+    ), "after the list"
+    # The build writes the list of fields (tests/web/page/test_field_pages.py): this site stands in for it.
+    page.route("**/catalog/fields/**", lambda route: route.fulfill(body="<h1>Fields</h1>", content_type="text/html"))
+    page.click("text=Browse by field")
+    page.wait_for_url("**/catalog/fields/")
+
+
+def test_where_a_design_is_from_is_a_filter_that_says_what_the_two_kinds_are(context, site):
+    """Published, Generated and Both stood beside the search with no word on what they meant, or why to choose."""
+    page = open_catalog(context, site)
+    box = page.locator("#facets fieldset", has=page.locator("#collection"))
+    assert box.locator("legend").text_content() == "Where it is from"
+    assert page.locator("#collection [role=radio]").all_text_contents() == [
+        "Books and papers",
+        "Made by Factorial",
+        "Both",
+    ]
+    said = " ".join(box.locator(".hint").text_content().split())
+    assert said.startswith("A design from a book or paper comes with the experiment it was run in")
+    assert "Factorial makes the others itself" in said
+
+
+def test_a_family_s_row_has_one_number_the_designs_it_holds(context, site):
+    """A row had the year the family was first published and its count: two numbers on some rows, one on others."""
+    page = open_catalog(context, site)
+    rows = page.locator("#families label").evaluate_all(
+        """(rows) => rows.map((row) => [...row.querySelectorAll('span')]
+             .map((part) => part.textContent).filter((text) => /^\\d+$/.test(text)))"""
+    )
+    assert rows, "the families are listed"
+    assert all(len(numbers) == 1 for numbers in rows), rows
 
 
 def test_the_app_s_bar_opens_the_catalog(fresh_page):
     fresh_page.click(".studybar__link[href='catalog/']")
     fresh_page.wait_for_url("**/catalog/")
     fresh_page.wait_for_selector(".result")
-    assert fresh_page.text_content("#count") == "5 of 5 designs: 2 published, 3 generated"
+    assert fresh_page.text_content("#count") == "5 designs, 4 different", "two of them are the same runs"
     assert set(shown(fresh_page)) == {PILOT, COMPARISON, CCD, OMARS, CUBE}
     assert shown(fresh_page)[-1] == COMPARISON, "a comparison is listed after the designs"
 
@@ -99,7 +167,7 @@ def test_a_family_s_count_is_what_ticking_it_shows(context, site):
 def test_a_design_s_detail_opens_on_the_design_its_source_and_its_use(context, site):
     """The same three cells for every design, each about this design; its family's history folds away."""
     page = open_catalog(context, site)
-    page.click(f".result__title[data-id='{PILOT}']")
+    press_title(page, PILOT)
     page.wait_for_selector("#detail[open]")
     cells = page.locator("#detail-body .detail__head .detail__cell h3").all_text_contents()
     assert cells == ["This design", "Where it comes from", "Use it"]
@@ -107,7 +175,7 @@ def test_a_design_s_detail_opens_on_the_design_its_source_and_its_use(context, s
     assert facts == ["3 factors (1 categorical)", "8 runs", "Estimates two-factor interactions"]
     text = " ".join(page.text_content("#detail-body").split())
     assert "Box, G. E. P., Hunter, W. G. and Hunter, J. S. (1978)" in text
-    assert "recomputed" not in text, "how the catalogue checks an entry is not the reader's concern"
+    assert "recomputed" not in text, "how the catalog checks an entry is not the reader's concern"
     assert "The library makes this design" not in text
     family = page.locator("#detail-body details.detail__family")
     assert family.locator("summary").text_content() == "About this design type: Full factorial"
@@ -224,6 +292,13 @@ def test_the_applications_of_the_fewest_designs_are_a_click_away(context, site, 
     assert chosen.is_checked(f"#topics-more input[value='{ten[-1]}']")
 
 
+def test_a_catalog_of_few_applications_lists_them_and_nothing_in_place_of_the_rest(context, site):
+    """With no more applications than the list shows there is no fold of the rest, and no stray word where it goes."""
+    page = open_catalog(context, site)
+    assert page.locator("#topics-more").count() == 0
+    assert "null" not in page.text_content("#topics")
+
+
 def test_a_word_of_an_application_s_name_finds_its_designs(book_context, site):
     page = open_catalog(book_context, site)
     page.fill("#query", "fermentation")
@@ -232,12 +307,12 @@ def test_a_word_of_an_application_s_name_finds_its_designs(book_context, site):
 
 
 def test_a_design_whose_runs_differ_in_leverage_lists_it_beside_each_run(context, site):
-    """The face-centred CCD leans on its corners more than on its centre: a leverage column, and the heaviest named."""
+    """The face-centered CCD leans on its corners more than on its center: a leverage column, and the heaviest named."""
     page = open_catalog(context, site, f"#d={CCD}")
     page.wait_for_selector("#detail[open] table.runs-table")
     words = page.text_content("#detail-body .detail__leverage")
     assert re.match(r"\d+ runs carry the most weight, with leverage 0\.\d\d; the least is 0\.\d\d\. ", words), words
-    assert page.locator("#detail-body canvas").count() == 0, "colours and leverage sit in the table, not beside it"
+    assert page.locator("#detail-body canvas").count() == 0, "colors and leverage sit in the table, not beside it"
     heads = page.locator("table.runs-table thead th").all_text_contents()
     assert (heads[0], heads[-1]) == ("Run", "Leverage")
     cells = page.locator("table.runs-table tbody tr").first.locator("td")
@@ -245,16 +320,96 @@ def test_a_design_whose_runs_differ_in_leverage_lists_it_beside_each_run(context
     assert cells.nth(1).evaluate(tinted), "a coded setting is tinted in its own cell"
     assert re.fullmatch(r"0\.\d\d", cells.last.text_content()), "the first run's leverage, beside its bar"
     assert "how much the model leans on a run" in page.text_content("#detail-body")
-    projectivity = next(line for line in page.locator("#detail-body p").all_text_contents() if "two-level" in line)
+    projectivity = next(line for line in page.locator("#detail-body p").all_text_contents() if "two-level runs" in line)
     assert projectivity == "Its 8 two-level runs, of 17, hold every combination of its 3 factors' levels."
+
+
+def test_the_list_has_a_short_line_for_each_design_with_its_picture_upright_and_a_key(context, site):
+    """A card a design held three or four designs to a screen, under a wide picture nothing explained.
+
+    A line names the design by its family and size, marks what it estimates in its cell's color, and ends in a
+    small button. Its picture has a run a row, so it is narrow, and a key over the list says what it shows.
+    """
+    page = open_catalog(context, site)
+    lines = page.locator("#results .result")
+    assert lines.count() == 4, "five entries, two of them the same runs"
+    key = " ".join(page.text_content(".results__key").split())
+    assert key == "A picture is the design: a row is a run, a column a factor. low middle high"
+    swatches = page.locator(".results__key i").evaluate_all("(marks) => marks.map((mark) => mark.style.background)")
+    assert len(set(swatches)) == 3, "the pictures' three colors"
+    assert all(swatches), swatches
+    heights = lines.evaluate_all("(rows) => rows.map((row) => row.getBoundingClientRect().height)")
+    assert max(heights) < 80, f"two rows of text a line: {heights}"
+    composite = page.locator("#results .result", has=page.locator(f".result__title[data-id='{CCD}']"))
+    picture = composite.locator("canvas.glyph").bounding_box()
+    assert picture["height"] > picture["width"], "17 runs down, 3 factors across"
+    assert composite.locator(".result__size").text_content() == "Central composite · 3 factors · 17 runs"
+    mark = composite.locator(".result__step")
+    assert mark.text_content() == "+ quadratic", "the words of the table's key"
+    colour = mark.locator("i").evaluate("(dot) => getComputedStyle(dot).backgroundColor")
+    assert colour == "rgb(253, 180, 182)", "and the color of its cell"
+    button = composite.locator(".result__actions [data-open]")
+    assert button.text_content() == "Open"
+    assert button.get_attribute("aria-label") == "Open in Factorial"
+    assert button.bounding_box()["width"] < 90, "a small button, at the line's end"
+    assert composite.locator(".result__source").text_content() == "Made by Factorial"
+
+
+def test_a_design_in_several_entries_folds_them_under_its_line(context, site):
+    """The pilot plant and the library's own 2^3 factorial are the same runs: one line, with both under its fold."""
+    page = open_catalog(context, site)
+    line = page.locator("#results .result", has=page.locator(f".result__title[data-id='{PILOT}']"))
+    fold = line.locator(".result__fold")
+    assert fold.text_content() == "printed in 1 place"
+    assert fold.get_attribute("aria-expanded") == "false"
+    assert line.locator(".result__uses").is_hidden()
+    assert line.locator(".result__actions [data-open]").get_attribute("data-open") == CUBE, (
+        "the design alone opens first"
+    )
+    fold.click()
+    assert fold.get_attribute("aria-expanded") == "true"
+    entries = line.locator(".result__uses li", has=page.locator(".result__title"))
+    assert entries.locator(".result__title").evaluate_all("(titles) => titles.map((t) => t.dataset.id)") == [
+        PILOT,
+        CUBE,
+    ]
+    assert entries.locator(".result__source").all_text_contents() == [
+        "Box, Hunter and Hunter (1978)",
+        "Made by Factorial",
+    ]
+    assert entries.locator("[data-open]").all_text_contents() == ["Open", "Open"], "each opens in Factorial"
+    # The list is drawn again when its order changes: the line stays open.
+    page.select_option("#sort", "runs")
+    fold = page.locator("#results .result", has=page.locator(f".result__title[data-id='{PILOT}']")).locator(
+        ".result__fold"
+    )
+    assert fold.get_attribute("aria-expanded") == "true"
+    fold.click()
+    assert page.locator(f"#results .result__title[data-id='{PILOT}']").is_hidden()
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
+def test_on_a_phone_a_line_of_the_list_keeps_inside_the_screen(context, site):
+    page = open_catalog(context, site)
+    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+    lines = page.locator("#results .result")
+    heights = lines.evaluate_all("(rows) => rows.map((row) => row.getBoundingClientRect().height)")
+    assert max(heights) < 150, f"a line is a few rows of text: {heights}"
+    for box in lines.locator(".result__actions").evaluate_all(
+        "(all) => all.map((one) => one.getBoundingClientRect().right)"
+    ):
+        assert box <= 390
 
 
 def test_a_design_s_detail_says_what_it_withstands_and_where_else_it_is(context, site):
     """The pilot plant is the library's 2^3 factorial: each lists the other as the same design."""
     page = open_catalog(context, site)
-    badge = page.locator(".result", has=page.locator(f".result__title[data-id='{PILOT}']")).locator(".badge")
-    assert "same design in 1 more place" in badge.all_text_contents()
-    page.click(f".result__title[data-id='{PILOT}']")
+    # The two are one line of the list, named for the design, with both entries under its fold.
+    line = page.locator(".result", has=page.locator(f".result__title[data-id='{PILOT}']"))
+    assert line.locator(f".result__title[data-id='{CUBE}']").count() == 1
+    assert line.locator(".result__size").text_content() == "Full factorial · 3 factors · 8 runs"
+    assert line.locator(".result__fold").text_content() == "printed in 1 place"
+    press_title(page, PILOT)
     page.wait_for_selector("#detail[open]")
     text = " ".join(page.text_content("#detail-body").split())
     assert "If any one run is lost, the design still estimates two-factor interactions" in text
@@ -267,6 +422,45 @@ def test_a_design_s_detail_says_what_it_withstands_and_where_else_it_is(context,
         "document.querySelector('#detail-title').textContent.startsWith('Full factorial, 3 factors')"
     )
     assert "d=lib-full-factorial-k3" in page.url
+
+
+def test_a_design_the_library_makes_says_what_its_kind_was_checked_against(context, site):
+    """The library's 2^3 factorial names the sources that print one and the packages that build it the same way."""
+    checked = json.loads(source("checked.json"))
+    found = checked["designs"]["full_factorial"]["factors"]["3"]
+    page = open_catalog(context, site)
+    badges = page.locator(".result", has=page.locator(f".result__title[data-id='{CUBE}']")).locator(".badge")
+    assert f"checked: {len(found['sources'])} sources, {len(found['packages'])} packages" in badges.all_text_contents()
+    omars = page.locator(".result", has=page.locator(f".result__title[data-id='{OMARS}']"))
+    assert omars.locator(".badge--checked").count() == 0, "no other package builds an OMARS design: it has no note"
+    press_title(page, CUBE)
+    page.wait_for_selector("#detail[open]")
+    note = page.locator("#detail-body .detail__checked")
+    assert note.locator("h3").text_content() == "Checked"
+    lists = note.locator(".detail__against > div")
+    assert lists.locator("h4").all_text_contents() == ["In print", "In other software"]
+    in_print = lists.nth(0).locator("li").all_text_contents()
+    assert len(in_print) == 5, "four sources by name, then how many more"
+    assert in_print[-1] == f"and {len(found['sources']) - 4} more"
+    software = lists.nth(1).locator("li").all_text_contents()
+    assert software == [f"{name} ({checked['packages'][name]})" for name in found["packages"]]
+    link = note.locator("a")
+    assert link.text_content() == "How Factorial is checked"
+    assert link.get_attribute("href") == f"{site}validation.html"
+    # No source prints the face-centered composite design: it counts and lists the packages alone.
+    page.keyboard.press("Escape")
+    composite = checked["designs"]["ccd"]["factors"]["3"]["packages"]
+    badges = page.locator(".result", has=page.locator(f".result__title[data-id='{CCD}']")).locator(".badge")
+    counted = f"checked: {len(composite)} package{'' if len(composite) == 1 else 's'}"
+    assert {"no source prints it", counted} <= set(badges.all_text_contents())
+    press_title(page, CCD)
+    page.wait_for_function("document.querySelector('#detail-title').textContent.includes('composite')")
+    assert page.locator("#detail-body .detail__against h4").all_text_contents() == ["In other software"]
+    assert "as the books print it" not in page.text_content("#detail-body .detail__checked")
+    page.keyboard.press("Escape")
+    press_title(page, OMARS)
+    page.wait_for_function("document.querySelector('#detail-title').textContent.includes('OMARS')")
+    assert page.locator("#detail-body .detail__checked").count() == 0
 
 
 def test_the_robustness_filters_keep_the_designs_that_withstand_more(context, site):
@@ -310,7 +504,7 @@ def test_a_comparison_of_two_methods_opens_in_factorial_with_its_results(context
     settled(page)
     column = headers(page).index("method")
     assert [run[column] for run in run_sheet(page)] == ["A"] * 10 + ["B"] * 10
-    assert page.get_attribute("#workspace", "data-phase") == "learn", "the source's results, analysed"
+    assert page.get_attribute("#workspace", "data-phase") == "learn", "the source's results, analyzed"
 
 
 def test_a_design_the_page_does_not_make_opens_with_its_runs_as_given(context, site):
@@ -341,7 +535,7 @@ def test_a_blocked_design_opens_in_factorial_in_its_blocks(blocked_context, site
     settled(page)
     column = headers(page).index("Block")
     assert sorted({run[column] for run in run_sheet(page)}) == ["1", "2"]
-    assert page.get_attribute("#workspace", "data-phase") == "learn", "the source's results, analysed"
+    assert page.get_attribute("#workspace", "data-phase") == "learn", "the source's results, analyzed"
     anova = page.locator("#statistician > .scroll table").last.locator("tbody tr td:first-child").all_text_contents()
     assert "Block" in anova
     assert "The blocks are fitted as a fixed effect" in page.text_content("#analysis")
@@ -365,12 +559,12 @@ def test_a_comparison_in_pairs_opens_and_learn_compares_within_each_pair(blocked
 
 def test_a_published_design_opens_in_factorial_with_the_source_s_results(context, site):
     page = open_catalog(context, site)
-    page.click(f"[data-open='{PILOT}']")
+    press_open(page, PILOT)
     page.wait_for_selector("#campaign-banner", state="visible")
     page.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
     settled(page)
     assert len(run_sheet(page)) == 8
-    assert page.get_attribute("#workspace", "data-phase") == "learn", "the source's results, analysed"
+    assert page.get_attribute("#workspace", "data-phase") == "learn", "the source's results, analyzed"
     title = page.text_content("#study-title")
     assert title != "y", "a response known only by its column name does not name the study"
     assert page.text_content("#campaign-banner").startswith(f"Opened from the catalog: {title}, ")
@@ -379,7 +573,7 @@ def test_a_published_design_opens_in_factorial_with_the_source_s_results(context
 def test_a_published_study_names_its_source_and_learn_shows_what_it_prints_beside_its_own(context, site):
     """The pilot plant's banner cites Box, Hunter and Hunter; Learn offers their model, then lists their effects."""
     page = open_catalog(context, site)
-    page.click(f"[data-open='{PILOT}']")
+    press_open(page, PILOT)
     page.wait_for_selector("#campaign-banner", state="visible")
     banner = page.text_content("#campaign-banner")
     assert banner.startswith("Opened from the catalog: ")
@@ -428,13 +622,13 @@ def cell(row: int, band: int) -> str:
 def test_the_map_counts_every_design_in_the_cell_of_its_factors_and_runs(context, site):
     page = open_map(context, site)
     assert page.locator("#map .sizemap__cell").evaluate_all(CELLS) == [
-        "1 factor, 17 to 24 runs: 1 design. Most estimate the main effects. Press to list it.",
+        "1 factor, 17 to 24 runs: 1 design. It estimates the main effects. Press to list it.",
         (
-            "3 factors, 5 to 8 runs: 2 designs. Most estimate the main effects and the two-factor interactions. "
-            "Press to list them."
+            "3 factors, 5 to 8 runs: 2 designs. At most, they estimate the main effects and the two-factor "
+            "interactions. Press to list them."
         ),
-        "3 factors, 17 to 24 runs: 1 design. Most estimate the full quadratic. Press to list it.",
-        "4 factors, 9 to 12 runs: 1 design. Most estimate the main effects. Press to list it.",
+        "3 factors, 17 to 24 runs: 1 design. It estimates the full quadratic. Press to list it.",
+        "4 factors, 9 to 12 runs: 1 design. It estimates the main effects. Press to list it.",
     ]
     assert page.locator("#map .sizemap__count").all_text_contents() == ["1", "2", "1", "1"]
     assert page.locator("#map [data-unfold]").count() == 13, "a row for 1 to 12 factors, and one for more"
@@ -459,14 +653,14 @@ def test_a_cell_of_the_map_lists_its_designs_and_a_second_press_or_the_reset_lis
     assert page.locator("#map .sizemap__cell").count() == 4, "the other cells are still counted"
     assert page.locator("#map .sizemap__cell.out").count() == 3, "and pale: none of theirs is in the list"
     page.click(cell(3, 1))
-    counted(page, "5 of 5")
+    counted(page, "5 designs")
     assert page.locator("#map .sizemap__cell.out").count() == 0
 
     page.click(cell(4, 2))
     counted(page, "1 of 5")
     assert shown(page) == [OMARS]
     page.click("#map-reset")
-    counted(page, "5 of 5")
+    counted(page, "5 designs")
     assert "runs=" not in page.url, "the address loses the cell"
     assert "k=" not in page.url
 
@@ -482,13 +676,13 @@ def test_a_row_of_the_map_opens_into_its_families_and_a_mark_lists_its_size(cont
     marks = page.locator("#map .sizemap__mark").evaluate_all(CELLS)
     assert marks == [
         (
-            "8 runs, Full factorial: 2 designs of 3 factors. Most estimate the main effects and the two-factor "
-            "interactions. Press to list them."
+            "8 runs, Full factorial: 2 designs of 3 factors. At most, they estimate the main effects and the "
+            "two-factor interactions. Press to list them."
         ),
         "17 runs, Central composite: 1 design of 3 factors. It estimates the full quadratic. Press to list it.",
     ]
     assert page.locator("#map .sizemap__fewest").all_text_contents() == ["4", "10"], "the fewest runs, by the lines"
-    assert page.text_content("#count").startswith("5 of 5"), "opening a row filters nothing"
+    assert page.text_content("#count") == "5 designs, 4 different", "opening a row filters nothing"
 
     page.click("#map .sizemap__mark[data-runs='17']")
     counted(page, "1 of 5")
@@ -498,7 +692,7 @@ def test_a_row_of_the_map_opens_into_its_families_and_a_mark_lists_its_size(cont
     assert page.locator("#map [data-unfold='3']").get_attribute("aria-expanded") == "true", "the row stays open"
     assert page.locator("#map .sizemap__family").count() == 2, "and keeps the lanes of its other families"
     assert page.locator("#map .sizemap__mark.out").count() == 1, "whose marks are pale"
-    # A press beside a mark, in its lane, is one on the nearest: marks of neighbouring sizes are a few pixels apart.
+    # A press beside a mark, in its lane, is one on the nearest: marks of neighboring sizes are a few pixels apart.
     page.locator("#map .sizemap__lane[data-row='3'][data-lane='0']").click(position={"x": 4, "y": 4})
     counted(page, "2 of 5")
     assert "runs=8-8" in page.url
@@ -512,7 +706,7 @@ def test_a_row_of_the_map_opens_into_its_families_and_a_mark_lists_its_size(cont
     assert page.locator("#map .sizemap__mark").count() == 0, "a second press shuts the row"
     page.click("#map [data-unfold='3']")
     page.click("#map-reset")
-    counted(page, "5 of 5")
+    counted(page, "5 designs")
     assert page.locator("#map [aria-expanded=true]").count() == 0, "the reset shuts every row"
 
 
@@ -528,32 +722,213 @@ def test_the_map_says_what_a_press_listed_and_leads_to_the_list_where_a_design_o
     # The list ends the page, so it rises as far as the page can scroll: into the window, clear of its foot.
     head = "document.querySelector('.catalog__listhead').getBoundingClientRect().top"
     page.wait_for_function(f"{head} < 0.6 * innerHeight")
-    first = page.locator("#results .result__title").first
-    assert first.evaluate("(title) => title === document.activeElement"), "the first design listed has the focus"
+    # The two are the same runs, so they are one line: its fold has the focus, and Enter opens it onto both.
+    assert page.locator("#results .result").count() == 1
+    fold = page.locator("#results .result__fold")
+    assert fold.evaluate("(button) => button === document.activeElement"), "the first line listed has the focus"
     assert set(shown(page)) == {PILOT, CUBE}
-    assert page.locator("#results [data-open]").count() == 2, "each with its button that opens it in Factorial"
+    assert page.locator("#results .result__actions [data-open]").count() == 1, "the line's button opens the design"
     page.keyboard.press("Enter")
+    assert fold.get_attribute("aria-expanded") == "true"
+    assert page.locator("#results .result__uses [data-open]:visible").count() == 2, "each entry opens in Factorial too"
+    page.locator(f"#results .result__title[data-id='{PILOT}']").press("Enter")
     page.wait_for_selector("#detail[open]")
     page.keyboard.press("Escape")
     page.click("#map-reset")
-    counted(page, "5 of 5")
+    counted(page, "5 designs")
     assert page.is_hidden("#map-said")
     assert "fam=" not in page.url, "the reset takes the mark's family with its size"
 
 
-def test_the_map_s_cells_are_coloured_by_what_they_estimate_or_by_how_many_they_hold(context, site):
+def test_a_list_of_one_family_has_a_card_that_says_what_the_family_is(context, site):
+    """A reader who meets a family for the first time reads what it is, over its designs."""
+    page = open_catalog(context, site)
+    assert page.is_hidden("#family"), "every family is listed: there is no one family to describe"
+
+    page = open_catalog(context, site, "#fam=full_factorial")
+    card = page.locator("#family")
+    assert card.locator("h2").text_content() == "Full factorial"
+    assert card.locator(".famcard__first").text_content().startswith("First published: Fisher, R. A. (1926), ")
+    assert card.locator("dt").all_text_contents() == ["What it is", "Use it when", "Watch for", "Where next"]
+    assert card.locator("dd").first.text_content().startswith("A design that runs every combination of the levels")
+    assert card.locator("dd").nth(1).locator("li").count() == 3, "when it is used: a line each"
+    assert card.locator(".famcard__more a").get_attribute("href").endswith("map/#full-factorial")
+    assert card.locator("#family-all").count() == 0, "no size is kept: the list is the whole family already"
+    assert page.get_attribute("#family", "aria-labelledby") == "family-name"
+    assert card.locator("h2").get_attribute("id") == "family-name"
+
+    # "Where next" leads to a family this one can be augmented to, whose card takes this one's place.
+    card.locator("dd a", has_text="Central composite").click()
+    counted(page, "1 of 5")
+    page.wait_for_function("document.querySelector('#family h2').textContent === 'Central composite'")
+    assert card.locator("dt").all_text_contents() == ["What it is", "Use it when", "Watch for"], "it leads nowhere on"
+
+    # Two families ticked: no card, as neither is the one the list is of.
+    page.check("#families input[value='full_factorial']")
+    counted(page, "3 of 5")
+    assert page.is_hidden("#family")
+    assert page.locator("#family").text_content() == ""
+
+
+def test_a_family_no_one_work_first_published_has_a_card_in_its_own_words(context, site):
+    """Nine families had no description. One with no first work and no place on the concept map says the rest."""
+    page = open_catalog(context, site, "#fam=comparison")
+    card = page.locator("#family")
+    assert card.locator("h2").text_content() == "Comparison or regression"
+    assert card.locator(".famcard__first").count() == 0
+    assert "null" not in card.text_content(), "a part that is not there is left out, and not written as a word"
+    assert card.locator("dt").all_text_contents() == ["What it is", "Use it when", "Watch for"]
+    assert card.locator("dd").first.text_content().startswith("A study of one factor, or of measured data")
+    assert card.locator(".famcard__more").is_hidden(), "nothing to press under it"
+
+
+def test_every_family_of_designs_has_a_first_work_on_its_card(context, site):
+    """The Latin square, the randomized blocks and the split plot had none: each is in Fisher's book of 1925 (#1479).
+
+    A Box-Behnken design's card led on to a central composite design. It has no run at a corner of the cube,
+    so no added runs make it one, and its card leads nowhere now.
+    """
+    page = open_catalog(context, site)
+    card = page.locator("#family")
+    for family, section in (("latin_square", 49), ("block_design", 48), ("split_plot", 42)):
+        page.evaluate(f"location.hash = 'fam={family}'")
+        page.wait_for_function(f"document.querySelector('#family .famcard__first')?.textContent.includes('{section}')")
+        assert card.locator(".famcard__first").text_content() == (
+            "First published: Fisher, R. A. (1925), Statistical Methods for Research Workers, "
+            f"section {section}, Oliver and Boyd."
+        )
+    page.evaluate("location.hash = 'fam=box_behnken'")
+    page.wait_for_function("document.querySelector('#family h2')?.textContent === 'Box-Behnken'")
+    assert card.locator("dt").all_text_contents() == ["What it is", "Use it when", "Watch for"]
+    assert card.locator("dd").nth(2).locator("li").count() == 4, "its four disadvantages, a line each"
+
+
+def test_a_family_s_name_in_an_open_row_lists_its_designs_of_the_row_under_its_card(context, site):
+    page = open_map(context, site)
+    page.click("#map [data-unfold='3']")
+    name = page.locator("#map .sizemap__family", has_text="Central composite")
+    assert name.get_attribute("role") == "button"
+    assert name.get_attribute("aria-label") == (
+        "Central composite: 1 design of 3 factors. Press to read what it is, and to list it."
+    )
+    name.click()
+    counted(page, "1 of 5")
+    assert shown(page) == [CCD]
+    assert "fam=ccd" in page.url
+    assert "k=3-3" in page.url, "the family's designs of this row"
+    assert "runs=" not in page.url, "of every run size"
+    assert page.text_content("#map-said-text") == "1 listed: Central composite, 3 factors."
+    assert page.text_content("#family h2") == "Central composite"
+
+    # The way down from the table is to the card, which is over the list.
+    page.click("#map-list")
+    page.wait_for_function("document.querySelector('#family').getBoundingClientRect().top < 0.6 * innerHeight")
+    every = page.locator("#family-all")
+    assert every.text_content() == "Show every Central composite design", "the row's size is kept: the way out of it"
+    every.click()
+    page.wait_for_function("!location.hash.includes('k=')")
+    assert "fam=ccd" in page.url
+    assert page.locator("#family-all").count() == 0
+    assert page.text_content("#family h2") == "Central composite"
+
+    # From the keyboard: down from the row's first cell is its first family's name, and Enter presses it.
+    page.click("#map-reset")
+    counted(page, "5 designs")
+    assert page.is_hidden("#family"), "the reset takes the family with it"
+    page.click("#map [data-unfold='3']")
+    page.wait_for_function("document.getAnimations().length === 0")
+    page.focus(cell(3, 1))
+    page.keyboard.press("ArrowDown")
+    focused = "JSON.stringify({ ...document.activeElement.dataset })"
+    assert json.loads(page.evaluate(focused)) == {"row": "3", "family": "full_factorial", "all": "1"}
+    page.keyboard.press("Enter")
+    counted(page, "2 of 5")
+    assert json.loads(page.evaluate(focused)) == {"row": "3", "family": "full_factorial", "all": "1"}, (
+        "the name keeps the focus when the table is redrawn"
+    )
+    assert page.text_content("#family h2") == "Full factorial"
+    page.keyboard.press("Enter")
+    counted(page, "5 designs")
+    assert page.is_hidden("#family"), "a second press on the name shows every design again"
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
+def test_on_a_phone_a_family_s_card_keeps_inside_the_screen(context, site):
+    page = open_catalog(context, site, "#fam=full_factorial")
+    page.wait_for_selector("#family h2")
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), "nothing to scroll sideways"
+    # Its labels are over their text, which has the card's width.
+    tops = page.eval_on_selector_all(
+        "#family :is(dt, dd)", "(parts) => parts.map((p) => p.getBoundingClientRect().top)"
+    )
+    assert tops == sorted(tops)
+    assert len(set(tops)) == len(tops), "one under another"
+
+
+def test_the_table_s_cells_are_coloured_by_the_most_a_design_of_that_size_estimates(context, site):
+    """One coloring, in three steps a reader can tell apart, with a key of a few words a label.
+
+    The cells were four shades of one blue, by what most designs of a cell estimate or by how many it holds: both
+    follow the sources the catalog happens to hold. The most that one of them estimates says what the size can do.
+    """
     page = open_map(context, site)
     fills = "(cells) => cells.map((cell) => [...cell.classList].find((name) => name.startsWith('fill-')))"
-    assert page.get_attribute("[data-shade=model]", "aria-pressed") == "true", "what they estimate, at first"
     assert page.locator("#map .sizemap__cell").evaluate_all(fills) == ["fill-2", "fill-3", "fill-4", "fill-2"]
-    assert page.locator(".sizemap__key [data-key=model]:visible").count() == 5
-    assert page.is_hidden(".sizemap__key [data-key=count]")
-    page.click("[data-shade=count]")
-    assert page.get_attribute("[data-shade=count]", "aria-pressed") == "true"
-    assert page.locator("#map .sizemap__cell").evaluate_all(fills) == ["fill-1"] * 4, "one to four designs each"
-    assert page.is_visible(".sizemap__key [data-key=count]")
-    assert page.locator(".sizemap__key [data-key=model]:visible").count() == 0
-    assert page.locator(".sizemap__key li:visible").count() == 3, "the two lines' key is there for both"
+    assert page.locator("[data-shade]").count() == 0, "no second coloring to choose"
+    key = [" ".join(words.split()) for words in page.locator(".sizemap__key li").all_text_contents()]
+    assert key == ["main effects", "+ interactions", "+ quadratic", "none stated", "fewest needed"]
+    assert all(len(label.split()) <= 5 for label in key), "a few words a label"
+    tops = page.locator(".sizemap__key li").evaluate_all(
+        "(items) => items.map((item) => item.getBoundingClientRect().top)"
+    )
+    assert len(set(tops)) == 1, "the key is one line at a laptop's width"
+    fill = "(marks) => marks.map((mark) => getComputedStyle(mark).fill)"
+    colours = page.locator(".sizemap__key rect").evaluate_all(fill)
+    assert colours[:3] == ["rgb(34, 96, 97)", "rgb(164, 138, 51)", "rgb(253, 180, 182)"], "three steps of batlow"
+    cells = page.locator("#map .sizemap__cell rect").evaluate_all(fill)
+    assert cells == [colours[0], colours[1], colours[2], colours[0]], "a cell has its key's color"
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 656, "height": 1000}}])
+def test_on_a_tablet_the_table_s_key_is_one_line(context, site):
+    """The key took three lines of a tablet's screen over the table, with seven long labels."""
+    page = open_map(context, site)
+    # In a wide font, as a device without the page's own may show it: the key was one line in a narrow font only.
+    tops = page.locator(".sizemap__key").evaluate(
+        """(key) => { key.style.fontFamily = '"DejaVu Sans", Verdana, sans-serif';
+             return [...key.querySelectorAll('li')].map((item) => Math.round(item.getBoundingClientRect().top)); }"""
+    )
+    assert len(tops) == 5
+    assert len(set(tops)) == 1, "one line"
+    room = page.locator(".sizemap__key").evaluate(
+        """(key) => { const last = key.lastElementChild.getBoundingClientRect();
+             return key.getBoundingClientRect().right - last.right; }"""
+    )
+    assert room > 24, f"with room to spare for a wider font still: {room} px"
+
+
+def test_the_table_names_its_two_sides_and_a_row_s_number_looks_like_the_button_it_is(context, site):
+    """The numbers down the side were plain circles: nothing said they open, or what the two sides count."""
+    page = open_map(context, site)
+    assert page.text_content("#map-title") == "Start with your number of factors"
+    sides = [" ".join(words.split()) for words in page.locator(".sizemap__axis").all_text_contents()]
+    assert sides == ["Factors: press a number to open its design families", "Number of experiments (scales with cost)"]
+    row = page.locator("#map [data-unfold='3']")
+    assert row.locator(".sizemap__arrow").count() == 1, "an arrow says the number opens"
+    ring = row.locator("rect").evaluate("(mark) => getComputedStyle(mark).stroke")
+    accent = page.evaluate("getComputedStyle(document.querySelector('.catalog__views a')).color")
+    assert ring == accent, "ringed in the color of a link"
+    shut = row.locator(".sizemap__arrow").get_attribute("d")
+    row.click()
+    row = page.locator("#map [data-unfold='3']")
+    assert row.get_attribute("aria-expanded") == "true"
+    assert row.locator(".sizemap__arrow").get_attribute("d") != shut, "the arrow turns down on an open row"
+    how = page.locator(".sizemap__how")
+    assert how.get_attribute("open") is None, "how to read the table is shut until asked for"
+    how.locator("summary").click()
+    said = " ".join(how.text_content().split())
+    assert "The number in a cell is how many designs it holds" in said
+    assert "the main effects, which are each factor's own effect" in said, "the key's words, at length"
 
 
 def test_the_map_is_used_from_the_keyboard(context, site):
@@ -587,8 +962,8 @@ def test_a_design_of_more_factors_than_the_map_has_rows_is_in_its_last_row(many_
     page = open_map(many_context, site)
     labels = page.locator("#map .sizemap__cell[data-row='13']").evaluate_all(CELLS)
     assert labels == [
-        "13 factors or more, 25 to 32 runs: 1 design. Most estimate the main effects. Press to list it.",
-        "13 factors or more, 65 to 128 runs: 1 design. Most estimate the main effects. Press to list it.",
+        "13 factors or more, 25 to 32 runs: 1 design. It estimates the main effects. Press to list it.",
+        "13 factors or more, 65 to 128 runs: 1 design. It estimates the main effects. Press to list it.",
     ]
     page.click(cell(13, 5))
     counted(page, "1 of 7")
@@ -678,7 +1053,7 @@ def test_a_design_s_projections_say_what_any_two_or_three_factors_estimate(conte
         "A label such as 3\u00d7 counts the runs at a point; a point with no label holds one run."
     )
     assert page.locator(".projection__point").count() == 15
-    assert page.locator(".projection__count").all_text_contents() == ["3\u00d7"], "the centre's runs, as a count"
+    assert page.locator(".projection__count").all_text_contents() == ["3\u00d7"], "the center's runs, as a count"
     page.click(".explorer__picks [data-column='2']")
     assert text.text_content().startswith(
         "In A and B, the runs sit at 9 distinct settings and estimate the full quadratic"
@@ -772,7 +1147,7 @@ def test_a_limit_keeps_the_designs_whose_every_run_meets_it(context, site):
     assert "lim=A+%2B+B+%3C%3D+1" in page.url
     page.fill("#limit", "A + B")
     assert page.text_content("#limit-error").startswith("The limit cannot be read: write <= for at most")
-    counted(page, "5 of 5")
+    counted(page, "5 designs")
 
 
 def test_a_design_s_runs_outside_the_limit_are_marked_and_it_opens_with_the_limit(context, site):
@@ -820,7 +1195,7 @@ def test_a_link_that_names_a_design_in_its_query_opens_it(context, site):
 def test_a_design_s_family_opens_on_the_concept_map(context, site):
     """The link under a design's type opens the map on that term, with its definition and the book's line."""
     page = open_catalog(context, site)
-    page.click(f".result__title[data-id='{PILOT}']")
+    press_title(page, PILOT)
     page.wait_for_selector("#detail[open]")
     page.click("#detail-body .detail__map a")
     page.wait_for_url("**/map/#full-factorial")

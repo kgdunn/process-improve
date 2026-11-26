@@ -15,9 +15,9 @@ import pandas as pd
 import pytest
 
 from process_improve.visualization.colors import (
-    COLOUR_MAPS,
-    DEFAULT_COLOUR_MAP,
-    DIVERGING_COLOUR_MAPS,
+    COLOR_MAPS,
+    DEFAULT_COLOR_MAP,
+    DIVERGING_COLOR_MAPS,
     SURFACE_COLORSCALE,
     colorscale,
     diverging_colorscale,
@@ -239,7 +239,7 @@ def test_the_transforms_to_analyse_with_are_bootstrap_s_after_as_measured(bootst
 
 @pytest.mark.parametrize("categorical", [(), ("S",)], ids=["numeric factors", "a categorical factor"])
 def test_the_terms_to_tick_are_the_terms_bootstrap_fits(bootstrap, node, categorical):
-    """Each term the page lists is one bootstrap reads, labelled as its fit labels it; a named model's are its own."""
+    """Each term the page lists is one bootstrap reads, labeled as its fit labels it; a named model's are its own."""
     factors = [
         {"name": n, **({"low": "A", "high": "B"} if n in categorical else {"low": -1, "high": 1})}
         for n in ["T", "P", "S", "pH"]
@@ -332,7 +332,7 @@ def test_the_most_factors_a_study_has_is_bootstrap_s(bootstrap, node):
 
 
 def test_past_the_factors_whose_interactions_the_page_models_both_sides_keep_to_main_effects(bootstrap, node):
-    """The page and bootstrap.py agree on how many factors' interactions are modelled, and on the highest resolution."""
+    """The page and bootstrap.py agree on how many factors' interactions are modeled, and on the highest resolution."""
     held = javascript(node, source("logic.js"), [("MAX_INTERACTION_FACTORS", []), ("INTERACTION_MODELS", [])])
     assert held == [bootstrap.MAX_INTERACTION_FACTORS, list(bootstrap.INTERACTION_MODELS)]
     counts = [3, 4, 5, 12, 13, 24]
@@ -400,10 +400,15 @@ def test_a_design_s_runs_open_where_bootstrap_makes_them(api, bootstrap, node):
     assert javascript(node, source("python.js"), [("SPACE_FILLING", [])]) == [list(bootstrap.SPACE_FILLING)]
     counted = [d for d, info in bootstrap.DESIGNS.items() if "budget" in info["options"]]
     assert set(bootstrap.SPACE_FILLING) < set(counted)
+    material = [{"name": "RM", "type": "categorical", "levels": ["A", "B"], "units": ""}, *FACTORS[:2]]
     for design_type in counted:
-        made = api.ok("api_make_design", {"design_type": design_type, "factors": FACTORS, "model_type": "interactions"})
-        opened = javascript(node, source("logic.js"), [("defaultBudget", [design_type, len(FACTORS), "interactions"])])
-        assert opened == [made["spec"]["options"]["budget"]], design_type
+        # An optimal design takes a categorical factor, which has no square (#1468).
+        optimal = "model_type" in bootstrap.DESIGNS[design_type]["options"]
+        for factors in (FACTORS, material) if optimal else (FACTORS,):
+            spec = {"design_type": design_type, "factors": factors, "model_type": "quadratic"}
+            made = api.ok("api_make_design", spec)
+            opened = javascript(node, source("logic.js"), [("defaultBudget", [design_type, factors, "quadratic"])])
+            assert opened == [made["spec"]["options"]["budget"]], (design_type, factors[0]["name"])
 
 
 def test_a_report_names_the_seed_bootstrap_puts_the_runs_in_order_with(bootstrap, api):
@@ -472,6 +477,20 @@ def test_the_page_counts_a_model_s_coefficients_as_bootstrap_does(bootstrap, nod
     cases = [(k, model) for k in range(2, 13) for model in bootstrap.MODELS]
     counted = javascript(node, source("logic.js"), [("nTerms", [k, model]) for k, model in cases])
     assert counted == [bootstrap._n_terms(k, model) for k, model in cases]
+
+
+def test_the_page_counts_a_model_over_categorical_factors_as_bootstrap_does(bootstrap, node):
+    """A categorical factor has no square, and one of several levels is a column per level but one (#1468)."""
+    numeric = [{"name": n, "low": 0, "high": 1, "units": ""} for n in ("T", "P")]
+    studies = [
+        [{"name": "RM", "type": "categorical", "levels": ["A", "B"], "units": ""}, *numeric],
+        [{"name": "Catalyst", "type": "categorical", "levels": ["A", "B", "C"], "units": ""}, *numeric],
+        [{"name": "Lot", "type": "categorical", "levels": list("1234"), "units": ""}, numeric[0]],
+        [{"name": "S", "low": "old", "high": "new", "units": ""}, *numeric],  # two labels are categorical too
+    ]
+    cases = [(factors, model) for factors in studies for model in bootstrap.MODELS]
+    counted = javascript(node, source("logic.js"), [("nCoefficients", [f, model]) for f, model in cases])
+    assert counted == [bootstrap._n_coefficients(model, {"factors": f}) for f, model in cases]
 
 
 def test_the_page_expects_a_search_to_take_as_long_as_bootstrap_does(bootstrap, node):
@@ -822,16 +841,16 @@ def test_the_page_s_ramp_for_a_surface_is_the_library_s(node):
 
 
 def test_the_page_s_colour_maps_are_the_library_s(node):
-    """A study's colour map is drawn by the page and by the Python it shows: both hold the same maps."""
+    """A study's color map is drawn by the page and by the Python it shows: both hold the same maps."""
     calls = [
         ("COLOUR_MAPS", []),
         ("DEFAULT_COLOUR_MAP", []),
-        *[("rampOf", [name, dark]) for name in COLOUR_MAPS for dark in (False, True)],
+        *[("rampOf", [name, dark]) for name in COLOR_MAPS for dark in (False, True)],
     ]
     maps, default, *ramps = javascript(node, source("charts.js"), calls)
-    assert (maps, default) == (COLOUR_MAPS, DEFAULT_COLOUR_MAP)
-    assert ramps == [colorscale(name, dark_page=dark) for name in COLOUR_MAPS for dark in (False, True)]
+    assert (maps, default) == (COLOR_MAPS, DEFAULT_COLOR_MAP)
+    assert ramps == [colorscale(name, dark_page=dark) for name in COLOR_MAPS for dark in (False, True)]
     diverging = [("DIVERGING_COLOUR_MAPS", []), ("divergingRamp", [False]), ("divergingRamp", [True])]
     maps, light, dark = javascript(node, source("charts.js"), diverging)
-    assert maps == DIVERGING_COLOUR_MAPS
+    assert maps == DIVERGING_COLOR_MAPS
     assert (light, dark) == (diverging_colorscale(), diverging_colorscale(dark_page=True))

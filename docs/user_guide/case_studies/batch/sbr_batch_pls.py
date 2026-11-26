@@ -68,7 +68,7 @@ LABELS = {"show_labels": True}
 
 # -- section: load --
 def load_data(url: str | None = None) -> tuple[dict, pd.DataFrame]:
-    """Download the batches and keep the six trajectories the original study modelled.
+    """Download the batches and keep the six trajectories the original study modeled.
 
     The two feed flows are constant in the simulation and the feed
     temperature barely moves, so they carry no batch-to-batch information.

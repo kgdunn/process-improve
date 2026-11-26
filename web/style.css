@@ -1,5 +1,5 @@
-/* The palette is the package's: the README banner's navy runs and red centre runs, on a neutral ground.
-   Every text colour meets WCAG AA (4.5:1) on both the page and a panel, in both themes. */
+/* The palette is the package's: the README banner's navy runs and red center runs, on a neutral ground.
+   Every text color meets WCAG AA (4.5:1) on both the page and a panel, in both themes. */
 /* The typeface of the headings and of the answer: Outfit, a variable font served from the app's own files
    (vendor/outfit), so they look the same on every device and with no network. Until it has loaded, and where it
    cannot, the device's own font stands in. Everything else is in the device's own font: body text, tables and
@@ -34,8 +34,8 @@
   --mark-run: #2c5f7c;
   --mark-centre: #a93226;
   --mark-edge: #a6a49e;
-  /* The four stages of a study, each a colour: Design, Run, Learn and what comes next. They are hues the page has
-     already (the accent, the two marks of state and the mark's centre run), so a theme that sets those sets these.
+  /* The four stages of a study, each a color: Design, Run, Learn and what comes next. They are hues the page has
+     already (the accent, the two marks of state and the mark's center run), so a theme that sets those sets these.
      The welcome teaches them, the bar's numbers wear them, and the mark is drawn in them. */
   --stage-plan: var(--accent);
   --stage-run: var(--warn);
@@ -49,7 +49,7 @@
   --band-iii: #f5d0cc;
   --band-iii-away: #fbebe9;
   /* The states of the reproduction page and of a book's page: a printed number matches, differs for a known reason,
-     or differs for one not known yet. Checked as a set for colour-blind readers on the panel, in both themes. They
+     or differs for one not known yet. Checked as a set for color-blind readers on the panel, in both themes. They
      are no grade of a source, so none is green. */
   --state-match: #1f6fb2;
   --state-known: #b87700;
@@ -67,8 +67,8 @@
   --map-guide: #b45f0b;
   --map-context: #8e4482;
   --map-bubble: #efece4;
-  /* The other textbooks read against the map: a second and a third, each with its own colour for what it also states.
-     While they are shown the kinds give up their colours, so these two only have to stand apart from each other, from
+  /* The other textbooks read against the map: a second and a third, each with its own color for what it also states.
+     While they are shown the kinds give up their colors, so these two only have to stand apart from each other, from
      this book's own neutral (--muted), from what all the books state (--fg) and from the accent. */
   --map-book2: #b668c8;
   --map-book3: #d46423;
@@ -172,11 +172,11 @@ h1 {
   letter-spacing: -0.01em;
 }
 /* The mark and the name at the start of the bar, as the package's social card sets its own name: a bold serif. They
-   are a link home that keeps the bar's colours. */
+   are a link home that keeps the bar's colors. */
 .brand__home { flex: none; display: flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; border-radius: var(--corner); }
 .brand__home:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
 .studybar h1 { font-size: 1.3rem; }
-/* Feedback, before the colour-mode switch. Its slot takes the width its row has left over, and that width picks the
+/* Feedback, before the color-mode switch. Its slot takes the width its row has left over, and that width picks the
    button's words: the longest of the three that fit, and the icon alone when none does. */
 .feedback-slot {
   flex: 1 1 0; min-width: 38px; align-self: flex-start; display: flex; justify-content: flex-end;
@@ -207,7 +207,7 @@ span.feedback-button__short { display: block; position: absolute; width: 1px; he
   span.feedback-button__medium { display: none; }
   span.feedback-button__long { display: block; }
 }
-/* The colour-mode switch, an icon at the row's end as the book has it: the mode now, and a press for the next. */
+/* The color-mode switch, an icon at the row's end as the book has it: the mode now, and a press for the next. */
 .mode-switch {
   align-self: flex-start; flex: none; padding: 8px; border: none; background: none;
   color: var(--muted); line-height: 0; border-bottom: 2px solid transparent; border-radius: var(--corner) var(--corner) 0 0;
@@ -220,7 +220,7 @@ span.feedback-button__short { display: block; position: absolute; width: 1px; he
 .mark { flex: none; width: 30px; height: 30px; }
 .mark__edges { fill: none; stroke: var(--mark-edge); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 .mark__runs circle, .mark__centre { stroke: var(--bg); stroke-width: 1.6; }
-/* The corners in the first three stages' colours, opposite corners alike, and the centre run in the fourth: as
+/* The corners in the first three stages' colors, opposite corners alike, and the center run in the fourth: as
    tools/branding/app_mark.py draws the browser's icon. */
 .mark__runs circle:nth-child(3n + 1) { fill: var(--stage-plan); }
 .mark__runs circle:nth-child(3n + 2) { fill: var(--stage-run); }
@@ -231,7 +231,7 @@ span.feedback-button__short { display: block; position: absolute; width: 1px; he
   margin: 0 6px 0 0; color: var(--muted); font-style: italic; white-space: nowrap;
   font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "DejaVu Serif", serif;
 }
-/* "prove" in Improve: upright in the italic line, bold, in the red of the mark's centre run. */
+/* "prove" in Improve: upright in the italic line, bold, in the red of the mark's center run. */
 .tagline b { color: var(--mark-centre); font-style: normal; font-weight: 700; }
 h2 { display: flex; align-items: center; gap: 10px; font-size: 1.3rem; margin: 0 0 12px; }
 h3 { font-size: 1.05rem; margin: 20px 0 8px; }
@@ -313,7 +313,7 @@ section {
 .equation { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; overflow-wrap: anywhere; }
 .row { display: flex; flex-wrap: wrap; gap: 16px; margin: 12px 0; }
 .row > label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; min-width: 0; max-width: 100%; }
-/* Practising: the process and its noise side by side. A browser draws a list shorter than a box to type in, so
+/* Practicing: the process and its noise side by side. A browser draws a list shorter than a box to type in, so
    the two are given one height, and sit on one line with their labels on one line above them. */
 #panel-simulate .row { align-items: flex-end; }
 #panel-simulate .row select, #panel-simulate .row input { height: 2.4rem; }
@@ -395,7 +395,7 @@ input, select {
   border: 1px solid var(--line); border-radius: var(--corner); padding: 6px 8px; max-width: 100%;
 }
 /* A slider is drawn by the page, the same in every browser and in both themes: a thin line for its range and a round
-   handle in the accent colour, with the panel's edge round it. The browser's own slider took the box, the edge and
+   handle in the accent color, with the panel's edge round it. The browser's own slider took the box, the edge and
    the padding every input has, and on a dark page some browsers drew it as two thick pale bars with no handle to be
    seen. The input keeps its height, so the handle is as easy to catch with a finger. The concept map's slider adds
    a fill up to its handle (map.js). */
@@ -434,6 +434,13 @@ button, .button {
 .primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
 button:disabled { opacity: 0.5; cursor: progress; }
 .link { border: none; background: none; color: var(--accent); padding: 4px; }
+/* A stage named in a sentence (app.js stageLink, and the page's own sentences): the stage's dot, in its color, and its
+   name, underlined as a link is. It has no padding, so the comma or the word after it follows as in any text. */
+.stage-link { padding: 0; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
+.stage-link::before {
+  content: ""; display: inline-block; width: 0.62em; height: 0.62em; margin-right: 0.3em; border-radius: 50%;
+  background: var(--stage);
+}
 .factors { border-collapse: collapse; margin-bottom: 4px; }
 .factors th { text-align: left; font-weight: 600; font-size: 0.85rem; color: var(--muted); padding: 0 6px 4px 0; }
 .factors td { padding: 2px 6px 2px 0; }
@@ -538,7 +545,7 @@ table.data th:first-child, table.data td:first-child { text-align: left; }
 table.data th { padding: 0; }
 /* A column's look: the ends of an interval step back, and the estimate between them stands out. */
 /* A run marked on the charts is marked in its row too (app.js markRows): a row a run can be pressed to mark it. The
-   colour is mixed with the panel's, and so is opaque: a first cell that stays put as the table scrolls covers the
+   color is mixed with the panel's, and so is opaque: a first cell that stays put as the table scrolls covers the
    cells that pass under it. */
 table.data tr[data-run] > td { cursor: pointer; }
 table.data tr.run-marked > td, #analysis .scroll > table.data tr.run-marked > td:first-child {
@@ -572,7 +579,7 @@ th[aria-sort="descending"] button.sort::after { content: " ▼"; color: var(--ac
 .drop.over { border-color: var(--accent); color: var(--fg); }
 .drop input { display: block; margin: 0 auto 8px; }
 /* A file box's own button is the browser's, which keeps a light face on a dark page with the page's light text on
-   it: it takes the page's colours, in both themes. */
+   it: it takes the page's colors, in both themes. */
 input[type="file"] { color: var(--fg); }
 input[type="file"]::file-selector-button {
   margin-right: 10px; padding: 6px 12px; border: 1px solid var(--line); border-radius: var(--corner);
@@ -590,11 +597,20 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 .foot__lead strong { color: var(--fg); }
 .foot__groups, .foot__nav { display: flex; flex-wrap: wrap; gap: 18px 32px; }
 .foot__nav { flex: 3 1 420px; }
-.foot__nav > div { flex: 1 1 150px; }
+/* A group is as wide as its longest link, and shares what room is left: no link's name takes a second line. */
+.foot__nav > div { flex: 1 1 auto; }
 .foot__device { flex: 1 1 240px; }
 .foot__head { margin: 0 0 6px; color: var(--fg); font-weight: 600; }
 .foot ul { margin: 0; padding: 0; list-style: none; }
 .foot li { margin: 4px 0; }
+/* How many people used Factorial each day (usage.js): a line of the last 90 days, a red dot on today, and its count. */
+.foot__usage { margin-top: 8px; }
+.usage { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; }
+.usage svg { flex: none; overflow: visible; }
+.usage polyline { fill: none; stroke: var(--muted); stroke-width: 1.4; stroke-linejoin: round; stroke-linecap: round; }
+.usage circle { fill: var(--error); }
+.usage span { font-size: 0.85rem; line-height: 1.2; color: var(--muted); }
+.usage:hover span, .usage:focus-visible span { color: var(--fg); text-decoration: underline; }
 .foot__device p { margin: 0 0 6px; }
 .foot__actions { display: flex; flex-wrap: wrap; gap: 6px 8px; }
 .foot__actions button { padding: 4px 10px; font-size: inherit; }
@@ -606,7 +622,7 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 /* A banner while the worked example is the copy computed when the page was built, and the welcome of a first visit. */
 .banner p { margin: 4px 0; }
 /* The welcome of a first visit: a greeting, three ways in, and the round trip of a study as four steps in the
-   stages' colours. It is no card: it is the page's own first screen, with the blank question under it. */
+   stages' colors. It is no card: it is the page's own first screen, with the blank question under it. */
 .welcome {
   display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 28px 56px; align-items: center;
   max-width: 1120px; margin: 0 auto; padding: clamp(22px, 5vw, 56px) 4px clamp(20px, 4vw, 44px);
@@ -654,7 +670,7 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 #demo-banner:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 16px; }
 #demo-banner .actions { margin: 0; }
 
-/* The bar: the mark and the name, the study's stages, a new study, feedback and the colour mode, kept in
+/* The bar: the mark and the name, the study's stages, a new study, feedback and the color mode, kept in
    reach while the page scrolls, with the status line under them. It opens the page, so it takes back the room main
    leaves above. The bar and its rule span the window; a border image drawn outside the box does not widen the page. */
 .studybar {
@@ -715,8 +731,8 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 /* The line the points sit on, drawn up to each stage after the first. */
 .phases [role="tab"] + [role="tab"]::before { content: ""; flex: none; width: 18px; height: 2px; margin-right: 4px; background: var(--line); }
 .phases [role="tab"]:hover { color: var(--fg); }
-/* Each stage has its colour (--stage-*): its point wears it whether the stage is on show or not. The stage on show
-   has the larger point and its name in bold, so colour is never the one sign of it. */
+/* Each stage has its color (--stage-*): its point wears it whether the stage is on show or not. The stage on show
+   has the larger point and its name in bold, so color is never the one sign of it. */
 #go-plan { --stage: var(--stage-plan); }
 #go-run { --stage: var(--stage-run); }
 #go-learn { --stage: var(--stage-learn); }
@@ -777,9 +793,9 @@ section { scroll-margin-top: 120px; }
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner); padding: 16px; margin: 0 0 16px;
 }
 .card h2, .pane h2 { margin-bottom: 4px; }
-/* The stage on show gives its colour to the points chosen in it, to the tab chosen inside it and to the button a
+/* The stage on show gives its color to the points chosen in it, to the tab chosen inside it and to the button a
    reader presses there, so every screen says which stage it is. A button that leads to the next stage wears that
-   stage's colour. */
+   stage's color. */
 .workspace[data-phase="plan"] { --stage: var(--stage-plan); }
 .workspace[data-phase="run"] { --stage: var(--stage-run); }
 .workspace[data-phase="learn"] { --stage: var(--stage-learn); }
@@ -818,7 +834,7 @@ section { scroll-margin-top: 120px; }
 .learn-check { margin: 0; font-size: 0.95rem; }
 .learn-check > summary { display: flex; align-items: baseline; gap: 10px; cursor: pointer; font-weight: 600; color: var(--fg); list-style: none; }
 .learn-check > summary::-webkit-details-marker { display: none; }
-/* The point says what the check found by its shape, so its colour is not the only sign. */
+/* The point says what the check found by its shape, so its color is not the only sign. */
 .learn-check > summary::before { content: ""; flex: none; width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; }
 .learn-check[data-state="ok"] > summary::before { background: var(--ok); }
 .learn-check[data-state="look"] > summary::before { background: var(--warn); border-radius: 1px; transform: rotate(45deg); }
@@ -830,7 +846,7 @@ section { scroll-margin-top: 120px; }
 .learn-check .link { padding: 2px 0; }
 
 /* The ladder: designs as points on one line, each a step that adds runs to the one before. The step the form stands
-   on is filled in the stage's colour, as a choice is. */
+   on is filled in the stage's color, as a choice is. */
 .ladder { margin: 0 0 14px; }
 .ladder .hint { margin: 0 0 8px; }
 .ladder__steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 0; }
@@ -888,7 +904,7 @@ section { scroll-margin-top: 120px; }
 .goal { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 4px 0 8px; padding: 0; border: none; }
 .goal legend { padding: 0; margin-bottom: 4px; font-size: 0.9rem; }
 .goal label, .aim { display: inline-flex; align-items: center; gap: 6px; font-size: 0.95rem; cursor: pointer; }
-/* A choice is a point: a ring until it is chosen, then filled in the stage's colour, as a run is on a design. */
+/* A choice is a point: a ring until it is chosen, then filled in the stage's color, as a run is on a design. */
 input[type="radio"], .terms input[type="checkbox"] {
   appearance: none; flex: none; width: 18px; height: 18px; margin: 0; padding: 0; border: 2px solid var(--muted);
   border-radius: 50%; background: var(--panel); cursor: pointer;
@@ -914,7 +930,7 @@ label.inline { display: flex; flex-direction: column; gap: 4px; font-size: 0.9re
 .curve-explain svg { display: block; width: 100%; height: auto; max-height: 6.8em; }
 .curve-explain .axes { fill: none; stroke: var(--line); }
 .curve-explain text { font-size: 9px; fill: var(--muted); }
-/* Okabe and Ito's colourblind-safe colours, one per run; lighter on the dark theme. */
+/* Okabe and Ito's colorblind-safe colors, one per run; lighter on the dark theme. */
 .curve-explain { --run1: #0072b2; --run2: #d55e00; --run3: #009e73; }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .curve-explain { --run1: #56b4e9; --run2: #e69f00; --run3: #3cc79a; }
@@ -958,7 +974,7 @@ label.inline { display: flex; flex-direction: column; gap: 4px; font-size: 0.9re
 #limits-summary .error { display: block; }
 
 /* The corners of the ranges, to mark those that cannot be run: a corner a limit rules out already is ticked and
-   greyed, one marked is tinted, and each proposal is a card like a limit's, its text in the limits' type. */
+   grayed, one marked is tinted, and each proposal is a card like a limit's, its text in the limits' type. */
 .corners h3 { font-size: 0.98rem; margin: 18px 0 4px; }
 .corner-filters { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 8px 0; font-size: 0.9rem; }
 .corner-filters label { display: inline-flex; align-items: center; gap: 6px; }
@@ -1073,8 +1089,8 @@ table.pick td.stands { text-align: left; color: var(--muted); min-width: 11em; }
 .design-card { margin: 18px 0 0; padding: 14px 0 0; border-top: 1px solid var(--line); }
 .design-card h3 { margin-top: 0; }
 
-/* The trade-off of a fraction: runs down, factors across, each cell coloured by its resolution's band. The column
-   of the brief's factors is in full colour and takes a pick; the others are muted. The pressed cell is the form's. */
+/* The trade-off of a fraction: runs down, factors across, each cell colored by its resolution's band. The column
+   of the brief's factors is in full color and takes a pick; the others are muted. The pressed cell is the form's. */
 .trade-off { margin: 0 0 8px; }
 .trade-off .hint { margin: 4px 0; }
 .trade-off .scroll { margin: 6px 0; }
@@ -1134,6 +1150,7 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, 0.45); }
 .figure__tools .views button { padding: 4px 7px; }
 .figure__saves { display: inline-flex; gap: 6px; white-space: nowrap; }
 .figure__saves .link { padding: 4px 3px; font-size: 0.85rem; }
+.figure__dark { display: inline-flex; align-items: center; gap: 4px; font-size: 0.85rem; color: var(--muted); }
 /* The figure before, where this one is among those beside it, the figure after: at the right of the head, by Close. */
 .figure__steps { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; white-space: nowrap; }
 .figure__steps .link { font-size: 1.5rem; line-height: 1; padding: 0 8px; }
@@ -1224,6 +1241,8 @@ table.runs input.setting { width: 5.5em; }
 .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin: 16px 0 0; }
 .chart { margin: 0; min-width: 0; border: 1px solid var(--line); border-radius: var(--corner); padding: 10px 12px 12px; }
 .chart.wide { grid-column: 1 / -1; }
+/* A figure in three dimensions on a row of its own: its scene as tall as the card, with its color bar beside it. */
+.chart[data-chart="surface_3d"] .plot, .chart[data-chart="cube"] .plot { max-width: 680px; margin-inline: auto; }
 .chart h3 { margin: 0 0 6px; font-size: 0.98rem; }
 /* A card's title, with the views it can show at the right: the coefficients' estimates, or the book's Pareto plot. */
 .chart__head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 6px; }
@@ -1270,7 +1289,7 @@ table.compare .unfit.first { border-left: 1px dashed var(--line); }
 /* The rows of switches and of "Use this design" sit close under the designs' names. */
 table.compare tr.shows th, table.compare tr.uses th { padding-top: 2px; padding-bottom: 2px; vertical-align: middle; }
 table.compare tr.uses .link { white-space: nowrap; }
-/* A design the reader hides: after a thick line, in light grey and unshaded. Its switch stays as it is. */
+/* A design the reader hides: after a thick line, in light gray and unshaded. Its switch stays as it is. */
 table.compare .set-aside { color: color-mix(in srgb, var(--muted) 55%, transparent); }
 table.compare .set-aside .link { color: inherit; }
 table.compare .parted { border-left: 4px solid var(--muted); }
@@ -1501,7 +1520,7 @@ details.fold[open] > summary { border-bottom: 1px solid var(--line); border-radi
 details.fold > :not(summary) { margin-left: 14px; margin-right: 14px; }
 details.fold > ul { padding-left: 20px; }
 details.fold > :last-child { margin-bottom: 12px; }
-/* What Factorial does (features.html): the same column, for a list that folds. Its headline points are cards, a
+/* The user guide (features.html): the same column, for a list that folds. Its headline points are cards, a
    step of a study is a small heading, and each part under it is a fold that says, while closed, what it holds.
    How Factorial works opens on cards too. */
 .feat-tools { display: grid; gap: 8px; margin: 16px 0 4px; }
@@ -1533,7 +1552,7 @@ details.fold > :last-child { margin-bottom: 12px; }
 .feat-body h4 { margin: 16px 0 4px; font-size: 1rem; }
 .feat-body ul { padding-left: 20px; }
 .feat-body [hidden], .feat-cards [hidden] { display: none; }
-/* The charts, each a card with its picture above its words. A picture is drawn in the light colours on no ground
+/* The charts, each a card with its picture above its words. A picture is drawn in the light colors on no ground
    of its own, so it takes the page's; in the dark it is turned over, which is how the app draws the same chart. */
 .feat-body ul.feat-pictures { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 10px;
   margin: 8px 0; padding: 0; list-style: none; font-size: 0.9rem; line-height: 1.4; }
@@ -1597,6 +1616,10 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
 .segmented button { border: none; border-radius: 0; padding: 7px 14px; background: var(--bg); }
 .segmented button + button { border-left: 1px solid var(--line); }
 .segmented [aria-checked="true"] { background: var(--accent); color: var(--accent-fg); }
+/* In the filters the choices are one under the other: the panel is too narrow for them side by side. */
+.facets .segmented { display: flex; flex-direction: column; margin: 4px 0; }
+.facets .segmented button { padding: 6px 10px; font-size: 0.9rem; text-align: left; }
+.facets .segmented button + button { border-left: none; border-top: 1px solid var(--line); }
 .catalog__body { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 20px; align-items: start; }
 @media (max-width: 900px) { .catalog__body { grid-template-columns: minmax(0, 1fr); } }
 .facets { background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner); padding: 10px 14px; }
@@ -1621,7 +1644,7 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
 .level-limit select, .level-limit input { min-width: 0; max-width: 11em; }
 .level-limit input { width: 6.5em; }
 .limits-levels { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 8px 0 4px; }
-/* A study's settings: each colour map is a choice with its colours beside its name. */
+/* A study's settings: each color map is a choice with its colors beside its name. */
 .settings__group { border: 0; padding: 0; margin: 12px 0; min-width: 0; }
 .settings__group legend { padding: 0; font-weight: 600; margin-bottom: 6px; }
 .settings__maps { display: grid; gap: 6px; }
@@ -1654,15 +1677,21 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
 .catalog__map {
   margin: 0 0 12px; padding: 8px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner);
 }
-.catalog__map figcaption { margin: 4px 4px 0; }
+/* Under the table, how to read it: shut until a reader asks. */
+.sizemap__how { margin: 6px 4px 0; }
+.sizemap__how summary { cursor: pointer; color: var(--accent); font-size: 0.9rem; }
+.sizemap__how p { margin: 6px 0 0; }
+/* The names of the table's two sides: the factors down it, the number of experiments across it. */
+.sizemap__axis { margin: 0; font-size: 0.9rem; color: var(--muted); }
+.sizemap__axis b { color: var(--fg); }
+.sizemap__axis--runs { margin: 4px 0 0 58px; }
 /* The map of the designs by their factors and runs (drawSizeMap, catalog-views.js), with its key above it. */
 .sizemap__tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin: 0 0 6px; }
 .sizemap__tools .link { font-size: 0.85rem; }
-.sizemap__key { display: flex; flex-wrap: wrap; gap: 3px 14px; margin: 0 0 8px; padding: 0; list-style: none; font-size: 0.8rem; color: var(--muted); }
+.sizemap__key { display: flex; flex-wrap: wrap; gap: 3px 10px; margin: 0 0 8px; padding: 0; list-style: none; font-size: 0.8rem; color: var(--muted); }
 .sizemap__key li { display: flex; align-items: center; gap: 5px; }
 .sizemap__key svg { flex: none; width: 12px; height: 12px; }
-.sizemap__key .sizemap__ramp { width: 48px; }
-.sizemap__key .sizemap__stroke { width: 26px; height: 8px; }
+.sizemap__key .sizemap__stroke { width: 36px; height: 8px; }
 /* What a press on the map kept in the list, with the way down to it: the list is a screen or more below. */
 .sizemap__said { margin: 6px 4px 0; font-size: 0.9rem; }
 .sizemap svg { display: block; width: 100%; height: auto; overflow: visible; touch-action: pan-y; user-select: none; }
@@ -1671,53 +1700,111 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
 .sizemap [role="button"]:focus { outline: none; }
 /* A fill says what the designs of a cell or a mark estimate, or how many they are: the accent, stronger for more.
    Each step has the ink that reads on it in both themes; the step for "none" is hollow, so no hue stands for it. */
+/* What a design estimates at most, in three steps of batlow (charts.js), the color map of the app's charts: far
+   apart in hue and in lightness, so they tell apart on a light page, on a dark one, and without color. */
 .catalog__map .fill-0 { --cell: var(--panel); --ink: var(--fg); fill: var(--panel); stroke: var(--muted); stroke-width: 1; }
-.catalog__map .fill-1 { --cell: color-mix(in srgb, var(--accent) 22%, var(--panel)); --ink: var(--fg); }
-.catalog__map .fill-2 { --cell: color-mix(in srgb, var(--accent) 45%, var(--panel)); --ink: var(--fg); }
-.catalog__map .fill-3 { --cell: color-mix(in srgb, var(--accent) 72%, var(--panel)); --ink: #1d1d1f; }
-.catalog__map .fill-4 { --cell: var(--accent); --ink: var(--accent-fg); }
+.catalog { --step-1: #226061; --step-2: #a48a33; --step-3: #fdb4b6; }
+.catalog__map .fill-2 { --cell: var(--step-1); --ink: #ffffff; }
+.catalog__map .fill-3 { --cell: var(--step-2); --ink: #111111; }
+.catalog__map .fill-4 { --cell: var(--step-3); --ink: #111111; }
 .catalog__map rect[class^="fill-"], .sizemap__cell rect, .sizemap__mark { fill: var(--cell); }
 .sizemap .out { opacity: 0.3; }
 .sizemap__cell:focus-visible rect, .sizemap__mark:focus-visible { stroke: var(--fg); stroke-width: 2.5; }
-/* A count is drawn over the lines, ringed in its cell's own colour, so a line never hides a number. */
+/* A count is drawn over the lines, ringed in its cell's own color, so a line never hides a number. */
 .sizemap text.sizemap__count { fill: var(--ink); stroke: var(--cell); stroke-width: 4px; stroke-linejoin: round; paint-order: stroke; pointer-events: none; }
 /* A pale cell's count is in the page's quiet ink, with no ring: the ring would be darker than the cell. */
 .sizemap text.sizemap__count.out { fill: var(--muted); stroke: none; opacity: 1; }
-.sizemap__row rect { fill: var(--bg); stroke: var(--line); }
-.sizemap .sizemap__row text { font-size: 12px; fill: var(--fg); }
+/* A row's number is a button, and looks like one: ringed in the accent, with an arrow that says it opens. */
+.sizemap__row { cursor: pointer; }
+.sizemap__row rect { fill: var(--panel); stroke: var(--accent); stroke-width: 1.5; }
+.sizemap .sizemap__row text { font-size: 13px; font-weight: 600; fill: var(--fg); }
+.sizemap__arrow { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .sizemap__row[aria-expanded="true"] rect { fill: var(--accent); stroke: var(--accent); }
 .sizemap .sizemap__row[aria-expanded="true"] text { fill: var(--accent-fg); }
+.sizemap__row[aria-expanded="true"] .sizemap__arrow { stroke: var(--accent-fg); }
 .sizemap__row:focus-visible rect { stroke: var(--fg); stroke-width: 2.5; }
-/* The two lines of the fewest runs, in the red of the banner's centre runs: over the cells, under their counts. */
-.sizemap__line { fill: none; stroke: var(--mark-centre); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; pointer-events: none; }
-.sizemap__line--under { stroke: var(--panel); stroke-width: 6; }
+/* The two lines of the fewest runs, in the page's ink on a ring of its ground, so that they read on each of the
+   cells' colors: over the cells, under their counts. */
+.sizemap__line { fill: none; stroke: var(--fg); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; pointer-events: none; }
+.sizemap__line--under { stroke: var(--panel); stroke-width: 5.5; }
 .sizemap__line--main { stroke-dasharray: 1 6; }
 .sizemap text.sizemap__name, .sizemap text.sizemap__family { fill: var(--fg); stroke: var(--panel); stroke-linejoin: round; paint-order: stroke; }
 .sizemap text.sizemap__name { stroke-width: 4px; }
-.sizemap text.sizemap__family { font-size: 12px; stroke-width: 6px; }
+.sizemap text.sizemap__family { font-size: 12px; stroke-width: 6px; fill: var(--accent); cursor: pointer; }
+.sizemap text.sizemap__family:hover { text-decoration: underline; }
+.sizemap text.sizemap__family:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 .sizemap text.sizemap__fewest { stroke: var(--panel); stroke-width: 4px; stroke-linejoin: round; paint-order: stroke; }
 /* A row opened into its families: a lane for each, a mark for each run size, ringed so that marks read on marks. */
 .sizemap__rule { stroke: var(--line); stroke-width: 1; }
 .sizemap__lane { fill: transparent; cursor: pointer; }
 .sizemap__mark { stroke: var(--panel); stroke-width: 2; }
 .sizemap__mark.fill-0 { stroke: var(--muted); stroke-width: 1.5; }
-.catalog__listhead { display: flex; justify-content: flex-end; margin: 0 0 6px; font-size: 0.9rem; }
+/* A family's card, over the list: what a design of the family is, in a few labelled lines. */
+.famcard { margin: 14px 0; padding: 12px 16px; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: var(--corner); }
+.famcard h2 { margin: 0; font-size: 1.15rem; }
+.famcard__first { margin: 2px 0 0; color: var(--muted); font-size: 0.85rem; }
+.famcard dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; margin: 8px 0 0; }
+.famcard dt { color: var(--muted); font-size: 0.9rem; padding-top: 1px; }
+.famcard dd { margin: 0; }
+.famcard ul { margin: 0; padding: 0; list-style: none; }
+.famcard__more { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 8px 0 0; font-size: 0.92rem; }
+.famcard__more .link { padding: 0; }
+.famcard__more:empty { display: none; }
+@media (max-width: 520px) { .famcard dl { grid-template-columns: 1fr; gap: 0; } .famcard dt { margin-top: 6px; } }
+/* Over the list: what a design's picture is, and the order of the list. */
+.catalog__listhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 16px; margin: 0 0 6px; font-size: 0.9rem; }
 .catalog__listhead select { margin-left: 6px; }
-.results { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.results__key { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; margin: 0; color: var(--muted); font-size: 0.85rem; }
+.results__key span { display: inline-flex; align-items: center; gap: 4px; }
+.results__key i { width: 10px; height: 10px; border-radius: 2px; border: 1px solid var(--line); }
+/* The list: a line a design, in two rows of text beside its picture, with what opens it at the line's end. A card
+   a design, with its picture across it and a wide button, held three or four designs to a screen. */
+.results { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
 .result {
-  display: grid; grid-template-columns: 132px minmax(0, 1fr) auto; gap: 14px; align-items: center;
-  padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner);
+  display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; column-gap: 12px; align-items: center;
+  padding: 7px 2px; border-bottom: 1px solid var(--line);
 }
-@media (max-width: 640px) {
-  .result { grid-template-columns: 96px minmax(0, 1fr); gap: 10px; }
-  .result__actions { grid-column: 1 / -1; }
+.result .glyph { justify-self: center; }
+/* A line's text holds its column: what is too long is cut, and never runs under the buttons. */
+.result__body { min-width: 0; overflow: hidden; container-type: inline-size; }
+/* The first row: the design's family and size. A long name runs on to a second line: its runs are at its end,
+   and are not to be cut. The second row starts with the mark of what the design estimates. */
+.result__name { margin: 0; font-size: 0.98rem; font-weight: 600; }
+.result__step, .result__also { font-size: 0.85rem; font-weight: 400; color: var(--muted); white-space: nowrap; }
+.result__step { flex: none; display: inline-flex; align-items: center; gap: 5px; }
+/* The families a design's runs also are: on the first row where it has the room, and always under the fold. */
+.result__also { display: none; margin-left: 12px; }
+@container (min-width: 700px) { .result__also { display: inline; } }
+/* What a design estimates, in the color of its cell in the table. */
+.result__step i { width: 10px; height: 10px; border-radius: 2px; border: 1px solid var(--muted); }
+.result__step[data-step="1"] i { background: var(--step-1); border-color: var(--step-1); }
+.result__step[data-step="2"] i { background: var(--step-2); border-color: var(--step-2); }
+.result__step[data-step="3"] i { background: var(--step-3); border-color: var(--step-3); }
+/* The second row, and each entry under a fold: one line, its title cut first, then its notes. */
+.result__said, .result__uses li { display: flex; align-items: baseline; gap: 0 10px; min-width: 0; margin: 2px 0 0; font-size: 0.88rem; white-space: nowrap; }
+.result__title { flex: 0 1 auto; min-width: 4em; padding: 0; text-align: left; font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; }
+.result__source { flex: none; color: var(--muted); }
+.result__fold { flex: none; padding: 0; font-size: 0.88rem; }
+.result__fold::after { content: " \25B8"; }
+.result__fold[aria-expanded="true"]::after { content: " \25BE"; }
+.result__notes { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* In a line a note is quiet text, not a ringed mark: a line may carry five. */
+.result .badge { display: inline; margin-right: 10px; padding: 0; border: none; background: none; font-size: 0.85rem; font-weight: 400; color: var(--muted); white-space: nowrap; }
+.result .badge--data, .result .badge--checked { color: var(--ok); }
+.result .badge--warn { color: var(--warn); }
+.result__uses { list-style: none; margin: 4px 0 2px; padding: 0 0 0 10px; border-left: 2px solid var(--line); }
+.result__uses .link { flex: none; padding: 0; font-size: 0.88rem; }
+.result__uses .result__title { flex: 0 1 auto; }
+.result__uses .result__same { color: var(--muted); white-space: normal; }
+/* On a phone an entry's title has a line to itself, and the notes are left to the design's details, but for a limit
+   its runs break. */
+@media (max-width: 520px) {
+  .result__said, .result__uses li { flex-wrap: wrap; }
+  .result__title, .result__uses .result__title { flex: 1 1 100%; }
+  .result__notes:not(:has(.badge--warn)) { display: none; }
 }
-.result h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; font-size: 1rem; }
-.result__title { padding: 0; text-align: left; font-size: 1rem; font-weight: 600; }
-.result__facts, .result__source { margin: 2px 0 0; font-size: 0.88rem; }
-.result__source { color: var(--muted); overflow-wrap: anywhere; }
-.glyph { display: block; max-width: 100%; border-radius: 3px; }
-.glyph--none { width: 132px; height: 18px; border: 1px dashed var(--line); }
+.glyph { display: block; max-width: 100%; border-radius: 2px; }
+.glyph--none { width: 20px; height: 20px; border: 1px dashed var(--line); }
 .badge--data { border-color: var(--ok); color: var(--ok); }
 .badge--topic { max-width: 100%; font-weight: 500; white-space: normal; }
 #more { display: block; margin: 12px auto 0; }
@@ -1736,7 +1823,14 @@ dialog.detail { width: min(980px, 100vw - 32px); }
 .detail__cite { overflow-wrap: anywhere; }
 .detail .detail__actions { flex-direction: column; align-items: stretch; margin: 0; gap: 6px; }
 .detail__family { margin: 0 0 8px; }
-@media (max-width: 720px) { .detail__head { grid-template-columns: minmax(0, 1fr); } }
+/* "Checked", under the three cells: a tick, what the design's kind was compared with in two lists side by side, and
+   the way to the page on validation. A card's badge says the same in a line, in the tick's color. */
+.detail__checked { margin: 0 0 10px; }
+.detail__checked h3::before { content: "\2713\00a0"; color: var(--ok); }
+.detail__against { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 8px 0 0; }
+.detail__against h4 { margin: 0 0 2px; color: var(--muted); font-size: 0.85rem; font-weight: 600; }
+.badge--checked { border-color: var(--ok); color: var(--ok); }
+@media (max-width: 720px) { .detail__head, .detail__against { grid-template-columns: minmax(0, 1fr); } }
 /* A design's runs: one table, its header kept in view as it scrolls, each coded setting tinted by its value. */
 .detail .scroll:has(> table.runs-table) { max-height: 420px; overflow: auto; }
 table.runs-table thead th { position: sticky; top: 0; background: var(--panel); }
@@ -1762,7 +1856,8 @@ table.factors-table td:nth-child(2) { white-space: nowrap; }
 .detail__twins .link { padding: 0; text-align: left; }
 
 /* The catalog's views: the timeline, the comparison tray and table, a design's projections, the errata. */
-.catalog__views { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: -6px 0 12px; font-size: 0.92rem; }
+/* At the foot: the other ways in, by book and by field, and what a reader can send. */
+.catalog__views { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 28px 0 0; padding-top: 12px; border-top: 1px solid var(--line); font-size: 0.92rem; }
 .catalog__views .link { padding: 0; text-align: left; }
 /* The years as a strip in the filter panel, above the two boxes it fills. */
 .timeline { display: block; width: 100%; height: 28px; touch-action: pan-y; user-select: none; }
@@ -1775,8 +1870,11 @@ table.factors-table td:nth-child(2) { white-space: nowrap; }
 .timeline__brush { fill: var(--accent); opacity: 0.18; pointer-events: none; }
 .timeline__ends { display: flex; justify-content: space-between; margin: 2px 0 6px; font-size: 0.75rem; color: var(--muted);
   font-variant-numeric: tabular-nums; }
-.facets__year { color: var(--muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
-.result__actions { display: flex; flex-direction: column; gap: 6px; }
+.result__actions { display: flex; gap: 6px; align-items: center; }
+.result__actions .button { padding: 4px 12px; font-size: 0.9rem; }
+@media (max-width: 520px) {
+  .result__actions { flex-direction: column; align-items: stretch; }
+}
 .compare-toggle[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
 .tray {
   position: fixed; z-index: 20; left: 50%; bottom: 12px; transform: translateX(-50%); width: min(820px, 100vw - 32px);
@@ -1825,11 +1923,11 @@ tr.row--outside td { background: color-mix(in srgb, var(--warn) 16%, transparent
 }
 
 /* Reproduced from the books (catalog/reproduced/index.html): how many printed numbers the library gives as its
-   sources print them. A state's colour always comes with its name, and text keeps the ink colours. */
+   sources print them. A state's color always comes with its name, and text keeps the ink colors. */
 main.reproduced { max-width: 1080px; }
 main.reproduced h1 { margin: 8px 0; font-size: 2rem; }
 .reproduced__status.error { color: var(--error); }
-/* The states a printed number is in: a square in the state's colour, hatched for the options of a quiz that are
+/* The states a printed number is in: a square in the state's color, hatched for the options of a quiz that are
    wrong on purpose and empty for the numbers not in Factorial yet, which are apart from the rest. */
 [data-state="match"] { --state: var(--state-match); }
 [data-state="known"] { --state: var(--state-known); }
@@ -1976,7 +2074,7 @@ main.reproduced .shelf { margin: 32px 0 0; padding: 0; background: none; border:
 .reproduced__filters select { max-width: 16em; }
 .reproduced__try { margin: 0 0 4px; }
 .reproduced__try .link { padding: 2px 4px; }
-/* A state's list of cases has no coloured edge: the state's mark stands before its name. */
+/* A state's list of cases has no colored edge: the state's mark stands before its name. */
 .statelist { margin: 10px 0; border: 1px solid var(--line); border-radius: var(--corner); background: var(--bg); }
 .statelist > summary {
   display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 10px 12px; color: var(--fg);
@@ -2135,35 +2233,22 @@ main.field-page section { background: none; border: 0; border-radius: 0; padding
   color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner);
 }
 .trust-numbers[open] > summary { margin-bottom: 8px; }
-}
 
-/* The top of the catalog (catalog/index.html): the reader's field, the doors to the books and to the reproduction
-   page, and the goals that write a search. */
-.catalog__field { display: flex; flex-direction: column; gap: 6px; max-width: 560px; margin: 16px 0 0; }
-.catalog__field label { font-weight: 700; font-size: 1.1rem; }
-.catalog__field-row { display: flex; gap: 8px; }
-.catalog__field-row select { flex: 1; min-width: 0; min-height: 44px; }
-.catalog__field-row .button { min-height: 44px; }
-.catalog__doors { display: grid; gap: 8px; max-width: 820px; margin: 16px 0 0; }
-.door {
-  display: flex; flex-direction: column; gap: 2px; min-height: 44px; padding: 14px 16px; text-decoration: none;
-  color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner);
-}
-.door:hover { border-color: var(--accent); }
-.door__title { font-weight: 700; font-size: 1.1rem; color: var(--accent); }
-.door__note { color: var(--muted); font-size: 0.92rem; }
-.catalog__or { margin: 28px 0 8px; font-size: 1.2rem; }
-.catalog__goals { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
-.catalog__goals .hint { width: 100%; margin: 0; }
+/* The top of the catalog (catalog/index.html): under the search, the searches to try, on the line of the word
+   that offers them. A press writes one in the box. They are small, as the table under them is what the page is for;
+   under a finger each is still 44 px tall. */
+.catalog__goals { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 2px 0 14px; }
+.catalog__goals .hint { margin: 0 2px 0 0; }
 .goal {
-  display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border-radius: var(--corner); font: inherit;
-  font-size: 0.95rem; line-height: 1.2; cursor: pointer; color: var(--fg); background: var(--panel);
+  display: inline-flex; align-items: center; min-height: 32px; padding: 0 10px; border-radius: var(--corner); font: inherit;
+  font-size: 0.9rem; line-height: 1.2; cursor: pointer; color: var(--fg); background: var(--panel);
   border: 1px solid var(--line);
 }
 .goal:hover { border-color: var(--accent); }
-@media (min-width: 700px) {
-  .catalog__doors { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
+@media (pointer: coarse) { .goal { min-height: 44px; } }
+/* Over the table: what to do with it, in a heading and a sentence. */
+.catalog__step { margin: 0 0 2px; font-size: 1.25rem; }
+.catalog__howto { margin: 0 0 10px; color: var(--muted); }
 
 /* The concept map (map/index.html, map.js): the ideas of designed experiments, and how the book links them.
    Every class is prefixed map- : the app already styles .card, .chip and .results its own way. */
@@ -2173,6 +2258,24 @@ main.map > * { width: 100%; max-width: 980px; justify-self: center; box-sizing: 
 main.map > .map-box, main.map > .map-bar { max-width: 1600px; }
 main.map h1 { margin: 8px 0 0; font-size: 2rem; }
 main.map .lede { margin: 0; }
+/* Over the map, three ways to learn (map/index.html): the book's chapter, the course, and the course's videos. A
+   card's name is its link, stretched over the whole card, so a press anywhere on the card follows it. */
+.learn { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.learn li {
+  position: relative; padding: 12px 14px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--corner);
+}
+.learn li:hover, .learn li:focus-within { border-color: var(--accent); }
+.learn a { font-weight: 600; text-underline-offset: 3px; }
+.learn a::after { content: ""; position: absolute; inset: 0; }
+.learn span { display: block; margin-top: 3px; color: var(--muted); font-size: 0.92rem; line-height: 1.35; }
+/* The book's DOI is to read and to copy: it lies over the card's link, and one press selects the whole of it. */
+.learn .learn__doi { position: relative; z-index: 1; width: fit-content; cursor: text; -webkit-user-select: all; user-select: all; }
+main.map h2.learn__map { margin: 10px 0 0; }
+@media (max-width: 700px) {
+  .learn { grid-template-columns: 1fr; gap: 6px; }
+  .learn li { padding: 8px 12px; }
+}
 .map-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 /* Above the map, three rows: the search with the switches and the level beside it, the kinds of term on one line, and
    the other textbooks on one line. Zoom and fit stay below the map. */
@@ -2263,7 +2366,7 @@ main.map .lede { margin: 0; }
   .map-legend svg { width: 24px; height: 24px; }
 }
 /* Comparing books, on one line: a switch, then the key to the rings, which is a ring and each book's name beside its
-   colour, in the order the sectors go round. Where the line is too short for both, the key goes under the switch. */
+   color, in the order the sectors go round. Where the line is too short for both, the key goes under the switch. */
 .map-books { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; font-size: 0.9rem; margin-top: -6px; }
 .map-books[hidden] { display: none; }
 .map-bookkey { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; min-height: 36px; }
@@ -2283,8 +2386,7 @@ main.map .lede { margin: 0; }
   .map-bookkey svg { width: 20px; height: 20px; }
 }
 .map-backed { font-size: 0.85rem; color: var(--muted); }
-}
-/* An idea's card has no coloured edge: a point in its family's colour stands before its name, as a run does. */
+/* An idea's card has no colored edge: a point in its family's color stands before its name, as a run does. */
 .map-card { margin: 0; display: grid; gap: 6px; min-width: 0; }
 .map-card h2 { margin: 0; font-size: 1.35rem; }
 .map-card h2::before {
@@ -2442,7 +2544,68 @@ dialog.import { width: min(860px, 100vw - 32px); }
 .bench .actions { margin: 10px 0 0; }
 .bench .actions button { min-height: 44px; }
 table.runs input[data-response]:disabled { background: none; border-style: dashed; }
-/* The top line every page beside the app shares (site.js): the way back, and the colour-mode switch at its end. */
+/* Validation (validation.html): what Factorial is checked against, in one screen. The books and the other software
+   sit side by side and stack on a phone; a count is set in the serif of a headline; the differences found are a
+   panel of three lines; and the grid of design types marks each package with a point. */
+main.validation { max-width: 1040px; }
+.validation__eyebrow, .validation__count, .validation__found strong {
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "DejaVu Serif", serif;
+}
+.validation__eyebrow { margin: 32px 0 0; color: var(--muted); font-style: italic; font-size: 1.05rem; }
+.validation h1 { max-width: 16em; font-size: clamp(2.1rem, 5vw, 3.25rem); line-height: 1.08; text-wrap: balance; }
+.validation .lede { max-width: 38em; font-size: 1.15rem; }
+.validation__pair { display: flex; flex-wrap: wrap; gap: 32px 64px; margin: 40px 0; }
+.validation__pair > div { flex: 1 1 340px; min-width: 0; }
+.validation__pair p { margin: 0 0 10px; }
+.validation h2.feat-step { margin-top: 0; color: var(--muted); }
+p.validation__count { font-size: 1.85rem; line-height: 1.2; }
+.validation__list { margin: 14px 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.validation__list > * { display: flex; gap: 20px; margin: 0; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.validation__list > li { display: block; }
+.validation__list dt { flex: 0 0 64px; color: var(--muted); }
+.validation__list dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+/* A link on a line of its own is a target a finger can press. */
+.validation__pair p > a:only-child, .validation__more > a:not(.button) { display: inline-block; padding: 10px 0; }
+main.validation section { margin: 0 0 40px; padding: 28px 32px; }
+.validation section > h2 { display: block; margin: 0 0 12px; font-size: 1.6rem; line-height: 1.2; letter-spacing: -0.01em;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "DejaVu Serif", serif; }
+.validation__found ul { margin: 0; padding: 0; list-style: none; }
+.validation__found li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 24px; margin: 0; padding: 14px 0;
+  border-top: 1px solid var(--line); }
+.validation__found li:last-child { padding-bottom: 0; }
+.validation__found strong { flex: 0 0 96px; font-size: 1.85rem; font-weight: 400; line-height: 1.1; color: var(--accent); }
+.validation__found span { flex: 1 1 320px; }
+/* A package's mark: a point for the same design, a ring where it differs, so the two are told apart without color. */
+.validation__mark { display: inline-block; flex: none; box-sizing: border-box; width: 11px; height: 11px; margin-right: 7px;
+  border-radius: 50%; border: 2px solid var(--state); }
+.validation__mark[data-state="match"] { background: var(--state); }
+.validation__grid .states { margin: 12px 0 16px; }
+.validation__grid .states .validation__mark { margin-right: 0; }
+.validation__grid table { width: 100%; border-collapse: collapse; }
+.validation__grid th, .validation__grid td { padding: 12px 16px 12px 0; text-align: left; vertical-align: top;
+  border-bottom: 1px solid var(--line); }
+.validation__grid thead th { padding-top: 0; color: var(--muted); font-size: 0.85rem; font-weight: 600; }
+.validation__grid tbody th { font-weight: 600; }
+.validation__grid td:nth-child(2), .validation__grid td[colspan] { color: var(--muted); }
+.validation__grid td ul { margin: 0; padding: 0; list-style: none; }
+.validation__grid td li { margin: 0 0 2px; white-space: nowrap; }
+.validation__grid table + .hint { margin-top: 16px; }
+.validation__grid .hint { margin: 6px 0 0; }
+.validation__more { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; margin: 0; }
+.validation__more .button { padding: 12px 22px; }
+/* On a phone each design type is a block of its own: its name, then what it was checked against, each under its
+   column's name, so no row is wider than the screen. */
+@media (max-width: 640px) {
+  main.validation section { padding: 20px 16px; }
+  .validation__grid thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .validation__grid tr, .validation__grid tbody th, .validation__grid td { display: block; padding-right: 0; }
+  .validation__grid tr { padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .validation__grid tbody th, .validation__grid td { padding: 2px 0; border: 0; }
+  .validation__grid td[data-head]::before { content: attr(data-head) ": "; color: var(--muted); font-size: 0.85rem; }
+  .validation__grid td li { display: inline-block; margin-right: 12px; white-space: normal; }
+  .validation__grid td ul { display: inline; }
+}
+/* The top line every page beside the app shares (site.js): the way back, and the color-mode switch at its end. */
 .site-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 /* A page's own closing words, over the footer every page shares. */
 .page-note { margin-top: 28px; color: var(--muted); font-size: 0.92rem; }

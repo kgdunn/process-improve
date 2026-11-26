@@ -6,7 +6,7 @@ number come from the published Wold, Esbensen & Geladi (1987) PCA paper and
 can be re-derived from it. The remainder were captured from an earlier
 implementation of these methods; the software that produced them is no longer
 available, so they cannot be re-derived and are kept purely as regression
-pins: they lock in behaviour that was correct when recorded, and a change to
+pins: they lock in behavior that was correct when recorded, and a change to
 any of them needs justifying on the mathematics, not by appeal to a source.
 
 The strategy is:
@@ -432,7 +432,7 @@ class TestMBPCAAgainstOracle:
         with pytest.raises(ValueError, match="1-based index"):
             model.score_contributions(x_blocks, component=3)
 
-        # A block given as a bare ndarray is labelled from the fitted columns.
+        # A block given as a bare ndarray is labeled from the fitted columns.
         as_arrays = {name: block.to_numpy() for name, block in x_blocks.items()}
         from_arrays = model.score_contributions(as_arrays, component=1)
         from_frames = model.score_contributions(x_blocks, component=1)
@@ -506,7 +506,7 @@ class TestMBPCAMissingData:
     Verifies that the masked NIPALS path:
 
     1. Produces results equivalent to the dense path on complete data
-       (regression test: existing behaviour is preserved).
+       (regression test: existing behavior is preserved).
     2. Auto-dispatches to NIPALS when any block contains NaN.
     3. Refuses to fit on degenerate inputs (column or row entirely NaN).
     4. Recovers the complete-data scores and loadings within tolerance
@@ -584,7 +584,7 @@ class TestMBPCAMissingData:
     def test_unknown_algorithm_raises(self, two_block) -> None:
         from process_improve.multivariate.methods import MBPCA
 
-        with pytest.raises(ValueError, match="not recognised"):
+        with pytest.raises(ValueError, match="not recognized"):
             MBPCA(n_components=2, algorithm="bogus").fit(two_block)
 
     def test_column_all_nan_is_named_and_left_out(self, two_block) -> None:
@@ -695,7 +695,7 @@ EPSQRT = float(np.sqrt(np.finfo(float).eps))
 
 
 def _autoscaling(frame: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
-    """Return each column's centre and scale: its mean and sd (ddof=1), or its value and 1 when it is constant."""
+    """Return each column's center and scale: its mean and sd (ddof=1), or its value and 1 when it is constant."""
     values = frame.to_numpy(dtype=float)
     constant = np.nanmax(values, axis=0) == np.nanmin(values, axis=0)
     centre = np.where(constant, np.nanmax(values, axis=0), np.nanmean(values, axis=0))
@@ -806,7 +806,7 @@ def _project_by_hand(fitted: dict, blocks: dict[str, pd.DataFrame]) -> dict:
 
 
 def _gappy_three_blocks() -> dict[str, pd.DataFrame]:
-    """Three blocks of six labelled rows, one missing cell in every column but one, which seeds the fit.
+    """Three blocks of six labeled rows, one missing cell in every column but one, which seeds the fit.
 
     Autoscaled over its observed cells, a column holds ``n - 1`` in sums of squares, so the one
     complete column, the second of block ``y``, holds 5 and every other column 4. Block ``z``
@@ -830,7 +830,7 @@ def _gappy_three_blocks() -> dict[str, pd.DataFrame]:
 
 
 def _new_rows(blocks: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
-    """Three complete new rows, labelled n0 to n2, for each block of ``blocks``."""
+    """Three complete new rows, labeled n0 to n2, for each block of ``blocks``."""
     rng = np.random.default_rng(1)
     index = ["n0", "n1", "n2"]
     return {
@@ -1328,7 +1328,7 @@ def test_a_model_whose_fit_failed_is_not_fitted(use: Callable[[MBPCA, dict], obj
     """A fit refused after the block names were recorded leaves a model every method reports as unfitted."""
     blocks = _gappy_three_blocks()
     model = MBPCA(n_components=2, algorithm="bogus")
-    with pytest.raises(ValueError, match="is not recognised"):
+    with pytest.raises(ValueError, match="is not recognized"):
         model.fit(blocks)
     assert model.block_names_ == ["x", "y", "z"]
     with pytest.raises(NotFittedError):
@@ -1536,7 +1536,7 @@ class TestMBPLSMissingData:
     Verifies that the masked NIPALS path on MBPLS:
 
     1. Produces results equivalent to the dense path on complete data
-       (regression test: existing behaviour is preserved).
+       (regression test: existing behavior is preserved).
     2. Auto-dispatches to NIPALS when any X-block or Y contains NaN.
     3. Refuses to fit on degenerate inputs in either X-blocks or Y
        (column or row entirely NaN).
@@ -1653,7 +1653,7 @@ class TestMBPLSMissingData:
         from process_improve.multivariate.methods import MBPLS
 
         x, y = two_block
-        with pytest.raises(ValueError, match="not recognised"):
+        with pytest.raises(ValueError, match="not recognized"):
             MBPLS(n_components=2, algorithm="bogus").fit(x, y)
 
     def test_x_column_all_nan_is_named_and_left_out(self, two_block) -> None:
@@ -2093,7 +2093,7 @@ class TestMBPLSOnLDPE:
         scores = model.super_scores_[1].values
         assert total == pytest.approx(scores[:10].mean() - scores[10:20].mean(), abs=1e-9)
 
-        # Against the model centre instead of another period.
+        # Against the model center instead of another period.
         centred = model.group_contributions(x_blocks, group=early)
         assert sum(float(s.sum()) for s in centred.values()) == pytest.approx(scores[:10].mean(), abs=1e-9)
 
@@ -2628,7 +2628,7 @@ class TestMBPLSWrittenOut:
 
         Every masked regression of a square array must be told whether it runs over the
         columns or the rows: the block weights and scores of block ``p``, the super weight over
-        the three block scores, Y's loading and score, and the deflating loadings. Three centred
+        the three block scores, Y's loading and score, and the deflating loadings. Three centered
         rows hold two directions, so two components fit Y exactly, and a third is refused, as
         PLS refuses it (#1128).
         """
@@ -2828,7 +2828,7 @@ def test_mbpls_refuses_what_its_masked_path_cannot_fit_in_full() -> None:
         MBPLS(n_components=1, algorithm="dense").fit(blocks, y)
     with pytest.raises(
         ValueError,
-        match=r"^Algorithm 'Bogus' is not recognised\. Must be one of \['auto', 'dense', 'nipals'\]\.$",
+        match=r"^Algorithm 'Bogus' is not recognized\. Must be one of \['auto', 'dense', 'nipals'\]\.$",
     ):
         MBPLS(n_components=1, algorithm="Bogus").fit(blocks, y)
 
@@ -3245,7 +3245,7 @@ def test_an_mbpls_whose_fit_failed_is_not_fitted(use: Callable[[MBPLS, dict, pd.
     """A fit refused after the block names were recorded leaves a model every method reports as unfitted."""
     blocks, y = _gappy_mbpls_data()
     model = MBPLS(n_components=2, algorithm="bogus")
-    with pytest.raises(ValueError, match="is not recognised"):
+    with pytest.raises(ValueError, match="is not recognized"):
         model.fit(blocks, y)
     assert model.block_names_ == ["x", "y", "z"]
     with pytest.raises(NotFittedError):

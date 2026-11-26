@@ -120,7 +120,9 @@ Combining with other options
 * ``fixed_runs`` keeps runs already performed (continuous factors in coded units,
   categorical as labels) and fills the rest of the budget around them. A fixed run
   outside the region is kept and a warning is logged.
-* ``hard_to_change`` (split-plot) is not available together with constraints; it is
+* ``hard_to_change`` (split-plot) keeps to the constraints too, on the grid of levels
+  inside them, and keeps ``fixed_runs`` as the design's first runs: a whole plot that
+  holds one keeps its hard-to-change settings. With a candidate set or blocks it is
   ignored and recorded as ``metadata["hard_to_change_ignored"]``.
 * Other design types do not enforce constraints. They log a warning and set
   ``metadata["constraints_enforced"] = False``. A constraint that names a categorical
@@ -206,7 +208,7 @@ used.
    print(region.broken_limits([[-0.9, -1.0, 0.0]]))  # [['vanillin = 0 or vanillin >= 5']]
 
 A classical design takes its levels from the factor's range alone. One that would set
-the factor between 0 and its minimum, in a run or in its centre points, is refused,
+the factor between 0 and its minimum, in a run or in its center points, is refused,
 with the factor's name; ``fixed_runs`` are kept as given.
 
 Such a region is made of pieces, one for each set of the ingredients in use, and the
@@ -548,15 +550,15 @@ to evaluate a design held as a plain DataFrame.
 Choosing the criterion: D, I or A
 ---------------------------------
 
-The exchange maximises one number, and the three criteria ask different questions:
+The exchange maximizes one number, and the three criteria ask different questions:
 
-* **D-optimal** (``design_type="d_optimal"``) maximises ``det(X'X)``: the model
+* **D-optimal** (``design_type="d_optimal"``) maximizes ``det(X'X)``: the model
   coefficients are estimated jointly as precisely as possible.
-* **I-optimal** (``"i_optimal"``) minimises the average prediction variance over the
+* **I-optimal** (``"i_optimal"``) minimizes the average prediction variance over the
   region, which ``evaluate_design`` reports as ``average_prediction_variance``. It suits a study whose purpose is
-  prediction or optimisation.
-* **A-optimal** (``"a_optimal"``) minimises the summed variance of the coefficients.
-* **E-optimal** (``"e_optimal"``) maximises the smallest eigenvalue of ``X'X``, so no
+  prediction or optimization.
+* **A-optimal** (``"a_optimal"``) minimizes the summed variance of the coefficients.
+* **E-optimal** (``"e_optimal"``) maximizes the smallest eigenvalue of ``X'X``, so no
   combination of the coefficients is left poorly estimated.
 
 On the heat-budget example, with ten runs for a quadratic model, each design is best on
@@ -603,7 +605,8 @@ at the boundary.
 These designs come from the built-in exchange, which is the default for every optimal
 design, so the same call gives the same design whether or not the optional pyoptex
 package is installed. A split-plot design (``hard_to_change``) comes from the built-in
-coordinate exchange; pyoptex is used only when asked for with ``backend="pyoptex"``.
+coordinate exchange. pyoptex is used only when asked for with ``backend="pyoptex"``,
+which is deprecated since 2.7.0 and will be removed in 3.0.
 
 Choosing runs from a list: candidate sets
 -----------------------------------------
@@ -713,7 +716,7 @@ replicated designs are still split into blocks after they are chosen (``"exchang
 and cannot be combined with ``fixed_runs``. Each block needs at least two new runs, and
 the budget is raised, with a warning, when the block effects leave too few.
 
-Optimising inside the region
+Optimizing inside the region
 ----------------------------
 
 An optimum is only useful if the process can run it. Passing the same region to
@@ -807,7 +810,7 @@ blends. Its design is the ``{q, 3}`` simplex lattice, every blend in thirds, plu
 overall centroid for four or more components. A budget below that size gives a D-optimal
 subset instead.
 
-Analyse the runs with a Scheffé model. It has no intercept, because the proportions
+Analyze the runs with a Scheffé model. It has no intercept, because the proportions
 sum to one:
 
 .. code-block:: python
@@ -831,8 +834,8 @@ sum to one:
 ``"scheffe_linear"``, ``"scheffe_quadratic"``, ``"scheffe_special_cubic"`` and
 ``"scheffe_cubic"`` are accepted by ``analyze_experiment`` and ``evaluate_design``. In a
 formula the full cubic's terms are written ``I(polymer * solvent * (polymer - solvent))``.
-statsmodels recognises that the proportions carry an implicit intercept, so R-squared is
-centred and the model degrees of freedom are one less than the number of terms, as for a
+statsmodels recognizes that the proportions carry an implicit intercept, so R-squared is
+centered and the model degrees of freedom are one less than the number of terms, as for a
 model with an intercept.
 
 A blending coefficient tested against zero asks whether a pure component gives a
@@ -951,7 +954,7 @@ and the process box.
    # -1 + mill1 + mill2 + mill3 + mill1:mill2 + mill1:mill3 + mill2:mill3 + spray + oil
 
 This is the rolling-mill study of Goos and Jones (2011, section 6.2). Three mills share the
-reduction in thickness of an aluminium sheet, and two coolant settings are the process
+reduction in thickness of an aluminum sheet, and two coolant settings are the process
 factors. The D-optimal design runs each of the six blends of the ``{3, 2}`` lattice twice,
 once at each level of each coolant factor, as their Table 6.2 does.
 

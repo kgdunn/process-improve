@@ -521,7 +521,7 @@ export class DataTable {
   #index = null;
 }
 
-/** The page's colours, read from its CSS custom properties, with the light theme where one is not set. */
+/** The page's colors, read from its CSS custom properties, with the light theme where one is not set. */
 function readColours(root) {
   const css = getComputedStyle(root);
   const read = (name, fallback) => css.getPropertyValue(name).trim() || fallback;

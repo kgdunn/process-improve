@@ -54,7 +54,7 @@ class SearchDesignCatalogInput(BaseModel):
         description="Designs printed in a published source, designs the library makes, or both.",
     )
     has_results: bool = Field(
-        default=False, description="Keep only published experiments printed with their results, ready to analyse."
+        default=False, description="Keep only published experiments printed with their results, ready to analyze."
     )
     survives_run_loss: bool = Field(
         default=False,
@@ -108,7 +108,7 @@ class SearchDesignCatalogInput(BaseModel):
     # "Which designs fit 6 factors in at most 17 runs and still give a response surface in any 3?"
         -> ``search_design_catalog(min_factors=6, max_factors=6, max_runs=17, min_quadratic_projection=3)``
 
-    # "Show me a published response-surface experiment with real data I can analyse."
+    # "Show me a published response-surface experiment with real data I can analyze."
         -> ``search_design_catalog(model="quadratic", has_results=True, collection="published")``
 
     # "Which screening designs for 7 factors can lose a run and still estimate the main effects?"

@@ -78,7 +78,7 @@ def test_asca_decomposition_is_exact() -> None:
     rebuilt = model.grand_mean_ + sum(model.effect_matrices_.values()) + model.residuals_
     np.testing.assert_allclose(rebuilt.to_numpy(), X.to_numpy(), atol=1e-12)
 
-    # Each effect matrix is centred, which is what sum-to-zero coding buys, and constant
+    # Each effect matrix is centered, which is what sum-to-zero coding buys, and constant
     # within a factor-level combination, which is what makes it an ANOVA effect.
     for name, effect in model.effect_matrices_.items():
         np.testing.assert_allclose(effect.to_numpy().mean(axis=0), 0.0, atol=1e-10)
@@ -403,7 +403,7 @@ def test_asca_on_the_tablet_spectra() -> None:
 
 
 def _effects_by_cell_means(Z: pd.DataFrame, design: pd.DataFrame) -> tuple[dict[str, pd.DataFrame], pd.DataFrame]:
-    """Two-way ANOVA of a balanced crossed design from its level and cell means: Z is centred already."""
+    """Two-way ANOVA of a balanced crossed design from its level and cell means: Z is centered already."""
     a, b = design["A"].to_numpy(), design["B"].to_numpy()
     a_mean, b_mean = Z.groupby(a).transform("mean"), Z.groupby(b).transform("mean")
     cell = Z.groupby([a, b]).transform("mean")
@@ -530,7 +530,7 @@ def test_asca_unbalanced_decomposition_by_hand(units: float, scale: bool) -> Non
         model = ASCA(scale=scale).fit(X, design)
     assert model.is_balanced_ is False
     # The intercept of the sum-coded fit is the mean of the cell means, not the column mean:
-    # the residuals are what no term explains, so they are centred, and the intercept is the grand mean.
+    # the residuals are what no term explains, so they are centered, and the intercept is the grand mean.
     cells = X.groupby([design["A"].to_numpy(), design["B"].to_numpy()]).mean()
     pd.testing.assert_series_equal(model.grand_mean_, cells.mean(), rtol=1e-12)
     pd.testing.assert_frame_equal(model.residuals_, residuals, rtol=0, atol=1e-12 * units)
@@ -577,7 +577,7 @@ def test_asca_a_fraction_fitted_for_its_main_effects_partitions_without_a_warnin
 def test_asca_reads_only_the_categories_a_factor_takes() -> None:
     """A categorical factor with categories no row takes, as a subset of a frame leaves it.
 
-    Each unused category was coded as a level of its own, so the factor's effect was not centred:
+    Each unused category was coded as a level of its own, so the factor's effect was not centered:
     B's sum of squares came out 55 too high.
     """
     X, design, _ = _two_factor_design(interaction=1.0)

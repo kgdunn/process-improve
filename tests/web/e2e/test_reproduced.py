@@ -83,9 +83,12 @@ def reason_counts(page) -> dict[str, int]:
 
 
 def test_the_catalog_leads_to_the_page_and_its_bar_counts_every_number(reproduced_context, site, reproduction):
+    """The catalog's footer names validation as every page's does, and opens it: the books are one step on."""
     page = reproduced_context.new_page()
     page.goto(f"{site}catalog/")
-    page.click("text=Can I trust it?")
+    page.click(".site-foot a:has-text('Is it accurate?')")
+    page.wait_for_url("**/validation.html")
+    page.click("text=each with its pages")
     page.wait_for_url("**/catalog/reproduced/")
     page.wait_for_selector("#shelf .shelf__row", state="attached")
     all_ = counts(reproduction)

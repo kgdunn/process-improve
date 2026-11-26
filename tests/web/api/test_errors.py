@@ -874,7 +874,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         lambda ex: {**_spec(response="__import__('os')")(ex), "responses": ex["simulated"]["responses"]},
         "The response name must be a variable name (letters, digits, _): try 'import_os'.",
     ),
-    "unknown model to analyse with": (
+    "unknown model to analyze with": (
         "api_analyze_runs",
         _runs(model="y ~ T"),
         "Model must be one of main_effects, interactions, quadratic.",
@@ -894,7 +894,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _runs(model={"terms": [["T", "P", "T"]]}),
         "A model term is a factor, an interaction of two or three different factors, or a factor squared.",
     ),
-    "a workbook analysed with a formula": (  # a workbook keeps its analysis model, which is checked as data
+    "a workbook analyzed with a formula": (  # a workbook keeps its analysis model, which is checked as data
         "api_read_workbook",
         _workbook(_stored(analysis_model="y ~ __import__('os').getcwd()")),
         "Model must be one of main_effects, interactions, quadratic.",
@@ -965,12 +965,12 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
             **_runs()(ex),
             "spec": {**ex["held"]["spec"], "analysis_transforms": {ex["held"]["spec"]["response"]: "box_cox"}},
         },
-        "A response is analysed as it is, or as its log, square root or inverse.",
+        "A response is analyzed as it is, or as its log, square root or inverse.",
     ),
-    "a workbook analysed with a transform it does not offer": (  # a workbook keeps its transforms, checked as data
+    "a workbook analyzed with a transform it does not offer": (  # a workbook keeps its transforms, checked as data
         "api_read_workbook",
         _workbook(_stored(analysis_transforms={"y": "__import__('os')"})),
-        "A response is analysed as it is, or as its log, square root or inverse.",
+        "A response is analyzed as it is, or as its log, square root or inverse.",
     ),
     "a result at or below 0 for its log": (
         "api_analyze_runs",
@@ -980,7 +980,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         },
         (
             "The log of Yield needs every result above 0, and run 1 has -1. "
-            "Analyse it as it is, or with another transform."
+            "Analyze it as it is, or with another transform."
         ),
     ),
     "an acceptable range below 0 for a logged response": (
@@ -1009,7 +1009,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
             **_mixed()(ex),
             "spec": {**ex["mixture"]["spec"], "analysis_transforms": {ex["mixture"]["spec"]["response"]: "log"}},
         },
-        "A mixture's responses are analysed as they are on this page.",
+        "A mixture's responses are analyzed as they are on this page.",
     ),
     "no term the design can estimate": (
         "api_analyze_runs",
@@ -1458,10 +1458,10 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     ),
     "a marked row the table does not have": (
         "api_limits",
-        _typed(marked=[9]),  # the worked example's table has 8 corners and the centre, rows 0 to 8
+        _typed(marked=[9]),  # the worked example's table has 8 corners and the center, rows 0 to 8
         "The page sent marked settings this page did not write.",
     ),
-    "cuts from the centre, which is no corner": (
+    "cuts from the center, which is no corner": (
         "api_limits",
         _typed(marked=[8], cuts={"marked": [8], "corner": 8, "values": [190, None, None]}),
         "The page sent marked settings this page did not write.",
@@ -1514,7 +1514,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         },
         (
             "Runs from a model of every run are suggested for a goal of making the response as large or as small as "
-            "it can be, or of bringing it to a target: choose that goal in Design."
+            "it can be, or of bringing it to a target: choose that goal in [Design]."
         ),
     ),
     "suggested runs: a categorical factor": (
@@ -1652,7 +1652,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     "add runs: a mixture": (
         "api_add_runs",
         _mixed(kind="replicate"),
-        "A mixture's runs are blends, and the runs Learn adds to a design are not.",
+        "A mixture's runs are blends, and the runs [Learn] adds to a design are not.",
     ),
     # Mixtures: the factors are the components of a blend, each a proportion.
     "mixture: a categorical factor": (
@@ -1744,7 +1744,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     "mixture: a model for factors with ranges": (
         "api_analyze_runs",
         _mixed(model="quadratic"),
-        "A mixture is analysed with the linear, quadratic or special cubic blending model, not 'quadratic'.",
+        "A mixture is analyzed with the linear, quadratic or special cubic blending model, not 'quadratic'.",
     ),
     "mixture: a process for factors with ranges": (
         "api_simulate",
@@ -1790,7 +1790,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     "curves: of a mixture": (
         "api_functional",
         _curved("mixture"),
-        "A mixture's curves are not analysed on this page yet.",
+        "A mixture's curves are not analyzed on this page yet.",
     ),
     "curves: fewer than the runs": (
         "api_functional",
@@ -1864,7 +1864,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     "hard to change: runs added": (
         "api_add_runs",
         lambda _: {**SPLIT_PLOT, "kind": "replicate"},
-        "This design sets a factor once for each group of runs, and the runs Learn adds are made one by one.",
+        "This design sets a factor once for each group of runs, and the runs [Learn] adds are made one by one.",
     ),
     "correlation map: more factors than the page models the interactions of": (
         "api_correlations",

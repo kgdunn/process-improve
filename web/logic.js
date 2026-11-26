@@ -7,10 +7,23 @@ import { confidencePercent, heldWords, marked, pointed, significance } from "./n
 
 export const SPARE_RUNS = 4;
 
-/** Count the coefficients, intercept included, of each named model in k factors. */
+/** Count the coefficients, intercept included, of each named model in k numeric factors. */
 export function nTerms(k, model) {
   const pairs = (k * (k - 1)) / 2;
   return 1 + k + (model === "main_effects" ? 0 : pairs) + (model === "quadratic" ? k : 0);
+}
+
+/**
+ * Count the coefficients, intercept included, of a named model over these factors; mirrors
+ * bootstrap._n_coefficients. A categorical factor has no square, and one of three levels or more is a column per
+ * level but one, in its main effect and in each interaction.
+ */
+export function nCoefficients(factors, model) {
+  const columns = factors.map((f) => (isCategorical(f) ? levelsOf(f).length - 1 : 1));
+  const mains = columns.reduce((sum, c) => sum + c, 0);
+  const pairs = (mains * mains - columns.reduce((sum, c) => sum + c * c, 0)) / 2; // each pair of factors' products
+  const squares = factors.filter((f) => !isCategorical(f)).length;
+  return 1 + mains + (model === "main_effects" ? 0 : pairs) + (model === "quadratic" ? squares : 0);
 }
 
 /** The space-filling designs, made for no model; mirrors bootstrap.SPACE_FILLING. */
@@ -23,9 +36,10 @@ export const SPACE_FILLING_RUNS = 10;
  * The runs a design that takes a number of runs opens with, as bootstrap.py gives them: SPACE_FILLING_RUNS a factor
  * for a space-filling design, else the coefficients of the model it is made for and SPARE_RUNS more.
  */
-export const defaultBudget = (designType, k, model) => {
+export const defaultBudget = (designType, factors, model) => {
+  const k = factors.length;
   if (SPACE_FILLING.includes(designType)) return SPACE_FILLING_RUNS * k;
-  return designType === "omars" ? screeningRuns(k) + OMARS_EXTRA_RUNS : nTerms(k, model) + SPARE_RUNS;
+  return designType === "omars" ? screeningRuns(k) + OMARS_EXTRA_RUNS : nCoefficients(factors, model) + SPARE_RUNS;
 };
 
 /** The runs of a definitive screening design in k factors: a foldover of a conference matrix and a center run. */
@@ -100,7 +114,7 @@ export function tradeOffCell(runs, k) {
 /** What a cell shows: Full, its resolution in roman numerals, or nothing. */
 export const cellText = (cell) => (cell === FULL ? "Full" : cell === null ? "" : ROMAN[cell]);
 
-/** The band a cell is coloured by: the full factorial or resolution V and above, IV, III; null for no design. */
+/** The band a cell is colored by: the full factorial or resolution V and above, IV, III; null for no design. */
 export const cellBand = (cell) => (cell === null ? null : cell === FULL || cell >= 5 ? "high" : cell === 4 ? "iv" : "iii");
 
 /**
@@ -235,6 +249,19 @@ export const INTERACTION_MODELS = ["interactions", "quadratic"];
 /** Whether a study of k factors is fitted for its main effects, or the terms the reader names, and nothing more. */
 export const screensOnly = (k) => k > MAX_INTERACTION_FACTORS;
 
+/** The four stages of a study as a sentence names them, each with the key the page shows it by (app.js showPhase). */
+export const STAGE_KEYS = { Design: "plan", Run: "run", Learn: "learn", Next: "next" };
+
+/**
+ * A sentence cut at the stages it names, for the page to make each a link with the stage's dot (app.js staged).
+ * A sentence names a stage in square brackets, "enter them in [Run]": the Run of "Run 3" and of "Run order" is
+ * then never taken for one. A part is a string, or ``{ stage, name }`` for a stage.
+ */
+export function stageParts(text) {
+  const parts = String(text ?? "").split(/\[(Design|Run|Learn|Next)\]/); // no text is no part, as textContent has it
+  return parts.map((part, i) => (i % 2 ? { stage: STAGE_KEYS[part], name: part } : part)).filter((part) => part !== "");
+}
+
 /**
  * What the page says of a study of k factors, more than it models the interactions of: the aims and the models
  * it keeps to, and why. "" for fewer factors. ``where`` is "brief" for the aim, or "learn" for the model.
@@ -242,7 +269,7 @@ export const screensOnly = (k) => k > MAX_INTERACTION_FACTORS;
 export function screeningSentence(k, where) {
   if (!screensOnly(k)) return "";
   const why = `${k} factors have ${(k * (k - 1)) / 2} two-factor interactions, more than a screening design has runs.`;
-  if (where === "learn") return `Past ${MAX_INTERACTION_FACTORS} factors, Learn fits the main effects, or the terms you choose: ${why}`;
+  if (where === "learn") return `Past ${MAX_INTERACTION_FACTORS} factors, [Learn] fits the main effects, or the terms you choose: ${why}`;
   return `Past ${MAX_INTERACTION_FACTORS} factors, a study finds which factors matter, and a fraction is made at resolution III or IV: ${why}`;
 }
 
@@ -321,7 +348,7 @@ const KINDS = {
 export const holds = (model, aim) => (KINDS[aim] ?? []).every((kind) => (KINDS[model] ?? []).includes(kind));
 
 /**
- * The model a new run sheet's results are analysed with: "" for the design's own when it holds what
+ * The model a new run sheet's results are analyzed with: "" for the design's own when it holds what
  * the study aims to learn; else the aim's, when the design can fit it (``fits``, as the comparison
  * found), as a named model or, for main effects and squares, as their terms; else the design's own.
  */
@@ -359,7 +386,7 @@ export const MIXTURES = ["simplex_lattice", "simplex_centroid", "extreme_vertice
 /** Whether a design type is a mixture's. */
 export const isMixture = (designType) => MIXTURES.includes(designType);
 
-/** The models a mixture is analysed with; mirrors bootstrap.MIXTURE_MODELS. */
+/** The models a mixture is analyzed with; mirrors bootstrap.MIXTURE_MODELS. */
 export const MIXTURE_MODELS = ["scheffe_linear", "scheffe_quadratic", "scheffe_special_cubic"];
 
 /** A component's bound as the form sends it: a blank box is the bound's default, 0 for the lower and 1 for the upper. */
@@ -544,7 +571,7 @@ export function responseName(label, factorNames = []) {
 }
 
 /** What the reader can want of the response, as the response card words it; the keys are bootstrap.GOALS. */
-export const GOALS = { maximize: "Maximise", minimize: "Minimise", target: "Hit a target", learn: "Just learn" };
+export const GOALS = { maximize: "Maximize", minimize: "Minimize", target: "Hit a target", learn: "Just learn" };
 
 // ---------------------------------------------------------------- several responses
 /** The most responses a study measures; mirrors bootstrap.MAX_RESPONSES. */
@@ -669,7 +696,7 @@ export function joinResults(names, first, more = {}) {
 /**
  * What Learn says of the runs that have some of their results and not all, with several responses: ``runs`` are
  * their numbers, as the run sheet's Run order gives them, and each response is fitted to the runs that have its
- * result: the one analysed, named ``label``, to ``fitted`` runs.
+ * result: the one analyzed, named ``label``, to ``fitted`` runs.
  */
 export function partialSentence(runs, label, fitted) {
   const one = runs.length === 1;
@@ -678,7 +705,7 @@ export function partialSentence(runs, label, fitted) {
 }
 
 /**
- * The responses as a study's title names them: one as responseTitle does ("Yield (%), maximise"), several by
+ * The responses as a study's title names them: one as responseTitle does ("Yield (%), maximize"), several by
  * their names ("Yield, Cost and Purity").
  */
 export function responsesTitle(responses) {
@@ -719,13 +746,13 @@ export function responseColumns(labels, factorNames = [], kept = []) {
 export const withUnits = (name, units) => (units ? `${name} (${units})` : name);
 
 /**
- * The response as the study's title names it: "Yield (%), maximise", "Purity (%), target 99.5",
+ * The response as the study's title names it: "Yield (%), maximize", "Purity (%), target 99.5",
  * "Hardness", or the column's name for a design made before the page asked for more.
  */
 export function responseTitle(info, name = DEFAULT_RESPONSE) {
   const head = withUnits(info?.label || name || DEFAULT_RESPONSE, info?.units ?? "");
-  if (info?.goal === "maximize") return `${head}, maximise`;
-  if (info?.goal === "minimize") return `${head}, minimise`;
+  if (info?.goal === "maximize") return `${head}, maximize`;
+  if (info?.goal === "minimize") return `${head}, minimize`;
   if (info?.goal === "target") return isFiniteNumber(info.target) ? `${head}, target ${info.target}` : `${head}, on target`;
   return head;
 }
@@ -1222,7 +1249,7 @@ export function fittedFormula(coefficients) {
   return [...(coefficients.some((c) => c.block) ? [BLOCK] : []), ...terms].join(" + ");
 }
 
-/** Each transform a response can be analysed with, as a sentence names it; mirrors the words of bootstrap.TRANSFORMS. */
+/** Each transform a response can be analyzed with, as a sentence names it; mirrors the words of bootstrap.TRANSFORMS. */
 export const TRANSFORM_WORDS = { log: "log", sqrt: "square root", inverse: "inverse" };
 
 /**
@@ -1239,11 +1266,11 @@ export function boxCoxSentence(hint, label) {
   if (hint.suggests) {
     if (hint.suggests === hint.current) return null;
     const words = TRANSFORM_WORDS[hint.suggests];
-    return { words: `${said}: it points to the ${words} of ${label}.`, apply: hint.suggests, button: `Analyse its ${words}` };
+    return { words: `${said}: it points to the ${words} of ${label}.`, apply: hint.suggests, button: `Analyze its ${words}` };
   }
   if (low <= 1 && 1 <= high) {
     if (!hint.current) return null;
-    return { words: `${said}: ${label} needs no transform.`, apply: "", button: `Analyse ${label} as measured` };
+    return { words: `${said}: ${label} needs no transform.`, apply: "", button: `Analyze ${label} as measured` };
   }
   return { words: `${said}: it points to a power of ${label} this page does not offer.`, apply: null, button: "" };
 }
@@ -1451,7 +1478,7 @@ export const CHARTS = {
     title: "Fitted response surface",
     glossary: "response-surface",
     /**
-     * With limits on the settings the surface is greyed where a setting cannot be run, and when the
+     * With limits on the settings the surface is grayed where a setting cannot be run, and when the
      * center of the ranges cannot be run, the others are held at a central setting that can (``held``,
      * in their own units).
      */
@@ -1461,7 +1488,7 @@ export const CHARTS = {
         ? `, with ${listNames(held.map((h) => `${h.name} at ${inUnits(h.value, units[h.name])}`))}, since the center of ` +
           "the ranges cannot be run"
         : ", with the others at their center";
-      const grey = shaded ? "; grey: settings outside your limits" : "";
+      const grey = shaded ? "; gray: settings outside your limits" : "";
       return `Drawn over ${pair.join(" and ")}, ${pairWords(chosen)}${others}${grey}; the dots are the runs.`;
     },
   },
@@ -1478,9 +1505,9 @@ export const CHARTS = {
      */
     caption: (_, { starred = false, blendHeld = null } = {}) =>
       blendHeld
-        ? `Each point is a blend, coloured by the fitted response, with ${heldWords(blendHeld)}; the other three share the ` +
+        ? `Each point is a blend, colored by the fitted response, with ${heldWords(blendHeld)}; the other three share the ` +
           `rest, and each corner is where one of them takes all of it${starred ? ". The star is the best blend" : ""}.`
-        : "Each corner is a pure component and each point a blend, coloured by the fitted response, over the blends the " +
+        : "Each corner is a pure component and each point a blend, colored by the fitted response, over the blends the " +
           `bounds allow; the white dots are the runs${starred ? ", and the star the best blend" : ""}.`,
   },
   true_ternary: {
@@ -1519,9 +1546,12 @@ export const CHARTS = {
   main_effects: {
     title: "Average result at each setting",
     more: true,
-    caption:
-      "The average of the runs made at each setting of a factor, whatever the others were at. The model is not used: " +
-      "these are your results.",
+    caption: (_, { averaged = false } = {}) =>
+      "The average of the runs made at each setting of a factor, whatever the others were at: these are your results." +
+      (averaged
+        ? " The bar at each is the model's interval for the mean at that setting, with the other factors averaged over " +
+          "the runs: an average far outside its bar is one the model does not account for."
+        : ""),
   },
   interaction: {
     title: "Interaction of the two factors",
@@ -1529,18 +1559,6 @@ export const CHARTS = {
     caption: (pair) =>
       `One line for each setting of ${pair[0]}, over the settings of ${pair[1]}: averages of your results. Lines that ` +
       `are not parallel indicate that the effect of ${pair[1]} depends on ${pair[0]}.`,
-  },
-  surface_3d: {
-    title: "Fitted response surface, in three dimensions",
-    more: true,
-    height: 420,
-    caption: (pair) => `The surface above, over ${pair.join(" and ")}, as a shape to turn: drag it.`,
-  },
-  cube: {
-    title: "Predictions at the corners",
-    more: true,
-    height: 420,
-    caption: "The model's prediction at each combination of the low and high settings of three factors: drag to turn it.",
   },
   normal_probability: {
     title: "Residuals against the normal distribution",
@@ -1561,6 +1579,22 @@ export const CHARTS = {
       "The variance of a prediction, relative to the noise of one run, over the same two factors. It depends on where " +
       "the runs are, not on their results: predictions are firmest where it is lowest.",
   },
+  // A figure in three dimensions is small on a card two to a row: it takes a row of its own, after the cards that
+  // share theirs, so that none of those stands beside a gap (#1242).
+  surface_3d: {
+    title: "Fitted response surface, in three dimensions",
+    more: true,
+    wide: true,
+    height: 420,
+    caption: (pair) => `The surface above, over ${pair.join(" and ")}, as a shape to turn: drag it.`,
+  },
+  cube: {
+    title: "Predictions at the corners",
+    more: true,
+    wide: true,
+    height: 420,
+    caption: "The model's prediction at each combination of the low and high settings of three factors: drag to turn it.",
+  },
 };
 
 /** Each chart's heading, and what each shows and how to read it: read from CHARTS. */
@@ -1574,8 +1608,12 @@ export const CAPTIONS = Object.fromEntries(
 /** The charts under "More charts", in their order. */
 export const MORE_CHARTS = Object.keys(CHARTS).filter((key) => CHARTS[key].more);
 
-/** A chart's height on the page, in pixels. */
-export const chartHeight = (key) => CHARTS[key]?.height ?? 340;
+/** The height of a chart on a row of its own (``wide``) in a room wider than a phone's: its scene as tall as that. */
+const WIDE_HEIGHT = 540;
+
+/** A chart's height on the page, in pixels, in a room ``width`` wide: a wide one is taller where the room is wide. */
+export const chartHeight = (key, width = 0) =>
+  CHARTS[key]?.wide && width > 600 ? WIDE_HEIGHT : (CHARTS[key]?.height ?? 340);
 
 /** The most times each run of a design is made: bootstrap.MAX_REPLICATES. */
 export const MAX_REPLICATES = 10;
@@ -2066,8 +2104,8 @@ export function insertAt(text, start, end, piece) {
 }
 
 /**
- * A percent to ``digits`` decimals, a half to the even neighbour. Rounding a half up writes an eighth and
- * the seven eighths it leaves as 13% and 88%; to the even neighbour they are 12% and 88%, so a share and
+ * A percent to ``digits`` decimals, a half to the even neighbor. Rounding a half up writes an eighth and
+ * the seven eighths it leaves as 13% and 88%; to the even neighbor they are 12% and 88%, so a share and
  * what it leaves always sum to 100%.
  */
 function evenPercent(percent, digits) {
@@ -2179,7 +2217,7 @@ export const cornersBeyond = (k) =>
 
 /**
  * The rows of the table of corners a reader's filters leave: each factor ``"low"``, ``"high"`` or
- * ``"any"`` (the default), by column. The centre is no corner, and is left to the caller.
+ * ``"any"`` (the default), by column. The center is no corner, and is left to the caller.
  */
 export function filterCorners(rows, columns, factors, filters = {}) {
   const ends = Object.fromEntries(factors.map((f) => [f.name, f]));
@@ -2236,8 +2274,8 @@ export function cornersWords(rows, probes, factors) {
   return parts.join(", and ");
 }
 
-// ---------------------------------------------------------------- colour mode
-/** The colour modes the switch in the header offers: the system's, light and dark, as the book's does. */
+// ---------------------------------------------------------------- color mode
+/** The color modes the switch in the header offers: the system's, light and dark, as the book's does. */
 export const MODES = ["auto", "light", "dark"];
 
 /**
@@ -2252,7 +2290,7 @@ export function nextMode(current, systemDark) {
 /** The theme a mode shows, given whether the system is dark. */
 export const shownTheme = (mode, systemDark) => (mode === "auto" ? (systemDark ? "dark" : "light") : mode);
 
-// ---------------------------------------------------------------- the numbers a catalogue study's source prints
+// ---------------------------------------------------------------- the numbers a catalog study's source prints
 /**
  * One part of a term as a key: "A²" and "I(A ** 2)" as "A^2", "C(diet, Sum)" as "diet", anything else as it is.
  * Mirrors build_web_app.term_part, which wrote the parts a printed number is read by.
@@ -2326,7 +2364,7 @@ export function printedValue(result, read, runs) {
 }
 
 /**
- * Whether a number agrees with the one printed, to within the source's rounding, as the catalogue holds it
+ * Whether a number agrees with the one printed, to within the source's rounding, as the catalog holds it
  * (reference_catalogue._agrees): within ``allowed`` of ``target``, or beyond it on the side a bound such as "< 0.001"
  * gives.
  */

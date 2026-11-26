@@ -22,7 +22,7 @@ class GenerateDesignInput(BaseModel):
         description=(
             "List of factor specifications (name, type, low/high or levels, units). Add 'hard_limits': true "
             "when low and high are limits of the process (a safety limit, an instrument's range): a CCD is then "
-            "face-centred by default, and a design that would set the factor past them is refused. Add "
+            "face-centered by default, and a design that would set the factor past them is refused. Add "
             "'min_when_used' to an ingredient with low 0 that is either left out or used at no less than that "
             "amount: no run then sets it between 0 and the minimum."
         ),
@@ -68,16 +68,16 @@ class GenerateDesignInput(BaseModel):
         None,
         ge=0,
         description=(
-            "Number of centre runs in the whole design; they are not replicated with n_replicates. "
+            "Number of center runs in the whole design; they are not replicated with n_replicates. "
             "Default: 3 for factorial, Plackett-Burman, CCD and Box-Behnken designs, "
-            "and the design's own for the others. For a DSD or OMARS design, the total number of centre runs. "
-            "Other design types take no centre points."
+            "and the design's own for the others. For a DSD or OMARS design, the total number of center runs. "
+            "Other design types take no center points."
         ),
     )
     n_replicates: int = Field(
         1,
         ge=1,
-        description="Number of replicates of the design's runs, centre runs excepted (default: 1).",
+        description="Number of replicates of the design's runs, center runs excepted (default: 1).",
     )
     n_blocks: int | None = Field(
         None,
@@ -86,7 +86,7 @@ class GenerateDesignInput(BaseModel):
             "Number of blocks. A two-level factorial is blocked by confounding high-order interactions "
             "(never a main effect). A CCD puts its axial runs in one block and its cube runs in the others "
             "(2, 3, 5, ... blocks), and without alpha takes the axial distance that blocks it orthogonally. "
-            "Other designs are blocked by exchange. Runs are randomised within blocks."
+            "Other designs are blocked by exchange. Runs are randomized within blocks."
         ),
     )
     resolution: int | None = Field(
@@ -112,7 +112,7 @@ class GenerateDesignInput(BaseModel):
         description=(
             "For a DSD with two-level categorical factors: 'dsd' (DSD-augment, the default: main effects clear "
             "of second-order effects) or 'orth' (ORTH-augment: main effects orthogonal to each other, for two "
-            "more centre runs with two or more categorical factors)."
+            "more center runs with two or more categorical factors)."
         ),
     )
     model_type: str = Field(

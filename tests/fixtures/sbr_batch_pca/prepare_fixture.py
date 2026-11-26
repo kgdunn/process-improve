@@ -9,7 +9,7 @@ commit ``87cfb3bbb02fa623bd19bd20e2813bff4a0cf5d4``:
 - ``tests/SBR-expected.mat``: ``t`` (53 x 2) and ``p`` (1800 x 2), the scores
   and loadings of the batch PCA fitted by the legacy MATLAB toolkit
   (``unit_tests.m::PCA_batch_data``: ``lvm`` with ``min_lv = 2`` on all nine
-  tags; mean-centred and scaled to unit variance per unfolded column; a single
+  tags; mean-centered and scaled to unit variance per unfolded column; a single
   block, so no block weighting).
 
 This script writes, next to itself:
@@ -115,7 +115,7 @@ def load_source(sbrdata: pathlib.Path) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def load_expected(expected: pathlib.Path, tags: list[str]) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Return the legacy scores and loadings, the loadings labelled by (tag, sequence)."""
+    """Return the legacy scores and loadings, the loadings labeled by (tag, sequence)."""
     mat = scipy.io.loadmat(expected, squeeze_me=True)
     t = np.asarray(mat["t"], dtype=float)
     p = np.asarray(mat["p"], dtype=float)
@@ -161,7 +161,7 @@ def main(argv: list[str] | None = None) -> int:
         "quality_names": QUALITY_NAMES,
         "legacy_model": (
             "unit_tests.m::PCA_batch_data: lvm({'X', batch_X}, min_lv=2) on all nine tags; "
-            "columns mean-centred and scaled to unit variance (N-1); single block, no block weighting"
+            "columns mean-centered and scaled to unit variance (N-1); single block, no block weighting"
         ),
         "legacy_r2_per_component": LEGACY_R2_PER_COMPONENT,
         "legacy_tolerance": "assertEAE: relative 1e-2 on |t| and |p| (sign ignored), 1e-5 on R2",

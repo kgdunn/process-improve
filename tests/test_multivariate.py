@@ -47,7 +47,7 @@ from process_improve.multivariate._cv_criteria import _CompareSettings, _PseudoV
 from process_improve.multivariate._diagnostics import cumulative_block_t2, t2_precision
 from process_improve.multivariate._impute import impute_low_rank
 from process_improve.multivariate._pca import _leverage_corrected_press, _low_rank_reconstruction, _pca_ekf_press
-from process_improve.multivariate._pls import _direct_weights, _held_out_scores
+from process_improve.multivariate._pls import MAX_BOOTSTRAP_DRAWS, _bootstrap_rows, _direct_weights, _held_out_scores
 from process_improve.multivariate._projection import operator_for_pattern, project_rows
 from process_improve.multivariate.methods import (
     ASCA,
@@ -56,13 +56,14 @@ from process_improve.multivariate.methods import (
     OPLS,
     PCA,
     PLS,
+    PLSDA,
     PRM,
     TPLS,
     DataFrameDict,
     MCUVScaler,
     NotEnoughVarianceError,
     SpecificationWarning,
-    UncentredDataWarning,
+    UncenteredDataWarning,
     center,
     coefficient_plot,
     compare_cv_criteria,
@@ -182,7 +183,7 @@ def test_nipals_fit_is_scale_invariant() -> None:
     t_true = rng.standard_normal((N, 3))
     p_true = rng.standard_normal((3, K))
     X = pd.DataFrame(t_true @ p_true + 0.1 * rng.standard_normal((N, K)))
-    X = X - X.mean()  # mean-centre only: no unit-variance scaling, on purpose
+    X = X - X.mean()  # mean-center only: no unit-variance scaling, on purpose
     Y = pd.DataFrame(X.values @ rng.standard_normal((K, M)) + 0.1 * rng.standard_normal((N, M)))
     Y = Y - Y.mean()
     factor = 1000.0
@@ -486,8 +487,8 @@ def test_inner_pls_nipals_stops_at_its_iteration_cap(caplog: pytest.LogCaptureFi
     """Two nearly tied directions in X'Y make the iteration creep; the loop stops after exactly 500 steps.
 
     With X the identity, each step of the inner loop is a step of the power method on YY':
-    ``w`` is ``u`` normalised, ``t = w``, ``q = Y't`` and the next ``u`` is ``YY'w / |Y'w|^2``.
-    So the ``w`` of step ``n`` is ``(YY')^(n - 1) u_0`` normalised. With singular values 1 and
+    ``w`` is ``u`` normalized, ``t = w``, ``q = Y't`` and the next ``u`` is ``YY'w / |Y'w|^2``.
+    So the ``w`` of step ``n`` is ``(YY')^(n - 1) u_0`` normalized. With singular values 1 and
     0.99 each step shrinks the change by only about 2%, so it is still far above the tolerance
     after 500 steps; one step more or fewer moves ``w`` by 3e-7. The loop ran 502 steps
     under its cap of 500 until the cap was counted right.
@@ -744,7 +745,7 @@ def test_scale_ddof_matches_mcuvscaler() -> None:
 
 
 def test_scale_with_custom_func() -> None:
-    """A custom scaling ``func`` is honoured and ``ddof`` is ignored for it."""
+    """A custom scaling ``func`` is honored and ``ddof`` is ignored for it."""
     rng = np.random.default_rng(3)
     X = pd.DataFrame(rng.normal(size=(6, 3)))
 
@@ -767,7 +768,7 @@ def test_scale_zero_variance_column_is_finite() -> None:
     assert np.isfinite(np.asarray(scaled, dtype=float)).all()
     # The constant column maps to a scaling factor of 1.0 (divisor stored as 1/std).
     assert divisor[1] == pytest.approx(1.0)
-    # ... and is therefore unchanged from its (already centred) input: all zeros.
+    # ... and is therefore unchanged from its (already centered) input: all zeros.
     assert np.allclose(np.asarray(scaled, dtype=float)[:, 1], 0.0)
 
 
@@ -827,9 +828,9 @@ def test_mcuv_input_contract() -> None:
 
 
 def test_mcuv_constant_single_value_and_empty_columns() -> None:
-    """A constant column is centred on its value and not scaled; one observed value or none gives no spread either.
+    """A constant column is centered on its value and not scaled; one observed value or none gives no spread either.
 
-    Three times 0.1 averages to 0.10000000000000002 in floating point, so centring a constant on its
+    Three times 0.1 averages to 0.10000000000000002 in floating point, so centering a constant on its
     mean would leave a residue of 2e-17 where the column should be exactly 0.
     """
     X = np.array([[0.1, 7.0, np.nan], [0.1, np.nan, np.nan], [0.1, np.nan, np.nan]])
@@ -957,7 +958,7 @@ def test_pca_tablet_spectra(fixture_tablet_spectra_data: tuple[pd.DataFrame, np.
 def test_pca_errors_no_variance_to_start() -> None:
     """An array with no variance is refused, as across the family (#1144); it was fitted, with zero scores."""
     K, N, A = 17, 12, 5
-    for value in (0.0, 4.0):  # a constant that is not 0 too, though PCA does not centre it
+    for value in (0.0, 4.0):  # a constant that is not 0 too, though PCA does not center it
         with pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in X: every column is constant"):
             PCA(n_components=A).fit(pd.DataFrame(np.full((N, K), value)))
 
@@ -1221,7 +1222,7 @@ def test_pca_select_n_components() -> None:
     assert np.isfinite(result.q2.to_numpy()).all()
     assert (result.q2 <= 1.0 + 1e-9).all()
     assert result.q2[2] > result.q2[1]
-    # Q2 is exactly the normalised PRESS under ekf, against the reference the
+    # Q2 is exactly the normalized PRESS under ekf, against the reference the
     # folds measured, so it stays directly comparable to r2_cumulative_.
     assert result.q2.to_numpy() == pytest.approx(1.0 - result.press.to_numpy() / null_ss)
 
@@ -1274,7 +1275,7 @@ def test_pca_select_n_components_ekf_handles_missing_cells() -> None:
     """A block that already has missing cells cross-validates, and agrees with the complete one.
 
     ``PCA.fit`` has always taken a block with missing cells through NIPALS, but the
-    ekf scheme built its fold matrix from the raw array: the column centre and scale
+    ekf scheme built its fold matrix from the raw array: the column center and scale
     came from ``mean()``/``std()`` over columns holding NaN, and only the held-out
     cells were filled before the SVD, so the caller's own NaNs reached
     ``np.linalg.svd`` and it raised ``LinAlgError: SVD did not converge``.
@@ -1337,7 +1338,7 @@ def test_pca_select_n_components_refuses_the_removed_keywords(old_spelling: dict
     """
     rng = np.random.default_rng(0)
     X = pd.DataFrame(rng.standard_normal((30, 8)))
-    # The removed keyword goes in through a dict, so a static analyser does not flag the call.
+    # The removed keyword goes in through a dict, so a static analyzer does not flag the call.
     with pytest.raises(TypeError, match=next(iter(old_spelling))):
         PCA.select_n_components(X, max_components=4, cv=3, random_state=0, **old_spelling)
     if replacement is not None:
@@ -1426,7 +1427,7 @@ def test_pca_select_n_components_scale_inside_folds_no_leakage() -> None:
     assert 1 <= raw.n_components <= 6
 
     # Opt-out path: caller pre-scales (the prior contract), is warned about
-    # the leakage, and gets the legacy iterative-recentering EM behaviour.
+    # the leakage, and gets the legacy iterative-recentering EM behavior.
     # Both should converge to a comparable recommendation on this clean
     # low-rank data.
     X_s = MCUVScaler().fit_transform(X_raw)
@@ -1445,9 +1446,9 @@ def test_pca_select_n_components_scale_inside_folds_no_leakage() -> None:
 def test_pca_select_n_components_ekf_q2_is_scale_invariant() -> None:
     """Re-expressing one column in different units must not move the Q2 curve (#546).
 
-    The element-wise scheme standardises inside every fold, so what it fits does
+    The element-wise scheme standardizes inside every fold, so what it fits does
     not depend on a column's units. Before #546 it then measured PRESS after
-    inverting that standardisation, and a column carried weight in proportion to
+    inverting that standardization, and a column carried weight in proportion to
     its variance: multiplying one column by 1000 handed it the whole curve.
     """
     rng = np.random.default_rng(11)
@@ -1462,7 +1463,7 @@ def test_pca_select_n_components_ekf_q2_is_scale_invariant() -> None:
     base = PCA.select_n_components(X, **kwargs)
     stretched = PCA.select_n_components(X_stretched, **kwargs)
 
-    # The folds are the same cells in both runs and the in-fold standardisation
+    # The folds are the same cells in both runs and the in-fold standardization
     # removes the factor of 1000 exactly, so this is an identity, not an
     # approximation: only floating point separates the two curves.
     np.testing.assert_allclose(stretched.q2.to_numpy(), base.q2.to_numpy(), rtol=1e-8, atol=1e-10)
@@ -1476,7 +1477,7 @@ def test_pca_select_n_components_ekf_q2_is_scale_invariant() -> None:
 
 @pytest.mark.parametrize("scheme", ["ekf", "ckf", "ek", "sacv", "gcv"])
 def test_pca_select_n_components_is_scale_invariant_in_small_units(scheme: str) -> None:
-    """A column 1e9 times smaller is standardised as any other, in every scheme (#1029).
+    """A column 1e9 times smaller is standardized as any other, in every scheme (#1029).
 
     Its standard deviation, near 1e-9, was below the sqrt(eps) that was taken for a
     constant column's, so it was left unscaled and dropped out of PRESS: with the
@@ -1540,7 +1541,7 @@ def test_pca_select_n_components_ekf_degenerate_blocks_stay_quiet() -> None:
     """Degenerate inputs give NaN answers, not exceptions and not numpy warnings.
 
     Two edges the element-wise loop has to survive: a matrix small enough that a
-    column can be left with a single in-fold cell to estimate its centre from,
+    column can be left with a single in-fold cell to estimate its center from,
     and a matrix with no variation at all, where the null model is exact and the
     ratio PRESS / null is 0/0.
     """
@@ -1582,12 +1583,12 @@ def test_pca_select_n_components_ekf_q2_matches_on_raw_and_prescaled_ldpe() -> N
 
     kwargs = {"max_components": 11, "cv": 7, "n_repeats": 3, "random_state": 42}
     raw = PCA.select_n_components(ldpe, **kwargs)
-    with pytest.warns(SpecificationWarning, match="already centred and unit-variance"):
+    with pytest.warns(SpecificationWarning, match="already centered and unit-variance"):
         prescaled = PCA.select_n_components(MCUVScaler().fit_transform(ldpe), **kwargs)
 
     # Not bit-identical: pre-scaling uses each column's whole-sample mean and
     # standard deviation, the raw path uses each fold's own, so the two runs
-    # standardise by slightly different constants. The gap has to be negligible
+    # standardize by slightly different constants. The gap has to be negligible
     # against the curve's own standard error, which is about 0.015 here.
     gap = np.abs(raw.q2.to_numpy() - prescaled.q2.to_numpy())
     assert gap.max() < 0.001
@@ -1603,11 +1604,11 @@ def test_pca_select_n_components_ekf_q2_matches_on_raw_and_prescaled_ldpe() -> N
 
 
 def test_pca_select_n_components_scale_inside_folds_false_is_unchanged() -> None:
-    """The opt-out path keeps its input-units PRESS and centred reference (#546).
+    """The opt-out path keeps its input-units PRESS and centered reference (#546).
 
     #546 changes what ``scale_inside_folds=True`` measures. ``False`` is the
     legacy contract for callers who scale their own block, and stays as it was:
-    PRESS in the units of the matrix passed in, against the centred total sum of
+    PRESS in the units of the matrix passed in, against the centered total sum of
     squares of that same matrix.
     """
     rng = np.random.default_rng(13)
@@ -1623,7 +1624,7 @@ def test_pca_select_n_components_scale_inside_folds_false_is_unchanged() -> None
 
     # No in-fold scale, so the two PRESS scales coincide.
     np.testing.assert_allclose(result.press_input_units.to_numpy(), result.press.to_numpy(), rtol=1e-12)
-    # And Q2 is still normalised by the caller-side centred sum of squares.
+    # And Q2 is still normalized by the caller-side centered sum of squares.
     X_arr = np.asarray(X, dtype=float)
     null_ss = float(np.nansum((X_arr - np.nanmean(X_arr, axis=0)) ** 2))
     np.testing.assert_allclose(result.q2.to_numpy(), 1.0 - result.press.to_numpy() / null_ss, rtol=1e-12)
@@ -1881,7 +1882,7 @@ def test_pca_select_n_components_refuses_an_all_nan_press(monkeypatch: pytest.Mo
 def test_pca_parallel_analysis_without_scaling_compares_in_the_units_of_x() -> None:
     """scale=False leaves X in its own units, so variances far above the unit null keep every component.
 
-    The same noise, standardised first, keeps none: the scaling is what puts the observed
+    The same noise, standardized first, keeps none: the scaling is what puts the observed
     eigenvalues on the null's footing.
     """
     loud_noise = 100.0 * np.random.default_rng(7).standard_normal((30, 5))
@@ -2208,7 +2209,7 @@ def test_t2_contributions_leave_out_a_component_by_the_bound_fit_uses() -> None:
 
 
 def _rows_on_a_plane() -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Return 30 centred rows that span a plane in four columns, and one row well off that plane."""
+    """Return 30 centered rows that span a plane in four columns, and one row well off that plane."""
     rng = np.random.default_rng(0)
     plane = rng.standard_normal((30, 2)) @ rng.standard_normal((2, 4))
     flat = pd.DataFrame(plane - plane.mean(axis=0), columns=list("abcd"))
@@ -2246,7 +2247,7 @@ def test_pca_diagnose_and_project_leave_out_of_t2_the_component_fit_leaves_out()
 def test_pca_t2_of_a_held_out_ldpe_row_with_as_many_components_as_rows() -> None:
     """``n_components=None`` on ten LDPE rows fits ten components, the last one with no spread (#1026).
 
-    Ten centred rows span nine dimensions, so the tenth component's score sd is ~1e-16. The
+    Ten centered rows span nine dimensions, so the tenth component's score sd is ~1e-16. The
     eleventh row, held out, gets the T² of the first nine components, worked from its scores.
     """
     folder = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "multivariate"
@@ -2282,7 +2283,7 @@ def test_pls_diagnose_project_and_invert_leave_out_of_t2_the_component_fit_leave
     new = pd.DataFrame(rng.standard_normal((1, 12)), columns=flat.columns)
     y = pd.DataFrame({"y": plane[:, 0] + 2.0 * plane[:, 1] + 0.1 * np.random.default_rng(1).standard_normal(30)})
     with pytest.warns(SpecificationWarning, match="nothing left in Y that X can explain"):
-        pls = PLS(n_components=3, scale=False, warn_on_uncentred=False).fit(flat, y - y.mean())
+        pls = PLS(n_components=3, scale=False, warn_on_uncentered=False).fit(flat, y - y.mean())
     s = pls.scaling_factor_for_scores_.to_numpy()
     assert s[2] <= epsqrt * s[0]
     t = new.to_numpy() @ pls.direct_weights_.to_numpy()
@@ -3397,7 +3398,7 @@ def test_pls_compare_api(fixture_pls_simca_2_components: dict) -> None:
     assert plsmodel.spe_.iloc[:, -1].values == pytest.approx(result.spe, abs=1e-10)
 
     # SPE against an external reference (Simca-P), via its DModX column. Simca reports
-    # the distance to the model in X as a residual standard deviation normalised by the
+    # the distance to the model in X as a residual standard deviation normalized by the
     # model's pooled one:
     #
     #     DModX_i = s_i / s_0,   s_i = spe_i / sqrt(K - A),
@@ -3405,7 +3406,7 @@ def test_pls_compare_api(fixture_pls_simca_2_components: dict) -> None:
     #
     # and `spe_` here is sqrt(sum_k e_ik^2) per row, so sum_i spe_i^2 is that total.
     # The two (K - A) factors cancel in the ratio, which is what makes this a check on
-    # SPE itself rather than on Simca's normalisation convention. Note K - A = 1 for
+    # SPE itself rather than on Simca's normalization convention. Note K - A = 1 for
     # this 14 x 3 two-component fixture, so it cannot on its own discriminate the
     # (K - A) placement; the ratio is what is being pinned.
     spe_model = plsmodel.spe_.iloc[:, -1].to_numpy()
@@ -3528,14 +3529,14 @@ def test_pls_in_pipeline_and_clone_matches_plsregression() -> None:
     X = pd.DataFrame(rng.normal(size=(n_samples, n_features)), columns=feature_names)
     beta = rng.normal(size=(n_features, 1))
     Y = pd.DataFrame(X.values @ beta + rng.normal(scale=0.2, size=(n_samples, 1)), columns=["y"])
-    # PLSRegression centres Y internally; our NIPALS does not, so centre Y up front.
+    # PLSRegression centers Y internally; our NIPALS does not, so center Y up front.
     Y_scaled = pd.DataFrame(StandardScaler().fit_transform(Y.values), columns=["y"])
 
     with config_context(transform_output="pandas"):
         pipe = Pipeline([("scaler", StandardScaler()), ("pls", PLS(n_components=n_components, scale=False))])
         pipe.fit(X, Y_scaled)
 
-        # Cloning yields an unfitted but identically-parametrised pipeline.
+        # Cloning yields an unfitted but identically-parametrized pipeline.
         fresh = clone(pipe)
         fresh.fit(X, Y_scaled)
 
@@ -4359,10 +4360,10 @@ def test_pls_select_n_components_scaled_total_is_the_autoscaled_q2() -> None:
     """``scaled_total`` is what ``total`` would have been on an autoscaled Y.
 
     The ``"total"`` column pools PRESS and TSS on the original Y scale, so a
-    target whose spread is a hundred times its neighbour's decides it almost
+    target whose spread is a hundred times its neighbor's decides it almost
     alone; here ``y_big`` is pure noise and ``y_small`` is well predicted, and
     the two columns end up on opposite sides of zero. Running the same
-    cross-validation on a mean-centred, unit-variance Y is the reference: the
+    cross-validation on a mean-centered, unit-variance Y is the reference: the
     per-target results are unchanged by that affine map, and its ``"total"``
     has to reproduce ``"scaled_total"`` from the raw-scale run exactly.
     """
@@ -4527,7 +4528,7 @@ def test_pls_select_n_components_caps_max_components() -> None:
     X = pd.DataFrame(rng.standard_normal((N, K)), columns=[f"x{i}" for i in range(K)])
     Y = pd.DataFrame(rng.standard_normal((N, 1)), columns=["y"])
 
-    # 5-fold CV leaves a training fold of 24 rows; in-fold mean-centring
+    # 5-fold CV leaves a training fold of 24 rows; in-fold mean-centering
     # removes one DoF, so at most 23 components can be evaluated despite the
     # absurdly large request. (n_repeats=1 keeps the cap-vs-singularity test
     # focused on the cap; the rank-boundary fit is fragile by nature.)
@@ -5020,7 +5021,7 @@ def test_get_feature_names_out_mcuv_pca_pls() -> None:
     assert list(pipe.get_feature_names_out()) == ["PC1", "PC2"]
 
     # set_output(transform="pandas") wraps the ndarray transform output in a
-    # DataFrame labelled with our get_feature_names_out.
+    # DataFrame labeled with our get_feature_names_out.
     pipe_pd = Pipeline([("sc", MCUVScaler()), ("pca", PCA(n_components=2))]).set_output(transform="pandas")
     out = pipe_pd.fit_transform(X)
     assert isinstance(out, pd.DataFrame)
@@ -5124,7 +5125,7 @@ def test_recommend_n_components_q2_rule() -> None:
     assert _recommend_n_components_q2([0.30, 0.305, 0.309, 0.312]) == 1
     # NaN stops the search.
     assert _recommend_n_components_q2([0.4, np.nan, 0.9]) == 1
-    # min_increment=0 reproduces the permissive "any improvement" behaviour.
+    # min_increment=0 reproduces the permissive "any improvement" behavior.
     assert _recommend_n_components_q2([0.30, 0.305, 0.309, 0.312], min_increment=0.0) == 4
     # A larger threshold is more conservative.
     assert _recommend_n_components_q2([0.40, 0.62, 0.70], min_increment=0.1) == 2
@@ -5359,6 +5360,56 @@ def test_pls_cross_validate_bootstrap() -> None:
     assert cv_result.y_hat_cv is None
     assert cv_result.press is None
     assert cv_result.q_squared is None
+
+
+def test_a_bootstrap_resample_of_one_class_is_drawn_again() -> None:
+    """A PLS-DA's bootstrap drew all its rows from one class now and then, and its fit refused that resample.
+
+    Twelve rows, six of each class, as tests/test_family_contract.py has them: the first resample that seed 63 draws
+    is all of one class. The cross-validation failed on main about once in 300 runs without a seed.
+    """
+    labels = np.array(["high", "high", "low", "high", "high", "low", "low", "low", "high", "high", "low", "low"])
+    draws = np.random.default_rng(63)
+    plain = [draws.choice(12, size=12) for _ in range(4)]
+    assert [len(set(labels[rows])) for rows in plain] == [1, 2, 2, 2], "the resample the fit refused"
+    X = pd.DataFrame(np.random.default_rng(0).standard_normal((12, 3)), columns=["a", "b", "c"])
+
+    # The one-class resample is drawn again: the next draws take its place, each with both classes.
+    Y = pd.get_dummies(pd.Series(labels), dtype=float)
+    rows = _bootstrap_rows(np.random.default_rng(63), X, Y, 4)
+    assert [list(r) for r in rows[:3]] == [list(r) for r in plain[1:]]
+    assert all(len(set(labels[r])) == 2 for r in rows)
+    # A seed whose draws all vary gives the resamples it gave before: no result that was given changes.
+    draws = np.random.default_rng(3)
+    plain = [draws.choice(12, size=12) for _ in range(4)]
+    assert all(len(set(labels[r])) == 2 for r in plain)
+    assert [list(r) for r in _bootstrap_rows(np.random.default_rng(3), X, Y, 4)] == [list(r) for r in plain]
+
+    result = PLSDA(n_components=1).fit(X, labels).cross_validate(X, labels, n_bootstrap=4, random_state=63)
+    assert result.n_resamples == 4
+    assert np.isfinite(result.beta_samples).all()
+
+
+def test_a_bootstrap_with_no_rows_that_vary_is_refused_in_words() -> None:
+    """Rows whose Y never varies cannot be redrawn into a fit: the draws stop, and say why.
+
+    One column that varies is enough: a constant column beside it, in X or in Y, is no reason to draw again.
+    """
+    X = pd.DataFrame({"a": [1.0, 2.0, 3.0, 4.0], "flat": 7.0})
+    Y = pd.DataFrame({"y": [5.0, 5.0, 5.0, np.nan]})
+    said = (
+        f"^No bootstrap resample of the 4 rows in {MAX_BOOTSTRAP_DRAWS} draws has a column of X and a column of Y "
+        "that vary, so there is no fit to make: the rows that vary are too few.$"
+    )
+    with pytest.raises(NotEnoughVarianceError, match=said):
+        _bootstrap_rows(np.random.default_rng(1), X, Y, 2)
+    Y = pd.DataFrame({"y": [1.0, 2.0, 3.0, 4.0], "flat": 5.0})
+    with pytest.raises(NotEnoughVarianceError, match=said):  # Y varies, and X does not
+        _bootstrap_rows(np.random.default_rng(1), X[["flat"]], Y, 2)
+    draws = np.random.default_rng(1)
+    plain = [draws.choice(4, size=4) for _ in range(3)]
+    assert all(len(set(r)) > 1 for r in plain)
+    assert [list(r) for r in _bootstrap_rows(np.random.default_rng(1), X, Y, 3)] == [list(r) for r in plain]
 
 
 def test_pls_cross_validate_significance() -> None:
@@ -5644,12 +5695,12 @@ def test_tpls_model_plots(fixture_tpls_example: dict) -> None:
     assert len(scores_trace.x) == tpls_test.n_samples == 105
     assert ellipse_trace.mode == "lines"
 
-    # The ellipse is a closed curve centred on the origin, not a degenerate line.
+    # The ellipse is a closed curve centered on the origin, not a degenerate line.
     ellipse_x, ellipse_y = np.asarray(ellipse_trace.x), np.asarray(ellipse_trace.y)
     assert len(ellipse_x) >= 50
     assert ellipse_x.min() < 0 < ellipse_x.max()
     assert ellipse_y.min() < 0 < ellipse_y.max()
-    # Centred on the origin: the extents are symmetric. The x pair is symmetric only to
+    # Centered on the origin: the extents are symmetric. The x pair is symmetric only to
     # ~0.05% of its range because 100 angular samples do not land exactly on the extremum.
     assert ellipse_x.max() == pytest.approx(-ellipse_x.min(), rel=1e-3)
     assert ellipse_y.max() == pytest.approx(-ellipse_y.min(), rel=1e-3)
@@ -5844,7 +5895,7 @@ def test_tpls_pairs_the_materials_of_f_and_d_by_name(fixture_tpls_example: dict)
 
     They were paired by position: F with the materials of a group in another order than D fitted each
     material with another one's properties, without a word, and ``diagnose`` then scored the training
-    blends up to 3.2 away from the fit, as it subtracted F's centre in F's order from columns in D's.
+    blends up to 3.2 away from the fit, as it subtracted F's center in F's order from columns in D's.
     """
     d_matrix = fixture_tpls_example.pop("D")
     rng = np.random.default_rng(1197)
@@ -5947,7 +5998,7 @@ def test_make_tpls_scorer_named_metrics(fixture_tpls_example: dict) -> None:
 
 @pytest.mark.slow
 def test_make_tpls_scorer_accepts_a_callable_metric(fixture_tpls_example: dict) -> None:
-    """#565: a callable metric is honoured, and `greater_is_better=False` flips its sign."""
+    """#565: a callable metric is honored, and `greater_is_better=False` flips its sign."""
     d_matrix = fixture_tpls_example.pop("D")
     blocks = DataFrameDict(fixture_tpls_example)
     model = TPLS(n_components=3, d_matrix=d_matrix).fit(blocks)
@@ -5997,7 +6048,7 @@ def test_tpls_constant_column_warns_instead_of_asserting() -> None:
     Z and Y blocks did not tolerate the NaN statistic that exclusion produces (the F and D
     checks did), so a single constant column raised a message-less `AssertionError()`
     under normal Python and, because the check was a bare `assert`, fitted silently under
-    `python -O`. Two behaviours for one input.
+    `python -O`. Two behaviors for one input.
     """
     rng = np.random.default_rng(0)
     n_blends, n_materials = 20, 4
@@ -6067,7 +6118,7 @@ def test_tpls_and_mbpls_start_from_the_y_column_with_the_most_variation() -> Non
 def test_tpls_fits_a_column_far_from_zero() -> None:
     """A column of 1e11 plus noise of sd 1 fits as the same column near 0 does (#1028).
 
-    After centring and scaling, fit checked that each column's mean was within 1e-6 of 0 and
+    After centering and scaling, fit checked that each column's mean was within 1e-6 of 0 and
     raised "This is a bug" otherwise. Such a column's mean is known to about 1e-5 of its sd
     (1e11 has a resolution of 1.5e-5), so the check refused data that fits.
     """
@@ -6163,10 +6214,10 @@ def _tpls_slopes(a: np.ndarray, b: np.ndarray, present: np.ndarray) -> np.ndarra
 
 
 def _tpls_autoscaled(frame: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Centre and scale each column by its mean and sd (ddof=1) over its observed cells.
+    """Center and scale each column by its mean and sd (ddof=1) over its observed cells.
 
     A column whose sd is below epsqrt carries nothing, and is left out: every cell of it reads
-    as missing. Returns the scaled values (NaN where missing), the centres and the scales.
+    as missing. Returns the scaled values (NaN where missing), the centers and the scales.
     """
     values = frame.to_numpy(dtype=float)
     centre = np.nanmean(values, axis=0)
@@ -6212,7 +6263,7 @@ def _tpls_prepared(d_matrix: dict[str, pd.DataFrame], blocks: dict, skip_f: bool
     """Each block autoscaled over its observed cells, D also divided by ``sqrt(lots x properties)``.
 
     F is left as given with ``skip_f``, though its scaling is still learned. Returns the
-    centres and scales, which cells are observed, and the blocks with a missing cell as 0.
+    centers and scales, which cells are observed, and the blocks with a missing cell as 0.
     """
     frames = {
         "D": d_matrix,
@@ -6390,7 +6441,7 @@ def _tpls_vip_width(scaling: dict, block: str) -> int:
 def _tpls_diagnose_by_hand(fitted: dict, new: dict[str, dict[str, pd.DataFrame]], skip_f: bool = False) -> dict:
     """Score new rows on a model written out by ``_tpls_written_out``, deflating as the fit did.
 
-    Each block is scaled with the training centres and scales. Component by component, the F
+    Each block is scaled with the training centers and scales. Component by component, the F
     score is ``sum F r / sum r^2`` over a row's observed cells in every group, NaN for a row
     with none; each Z group's score is ``Z w_Z / w_Z'w_Z`` over the observed cells, 0 for a row
     with none and for a group left out of ``new``; the super score is ``[t_Z1, t_Z2, ..., t_F]``,
@@ -6440,7 +6491,7 @@ def _tpls_diagnose_by_hand(fitted: dict, new: dict[str, dict[str, pd.DataFrame]]
 
 
 def _t_shaped(gaps: bool = True, with_z: bool = True, seed: int = 0, second_z: bool = False) -> tuple[dict, dict]:
-    """Two groups of materials and ten labelled blends: D, and F, Z and Y blocks.
+    """Two groups of materials and ten labeled blends: D, and F, Z and Y blocks.
 
     Group A has five materials of three properties; group B four of four, so its D is square
     and each masked regression on it must be told which way it runs. Y follows the blends'
@@ -6784,7 +6835,7 @@ class TestTPLSWrittenOut:
     def test_a_group_with_no_variation_gets_zero_weight_on_every_numpy(self, constant: str, skip_f: bool) -> None:
         """#1144: a group whose F, or whose D, has no variation, beside one that varies, gets zero weight.
 
-        Used as given, such an F group meets a centred u with an F'u of rounding error: exactly 0
+        Used as given, such an F group meets a centered u with an F'u of rounding error: exactly 0
         with numpy 2.2, which refused the fit after an overflow warning, and about 1e-17 with numpy
         2.5, which took the varying group out of the model without a word. Then it was refused on
         every build (#1167). It now takes no part in the model: its weights and loadings are 0, so
@@ -7119,9 +7170,9 @@ def test_pls_diagnose_spe_matches_fitted_with_named_columns() -> None:
     """PLS.diagnose(X).spe must equal the fitted spe_ (last component) when X has named columns.
 
     Regression test: the reconstruction was built as ``scores @ self._x_loadings.T`` on the scores
-    DataFrame, which relabelled the result columns 0..K-1. With string feature names the following
+    DataFrame, which relabeled the result columns 0..K-1. With string feature names the following
     ``X - X_hat`` subtraction then misaligned to all-NaN and every SPE collapsed to 0. Integer
-    column labels hid the bug because the relabelled columns happened to line up.
+    column labels hid the bug because the relabeled columns happened to line up.
     """
     rng = np.random.default_rng(0)
     n_rows, n_cols = 40, 6
@@ -7694,7 +7745,7 @@ def test_explained_variance_plot_pls(fixture_pls_for_plots: PLS) -> None:
 
 
 def test_explained_variance_plot_settings(fixture_pca_for_plots: PCA) -> None:
-    """The as_percentage and title settings are honoured."""
+    """The as_percentage and title settings are honored."""
     fig = fixture_pca_for_plots.explained_variance_plot(
         settings={"as_percentage": False, "title": "Custom title"},
     )
@@ -7774,7 +7825,7 @@ def test_correlation_loadings_plot_configurable_ellipses() -> None:
 
 
 def test_correlation_loadings_plot_settings_and_figure() -> None:
-    """correlation_loadings_plot honours settings and draws onto a given figure."""
+    """correlation_loadings_plot honors settings and draws onto a given figure."""
     rng = np.random.default_rng(4)
     X = pd.DataFrame(rng.standard_normal((40, 5)))
     model = PCA(n_components=2).fit(MCUVScaler().fit_transform(X))
@@ -7892,7 +7943,7 @@ def test_pls_prediction_plots_errors() -> None:
 
 
 def test_pls_prediction_plots_settings_and_figure() -> None:
-    """Both PLS prediction plots honour settings and draw onto a given figure."""
+    """Both PLS prediction plots honor settings and draw onto a given figure."""
     rng = np.random.default_rng(3)
     X = pd.DataFrame(rng.standard_normal((35, 4)))
     Y = pd.DataFrame(rng.standard_normal((35, 1)), columns=["y"])
@@ -7951,7 +8002,7 @@ def test_squared_cosine_pls() -> None:
 
 
 def test_squared_cosine_n_components() -> None:
-    """cos2 honours n_components and rejects out-of-range values."""
+    """cos2 honors n_components and rejects out-of-range values."""
     rng = np.random.default_rng(2)
     X = pd.DataFrame(rng.standard_normal((30, 5)), columns=list("ABCDE"))
     model = PCA(n_components=3).fit(MCUVScaler().fit_transform(X))
@@ -8579,8 +8630,8 @@ def test_eigenvalue_summary_by_hand() -> None:
 def test_project_variables_are_the_correlations_np_corrcoef_gives() -> None:
     """Each entry is the Pearson correlation of a supplementary column with a score column.
 
-    Neither block is centred (the stand-in's scores have means 3 and 1, the columns 12 and
-    1.25), so the centring counts. A constant column (0 / 0) and one too small to square (its
+    Neither block is centered (the stand-in's scores have means 3 and 1, the columns 12 and
+    1.25), so the centering counts. A constant column (0 / 0) and one too small to square (its
     sum of squares underflows to 0, so x / 0) both read as uncorrelated, without a warning.
     """
     scores = pd.DataFrame([[1.0, 2.0], [2.0, 0.0], [3.0, 1.0], [6.0, 1.0]], columns=[1, 2])
@@ -8848,7 +8899,7 @@ def test_ek_never_lets_a_cell_reach_the_model_that_predicts_it() -> None:
     A cell sits in one row group and one column group. The scores come from a
     decomposition that dropped its column, so perturbing the cell cannot move
     them. Preprocessing is fitted on the whole matrix, as in the classical
-    scheme, so the loadings shift only through its column's centre and spread.
+    scheme, so the loadings shift only through its column's center and spread.
     """
     from process_improve.multivariate._pca import _preprocess_for_cell_schemes
 
@@ -8867,7 +8918,7 @@ def test_ek_never_lets_a_cell_reach_the_model_that_predicts_it() -> None:
 
 
 def test_cell_schemes_refuse_a_block_with_missing_cells() -> None:
-    """They factorise X directly, so they must say so rather than fail inside an SVD."""
+    """They factorize X directly, so they must say so rather than fail inside an SVD."""
     X = _known_rank_block().copy()
     X.iloc[0, 0] = np.nan
     for scheme in ("ek", "sacv", "gcv"):
@@ -8913,12 +8964,12 @@ def test_row_wise_was_removed() -> None:
 
 
 def test_sacv_reports_nothing_rather_than_a_perfect_score_at_the_top() -> None:
-    """The counterpart of the generalised criterion's guard, on the smoothing one.
+    """The counterpart of the generalized criterion's guard, on the smoothing one.
 
     Once the components reach the variables every column leverage is one, so
-    every cell is dropped as undefined. Totalling an empty set gives zero error,
+    every cell is dropped as undefined. Totaling an empty set gives zero error,
     which reads as a flawless model and wins the selection outright. It must
-    come back as NaN, the way the generalised criterion already does.
+    come back as NaN, the way the generalized criterion already does.
     """
     n, p = 40, 5
     X = _known_rank_block(n=n, k=p, rank=2)
@@ -8972,7 +9023,7 @@ def test_the_no_optimum_warning_names_a_scheme_other_than_the_one_in_use() -> No
 
 
 def test_gcv_reports_nothing_once_the_parameters_outnumber_the_data() -> None:
-    """The guard on the generalised criterion, exercised rather than assumed.
+    """The guard on the generalized criterion, exercised rather than assumed.
 
     A rank-``a`` bilinear model spends ``a(n + p - a - 1)`` free parameters. Once
     that reaches the ``(n - 1)p`` degrees of freedom available, the inflation
@@ -9048,7 +9099,7 @@ class TestPlsMissingDataSettingsResolution:
 
     @pytest.mark.parametrize("bad", ["scp", "rubbish", "NIPALs "])
     def test_unknown_md_method_is_refused(self, bad: str) -> None:
-        """An unrecognised value used to fall through to NIPALS without a word.
+        """An unrecognized value used to fall through to NIPALS without a word.
 
         ``"scp"`` is the trap: it is a real method name for ``project()`` and the
         contribution helpers, so asking for it here looked reasonable and quietly ran a
@@ -9121,7 +9172,7 @@ class TestPcaIterationParameters:
     def test_tol_reaches_the_loop(self, gapped: bool) -> None:
         """A looser tolerance must stop the loop sooner, whether or not the data has gaps.
 
-        Both cases are checked because this is exactly where ``PLS`` was broken: it honoured
+        Both cases are checked because this is exactly where ``PLS`` was broken: it honored
         ``tol`` on complete data and dropped it as soon as a cell went missing.
         """
         x = self._x(gapped=gapped)
@@ -9182,7 +9233,7 @@ class TestTplsToleranceParameter:
         """The first pass always runs, however loose the tolerance (#1028).
 
         The loop tested its tolerance before its first pass, against a previous u primed as
-        u + 1, whose relative change is about 0.7 for a centred and scaled Y column. With a
+        u + 1, whose relative change is about 0.7 for a centered and scaled Y column. With a
         tol above that the loop never began, and the fit raised UnboundLocalError for want of
         a score. A tol of 5 now stops after one pass, which is what max_iter=1 fits. (A tol
         of 10 or more is refused, as on every iterative estimator: #1071.)
@@ -9204,7 +9255,7 @@ class TestTplsToleranceParameter:
     def test_the_old_attribute_is_gone(self) -> None:
         """``tolerance_``, deprecated since 1.96.0, was removed in 2.0: ``tol`` is the only name."""
         model = TPLS(n_components=1, d_matrix={"g": pd.DataFrame({"p": [1.0]})}, tol=1e-5)
-        # Checked by name, not read, so a static analyser sees no use of a removed attribute.
+        # Checked by name, not read, so a static analyzer sees no use of a removed attribute.
         assert not hasattr(model, "tolerance_")
 
     def test_a_loose_tolerance_does_not_start_discarding_columns(self) -> None:
@@ -9364,7 +9415,7 @@ class TestEkfLoopKnobsWereRenamed:
 
 
 def _named_block(seed: int = 0, n: int = 12) -> pd.DataFrame:
-    """Return ``n`` centred rows of three named, correlated columns, labelled r0, r1, ..."""
+    """Return ``n`` centered rows of three named, correlated columns, labeled r0, r1, ..."""
     rng = np.random.default_rng(seed)
     X = rng.standard_normal((n, 3)) @ np.array([[2.0, 1.0, 0.5], [0.0, 1.0, -1.0], [0.0, 0.0, 0.3]])
     X -= X.mean(axis=0)
@@ -9563,7 +9614,7 @@ def test_pca_project_and_projection_matrix_work_without_training_residuals() -> 
 
 
 def _block_with_a_flat_and_a_small_column() -> pd.DataFrame:
-    """Return 8 centred rows: two correlated columns, a column of zeros and one with a sum of squares of 0.5."""
+    """Return 8 centered rows: two correlated columns, a column of zeros and one with a sum of squares of 0.5."""
     rng = np.random.default_rng(3)
     big = rng.standard_normal((8, 2)) @ np.array([[3.0, 1.0], [0.0, 2.0]])
     small = rng.standard_normal(8)
@@ -9672,7 +9723,7 @@ def test_pca_nipals_after_one_iteration_by_hand() -> None:
 
     The seed is the column with the largest sum of squares (the third here, not the first),
     its missing cell set to 0, plus 1. Then ``p_k = sum_i x_ik t_i / sum_i t_i^2`` over the
-    rows observed in column k, normalised, and ``t_i = sum_k x_ik p_k / sum_k p_k^2`` over
+    rows observed in column k, normalized, and ``t_i = sum_k x_ik p_k / sum_k p_k^2`` over
     the columns observed in row i; the largest loading entry is made positive. The second
     component repeats it on the deflated block. Each component says it stopped at the cap.
     """
@@ -9712,7 +9763,7 @@ def test_pca_nipals_after_one_iteration_by_hand() -> None:
 def test_pca_nipals_seeds_from_the_largest_column_not_the_first() -> None:
     """A first column of zeros, orthogonal to every score, does not stall NIPALS (#195).
 
-    Seeded from it, the score would be a column of ones, which a centred block maps to a
+    Seeded from it, the score would be a column of ones, which a centered block maps to a
     zero loading. Seeded from the largest column, NIPALS finds the SVD's components.
     """
     X = _block_with_a_flat_and_a_small_column()[["flat", "a", "small", "d"]].to_numpy()
@@ -9797,8 +9848,8 @@ def _tsr_by_hand(X: np.ndarray, A: int, max_iter: int, tol: float) -> tuple[np.n
     """Trimmed score regression (Arteaga and Ferrer, 2002; Folch-Fortuny et al., 2015), written out.
 
     Start the missing cells at 0. Each round: take the column means and covariance S of the
-    current block, and the first A loadings V of its centred SVD; fill each row's missing
-    cells, centred, with ``S_mo V_o (V_o' S_oo V_o)^+ V_o' x_o``, using at most as many
+    current block, and the first A loadings V of its centered SVD; fill each row's missing
+    cells, centered, with ``S_mo V_o (V_o' S_oo V_o)^+ V_o' x_o``, using at most as many
     loadings as the row has observed cells. Stop once the mean squared change of the filled
     cells is at most ``tol``, or after ``max_iter`` rounds. The loadings are then the first
     A eigenvectors of the filled block's covariance, signed so the largest entry is positive,
@@ -9871,7 +9922,7 @@ def test_pca_tsr_on_complete_data_runs_no_imputation_and_does_not_warn() -> None
 def _ekf_fill(X: np.ndarray, unknown: np.ndarray, a: int, constants: tuple, settings: dict) -> np.ndarray:
     """Fill the ``unknown`` cells from rank-``a`` reconstructions until they settle, as the ekf EM does.
 
-    ``constants`` holds the fold's column centres and spreads.
+    ``constants`` holds the fold's column centers and spreads.
     """
     centre, spread = constants
     sd = np.broadcast_to(spread, X.shape)[unknown]
@@ -9896,13 +9947,13 @@ def _ekf_by_hand(X: np.ndarray, A: int, *, n_folds: int, n_repeats: int, seed: i
 
     Each repeat deals the observed cells, in an order drawn from ``seed``, into ``n_folds``
     folds of ``n_cells // n_folds`` cells, the last fold taking the rest. In a fold, each
-    column's centre is the mean of its cells neither held out nor missing, and, when scaling,
+    column's center is the mean of its cells neither held out nor missing, and, when scaling,
     its spread their sd, kept at 1 for fewer than two cells or cells all equal, in any units. The
-    unknown cells start at the centre and are refilled from the rank-``a`` reconstruction
+    unknown cells start at the center and are refilled from the rank-``a`` reconstruction
     (``_low_rank_reconstruction``, which its own test checks against the SVD) until their
     scaled change is below ``tol`` times the norm of their scaled values, in any units (#1070), or
     for ``max_iter`` rounds. PRESS sums the held-out cells' scaled squared errors, the null
-    reference their scaled squared deviations from the centre; totals are averaged over
+    reference their scaled squared deviations from the center; totals are averaged over
     the repeats. ``settings`` holds ``max_iter``, ``tol`` and ``scale``. Returns the six
     fields of ``_pca_ekf_press`` in its order.
     """
@@ -10012,7 +10063,7 @@ def test_ekf_null_reference_without_in_fold_scaling_is_the_centred_sum_of_square
 
 
 def test_cell_scheme_preprocessing_by_hand() -> None:
-    """Each column is centred and divided by its sd, in any units: only a constant column is not.
+    """Each column is centered and divided by its sd, in any units: only a constant column is not.
 
     An sd of ``2**-26`` (epsqrt) divides, and so does one of ``2**-27``, which until #1029 did
     not; a constant column is all zeros.
@@ -10043,7 +10094,7 @@ def test_cell_schemes_say_where_the_missing_cells_are(missing: list[tuple[int, i
     for cell in missing:
         X[cell] = np.nan
     message = (
-        f"cv_scheme='sacv' cannot take a block with missing cells, because it factorises the matrix directly. "
+        f"cv_scheme='sacv' cannot take a block with missing cells, because it factorizes the matrix directly. "
         f"This block has {len(missing)} of 18, {where}. Use cv_scheme='ekf', which imputes an unmeasured cell "
         "alongside the held-out ones and never scores it, or drop what is missing first."
     )
@@ -10209,10 +10260,10 @@ def test_ek_warns_only_when_its_folds_cannot_reach_the_counts_asked_for() -> Non
 
 
 def _leverage_block() -> np.ndarray:
-    """Return a centred 4 x 4 block of rank 3 whose first row has no part in the third left singular vector.
+    """Return a centered 4 x 4 block of rank 3 whose first row has no part in the third left singular vector.
 
     ``X = U diag(3, 2, 1) V'`` with orthonormal U orthogonal to the ones vector and
-    ``U[0, 2] = 0``: with two components the first row's leverage is the largest a centred
+    ``U[0, 2] = 0``: with two components the first row's leverage is the largest a centered
     row can have, 1 - 1/n, so its cells are not scored while the other rows' are.
     """
     U = np.column_stack(
@@ -10266,7 +10317,7 @@ def test_sacv_leaves_a_column_of_zeros_unscaled() -> None:
 
 
 def test_gcv_by_hand() -> None:
-    """Generalised cross-validation: residuals inflated by ``np / [(n - 1)p - a(n + p - a - 1)]``.
+    """Generalized cross-validation: residuals inflated by ``np / [(n - 1)p - a(n + p - a - 1)]``.
 
     On 3 rows and 2 columns the first count leaves exactly one degree of freedom, an
     inflation of 6; the second leaves none, so it is not reported.
@@ -10287,7 +10338,7 @@ def test_gcv_by_hand() -> None:
 
 
 def _raw_block(n: int = 12, k: int = 4, seed: int = 0) -> pd.DataFrame:
-    """Return an uncentred block of named columns with two latent factors, in units far from 1."""
+    """Return an uncentered block of named columns with two latent factors, in units far from 1."""
     rng = np.random.default_rng(seed)
     X = rng.standard_normal((n, 2)) @ rng.standard_normal((2, k)) + 0.3 * rng.standard_normal((n, k))
     return pd.DataFrame(X * np.arange(1, k + 1) * 3.0 + 10.0, columns=[f"v{j}" for j in range(k)])
@@ -10381,12 +10432,12 @@ def test_select_n_components_reads_integer_data_as_numbers() -> None:
 
 
 def test_select_n_components_warns_about_a_prescaled_block_in_full() -> None:
-    """The ekf folds re-standardise inside every element-fold, which erases a scaling the caller chose."""
+    """The ekf folds re-standardize inside every element-fold, which erases a scaling the caller chose."""
     X = MCUVScaler().fit_transform(_raw_block())
     message = (
-        "X is already centred and unit-variance scaled, so scale_inside_folds=True is not protecting you from "
-        "leakage: it re-standardises inside every element-fold and overwrites the scaling you chose. Two "
-        "deliberately different scalings (say autoscale versus Pareto) collapse onto the same standardised model "
+        "X is already centered and unit-variance scaled, so scale_inside_folds=True is not protecting you from "
+        "leakage: it re-standardizes inside every element-fold and overwrites the scaling you chose. Two "
+        "deliberately different scalings (say autoscale versus Pareto) collapse onto the same standardized model "
         "this way, so a comparison of their PRESS reflects only the units the blocks arrived in, never which "
         "scaling suits the data. Pass the raw, unscaled X and let the folds scale it, or keep your own scaling and "
         "set scale_inside_folds=False (accepting the optimism that flag warns about)."
@@ -10586,7 +10637,7 @@ def test_parallel_analysis_reads_its_input_as_numbers_in_columns() -> None:
 
 
 def test_minka_mle_is_sklearn_mle_on_the_block() -> None:
-    """Minka's estimate is sklearn's, which centres the block itself; a 1-D input is one column."""
+    """Minka's estimate is sklearn's, which centers the block itself; a 1-D input is one column."""
     from sklearn import decomposition
 
     X = _raw_block(n=60, k=6, seed=2).to_numpy()
@@ -10681,7 +10732,7 @@ def test_detect_outliers_ignores_a_limit_that_carries_no_information(monkeypatch
     no row is above an SPE limit of 0. With an infinite T2 limit no row is above it, and a
     row the ESD test flags is ranked by its SPE alone.
     """
-    # NIPALS normalises a one-entry loading to exactly 1, so every residual is exactly 0.
+    # NIPALS normalizes a one-entry loading to exactly 1, so every residual is exactly 0.
     one_column = PCA(n_components=1, algorithm="nipals").fit(_outlier_block()[["b"]])
     assert (one_column.spe_.to_numpy() == 0).all()
     assert one_column.spe_limit(conf_level=0.95) == 0.0
@@ -10775,7 +10826,7 @@ def _pls_by_hand(X: np.ndarray, Y: np.ndarray, A: int) -> dict[str, np.ndarray]:
 
 
 def _autoscaled(values: np.ndarray) -> np.ndarray:
-    """Centre each column and divide it by its standard deviation with ddof=1, as PLS(scale=True) does."""
+    """Center each column and divide it by its standard deviation with ddof=1, as PLS(scale=True) does."""
     return (values - values.mean(axis=0)) / values.std(axis=0, ddof=1)
 
 
@@ -10799,7 +10850,7 @@ def test_pls_constructor_keeps_its_defaults_and_declares_nan_and_several_targets
         "max_iter": 500,
         "tol": epsqrt,
         "copy": None,
-        "warn_on_uncentred": True,
+        "warn_on_uncentered": True,
         "missing_data_settings": None,
     }
     tags = PLS(n_components=2).__sklearn_tags__()
@@ -10834,18 +10885,18 @@ class TestPLSCopyIsDeprecated:
         assert clone(PLS(n_components=2, copy=False)).get_params()["copy"] is False
 
 
-_UNCENTRED_HEAD = "PLS(scale=False) fits no intercept and centres nothing, but column(s) "
+_UNCENTRED_HEAD = "PLS(scale=False) fits no intercept and centers nothing, but column(s) "
 _UNCENTRED_MIDDLE = " block have a mean that is large relative to their own spread. The consequence is not an error: "
 _UNCENTRED_TAIL = (
-    ". Centre both blocks first (MCUVScaler().fit_transform(...), or X - X.mean()), or pass scale=True and let the "
-    "model do it. Fitting un-centred on purpose? Pass warn_on_uncentred=False to silence this for this model alone."
+    ". Center both blocks first (MCUVScaler().fit_transform(...), or X - X.mean()), or pass scale=True and let the "
+    "model do it. Fitting un-centered on purpose? Pass warn_on_uncentered=False to silence this for this model alone."
 )
 _UNCENTRED_Y = (
     "every prediction is offset by roughly the response mean, so R2 and Q2 go large and negative and the fit reads "
     "as 'no relationship in this data' even when the relationship is strong"
 )
 _UNCENTRED_X = (
-    "the un-centred columns act as an uncontrolled constant term, so the loadings and R2 describe the offset rather "
+    "the un-centered columns act as an uncontrolled constant term, so the loadings and R2 describe the offset rather "
     "than the variation around it"
 )
 
@@ -10872,13 +10923,13 @@ def test_pls_names_the_uncentred_columns_of_each_block_in_full(
     x -= x.mean()
     y = pd.DataFrame({"y": x[0] - x[1]})
     x.iloc[:, :x_offsets] += 10.0
-    with pytest.warns(UncentredDataWarning) as record:
+    with pytest.warns(UncenteredDataWarning) as record:
         PLS(n_components=2, scale=False).fit(x, y + y_offset)
     expected = [
         _UNCENTRED_HEAD + labels + " of the " + block + _UNCENTRED_MIDDLE + symptom + _UNCENTRED_TAIL
         for labels, block, symptom in messages
     ]
-    assert [str(w.message) for w in record if w.category is UncentredDataWarning] == expected
+    assert [str(w.message) for w in record if w.category is UncenteredDataWarning] == expected
 
 
 def test_pls_refuses_an_md_method_it_cannot_fit_in_full_and_reads_any_case() -> None:
@@ -10915,7 +10966,7 @@ def test_pls_detect_outliers_by_hand(units: float) -> None:
     The limits are the model's own at the confidence asked for; in thousandths of the units
     the SPE limit is below 1 and the severities are unchanged.
     """
-    pls = PLS(n_components=2, scale=False, warn_on_uncentred=False).fit(*_pls_outlier_blocks(units))
+    pls = PLS(n_components=2, scale=False, warn_on_uncentered=False).fit(*_pls_outlier_blocks(units))
     spe, t2 = pls.spe_.iloc[:, -1], pls.hotellings_t2_.iloc[:, -1]
     spe_limit, t2_limit = pls.spe_limit(conf_level=0.95), pls.hotellings_t2_limit(conf_level=0.95)
     assert (spe_limit < 1) == (units < 1)
@@ -10981,7 +11032,7 @@ def test_pls_detect_outliers_ignores_a_limit_that_carries_no_information(monkeyp
     row the ESD test flags is ranked by its SPE alone.
     """
     X, y = _pls_outlier_blocks()
-    # One centred X column: its weight is exactly 1, so the score is the column and every residual exactly 0.
+    # One centered X column: its weight is exactly 1, so the score is the column and every residual exactly 0.
     one_column = PLS(n_components=1, scale=False).fit(X[["b"]], y - y.mean())
     assert (one_column.spe_.to_numpy() == 0).all()
     assert one_column.spe_limit(conf_level=0.95) == 0.0
@@ -11000,7 +11051,7 @@ def test_pls_detect_outliers_ignores_a_limit_that_carries_no_information(monkeyp
     assert outlier["severity"] == round(t2.iloc[quietest] / limit, 4) < 1
     rng = np.random.default_rng(4)
     wide, targets = pd.DataFrame(rng.standard_normal((4, 6)) + 2.0), pd.DataFrame(rng.standard_normal((4, 4)))
-    full = PLS(n_components=4, scale=False, warn_on_uncentred=False).fit(wide, targets)
+    full = PLS(n_components=4, scale=False, warn_on_uncentered=False).fit(wide, targets)
     assert full.hotellings_t2_limit(conf_level=0.95) == np.inf
     spe, spe_limit = full.spe_.iloc[:, -1], full.spe_limit(conf_level=0.95)
     assert spe_limit > 0
@@ -11089,7 +11140,7 @@ def test_pls_reads_new_rows_by_column_name_and_labels_every_result() -> None:
 
 @pytest.mark.parametrize("scale", [True, False])
 def test_pls_reads_columns_without_string_labels_by_position(scale: bool) -> None:
-    """Columns labelled other than by strings are read by position, whether or not the model scales (#1027).
+    """Columns labeled other than by strings are read by position, whether or not the model scales (#1027).
 
     sklearn records no feature names for such columns, so ``validate_data`` reads them by
     position, as the scaler and ``project`` did. Without scaling, ``transform``,
@@ -11454,9 +11505,9 @@ def test_pls_prediction_interval_by_hand() -> None:
 
 @pytest.mark.parametrize(("components", "scale"), [(2, True), (3, False)])
 def test_pls_prediction_interval_keeps_at_least_one_degree_of_freedom(components: int, scale: bool) -> None:
-    """With ``N - A - 1`` at 1, or at 0 (four rows left uncentred), the interval uses 1 degree of freedom."""
+    """With ``N - A - 1`` at 1, or at 0 (four rows left uncentered), the interval uses 1 degree of freedom."""
     X, Y = _pls_block(n=4)
-    pls = PLS(n_components=components, scale=scale, warn_on_uncentred=False).fit(X, Y[["y0"]])
+    pls = PLS(n_components=components, scale=scale, warn_on_uncentered=False).fit(X, Y[["y0"]])
     interval = pls.prediction_interval(X, conf_level=0.9)
     rmse = pls.rmse_.iloc[:, -1].to_numpy()
     assert rmse > 1e-3
@@ -11909,7 +11960,7 @@ def _pls_nipals_as_fitted(X: np.ndarray, Y: np.ndarray, A: int, tol: float = eps
 
     Each component is seeded from the Y column of largest sum of squares, the first of any that
     tie to round-off as autoscaled columns do (a missing cell as 0), plus 1; an iteration is
-    ``w = X'u / u'u`` normalised, ``t = Xw / w'w``, ``c = Y't / t't``, ``u = Yc / c'c``, each
+    ``w = X'u / u'u`` normalized, ``t = Xw / w'w``, ``c = Y't / t't``, ``u = Yc / c'c``, each
     over the observed cells; the loop stops once
     ``||u_old - u|| / ||u|| < tol``, or after ``max_iter`` iterations. Then ``p = X't / t't``,
     both blocks are deflated, and the component is turned so that its largest loading is
@@ -11983,7 +12034,7 @@ def test_pls_fit_by_hand(scale: bool) -> None:
         Z, Zy = (_autoscaled(X.to_numpy()), _autoscaled(Y.to_numpy())) if scale else (X.to_numpy(), Y.to_numpy())
     x_sd = X.std(ddof=1).to_numpy(copy=True) if scale else np.ones(X.shape[1])
     y_sd, y_mean = (Y.std(ddof=1).to_numpy(copy=True), Y.mean().to_numpy()) if scale else (np.ones(4), np.zeros(4))
-    if scale:  # a constant column is centred and left unscaled
+    if scale:  # a constant column is centered and left unscaled
         Z[:, 4], Zy[:, 2], x_sd[4], y_sd[2] = 0.0, 0.0, 1.0, 1.0
     ref = _pls_nipals_as_fitted(Z, Zy, 3)
     components = [1, 2, 3]
@@ -12065,9 +12116,9 @@ def test_pls_fit_with_missing_cells_by_hand() -> None:
 
 
 def test_pls_fit_labels_its_results_from_the_blocks_it_is_given() -> None:
-    """A labelled X labels the rows of every result; a 1-D response array follows it, a Series keeps its own labels.
+    """A labeled X labels the rows of every result; a 1-D response array follows it, a Series keeps its own labels.
 
-    A 1-D array of responses was labelled 0..N-1 while a 2-D one took X's row labels (#1027).
+    A 1-D array of responses was labeled 0..N-1 while a 2-D one took X's row labels (#1027).
     Arrays are numbered from 0.
     """
     X, Y = _pls_block()
@@ -12128,7 +12179,7 @@ def test_pls_fit_labels_its_results_from_the_blocks_it_is_given() -> None:
         (
             lambda X, Y: PLS(n_components=1).fit(csr_matrix(X.to_numpy()), Y),
             TypeError,
-            "PLS does not accept sparse input: NIPALS centres and scales every column",
+            "PLS does not accept sparse input: NIPALS centers and scales every column",
         ),
     ],
     ids=[
@@ -12218,7 +12269,7 @@ def test_pls_fit_judges_the_variance_left_against_each_block(block: str) -> None
     for size in (2.0**-13, 2.0**-40, 0.0):
         tiny = pd.DataFrame({"b": [size, 0.0, 0.0, 0.0]})
         X, Y = (tiny, big) if block == "X" else (big, tiny)
-        model = PLS(n_components=1, scale=False, warn_on_uncentred=False)
+        model = PLS(n_components=1, scale=False, warn_on_uncentered=False)
         if size:
             model.fit(X, Y)
             continue
@@ -12246,7 +12297,7 @@ def test_pls_fit_says_in_full_when_x_runs_out_part_way() -> None:
         "There is no variance left in the data array for X: cannot compute any more components beyond component 1."
     )
     with pytest.raises(NotEnoughVarianceError, match="^" + re.escape(message) + "$"):
-        PLS(n_components=2, scale=False, warn_on_uncentred=False).fit(X - X.mean(), Y - Y.mean())
+        PLS(n_components=2, scale=False, warn_on_uncentered=False).fit(X - X.mean(), Y - Y.mean())
 
 
 def test_pls_nipals_says_when_it_stops_at_max_iter_and_logs_each_component(caplog: pytest.LogCaptureFixture) -> None:
@@ -12325,7 +12376,7 @@ def test_held_out_scores_by_hand(gapped_training: bool) -> None:
 
 
 def _uncentred_fold_model(x: np.ndarray, y: np.ndarray, a: int) -> tuple[Callable, Callable]:
-    """Return the predictions and reconstruction of PLS fitted by hand to rows as given, centred or not."""
+    """Return the predictions and reconstruction of PLS fitted by hand to rows as given, centered or not."""
     fitted = _pls_nipals_as_fitted(x, y, a)
     R = fitted["W"] @ np.linalg.inv(fitted["P"].T @ fitted["W"])
     return (lambda rows: rows @ R @ fitted["C"].T), (lambda rows: rows @ R @ fitted["P"].T)
@@ -12563,7 +12614,7 @@ def test_pls_select_n_components_with_a_splitter_by_hand(scale_inside_folds: boo
     X, Y = _pls_block(n=12)
     splitter = ShuffleSplit(n_splits=3, test_size=5, random_state=0)
     message = (
-        "scale_inside_folds=False leaks centring/scaling estimated on the full dataset into every CV fold, making the "
+        "scale_inside_folds=False leaks centering/scaling estimated on the full dataset into every CV fold, making the "
         "reported RMSECV optimistic. The default scale_inside_folds=True is preferred."
     )
     with warnings.catch_warnings(record=True) as record:
@@ -12577,7 +12628,7 @@ def test_pls_select_n_components_with_a_splitter_by_hand(scale_inside_folds: boo
             selection_rule="min",
             scale_inside_folds=scale_inside_folds,
             scale=scale,
-            warn_on_uncentred=False,
+            warn_on_uncentered=False,
         )
     warned = [str(w.message) for w in record if w.category is SpecificationWarning]
     assert warned == ([] if scale_inside_folds else [message])
@@ -12597,9 +12648,9 @@ def test_pls_select_n_components_with_a_splitter_by_hand(scale_inside_folds: boo
 def test_pls_select_n_components_caps_the_count_where_a_fold_runs_out(
     scale_inside_folds: bool, scale: bool, count: int
 ) -> None:
-    """A training fold of 8 rows centred, by the fold or by its model, holds 7 components; uncentred, 8 (#1027).
+    """A training fold of 8 rows centered, by the fold or by its model, holds 7 components; uncentered, 8 (#1027).
 
-    Without in-fold scaling the cap was 8 whether or not the model centres, and a wide
+    Without in-fold scaling the cap was 8 whether or not the model centers, and a wide
     block with the default ``PLS(scale=True)`` ran out of X at the eighth component.
     """
     rng = np.random.default_rng(0)
@@ -12625,7 +12676,7 @@ def test_pls_select_n_components_refuses_and_warns_in_full() -> None:
         1,
         2,
     )
-    with pytest.warns(SpecificationWarning, match=r"re-standardises inside every CV fold.* comparison of their RMSECV"):
+    with pytest.warns(SpecificationWarning, match=r"re-standardizes inside every CV fold.* comparison of their RMSECV"):
         PLS.select_n_components(_autoscaled(X.to_numpy()), Y, cv=3, n_repeats=1, max_components=1, random_state=0)
 
 
@@ -12647,7 +12698,7 @@ def test_pls_select_n_components_reads_arrays_and_a_series() -> None:
 def test_pls_select_n_components_scores_rows_as_a_fold_model_that_recentres_predicts_them(
     scale_inside_folds: bool,
 ) -> None:
-    """PRM centres every fold at its robust centre, after any in-fold scaling: its held-out rows are read in its space.
+    """PRM centers every fold at its robust center, after any in-fold scaling: its held-out rows are read in its space.
 
     The reference is each fold's PRM predicting its held-out rows, after the fold's own
     autoscaling when there is one, and back in the data's units (#1027).
@@ -12655,7 +12706,7 @@ def test_pls_select_n_components_scores_rows_as_a_fold_model_that_recentres_pred
     rng = np.random.default_rng(0)
     X = pd.DataFrame(rng.standard_normal((15, 4)) + 3.0, columns=list("abcd"))
     Y = pd.DataFrame({"y": X.to_numpy() @ [1.0, 2.0, 0.0, -1.0] + 0.5 * rng.standard_normal(15)})
-    X.iloc[2, 1] += 6.0  # pulls the fold mean away from the robust centre
+    X.iloc[2, 1] += 6.0  # pulls the fold mean away from the robust center
     cv = KFold(n_splits=3, shuffle=True, random_state=0)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", SpecificationWarning)
@@ -12689,9 +12740,9 @@ def test_pls_unscaled_fit_reads_a_pandas_missing_value_as_nan() -> None:
     X, Y = X - X.mean(), Y - Y.mean()
     nullable = Y.astype("Float64")
     nullable.iloc[3, 0] = pd.NA
-    # The centring check reads the block itself, and does not take pd.NA: it is skipped here.
-    plain = PLS(n_components=2, scale=False, warn_on_uncentred=False).fit(X, Y)
-    other = PLS(n_components=2, scale=False, warn_on_uncentred=False).fit(X, nullable)
+    # The centering check reads the block itself, and does not take pd.NA: it is skipped here.
+    plain = PLS(n_components=2, scale=False, warn_on_uncentered=False).fit(X, Y)
+    other = PLS(n_components=2, scale=False, warn_on_uncentered=False).fit(X, nullable)
     np.testing.assert_array_equal(other.beta_coefficients_.to_numpy(), plain.beta_coefficients_.to_numpy())
     np.testing.assert_array_equal(other.rmse_.to_numpy(), plain.rmse_.to_numpy())
 

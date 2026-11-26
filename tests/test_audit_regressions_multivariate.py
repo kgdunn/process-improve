@@ -32,7 +32,7 @@ def _low_rank_matrix(n: int, k: int, rank: int, noise: float, seed: int) -> np.n
 
 
 class TestTSR:
-    """PCA(algorithm="tsr"): the N <= K SVD branch and the centring mismatch."""
+    """PCA(algorithm="tsr"): the N <= K SVD branch and the centering mismatch."""
 
     def test_wide_matrix_with_missing_data_fits(self) -> None:
         """N < K previously crashed with IndexError inside the imputation loop."""
@@ -73,9 +73,9 @@ class TestTSR:
     def test_scores_match_projection_of_complete_data(self) -> None:
         """TSR scores must agree with transform() on the same (complete) data.
 
-        The pre-fix code centred the scores inside fit() while transform()
-        projects without centring, so fitted and projected scores disagreed by
-        the column-mean offset for any not-exactly-centred input.
+        The pre-fix code centered the scores inside fit() while transform()
+        projects without centering, so fitted and projected scores disagreed by
+        the column-mean offset for any not-exactly-centered input.
         """
         x = _low_rank_matrix(n=40, k=6, rank=2, noise=0.05, seed=5) + 3.0  # deliberate offset
         frame = pd.DataFrame(x)
@@ -105,7 +105,7 @@ class TestEllipse:
     def test_uses_two_component_limit(self, model: PCA) -> None:
         x_coords, y_coords = model.ellipse_coordinates(1, 2)
         expected_radius = np.sqrt(hotellings_t2_limit(0.95, n_components=2, n_rows=50))
-        # rtol accounts for the discrete parametrisation: no sample point
+        # rtol accounts for the discrete parametrization: no sample point
         # lands exactly on the semi-axis for the vertical direction.
         assert np.isclose(np.max(x_coords), expected_radius * model.scaling_factor_for_scores_.iloc[0], rtol=1e-3)
         assert np.isclose(np.max(y_coords), expected_radius * model.scaling_factor_for_scores_.iloc[1], rtol=1e-3)
@@ -175,10 +175,10 @@ class TestSelectNComponentsScales:
     def test_q2_null_model_is_centred(self) -> None:
         """A large column offset must not make every Q2 look like 1.
 
-        The uncentred ``sum(x^2)`` reference this replaced was dominated by the
+        The uncentered ``sum(x^2)`` reference this replaced was dominated by the
         offset, so it could not discriminate between component counts. The
         reference is now each fold's own held-out cells, measured the same way
-        PRESS is, which is centred by construction.
+        PRESS is, which is centered by construction.
         """
         rng = np.random.default_rng(10)
         x = _low_rank_matrix(n=30, k=6, rank=2, noise=0.4, seed=11) + 100.0  # large offset
@@ -282,7 +282,7 @@ class TestTargetProjection:
         model_pre = PLS(n_components=2).fit(x_scaled, y_scaled)
         tp_pre = model_pre.target_projection(x_scaled)
 
-        # Same underlying model in two parameterisations: the TP scores must
+        # Same underlying model in two parameterizations: the TP scores must
         # agree (up to a global sign). Pre-fix, the raw-units beta was used as
         # a direction in scaled space and the two disagreed wildly.
         corr = np.corrcoef(tp_raw.scores.to_numpy(), tp_pre.scores.to_numpy())[0, 1]
@@ -328,7 +328,7 @@ class TestPreprocessingGuards:
     @pytest.mark.parametrize("order", ["C", "F"])
     @pytest.mark.parametrize(("n_rows", "value"), [(53, 0.00871), (53, 0.1), (5, 63.696), (100, 3.7)])
     def test_mcuv_constant_column_transforms_to_exactly_zero(self, order: str, n_rows: int, value: float) -> None:
-        """A constant column is left unscaled and centred on its value, in either memory layout.
+        """A constant column is left unscaled and centered on its value, in either memory layout.
 
         Its nanstd is usually rounding noise (about 1e-17) rather than exactly 0, in either
         memory layout; dividing by it made the column +-sqrt((n-1)/n) instead of 0.
@@ -386,7 +386,7 @@ class TestPreprocessingGuards:
 
 
 class TestTPLSDiagnoseMissing:
-    """TPLS.diagnose must neutralise NaN cells like fit() does."""
+    """TPLS.diagnose must neutralize NaN cells like fit() does."""
 
     @pytest.fixture
     def fitted(self) -> tuple[TPLS, dict]:
@@ -568,7 +568,7 @@ class TestStatisticalCorrectnessTriage:
             try:
                 model = PLS(n_components=4).fit(pd.DataFrame(X), pd.DataFrame(Y))
             except np.linalg.LinAlgError:
-                # A separate, still-open defect: the main NIPALS path normalises
+                # A separate, still-open defect: the main NIPALS path normalizes
                 # w_a with no zero floor, so a collapsed weight vector turns the
                 # component into NaN and the fit aborts blaming collinearity.
                 # Out of scope here; skip the seed rather than assert on it.

@@ -19,12 +19,12 @@ _DOMAIN = "sensory"
 
 _INTAKE = AnalysisRecipe(
     key="sensory_intake",
-    title="Sensory data intake: organise and check a panel file",
+    title="Sensory data intake: organize and check a panel file",
     summary=(
         "Take a freshly received descriptive-panel spreadsheet from raw rows to a validated, canonical "
         "long table ready for analysis. Resolve the layout and column roles, reshape to the "
         "descriptive_long schema with round-trip checks, then validate the schema, score range and panel "
-        "balance. Use this whenever new panel data arrives and needs organising and checking."
+        "balance. Use this whenever new panel data arrives and needs organizing and checking."
     ),
     domain=_DOMAIN,
     cue_phrases=[
@@ -99,7 +99,7 @@ _INTAKE = AnalysisRecipe(
         RecipeStep(
             order=4,
             directive=(
-                "Summarise for the user: counts of panelists, products, attributes and replicates, the "
+                "Summarize for the user: counts of panelists, products, attributes and replicates, the "
                 "score range, any balance warnings, and the content hash that identifies this dataset. The "
                 "validated canonical descriptive_long table is the artifact the panel-processing recipe "
                 "consumes next."
@@ -173,7 +173,7 @@ _PANEL_PROCESSING = AnalysisRecipe(
                 "Decide the correction and produce the corrected canonical table. Call sensory_panel_check "
                 "with align=true to rescale every panelist onto a common scale (a location lever removes "
                 "their offset, a scale lever divides by beta); the returned aligned_panel is the new "
-                "canonical descriptive_long table, with scale-use artefacts removed but genuine "
+                "canonical descriptive_long table, with scale-use artifacts removed but genuine "
                 "disagreement preserved. A panelist who truly disagrees (low agreement, not just scaling) is "
                 "better dropped than rescaled; aligning and dropping can be combined."
             ),
@@ -299,7 +299,7 @@ _RELATE_COVARIATES = AnalysisRecipe(
 
 _VISUALISATION = AnalysisRecipe(
     key="sensory_visualisation",
-    title="Sensory visualisation (planned)",
+    title="Sensory visualization (planned)",
     summary=(
         "A planned workflow to turn relate and predictive-descriptor output into sensory maps, driver biplots and "
         "small-multiple panels. Not yet available; this entry advertises the workflow so the agent can tell "
@@ -318,7 +318,7 @@ _VISUALISATION = AnalysisRecipe(
         "chart the panel",
     ],
     inputs_needed=[
-        "not yet available - this visualisation workflow is planned for a later release",
+        "not yet available - this visualization workflow is planned for a later release",
     ],
     stages=[],
     status="planned",

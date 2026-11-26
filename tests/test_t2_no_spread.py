@@ -72,7 +72,7 @@ def test_a_rank_deficient_pca_projects_missing_cells_by_tsr() -> None:
     np.testing.assert_allclose(projected.scores.iloc[0, 3:], 0.0, atol=0.0)
     np.testing.assert_allclose(projected.scores.iloc[:, :3], expected.scores, rtol=1e-8, atol=1e-10)
     np.testing.assert_allclose(projected.hotellings_t2, expected.hotellings_t2, rtol=1e-8)
-    # By hand: the sum of the squared standardised scores of the three components with spread.
+    # By hand: the sum of the squared standardized scores of the three components with spread.
     by_hand = ((projected.scores.iloc[:, :3] / model.scaling_factor_for_scores_.iloc[:3]) ** 2).sum(axis=1)
     np.testing.assert_allclose(projected.hotellings_t2, by_hand, rtol=1e-12)
     # The row with missing cells is rebuilt from the components with spread only.

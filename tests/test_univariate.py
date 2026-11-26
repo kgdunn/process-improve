@@ -126,7 +126,7 @@ def test_univariate_robust_scale() -> None:
     # Every value above is reproduced, at both odd and even n. Sn uses the high
     # median inside and the low median outside (Rousseeuw-Croux); these are order
     # statistics that differ from the averaging median exactly when n is even, so
-    # using np.median for both (the behaviour before this was fixed) understated
+    # using np.median for both (the behavior before this was fixed) understated
     # every even-n estimate: 0.443 against 0.886 at n = 2.
 
     # Odd n
@@ -825,7 +825,7 @@ def test_rosner_esd_kwargs(outliers_data: tuple[list[float], list[float]]) -> No
 
     NIST's answer for this data set is 3 outliers; the MAD-scaled statistic
     against classical critical values flags 4. This pins the documented
-    anti-conservative behaviour of ``robust_variant=True`` (the reason it is
+    anti-conservative behavior of ``robust_variant=True`` (the reason it is
     no longer the default), with the corrected largest-crossing rule.
     """
     rosner, _ = outliers_data
@@ -910,7 +910,7 @@ def test_ttest_paired_old_keys_warn_and_hold_the_same_number(old: str, new: str)
 
 
 def test_ttest_paired_read_whole_does_not_warn() -> None:
-    """Only reading an old key by name warns: copying, serialising and the DataFrame form stay quiet."""
+    """Only reading an old key by name warns: copying, serializing and the DataFrame form stay quiet."""
     out = univariate.ttest_paired(pd.Series([1.0, 2.0, 3.0, 4.0]), conflevel=0.95)
     df = pd.DataFrame({"group": ["A"] * 3 + ["B"] * 3, "value": [5.0, 6.0, 8.0, 4.0, 4.5, 6.0]})
     with warnings.catch_warnings():
@@ -928,7 +928,7 @@ def test_ttest_independent_matches_scipy_in_both_variance_modes(equal_var: bool)
     The samples are deliberately unbalanced in both size and spread (8 tight against 25
     wide), which is where Student's and Welch's part company: here they disagree on the
     statistic itself (0.344 against 0.587) and on the degrees of freedom (31 against
-    28.36), so the test would pass under a mislabelled implementation only by accident.
+    28.36), so the test would pass under a mislabeled implementation only by accident.
     """
     rng = np.random.default_rng(0)
     a = pd.Series(rng.normal(10, 1.0, 8))
@@ -1056,10 +1056,10 @@ def test_ttest_from_df_multiplicity_correction() -> None:
 
 
 def test_summary_stats_rsd_with_zero_centre() -> None:
-    """A zero centre gives NaN rather than inf plus a RuntimeWarning.
+    """A zero center gives NaN rather than inf plus a RuntimeWarning.
 
     Regression test: both relative-spread divisions were unguarded, so a
-    mean-centred variable produced inf and a RuntimeWarning through the public
+    mean-centered variable produced inf and a RuntimeWarning through the public
     API and the agent-facing tool.
     """
     with warnings.catch_warnings():
@@ -1072,7 +1072,7 @@ def test_summary_stats_rsd_with_zero_centre() -> None:
         assert np.isnan(all_zero["rsd"])
         assert np.isnan(all_zero["rsd_classical"])
 
-    # A non-zero centre is unaffected.
+    # A non-zero center is unaffected.
     normal = univariate.summary_stats(np.array([10.0, 11.0, 12.0]))
     assert normal["rsd_classical"] == pytest.approx(np.std([10.0, 11, 12], ddof=1) / 11.0, rel=1e-12)
 

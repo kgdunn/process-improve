@@ -471,7 +471,7 @@ class TestCCD:
     def test_spherical_puts_the_axial_runs_at_the_corners_distance(
         self, k: int, cube: str, generators: list[str] | None
     ) -> None:
-        """Box and Draper's Table 15.2: alpha = k ** 0.5, so every run but the centre is on one sphere."""
+        """Box and Draper's Table 15.2: alpha = k ** 0.5, so every run but the center is on one sphere."""
         names = "ABCDEFGH"[:k]
         result = generate_design(
             _continuous_factors(k, names), design_type="ccd", alpha="spherical", cube=cube, generators=generators
@@ -519,7 +519,7 @@ class TestCCD:
         assert result.n_factors == 2
 
     def test_fractional_cube_5_factors(self) -> None:
-        """5-factor fractional CCD: 16-run cube + 10 axial + 6 centre = 32 runs."""
+        """5-factor fractional CCD: 16-run cube + 10 axial + 6 center = 32 runs."""
         factors = _continuous_factors(5, "ABCDE")
         result = generate_design(
             factors, design_type="ccd", cube="fractional", alpha="face_centered", n_center_points=6
@@ -531,7 +531,7 @@ class TestCCD:
         assert result.defining_relation
 
     def test_fractional_cube_6_factors(self) -> None:
-        """6-factor fractional CCD: 2^(6-1)=32-run cube + 12 axial + centre."""
+        """6-factor fractional CCD: 2^(6-1)=32-run cube + 12 axial + center."""
         factors = _continuous_factors(6, "ABCDEF")
         result = generate_design(
             factors, design_type="ccd", cube="fractional", alpha="face_centered", n_center_points=6
@@ -588,7 +588,7 @@ class TestCCD:
     def test_small_composite_design(self, k: int, generators: list[str] | None, n_cube: int) -> None:
         """Hartley's small composite designs: cube runs aliasing interactions only with main effects.
 
-        Three factors in 4 + 6 runs and four in 8 + 8 (Nunez Ares and Goos 2020, Table 1), centre runs aside.
+        Three factors in 4 + 6 runs and four in 8 + 8 (Nunez Ares and Goos 2020, Table 1), center runs aside.
         """
         factors = _continuous_factors(k, "ABCD"[:k])
         result = generate_design(
@@ -602,7 +602,7 @@ class TestCCD:
         assert np.linalg.matrix_rank(quadratic) == quadratic.shape[1]  # the full quadratic model is estimable
 
     def test_full_cube_default_unchanged(self) -> None:
-        """The default full cube is unchanged: 32 cube + 10 axial + 6 centre = 48 runs."""
+        """The default full cube is unchanged: 32 cube + 10 axial + 6 center = 48 runs."""
         factors = _continuous_factors(5, "ABCDE")
         result = generate_design(factors, design_type="ccd", n_center_points=6)
         assert result.n_runs == 48
@@ -646,7 +646,7 @@ class TestCCD:
             alpha="face_centered",
             n_center_points=6,
         )
-        # 2^(6-1)=32-run cube + 12 axial + 6 centre.
+        # 2^(6-1)=32-run cube + 12 axial + 6 center.
         assert result.n_runs == 32 + 12 + 6
         # The minimum-aberration 32-run cube, F = ABCDE, is resolution VI: more than asked.
         assert result.generators == ["F=ABCDE"]
@@ -665,7 +665,7 @@ class TestCCD:
 
 
 class TestCentreRunsAndReplicates:
-    """``n_center_points`` counts the centre runs of the whole design; replicates repeat the other runs (#513)."""
+    """``n_center_points`` counts the center runs of the whole design; replicates repeat the other runs (#513)."""
 
     @staticmethod
     def _centre_runs(result, names: str) -> int:
@@ -686,7 +686,7 @@ class TestCentreRunsAndReplicates:
 
     @pytest.mark.parametrize(("cube", "names"), [("full", "ABC"), ("fractional", "ABCDE")])
     def test_a_replicated_ccd_keeps_its_squares_orthogonal(self, cube: str, names: str) -> None:
-        """The orthogonal axial distance allows for replicated cube and axial runs but single centre runs."""
+        """The orthogonal axial distance allows for replicated cube and axial runs but single center runs."""
         result = generate_design(
             _continuous_factors(len(names), names), "ccd", cube=cube, n_center_points=3, n_replicates=2
         )
@@ -695,7 +695,7 @@ class TestCentreRunsAndReplicates:
         np.testing.assert_allclose(correlation[np.triu_indices(len(names), 1)], 0.0, atol=1e-12)
 
     def test_a_categorical_dsd_has_no_centre_runs_to_keep_single(self) -> None:
-        """With no continuous factor no run is at the centre, so replication repeats every run."""
+        """With no continuous factor no run is at the center, so replication repeats every run."""
         factors = [Factor(name=name, type="categorical", levels=["L", "H"]) for name in "ABC"]
         once = generate_design(factors, "dsd")
         assert generate_design(factors, "dsd", n_replicates=2).n_runs == 2 * once.n_runs
@@ -1083,13 +1083,13 @@ class TestAutoSelect:
         assert result == "plackett_burman"
 
     def test_budget_allows_half_fraction(self) -> None:
-        """Auto-select picks fractional_factorial when the half fraction and its 3 centre points fit."""
+        """Auto-select picks fractional_factorial when the half fraction and its 3 center points fit."""
         factors = _continuous_factors(5, "ABCDE")
         result = _auto_select(factors, budget=19, constraints=None, hard_to_change=None)
         assert result == "fractional_factorial"
 
     def test_budget_below_half_fraction_with_centre_points(self) -> None:
-        """16 runs hold the 2^(5-1) fraction but not its centre points; the 8-run Plackett-Burman fits."""
+        """16 runs hold the 2^(5-1) fraction but not its center points; the 8-run Plackett-Burman fits."""
         factors = _continuous_factors(5, "ABCDE")
         assert _auto_select(factors, budget=16, constraints=None, hard_to_change=None) == "plackett_burman"
         assert generate_design(factors, budget=16, n_center_points=0).design_type == "fractional_factorial"

@@ -15,7 +15,7 @@
   <meta name="theme-color" content="#f5f6f4" media="(prefers-color-scheme: light)" data-scheme="light">
   <meta name="theme-color" content="#141517" media="(prefers-color-scheme: dark)" data-scheme="dark">
   <script>
-    /* The colour mode chosen with the switch in the header (app.js), put on the page before it is drawn,
+    /* The color mode chosen with the switch in the header (app.js), put on the page before it is drawn,
        so a reader who chose dark never sees it flash light. Without a choice the system's is followed. */
     try {
       const mode = localStorage.getItem("factorial-mode");
@@ -34,7 +34,7 @@
   <meta property="og:image" content="https://factori.al/og-card.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="Factorial: a two-level factorial in three factors, drawn as a cube seen down its diagonal with its centre run, beside the words: design, run and learn from your experiments.">
+  <meta property="og:image:alt" content="Factorial: a two-level factorial in three factors, drawn as a cube seen down its diagonal with its center run, beside the words: design, run and learn from your experiments.">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="stylesheet" href="style.css">
   <!-- Python comes from this address, and is the longest wait of a visit: the connection to it is opened while
@@ -64,15 +64,16 @@
   <link rel="modulepreload" href="offline.js">
   <link rel="modulepreload" href="python-boot.js">
   <link rel="modulepreload" href="feedback.js">
+  <link rel="modulepreload" href="usage.js">
 </head>
 <body>
 <a class="skip-link" href="#workspace">Skip to the study</a>
 <main>
-  <!-- The bar: the mark and the name, the study's stages, a new study, feedback and the colour mode, kept in
+  <!-- The bar: the mark and the name, the study's stages, a new study, feedback and the color mode, kept in
        reach while the page scrolls, with the status line under them. -->
   <nav id="studybar" class="studybar" aria-label="Factorial, and the study">
     <div class="studybar__row">
-      <!-- The mark: a 2^3 factorial and its centre run, seen down the cube's diagonal, in the page's colours.
+      <!-- The mark: a 2^3 factorial and its center run, seen down the cube's diagonal, in the page's colors.
            tools/branding/app_mark.py draws it from generate_design and writes favicon.svg; test_brand.py
            keeps the two in step. The mark and the name are a link to the page itself, so a press opens it
            afresh, as a reload does. -->
@@ -107,8 +108,8 @@
           <li><button type="button" id="open-library">Your studies <span id="library-count" class="badge">0</span></button></li>
           <li><button type="button" id="show-example">Open the worked example</button></li>
           <!-- A table of the reader's own, made into a study (import.js): a design run elsewhere, or a process's records. -->
-          <li><button type="button" id="import-data">Analyse data you have</button></li>
-          <li><a href="catalog/" id="catalog-link">Catalog of experimental designs</a></li>
+          <li><button type="button" id="import-data">Analyze data you have</button></li>
+          <li><a href="catalog/" id="catalog-link">Design catalog</a></li>
           <li class="study__rule" role="separator"></li>
           <li><button type="button" id="menu-share">Share or download this study</button></li>
           <li><button type="button" id="menu-report">View its report</button></li>
@@ -124,7 +125,7 @@
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 4.5h16v11H10l-4.5 4v-4H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8 8.5h8M8 11.5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span class="feedback-button__long">Provide critical feedback please</span><span class="feedback-button__medium">Feedback appreciated</span><span class="feedback-button__short">Feedback</span></button>
       </div>
       <!-- Light, dark, or the system's, in turn, as the book's switch does: its icon shows the mode now. -->
-      <button type="button" id="mode" class="mode-switch" title="light/dark" aria-label="Colour mode: the system's">
+      <button type="button" id="mode" class="mode-switch" title="light/dark" aria-label="Color mode: the system's">
         <svg data-for="auto" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3.5a8.5 8.5 0 0 0 0 17z" fill="currentColor"/></svg>
         <svg data-for="light" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></g></svg>
         <svg data-for="dark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.5 14.2A8.5 8.5 0 1 1 9.8 3.5a6.8 6.8 0 0 0 10.7 10.7z" fill="currentColor"/></svg>
@@ -145,7 +146,7 @@
 
   <!-- A first visit, and any visit with nothing kept in the browser (app.js start): a welcome before the question.
        It says what Factorial is for in a reader's own words, offers three ways in, and shows the round trip of a
-       study as four steps, each in its stage's colour (style.css --stage-*), so the colours mean something on every
+       study as four steps, each in its stage's color (style.css --stage-*), so the colors mean something on every
        screen after. The blank question stands under it; "Start my first experiment" puts the reader there. -->
   <section id="welcome" class="welcome" aria-labelledby="h-welcome" hidden>
     <div class="welcome__words">
@@ -156,7 +157,7 @@
       <p class="actions">
         <button type="button" id="welcome-start" class="primary">Start my first experiment</button>
         <button type="button" id="welcome-example" class="button">See a finished one</button>
-        <button type="button" id="welcome-import" class="link">Analyse data you have</button>
+        <button type="button" id="welcome-import" class="link">Analyze data you have</button>
       </p>
     </div>
     <ol class="welcome__steps" aria-label="The four steps of a study">
@@ -206,8 +207,8 @@
               <td data-label="Response"><input id="response" name="label" aria-label="Response" maxlength="64" placeholder="Yield" autocomplete="off" spellcheck="false"></td>
               <td data-label="Units"><input id="response-units" name="units" aria-label="Units" maxlength="32" size="5" placeholder="%" autocomplete="off" spellcheck="false"></td>
               <td data-label="Goal"><select id="response-goal" name="goal" aria-label="Goal" autocomplete="off">
-                <option value="maximize">Maximise</option>
-                <option value="minimize">Minimise</option>
+                <option value="maximize">Maximize</option>
+                <option value="minimize">Minimize</option>
                 <option value="target">Hit a target</option>
                 <option value="learn" selected>Just learn</option>
               </select></td>
@@ -241,8 +242,10 @@
         <details id="response-curve" class="known">
           <summary>My measured response is a curve <span class="hint">(a spectrum, or a value over time)</span></summary>
           <div class="curve-explain">
-            <p class="hint">Paste one curve per run under the run sheet. Learn then predicts the whole curve at any
-              setting, with its band. Not for a mixture's blends.</p>
+            <p class="hint">You can paste one curve per run under the
+              <button type="button" class="link stage-link stage-run" data-go="run">Run</button> sheet. In the
+              <button type="button" class="link stage-link stage-learn" data-go="learn">Learn</button> step it will predict
+              the whole curve at any setting, with its error band. Not for a mixture's blends.</p>
           <svg viewBox="0 0 240 92" role="img" aria-label="Three runs' curves, each measured with noise along time. The run's settings change how fast its curve rises, how high it goes, and how far it falls.">
             <path class="axes" d="M26,4V80H206"/>
             <polyline class="run1" points="26.0,80.0 29.0,62.2 32.0,50.5 35.0,42.9 38.0,37.2 41.0,34.9 44.0,32.5 47.0,31.2 50.0,34.3 53.0,36.1 56.0,36.9 59.0,39.4 62.0,42.2 65.0,46.0 68.0,47.5 71.0,49.2 74.0,53.9 77.0,55.2 80.0,59.0 83.0,60.3 86.0,62.8 89.0,62.7 92.0,65.5 95.0,65.3 98.0,66.8 101.0,68.4 104.0,72.2 107.0,71.0 110.0,71.3 113.0,72.0 116.0,74.7 119.0,74.2 122.0,75.4 125.0,75.7 128.0,74.1 131.0,76.7 134.0,76.3 137.0,75.6 140.0,77.6 143.0,77.4 146.0,77.4 149.0,77.7 152.0,79.4 155.0,78.1 158.0,76.8 161.0,80.0 164.0,77.7 167.0,78.7 170.0,79.7 173.0,76.8 176.0,78.3 179.0,80.0 182.0,79.2 185.0,78.7 188.0,79.7 191.0,78.7 194.0,79.6 197.0,78.8 200.0,78.0 203.0,80.0 206.0,79.5"/>
@@ -274,7 +277,8 @@
         <details id="possible" class="known possible">
           <summary>What each factor can be set to <span class="hint">(optional)</span> <span id="possible-count" class="badge" hidden></span></summary>
           <p class="hint">A pressure cannot go below zero, nor a share past 100. The path of steepest ascent stops
-            before a setting past these, the next study's ranges stay inside them, and Learn adds no run outside them.</p>
+            before a setting past these, the next study's ranges stay inside them, and
+            <button type="button" class="link stage-link stage-learn" data-go="learn">Learn</button> adds no run outside them.</p>
           <div class="scroll"><table class="data possible-table">
             <thead><tr><th>Factor</th><th>Lowest possible</th><th>Highest possible</th></tr></thead>
             <tbody id="possible-rows"></tbody>
@@ -455,7 +459,7 @@
             </label>
             <label data-option="alpha"><span class="term" data-term="axial">Axial points</span>
               <select id="alpha">
-                <option value="face_centered">Face-centred (inside the ranges)</option>
+                <option value="face_centered">Face-centered (inside the ranges)</option>
                 <option value="rotatable">Rotatable (outside the ranges)</option>
                 <option value="orthogonal">Orthogonal</option>
                 <option value="distance">A distance you choose</option>
@@ -570,7 +574,7 @@
 
       <section id="step-run" class="pane" data-pane="run" role="tabpanel" aria-labelledby="h-run" hidden>
         <h2 id="h-run">Run the experiments</h2>
-        <p id="run-empty" class="hint">No run sheet yet: make it in <button type="button" class="link" data-go="plan">Design</button>.</p>
+        <p id="run-empty" class="hint">No run sheet yet: make it in <button type="button" class="link stage-link stage-plan" data-go="plan">Design</button>.</p>
         <div id="run-out" hidden>
           <!-- Every run has its result: the next step is Learn, said at the top of Run and not only under the sheet. -->
           <p id="run-done" class="hint run-done" role="status" hidden>Every run has its result.
@@ -612,7 +616,7 @@
           </details>
           <div class="tabs" role="tablist" aria-label="Where the results come from">
             <button type="button" role="tab" id="tab-real" aria-selected="true" aria-controls="panel-real">Enter results</button>
-            <button type="button" role="tab" id="tab-simulate" aria-selected="false" aria-controls="panel-simulate" tabindex="-1">Practise with simulated results</button>
+            <button type="button" role="tab" id="tab-simulate" aria-selected="false" aria-controls="panel-simulate" tabindex="-1">Practice with simulated results</button>
           </div>
           <div id="panel-real" role="tabpanel" aria-labelledby="tab-real">
             <label id="drop" class="drop">
@@ -662,11 +666,11 @@
             <button type="button" id="off-plan-back" class="link" hidden>Put the planned settings back</button></p>
           <details id="curves" class="curves">
             <summary>Each run gives a curve</summary>
-            <p class="hint">When each run gives a curve, such as a colour over time or a spectrum, paste the curves
+            <p class="hint">When each run gives a curve, such as a color over time or a spectrum, paste the curves
               from a spreadsheet: a first row of the points along the curve, then a row for each run, in the run
               sheet's order or under a Run order column. A blank cell is a point a run missed.</p>
             <div class="row">
-              <label>What it measures <input id="curve-label" maxlength="64" placeholder="Colour" autocomplete="off"></label>
+              <label>What it measures <input id="curve-label" maxlength="64" placeholder="Color" autocomplete="off"></label>
               <label>Units <input id="curve-units" maxlength="32" autocomplete="off"></label>
               <label>Along <input id="curve-along" maxlength="64" placeholder="Time" autocomplete="off"></label>
               <label>Units along <input id="curve-along-units" maxlength="32" placeholder="min" autocomplete="off"></label>
@@ -710,9 +714,9 @@
         <p id="practice-note" class="hint practice-note" role="status" hidden>A practice round: the app made up every
           result here, to show what this plan can and cannot tell you. No run has been made.
           <button type="button" id="practice-over" class="link">Clear them and do the real runs</button></p>
-        <p id="analyse-empty" class="hint">No results yet: enter them in <button type="button" class="link" data-go="run">Run</button>, or practise with simulated ones.</p>
+        <p id="analyse-empty" class="hint">No results yet: enter them in <button type="button" class="link stage-link stage-run" data-go="run">Run</button>, or practice with simulated ones.</p>
         <!-- With several responses, a tab each: the analysis below is of the one chosen, with its own model. -->
-        <div id="response-picker" class="picker" role="tablist" aria-label="The response analysed" hidden></div>
+        <div id="response-picker" class="picker" role="tablist" aria-label="The response analyzed" hidden></div>
         <div id="response-panel">
         <!-- The answer (app.js renderAnswer): the settings to run and what the model expects there, from the best
              settings found further down; with no goal to reach, what matters most. The evidence follows it. -->
@@ -965,8 +969,8 @@
         <section id="balance" class="best balance" aria-labelledby="h-balance" hidden>
           <h3 id="h-balance">Balance the responses</h3>
           <p class="hint">Each response with a goal scores a <button type="button" class="term" data-term="desirability">desirability</button>,
-            d, from 0 where it is not acceptable to 1 where it is as good as it gets. Its range says where: to maximise,
-            0 at the low end and below, 1 at the high end and above; to minimise, the other way round; for a target, 1
+            d, from 0 where it is not acceptable to 1 where it is as good as it gets. Its range says where: to maximize,
+            0 at the low end and below, 1 at the high end and above; to minimize, the other way round; for a target, 1
             at the target and 0 at either end. <button type="button" class="term" data-term="importance">Importance</button>
             says how much each counts in the <button type="button" class="term" data-term="overall-desirability">overall
             desirability</button>, D, and the <button type="button" class="term" data-term="desirability-shape">good
@@ -988,7 +992,7 @@
             <div class="trade-view" role="group" aria-label="What the chart of the trade-offs shows">
               <label>Across <select id="trade-across"></select></label>
               <label>Up <select id="trade-up"></select></label>
-              <label>Colour by <select id="trade-colour"></select></label>
+              <label>Color by <select id="trade-colour"></select></label>
               <span id="trade-levels" class="trade-levels"></span>
             </div>
             <div class="scroll"><table id="trade-limits" class="data trade-limits" aria-label="Keep only the settings where each response lies between two limits"></table></div>
@@ -1031,7 +1035,7 @@
            for. A study that builds on another (its builds_on) is a later round of that study's campaign. -->
       <section id="step-next" class="pane" data-pane="next" role="tabpanel" aria-labelledby="h-next-stage" hidden>
         <h2 id="h-next-stage">What comes next</h2>
-        <p id="next-empty" class="hint">What the results call for is here once Learn has analysed them.</p>
+        <p id="next-empty" class="hint">What the results call for is here once <button type="button" class="link stage-link stage-learn" data-go="learn">Learn</button> has analyzed them.</p>
         <!-- The rounds of the campaign (campaign.js roundsOf), from the studies this browser keeps: each one's runs
              and its best result so far, and whether a round it was built on has changed since. -->
         <section id="rounds" class="best rounds" aria-labelledby="h-rounds" hidden>
@@ -1070,7 +1074,7 @@
   <!-- A table of the reader's own (import.js): read by bootstrap.read_table, made a study by bootstrap.import_study. -->
   <dialog id="import-dialog" class="sheet import" aria-labelledby="h-import">
     <div class="sheet__head">
-      <h2 id="h-import">Analyse data you have</h2>
+      <h2 id="h-import">Analyze data you have</h2>
       <button type="button" id="import-close" class="link" aria-label="Close">✕</button>
     </div>
     <p>A design you ran elsewhere, or the records of a process: a table with a line of headings and a run on each
@@ -1135,9 +1139,9 @@
     </div>
     <p class="hint">These belong to this study: its link and its file carry them, so others see what you see.</p>
     <fieldset class="settings__group">
-      <legend>Colours of the charts</legend>
+      <legend>Colors of the charts</legend>
       <div id="colour-maps" class="settings__maps"></div>
-      <p class="hint">Each is even to the eye, and reads in grey and without red and green
+      <p class="hint">Each is even to the eye, and reads in gray and without red and green
         (<a href="https://www.fabiocrameri.ch/colourmaps/" target="_blank" rel="noopener">Scientific colour maps</a>).</p>
     </fieldset>
     <label class="settings__line">Decimal mark
@@ -1180,7 +1184,7 @@
         the Python code below prints four significant figures.</p>
       <p>To narrow the choice for reasons the table does not hold (the cost of a run, a setting the plant cannot hold,
         a design the team already knows), turn a design's switch off. It moves past the thick line at the right, in
-        grey, and leaves the shading and the charts. Turn it on and it comes back to its place.</p>
+        gray, and leaves the shading and the charts. Turn it on and it comes back to its place.</p>
     </details>
     <div id="compare-charts" class="charts" hidden></div>
     <details class="python" id="py-compare" hidden>
@@ -1192,11 +1196,11 @@
   </dialog>
 
   <footer class="foot">
-    <!-- What Factorial is, in a sentence, and the way to all that it does (features.html). -->
+    <!-- What Factorial is, in a sentence, and the way to all that it does: the user guide (features.html). -->
     <div class="foot__lead">
       <p><strong>Factorial</strong> is the browser app of process-improve, the Python package of the book
         Process Improvement using Data. Everything here runs in your browser tab, nothing on our server.</p>
-      <a class="button primary" href="features.html">See what Factorial does</a>
+      <a class="button primary" href="features.html">Read the user guide</a>
     </div>
     <div class="foot__groups">
       <!-- Where to go from here, in groups to scan: each list is named by the line above it. -->
@@ -1204,19 +1208,20 @@
         <div>
           <p class="foot__head" id="foot-app">The app</p>
           <ul aria-labelledby="foot-app">
-            <li><a href="./">Factorial, the app</a></li>
-            <li><a href="features.html">What Factorial does</a></li>
-            <li><a href="catalog/">Catalog of experimental designs</a></li>
-            <li><a href="catalog/reproduced/">Validation &amp; technical accuracy</a></li>
-            <li><a href="map/">Experimental design concept map</a></li>
+            <li><a href="./">Open the app</a></li>
+            <li><a href="features.html">User guide</a></li>
+            <li><a href="catalog/">Design catalog</a></li>
+            <li><a href="validation.html">Is it accurate?</a></li>
+            <li><a href="map/">Learn experimental design</a></li>
           </ul>
         </div>
         <div>
           <p class="foot__head" id="foot-behind">Behind it</p>
           <ul aria-labelledby="foot-behind">
-            <li><a href="technical-details-how-factorial-works.html">See behind the scenes: how Factorial works</a></li>
-            <li><a href="https://github.com/kgdunn/process-improve" target="_blank" rel="noopener">process-improve, the Python package</a></li>
-            <li><a href="https://learnche.org/pid" target="pid-book" rel="opener">Process Improvement using Data, the book</a></li>
+            <li><a href="technical-details-how-factorial-works.html">How it works</a></li>
+            <li><a href="https://github.com/kgdunn/process-improve" target="_blank" rel="noopener">Python package</a></li>
+            <!-- How many people used Factorial each day, drawn from usage.json (usage.js), as on every other page. -->
+            <li id="foot-usage" class="foot__usage" hidden></li>
           </ul>
         </div>
         <div>

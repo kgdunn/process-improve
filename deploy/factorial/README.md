@@ -68,6 +68,17 @@ So that usage can be followed for longer than the log is kept, a daily job adds 
 day's counts to `/var/lib/factorial/usage.csv`: a row a day of numbers (each page's views,
 readers, Python starts, link previews), with no address, browser or path of anyone's in it.
 
+The footer of every page draws how many readers each of the last 90 finished days had, then the
+last 24 hours as the line's last point, with that count beside it: the last 24 hours rather than
+today so far, which would start each day near nothing. An hourly job writes those numbers, and when they were written, to
+`/var/lib/factorial/public/usage.json`, which Caddy serves as `https://factori.al/usage.json` in
+place of the build's own, a file of no days. It reads the kept counts and a day or two of the log,
+not a year of it:
+
+```bash
+sudo factorial-usage --public /var/lib/factorial/public/usage.json   # what the hourly job runs
+```
+
 The one exception is a report a reader sends with the app's Feedback button, and only when they
 press Send: the relay emails it to the maintainer, and keeps no copy and no line of it
 ([Feedback](#feedback)). Its request is logged as any other, without its body. A reader who gives
@@ -85,6 +96,30 @@ Each page has a column: the app (Home), the concept map (Map), the design catalo
 other page (Other). Readers are distinct networks and browsers in a day, and over a week or a
 month their average a day; Python counts the app's worker starting Python. Under the table, a
 line of bars for each page shows its use over the period. Robots, link-preview fetchers and the deploy's own checks are not counted.
+
+Under the bars, the report says how long Python took to start, from opening the app to Python
+ready: the median, and the time 9 in 10 starts took no longer than, for first visits and
+returning readers apart. The log can time a start only when the browser downloaded the app's
+Python (`wheels/<digest>/bootstrap.zip`), which is the last file the worker asks factori.al for:
+a reader's first visit, and their first after a deploy. A returning reader's browser already has
+Pyodide, so the gap between the two rows is what downloading it adds. A start that finds the
+archive kept asks for nothing to time. The time leaves out the second or so it takes to unpack
+and import the archive.
+
+Then it splits each start in three, where the log holds the worker's requests that mark the
+seams: the page, from opening it to the worker reading `runtime.json`; Pyodide and its packages,
+from there to the worker asking for the process-improve wheel; and process-improve, from there
+to the end of the archive's download. Each part's median is given, so the parts need not add up
+to the median start.
+
+```text
+From opening the app to Python ready, where the browser downloaded the app's Python:
+  First visit  median 8.0 s, 9 in 10 within 30.0 s, of 5
+  Returning    median 2.5 s, 9 in 10 within 3.0 s, of 2
+
+Where the time went, the median of each part (medians, so they need not add up to the one above):
+  First visit  page 1.5 s, Pyodide 6.0 s, process-improve 1.5 s, of 2
+```
 
 Last, the report lists where readers came from: the site that linked here, as the browser names
 it. Many apps open a link in a browser of their own that names no site, so a link you post can
@@ -278,6 +313,7 @@ The last line rolls back without GitHub, as the workflow would.
 | [`factorial_deploy.py`](factorial_deploy.py) | `/usr/local/bin/factorial-deploy` | The deploy key's one command |
 | [`usage.py`](usage.py) | `/usr/local/bin/factorial-usage` | The usage report |
 | [`usage-daily.sh`](usage-daily.sh) | `/etc/cron.daily/factorial-usage` | Keeps each finished day's counts |
+| [`usage-hourly.sh`](usage-hourly.sh) | `/etc/cron.hourly/factorial-usage-public` | Writes the public `usage.json` the footer draws |
 | [`sshd.conf`](sshd.conf) | `/etc/ssh/sshd_config.d/factorial.conf` | What sshd allows the deploy account |
 | [`factorial.caddy`](factorial.caddy) | `/etc/caddy/factorial.caddy` | The site, its headers and its log |
 | [`feedback_relay.py`](feedback_relay.py) | `/usr/local/bin/factorial-feedback` | The relay that emails a reader's report |

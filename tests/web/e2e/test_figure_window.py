@@ -53,7 +53,7 @@ def widths(page) -> list[int]:
 
 
 def test_every_chart_is_as_wide_as_its_card(page):
-    """The first chart of a row was drawn before its neighbour was added, a whole row wide, and ran under it."""
+    """The first chart of a row was drawn before its neighbor was added, a whole row wide, and ran under it."""
     open_more(page)
     page.wait_for_function(FITTED, arg="#charts")
     spill = page.locator("#charts figure.chart").evaluate_all(
@@ -84,7 +84,7 @@ def test_a_chart_is_drawn_again_to_fit_when_its_room_changes(page):
 def test_a_card_has_no_toolbar_and_no_chart_offers_to_be_sent_to_plotly(page):
     """A study's data stays in the browser: Plotly's button to share a chart uploads it, and is never shown."""
     open_more(page)
-    assert page.locator("#charts .modebar-btn").count() == 0, "the toolbar sat over the legend and the colour bar"
+    assert page.locator("#charts .modebar-btn").count() == 0, "the toolbar sat over the legend and the color bar"
     expand(page, "perturbation")
     buttons = page.locator("dialog.figure .modebar-btn").evaluate_all("(all) => all.map((b) => b.dataset.title)")
     assert buttons == ["Zoom", "Pan", "Zoom in", "Zoom out", "Autoscale", "Reset axes"]
@@ -110,12 +110,12 @@ def test_every_chart_has_a_button_that_opens_it_in_a_window_of_its_own(page):
     expand(page, "main_effects")
     assert page.text_content("#figure-title") == card.locator("h3").text_content() == "Average result at each setting"
     assert page.text_content("dialog.figure .figure__caption") == card.locator("figcaption").text_content()
-    names = "(plot) => plot.data.map((trace) => trace.name)"
+    names = "(plot) => plot.data.filter((trace) => trace.meta !== 'interval').map((trace) => trace.name)"
     assert (
         page.locator("dialog.figure .plot").evaluate(names)
         == card.locator(".plot").evaluate(names)
         == ["Temperature", "Pressure", "Flow"]
-    )
+    ), "the lines, not the intervals around their averages"
     assert page.locator("dialog.figure .plot").get_attribute("aria-label") == "Average result at each setting"
 
     page.keyboard.press("Escape")
@@ -534,7 +534,7 @@ def test_the_shape_a_reader_gave_a_figure_is_kept_for_the_next_visit(page):
 
 
 def test_a_figure_saved_from_a_dark_page_has_the_light_theme_s_marks(page, tmp_path):
-    """The page's own figures read the page's colours as they are made: an image on white is made in the light ones."""
+    """The page's own figures read the page's colors as they are made: an image on white is made in the light ones."""
     page.emulate_media(color_scheme="dark")
     dark, light = "rgb(127, 176, 234)", "rgb(44, 95, 124)"  # the accent of each theme (style.css)
     page.wait_for_function(  # the page's chart, drawn again in the dark theme's accent

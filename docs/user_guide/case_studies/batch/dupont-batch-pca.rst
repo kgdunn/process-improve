@@ -58,7 +58,7 @@ Model A: batch PCA on all 55 batches
 ------------------------------------
 
 :class:`process_improve.batch.BatchPCA` unfolds the batches batchwise: each
-batch becomes one row of 10 tags times 100 samples, 1000 columns. Centring
+batch becomes one row of 10 tags times 100 samples, 1000 columns. Centering
 the columns removes the average trajectory, and scaling them to unit variance
 gives every (tag, time) cell the same weight, so the two components describe
 how the batches deviate from the average batch.
@@ -162,7 +162,7 @@ With the extreme batches gone, a second group separates on the
 :math:`t_2` and :math:`t_3` plane: batches 37, 39 and 43 to 48. A
 contribution is the weighted difference between two points, and either
 point can be the average of a group. The group's mean contribution vector
-against the model centre, averaged over the eight members, names
+against the model center, averaged over the eight members, names
 ``Press-3`` and ``TempC-1`` on both components, with the contribution
 concentrated in the first 25 samples, so the difference lies in how these
 batches were started; the :math:`t_3` contributions of batch 39 printed
@@ -203,7 +203,7 @@ and kept in the training set, sit inside both limits: nothing in the ten
 trajectories distinguishes them from the good batches. This is the lesson
 the case study is built around. A model can only detect what the
 measurements contain; if the cause of poor quality leaves no trace in the
-recorded variables, no amount of modelling will find it, and the fix is to
+recorded variables, no amount of modeling will find it, and the fix is to
 measure something else. Nomikos and MacGregor (1995) also left these four
 batches out of their reference set, on the principle that it should hold
 only batches with acceptable operation and acceptable product, and built

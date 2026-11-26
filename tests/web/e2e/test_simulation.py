@@ -1,10 +1,10 @@
-"""Practising with simulated results in Run: a known process over the reader's factors, plus noise.
+"""Practicing with simulated results in Run: a known process over the reader's factors, plus noise.
 
 One button simulates, and a press always changes the results: the first simulates them, and one
 more draws new noise for the same process, with the next seed. The true process sits behind a
 reveal, beside the button. A change of process, noise or design simulates again while the reader
-practises, so the truth and the analysis always describe the runs on the page. Practice results
-are on the reader's scale: centred on the response's typical value, with its run-to-run noise.
+practices, so the truth and the analysis always describe the runs on the page. Practice results
+are on the reader's scale: centered on the response's typical value, with its run-to-run noise.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ def test_simulating_fills_every_run_and_keeps_the_true_process_to_hand(blank_pag
     page = blank_page
     generate(page, design_type="full_factorial")
     assert page.is_hidden("#truth-toggle")
-    assert page.get_attribute("#tab-real", "aria-selected") == "true", "results are entered unless the reader practises"
+    assert page.get_attribute("#tab-real", "aria-selected") == "true", "results are entered unless the reader practices"
     assert calls(page, "api_simulate") == [], "nothing is simulated until asked for"
     practise(page)
     assert len(simulated_results(page)) == len(run_sheet(page)) == 11
@@ -196,7 +196,7 @@ def test_the_true_process_goes_once_no_simulated_result_is_left(page):
 
 
 def test_practice_results_are_on_the_reader_s_scale(blank_page):
-    """Centred on the typical value, with the run-to-run noise: the process a reader with no numbers gets, scaled."""
+    """Centered on the typical value, with the run-to-run noise: the process a reader with no numbers gets, scaled."""
     page = blank_page
     generate(page, design_type="box_behnken")
     practise(page)
@@ -207,5 +207,5 @@ def test_practice_results_are_on_the_reader_s_scale(blank_page):
     assert calls(page, "api_simulate")[-1]["payload"]["sigma"] == 0.4, "the practice noise follows the response's"
     scaled = [float(v) for v in simulated_results(page)]
     assert scaled != plain
-    assert abs(sum(scaled) / len(scaled) - 97) < 2, "centred near the typical value"
+    assert abs(sum(scaled) / len(scaled) - 97) < 2, "centered near the typical value"
     assert page.text_content("#truth-equation").startswith("Purity = 97 + ")

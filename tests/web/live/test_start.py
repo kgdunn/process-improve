@@ -30,7 +30,7 @@ from tests.web.live.test_live import started
 STATSMODELS = re.compile(r"^https://cdn\.jsdelivr\.net/pyodide/.*/statsmodels-[^/]*\.whl")
 
 #: True once no call to Python has been in flight, and the status line not busy, for a second on end. Each result
-#: typed is analysed in turn, and each analysis that lacks a package asks the worker to try the install again: the
+#: typed is analyzed in turn, and each analysis that lacks a package asks the worker to try the install again: the
 #: page is at rest between two of them for a moment only.
 AT_REST = """() => {
   const calm = window.__pi.idle() && document.querySelector('#status').dataset.state !== 'busy';
@@ -70,7 +70,7 @@ def test_the_page_is_ready_and_designs_without_what_a_model_is_fitted_with_and_a
     assert refused in said, f"the reader is told why there is no analysis: {said}"
 
     own_context.unroute(STATSMODELS)
-    enter_results(page, {0: 51})  # a result changed is analysed again, and the install tried again
+    enter_results(page, {0: 51})  # a result changed is analyzed again, and the install tried again
     reveal(page, "#analysis")
     page.wait_for_selector("#analysis .equation", timeout=120_000)
     settled(page, timeout=120_000)

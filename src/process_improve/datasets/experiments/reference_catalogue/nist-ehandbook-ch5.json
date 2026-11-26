@@ -36655,13 +36655,11 @@
         "k": 3,
         "options": {
          "n_blocks": 3,
-         "n_center_points": 6
+         "n_center_points": [2, 2, 2]
         }
        },
        "property": "alpha",
-       "printed": "1.63299",
-       "disagreement": "generate_design puts 3 of the 6 centre runs in the cube blocks and 3 in the axial block, where the table has 4 and 2; Box and Hunter's orthogonal-blocking distance, alpha^2 = F(2k + c_a)/(2(F + c_c)), is 1.63299 for the table's split and 1.80907 (found) for generate_design's, which offers no way to choose the split. blocking_alpha on the table's split gives the printed value (the item's other check)",
-       "cause": "method"
+       "printed": "1.63299"
       },
       {
        "kind": "library_value",
@@ -36784,13 +36782,11 @@
         "k": 4,
         "options": {
          "n_blocks": 3,
-         "n_center_points": 6
+         "n_center_points": [2, 2, 2]
         }
        },
        "property": "alpha",
        "printed": "2",
-       "disagreement": "generate_design puts 3 of the 6 centre runs in the cube blocks and 3 in the axial block, where the table has 4 and 2; Box and Hunter's orthogonal-blocking distance, alpha^2 = F(2k + c_a)/(2(F + c_c)), is 2 for the table's split and 2.15211 (found) for generate_design's, which offers no way to choose the split. blocking_alpha on the table's split gives the printed value (the item's other check)",
-       "cause": "method",
        "expression": true
       },
       {
@@ -36927,15 +36923,13 @@
         "k": 5,
         "options": {
          "n_blocks": 2,
-         "n_center_points": 7,
+         "n_center_points": [6, 1],
          "cube": "fractional",
          "resolution": 5
         }
        },
        "property": "alpha",
        "printed": "2",
-       "disagreement": "generate_design puts 3 of the 7 centre runs in the cube blocks and 4 in the axial block, where the table has 6 and 1; Box and Hunter's orthogonal-blocking distance, alpha^2 = F(2k + c_a)/(2(F + c_c)), is 2 for the table's split and 2.42791 (found) for generate_design's, which offers no way to choose the split. blocking_alpha on the table's split gives the printed value (the item's other check)",
-       "cause": "method",
        "expression": true
       },
       {

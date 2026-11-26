@@ -42,14 +42,14 @@ const confidenceArg = () => (ownLevel() ? `, confidence_level=${confidence()}` :
 const bandArg = () => (ownLevel() ? `, level=${confidence()}` : "");
 
 /**
- * What the library's ``colorscale`` is called with for the study's colour map: nothing for batlow as it comes, the
+ * What the library's ``colorscale`` is called with for the study's color map: nothing for batlow as it comes, the
  * map's name for another, and ``dark_page=True`` for a map the study flips, which is the library's word for a
  * map drawn from its other end.
  */
 const colourArgs = () =>
   [colourMap() === DEFAULT_COLOUR_MAP ? [] : [repr(colourMap())], colourMapFlipped() ? ["dark_page=True"] : []].flat().join(", ");
 
-/** The library's figures that draw a surface, in its own colour map (batlow), which the page redraws in the study's. */
+/** The library's figures that draw a surface, in its own color map (batlow), which the page redraws in the study's. */
 const SURFACE_PLOTS = new Set(["contour", "surface_3d", "prediction_variance"]);
 
 /**
@@ -190,7 +190,7 @@ export function designCode(spec) {
       "# The components of the blend, each a proportion between its lower and upper bounds.",
       factorList(spec.factors, false, "factors", true),
       `result = generate_design(factors, design_type="mixture", ${kwargs(options)})`,
-      "print(result.design_actual)  # the blends, in randomised order: each run's proportions sum to 1",
+      "print(result.design_actual)  # the blends, in randomized order: each run's proportions sum to 1",
     ].join("\n");
   }
   const spread = SPACE_FILLING.includes(spec.design_type);
@@ -202,7 +202,7 @@ export function designCode(spec) {
     ...constraintLines(limits),
     `result = generate_design(factors, design_type=${repr(spec.design_type)}, ${limits.length ? "constraints=constraints, " : ""}${kwargs(options)})`,
     ...(spread ? spreadLines(spec.options.budget) : []),
-    "print(result.design_actual)  # the runs, in randomised order, in the factors' own units",
+    "print(result.design_actual)  # the runs, in randomized order, in the factors' own units",
   ].join("\n");
 }
 
@@ -231,9 +231,9 @@ function columnLines(key, values, indent = "        ") {
 }
 
 /**
- * How the page codes a factor's settings, as a line of the ``X`` literal: (setting - centre) /
+ * How the page codes a factor's settings, as a line of the ``X`` literal: (setting - center) /
  * half-range for a number, and -1 and +1 for a category's two labels. A factor of three levels or
- * more is a line for each of its contrast columns. The centre and half-range are worked out as
+ * more is a line for each of its contrast columns. The center and half-range are worked out as
  * bootstrap.py works them out, so the coded values agree to the last digit.
  */
 function codedLine(f) {
@@ -380,7 +380,7 @@ export function resultsCode(design, results, simulation = null) {
 }
 
 /**
- * Each transform a response can be analysed with (bootstrap.TRANSFORMS), as the code writes it: how the results are
+ * Each transform a response can be analyzed with (bootstrap.TRANSFORMS), as the code writes it: how the results are
  * put on its scale, and how a number on its scale is put back in the response's units. -1/y keeps the results'
  * order, so the goals mean the same on its scale, and it tests as 1/y does.
  */
@@ -390,7 +390,7 @@ const SCALES = {
   inverse: { on: (y) => `-1 / ${y}`, back: "lambda v: -1 / v", words: "-1/y, which tests as 1/y does" },
 };
 
-/** The transform a specification's response is analysed with, or null: bootstrap._transform_of. */
+/** The transform a specification's response is analyzed with, or null: bootstrap._transform_of. */
 const transformOf = (spec) => spec?.analysis_transforms?.[spec?.response] ?? null;
 
 /** The results as the model is fitted to them: ``y``, or its transform's expression of it. */
@@ -485,35 +485,40 @@ export function analyseCode(model, complete = true, spec = null, vifModel = null
  * ``options`` is what the page asked the library for beyond the runs and their analysis (``plot_options`` of
  * bootstrap.plots): the library's name for the plot, the factors it draws, and the coded values the others are
  * held at. The figure is the library's own: each factor in coded units, under the library's titles, where the page
- * puts the axes in the reader's units and its own colours. It is drawn from the analysis the page draws it from:
+ * puts the axes in the reader's units and its own colors. It is drawn from the analysis the page draws it from:
  * Lenth's margins for the half-normal plot of the effects, the fit and its residuals for every other figure.
  */
 export function figureCode(title, options, model, complete = true, spec = null) {
+  // The residuals against the run order carry each run's number, which the library reads from the runs as RunOrder;
+  // a surface of a study with limits, the levels its region is at (none without a limit for some levels).
+  const { run_order: order, region_given: given, ...asked } = options;
   const transform = transformOf(spec);
   const X = complete ? "X" : "X[done]";
   const y = onScale(complete ? "y" : "y[done]", transform);
   const response = repr(spec?.response ?? "y");
-  const lenth = options.plot_type === "half_normal";
-  const recolour = SURFACE_PLOTS.has(options.plot_type) && colourArgs() !== "";
+  const lenth = asked.plot_type === "half_normal";
+  const recolour = SURFACE_PLOTS.has(asked.plot_type) && colourArgs() !== "";
   return [
     "import plotly.graph_objects as go",
-    "from process_improve.experiments import analyze_experiment, visualize_doe",
+    `from process_improve.experiments import ${given ? "DesignRegion, " : ""}analyze_experiment, visualize_doe`,
     ...(recolour ? ["from process_improve.visualization.colors import colorscale"] : []),
     "",
     `# The figure "${title}", as the library draws it: under its own titles, with each factor in`,
     "# coded units, from -1 at its low setting to +1 at its high. The page puts the axes in your own units.",
-    // shortcut: the region of a study with limits is not written out, so the code draws the whole cube; #1242.
-    ...(spec?.constraints?.length ? ["# The page also shades the settings your limits rule out; this figure is of every setting."] : []),
     "drawn = analyze_experiment(",
     lenth
       ? `    ${X}, ${y}, model=${repr(model)}, analysis_type=["effects", "lenth_method"],`
       : `    ${X}, ${y}, model=${repr(model)}, analysis_type=["coefficients", "residual_diagnostics"], coding="actual",`,
     ...argLine(levelArg(), 4),
     ")",
+    ...(order ? ["# Each run's number in the order the runs were made, as the run sheet lists it.", `run_order = ${repr(order)}`] : []),
     "chart = visualize_doe(",
-    ...Object.entries(options).map(([name, value]) => `    ${name}=${repr(value)},`),
+    ...Object.entries(asked).map(([name, value]) => `    ${name}=${repr(value)},`),
+    ...(given
+      ? [`    region=DesignRegion(factors, constraints)${Object.keys(given).length ? `.given(**${repr(given)})` : ""},  # shades the settings your limits rule out`]
+      : []),
     "    analysis_results=drawn,",
-    `    design_data=${X}.assign(**{${response}: ${y}}).to_dict("records"),`,
+    `    design_data=${X}.assign(**{${response}: ${y}}${order ? ", RunOrder=run_order" : ""}).to_dict("records"),`,
     `    response_column=${response},`,
     '    backend="plotly",',
     ...argLine(confidenceArg(), 4),
@@ -521,7 +526,7 @@ export function figureCode(title, options, model, complete = true, spec = null) 
     'figure = go.Figure(chart["plotly"])',
     ...(recolour
       ? [
-          "# The library draws a surface in batlow, its own colour map; the page redraws it in the study's.",
+          "# The library draws a surface in batlow, its own color map; the page redraws it in the study's.",
           "batlow = [tuple(stop) for stop in colorscale()]",
           "for trace in figure.data:",
           '    if "colorscale" in trace and list(trace.colorscale or []) == batlow:',
@@ -839,7 +844,7 @@ export function ownFigureCode(key, title, spec, about = {}) {
   return OWN_FIGURES[key]?.(title, spec, about)?.join("\n") ?? null;
 }
 
-/** A map of how far each pair of terms moves together, drawn from the frame ``correlations``: the page's colours. */
+/** A map of how far each pair of terms moves together, drawn from the frame ``correlations``: the page's colors. */
 const correlationMap = [
   "figure = go.Figure(",
   "    go.Heatmap(",
@@ -906,13 +911,53 @@ export function comparisonFigureCode({ asked = null, limits = [], label = null }
 }
 
 /**
+ * "How tightly to hold each component", after the best blend's code (blendCode), which leaves the blend as ``at`` and
+ * the Scheffé model as ``analysis`` (#1242): each of ``names`` moved by 5% of its range along its Cox direction, the
+ * others keeping their proportions to each other so that the blend still sums to 1, and the change in the prediction.
+ */
+function blendSensitivityCode(names, spec) {
+  const bound = (side) => names.map((name) => spec.factors.find((f) => f.name === name)[side]);
+  return [
+    "import plotly.graph_objects as go",
+    "",
+    '# The figure "How tightly to hold each component": how much the prediction changes when one component moves 5%',
+    "# of its range from the best blend, along its Cox direction: the others keep their proportions to each other, so",
+    "# the blend still sums to 1. A component alone in the blend leaves the others to share the change equally.",
+    'fitted = {c["term"]: c["coefficient"] for c in analysis["coefficients"]}',
+    "blend = at.iloc[0]",
+    `names = ${repr(names)}`,
+    `low, high = ${repr(bound("low"))}, ${repr(bound("high"))}`,
+    "rows = []",
+    "for name, lowest, highest in zip(names, low, high, strict=True):",
+    "    others = [n for n in blend.index if n != name]",
+    "    rest = 1 - blend[name]  # what the other components share",
+    "    for change in (-0.05 * (highest - lowest), 0.05 * (highest - lowest)):",
+    "        moved = blend.copy()",
+    "        moved[others] = blend[others] * (rest - change) / rest if rest > 1e-9 else (rest - change) / len(others)",
+    "        moved[name] = blend[name] + change",
+    "        rows.append(moved)",
+    "moved = pd.DataFrame(rows)",
+    `here = ${blended("at", "fitted")}.iloc[0]`,
+    `change = (${blended("moved", "fitted")} - here).tolist()  # lowered, then raised, for each component in turn`,
+    "figure = go.Figure(",
+    "    [",
+    '        go.Bar(name="Lowered 5% of its range", y=names, x=change[0::2], orientation="h"),',
+    '        go.Bar(name="Raised 5% of its range", y=names, x=change[1::2], orientation="h"),',
+    "    ]",
+    ")",
+    ...shown(`Change in the prediction: ${axisWords(spec)}`, "Component"),
+  ].join("\n");
+}
+
+/**
  * "How tightly to hold each factor", after the best settings' code (bestCode), which leaves the settings as ``at``
  * and the prediction there as ``prediction``: each of ``names``, the numeric factors the model holds, moved alone
  * by 5% of its range, 0.1 in coded units, and the change in the prediction. Null for a mixture, whose components
  * do not move alone.
  */
 export function sensitivityCode(names, spec, model, complete = true) {
-  if (isMixture(spec) || !names.length) return null;
+  if (!names.length) return null;
+  if (isMixture(spec)) return blendSensitivityCode(names, spec);
   const transform = transformOf(spec);
   const fitted = fittedTo(spec, complete);
   const back = (value) => (transform ? `(${SCALES[transform].back})(${value})` : value);
@@ -937,21 +982,74 @@ export function sensitivityCode(names, spec, model, complete = true) {
 }
 
 /**
+ * The overlay of the responses' acceptable blends over the triangle of three components (#1242), after the balance's
+ * code (balanceCode), which leaves each response's ``models`` entry and ``goals`` entry and the ``balanced`` blend:
+ * each response's Scheffé model over the grid of blends the page draws, 40 steps a side, and where it is acceptable,
+ * a desirability above 0. The blends where every response is acceptable are shaded and the balanced blend starred.
+ * Of four components or more the triangle is of three (``overlay.components``), the others held as the page holds
+ * them (``overlay.held``).
+ */
+function blendOverlayCode(overlay, spec) {
+  const held = overlay.held ?? null;
+  const names = overlay.components;
+  const [a, b, c] = names.map(repr);
+  const bound = (side) => names.map((name) => spec.factors.find((f) => f.name === name)[side]);
+  const on = (rows) => `a=grid[${a}][${rows}], b=grid[${b}][${rows}], c=grid[${c}][${rows}]`;
+  return [
+    "import numpy as np",
+    "import pandas as pd",
+    "import plotly.graph_objects as go",
+    "",
+    `# The figure of the acceptable blends over the triangle of ${names.join(", ")}: each response's Scheffé model`,
+    "# above, over a grid of blends the components' lower and upper proportions allow, 40 steps a side. A response to",
+    "# maximize is acceptable above its low end, one to minimize below its high end, one with a target between them.",
+    ...(held
+      ? [`held = ${repr(held)}  # the other components, held at the balanced blend`, "share = 1 - sum(held.values())  # what the three on the triangle share"]
+      : ["share = 1"]),
+    `low, high = np.array(${repr(bound("low"))}), np.array(${repr(bound("high"))})`,
+    "steps = 40",
+    "lattice = np.array([(i, j, steps - i - j) for i in range(steps + 1) for j in range(steps + 1 - i)]) / steps",
+    `grid = pd.DataFrame(low + (share - low.sum()) * lattice, columns=${repr(names)})`,
+    "grid = grid[(grid <= high + 1e-9).all(axis=1)]",
+    ...(held ? ["grid = grid.assign(**held)"] : []),
+    "acceptable = pd.Series(True, index=grid.index)  # where every response is acceptable",
+    "figure = go.Figure()",
+    'by_response = {goal["response"]: goal for goal in goals}',
+    "for model in models:",
+    '    goal = by_response[model["response_name"]]',
+    '    fitted = {c["term"]: c["coefficient"] for c in model["coefficients"]}',
+    `    response = ${blended("grid", "fitted")}`,
+    '    above, below = response > goal.get("low", -np.inf), response < goal.get("high", np.inf)',
+    '    inside = {"maximize": above, "minimize": below}.get(goal["goal"], above & below)',
+    "    acceptable &= inside",
+    `    figure.add_scatterternary(${on("inside")}, mode="markers", name=goal["response"], marker={"size": 4}, opacity=0.5)`,
+    `figure.add_scatterternary(${on("acceptable")}, mode="markers", name="Every response acceptable", marker={"size": 8, "color": "gray"})`,
+    'best = balanced["optimal_coded"]  # the balanced blend, starred as on the page',
+    `figure.add_scatterternary(a=[best[${a}]], b=[best[${b}]], c=[best[${c}]], mode="markers", name="Balanced blend",`,
+    '                          marker={"symbol": "star", "size": 18, "color": "white", "line": {"color": "#1a1a1a", "width": 1.5}})',
+    "axes = {axis: {\"title\": {\"text\": name}} for axis, name in zip((\"aaxis\", \"baxis\", \"caxis\"), " + `${repr(names)})}`,
+    'figure.update_layout(ternary={**axes, "sum": share})  # each point in the recipe\'s own proportions',
+    "figure.show()",
+  ].join("\n");
+}
+
+/**
  * The overlay of the responses' acceptable ranges, after the balance's code (balanceCode), which leaves each
  * response's ``models`` entry, its ``goals`` entry and the ``balanced`` settings: the library's overlay plot over
  * the two factors the page draws (``overlay.x`` and ``overlay.y``), the others held at the balanced settings. A
- * response is bounded where the page draws its boundary: below to maximise, above to minimise, both for a target.
+ * response is bounded where the page draws its boundary: below to maximize, above to minimize, both for a target.
  * Null for a mixture, whose overlay is over its triangle.
  */
 export function overlayCode(overlay, spec) {
-  if (isMixture(spec) || overlay?.kind === "ternary" || !overlay) return null;
+  if (overlay?.kind === "ternary") return blendOverlayCode(overlay, spec);
+  if (isMixture(spec) || !overlay) return null;
   return [
     "import plotly.graph_objects as go",
     "from process_improve.experiments import visualize_doe",
     "",
     `# The figure of the acceptable ranges over ${overlay.x} and ${overlay.y}, in coded units, the other factors at the`,
     "# balanced settings: each response's boundary, and the shaded region where every response is acceptable.",
-    "# A response to maximise is bounded below, one to minimise above, and one with a target on both sides.",
+    "# A response to maximize is bounded below, one to minimize above, and one with a target on both sides.",
     'bounds = {"maximize": ["low"], "minimize": ["high"], "target": ["low", "high"]}',
     "responses = [",
     '    {**model, "name": model["response_name"], **{end: goal[end] for end in bounds[goal["goal"]]}}',
@@ -977,7 +1075,7 @@ export function overlayCode(overlay, spec) {
  * bootstrap.trade_offs drew them with), each response's prediction at each, those that meet the limits the reader
  * typed (``view.limits``, each response's two ends, null for one left open), and the best trade-off among them between
  * the responses on the two axes (``view.across`` and ``view.up``), each compared by its goal (``balance.responses``).
- * The points are coloured by ``view.colour`` when it is a response's column. ``view.held``, when the chart is drawn at
+ * The points are colored by ``view.colour`` when it is a response's column. ``view.held``, when the chart is drawn at
  * other levels than the balanced settings', holds the columns the models are then held at, over the ``fitted`` models the
  * balance's code keeps; the star is left out. Null for a mixture.
  */
@@ -1501,7 +1599,7 @@ export function windowOverlayCode(overlay, spec, seed = null) {
 
 /**
  * The curve the what-if panel draws, after step 2's ``X``: each run's curve (``curves``, a list per run of the
- * design of one value per point, null where it was not read, or null for a run not measured), reduced and modelled as the
+ * design of one value per point, null where it was not read, or null for a run not measured), reduced and modeled as the
  * page models it (``fit``: bootstrap.functional's reply, for its formula and its number of replicates), and the
  * curve predicted at the panel's settings (``at``, the columns of ``X``) with its 95% bands.
  */
@@ -1528,7 +1626,7 @@ export function curveCode(design, curves, fit, at) {
     "    dtype=float,",
     ")",
     "measured = curves.notna().any(axis=1)  # a run with no point read has no curve yet",
-    "# The curves are reduced to a few scores, and each score is modelled against the factors, as a response is.",
+    "# The curves are reduced to a few scores, and each score is modeled against the factors, as a response is.",
     "fit = analyze_functional_experiment(",
     `    X[measured].reset_index(drop=True), curves[measured].reset_index(drop=True), model=${repr(fit.formula)},`,
     ...argLine(levelArg(), 4),
@@ -1734,7 +1832,7 @@ function heldComment(held, factors) {
 }
 
 /**
- * Step 4: the best settings for the response's goal, found on step 3's model with the library's optimiser, and the
+ * Step 4: the best settings for the response's goal, found on step 3's model with the library's optimizer, and the
  * prediction there with its intervals. ``best`` is what bootstrap.best_settings answered: its ``search`` holds what
  * the page held each categorical factor and block at, and the desirability goal it searched with. ``model`` is the
  * model step 3 fitted, and ``complete`` says every run of the design has its result, as for step 3.
@@ -1815,7 +1913,7 @@ export function bestCode(best, spec, model, complete = true) {
 
 /**
  * Step 4 for a mixture: the best blend for the response's goal, found on step 3's Scheffé model with the library's
- * optimiser over the region of blends, a ``DesignRegion`` of step 1's components (each between its bounds, the
+ * optimizer over the region of blends, a ``DesignRegion`` of step 1's components (each between its bounds, the
  * proportions summing to 1), and the prediction there with its intervals. ``best`` is what bootstrap.best_settings
  * answered: its ``search`` holds the desirability goal it searched with.
  */
@@ -1995,7 +2093,7 @@ const DESIRABILITY_KEYS = ["response", "goal", "target", "low", "high", "weight"
 /**
  * The balance of the responses: each response with a goal fitted with its own model to the runs that have its result,
  * its goal as a desirability over its acceptable range, and the settings with the best overall desirability found
- * with the library's optimiser over every model. It builds on step 2's ``runs`` and ``X``. ``balance`` is what
+ * with the library's optimizer over every model. It builds on step 2's ``runs`` and ``X``. ``balance`` is what
  * bootstrap.balance answered: its ``search`` holds each response's fitted formula, its goal, and what the page held
  * each categorical factor and block at. A mixture's balance is searched over the region of blends that step 1's
  * components make.
@@ -2146,7 +2244,7 @@ export function campaignMapCode(rounds, { label, units = "", pair, axes, points 
 /**
  * The what-if map, for its window: after the what-if code of its response (``name``, fitted as ``formula``), the
  * response predicted over two factors (``pair``), each from its low end to its high end in ``points`` steps, with
- * the other factors where ``at`` has them, drawn with its lines labelled.
+ * the other factors where ``at`` has them, drawn with its lines labeled.
  */
 export function mapCode(spec, name, formula, at, settings, pair, points) {
   const scale = scaleLines(spec, [name]);

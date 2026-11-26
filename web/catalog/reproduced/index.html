@@ -10,7 +10,7 @@
   <meta name="theme-color" content="#f5f6f4" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#141517" media="(prefers-color-scheme: dark)">
   <script>
-    /* The colour mode chosen in the app (index.html), put on the page before it is drawn. */
+    /* The color mode chosen in the app (index.html), put on the page before it is drawn. */
     try {
       const mode = localStorage.getItem("factorial-mode");
       if (mode === "light" || mode === "dark") document.documentElement.dataset.theme = mode;
@@ -28,7 +28,7 @@
 </head>
 <body>
 <main class="reproduced">
-  <p class="about__back"><a href="../"><img src="../../favicon.svg" alt="" width="28" height="28"> Back to the design catalog</a></p>
+  <p class="about__back"><a href="../../validation.html"><img src="../../favicon.svg" alt="" width="28" height="28"> Back to "Is it accurate?"</a></p>
   <h1>Factorial gives the textbooks' answers</h1>
   <p class="reproduced__status" id="status" role="status" aria-live="polite">Loading the cases...</p>
 
@@ -131,11 +131,11 @@
   </details>
 
   <div class="page-note">
-    <p>The cases are those of the reference catalogue of
+    <p>The cases are those of the reference catalog of
       <a href="https://github.com/kgdunn/process-improve" target="_blank" rel="noopener">process-improve</a>, which holds each
       source's runs and every number it prints, with where it is printed. Its test suite recomputes each number on
       every change to the library, and fails unless the number agrees with the source to within the source's own
-      rounding, or the catalogue records why it does not. A relative difference here is the library's value less the
+      rounding, or the catalog records why it does not. A relative difference here is the library's value less the
       printed one, as a share of the printed one.
       <a href="https://github.com/kgdunn/process-improve/issues/new?template=catalog_entry.yml" target="_blank" rel="noopener">Propose
         a case for the catalog</a>.</p>
@@ -143,7 +143,7 @@
   </div>
 </main>
 <script src="../../reproduced.js" type="module"></script>
-<!-- The colour-mode switch and the footer every page shares (site.js). -->
+<!-- The color-mode switch and the footer every page shares (site.js). -->
 <script src="../../site.js" type="module"></script>
 </body>
 </html>

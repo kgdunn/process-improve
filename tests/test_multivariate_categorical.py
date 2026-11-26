@@ -208,7 +208,7 @@ class TestApi:
 
 
 def _ca_by_hand(table: pd.DataFrame, axes: int | None = None) -> dict[str, np.ndarray]:
-    """Greenacre's formulas: the standardised residuals, their SVD, and the principal coordinates.
+    """Greenacre's formulas: the standardized residuals, their SVD, and the principal coordinates.
 
     ``axes`` is how many have inertia: ``min(I, J) - 1`` on a table of full rank, the default. Each
     axis is signed so that the largest-magnitude entry of its left singular vector is positive.
@@ -860,7 +860,7 @@ class TestFAMDReducesToPCAAndMCA:
         np.testing.assert_allclose(FAMD().fit(numeric).eigenvalues_, expected)
 
     def test_all_categorical_is_mca_scaled_by_q(self, batch_record: pd.DataFrame) -> None:
-        """FAMD's matrix on categorical data is sqrt(Q) times CA's standardised residuals.
+        """FAMD's matrix on categorical data is sqrt(Q) times CA's standardized residuals.
 
         So its eigenvalues are exactly Q times MCA's and its observations sit sqrt(Q)
         times further out. This cross-checks FAMD against MCA from an independent
@@ -921,7 +921,7 @@ class TestFAMDInputs:
             FAMD(n_components=0).fit(batch_record)
 
     def test_a_table_with_no_variation_is_refused(self) -> None:
-        """Single-level categorical columns centre to exactly zero: there is nothing to analyse."""
+        """Single-level categorical columns center to exactly zero: there is nothing to analyze."""
         with pytest.raises(ValueError, match="no variation"):
             FAMD().fit(pd.DataFrame({"grade": ["A"] * 6, "supplier": ["s1"] * 6}))
 
@@ -955,7 +955,7 @@ class TestFAMDInputs:
 def _famd_matrix_by_hand(fitted: pd.DataFrame, rows: pd.DataFrame, categorical: list[str]) -> tuple[np.ndarray, list]:
     """Pages' coding, with the statistics of ``fitted`` applied to ``rows``.
 
-    A numeric column is centred and divided by its population sd; a level of frequency p
+    A numeric column is centered and divided by its population sd; a level of frequency p
     becomes delta / sqrt(p) - sqrt(p), delta its 0/1 indicator.
     """
     blocks, names = [], []
@@ -1046,7 +1046,7 @@ class TestFAMDByHand:
         np.testing.assert_allclose(placed, reference.row_coordinates_[:3], rtol=0, atol=1e-12)
 
     def test_a_column_in_small_units_is_not_constant(self, batch_record: pd.DataFrame) -> None:
-        """Standardised, it is the same column: only equal values make one constant."""
+        """Standardized, it is the same column: only equal values make one constant."""
         small = batch_record.assign(pressure=batch_record["pressure"] * 1e-12)
         np.testing.assert_allclose(
             FAMD(n_components=6).fit(small).eigenvalues_, FAMD(n_components=6).fit(batch_record).eigenvalues_
@@ -1059,7 +1059,7 @@ class TestFAMDByHand:
         """0.1 twelve times has a population sd of 1.4e-17, not 0, and sixteen times one of exactly 0.
 
         The column was refused only at an sd of exactly 0: over twelve rows it became a column of
-        -1, uncentred, and added an inertia of 1 to the total, an axis of its own.
+        -1, uncentered, and added an inertia of 1 to the total, an axis of its own.
         """
         assert bool(np.full(rows, 0.1).std() == 0.0) is (rows == 16)
         message = "Numeric columns ['flat'] are constant, so they carry no information. Drop them."
@@ -1089,7 +1089,7 @@ class TestFAMDByHand:
         with pytest.raises(ValueError, match=r"^categorical names columns that are not in the data: \['colour'\]\.$"):
             FAMD(categorical=["colour"]).fit(batch_record)
         with pytest.raises(
-            ValueError, match=r"^The table has no variation to analyse: every observation is the same\.$"
+            ValueError, match=r"^The table has no variation to analyze: every observation is the same\.$"
         ):
             FAMD().fit(pd.DataFrame({"grade": ["A"] * 6, "supplier": ["s1"] * 6}))
         famd = FAMD().fit(batch_record)
@@ -1274,7 +1274,7 @@ class TestMFANewObservations:
         np.testing.assert_allclose(mfa.transform(blocks), mfa.row_coordinates_)
 
     def test_new_observations_use_the_fitted_centre_and_scale(self, blocks: pd.DataFrame) -> None:
-        """Three samples on their own land where they did in the fit, not re-centred on themselves."""
+        """Three samples on their own land where they did in the fit, not re-centered on themselves."""
         mfa = MFA(GROUPS).fit(blocks)
         np.testing.assert_allclose(mfa.transform(blocks.iloc[:3]), mfa.row_coordinates_.iloc[:3])
 
@@ -1372,7 +1372,7 @@ class TestMFAInputs:
 
 
 def _mfa_by_hand(frame: pd.DataFrame, groups: dict[str, list[str]], *, scale: bool = True) -> dict:
-    """Escofier and Pages: each group centred (and scaled), weighted by one over its first eigenvalue.
+    """Escofier and Pages: each group centered (and scaled), weighted by one over its first eigenvalue.
 
     The first eigenvalue is the largest of the group's covariance (or correlation) matrix, by
     eigvalsh; the weighted groups side by side are decomposed by SVD over sqrt(n), and every
@@ -1409,7 +1409,7 @@ def _mfa_by_hand(frame: pd.DataFrame, groups: dict[str, list[str]], *, scale: bo
 
 @pytest.fixture
 def three_groups() -> tuple[pd.DataFrame, dict[str, list[str]]]:
-    """Three groups of 3, 2 and 2 columns on one driver, with labelled rows."""
+    """Three groups of 3, 2 and 2 columns on one driver, with labeled rows."""
     data, groups = _driven_groups(seed=2, widths=(3, 2, 2), shared=True)
     return data.set_axis([f"s{i}" for i in range(len(data))]), groups
 
@@ -1470,7 +1470,7 @@ class TestMFAByHand:
 
     @pytest.mark.parametrize("scale", [True, False])
     def test_a_group_far_from_zero_fits_as_it_does_near_zero(self, blocks: pd.DataFrame, scale: bool) -> None:
-        """Lab results 1e7 above zero vary as much as they do near it: the offset is centred away.
+        """Lab results 1e7 above zero vary as much as they do near it: the offset is centered away.
 
         A group was refused for "no variation" when its first eigenvalue was below 1e-12 of the
         mean square of its raw values, which an offset of 1e7 on values of sd 1 makes 1e14.
@@ -1489,7 +1489,7 @@ class TestMFAByHand:
     def test_a_constant_column_is_refused_whatever_its_sd_rounds_to(self, blocks: pd.DataFrame) -> None:
         """0.1 twelve times has a population sd of 1.4e-17, not 0.
 
-        Divided by that, the column was one of -1s, uncentred, and the group took it in unrefused.
+        Divided by that, the column was one of -1s, uncentered, and the group took it in unrefused.
         """
         assert np.full(12, 0.1).std() > 0
         message = "Group 'lab' has a constant column; drop it before fitting."
@@ -1497,7 +1497,7 @@ class TestMFAByHand:
             MFA({**GROUPS, "lab": ["lab1", "lab2", "setpoint"]}).fit(blocks.assign(setpoint=0.1))
 
     def test_an_unscaled_group_may_hold_a_constant_column(self, blocks: pd.DataFrame) -> None:
-        """Centred, it is a column of zeros, which changes nothing; a group of nothing else has no variation."""
+        """Centered, it is a column of zeros, which changes nothing; a group of nothing else has no variation."""
         with_setpoint = blocks.assign(setpoint=0.1)
         mfa = MFA({**GROUPS, "lab": ["lab1", "lab2", "setpoint"]}, scale=False).fit(with_setpoint)
         reference = MFA(GROUPS, scale=False).fit(blocks)

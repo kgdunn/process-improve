@@ -1,12 +1,12 @@
 """Every number a catalog study's source prints that Factorial shows too, as Learn shows it beside the page's own.
 
-Each study the page opens from the catalog is analysed by the page with each model its source prints numbers
+Each study the page opens from the catalog is analyzed by the page with each model its source prints numbers
 for, as ``scripts/build_web_app.py`` lists them in ``catalog/printed/<id>.json`` (``printed_checks``), and
 each number is read off the page's analysis by the page's own JavaScript, ``printedValue`` of ``web/logic.js``,
 which Learn reads it with. The number must be the library's for the same check, which
-``reproduce_reference_catalogue`` holds to the printed one, and the page's verdict, ``printedAgrees``, must say
-that each number agrees that the catalogue does not record as printed wrong: one it does, Learn shows with the
-catalogue's reason. A study of one categorical factor
+``reproduce_reference_catalog`` holds to the printed one, and the page's verdict, ``printedAgrees``, must say
+that each number agrees that the catalog does not record as printed wrong: one it does, Learn shows with the
+catalog's reason. A study of one categorical factor
 is also compared with scipy: its one-way analysis of variance, Tukey's intervals, and Dunnett's critical value.
 """
 
@@ -29,7 +29,7 @@ pytestmark = [pytest.mark.slow, pytest.mark.dataset]
 
 #: Studies that open, but whose default model the runs cannot separate: the source lists a factor the others
 #: determine, or fits only some of the model's terms, so the reader chooses the model, as the source does. The
-#: page refuses a model it cannot estimate whole, where the source fits it by a generalised inverse or a subset.
+#: page refuses a model it cannot estimate whole, where the source fits it by a generalized inverse or a subset.
 UNFIT = {
     "bhh-wear-hyper-graeco-latin": "runs 1 to 4 use four of the papers and runs 5 to 8 the others: one df shared",
     "goos-jones-rolling-mill": "the three mills' fractions sum to one, a mixture taken as given",
@@ -37,7 +37,7 @@ UNFIT = {
     "mcmullen-jurica-methoxylation-fpca": "13 of the 15 scored runs share one DMF setting: a stepwise subset is fitted",
 }
 
-#: The kinds of check the page may show a number for; an entry with none of them is analysed for its categorical
+#: The kinds of check the page may show a number for; an entry with none of them is analyzed for its categorical
 #: factor alone, if it has one.
 SHOWN_KINDS = frozenset(
     {"r_squared", "r_squared_adj", "residual_df", "df_model", "ms_residual", "ss_residual", "ss_regression"}
@@ -191,7 +191,7 @@ CASES = [(key, part) for key in sorted(rc.reference_sources()) for part in range
 
 
 def _tested(entry: dict) -> bool:
-    """Say whether a study is analysed here: it prints a number the page may show, or has a categorical factor."""
+    """Say whether a study is analyzed here: it prints a number the page may show, or has a categorical factor."""
     kinds = {c.get("kind") for expected in entry.get("expected", []) for c in rc._checks(expected)}
     categorical = any(f.get("type") == "categorical" for f in entry["factors"] or [])
     return bool(entry.get("responses")) and (bool(kinds & SHOWN_KINDS) or categorical)

@@ -44,7 +44,7 @@ def _lenth_margins(lenth: dict[str, Any], confidence_level: float) -> tuple[floa
     and the number of effects ``m``, by the analysis's own formulas (Lenth, 1989):
     ``ME = t(1 - alpha/2, m/3) * PSE`` and ``SME = t(gamma, m/3) * PSE`` with
     ``gamma = (1 + (1 - alpha)**(1/m)) / 2``. Without a PSE the reported margins are
-    drawn, labelled with the level they were computed at.
+    drawn, labeled with the level they were computed at.
     """
     alpha = round(1.0 - confidence_level, 10)
     analysis_alpha = float(lenth.get("significance_level", lenth.get("alpha", _LENTH_ANALYSIS_ALPHA)))
@@ -105,7 +105,7 @@ class ParetoPlot(BasePlot):
             running += v
             cum_pct.append(100.0 * running / total if total > 0 else 0.0)
 
-        # Bar colours: green for positive, red for negative
+        # Bar colors: green for positive, red for negative
         bar_colors = [DOE_PALETTE["positive"] if v >= 0 else DOE_PALETTE["negative"] for _, v in sorted_items]
 
         # Per-bar error half-widths.  Source of truth (in priority order):
@@ -148,7 +148,7 @@ class ParetoPlot(BasePlot):
                 annotations.append(significance_threshold(me, alpha=alpha, name="ME", label=f"ME{suffix}"))
             if sme is not None:
                 annotations.append(significance_threshold(sme, alpha=alpha, name="SME", label=f"SME{suffix}"))
-                # Override SME colour to red
+                # Override SME color to red
                 annotations[-1].style["color"] = DOE_PALETTE["threshold_sme"]
 
         panel = PanelSpec(
@@ -236,7 +236,7 @@ class HalfNormalPlot(BasePlot):
         probs = [(i + 0.5) / n for i in range(n)]
         quantiles = [float(stats.halfnorm.ppf(p)) for p in probs]
 
-        # Determine significance for colouring
+        # Determine significance for coloring
         significant_set: set[str] = set()
         me, _sme, suffix, recomputed = (
             _lenth_margins(lenth, self.confidence_level) if lenth else (None, None, "", False)
@@ -372,7 +372,7 @@ class DanielPlot(BasePlot):
         probs = [(i + 0.5) / n for i in range(n)]
         quantiles = [float(stats.norm.ppf(p)) for p in probs]
 
-        # Determine significance for colouring
+        # Determine significance for coloring
         significant_set: set[str] = set()
         if lenth and self.highlight_significant:
             for item in lenth.get("effects", []):
@@ -458,7 +458,7 @@ class ReferenceDistributionPlot(BasePlot):
     Box, Hunter and Hunter (1978, sections 6.4 and 8D) draw the averages as a dot plot and slide
     under it a t distribution on the residual degrees of freedom, scaled by ``reference_scale``
     (:math:`s/\sqrt{n}` for *n* runs a level). Averages that cannot all sit under it at once are
-    unlikely to differ by chance alone. The plot centres the distribution at the mean of the
+    unlikely to differ by chance alone. The plot centers the distribution at the mean of the
     averages; the reader slides it along the axis by eye.
 
     Data sources

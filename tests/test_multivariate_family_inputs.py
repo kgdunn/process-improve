@@ -1,6 +1,6 @@
 """The multivariate family answers the same input the same way, and names the block at fault (#1114).
 
-Each test is parametrised over the estimators, or the tools, its item applies to, so a member that
+Each test is parametrized over the estimators, or the tools, its item applies to, so a member that
 drifts from the others fails here.
 """
 
@@ -98,7 +98,7 @@ def test_an_infinite_response_is_named_as_y(estimator: str) -> None:
 @pytest.mark.parametrize("n_y_rows", [20, 40])
 @pytest.mark.parametrize("estimator", list(REGRESSIONS))
 def test_a_response_of_another_length_gets_the_family_error(estimator: str, n_y_rows: int) -> None:
-    """PRM's robust centring met a Y of another length as an IndexError; MBPLS had its own wording (#1114)."""
+    """PRM's robust centering met a Y of another length as an IndexError; MBPLS had its own wording (#1114)."""
     X, y = _data()
     y = pd.DataFrame({"y": np.resize(y["y"].to_numpy(), n_y_rows)})
     message = rf"^The X and Y arrays must have the same number of rows: X has {N_ROWS} and Y has {n_y_rows}\.$"
@@ -257,7 +257,7 @@ NO_VARIANCE: dict[str, tuple[Callable[[pd.DataFrame, pd.DataFrame], object], str
 def test_an_x_in_which_nothing_varies_is_refused_across_the_family(estimator: str) -> None:
     """PCA and MBPCA fitted it, with scores that told no row apart; the others refused it in their own words (#1144).
 
-    The values are not 0, so a PCA, which does not centre, would find a component in them: there is
+    The values are not 0, so a PCA, which does not center, would find a component in them: there is
     still nothing that tells one row from another. The error comes alone, before any warning names
     the columns, as MBPLS's did.
     """

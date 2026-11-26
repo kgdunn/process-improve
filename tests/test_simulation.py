@@ -339,7 +339,7 @@ class TestSimulateProcess:
         assert result["warnings"] == ["Factor 'flow'=50.0 below low=100.0; clipped to 100.0."]
 
     def test_zero_range_factor_sits_at_its_centre(self):
-        """A factor with low == high is held at coded 0, exactly like the centre of a real range."""
+        """A factor with low == high is held at coded 0, exactly like the center of a real range."""
         private = _make_sim()["_private"]
         flat = {**private, "factors": [*private["factors"][:2], {"name": "surfactant", "low": 45.0, "high": 45.0}]}
         ranged = {**private, "factors": [*private["factors"][:2], {"name": "surfactant", "low": 40.0, "high": 50.0}]}

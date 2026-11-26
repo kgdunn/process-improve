@@ -1,6 +1,6 @@
 """A page per field: what others in an application have run, written by the build from the catalog's index.
 
-``write_fields`` writes ``catalog/fields/<field>/index.html`` for each application the catalogue names, the list of
+``write_fields`` writes ``catalog/fields/<field>/index.html`` for each application the catalog names, the list of
 fields, and ``catalog/fields.json`` for the planning panel. Each page says in a sentence how large the field's
 experiments usually are and which kinds of design are the most common, with no more than two numbers, draws them
 on a chart (``web/field-chart.js``), and lists them by kind, each opening in the catalog.

@@ -21,7 +21,7 @@ def test_duplicate_factor_names_raise() -> None:
     "design_type", ["full_factorial", "ccd", "box_behnken", "plackett_burman", "dsd", "fractional_factorial", "omars"]
 )
 def test_mixture_components_in_a_box_family_raise(design_type: str) -> None:
-    """These families returned coded +/-1 rows labelled as proportions (row sums from -3 to 3)."""
+    """These families returned coded +/-1 rows labeled as proportions (row sums from -3 to 3)."""
     factors = [Factor(name=f"x{i}", type="mixture", low=0.1, high=0.6) for i in range(3)]
     with pytest.raises(ValueError, match="sum to 1"):
         generate_design(factors, design_type)
@@ -66,7 +66,7 @@ _TWO_LEVELS = Factor(name="C", type="categorical", levels=["lo", "hi"])
 
 
 def test_a_categorical_factor_cannot_take_a_centre_setting() -> None:
-    """A two-level categorical factor is coded -1 and +1; the 0 of a centre point names no level."""
+    """A two-level categorical factor is coded -1 and +1; the 0 of a center point names no level."""
     with pytest.raises(
         ValueError,
         match=(
@@ -126,7 +126,7 @@ def test_fixed_size_design_above_the_budget_raises(design_type: str, k: int, bud
 
 
 def test_a_fraction_from_generators_above_the_budget_raises() -> None:
-    """Generators fix the fraction's size, so the budget is a ceiling: 8 runs and 3 centre runs exceed 10."""
+    """Generators fix the fraction's size, so the budget is a ceiling: 8 runs and 3 center runs exceed 10."""
     with pytest.raises(ValueError, match="more than budget=10"):
         generate_design(_factors(4), "fractional_factorial", generators=["D=ABC"], budget=10)
 
@@ -134,7 +134,7 @@ def test_a_fraction_from_generators_above_the_budget_raises() -> None:
 def test_a_fraction_without_generators_keeps_to_the_budget() -> None:
     """The budget was ignored: a 7-factor half fraction came back with 67 runs for a budget of 16 (#956).
 
-    The 13 runs left after 3 centre runs hold the 8-run fraction, with a warning that rounds down.
+    The 13 runs left after 3 center runs hold the 8-run fraction, with a warning that rounds down.
     """
     with pytest.warns(UserWarning, match="13 run"):
         result = generate_design(_factors(7), "fractional_factorial", budget=16)
@@ -151,14 +151,14 @@ def _center_rows(result, names: str) -> int:
 
 @pytest.mark.parametrize(("n_center_points", "expected"), [(None, 1), (0, 1), (1, 1), (4, 4)])
 def test_dsd_honours_n_center_points_as_the_total(n_center_points: int | None, expected: int) -> None:
-    """A DSD always came back with its one built-in centre run, whatever was asked."""
+    """A DSD always came back with its one built-in center run, whatever was asked."""
     result = generate_design(_factors(6), "dsd", n_center_points=n_center_points)
     assert _center_rows(result, "ABCDEF") == expected
     assert result.n_runs == 13 + expected - 1
 
 
 def test_omars_with_a_budget_counts_its_centre_runs() -> None:
-    """The ILP path hard-coded one centre run."""
+    """The ILP path hard-coded one center run."""
     result = generate_design(_factors(3), "omars", budget=21, n_center_points=3, random_state=1)
     assert result.n_runs == 21
     assert _center_rows(result, "ABC") == 3
@@ -189,7 +189,7 @@ def test_positive_center_points_refused_where_the_design_adds_none(
     design_type: str, factors: list[Factor], kwargs: dict
 ) -> None:
     """n_center_points was silently ignored by these families."""
-    with pytest.raises(ValueError, match="does not add centre points"):
+    with pytest.raises(ValueError, match="does not add center points"):
         generate_design(factors, design_type, n_center_points=4, **kwargs)
     generate_design(factors, design_type, n_center_points=0, **kwargs)
 
@@ -205,14 +205,14 @@ def test_full_factorial_respects_the_combinatorial_cap() -> None:
 
 @pytest.mark.parametrize(("k", "budget"), [(3, 8), (3, 6), (6, 8), (8, 11), (10, 12), (5, 12), (5, 15), (4, 6), (2, 3)])
 def test_auto_selected_design_fits_the_budget(k: int, budget: int) -> None:
-    """Centre points were left out of the comparison, and a too-large PB or D-optimal model was chosen."""
+    """Center points were left out of the comparison, and a too-large PB or D-optimal model was chosen."""
     factors = [Factor(name=f"X{i}", low=0, high=1) for i in range(k)]
     result = generate_design(factors, budget=budget)
     assert result.n_runs <= budget
 
 
 def test_auto_selection_counts_replicates() -> None:
-    """Two replicates of the 2^3 factorial and 3 centre runs (not replicated, #513) are 19 runs."""
+    """Two replicates of the 2^3 factorial and 3 center runs (not replicated, #513) are 19 runs."""
     result = generate_design(_factors(3), budget=19, n_replicates=2)
     assert result.design_type == "full_factorial"
     assert result.n_runs == 19
@@ -232,14 +232,14 @@ def test_auto_selection_routes_many_level_categorical_factors_to_designs_that_ho
 
 
 def test_none_seed_draws_a_random_order() -> None:
-    """random_state=None returned the standard order with every centre point last."""
+    """random_state=None returned the standard order with every center point last."""
     orders = {tuple(generate_design(_factors(3), "full_factorial", random_state=None).run_order) for _ in range(5)}
     assert orders != {tuple(range(1, 12))}
     assert len(orders) > 1
 
 
 def test_optimal_design_without_split_plot_is_randomised() -> None:
-    """The pyoptex backend skipped randomisation even without hard_to_change factors."""
+    """The pyoptex backend skipped randomization even without hard_to_change factors."""
     pytest.importorskip("pyoptex")
     orders = [generate_design(_factors(3), "d_optimal", budget=10, random_state=seed).run_order for seed in (1, 2)]
     assert orders[0] != list(range(1, 11)) or orders[1] != list(range(1, 11))

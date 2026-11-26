@@ -446,14 +446,14 @@ class TestFindReferenceBatchForAnyNumberOfBatches:
     """Every number of batches gives a reference; 2 to 5 raised "Found array with 1 sample(s)" (#1184).
 
     With ``n - 1`` components the PCA passed through every batch, so each had the same T2, the
-    90% limit for the fitted batches equalled it, and the screen left one batch or none.
+    90% limit for the fitted batches equaled it, and the screen left one batch or none.
     """
 
     def test_one_batch_is_its_own_reference(self) -> None:
         assert find_reference_batch(_noisy_batches(1), ["a", "b"]) == "b0"
 
     def test_of_two_batches_the_one_of_average_length_comes_first(self) -> None:
-        """Centred and scaled, two batches are mirror images, so a PCA cannot rank them."""
+        """Centered and scaled, two batches are mirror images, so a PCA cannot rank them."""
         batches = _noisy_batches(2)
         settings = {"judged_rows": "fitted"}
         assert find_average_length(batches) == "b0"
@@ -622,6 +622,25 @@ def test_batch_dtw_runs_one_iteration_even_when_the_tolerance_is_already_met() -
     )
     assert outputs["weight_history"].to_numpy() == pytest.approx(np.ones((1, 2)))
     assert set(outputs["aligned_batch_dfdict"]) == {"x", "y"}
+
+
+def test_batch_dtw_returns_the_trajectory_its_last_iteration_aligned_to() -> None:
+    """The reference batch itself after one iteration; after the third, the average of the iteration before (#1105)."""
+    batches = {"x": _warped_batch(30), "y": _warped_batch(36) + 0.1, "z": _warped_batch(42)}
+    one = batch_dtw(batches, ["a", "b"], reference_batch="y", settings={"show_progress": False, "tolerance": 5})
+    pd.testing.assert_frame_equal(one["reference_trajectory"], batches["y"], rtol=1e-12)
+
+    four = batch_dtw(
+        batches,
+        ["a", "b"],
+        reference_batch="y",
+        settings={"show_progress": False, "tolerance": 0, "maximum_iterations": 4, "subsample": 2},
+    )
+    assert len(four["weight_history"]) == 4
+    assert list(four["reference_trajectory"].columns) == ["a", "b"]
+    assert four["reference_trajectory"].index.equals(pd.RangeIndex(18))
+    # An average over the three batches, so no longer the reference batch shifted by 0.1.
+    assert not np.allclose(four["reference_trajectory"], batches["y"].iloc[::2])
 
 
 @pytest.mark.parametrize("reference_batch", ["long", "one"], ids=["short-batch", "short-reference"])
@@ -837,7 +856,7 @@ class TestBatchDtwWeightingSetting:
 
 
 class TestFullBand:
-    """The default band, which must reproduce the behaviour from before #197."""
+    """The default band, which must reproduce the behavior from before #197."""
 
     def test_it_admits_every_reference_row(self) -> None:
         band = full_band(n_test=4, n_ref=7)
@@ -866,7 +885,7 @@ class TestSakoeChibaBand:
     """A fixed-width corridor around the diagonal (#197)."""
 
     def test_it_centres_on_the_diagonal_between_unequal_lengths(self) -> None:
-        """With 5 test samples and 9 reference rows the centre advances 2 rows per sample."""
+        """With 5 test samples and 9 reference rows the center advances 2 rows per sample."""
         band = sakoe_chiba_band(n_test=5, n_ref=9, window=2)
 
         centres = (band[:, 0] + band[:, 1] - 1) / 2
@@ -1420,7 +1439,7 @@ class TestBatchWeighting:
         assert _batch_weights(self._results([0.5] * 5), "huber").tolist() == [1.0] * 5
 
     def test_all_non_finite_distances_fall_back_to_equal_weights(self) -> None:
-        """With no usable distance there is no basis to rank batches, so none is penalised."""
+        """With no usable distance there is no basis to rank batches, so none is penalized."""
         assert _batch_weights(self._results([float("nan")] * 4), "huber").tolist() == [1.0] * 4
 
     def test_a_single_non_finite_distance_is_floored_not_dropped(self) -> None:

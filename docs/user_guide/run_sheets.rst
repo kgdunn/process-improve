@@ -33,7 +33,7 @@ Writing a sheet
       3  1.3 400.0 100.0       NaN
       4  0.9   0.0 100.0       NaN
 
-The rows are the runs in the design's randomised order, numbered in ``Run``. The choices:
+The rows are the runs in the design's randomized order, numbered in ``Run``. The choices:
 
 * ``units``: ``"actual"`` (the default) writes the settings in the factors' own units;
   ``"coded"`` writes them from -1 at a factor's low value to +1 at its high value. A

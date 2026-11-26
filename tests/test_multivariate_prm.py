@@ -26,7 +26,7 @@ from process_improve.multivariate.methods import PLS, PRM, MCUVScaler, NotEnough
 
 
 def _cost(centre: np.ndarray, X: np.ndarray) -> float:
-    """Total Euclidean distance from ``centre`` to every row: what the L1 median minimises."""
+    """Total Euclidean distance from ``centre`` to every row: what the L1 median minimizes."""
     return float(np.linalg.norm(X - centre, axis=1).sum())
 
 
@@ -495,7 +495,7 @@ class TestPRMApi:
         """sample_weight expresses what the data cannot: a run already known to be bad.
 
         PLS documents a zero weight as equivalent to removing the row, so PRM
-        has to honour that all the way through. It is not automatic: the robust
+        has to honor that all the way through. It is not automatic: the robust
         weights are built from a median residual scale and a median score
         distance, and a zeroed row left in those medians would still be steering
         the fit while appearing to have no weight. The row picked here is an
@@ -564,7 +564,7 @@ class TestPRMRejectsWhatItCannotHandle:
 
 
 class TestRobustScalingByHand:
-    """The centre and spread PRM fixes once, worked by hand."""
+    """The center and spread PRM fixes once, worked by hand."""
 
     # Column a: 1, 2, 4, 7, 11 has median 4 and absolute deviations 3, 2, 0, 3, 7, whose median is 3.
     # Column b: four zeros and a 5 has median 0 and a median absolute deviation of 0.
@@ -613,7 +613,7 @@ class TestRobustWeightsByHand:
     def test_each_target_is_standardised_alone(self) -> None:
         """Two targets: 0, 1, 2, 3, 10 (median 2, median absolute deviation 1) and 5, 6, 8, 10, 0 (6 and 2).
 
-        The standardised residuals are (-2, -1, 0, 1, 8) and (-0.5, 0, 1, 2, -3); a row's distance is
+        The standardized residuals are (-2, -1, 0, 1, 8) and (-0.5, 0, 1, 2, -3); a row's distance is
         their norm, and its weight the Fair function's 1 / (1 + d / 4)^2.
         """
         residuals = np.array([[0.0, 5.0], [1.0, 6.0], [2.0, 8.0], [3.0, 10.0], [10.0, 0.0]])
@@ -707,12 +707,12 @@ class TestPRMSettingsInFull:
             "tol": epsqrt,
             "copy": None,
             "missing_data_settings": None,
-            "warn_on_uncentred": True,
+            "warn_on_uncentered": True,
         }
         settings = {"max_iter": 7, "tol": 1e-3, "copy": False, "missing_data_settings": {"md_tol": 1e-3}}
-        model = PRM(n_components=2, warn_on_uncentred=False, **settings)
+        model = PRM(n_components=2, warn_on_uncentered=False, **settings)
         assert {name: model.get_params()[name] for name in settings} == settings
-        assert model.get_params()["warn_on_uncentred"] is False
+        assert model.get_params()["warn_on_uncentered"] is False
 
     @pytest.mark.parametrize("cutoff", [0.0, -1.0, np.inf])
     def test_the_settings_are_checked_before_the_data(self, cutoff: float) -> None:
@@ -795,7 +795,7 @@ class TestPRMLoopInFull:
         Floored at 1e-6, as chemometrics floors it, the row entered the second fit at 1e97 times the
         size of the others and led it: 100 iterations without converging, and predictions of the
         other rows 6.4 away from the model fitted without it, where y's standard deviation is 2.0.
-        The robust centre and spreads still count the row, so the two fits differ by 0.04.
+        The robust center and spreads still count the row, so the two fits differ by 0.04.
         """
         X, y = _dataset(seed=0)
         X.iloc[5] = 1e100 * np.sign(X.iloc[0].to_numpy())

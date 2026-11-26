@@ -227,11 +227,11 @@ def test_ellipse_coordinates(aligned_nylon: dict) -> None:
 
 
 def test_unscaled_keeps_centring_only() -> None:
-    """scale=False leaves the scaling factors at 1.0 (centring still applied)."""
+    """scale=False leaves the scaling factors at 1.0 (centering still applied)."""
     good = _synthetic_good_batches()
     model = BatchPCA(n_components=2, scale=False).fit(good)
     np.testing.assert_allclose(model.scale_.to_numpy(), 1.0)
-    # centring is non-trivial
+    # centering is non-trivial
     assert np.any(np.abs(model.center_.to_numpy()) > 1e-6)
 
 

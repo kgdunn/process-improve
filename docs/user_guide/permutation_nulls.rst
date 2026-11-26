@@ -12,7 +12,7 @@ Two ways that do not work
 close to guaranteed. It measures capacity, not evidence.
 
 **A count of variables exceeding VIP 1.** This one is worth spelling out,
-because it looks like a statistic and is not. VIP is normalised so that
+because it looks like a statistic and is not. VIP is normalized so that
 
 .. math::
 
@@ -58,7 +58,7 @@ performance.
 cannot draw.
 
 Note the blocks go in **unscaled**. The default cross-validates PLS for you and
-re-derives the centring and scaling constants inside every fold, which is the
+re-derives the centering and scaling constants inside every fold, which is the
 second of the two traps below; scaling first would hand each fold constants
 computed from the row it is meant to be predicting.
 
@@ -84,7 +84,7 @@ leaves to you, inside ``fit_predict``:
   when every product is precious, and needlessly expensive at hundreds of rows,
   where a permutation null multiplies the cost by ``n_perm``.
 * **Re-derive the response constants inside each fold too.** It is easy to nest
-  the predictor preprocessing and forget the response. Centre and scale the
+  the predictor preprocessing and forget the response. Center and scale the
   response on the training rows, predict, then back-transform with those same
   training constants before returning; otherwise the score is computed on a
   scale the fold never saw.

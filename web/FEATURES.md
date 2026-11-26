@@ -1,7 +1,7 @@
 # Factorial: what the app does
 
 Factorial is the browser app of `process-improve`, at <https://factori.al/>. It plans a
-designed experiment, takes its results, analyses them and says what to run next, in four
+designed experiment, takes its results, analyzes them and says what to run next, in four
 steps: Design, Run, Learn and Next. Python runs inside the browser tab, so a study never
 reaches a server.
 
@@ -13,7 +13,7 @@ rules keep it true:
 - A change to the app that a reader of the app would notice changes this document in the same
   pull request ([`CONTRIBUTING.md`](../CONTRIBUTING.md#the-browser-app-is-tested)).
 - [`tests/web/page/test_features.py`](../tests/web/page/test_features.py) fails when a design,
-  a chart, a process to practise on, a limit or a count below is not what the app has, or
+  a chart, a process to practice on, a limit or a count below is not what the app has, or
   when a design the library makes is not listed with what the library and the app take for it.
 
 The app's own page, [features.html](features.html), shows this document to its readers, so it
@@ -49,15 +49,15 @@ Counts marked "(Nov 2026)" come from the build of 14 November 2026 and only grow
 - **16 designs.** One form makes them all, from a full factorial to optimal, space-filling and
   mixture designs, also when some settings cannot be run.
 - **From a question to a recommendation.** Say what you want to learn. The app lists the
-  designs that can answer it, analyses your results, finds the best settings, and says what
+  designs that can answer it, analyzes your results, finds the best settings, and says what
   to run next.
 - **Plain words.** Findings are written as sentences from the numbers alone, with no language
   model: the same results give the same words.
 - **17 charts.** Each opens large, saves as an image, and shows the Python that draws it. A
   run pointed at on one chart is marked on the others and in the run sheet.
 - **Charts that are accurate and good to look at.** Factorial aims for both. Surfaces and
-  maps are drawn in batlow, a Scientific colour map: a step in the colour is a step in the
-  value, and it reads in grey and without telling red from green. Settings offers three more.
+  maps are drawn in batlow, a Scientific colour map: a step in the color is a step in the
+  value, and it reads in gray and without telling red from green. Settings offers three more.
 - **Nothing hidden.** Every step shows Python code that gives the same numbers. A study
   leaves as a workbook, a notebook, a report, a file or a link.
 - **Checked against print.** The design catalog opens more than 1,000 published designs and
@@ -94,12 +94,14 @@ three mixture designs under a heading of their own.
   no run at the extreme corners.
 - **Central composite (CCD).** For 2 to 7 factors. For a response that curves, to find its best
   point: a factorial with runs added along each factor and at the center.
-  - *Details:* Face-centred, rotatable, orthogonal, or an axial distance you type.
+  - *Details:* Face-centered, rotatable, orthogonal, or an axial distance you type.
 - **D-optimal.** For 2 to 40 factors. The runs that pin down your model's effects best, for the
   number of runs you can afford, inside any limits on the settings.
   - *Details:* For a model of up to 91 coefficients: any model in up to 12 factors, and the
     main effects in up to 40. The three optimal designs take a categorical factor of 2 to 8
-    levels beside the numeric ones, and choose each run's level with its settings.
+    levels beside the numeric ones, and choose each run's level with its settings. Such a
+    factor has no square, and one of L levels is L - 1 coefficients in its main effect and in
+    each of its interactions; the count under Runs, and the runs a design opens with, say so.
 - **I-optimal.** For 2 to 40 factors. The runs that predict best across the ranges, for the
   number of runs you can afford, inside any limits on the settings.
   - *Details:* For a model of up to 91 coefficients, as the D-optimal design is.
@@ -123,8 +125,8 @@ three mixture designs under a heading of their own.
 Also:
 
 - **A design you have already.** The runs of a design the app did not make, such as one a
-  book prints or a table of your own, are taken as they are and analysed.
-  - *Details:* "Runs as given", in their order and their own units. The app analyses them
+  book prints or a table of your own, are taken as they are and analyzed.
+  - *Details:* "Runs as given", in their order and their own units. The app analyzes them
     with the largest model they estimate in full. Runs that form a regular two-level fraction
     state its resolution and defining relation.
 - **One factor on its own.** Two or more levels compared, with enough runs for a real
@@ -147,8 +149,8 @@ Also:
 
 *From what you want to learn to a run sheet, with the trade-offs said.*
 
-- **Start from the question.** Say what you measure (its name, its units, and a goal: maximise,
-  minimise, hit a target, or just learn), what might change it, and what you want to learn.
+- **Start from the question.** Say what you measure (its name, its units, and a goal: maximize,
+  minimize, hit a target, or just learn), what might change it, and what you want to learn.
   [Show me](https://factori.al/?example=worked&show=response-card)
   - *Details:* Design reads the question back as one sentence over the form: "Find the settings
     of Temperature, Pressure and Flow that give the highest Yield." With no goal it reads
@@ -161,7 +163,7 @@ Also:
     sets the design and the aim. Two factors have no half. A categorical factor, a mixture,
     or six factors or more keep the list of designs.
 - **Do a practice round first.** One press in Design makes the run sheet, fills it with
-  results the app makes up from a process whose true behaviour is known, and opens Learn on
+  results the app makes up from a process whose true behavior is known, and opens Learn on
   them. You see what the plan can and cannot tell you before a run is spent.
   - *Details:* Learn says it is a practice round and that no run has been made. One press
     clears the made-up results and leads to the run sheet, for the real ones. A result you
@@ -191,7 +193,9 @@ Also:
   precision. A switch sets a design aside.
   - *Details:* Nine measures of each design (precision of the coefficients and of the
     predictions, correlation between terms, power), fraction-of-design-space curves on one
-    chart, and a correlation map of each design.
+    chart, and a correlation map of each design. A categorical factor of two levels has no
+    square, and the predictions are made at its two levels only. With a categorical factor of
+    three levels or more, the designs are listed with their runs, spare runs and power only.
 - **What each factor can be set to.** A pressure cannot go below zero, nor a share past 100.
   Type a factor's lowest or highest possible setting under the factors, and the path of
   steepest ascent stops before it, and the next study's ranges stay inside it.
@@ -232,11 +236,11 @@ Also:
   [Show me](https://factori.al/?book=bioreactor-half-fraction&show=correlation)
   - *Details:* A correlation map of the study's own runs, with sentences that name each
     aliased or correlated pair of terms. The map runs from -1 to +1: blue for two terms that
-    move opposite ways, red for two that move together, and the colour of the page for
+    move opposite ways, red for two that move together, and the color of the page for
     neither, with a key beside it.
 - **Experiments like yours.** The plan beside what others in your field have published.
 - **Room for a large study.** Up to 40 factors.
-  - *Details:* Interactions are modelled for up to 12.
+  - *Details:* Interactions are modeled for up to 12.
 - **Rename freely.** A new name or unit for a factor or response reaches the run sheet, the
   equations, the charts and the code, without making the runs again.
 
@@ -248,12 +252,12 @@ Also:
 
 - **A run sheet in the order to run it.** It has a column for each response, and its columns
   sort. [Show me](https://factori.al/?example=worked&show=step-run)
-  - *Details:* The order is the randomised one.
+  - *Details:* The order is the randomized one.
 - **Type, paste or upload your results.** A block pasted from a spreadsheet fills the sheet,
   and a workbook filled in elsewhere is read back.
   - *Details:* A pasted block is matched by run number when it has one, with decimal commas
     read. The workbook is an .xlsx file.
-- **No need to wait for every run.** The app analyses the runs that have a result.
+- **No need to wait for every run.** The app analyzes the runs that have a result.
   - *Details:* Once every run has its result, Run says so at its top, with the way to Learn.
 - **Your results do not leave the page without a question.** Making the run sheet again keeps
   the sheet and its results when the design is unchanged. When the design has changed, the
@@ -273,7 +277,7 @@ Also:
   - *Details:* For numeric factors; a mixture's proportions and a categorical factor's level
     stay as planned. The planned setting is kept with the study, and one press puts every
     run back on the plan. A study with such a run is saved in study format 10.
-- **Practise before you spend a run.** Simulated results from a process whose true behaviour is
+- **Practice before you spend a run.** Simulated results from a process whose true behavior is
   known, to see whether the analysis finds it. You set the noise, simulate again for new noise,
   and show the true process when you want it.
   [Show me](https://factori.al/?example=worked&show=panel-simulate)
@@ -281,9 +285,9 @@ Also:
     interaction, A maximum inside the ranges, Nothing active, and A random process. A mixture
     has one of its own (a synergy and an antagonism).
 - **A whole curve as a result.** A response that is a curve at each run, such as a spectrum
-  or a colour over time, pasted under the run sheet.
+  or a color over time, pasted under the run sheet.
   - *Details:* "My measured response is a curve", under the response in the brief, says so before
-    the design is made, beside a small picture of three runs' noisy curves, one colour per run. Opening it opens the box for the curves under the run sheet once the design
+    the design is made, beside a small picture of three runs' noisy curves, one color per run. Opening it opens the box for the curves under the run sheet once the design
     is made. A predicted curve's bands rest on 200 bootstrap replicates, and on 1,000 at a
     significance level of 0.01, so that ten replicates lie past the 99% quantile they are read
     from. The refit then takes about twice as long.
@@ -356,7 +360,7 @@ Also:
   - *Details:* Analysis of variance, a lack-of-fit test when runs are repeated, R², adjusted
     R², predicted R² and the residual degrees of freedom.
 - **Results that span a wide range.** When the results call for it, the app offers to
-  analyse the log, the square root or the inverse of the response, and gives its answers in
+  analyze the log, the square root or the inverse of the response, and gives its answers in
   the response's own units.
   - *Details:* The response as measured, or its log, square root or inverse. Box-Cox's
     interval offers the transform.
@@ -437,7 +441,7 @@ Also:
     the picture is over three of them, the others held at the balanced blend.
 - **What one goal costs another.** A chart puts one response against another, with thousands
   of settings tried on the models: you see how much of one must be given up for the other.
-  Colour the points by a third response, type a limit on any response to keep only the
+  Color the points by a third response, type a limit on any response to keep only the
   settings that meet it, and press a point to choose its settings.
   - *Details:* 2,000 settings drawn evenly from the ranges the limits allow, each categorical
     factor at the balanced settings' level, or at another level you pick above the chart, which
@@ -446,7 +450,7 @@ Also:
     Settings chosen move the what-if panel there and can be tested with confirmation runs.
     Other bests of the search within 5% of the balanced settings' overall desirability are
     listed. A mixture's chart is of 2,000 blends drawn evenly from those its bounds allow.
-    The chart shows its Python, but a mixture's. The study keeps the chart's axes, colour, limits,
+    The chart shows its Python, but a mixture's. The study keeps the chart's axes, color, limits,
     levels and the settings chosen, in study format 14, and the report holds the chart and
     the settings chosen.
 - **What if.** A dial for each factor: a picture of the response against that factor, with
@@ -536,7 +540,7 @@ Also:
 
 #### Data you have already
 
-- **Analyse data you have.** Paste a table, or open a .csv or .xlsx file, of an experiment
+- **Analyze data you have.** Paste a table, or open a .csv or .xlsx file, of an experiment
   run elsewhere or of a process's records. The app guesses the factors and the responses,
   reads units from the headings, and lets you correct it. It then says which factors moved
   together and what unplanned runs cannot show.
@@ -588,7 +592,7 @@ Nine charts come with the analysis. Eight more are one press away, under More ch
   others held at the best settings.
   ![](chart-pictures/contour.webp)
 - **True response surface.** With simulated results: the true process, on the fitted
-  surface's colour scale.
+  surface's color scale.
   ![](chart-pictures/true_contour.webp)
 - **Fitted response over the blends.** For a mixture of three components: the response at
   every blend. For four or more: over three of them you pick, at first the three that move
@@ -611,21 +615,22 @@ Nine charts come with the analysis. Eight more are one press away, under More ch
 - **Each factor's effect on the prediction.** One line for each factor, with a 95% band.
   *More charts.*
   ![](chart-pictures/perturbation.webp)
-- **Average result at each setting.** *More charts.*
+- **Average result at each setting.** With the model's interval for the mean at each setting,
+  the other factors averaged over the runs. *More charts.*
   ![](chart-pictures/main_effects.webp)
 - **Interaction of the two factors.** Whether one factor's effect depends on the other.
   *More charts.*
   ![](chart-pictures/interaction.webp)
-- **Fitted response surface, in three dimensions.** *More charts.*
-  ![](chart-pictures/surface_3d.webp)
-- **Predictions at the corners.** *More charts.*
-  ![](chart-pictures/cube.webp)
 - **Residuals against the normal distribution.** *More charts.*
   ![](chart-pictures/normal_probability.webp)
 - **Residuals in the order the runs were made.** To see a drift over time. *More charts.*
   ![](chart-pictures/residuals_order.webp)
 - **Where the predictions are least certain.** *More charts.*
   ![](chart-pictures/prediction_variance.webp)
+- **Fitted response surface, in three dimensions.** A row of its own. *More charts.*
+  ![](chart-pictures/surface_3d.webp)
+- **Predictions at the corners.** A row of its own. *More charts.*
+  ![](chart-pictures/cube.webp)
 
 Also:
 
@@ -646,17 +651,20 @@ Also:
     back. On a touch screen a drag on a card scrolls the page, except on a figure in three
     dimensions, which it turns.
 - **Step through the figures.** Use the window's arrows or the left and right keys.
+- **Lines named where they end.** A chart of four lines or fewer names each line at its end, in
+  its color, beside the legend, where its card is wide enough.
 - **Save or copy a figure.** Take an image file, or an image on the clipboard to paste, for a
   report or a slide.
-  - *Details:* A PNG or an SVG in the shape shown, on white under its title. An image saved
-    from a dark page has the light theme's colours.
+  - *Details:* A PNG or an SVG in the shape shown, under its title: on white in the light
+    theme's colors, whatever the page shows, or on the dark theme's background when "Dark
+    background" is ticked, for a dark slide.
 - **The Python that draws it.** Each of the 17 charts shows code that runs as it is, and so
   do the other figures.
   - *Details:* The library's own call for the eleven charts the library draws, and Plotly's
     for the six the page draws itself. The other figures with code are the Pareto plot of the
-    coefficients and their effects, how tightly to hold each factor, the overlay of the acceptable ranges, the
-    what-if curve, the FDS plot and the correlation maps. A mixture's triangle overlay and its
-    components' moves show none yet.
+    coefficients and their effects, how tightly to hold each factor or component, the overlay of the
+    acceptable ranges (over a mixture's triangle too), the what-if curve, the FDS plot and the
+    correlation maps.
 - **One run, marked everywhere.** Rest on a run on a chart or in a table and it is ringed on
   every chart that draws the runs and shaded in the run sheet. A press or a tap keeps it;
   Escape lets it go.
@@ -668,14 +676,14 @@ Also:
 - Axes and titles are in your words and units. A long title wraps.
 - Every chart fits its card and is drawn again when its room changes.
 - Light and dark themes. On a dark page a surface starts as dark as the page, with no glare.
-- Colours that are even to the eye. Factorial aims for charts that are scientifically
+- Colors that are even to the eye. Factorial aims for charts that are scientifically
   accurate and good to look at, so surfaces and maps are drawn in batlow, a Scientific
-  colour map (Crameri, 2018). A step in the colour is a step in the value, with no band that
-  the eye takes for an edge. It reads in grey, and without telling red from green. The
+  color map (Crameri, 2018). A step in the color is a step in the value, with no band that
+  the eye takes for an edge. It reads in gray, and without telling red from green. The
   pictures of the response surface on this page show it. Settings offers devon, la jolla and
-  grey as well, and flips any of them.
+  gray as well, and flips any of them.
 - The numbers on a surface's lines have a halo, so they read on every band.
-- Lines differ by pattern as well as colour. A run's marker reads on every colour of a surface.
+- Lines differ by pattern as well as color. A run's marker reads on every color of a surface.
 - Each chart is one named picture to a screen reader, beside a table that holds its numbers.
 - **A chart stays with you.** No chart offers to send itself to another company's servers.
   - *Details:* Plotly's.
@@ -703,7 +711,9 @@ Also:
   - *Details:* An .html file. A stamp gives the seed, a fingerprint of the study (its
     SHA-256) and a link that opens the same study. It ends with "Terms used": each word the
     report used that the page defines, with its meaning, since paper has no word to press.
-    The software versions are at its foot.
+    The software versions are at its foot. A chart's image takes a shape that suits it: a
+    surface with equal axes as wide as its square plot and its color bar, a figure in three
+    dimensions about as wide as it is tall, the others 720 pixels wide.
 - **A link to a study.** It carries the results or leaves them out. Whoever opens it has the
   same study, and the study in the link reaches no server.
   - *Details:* The study is packed after the `#`, which a browser sends to no server.
@@ -735,7 +745,7 @@ Also:
 - **The path past your ranges, as runs to make.** When better results lie past the ranges, the
   app lists four runs along the path of steepest ascent, each with its settings. You make
   them one at a time and stop at the first that does worse than the run before it. One
-  press then starts a new study centred on the best run.
+  press then starts a new study centered on the best run.
   - *Details:* The runs join the end of the run sheet in the path's order and never enter
     the fit. Each shows what the model predicts there, as a guide only. The app says which
     run is best so far and which to make next. One press takes them off again. The path
@@ -769,7 +779,7 @@ Also:
 - **The campaign on one map and one chart.** Every run of every round where it was made,
   over two factors, with each round's model drawn inside that round's own ranges. Beside it,
   every run in the order they were made, with the best result so far.
-  - *Details:* A box marks each round's ranges, and one scale of colour serves every round.
+  - *Details:* A box marks each round's ranges, and one scale of color serves every round.
     The two factors are those of the map beside the dials. A choice shows the campaign as it
     stood after an earlier round. A target is a level line. Each chart opens large and shows
     Python that draws it.
@@ -782,6 +792,10 @@ Also:
 
 - **Four stages, one page.** One bar at the top holds Design, Run, Learn and Next, each marked
   with how far it has got. It stays in view as the page scrolls.
+- **A stage named in a sentence leads to it.** Where the page says "enter them in Run" or "once
+  Learn has analyzed them", the stage's name is a link, with the dot of that stage, in its
+  color, before it. So is a stage named in the line under the bar, in what Learn says, and in
+  the Feedback dialog, which closes to show it.
 - **The study's name heads the page.** It is under the bar, with the page's width, so a long
   name is read whole on a phone and on a desk.
 - **A new study in one press.** The bar has a button for it, in words, on every stage.
@@ -802,23 +816,23 @@ Also:
     begun there is kept as a draft. A reader with a study kept in the browser is picked up
     where they left off, with no welcome: the study opens on the stage it was left on. A
     study from a link or a file opens on the stage its results call for.
-- **A colour for each step.** Design is blue, Run is ochre, Learn is green and Next is red:
+- **A color for each step.** Design is blue, Run is ochre, Learn is green and Next is red:
   in the bar, in the welcome, and in the app's mark and its browser icon. Every screen says
   which step it is: what you choose there and the button to press there are in the step's
-  colour.
-  - *Details:* A button that leads to the next step wears that step's colour: "Make the run
+  color.
+  - *Details:* A button that leads to the next step wears that step's color: "Make the run
     sheet" is ochre, "See what the results say" is green. In the bar the steps are points on
     one line; the step you are in has the larger point and its name in bold, so nothing rests
-    on colour alone.
+    on color alone.
 - **Drawn with an experiment's own marks.** A choice is a point, as a run is on a design: a
   ring until you choose it, then filled. The four aims are levels on one axis. Nothing has a
-  box with a coloured edge, and nothing is rounded but a point.
-  - *Details:* A chosen point is also drawn when the system forces its own colours. A note
+  box with a colored edge, and nothing is rounded but a point.
+  - *Details:* A chosen point is also drawn when the system forces its own colors. A note
     that asks for a look is marked with an ochre diamond.
 - **Checks you can read at a glance.** Under Learn's answer a check is a point: round and
   green when it passed, an ochre diamond when there is something to look at, a ring when the
   page cannot tell.
-  - *Details:* The shape says it, so the colour is not the only sign. A screen reader hears
+  - *Details:* The shape says it, so the color is not the only sign. A screen reader hears
     "Passed", "To look at" or "Cannot tell".
 - **Headings of its own, text in your device's font.** The headings, Learn's answer and the
   question read back are set in Outfit, served from the app's own files. Body text, tables
@@ -826,12 +840,14 @@ Also:
   - *Details:* Until Outfit has loaded, the device's own font stands in for it.
 - **Your numbers in ink.** What you typed or measured is in blue ink. What Factorial worked
   out is in print.
-  - *Details:* A simulated result is grey and in italics, as pencil, until you type over it.
-- **Every page has the same top line and footer.** The pages on how Factorial works, what it
-  does, the design catalog, the textbooks' answers and the concept map each have the
-  colour-mode switch at the top and end in the same links, in the same order.
+  - *Details:* A simulated result is gray and in italics, as pencil, until you type over it.
+- **Every page has the same top line and footer.** The pages on how Factorial works, the user
+  guide, how it is checked, the design catalog, the textbooks' answers and the page for
+  learning each have the color-mode switch at the top and end in the same links, in the same
+  order.
   - *Details:* A mode chosen on one page is the mode of the next. The footer marks the page
-    you are on.
+    you are on. It names each page in one to three words, and no name takes a second line on
+    a phone.
 - **One menu holds every way in.** "Studies", in the bar beside "New study", opens it: a new study, your
   studies, the worked example, data you have, and the design catalog. It also shares the
   study and shows its report.
@@ -852,18 +868,18 @@ Also:
     so the study stays as it is. A finger, a mouse and the keyboard each reach it. Without a
     network it is left out, unless the copy kept for use offline holds the map.
 - **A phone, a tablet or a desk.** The layout, the tables and the charts fit each.
-- **Settings that travel with the study.** "Settings", under "Studies", chooses the colours
-  the charts are drawn in (batlow, devon, la jolla or grey), the decimal mark, a period
+- **Settings that travel with the study.** "Settings", under "Studies", chooses the colors
+  the charts are drawn in (batlow, devon, la jolla or gray), the decimal mark, a period
   or a comma, and the significance level: 0.01, 0.05 or 0.10. The study keeps the choices,
   so its link and its file show others what you see.
-  - *Details:* Each map's colours are drawn from "Low" to "High", as the charts draw them,
+  - *Details:* Each map's colors are drawn from "Low" to "High", as the charts draw them,
     and a switch flips the chosen map. A study's own settings always win. A tick keeps them
     for your new studies too, in this browser. With a comma, the page writes 1,5 in its
     sentences, tables, equations and charts, and reads 1,5 where you type a range; a new
     reader starts with the period, whatever the browser's language. The Python code and
     the notes a design carries keep the period. Dates are written as your browser writes
     them. A study with settings is saved in study format 12. A workbook
-    carries them too. The Python shown names the study's colour map where the code draws one
+    carries them too. The Python shown names the study's color map where the code draws one
     itself, and redraws in it the surface of a figure the library draws in batlow.
     The significance level is 0.05 unless you change it, and the confidence of
     every interval is one minus it: 99%, 95% or 90%. Every test, every interval, Lenth's
@@ -871,9 +887,9 @@ Also:
     the Python shown passes it to the library. It changes what a study finds, so a study
     judged at 0.01 or 0.10 is saved in study format 13: a page from before the setting
     refuses the study, and never judges it at 0.05.
-- **Light, dark or the system's colours.** The choice is kept in the browser.
+- **Light, dark or the system's colors.** The choice is kept in the browser.
 - **The keyboard and a screen reader.** Every control can be reached and has a name.
-  - *Details:* A link past the header, sortable headings, labelled controls, and text that
+  - *Details:* A link past the header, sortable headings, labeled controls, and text that
     meets WCAG AA contrast in both themes.
 - **Tables that sort.** The table of the effects also downloads for a spreadsheet.
   - *Details:* The coefficients table downloads as .csv.
@@ -891,7 +907,9 @@ Also:
   - *Details:* A link can open the form with a request written, as "Request it" does beside
     each design the app does not make yet. Nothing is sent until you press Send.
 - **A footer to scan.** What Factorial is in a sentence, a button to this list, links in named
-  groups, what is kept on the device, and which version of the app you have.
+  groups, what is kept on the device, and which version of the app you have. The links are
+  Open the app, User guide, Design catalog, Is it accurate? and Learn experimental design,
+  then How it works and Python package.
   - *Details:* The version is the commit the app was built from, as a link to it, and the day and
     time of that commit, in your own time zone on a 24-hour clock. A report sent from Feedback ends with the same version.
 
@@ -908,7 +926,7 @@ Also:
   - *Details:* A reactor's yield, studied over Temperature, Pressure and Flow in the 15 runs
     of a Box-Behnken design.
 - **Practice on a known process.** It shows the true model beside the fitted one.
-- **What Factorial does.** This list, as a page of the app. A point that ends with Show me
+- **The user guide.** This list, as a page of the app. A point that ends with Show me
   opens the app on an example of it, at the part of the page that has it. Each of the 17
   charts has its picture. A box finds a word, and a button in each part opens the details of
   its points.
@@ -918,14 +936,15 @@ Also:
   to run a copy of your own.
   - *Details:* The About page: what runs where, what reaches a server, the versions loaded,
     and how to build and serve the app yourself.
-- **The concept map.** It is under [More at factori.al](#more-at-factorial).
+- **Learn experimental design.** The book's chapter, the course, the course's videos and the
+  concept map are on one page. It is under [More at factori.al](#more-at-factorial).
 - **The package's documentation.** It is at <https://kgdunn.github.io/process-improve/>.
 
 ### Your data and your trust
 
 *Your data stays on your device, and the answers are checked.*
 
-What a careful reader, or an organisation, asks before using a tool.
+What a careful reader, or an organization, asks before using a tool.
 
 #### Where your data goes
 
@@ -939,9 +958,16 @@ What a careful reader, or an organisation, asks before using a tool.
   - *Details:* One access-log line per request, with the address cut to its network before
     it is written, kept for 366 days to count visits. A usage report for the operator gives
     the visits to each page by day, week or month, from the access log, with nothing of a
-    reader's in it. A link someone posted may name the place it was posted
+    reader's in it, and how long Python took to start where the browser downloaded the
+    app's Python. A link someone posted may name the place it was posted
     (`?ref=newsletter`), so that its visits are counted apart: a word for the place, never
     for a person. The app drops it from the address once open.
+- **How many people used it, in the footer.** Under "Behind it", a line of the last 90 days
+  with a red dot on the last 24 hours, and their count: "30 users, last 24 hours".
+  - *Details:* A user is a network and a browser in a day, so the count is approximate. The
+    server writes the numbers, and nothing else, to a public file each hour, and the footer of
+    every page draws it. A copy of Factorial at another address has no such file and leaves
+    the line out.
 - **Feedback is the one thing sent.** It goes only when you press Send, and holds only what the
   form lists.
   - *Details:* The relay emails it and keeps nothing.
@@ -955,14 +981,14 @@ What a careful reader, or an organisation, asks before using a tool.
     170 MB to about 240 MB as most browsers count it, and about 510 MB as one does. The charts
     and Excel files are saved with it, about 12 MB of that, so the whole app works offline
     with nothing to press. A browser set to save data is not sent them unasked: there, a
-    button adds them. The footer says where working offline helps: when travelling, or in a
+    button adds them. The footer says where working offline helps: when traveling, or in a
     factory or laboratory without internet. One button, "Free up space", removes Factorial's
     tools from the device, and a line under it says what follows: your saved studies stay,
     Factorial then needs internet to open, and the tools can be saved again later. The copy
     holds this list and How Factorial works too. A
     larger page, such as the design catalog, is kept once it has been opened with a network;
     until then it says that it needs one, with the way back to the app.
-- **Your organisation can run its own copy.** The app is a folder of plain files that any web
+- **Your organization can run its own copy.** The app is a folder of plain files that any web
   server can serve, an internal one included.
   - *Details:* It is built with one command. The Python release and each package are pinned,
     and the About page shows the versions a copy loads.
@@ -992,6 +1018,13 @@ What a careful reader, or an organisation, asks before using a tool.
   - *Details:* The app's results for the book's examples are held to the printed numbers by
     tests. The reproduction page reports how closely the library gives the numbers its
     sources print.
+- **Checked against other software.** The designs Factorial builds are compared with the
+  designs that eight open-source packages in R and Python build, and a page says where they
+  differ.
+  - *Details:* Each package builds the design a source prints, and the check that measures
+    Factorial's design measures the package's too. The packages are FrF2, DoE.base, rsm and
+    daewr in R, and pydoe, dexpy, OApackage and definitive-screening-design in
+    Python.
 - **Tested before you see it.** Every change is checked by about 3,500 automated tests (Nov
   2026), and only a version that passes is published.
   - *Details:* The tests cover the page's logic, every call into Python, the page in a real
@@ -1010,16 +1043,44 @@ What a careful reader, or an organisation, asks before using a tool.
 - **[The design catalog](catalog/).** More than 1,500 published experiments and designs
   (Nov 2026) to search, compare and open in Factorial with one click.
   - *Details:* Published experiments and designs from 22 sources, 1956 to 2026, and designs
-    the library makes. Search in words, filter by family, field, runs, factors and model, and
-    see them counted on a map of factors by runs: a row opens into its families of design,
-    each mark coloured by what the design truly estimates, and a press on a cell or a mark
-    lists its designs. The filter for the years has a strip of bars over its two boxes: a
+    the library makes. The page opens on the search and on searches to try. Under them is a
+    table of the designs by size: a row for each number of factors, a column for each band of
+    the number of experiments. A cell's color is the most that a design of that size can tell
+    you: each factor's own effect, how factors act together, or curvature, in three colors of
+    the charts' own color map. A row's number is a button that opens the row into its families
+    of design, each mark colored the same way, and a press on a cell or a mark lists its
+    designs. Search in words, or filter by family, field, runs, factors and model. Where a
+    design is from, a book or paper or Factorial itself, is a filter that says what the two
+    kinds are. The lists by book and by field, and "Is it accurate?", are links at the foot of the page. The list has
+    one line for each design: its family and size, a mark for what it estimates in its cell's
+    color, a small picture of its runs with a key over the list, and a button that opens it in
+    Factorial. Entries that are the same runs are one line: a button under its name says in how
+    many places the design is printed, and opens onto them, each with its source and its own way
+    to open. The count over the list says how many designs it holds, and how many of them are
+    different. A list of one family has the family's card over it: what a design of the family
+    is, when it is used, what to watch for, the families it can lead to, the work that first
+    published it, and a link to it on the concept map. A family's name in an open row of the
+    table is a button that lists the family's designs of the row under that card. The filter
+    for the years has a strip of bars over its two boxes: a
     bar's height is the number of designs published in its five years, and a drag across the
     strip, or a press on a bar, fills the boxes. A design's page links to where its source
-    prints it, projects its runs onto two or three factors, and draws its correlation map. Up
+    prints it, projects its runs onto two or three factors, and draws its correlation map. A
+    design the library makes itself has a "Checked" note: the sources that print a design of
+    its kind and size, the other packages that build it as the library does, and a link to
+    the page on validation. Its card counts them. A design no source prints names the
+    packages alone. Up
     to four designs are compared side by side. More than 1,100 designs open in Factorial with
     one click. There is a page for each of 30 fields and for each source, a list of errata, a
     feed, and forms to propose a published design or share a case study.
+- **[Is it accurate?](validation.html).** What Factorial is checked against, on one page: the
+  books and papers that print its designs, and the other software that builds them.
+  - *Details:* The footer's link has the page's name, "Is it accurate?", on every page. The
+    page counts the sources and the packages, and the differences found: the
+    misprints in the books, the differences reported to other packages, and the gaps in
+    Factorial. A grid has a row for each kind of design, with the packages it was compared
+    with: a point where a package gives the same design, and a ring where it differs in
+    places for a known reason. It links to the textbooks' answers and to the full record in
+    the library's documentation, and gives the day of the last check.
 - **[Reproduced from the books](catalog/reproduced/).** How many of the numbers its sources
   print the library gives too, and the reason for each one that differs.
   - *Details:* One bar holds every printed number that was worked again. The others are a
@@ -1032,11 +1093,20 @@ What a careful reader, or an organisation, asks before using a tool.
     why, multiple choice wrong on purpose, and differs with the reason not known yet. A case is
     listed under the last of these that one of its numbers is under, so it matches only when
     every number does. Each number of a case that differs is listed with why. A source's own
-    page uses the same names and colours: a bar of every number it prints, each of its
+    page uses the same names and colors: a bar of every number it prints, each of its
     examples under its name, the misprints found in it, and what Factorial cannot compute yet.
-    "Search the book's cases" there opens that source's cases here.
-- **[The concept map](map/).** 237 ideas of designed experiments and 490 links between them,
-  in 13 topics, each with its definition, the book's line and a link into the book. It has
+    "Search the book's cases" there opens that source's cases here. The page opens from "Is
+    it accurate?", and its way back leads there.
+- **[Learn experimental design](map/).** Three ways to learn, on one page with the concept
+  map: read the chapter of *Process Improvement using Data*, take the Coursera course
+  Experimentation for Improvement, or watch the course's videos on YouTube.
+  - *Details:* The course is free to preview on Coursera; its certificate is paid. The videos
+    are the course's own, without its quizzes and course material. The
+    book's DOI is under the chapter, as text: one press selects it, to copy. A press anywhere
+    on a card follows its link. On a phone the three are one under the other, with the map's
+    heading on the first screen.
+- **The concept map.** It is on the page for learning, under the three ways to learn.
+  237 ideas of designed experiments and 490 links between them, in 13 topics, each with its definition, the book's line and a link into the book. It has
   three depths to choose from, side by side: Beginner, Intermediate and Adventurous.
   Zoom and fit are buttons on the map's corner (under the map on a phone), and the keyboard
   works too: + and - zoom, f fits all the topics, e shows the link labels, the arrow keys
@@ -1045,7 +1115,7 @@ What a careful reader, or an organisation, asks before using a tool.
     that names an idea opens at the map, on that idea. "Compare
     books" sets two other textbooks beside this one: the links go, and a ring on each topic
     and each term says which of the three books has it. The names of a selected idea's
-    neighbours take whichever place by their idea is clear, and a topic's name too wide for
+    neighbors take whichever place by their idea is clear, and a topic's name too wide for
     its ring is beside the topic.
 - **[The multivariate page](mva/).** For data with many measurements of each row: PCA and
   PLS on an example or your own file.
@@ -1062,7 +1132,7 @@ What a careful reader, or an organisation, asks before using a tool.
 | What | Most |
 |---|---|
 | Factors in a study | 40 |
-| Factors whose interactions are modelled | 12 |
+| Factors whose interactions are modeled | 12 |
 | Coefficients in the model of an optimal design | 91 |
 | Responses in a study | 5 |
 | Levels of a categorical factor | 8 |

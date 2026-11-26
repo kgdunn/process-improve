@@ -16,8 +16,13 @@ describe("one footer on every page", () => {
   test("its groups are headed as the shared footer's are", () => {
     for (const group of SITE_LINKS) assert.ok(footer.includes(`>${group.head}</p>`), group.head);
   });
-  test("every page of the site is in it, the textbooks' answers among them", () => {
+  test("each page a reader looks for is in it once, and the textbooks' answers are reached from validation", () => {
     const paths = SITE_LINKS.flatMap((group) => group.links).map(([path]) => path).filter((path) => !path.startsWith("https:"));
-    assert.deepEqual(paths, ["./", "features.html", "catalog/", "catalog/reproduced/", "map/", "technical-details-how-factorial-works.html"]);
+    assert.deepEqual(paths, ["./", "features.html", "catalog/", "validation.html", "map/", "technical-details-how-factorial-works.html"]);
+    const validation = readFileSync(new URL("../../../web/validation.html", import.meta.url), "utf8");
+    assert.ok(validation.includes('href="catalog/reproduced/"'), "the page the footer no longer names");
+  });
+  test("a link's name is one to three words", () => {
+    for (const [, words] of SITE_LINKS.flatMap((group) => group.links)) assert.ok(words.split(" ").length <= 3, words);
   });
 });

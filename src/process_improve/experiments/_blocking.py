@@ -13,17 +13,17 @@ Two methods, chosen by the design:
   for the longest words (minimum aberration blocking; Sun, Wu and Chen 1997).
 - **Portions** (central composite designs). The axial runs are a block of their own
   and the cube runs fill the others, split by confounding as above, each portion with
-  its own centre runs (Box and Hunter 1957). The blocks are then orthogonal to every
+  its own center runs (Box and Hunter 1957). The blocks are then orthogonal to every
   linear and interaction term; they are orthogonal to the squares too when each block
   holds the share of each factor's sum of squares that it holds of the runs, which
   :func:`process_improve.experiments.designs_response_surface.blocking_alpha` arranges.
 - **Exchange** (every other design). Runs are assigned to blocks of equal size (or
   sizes differing by one) by swapping the blocks of two runs while that raises
-  ``det(Xc'Xc)``, with ``Xc`` the model columns centred within each block: the
+  ``det(Xc'Xc)``, with ``Xc`` the model columns centered within each block: the
   information left for the factor effects once each block has its own mean. A
   design whose runs split into orthogonal blocks reaches the unblocked value.
 
-Centre runs carry no sign for any word, so the confounding method shares them out
+Center runs carry no sign for any word, so the confounding method shares them out
 across the blocks in turn.
 
 References
@@ -94,7 +94,7 @@ def defining_subgroup(signs: np.ndarray) -> list[int]:
 
 
 def is_regular_two_level(design: np.ndarray) -> bool:
-    """Whether the non-centre runs are +/-1 and form a regular fraction (all words either constant or balanced)."""
+    """Whether the non-center runs are +/-1 and form a regular fraction (all words either constant or balanced)."""
     corners = design[~np.all(design == 0, axis=1)]
     if len(corners) == 0 or not np.all(np.isin(corners, (-1.0, 1.0))) or corners.shape[1] > 15:
         return False
@@ -163,7 +163,7 @@ def confounding_blocks(
 
 
 def _blocking_from_words(design: np.ndarray, words: list[int], names: list[str], subgroup: list[int]) -> Blocking:
-    """Return the blocks the signs of ``words`` define, the centre runs shared out among them in turn.
+    """Return the blocks the signs of ``words`` define, the center runs shared out among them in turn.
 
     Every product of the words is confounded with blocks, and in a fraction each carries the words
     aliased with it: its products with the defining relation's words.
@@ -264,8 +264,8 @@ def _given_generators(generators: list[str], names: list[str], b: int, subgroup:
 def ccd_blocks(design: np.ndarray, axial: np.ndarray, n_blocks: int, names: list[str]) -> Blocking:
     """Block a central composite design: its axial runs in the last block, its cube runs in the others.
 
-    ``axial`` marks the axial runs and the axial portion's centre runs. The cube portion
-    and its centre runs form ``n_blocks - 1`` blocks, split by confounding interaction
+    ``axial`` marks the axial runs and the axial portion's center runs. The cube portion
+    and its center runs form ``n_blocks - 1`` blocks, split by confounding interaction
     words when there is more than one (:func:`confounding_blocks`).
 
     Raises
@@ -324,7 +324,7 @@ def squares_orthogonal_to_blocks(design: np.ndarray, labels: np.ndarray, tol: fl
     """Whether the blocks are orthogonal to every factor's square.
 
     They are when each block holds the same share of each squared column's sum as of
-    the runs, so the centred squares sum to zero within every block.
+    the runs, so the centered squares sum to zero within every block.
     """
     squares = design.astype(float) ** 2
     totals = squares.sum(axis=0)
@@ -354,7 +354,7 @@ def _model_columns(design: np.ndarray, model: str) -> np.ndarray:
 
 
 def _centred_within_blocks(x: np.ndarray, labels: np.ndarray, n_blocks: int) -> np.ndarray:
-    """Return ``x`` with each column centred within each block: what is left once each block has its own mean."""
+    """Return ``x`` with each column centered within each block: what is left once each block has its own mean."""
     centred = x.copy()
     for block in range(n_blocks):
         rows = labels == block
@@ -363,7 +363,7 @@ def _centred_within_blocks(x: np.ndarray, labels: np.ndarray, n_blocks: int) -> 
 
 
 def _within_block_information(x: np.ndarray, labels: np.ndarray, n_blocks: int) -> float:
-    """``log det(Xc'Xc)``, with each column of ``x`` centred within each block."""
+    """``log det(Xc'Xc)``, with each column of ``x`` centered within each block."""
     centred = _centred_within_blocks(x, labels, n_blocks)
     sign, logdet = np.linalg.slogdet(centred.T @ centred)
     return float(logdet) if sign > 0 else -np.inf

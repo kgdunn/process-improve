@@ -79,7 +79,7 @@ classes :class:`~process_improve.batch.BatchPCA` and
    :start-after: # -- section: raw --
    :end-before: # -- end: raw --
 
-Characterising product quality
+Characterizing product quality
 ------------------------------
 
 A PCA on the eight quality attributes shows how the batches group in quality
@@ -127,7 +127,7 @@ worth remembering when it turns up again in the trajectory models.
 Multiblock PLS on the initial conditions
 ----------------------------------------
 
-The two blocks can be modelled together. :class:`~process_improve.multivariate.methods.MBPLS`
+The two blocks can be modeled together. :class:`~process_improve.multivariate.methods.MBPLS`
 scales each block on its own and then weights it by :math:`1/\sqrt{K_b}`, so
 the eleven chemistry columns and the nine operating columns pull on the
 super-score with equal total weight; the block scores show what each block
@@ -242,8 +242,8 @@ is nearer in that block's score plot. Four batches classed good are placed
 with the abnormal batches by the trajectory block and with the good batches
 by both initial-condition blocks; batch 5, placed with the abnormal batches
 by the operating-condition block as well, is left aside. The four are
-compared with their nearest abnormal neighbours in the trajectory block
-through the contribution from the neighbours' average to theirs in the
+compared with their nearest abnormal neighbors in the trajectory block
+through the contribution from the neighbors' average to theirs in the
 operating-condition block.
 
 .. literalinclude:: fmc_multiblock_batch_pls.py
@@ -256,10 +256,10 @@ operating-condition block.
    batches classed good that the trajectory block places with the abnormal batches: [2, 3, 5, 6, 7]
    of these, placed with the good batches by both initial-condition blocks: [2, 3, 6, 7]
    their nearest abnormal batches in the trajectory block: [42, 43, 44, 47, 50]
-   Zop contribution from the neighbours' average to the anomalous batches' average: Level1 +0.05, Temp1 -0.02,
+   Zop contribution from the neighbors' average to the anomalous batches' average: Level1 +0.05, Temp1 -0.02,
        Temp2 -0.00, Time4 -0.05, Time1 +0.00, Time2 -0.06, Time3 -0.11, TempSlope -0.06, WgtCake +0.05
 
-The four batches share their neighbours' heavy charge and high collector
+The four batches share their neighbors' heavy charge and high collector
 level (``WgtCake`` and ``Level1`` pull towards the abnormal side) and differ
 from them in the later phases: a longer cool-down (``Time3``, the largest
 single contribution), a shorter and steeper temperature ramp (``Time2``,

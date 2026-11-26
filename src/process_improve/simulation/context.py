@@ -10,7 +10,7 @@ that the LLM must never be able to supply itself:
 - ``confirmed`` - whether the user has cleared the double-confirmation
   gate guarding a model reveal.
 
-Earlier these travelled as keyword arguments deliberately kept out of
+Earlier these traveled as keyword arguments deliberately kept out of
 the public JSON schema, on the assumption the host would inject them
 server-side. But the dispatch path forwards the tool ``input`` verbatim
 as ``**kwargs``, so a prompt-injected agent could re-introduce them as

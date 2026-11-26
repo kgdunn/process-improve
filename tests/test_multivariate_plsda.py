@@ -311,7 +311,7 @@ def test_plsda_permutation_test_without_cross_validation_is_the_fast_path() -> N
     result = model.permutation_test(X, y, n_permutations=5, cv=None, random_state=0)
     assert result.observed == pytest.approx(model.accuracy_)
     assert result.null.size == 5
-    # A model that memorises the real labels memorises shuffled ones too, which is exactly
+    # A model that memorizes the real labels memorizes shuffled ones too, which is exactly
     # why this path is not the default: the null sits far above chance.
     assert result.null.mean() > 0.5
 
@@ -553,7 +553,7 @@ def test_confusion_matrix_plot_is_drawn_in_a_colour_map_of_the_package_unless_pl
 def test_confusion_matrix_plot_of_a_supplied_matrix() -> None:
     """A matrix passed in, say a held-out one, is drawn as given, onto the figure passed in.
 
-    The model need not be fitted then, and `show_values=False` leaves the cells unlabelled.
+    The model need not be fitted then, and `show_values=False` leaves the cells unlabeled.
     """
     go = pytest.importorskip("plotly.graph_objects")
     held_out = pd.DataFrame([[5, 1], [2, 7]], index=["high", "low"], columns=["high", "low"])
@@ -672,7 +672,7 @@ def _confusion_by_hand(truth: np.ndarray, predicted: np.ndarray, classes: np.nda
 
 
 def _three_classes(seed: int = 21) -> tuple[pd.DataFrame, np.ndarray]:
-    """Three overlapping classes of 7, 6 and 2 rows, in no sorted order, with rows labelled by name."""
+    """Three overlapping classes of 7, 6 and 2 rows, in no sorted order, with rows labeled by name."""
     rng = np.random.default_rng(seed)
     sizes = {"c": 7, "a": 6, "b": 2}
     centres = {"a": [1.0, 0.0, 0.5, 0.0], "b": [0.0, 1.5, 0.0, -0.5], "c": [-1.0, -0.5, 0.0, 0.5]}

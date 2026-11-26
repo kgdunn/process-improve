@@ -1,7 +1,7 @@
-"""Variance dispersion over spheres about a design's centre, and rotatability (#790 C4).
+"""Variance dispersion over spheres about a design's center, and rotatability (#790 C4).
 
 The book says a Box-Behnken design "is rotatable for k = 4 (and k = 7)" and nearly rotatable for
-the other factor counts (the catalogue's pid-book entries box-behnken-k3 to -k7), and a central
+the other factor counts (the catalog's pid-book entries box-behnken-k3 to -k7), and a central
 composite design is rotatable when its axial distance is the fourth root of its factorial runs.
 These tests hold the function to those statements, to evaluate_design's prediction variance at the
 runs, and to dense evaluations of the variance on a circle and on a sphere.
@@ -72,7 +72,7 @@ def test_a_two_level_factorial_is_rotatable_for_main_effects_and_not_with_the_in
 
 # --------------------------------------------------------------------------- the values themselves
 def test_the_values_at_the_runs_are_evaluate_design_s():
-    """The rotatable CCD in 2 factors with 5 centre runs: Var(y-hat) is 0.2 at the centre, 0.625 at a corner."""
+    """The rotatable CCD in 2 factors with 5 center runs: Var(y-hat) is 0.2 at the center, 0.625 at a corner."""
     design = ccd(2, "rotatable")
     at_runs = evaluate_design(design, model="quadratic", metric="prediction_variance")
     found = variance_dispersion(design, radii=[0.0, np.sqrt(2)])
@@ -82,7 +82,7 @@ def test_the_values_at_the_runs_are_evaluate_design_s():
 
 
 def test_on_a_circle_the_extremes_and_the_mean_are_those_of_a_fine_grid_of_angles():
-    """A face-centred CCD in 2 factors, on circles of radius 0.5, 1 and 1.4; the grid's mean is exact."""
+    """A face-centered CCD in 2 factors, on circles of radius 0.5, 1 and 1.4; the grid's mean is exact."""
     design = ccd(2, "face_centered")
     angles = np.linspace(0, 2 * np.pi, 20_000, endpoint=False)
     found = variance_dispersion(design, radii=[0.5, 1.0, 1.4])
@@ -126,7 +126,7 @@ def test_a_number_of_radii_spans_the_centre_to_the_furthest_run():
     assert found["design_radius"] == pytest.approx(np.sqrt(2))
     assert found["radius"] == pytest.approx(np.linspace(0, np.sqrt(2), 5))
     centre = (found["minimum"][0], found["mean"][0], found["maximum"][0])
-    assert centre == pytest.approx((5.0, 5.0, 5.0)), "15 runs, 3 at the centre: N Var(b0) = 15 / 3"
+    assert centre == pytest.approx((5.0, 5.0, 5.0)), "15 runs, 3 at the center: N Var(b0) = 15 / 3"
     assert all(lo <= mean <= hi for lo, mean, hi in zip(found["minimum"], found["mean"], found["maximum"], strict=True))
 
 

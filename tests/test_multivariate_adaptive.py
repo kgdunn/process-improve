@@ -3,7 +3,7 @@
 
 Covers, for both estimators:
 
-* initial-fit correctness - the kernel-initialised model reproduces the batch PCA loadings
+* initial-fit correctness - the kernel-initialized model reproduces the batch PCA loadings
   and the batch PLS beta coefficients on synthetic and real (LDPE) data;
 * the Krzanowski subspace distance metric bounds and sign invariance;
 * the injection term semantics (``gamma = 0`` recovers the plain recursive
@@ -46,7 +46,7 @@ DATASETS = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "data
 
 @pytest.fixture
 def synthetic_pca_data() -> pd.DataFrame:
-    """Return a correlated, full-rank block for PCA initialisation and streaming tests."""
+    """Return a correlated, full-rank block for PCA initialization and streaming tests."""
     rng = np.random.default_rng(42)
     n, k, a = 250, 8, 3
     loadings = rng.standard_normal((k, a))
@@ -57,7 +57,7 @@ def synthetic_pca_data() -> pd.DataFrame:
 
 @pytest.fixture
 def synthetic_pls_data() -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Return a synthetic single-response regression block for PLS initialisation tests."""
+    """Return a synthetic single-response regression block for PLS initialization tests."""
     rng = np.random.default_rng(7)
     n, k = 180, 6
     beta = rng.standard_normal((k, 1))
@@ -109,7 +109,7 @@ def test_kernel_pls_reconstructs_beta(synthetic_pls_data: tuple[pd.DataFrame, pd
 
 
 def test_kernel_pls_first_weight_with_two_responses_is_the_leading_singular_vector_of_xty() -> None:
-    """With several responses, the first weight is the direction ``w`` that maximises ``|Y'X w|``.
+    """With several responses, the first weight is the direction ``w`` that maximizes ``|Y'X w|``.
 
     That is the leading left singular vector of ``X'Y``, taken here from numpy's SVD rather than
     from the eigenproblem of ``(X'Y)'X'Y`` that ``_kernel_pls`` solves.
@@ -148,7 +148,7 @@ def test_kernel_pls_extracts_nothing_when_nothing_is_left(kernel_xx: np.ndarray,
 
 
 def test_adaptive_pca_initial_matches_batch(synthetic_pca_data: pd.DataFrame) -> None:
-    """AdaptivePCA initialises an i=0 model identical to batch PCA on the scaled data."""
+    """AdaptivePCA initializes an i=0 model identical to batch PCA on the scaled data."""
     model = AdaptivePCA(n_components=3).fit(synthetic_pca_data)
     batch = PCA(n_components=3).fit(MCUVScaler().fit_transform(synthetic_pca_data))
     np.testing.assert_allclose(np.abs(model.loadings0_), np.abs(batch.loadings_.to_numpy()), atol=1e-8)
@@ -156,7 +156,7 @@ def test_adaptive_pca_initial_matches_batch(synthetic_pca_data: pd.DataFrame) ->
 
 
 def test_adaptive_pls_initial_matches_batch_ldpe(ldpe_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
-    """AdaptivePLS initialises beta identical to the batch PLS on the real LDPE data."""
+    """AdaptivePLS initializes beta identical to the batch PLS on the real LDPE data."""
     X, Y = ldpe_data
     model = AdaptivePLS(n_components=6).fit(X, Y)
     batch = PLS(n_components=6, scale=True).fit(X, Y)
@@ -170,14 +170,14 @@ def test_adaptive_pls_initial_matches_batch_ldpe(ldpe_data: tuple[pd.DataFrame, 
     np.testing.assert_allclose(
         model.beta_coefficients_.to_numpy(), batch.beta_coefficients_.to_numpy(), rtol=1e-6, atol=1e-7
     )
-    # Predictions with the freshly-initialised model equal the batch predictions.
+    # Predictions with the freshly-initialized model equal the batch predictions.
     np.testing.assert_allclose(model.predict(X).to_numpy(), batch.predictions_.to_numpy(), atol=1e-6)
 
 
 def test_adaptive_pls_initial_matches_batch_synthetic(
     synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame],
 ) -> None:
-    """AdaptivePLS initialises beta to machine precision on well-conditioned synthetic data."""
+    """AdaptivePLS initializes beta to machine precision on well-conditioned synthetic data."""
     X, Y = synthetic_pls_data
     model = AdaptivePLS(n_components=3).fit(X, Y)
     batch = PLS(n_components=3, scale=True).fit(X, Y)
@@ -288,7 +288,7 @@ def test_adaptive_tracks_mean_drift_where_frozen_alarms() -> None:
 
     The stream keeps the training correlation structure but slowly moves the
     operating point along the first latent direction. An adaptive model tracks
-    the moving centre (and re-learns the kernel from the in-control observations),
+    the moving center (and re-learns the kernel from the in-control observations),
     so it raises substantially fewer alarms than a model frozen at the training data.
     """
     rng = np.random.default_rng(11)
@@ -398,7 +398,7 @@ def test_invalid_parameters_raise(synthetic_pca_data: pd.DataFrame) -> None:
 
 
 def test_transform_and_predict_match_initial(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
-    """Predict and transform on the freshly-initialised model equal the batch model."""
+    """Predict and transform on the freshly-initialized model equal the batch model."""
     X, Y = synthetic_pls_data
     ad = AdaptivePLS(n_components=3).fit(X, Y)
     batch = PLS(n_components=3, scale=True).fit(X, Y)
@@ -540,7 +540,7 @@ def test_every_channel_projects_a_row_with_missing_values(
     """A row with missing values is scored by single-component projection in every channel, as predict scores it.
 
     So the adaptive channel is the prediction, streamed and as a snapshot (#1081). The static channel is what
-    the training model predicts; with the kernels held, only the centre moves, so the kernel channel is 0.
+    the training model predicts; with the kernels held, only the center moves, so the kernel channel is 0.
     """
     X, Y = synthetic_pls_data
     gappy = X.iloc[90:].copy()
@@ -691,7 +691,7 @@ def test_both_estimators_refuse_tuning_constants_outside_0_1(
 def test_an_update_that_empties_the_kernel_leaves_it_at_zero(
     synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame], cls: type
 ) -> None:
-    """With a forgetting factor of 1 an observation at the centre empties the kernel.
+    """With a forgetting factor of 1 an observation at the center empties the kernel.
 
     The kernel is then left at zero rather than rescaled by its zero norm, so the model
     stays finite.
@@ -786,7 +786,7 @@ def test_adaptation_plot_blanks_the_channels_outside_valid(
 
 
 # --------------------------------------------------------------------------- #
-# The moving centre and scale
+# The moving center and scale
 # --------------------------------------------------------------------------- #
 
 
@@ -796,7 +796,7 @@ def test_a_missing_value_moves_neither_its_centre_nor_its_scale(
 ) -> None:
     """Every other tag takes one EWMA step, by hand: s = sqrt((1 - alpha) s^2 + alpha (x - m)^2), m += lambda (x - m).
 
-    The missing tag keeps its centre and scale (#1029). They used to become NaN, and stayed
+    The missing tag keeps its center and scale (#1029). They used to become NaN, and stayed
     NaN, so the tag was treated as missing in every later observation.
     """
     X, Y = synthetic_pls_data
@@ -816,7 +816,7 @@ def test_a_missing_value_moves_neither_its_centre_nor_its_scale(
 def test_a_scale_is_set_to_1_only_when_it_is_0(
     synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame], cls: type
 ) -> None:
-    """With a scale factor of 1 each new scale is the tag's deviation from the centre, in any units.
+    """With a scale factor of 1 each new scale is the tag's deviation from the center, in any units.
 
     A deviation of 0 has no spread to divide by, and its scale is 1, as MCUVScaler scales a
     column of equal values. One of 1e-12 is kept: the scale used to be set to 1 below 1.5e-8,
@@ -909,7 +909,7 @@ def test_kernel_pca_keeps_the_leading_eigenvectors_signed_and_clips_noise_below_
 def test_one_update_of_adaptive_pca_by_hand(synthetic_pca_data: pd.DataFrame) -> None:
     """One in-control observation, then one out of control, from the method's equations and numpy.
 
-    The first is monitored with the training model, then moves the centre and scale (equations 1a
+    The first is monitored with the training model, then moves the center and scale (equations 1a
     and 2a), and the kernel by (1 - mu) X'X + mu x x' + f X'X_0 with f = gamma mu ||x||^2 / trace(X'X_0),
     rescaled to the training trace; x is scaled with the moved vectors. The loadings are the
     kernel's eigenvectors, signed to agree with the ones before. The second is not learned from:
@@ -997,7 +997,7 @@ def test_the_rolling_spe_limit_by_hand(synthetic_pca_data: pd.DataFrame) -> None
 
 @pytest.mark.parametrize("cls", [AdaptivePCA, AdaptivePLS])
 def test_partial_fit_is_update_row_by_row(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame], cls: type) -> None:
-    """A labelled frame keeps its labels, an array is numbered from 0; the response rows go with them."""
+    """A labeled frame keeps its labels, an array is numbered from 0; the response rows go with them."""
     X, Y = synthetic_pls_data
     params = {"forgetting_factor": 0.05, "update_when_out_of_control": True}
     by_rows, by_frame, by_array = (_fit_either(cls, X.iloc[:90], Y.iloc[:90], **params) for _ in range(3))
@@ -1171,7 +1171,7 @@ def test_an_ewma_factor_outside_0_1_is_refused(
 ) -> None:
     """Each factor, or each entry of a vector of them, is a fraction; a NaN is refused too (#1029).
 
-    A NaN factor used to pass, and made every centre it moved NaN.
+    A NaN factor used to pass, and made every center it moved NaN.
     """
     X, Y = synthetic_pls_data
     if name.endswith("_y") and isinstance(value, list):
@@ -1295,7 +1295,7 @@ def test_a_component_with_no_spread_carries_no_t2(synthetic_pca_data: pd.DataFra
 
 
 def test_adaptive_pca_fits_an_array_with_missing_cells(synthetic_pca_data: pd.DataFrame) -> None:
-    """A missing training cell is 0 after centring and scaling (by the observed mean and sd), so adds nothing to X'X.
+    """A missing training cell is 0 after centering and scaling (by the observed mean and sd), so adds nothing to X'X.
 
     An array has its columns and components numbered; the model records its size.
     """
@@ -1375,7 +1375,7 @@ def test_a_model_of_constant_tags_is_refused() -> None:
 def test_one_update_of_a_kernel_of_trace_1() -> None:
     """Two rows and one varying tag: X'X is [[1, 0], [0, 0]], whose trace and norm are 1.
 
-    With gamma = mu = 1 and no moving centre or scale, the new kernel is x x' + f [[1, 0], [0, 0]]
+    With gamma = mu = 1 and no moving center or scale, the new kernel is x x' + f [[1, 0], [0, 0]]
     with f = ||x||^2, rescaled to a trace of 1; the kernel change is its distance from the old one.
     """
     X = pd.DataFrame({"a": [0.0, 1.0], "b": [3.0, 3.0]})
@@ -1393,7 +1393,7 @@ def test_one_update_of_a_kernel_of_trace_1() -> None:
 
 
 def test_an_update_with_a_missing_value_puts_it_at_the_centre_in_the_kernel(synthetic_pca_data: pd.DataFrame) -> None:
-    """The kernel takes the row scaled with the moved centre and scale, its missing entry as 0; None is missing too."""
+    """The kernel takes the row scaled with the moved center and scale, its missing entry as 0; None is missing too."""
     X = synthetic_pca_data
     mu, gamma = 0.2, 0.0
     model = AdaptivePCA(n_components=3, forgetting_factor=mu, gamma=gamma, update_when_out_of_control=True).fit(X)
@@ -1411,7 +1411,7 @@ def test_an_update_with_a_missing_value_puts_it_at_the_centre_in_the_kernel(synt
 
 
 def test_adaptive_pca_transform_by_hand(synthetic_pca_data: pd.DataFrame) -> None:
-    """Scores of the current model, with no update: of an array, a labelled frame, mixed types, no rows."""
+    """Scores of the current model, with no update: of an array, a labeled frame, mixed types, no rows."""
     X = synthetic_pca_data
     model = AdaptivePCA(n_components=2).fit(X)
     _, loadings, _, _ = _pca_by_svd(X, 2)
@@ -1459,7 +1459,7 @@ def test_partial_fit_reads_a_frame_of_mixed_types(
 
 
 def _autoscale(X: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Return the block centred and scaled by its mean and sd (ddof=1), a missing cell as 0, and the two vectors."""
+    """Return the block centered and scaled by its mean and sd (ddof=1), a missing cell as 0, and the two vectors."""
     centre, scale = X.mean().to_numpy(), X.std().to_numpy()
     return np.nan_to_num((X.to_numpy() - centre) / scale), centre, scale
 
@@ -1475,7 +1475,7 @@ _PLS_RATES = {"mu": 0.2, "gamma": 0.3, "lam": 0.1, "alpha": 0.2, "lam_y": 0.3, "
 def _ldpe_after_one_update(ldpe_data: tuple[pd.DataFrame, pd.DataFrame]) -> tuple[AdaptivePLS, Bunch, dict]:
     """Fit AdaptivePLS to 40 LDPE rows, update it with the 41st and its five responses; return the steps by hand.
 
-    The training kernels and kernel model from the autoscaled block, and the centre and scale of X and
+    The training kernels and kernel model from the autoscaled block, and the center and scale of X and
     Y after the update by the EWMA equations.
     """
     X, Y = ldpe_data
@@ -1561,7 +1561,7 @@ def test_one_update_of_adaptive_pls_by_hand(ldpe_data: tuple[pd.DataFrame, pd.Da
 def test_the_prediction_channels_of_the_next_row_by_hand(ldpe_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
     """After one update, the next row's prediction splits into the training model's, then two corrections.
 
-    The preprocessing channel moves the centre and scale with the training coefficients; the kernel
+    The preprocessing channel moves the center and scale with the training coefficients; the kernel
     channel then moves the coefficients, those of the kernel model of the moved kernels.
     """
     X, _ = ldpe_data
@@ -1583,7 +1583,7 @@ def test_the_prediction_channels_of_the_next_row_by_hand(ldpe_data: tuple[pd.Dat
 
 
 def test_adaptive_pls_fits_arrays_with_missing_cells(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
-    """Missing training cells are 0 in both kernels, after centring and scaling; arrays have numbered names."""
+    """Missing training cells are 0 in both kernels, after centering and scaling; arrays have numbered names."""
     X, Y = synthetic_pls_data
     x, y = X.to_numpy().copy(), Y.to_numpy().copy()
     x[[3, 9], [1, 4]] = np.nan
@@ -1667,7 +1667,7 @@ def test_adaptive_pls_projects_a_row_with_missing_values_along_its_weights(
 def test_a_sign_flip_of_the_kernel_model_is_undone(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
     """With mu = 1 and two responses, the model after one row is that row's direction, signed by the eigensolver.
 
-    Two models, one fed a row and the other its mirror about the centre, get opposite raw signs from
+    Two models, one fed a row and the other its mirror about the center, get opposite raw signs from
     the same eigenvector of the same Y'X X'Y, so one of the two is flipped. Both keep loadings that
     point the way the training ones did, and their weights and direct weights go with them.
     """
@@ -1688,7 +1688,7 @@ def test_a_sign_flip_of_the_kernel_model_is_undone(synthetic_pls_data: tuple[pd.
 
 
 def test_adaptive_pls_reads_rows_of_any_kind(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
-    """predict, transform and decompose_prediction of an array, a labelled frame, a frame of mixed types, no rows."""
+    """predict, transform and decompose_prediction of an array, a labeled frame, a frame of mixed types, no rows."""
     X, Y = synthetic_pls_data
     model = AdaptivePLS(n_components=2, forgetting_factor=0.1, update_when_out_of_control=True).fit(X, Y)
     model.partial_fit(X.iloc[:20], Y.iloc[:20])
@@ -1729,7 +1729,7 @@ def test_the_channels_of_no_rows_and_of_several_responses_keep_their_labels(
 
 
 def _traces(fig: object) -> list[tuple[object, ...]]:
-    """Return each trace's name, line colour, width and dash, and the axes it is drawn on."""
+    """Return each trace's name, line color, width and dash, and the axes it is drawn on."""
     return [(t.name, t.line.color, t.line.width, t.line.dash, t.xaxis, t.yaxis) for t in fig.data]
 
 
@@ -1754,7 +1754,7 @@ def test_the_adaptation_plot_of_adaptive_pls(synthetic_pls_data: tuple[pd.DataFr
         ("Centering + scaling", "#1f4e79", 1, None, "x", "y"),
         ("Kernel (subspace/regression)", "#c55a11", 1, None, "x", "y"),
         ("Total (right axis)", "#222222", 1, None, "x", "y2"),
-        ("Centre migration [training SD]", "#1f4e79", 1, None, "x2", "y3"),
+        ("Center migration [training SD]", "#1f4e79", 1, None, "x2", "y3"),
         ("Scale change [fraction]", "#2e75b6", 1, "dash", "x2", "y3"),
         ("Subspace rotation (A - distance)", "#c55a11", 1, None, "x3", "y4"),
         ("Regression change", "#e0912f", 1, "dash", "x3", "y4"),
@@ -1795,7 +1795,7 @@ def test_the_adaptation_plot_of_adaptive_pca(synthetic_pca_data: pd.DataFrame) -
     model.fit(synthetic_pca_data).partial_fit(synthetic_pca_data.iloc[:30].set_axis([f"r{i}" for i in range(30)]))
     fig = model.adaptation_plot()
     assert _traces(fig) == [
-        ("Centre migration [training SD]", "#1f4e79", 1, None, "x", "y"),
+        ("Center migration [training SD]", "#1f4e79", 1, None, "x", "y"),
         ("Scale change [fraction]", "#2e75b6", 1, "dash", "x", "y"),
         ("Subspace rotation (A - distance)", "#c55a11", 1, None, "x2", "y2"),
     ]
@@ -1824,7 +1824,7 @@ def test_adaptive_pls_shows_no_channels_before_a_history_or_for_several_response
     model = AdaptivePLS(n_components=2, update_when_out_of_control=True).fit(X5.iloc[:40], Y5.iloc[:40])
     several = model.partial_fit(X5.iloc[40:], Y5.iloc[40:]).adaptation_plot()
     assert [trace.name for trace in several.data] == [
-        "Centre migration [training SD]",
+        "Center migration [training SD]",
         "Scale change [fraction]",
         "Subspace rotation (A - distance)",
     ]
@@ -1860,7 +1860,7 @@ def test_a_column_with_no_observed_value_is_named_and_left_out(
     """Named in the family's warning, and a value a new row has in it adds nothing, as in PCA and PLS (#1098, #1149).
 
     AdaptivePCA left the column out without a word. Both models put the scaled value of a new row
-    in that column into its SPE, and an update moved the column's centre toward it.
+    in that column into its SPE, and an update moved the column's center toward it.
     """
     X, y = synthetic_pls_data
     X = X.assign(**{X.columns[2]: np.nan})

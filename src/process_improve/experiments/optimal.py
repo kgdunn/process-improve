@@ -13,7 +13,7 @@ def _model_matrix(x: pd.DataFrame) -> np.ndarray:
     """Return the model matrix ``[1 | X]`` for a first-order model with intercept.
 
     The D-criterion is defined on the model matrix, not on the raw factor
-    settings. Scoring ``X`` alone (the previous behaviour) leaves the intercept
+    settings. Scoring ``X`` alone (the previous behavior) leaves the intercept
     out of the design's information matrix, so a candidate that holds a factor
     at a single level scores perfectly well even though that factor is then
     completely aliased with the intercept and its effect cannot be estimated.
@@ -38,10 +38,10 @@ def optimization_function(x: pd.DataFrame) -> float:
 
     The score is computed from ``slogdet(X'X)`` and guarded by an explicit rank
     check, never by inverting ``X'X``. Inversion cannot be used to detect
-    singularity here: ``np.linalg.inv`` raises only when the LU factorisation
+    singularity here: ``np.linalg.inv`` raises only when the LU factorization
     hits an exactly-zero pivot, which a rank-deficient design of +-1 levels
     frequently avoids. The inverse then comes back as numerical noise and its
-    log-determinant is a large *negative* number, so a search minimising this
+    log-determinant is a large *negative* number, so a search minimizing this
     value treated inestimable designs as the best available and actively
     selected them.
     """
@@ -56,7 +56,7 @@ def optimization_function(x: pd.DataFrame) -> float:
     # design whose columns are only linearly dependent in exact arithmetic
     # slips past it with a finite, very negative log, and is caught by the rank
     # check. Without the second test that design would score as the best one
-    # available, since the search minimises this value.
+    # available, since the search minimizes this value.
     if (
         n_runs < n_parameters
         or sign <= 0
@@ -180,7 +180,7 @@ def _random_start(x: pd.DataFrame, number_points: int, rng: np.random.Generator)
         # addition improved it the design was returned short: callers
         # asking for `number_points` runs silently received fewer, and a
         # design with fewer runs than model parameters cannot be fitted
-        # at all. The size is a constraint, not something to optimise.
+        # at all. The size is a constraint, not something to optimize.
         design = shuffled.iloc[0:number_points]
         # Score the seed with the SAME criterion used for every comparison
         # below, so the search cannot be misled by an inconsistent start, and
@@ -201,7 +201,7 @@ def _exchange_passes(x: pd.DataFrame, design: pd.DataFrame, d_optimality_i: floa
 
     Every candidate outside the design is offered and swapped in wherever that improves
     the criterion, and the pass is repeated until a whole pass makes no swap. A single
-    pass (the earlier behaviour) offered each candidate once, before later swaps had
+    pass (the earlier behavior) offered each candidate once, before later swaps had
     changed the design, and stopped at a worse design for about half of all seeds.
     """
     for _pass in range(_MAX_PASSES):

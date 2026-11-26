@@ -15,7 +15,7 @@ Every tool is three things in one module:
 #. a pydantic **input contract** - a ``BaseModel`` with
    ``model_config = ConfigDict(extra="forbid")`` so unknown keys are rejected;
 #. a **wrapper function** decorated with ``@tool_spec(...)`` that takes the
-   parsed model as its single positional argument and returns a JSON-serialisable
+   parsed model as its single positional argument and returns a JSON-serializable
    ``dict``;
 #. a **registration** so discovery can find it.
 
@@ -42,13 +42,13 @@ Step by step
       from pydantic import BaseModel, ConfigDict, Field
 
 
-      class SummariseInput(BaseModel):
+      class SummarizeInput(BaseModel):
           model_config = ConfigDict(extra="forbid")
-          data: list[float] = Field(..., min_length=1, description="The values to summarise.")
+          data: list[float] = Field(..., min_length=1, description="The values to summarize.")
 
 3. **Write the wrapper** and decorate it. Narrow the ``except`` to the canonical
    expected set (see :doc:`error_handling`) and pass the result through
-   ``clean(...)`` so numpy / pandas types serialise:
+   ``clean(...)`` so numpy / pandas types serialize:
 
    .. code-block:: python
 
@@ -56,20 +56,20 @@ Step by step
 
 
       @tool_spec(
-          name="summarise_values",
+          name="summarize_values",
           description="Return the mean and standard deviation of a list of numbers.",
-          input_model=SummariseInput,
-          examples='# "summarise [1, 2, 3]" -> ``summarise_values(data=[1, 2, 3])``',
+          input_model=SummarizeInput,
+          examples='# "summarize [1, 2, 3]" -> ``summarize_values(data=[1, 2, 3])``',
           category="univariate",
       )
-      def summarise_values(spec: SummariseInput) -> dict:
+      def summarize_values(spec: SummarizeInput) -> dict:
           try:
               import numpy as np  # noqa: PLC0415 - keep heavy imports lazy
 
               arr = np.asarray(spec.data, dtype=float)
               return clean({"mean": arr.mean(), "std": arr.std(ddof=1)})
           except (ValueError, TypeError) as exc:
-              logger.exception("Tool summarise_values failed")
+              logger.exception("Tool summarize_values failed")
               return {"error": str(exc)}
 
 4. **Register it.** Importing the module must run the decorator. If you use the
@@ -100,8 +100,8 @@ Verifying
    from process_improve.tool_spec import get_tool_specs
 
    specs = {s["name"]: s for s in get_tool_specs()}
-   assert "summarise_values" in specs
-   assert specs["summarise_values"]["input_schema"]["additionalProperties"] is False
+   assert "summarize_values" in specs
+   assert specs["summarize_values"]["input_schema"]["additionalProperties"] is False
 
 Add a test under ``tests/`` that drives the tool through the same path the MCP
 server uses, plus an assertion that the spec is present and well-formed (see the

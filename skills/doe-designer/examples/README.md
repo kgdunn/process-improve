@@ -8,7 +8,7 @@ The files behind `references/worked-example.md`. Run them in order from the
 | `strategy_spec.json` | Input to `recommend_strategy`: 7 factors, one response, 40-run budget |
 | `design_spec.json` | Input to `generate_design`: the same factors, resolution IV, 16 runs |
 | `screen_coded.csv` | The generated design in coded units, ready for `verify_design.py` |
-| `screen_results.csv` | The same design with a simulated Yield column, ready to analyse |
+| `screen_results.csv` | The same design with a simulated Yield column, ready to analyze |
 
 ```bash
 # 1. Plan
@@ -23,7 +23,7 @@ python scripts/verify_design.py examples/screen_coded.csv --require-resolution 4
 # 4. Compare two candidates and rank them
 python scripts/verify_design.py examples/screen_coded.csv other.csv --compare
 
-# 5. Analyse
+# 5. Analyze
 python - <<'PY'
 import json, pandas as pd
 frame = pd.read_csv("examples/screen_results.csv")

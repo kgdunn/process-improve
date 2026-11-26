@@ -59,7 +59,7 @@ def test_the_further_charts_are_in_the_reader_s_words_and_units(api, held, simul
     }
     assert figures["surface_3d"]["layout"]["scene"]["xaxis"]["ticktext"] == ["150", "175", "200"]
     assert figures["perturbation"]["layout"]["yaxis"]["title"]["text"] == "Predicted Yield (%)"
-    assert figures["main_effects"]["data"][0]["x"] == ["Low", "Middle", "High"]
+    assert lines_of(figures["main_effects"])[0]["x"] == ["Low", "Middle", "High"]
     assert figures["interaction"]["data"][0]["x"] == ["1", "2", "3"], "the settings of P, in bar"
     corners = next(t for t in figures["cube"]["data"] if t["name"] == "Vertices")
     assert corners["mode"] == "markers+text"
@@ -75,9 +75,7 @@ def test_the_charts_read_on_a_light_page_and_a_dark_one_and_without_their_colour
         for k, v in api.ok("api_plots", {**held, "responses": simulated["responses"]})["figures"].items()
     }
     surface, runs = figures["contour"]["data"]
-    assert runs["marker"]["color"] == "#ffffff", (
-        "a run has a white face and a dark edge, on every colour of the surface"
-    )
+    assert runs["marker"]["color"] == "#ffffff", "a run has a white face and a dark edge, on every color of the surface"
     assert runs["marker"]["line"]["color"] == "#1a1a1a"
     assert runs["opacity"] == 1
     assert "marker" not in surface
@@ -88,7 +86,9 @@ def test_the_charts_read_on_a_light_page_and_a_dark_one_and_without_their_colour
         assert figures[key]["layout"]["legend"]["y"] > 1
     assert {trace["mode"] for trace in lines_of(figures["perturbation"])} == {"lines"}, "a curve: no marks along it"
     for key in ("main_effects", "interaction"):
-        assert {trace["mode"] for trace in figures[key]["data"]} == {"lines+markers"}, f"{key}: a mark at each average"
+        assert {trace["mode"] for trace in lines_of(figures[key])} == {"lines+markers"}, (
+            f"{key}: a mark at each average"
+        )
 
 
 def lines_of(figure: dict) -> list[dict]:
@@ -133,7 +133,7 @@ def test_each_factor_s_effect_has_its_95_percent_confidence_interval_as_a_band(a
         "rgba(37,99,235,0.16)",
         "rgba(220,38,38,0.16)",
         "rgba(5,150,105,0.16)",
-    ], "in its line's colour, seen through"
+    ], "in its line's color, seen through"
     assert figure["data"][-1]["name"] == "95% interval", "the legend says what a band is"
     assert figure["layout"]["xaxis"]["hoverformat"] == "+.2f", "a coded setting, to two places, where the pointer rests"
     assert all(trace["hoverinfo"] == "skip" for trace in figure["data"] if trace.get("meta") == "interval")
@@ -266,7 +266,7 @@ def test_averages_are_drawn_only_for_factors_at_three_settings_or_fewer(api):
 
 
 def test_the_true_surface_is_drawn_over_the_same_grid(api, held, simulated):
-    """The page gives both surfaces one colour scale, which needs a grid of values in each."""
+    """The page gives both surfaces one color scale, which needs a grid of values in each."""
     result = api.ok("api_plots", {**held, "responses": simulated["responses"], "truth": simulated["truth"]})
     fitted, true = (json.loads(result["figures"][key])["data"][0] for key in ("contour", "true_contour"))
     assert len(fitted["z"]) == len(true["z"])
@@ -330,7 +330,7 @@ def test_a_design_with_limits_shades_the_settings_that_cannot_be_run(api):
 
 
 def test_with_the_centre_ruled_out_the_others_are_held_at_a_setting_that_can_be_run(api):
-    """F is not plotted: it is held where the region's settings centre, and the reply says where, in L/min."""
+    """F is not plotted: it is held where the region's settings center, and the reply says where, in L/min."""
     limit = "T + 25 * P + 5 * F <= 290"
     design, responses = _limited(api, limit)
     result = api.ok("api_plots", {**held_of(design), "responses": responses})
@@ -344,3 +344,25 @@ def test_a_design_without_limits_is_drawn_as_before(api, held, simulated):
     contour = json.loads(result["figures"]["contour"])
     assert all(trace.get("name") != "Cannot be run" for trace in contour["data"])
     assert (result["shaded"], result["held"]) == (False, [])
+
+
+def test_each_average_has_the_model_s_interval_for_the_mean_at_its_setting(api):
+    """The bar at each setting is the least-squares mean's interval: the others averaged over the runs (#1242)."""
+    statsmodels = pytest.importorskip("statsmodels.api")
+    design = api.ok("api_make_design", {"design_type": "full_factorial", "factors": FACTORS})
+    held = held_of(design)
+    y = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 3})["responses"]
+    plots = api.ok("api_plots", {**held, "responses": y, "model": "main_effects"})
+    figure = json.loads(plots["figures"]["main_effects"])
+    bars = {
+        trace["legendgroup"]: trace for trace in figure["data"] if trace.get("meta") == "interval" and trace["x"][0]
+    }
+    x = coded(run_sheet(design), FACTORS)[[f["name"] for f in FACTORS]]
+    fit = statsmodels.OLS(np.asarray(y, dtype=float), statsmodels.add_constant(x)).fit()
+    words = {"Low": -1.0, "Middle": 0.0, "High": 1.0}
+    assert set(bars) == {f["name"] for f in FACTORS}
+    for name, bar in bars.items():
+        for at, (low, high) in zip(bar["x"][::3], zip(bar["y"][::3], bar["y"][1::3], strict=True), strict=True):
+            row = statsmodels.add_constant(x.assign(**{name: words[at]}), has_constant="add").mean().to_frame().T
+            expected = fit.get_prediction(row).conf_int(alpha=0.05)[0]
+            np.testing.assert_allclose([low, high], expected, rtol=1e-9, err_msg=f"{name} at {at}")

@@ -50,7 +50,7 @@ const read = (verb, i) => (READ[verb] || [verb.toLowerCase().replaceAll("_", " "
 const BOW = 0.14;
 const ARC = { "curve-style": "unbundled-bezier", "control-point-distances": "data(bow)", "control-point-weights": 0.5 };
 const bowOf = (a, b) => BOW * Math.hypot(b.x - a.x, b.y - a.y);
-// A name sits on the map with no box behind it: a thin halo in the map's own colour cuts the lines just short of its
+// A name sits on the map with no box behind it: a thin halo in the map's own color cuts the lines just short of its
 // letters, so it reads where lines cross it and hides nothing else.
 const HALO = px => ({ "text-outline-color": css("--map-bubble"), "text-outline-width": px(2), "text-outline-opacity": 0.7 });
 const VERB_EM = 0.95;   // a link label's size, as a fraction of a term name's
@@ -194,7 +194,7 @@ const drawLegend = () => {
       title="${hidden.has(k) ? "Show" : "Hide"} ${label.toLowerCase()}">${icon(k, css(othersOn ? "--muted" : `--map-${k}`))}<span class="map-full">${label}</span><span class="map-short" aria-hidden="true">${short}</span></button>`).join("");
 };
 
-// ---------- the colour mode: light, dark or the system's, in turn, from the same switch as the start page's
+// ---------- the color mode: light, dark or the system's, in turn, from the same switch as the start page's
 const MODE_KEY = "factorial-mode";
 const MODE_NAMES = { auto: "the system's", light: "light", dark: "dark" };
 const systemDark = matchMedia("(prefers-color-scheme: dark)");
@@ -202,12 +202,12 @@ function applyMode(mode) {
   const root = document.documentElement;
   root.dataset.mode = mode;
   if (mode === "auto") delete root.dataset.theme;
-  else root.dataset.theme = mode;   // the map redraws in its colours (the observer below)
+  else root.dataset.theme = mode;   // the map redraws in its colors (the observer below)
   for (const meta of document.querySelectorAll('meta[name="theme-color"]')) {
     const { scheme } = meta.dataset;
     meta.media = mode === "auto" ? `(prefers-color-scheme: ${scheme})` : scheme === mode ? "all" : "not all";
   }
-  document.getElementById("mode").setAttribute("aria-label", `Colour mode: ${MODE_NAMES[mode]}`);
+  document.getElementById("mode").setAttribute("aria-label", `Color mode: ${MODE_NAMES[mode]}`);
 }
 document.getElementById("mode").addEventListener("click", () => {
   const mode = nextMode(document.documentElement.dataset.mode, systemDark.matches);
@@ -261,12 +261,12 @@ function grow(z, base, power, max) {
 // Label font, term dot and link width on screen; slow enough to keep growing up to the deepest zoom.
 const sizes = z => ({ font: grow(z, 11, 0.25, 19), dot: grow(z, 7, 0.5, 22), line: grow(z, 1, 0.4, 2.6) });
 
-// The rules while books are compared. No link is drawn but the selected term's own, in a neutral: colour is the
+// The rules while books are compared. No link is drawn but the selected term's own, in a neutral: color is the
 // books' now. A topic's ring is its sectors, drawn broad, and over them two discs that leave a rim of them showing:
-// one in the colour of the map's ground and one in the topic's, as faint as the topic is, so that inside the rim the
+// one in the color of the map's ground and one in the topic's, as faint as the topic is, so that inside the rim the
 // topic looks as it does without one. No image changes with the zoom, only the size of the discs: the rim keeps its
 // width on screen, and no image is loaded, and so missing for a frame, while the reader zooms.
-// shortcut: two other textbooks have a colour (--map-book2, --map-book3), give a third --map-book4 when it is reviewed
+// shortcut: two other textbooks have a color (--map-book2, --map-book3), give a third --map-book4 when it is reviewed
 // A name is under its term. One that has to be drawn, and finds that place taken, is above its term, beside it or
 // at one of its corners (PLACES): these rules put it there, by the classes of its place. `rim` is the term's size
 // while books are compared, when its ring reaches past it, and nothing otherwise. A name beside its term is `edge`
@@ -289,7 +289,7 @@ const RIM_MOST = 0.13;   // of a topic's width: the broadest its rim is drawn, o
 // side (below, above, right, left) that is clear of the other topics, of the names already put outside (`taken`)
 // and of the map's edge. Returns that side, or nothing where no side is clear: the name then stays inside.
 const BESIDE = { font: 9, wide: 84, gap: 4 };   // in screen pixels: the name's size, where it wraps, and how far off the rim
-// How far right and down of a topic's centre a name off its corner starts, for a radius as drawn: on the diagonal
+// How far right and down of a topic's center a name off its corner starts, for a radius as drawn: on the diagonal
 // it is off the rim by the gap, and by the 3 pixels its halo reaches past its letters.
 const CORNER_OUT = r => (r + BESIDE.gap) / Math.SQRT2 + 3;
 function besideTopic(c, z, taken) {
@@ -297,7 +297,7 @@ function besideTopic(c, z, taken) {
   const { x, y, r } = drawn(c), text = textWidth(c.short, BESIDE.font, "600"), far = r + BESIDE.gap;
   const w = Math.min(text, BESIDE.wide) + 4, h = (Math.ceil(text / BESIDE.wide) + 1) * BESIDE.font * 1.25 + 2;
   const across = { x1: x - w / 2, x2: x + w / 2 }, level = { y1: y - h / 2, y2: y + h / 2 };
-  // Below, above and at either side first; then off the four corners, where a neighbour has taken those.
+  // Below, above and at either side first; then off the four corners, where a neighbor has taken those.
   const out = CORNER_OUT(r), east = { x1: x + out, x2: x + out + w }, west = { x1: x - out - w, x2: x - out };
   const south = { y1: y + out, y2: y + out + h }, north = { y1: y - out - h, y2: y - out };
   const places = { below: { ...across, y1: y + far, y2: y + far + h }, up: { ...across, y1: y - far - h, y2: y - far },
@@ -347,7 +347,7 @@ function ringRules(z, px, overview, dot) {
           ...HALO(px), "text-outline-opacity": 0.95 } : {}),
         ...(side ? { "text-max-width": px(BESIDE.wide), ...BESIDE_STYLE(px, d / 2)[side] } : {}) } };
     }),
-    // A term keeps its kind's shape and gives up its colour; its ring is outside it.
+    // A term keeps its kind's shape and gives up its color; its ring is outside it.
     { selector: ".term", style: { "background-color": css("--muted"), "background-clip": "none", "background-image-containment": "over",
       "background-width": "215%", "background-height": "215%", "bounds-expansion": px(dot * 0.7) } },
     ...RING_KEYS.flatMap(k => { const has = [1, ...k].map(Number); return [
@@ -414,7 +414,7 @@ function sheet(z) {
     { selector: ".link", style: { display: overview ? "none" : "element", width: px(line), "line-color": css("--muted"),
       ...ARC, "z-index": 5, "line-opacity": middle ? 0.3 : 0.55 } },   // fades the line, not its label
     // The link labels, once the terms they join are named: the verb beside the line, reading the way the arrow points,
-    // in italic and the accent colour, so a verb is not read as a term.
+    // in italic and the accent color, so a verb is not read as a term.
     ...(verbsOn && !middle ? [{ selector: ".link", style: { "source-label": "data(verb)", "source-text-offset": "data(at)", "source-text-margin-x": "data(liftX)", "source-text-margin-y": "data(liftY)", "font-family": FONT, "font-size": px(font * VERB_EM), "font-weight": 600,
       color: css("--accent"), "font-style": "italic", "source-text-rotation": "autorotate", ...HALO(px), "text-outline-opacity": 0.95, "target-arrow-shape": "triangle",
       "target-arrow-color": css("--muted"), "arrow-scale": arrow(line, dot * 0.8) } }] : []),
@@ -433,7 +433,7 @@ function sheet(z) {
   ];
 }
 
-// Labels are placed greedily: the selected term and its neighbours first, then the most connected terms of
+// Labels are placed greedily: the selected term and its neighbors first, then the most connected terms of
 // each topic; a label that would overlap one already placed waits until zooming in makes room for it.
 const LABEL_EMS = 9;   // wrap width of a label, in multiples of its font size
 const widths = new Map();
@@ -515,7 +515,7 @@ function settleOverlaps() {
   if (verbsOn) settleLinkLabels(kept);
 }
 
-// A name that is drawn whatever it lands on (a selected term's neighbour) takes the place by its term where it lands
+// A name that is drawn whatever it lands on (a selected term's neighbor) takes the place by its term where it lands
 // on least: each of PLACES is tried with the name's size as drawn (`b`), against the names already placed (`kept`)
 // and every term in view, with its ring while books are compared. The first of them wins a tie, so a name with room
 // is under its term, where every other name is. Returns the place it takes.
@@ -541,7 +541,7 @@ function clearestSide(c, b, kept) {
 
 // A link's label sits beside its line, clear of the terms, their names and the other labels: in the middle where that
 // is clear, else at the first clear spot further along either way, else held back until zooming in makes room for it.
-// On the line itself the line ran through the gaps between the words, in the label's own colour. The label is drawn
+// On the line itself the line ran through the gaps between the words, in the label's own color. The label is drawn
 // `at` drawing units along the line from where it leaves its source term, and moved (`liftX`, `liftY`) units off it:
 // Cytoscape adds a label's margin along the map's axes and turns the text afterwards, so "above" needs both.
 // Cytoscape measures "along the line" over the chords between a few fixed points of the curve (MEASURED), so the
@@ -576,7 +576,7 @@ function settleLinkLabels(kept) {
       return d + chords[i] * (u - MEASURED[i]) / (MEASURED[i + 1] - MEASURED[i]); };
     return { s, t, cx, cy_, on, along, len: chords.reduce((a, b) => a + b, 0) }; };
   // The selected term's lines are kept clear of as well, a label's own line and every other: they are drawn at full
-  // strength, in the labels' colour. A point every `pad` along a line leaves no gap a label's point could pass through.
+  // strength, in the labels' color. A point every `pad` along a line leaves no gap a label's point could pass through.
   links.filter(e => e.hasClass("hl")).forEach(e => { const { len, on } = path(e), n = Math.ceil(len / pad);
     for (let i = 0; i <= n; i++) { const p = on(i / n); take({ x1: p.x, x2: p.x, y1: p.y, y2: p.y }); } });
   links.sort((a, b) => Number(b.hasClass("hl")) - Number(a.hasClass("hl"))).forEach(e => {
@@ -656,7 +656,7 @@ function move(id, animate) {
   const duration = animate && !reduce ? 450 : 0;
   if (id && terms.has(id)) {
     const p = cy.getElementById(id).position();
-    const z = Math.min(cy.maxZoom(), Math.max(cy.zoom(), 72 / TERM_GAP));   // close enough to read its neighbours
+    const z = Math.min(cy.maxZoom(), Math.max(cy.zoom(), 72 / TERM_GAP));   // close enough to read its neighbors
     const pan = { x: cy.width() / 2 - p.x * z, y: cy.height() * 0.45 - p.y * z };
     cy.stop(); cy.animate({ zoom: z, pan }, { duration });
   } else if (id && groupOf(id)) {
@@ -681,7 +681,7 @@ const topicOf = n => n.hasClass("topic") ? n.id() : n.hasClass("term") ? n.data(
   : subtopics.get(n.id().replace(/-name$/, "")).topic;
 function spread() {
   const ys = DATA.clusters.flatMap(c => [c.y - c.r, c.y + c.r]), tall = Math.max(...ys) - Math.min(...ys);
-  // The drawing's width with the centres spread by k: the circles keep their size, so it grows less than k.
+  // The drawing's width with the centers spread by k: the circles keep their size, so it grows less than k.
   const wideAt = k => { const xs = DATA.clusters.flatMap(c => { const x = centreX + (c.x - centreX) * k; return [x - c.r, x + c.r]; });
     return Math.max(...xs) - Math.min(...xs); };
   const room = (cy.width() / cy.height()) * tall * 0.92;   // the width that fits the map at the height's zoom
@@ -861,7 +861,7 @@ window.addEventListener("touchend", ev => {
   if (ev.touches.length < 2) pinch = null;
   clearTimeout(holding);
   if (held) { held.removeClass("held"); held = null; }
-  // The browser is scrolling and the touch's end cannot be cancelled: Cytoscape's attempt to is then a no-op, not a
+  // The browser is scrolling and the touch's end cannot be canceled: Cytoscape's attempt to is then a no-op, not a
   // console error.
   if (!ev.cancelable) ev.preventDefault = () => {};
 }, { capture: true });
@@ -951,8 +951,8 @@ verbsSwitch.addEventListener("change", () => {
 });
 const othersSwitch = document.getElementById("others"), bookKey = document.getElementById("bookkey");
 document.getElementById("books").hidden = BOOKS.length === 0;
-// The key to the rings: a ring with every sector filled, then each book's name beside its colour, in the order the
-// sectors go round. Its colours are the page's own, so it follows the colour mode with no redrawing.
+// The key to the rings: a ring with every sector filled, then each book's name beside its color, in the order the
+// sectors go round. Its colors are the page's own, so it follows the color mode with no redrawing.
 const RING_INKS = ["--accent", ...BOOKS.map((_, k) => `--map-book${k + 2}`)].map(name => `var(${name})`);
 const RING_NAMES = ["This book", ...BOOKS.map(bookName)];
 bookKey.setAttribute("aria-label", `Each ring, clockwise from the top: ${RING_NAMES.join(", ")}`);
@@ -961,7 +961,7 @@ bookKey.innerHTML = ringSvg(RING_NAMES.map(() => 1), RING_INKS, "none", 0.19)
 const showOthers = () => {
   othersSwitch.checked = othersOn;
   bookKey.classList.toggle("waits", !othersOn);
-  drawLegend();   // the kinds' shapes lose their colours while books are compared
+  drawLegend();   // the kinds' shapes lose their colors while books are compared
 };
 showOthers();
 othersSwitch.addEventListener("change", () => {
@@ -1036,7 +1036,7 @@ function renderHow() {
   // The how-to as it is now on the book's main branch: it holds the steps, so this page does not repeat them.
   const howto = "https://github.com/kgdunn/pid-book/blob/main/knowledge-graph/HOWTO.md";
   const verbs = new Set(DATA.edges.map(e => e.type)).size;
-  // A kind of term in the words, drawn with its shape and colour on the map and in the legend.
+  // A kind of term in the words, drawn with its shape and color on the map and in the legend.
   const kind = (f, words) => `<span class="map-kind"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="${FAMILIES[f][2]}"
     style="fill: var(--map-${f})"/></svg>${words}</span>`;
   const name = id => esc(terms.get(id).name);
@@ -1061,7 +1061,7 @@ function renderHow() {
 
     <h3>1. Where the ideas come from</h3>
     <p>Every term comes from <em>Process Improvement using Data</em>, the open textbook at <a href="https://learnche.org/pid" ${BOOK_TAB}>learnche.org/pid</a>, mostly
-      from its chapter on designing and analysing experiments. Each term, and each link between two terms, quotes the
+      from its chapter on designing and analyzing experiments. Each term, and each link between two terms, quotes the
       line of the book it rests on, and the map is checked against the book each time it is built.</p>
     <details><summary>How it was checked</summary>
       <p>A first list was written by hand from the chapter's text. Reviewers then checked every term and link against
@@ -1091,7 +1091,7 @@ function renderHow() {
       but each attempt depends on probabilities, so it makes hundreds of tries and keeps the grouping that is most stable
       and consistent.</p>
     <details><summary>Show the numbers</summary>
-      <p>The method is <a href="https://en.wikipedia.org/wiki/Louvain_method" target="_blank" rel="noopener">Louvain clustering</a>: it moves one term at a time into a neighbour's group whenever that makes the
+      <p>The method is <a href="https://en.wikipedia.org/wiki/Louvain_method" target="_blank" rel="noopener">Louvain clustering</a>: it moves one term at a time into a neighbor's group whenever that makes the
         groups tighter, and stops when no move helps. It visits the terms in a random order.
         Consensus clustering (<a href="https://doi.org/10.1038/srep00336" target="_blank" rel="noopener">Lancichinetti and Fortunato, 2012</a>)
         makes it repeatable: ${m.runs} runs a round, each with its own random seed; a pair of terms together in at least
@@ -1142,7 +1142,7 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", restyle);
 new MutationObserver(restyle).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 window.addEventListener("hashchange", () => arrive(true));
 // A phone's toolbar that hides or shows as the page scrolls fires "resize" but leaves the map's width alone: the
-// reader's view stays then. Only a new width (a turned phone, a resized window) centres the map again.
+// reader's view stays then. Only a new width (a turned phone, a resized window) centers the map again.
 let resizing, mapWidth = cy.width();
 window.addEventListener("resize", () => { clearTimeout(resizing); resizing = setTimeout(() => {
   const zoom = cy.zoom(), pan = { ...cy.pan() };
