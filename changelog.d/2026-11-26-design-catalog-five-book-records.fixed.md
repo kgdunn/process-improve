@@ -1,0 +1,1 @@
+- Five more records of the book in the design catalog are in their family instead of "Other": a fold-over and an eight-run fraction (fractional factorial), a 2^2 factorial with a corner replaced (full factorial), and the case study's two augmented designs (split plot). The seven left in "Other" are small designs that work a calculation (#1483).
