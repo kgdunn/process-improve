@@ -165,6 +165,73 @@ def test_generate_design_builds_a_split_plot_design_without_pyoptex(monkeypatch)
     assert result.design["WholePlot"].is_monotonic_increasing
 
 
+# --------------------------------------------------------------------------- fixed runs, kept as given (#1494)
+def test_fixed_runs_come_first_as_given_and_their_whole_plot_keeps_their_hard_to_change_setting():
+    """Two runs already made fill whole plot 1 with one more: A stays at theirs there, and the search picks the rest.
+
+    One fixed run lies off the grid of levels (B = 0.37); it is kept exactly, and no other run is given that level.
+    """
+    fixed = pd.DataFrame({"A": [0.0, 0.0], "B": [0.0, 0.37], "C": [0.0, -1.0]})
+    options = SplitPlotOptions(n_whole_plots=4, fixed_runs=fixed)
+    design, meta = split_plot_design(continuous("ABC"), ["A"], 12, options, random_state=1)
+    runs = frame(design, meta, "ABC")
+    assert runs.loc[:1, ["A", "B", "C"]].to_numpy().tolist() == fixed.to_numpy().tolist()
+    assert runs.loc[runs["plot"] == 0, "A"].tolist() == [0.0, 0.0, 0.0], "the third run of their whole plot too"
+    assert set(runs.loc[2:, "B"]) <= {-1.0, 0.0, 1.0}, "the other runs on the grid"
+    assert runs.groupby("plot")["A"].nunique().max() == 1
+    assert meta["n_fixed_runs"] == 2
+
+
+def test_fixed_runs_that_share_a_whole_plot_but_not_its_hard_to_change_setting_are_refused():
+    fixed = pd.DataFrame({"A": [-1.0, 1.0], "B": [0.0, 0.0], "C": [0.0, 0.0]})  # three runs to a whole plot
+    options = SplitPlotOptions(n_whole_plots=4, fixed_runs=fixed)
+    with pytest.raises(ValueError, match="whole plot 1 set the hard-to-change factor 'A' to different levels"):
+        split_plot_design(continuous("ABC"), ["A"], 12, options, random_state=1)
+
+
+def test_fixed_runs_that_fill_whole_plots_leave_them_alone_and_the_search_designs_the_rest():
+    """Four fixed runs, three to a whole plot: plot 1 is all theirs, plot 2 keeps the fourth's A."""
+    fixed = pd.DataFrame({"A": [-1.0, -1.0, -1.0, 1.0], "B": [-1.0, 1.0, 0.0, 1.0], "C": [1.0, -1.0, 0.0, 1.0]})
+    options = SplitPlotOptions(n_whole_plots=4, fixed_runs=fixed)
+    design, meta = split_plot_design(continuous("ABC"), ["A"], 12, options, random_state=3)
+    runs = frame(design, meta, "ABC")
+    assert runs.loc[:3, ["A", "B", "C"]].to_numpy().tolist() == fixed.to_numpy().tolist()
+    assert runs.loc[runs["plot"] == 1, "A"].tolist() == [1.0, 1.0, 1.0]
+    found = evaluate_design(runs, model="interactions", metric="information_matrix", random_effects={"plot": 0.5})
+    assert meta["log_det_information"] == pytest.approx(found["information_matrix"]["log_determinant"])
+
+
+def test_a_fixed_run_outside_the_limits_is_kept_with_a_warning_and_the_other_runs_keep_to_them(caplog):
+    fixed = pd.DataFrame({"T": [1.0], "P": [1.0]})  # T + P = 2, outside T + P <= 1
+    with caplog.at_level("WARNING", logger="process_improve.experiments.designs_split_plot"):
+        result = generate_design(
+            continuous("TP"), design_type="d_optimal", budget=12, hard_to_change=["T"], constraints=["T + P <= 1"],
+            fixed_runs=fixed,
+        )  # fmt: skip
+    runs = result.design
+    assert result.metadata["n_fixed_runs_outside_region"] == 1
+    assert "1 fixed run(s) lie outside the constrained region" in caplog.text
+    assert runs.iloc[0][["T", "P"]].tolist() == [1.0, 1.0]
+    assert (runs.iloc[1:]["T"] + runs.iloc[1:]["P"] <= 1 + 1e-9).all()
+
+
+def test_generate_design_keeps_fixed_runs_in_a_split_plot_design_without_pyoptex(monkeypatch):
+    from process_improve.experiments import designs_optimal
+
+    monkeypatch.setattr(designs_optimal, "_PYOPTEX_AVAILABLE", False)
+    factors = [*continuous("AB"), Factor(name="Oven", type="categorical", levels=["old", "new"])]
+    fixed = pd.DataFrame({"A": [0.0], "B": [0.0], "Oven": ["new"]})
+    result = generate_design(
+        factors, design_type="i_optimal", budget=12, hard_to_change=["Oven"], fixed_runs=fixed, random_state=2
+    )
+    assert result.metadata["backend"] == "split_plot_exchange"
+    assert "hard_to_change_ignored" not in result.metadata
+    assert result.metadata["n_fixed_runs"] == 1
+    runs = result.design
+    assert runs.iloc[0][["A", "B", "Oven"]].tolist() == [0.0, 0.0, "new"]
+    assert set(runs.loc[runs["WholePlot"] == runs.iloc[0]["WholePlot"], "Oven"]) == {"new"}
+
+
 # --------------------------------------------------------------------------- inside limits on the settings
 def test_every_run_and_every_exchange_keeps_to_the_limits(monkeypatch):
     """A limit on the numeric factors and one on a level: each run keeps both, the oven still set once per plot."""
@@ -198,7 +265,6 @@ def test_limits_that_leave_no_run_are_refused(monkeypatch):
 @pytest.mark.parametrize(
     ("asked", "reason"),
     [
-        ({"fixed_runs": pd.DataFrame({"A": [0.0], "B": [0.0], "C": [0.0]})}, "fixed runs are given"),
         ({"n_blocks": 2}, "blocks are asked for"),
     ],
 )
