@@ -91,6 +91,34 @@ def records() -> list[dict]:
         ("five factors in 16 runs", "fractional_factorial"),
         ("designs for main effects and two-factor interactions", "fractional_factorial"),
         ("other", "other"),
+        # A word that is a rule by itself files what only shares the word (#1478). "crossed": a classification.
+        ("two-way crossed with replication", "comparison"),
+        ("nested and crossed", "comparison"),
+        ("crossed arrays: inner 2^3 full factorial x outer 2^2 full factorial", "orthogonal_array"),
+        ("crossed inner and outer arrays", "orthogonal_array"),
+        ("D-optimal design with an outer array", "orthogonal_array"),
+        # "simplex": a regular simplex is a first-order design in independent factors, not a blend.
+        ("regular simplex", "other"),
+        ("simplex", "other"),
+        ("simplex-sum composite design", "ccd"),
+        ("axial simplex", "mixture"),
+        ("simplex centroid, q = 4", "mixture"),
+        ("mixture simplex-lattice", "mixture"),
+        ("augmented simplex lattice", "mixture"),
+        # One kind of record, one family: a fitted equation printed without its runs, of any degree.
+        ("fitted second-degree equations", "comparison"),
+        ("fitted second-order equation", "comparison"),
+        ("first-order fitted equation (runs not printed here)", "comparison"),
+        ("irregular second-order design", "other"),
+        ("supersaturated design from a Hadamard matrix", "supersaturated"),
+        ("Plackett-Burman design in 12 runs, sorted by its last column", "plackett_burman"),
+        # pid-book records that were typed "other" (#1483).
+        ("3^3 full factorial", "full_factorial"),
+        ("mixture with lower bounds, in pseudocomponents", "mixture"),
+        ("mixture crossed with process variables", "mixture"),
+        ("runs along the path of steepest ascent", "comparison"),
+        ("one factor at a time (COST)", "comparison"),
+        ("point exchange over a candidate set: the starting design", "optimal"),
     ],
 )
 def test_a_design_type_in_words_names_its_family(text, family):
@@ -105,13 +133,56 @@ def test_every_published_entry_has_a_family_and_few_have_none(records):
     assert len(published) == sum(len(design_catalog._arrangements(e)) for e in entries), "each blocking a record"
     assert {r["family"] for r in records} <= set(FAMILIES)
     unknown = [r["design_text"] for r in published if r["family"] == "other"]
-    # pid-book's 19 "other", two projections, and three response surface designs no family holds:
-    # an equiradial hexagon, a hybrid design and a sphere-packing design. Box and Draper's 49: 23 entries
-    # that print no design (a fitted equation, an exercise in algebra, a table of values), five Koshal designs,
-    # and 21 response surface designs no family holds (a hexagon, a dodecahedron, an all-bias design,
-    # third-order and three-level designs). McMullen and Jurica's 1: runs chosen round by round by SNOBFIT,
-    # an optimizer, not by a design
-    assert len(unknown) <= 74, f"a rule is needed for: {sorted(set(unknown))}"
+    # pid-book's 12 "other" (#1483), two projections, and four designs of Montgomery's that no family holds: an
+    # equiradial hexagon, a hybrid design, a sphere-packing design and a simplex design of first order. Box and
+    # Draper's 42: 13 entries that print no design (an exercise in algebra, a table of values, a response
+    # function that is not fitted), five Koshal designs, and 24 response surface designs no family holds (a
+    # hexagon, a dodecahedron, an all-bias design, regular simplex, third-order and three-level designs).
+    # McMullen and Jurica's 1: runs chosen round by round by SNOBFIT, an optimizer, not by a design
+    assert len(unknown) <= 61, f"a rule is needed for: {sorted(set(unknown))}"
+
+
+#: The orthogonal arrays whose runs are not an array of strength 2, each with its cause. They are Taguchi's
+#: layouts and techniques, so the family holds them; its card describes the plain array.
+NOT_A_PLAIN_ARRAY = {
+    "schmidt-pwa-solderability-l18": "a dummy level: a two-level factor in a three-level column of the L18",
+    "schmidt-gold-wire-bonding-l8": "as run: three runs of the L8 were made at another speed than the array's",
+    "schmidt-operating-system-d-optimal": "a D-optimal inner array under a noise array, not an orthogonal one",
+    "ullmann-robust-inner-outer": "an inner array with three center runs added",
+    "montgomery-connector-outer-array": "as printed: the source misprints one setting, a source_error of its check",
+}
+
+
+def _pairwise_balanced(runs: np.ndarray) -> bool:
+    """Say whether each combination of the levels of any two columns appears equally often: strength 2."""
+    for a in range(runs.shape[1]):
+        for b in range(a + 1, runs.shape[1]):
+            _, counts = np.unique(runs[:, [a, b]], axis=0, return_counts=True)
+            combinations = len(np.unique(runs[:, a])) * len(np.unique(runs[:, b]))
+            if len(counts) != combinations or counts.min() != counts.max():
+                return False
+    return True
+
+
+@pytest.mark.slow
+@pytest.mark.dataset
+def test_a_family_s_records_are_what_its_card_says(records):
+    """A card's defining sentence is held against the family's own records (#1478).
+
+    An orthogonal array's card says that each combination of the levels of any two factors appears equally
+    often, and a supersaturated design's that it has no more runs than factors. A record a rule files wrongly,
+    or stores at another size, fails here unless its cause is written down. A record that is in the wrong
+    family and still satisfies the sentence passes: ``test_a_design_type_in_words_names_its_family`` holds
+    the rules themselves.
+    """
+    arrays = [r for r in records if r["family"] == "orthogonal_array" and r["coded_runs"]]
+    assert len(arrays) > 50
+    not_plain = {r["id"] for r in arrays if not _pairwise_balanced(np.asarray(r["coded_runs"], dtype=float))}
+    assert not_plain == set(NOT_A_PLAIN_ARRAY), "a new one needs its cause, and one that is fixed leaves the list"
+    supersaturated = [r for r in records if r["family"] == "supersaturated"]
+    assert len(supersaturated) >= 5
+    for record in supersaturated:
+        assert record["n_runs"] <= record["n_factors"], record["id"]
 
 
 def test_every_family_with_a_year_names_the_work_that_published_it():
@@ -122,6 +193,12 @@ def test_every_family_with_a_year_names_the_work_that_published_it():
         assert (family["year"] is None) == (family["reference"] == ""), key
         if family["year"] is not None:
             assert f"({family['year']})" in family["reference"], key
+    # A group of the catalog has no one first work. Every family of designs has one (#1479): the Latin square,
+    # the randomized blocks and the split plot are in Fisher's book of 1925, each in a section of its own.
+    assert {key for key, family in families.items() if family["year"] is None} == {"comparison", "other"}
+    for key, section in (("block_design", 48), ("latin_square", 49), ("split_plot", 42)):
+        assert families[key]["year"] == 1925, key
+        assert f"Statistical Methods for Research Workers, section {section}" in families[key]["reference"], key
 
 
 # --------------------------------------------------------------------------- what a design estimates
@@ -1115,15 +1192,74 @@ def test_the_feed_is_atom_with_an_entry_per_source_newest_first():
     assert "5 printed numbers, 4 of them recomputed" in entries[0].find(f"{atom}summary").text
 
 
-def test_a_family_the_knowledge_base_describes_says_what_it_is_in_plain_words():
+def test_a_family_one_design_type_makes_is_described_by_the_knowledge_base():
+    """The knowledge base of design types says what such a family is: the catalog keeps no second copy of it."""
+    from process_improve.experiments.knowledge.engine import load_knowledge_graph
+
     families = catalog_families()
-    assert families["full_factorial"]["description"].startswith("Tests every combination of factor levels.")
+    types = load_knowledge_graph().design_types
+    assert families["full_factorial"]["description"].startswith("A design that runs every combination of the levels")
     assert "\n" not in families["dsd"]["description"]
-    assert families["latin_square"]["description"] == ""
+    assert families["plackett_burman"]["watch_for"][0].startswith("Interactions cannot be estimated"), "its own"
+    assert (
+        families["plackett_burman"]["use_when"][0] == "From 6 to 47 factors are to be screened for the few that matter"
+    )
+    # Taguchi's arrays are the family "orthogonal_array", and generate_design's type "taguchi".
+    assert families["orthogonal_array"]["description"].startswith("A table of runs, such as L8, L9 or L18")
+    assert families["orthogonal_array"]["use_when"] == types["taguchi"].suitable_for
+    for key, design_type in design_catalog._DESIGN_TYPES.items():
+        assert design_type in types, f"{key}: the knowledge base has no entry for {design_type}"
+        assert not FAMILIES[key].about, f"{key}: its words are the knowledge base's"
+        assert not FAMILIES[key].use_when, f"{key}: its words are the knowledge base's"
+        # A caution is not always a disadvantage: the design's disadvantages, then the family's own cautions.
+        assert families[key]["watch_for"] == [*types[design_type].disadvantages, *FAMILIES[key].watch_for], key
+    assert FAMILIES["orthogonal_array"].watch_for[0].startswith("L4, L8 and L16 are two-level fractional factorials")
+    assert not any("Plackett-Burman" in line for line in types["taguchi"].disadvantages), "a fact, not a disadvantage"
+
+
+def test_a_family_no_one_design_type_makes_says_what_it_is_in_its_own_words():
+    """A family of several design types, an arrangement of other designs' runs, or a group of the catalog.
+
+    ``generate_design`` has no design type named for an optimal design of any criterion, a Latin square, a
+    block design or a split plot, so the knowledge base of design types has no entry for one. "Other" is a
+    mixed group, and says what it holds.
+    """
+    families = catalog_families()
+    own = {key for key, family in FAMILIES.items() if family.about}
+    assert own == {"optimal", "latin_square", "block_design", "split_plot", "comparison", "other"}
+    assert own == set(FAMILIES) - set(design_catalog._DESIGN_TYPES)
+    assert families["latin_square"]["description"].startswith("A design that tests one factor while blocking on two")
+
+
+def test_every_family_s_words_fit_its_card():
+    """A reader who meets a Taguchi array or a split plot for the first time is told what it is, by its family.
+
+    Each family says what it is, when it is used and what to watch for. A phrase of the two lists is one line
+    of a card: it starts with a capital or a number, has no period, and is at most 110 characters. A card stays
+    a card: what the family is in at most 300 characters, and at most four lines to a list.
+    """
+    for key, family in catalog_families().items():
+        assert family["description"].endswith("."), key
+        assert len(family["description"]) <= 300, key
+        assert "\u2014" not in family["description"], key
+        if key == "other":
+            assert family["use_when"] == family["watch_for"] == [], "a mixed group has no one use"
+            continue
+        assert 1 <= len(family["use_when"]) <= 4, key
+        assert 1 <= len(family["watch_for"]) <= 4, key
+        for phrase in [*family["use_when"], *family["watch_for"], *(step["how"] for step in family["next"])]:
+            assert not phrase[0].islower(), f"{key}: {phrase}"
+            assert not phrase.endswith("."), f"{key}: a phrase of a list, with no period: {phrase}"
+            assert len(phrase) <= 110, f"{key}: one line of a card: {phrase}"
 
 
 def test_a_family_says_which_families_it_can_lead_to():
     families = catalog_families()
-    assert {"family": "ccd", "how": "Add center + axial points"} in families["full_factorial"]["next"]
+    assert {"family": "ccd", "how": "Add center points and axial points, to estimate curvature"} in families[
+        "full_factorial"
+    ]["next"]
     assert families["latin_square"]["next"] == []
+    # A step names a design type, and leads to the family that type's designs are in.
+    assert [step["family"] for step in families["orthogonal_array"]["next"]] == ["fractional_factorial", "ccd"]
+    assert "orthogonal_array" not in design_catalog._DESIGN_TYPES.values(), "the type is named taguchi"
     assert all(step["family"] in FAMILIES for f in families.values() for step in f["next"])

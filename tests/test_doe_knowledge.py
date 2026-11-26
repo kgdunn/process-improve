@@ -509,9 +509,20 @@ def test_min_run_examples_are_the_designs_the_library_builds() -> None:
         resolution = {"III": 3, "IV": 4, "V": 5}[roman]
         built = generate_design(factors(int(k)), design_type="fractional_factorial", resolution=resolution)
         assert built.n_runs - 3 == runs, key  # generate_design adds 3 center points by default
-    for design_id, design_type in (("omars", "omars"), ("dsd", "dsd")):
+    for design_id in ("omars", "dsd", "ccd", "box_behnken"):
         for k, runs in _design_type(design_id).min_runs["examples"].items():
-            assert generate_design(factors(int(k)), design_type=design_type).n_runs == runs, (design_id, k)
+            assert generate_design(factors(int(k)), design_type=design_id).n_runs == runs, (design_id, k)
+
+
+def test_the_box_behnken_rule_compares_the_runs_the_knowledge_base_gives() -> None:
+    """The rule quoted a textbook's 15 against 20 and 27 against 30 runs; the library builds 15 against 17 and 27."""
+    bbd, ccd = (_design_type(d).min_runs["examples"] for d in ("box_behnken", "ccd"))
+    rule = next(r for r in load_knowledge_graph().decision_rules if r.id == "rsm_few_factors_fresh")
+    text = " ".join(rule.explanation["expert"].split())
+    assert f"BBD needs {bbd['3']} runs against {ccd['3']} for a CCD at k=3" in text
+    assert bbd["4"] == ccd["4"]
+    assert f"the same {bbd['4']} at k=4" in text
+    assert f"({bbd['6']} against {ccd['6']})" in text
 
 
 def test_foldover_raises_the_resolution_of_a_resolution_iii_fraction_only() -> None:
@@ -520,6 +531,194 @@ def test_foldover_raises_the_resolution_of_a_resolution_iii_fraction_only() -> N
     assert "raises resolution by one" not in text
     assert "resolution III" in text
     assert "resolution IV fraction does not" in text
+
+
+# ---------------------------------------------------------------------------
+# The design types and concepts added for the catalog's families (#1475)
+# ---------------------------------------------------------------------------
+
+
+def test_run_examples_of_arrays_mixtures_and_supersaturated_designs_are_what_the_library_builds() -> None:
+    """A Taguchi array, a mixture design and a supersaturated design each have the runs the knowledge base gives."""
+    from process_improve.experiments import generate_design
+    from process_improve.experiments.factor import Factor
+
+    def two_level(k: int) -> list[Factor]:
+        return [Factor(name=f"X{i}", low=0, high=1) for i in range(k)]
+
+    def three_level(k: int) -> list[Factor]:
+        return [Factor(name=f"C{i}", type="categorical", levels=["a", "b", "c"]) for i in range(k)]
+
+    for key, runs in _design_type("taguchi").min_runs["examples"].items():
+        k, _, levels = key.partition("_")
+        factors = {"two_level": two_level, "three_level": three_level}[levels](int(k))
+        assert generate_design(factors, design_type="taguchi").n_runs == runs, key
+    for q, runs in _design_type("mixture").min_runs["examples"].items():
+        components = [Factor(name=f"M{i}", type="mixture", low=0, high=1) for i in range(int(q))]
+        assert generate_design(components, design_type="mixture").n_runs == runs, q
+        assert runs == int(q) * (int(q) + 1) // 2 + 1, "the pure components, the 50:50 blends and the centroid"
+    for k, runs in _design_type("supersaturated").min_runs["examples"].items():
+        assert generate_design(two_level(int(k)), design_type="supersaturated").n_runs == runs, k
+        assert runs <= int(k), "no more runs than factors"
+
+
+@pytest.mark.parametrize("design_id", ["d_optimal", "i_optimal"])
+def test_an_optimal_design_needs_a_run_for_each_coefficient_of_its_model(design_id: str) -> None:
+    """The examples are the sizes of the full quadratic model: with one run fewer the library refuses it."""
+    from process_improve.experiments import generate_design
+    from process_improve.experiments.factor import Factor
+
+    for k, runs in _design_type(design_id).min_runs["examples"].items():
+        factors = [Factor(name=f"X{i}", low=0, high=1) for i in range(int(k))]
+        assert runs == (int(k) + 1) * (int(k) + 2) // 2
+        with pytest.raises(ValueError, match=f"has {runs} coefficients"):
+            generate_design(factors, design_type=design_id, model_type="quadratic", budget=runs - 1)
+
+
+def test_an_optimal_design_repeats_runs_at_one_size_and_not_at_another() -> None:
+    """The entry said an optimal design has no repeated runs unless they are asked for. The library's own do.
+
+    A D-optimal design repeats a point when repeating it scores best: eight runs for the main effects of two
+    factors are the four corners, twice. With as many runs as its model has coefficients it repeats none.
+    """
+    from process_improve.experiments import generate_design
+    from process_improve.experiments.factor import Factor
+
+    def distinct_points(k: int, model_type: str, budget: int) -> int:
+        factors = [Factor(name=f"X{i}", low=0, high=1) for i in range(k)]
+        built = generate_design(factors, design_type="d_optimal", model_type=model_type, budget=budget, random_state=0)
+        return len({tuple(row) for row in built.design[built.factor_names].to_numpy(dtype=float).round(6)})
+
+    assert distinct_points(2, "main_effects", 8) == 4, "each corner twice, with nothing asked for"
+    assert distinct_points(3, "quadratic", 10) == 10, "ten coefficients, ten runs: none to repeat"
+    design = _design_type("d_optimal")
+    assert "are not planned for" in " ".join(design.description["intermediate"].split())
+    assert not any("only when they are asked for" in line for line in design.disadvantages)
+
+
+def test_the_two_level_taguchi_arrays_are_the_designs_the_knowledge_base_says_they_are() -> None:
+    """L4, L8, L16 and L32 are regular fractions; L12 is a Hadamard array, as the 12-run Plackett-Burman design is.
+
+    In a regular two-level fraction the product of two columns is another column, or its negative. All Hadamard
+    matrices of order 12 are equivalent, so an array that is one, with its column of ones, is the Plackett-Burman
+    design with its rows, columns and signs rearranged.
+    """
+    import itertools
+
+    import numpy as np
+
+    from process_improve.experiments._classical import pbdesign
+    from process_improve.experiments._orthogonal_arrays import orthogonal_array
+
+    def regular(array: np.ndarray) -> bool:
+        n = len(array)
+        return all(
+            n in np.abs((array[:, i] * array[:, j]) @ array)
+            for i, j in itertools.combinations(range(array.shape[1]), 2)
+        )
+
+    coded = {name: orthogonal_array(name) * 2 - 1 for name in ("L4(2^3)", "L8(2^7)", "L12(2^11)", "L16(2^15)")}
+    coded["L32(2^31)"] = orthogonal_array("L32(2^31)") * 2 - 1
+    assert {name: regular(array) for name, array in coded.items()} == {
+        "L4(2^3)": True,
+        "L8(2^7)": True,
+        "L12(2^11)": False,
+        "L16(2^15)": True,
+        "L32(2^31)": True,
+    }
+    for columns in (coded["L12(2^11)"], pbdesign(11)):
+        hadamard = np.column_stack([np.ones(12), columns])
+        assert np.array_equal(hadamard.T @ hadamard, 12 * np.eye(12))
+    text = " ".join(_design_type("taguchi").description["expert"].split())
+    assert "L4, L8, L16 and L32 are regular 2^(k-p) fractions" in text
+    assert "L12 is equivalent to the 12-run Plackett-Burman design" in text
+
+
+def test_what_a_card_shows_of_a_design_type_is_in_plain_words() -> None:
+    """The catalog's page shows these lists to a reader new to a design, with no symbol or abbreviation to explain.
+
+    "More runs than BBD for same k" and "Five levels per factor (if alpha != 1)" were written for a reader who
+    knows the field. A phrase is one line of a card: it has no period, and at most 110 characters.
+    """
+    import re
+
+    unexplained = re.compile(r"\b(k|N|BBD|CCD|RSM|DSD|PB|2FI|alpha)\b|[~<>]|!=")
+    # A line is a sentence, not a label: a range of factors with a dash and "Add center + axial points" were
+    # labels. The card's heading says "Use it when", so a line under it does not say "When" again.
+    label = re.compile(r"\d\u2013\d| - | \+ ")
+    for design in load_knowledge_graph().design_types.values():
+        shown = [*design.suitable_for, *design.disadvantages, *(step["method"] for step in design.can_augment_to)]
+        assert design.suitable_for, design.id
+        assert design.disadvantages, design.id
+        assert not unexplained.search(design.description["novice"]), f"{design.id}: what the card says it is"
+        for phrase in shown:
+            assert not unexplained.search(phrase), f"{design.id}: {phrase}"
+            assert not label.search(phrase), f"{design.id}: {phrase}"
+            assert not (phrase in design.suitable_for and phrase.startswith("When ")), f"{design.id}: {phrase}"
+            assert not phrase[0].islower(), f"{design.id}: {phrase}"
+            assert not phrase.endswith("."), f"{design.id}: {phrase}"
+            assert len(phrase) <= 110, f"{design.id}: {phrase}"
+
+
+def test_a_central_composite_design_has_as_many_runs_as_a_box_behnken_design_or_more() -> None:
+    """The entry said a central composite design has more runs for the same number of factors. At four it has as many.
+
+    The two designs are compared by the runs ``generate_design`` builds for them, the composite design on a
+    full factorial, as the entries now say: as many or more, and far more from six factors on. A Box-Behnken
+    design has no run at a corner of the cube, so no added runs make it a central composite design: the entry
+    named that as a next step.
+    """
+    from process_improve.experiments import generate_design
+    from process_improve.experiments.factor import Factor
+
+    runs = {}
+    for k in range(3, 8):
+        factors = [Factor(name=f"X{i}", low=-1, high=1) for i in range(k)]
+        # Axial points on the faces of the cube: the same number of runs, and none outside the factors' ranges.
+        built = {
+            "ccd": generate_design(factors, design_type="ccd", alpha="face_centered"),
+            "box_behnken": generate_design(factors, design_type="box_behnken"),
+        }
+        runs[k] = (built["ccd"].n_runs, built["box_behnken"].n_runs)
+        at_an_extreme = (built["box_behnken"].design[built["box_behnken"].factor_names].abs() == 1).sum(axis=1)
+        assert set(at_an_extreme) <= {0, 2, 3}, f"{k} factors: two or three factors high or low in a run, or none"
+    assert all(composite >= behnken for composite, behnken in runs.values()), runs
+    assert runs[4][0] == runs[4][1], "as many at four factors: 'more' was not true of every number"
+    assert all(runs[k][0] > 1.5 * runs[k][1] for k in (6, 7)), runs
+    assert "as many runs as a Box-Behnken design or more" in _design_type("ccd").disadvantages[0]
+    assert _design_type("box_behnken").can_augment_to == []
+    assert "sets two or three of the factors high or low" in " ".join(
+        _design_type("box_behnken").description["novice"].split()
+    )
+
+
+def test_every_node_a_concept_names_as_related_exists() -> None:
+    """``randomization`` named ``split_plot`` as related before the knowledge base had the concept."""
+    graph = load_knowledge_graph()
+    nodes = set(graph.design_types) | set(graph.concepts) | set(graph.diagnostics)
+    missing = {
+        (concept.id, name) for concept in graph.concepts.values() for name in concept.related_to if name not in nodes
+    }
+    assert not missing
+
+
+@pytest.mark.parametrize(
+    ("query", "topic", "found"),
+    [
+        ("Taguchi orthogonal array", "design_types", "taguchi"),
+        ("mixture of ingredients", "design_types", "mixture"),
+        ("supersaturated", "design_types", "supersaturated"),
+        ("split-plot design", "statistical_concepts", "split_plot"),
+        ("Latin square", "statistical_concepts", "latin_square"),
+    ],
+)
+def test_the_tool_answers_on_a_family_of_the_catalog(query: str, topic: str, found: str) -> None:
+    assert doe_knowledge(query=query, topic=topic)["results"][0]["id"] == found
+
+
+def test_the_tool_answers_on_optimal_designs_by_either_criterion() -> None:
+    found = {result["id"] for result in doe_knowledge(query="optimal design", topic="design_types")["results"]}
+    assert {"d_optimal", "i_optimal"} <= found
 
 
 # ---------------------------------------------------------------------------

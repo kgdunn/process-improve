@@ -28,6 +28,7 @@ import signal
 import subprocess
 import sys
 import time
+from collections import Counter
 from pathlib import Path
 
 import numpy as np
@@ -41,15 +42,36 @@ LIB = os.environ.get("DOE_LIB", "pyDOE3")
 OUT = Path(os.environ.get("DOE_OUT", "."))
 DEXPY_PYTHON = os.environ.get("DEXPY_PYTHON", "python")  # dexpy needs pandas 1.x: an interpreter of its own
 ARG = sys.argv[1] if len(sys.argv) > 1 else "20"  # a seed for a sample of 20, or "all"
-SEED, N_SAMPLE, TIMEOUT_S = (0 if ARG == "all" else int(ARG)), (None if ARG == "all" else 20), 60
+SEED, N_SAMPLE = (0 if ARG == "all" else int(ARG)), (None if ARG == "all" else 20)
+TIMEOUT_S = int(os.environ.get("DOE_TIMEOUT", "60"))  # the seconds one check may take, in either library
+ONLY = set(filter(None, os.environ.get("DOE_ENTRIES", "").split(",")))  # these entries alone, for a second look
 
 pyDOE3 = importlib.import_module(LIB) if LIB in ("pyDOE3", "pydoe") else None  # noqa: N816 - the package's name
 _star = (getattr(pyDOE3, "star", None) or pyDOE3.doe_star.star) if pyDOE3 else None
 _ENGINE = [LIB]  # the package that built the design of the check in hand
+_SIDE = ["process_improve"]  # which library builds the designs: "process_improve" or "other"
+_DECLINED = [False]  # rsm declined the axial distance asked for, and built the runs with another
 
 
 class Unsupported(Exception):  # noqa: N818 - pyDOE3 has no construction for this request
     pass
+
+
+def _center_total(opts: dict) -> int:
+    """Return the center runs asked for, in all: a number, or the sum of those given block by block."""
+    centers = opts.get("n_center_points") or 0
+    return int(sum(centers)) if isinstance(centers, (list, tuple)) else int(centers)
+
+
+def _center_split(opts: dict, nc: int, cube_blocks: int = 1) -> list[int]:
+    """Return the center runs of each cube block and of the axial block: as given, else as process-improve puts them.
+
+    process-improve puts half the total, rounded down, with the cube runs, shared out among the cube blocks in turn.
+    """
+    centers = opts.get("n_center_points")
+    if isinstance(centers, (list, tuple)):
+        return [int(centers[0]), int(centers[-1])]
+    return [(nc // 2) // cube_blocks, nc - ((nc // 2) // cube_blocks) * cube_blocks]
 
 
 # --------------------------------------------------------------------------- pyDOE3 constructions
@@ -145,8 +167,8 @@ def _ccd(k: int, opts: dict, names: list[str]) -> tuple[np.ndarray, float]:
         raise Unsupported(f"no {alpha!r} axial distance in ccdesign or star")
     face = {"face_centered": "faced", "inscribed": "inscribed"}.get(alpha, "circumscribed")
     kind = alpha if alpha in ("rotatable", "orthogonal") else "rotatable"
-    nc = int(opts.get("n_center_points") or 0)
-    center = (nc // 2, nc - nc // 2)
+    nc = _center_total(opts)
+    center = tuple(_center_split(opts, nc))
     if opts.get("cube") == "fractional":
         gens, res = opts.get("generators"), opts.get("resolution")
         if not gens and not res:  # the same default as process-improve: the half fraction, last = all others
@@ -175,7 +197,7 @@ def pydoe3_generate_design(factors, design_type=None, **opts):  # noqa: C901
     blocked = opts.get("n_blocks") or opts.get("block_generators")
     if blocked:
         return _blocked(factors, design_type, opts)
-    nc = int(opts.get("n_center_points") or 0)
+    nc = _center_total(opts)
     gens = rel = res = alpha = None
     centers_inside = False
     if design_type == "full_factorial":
@@ -219,7 +241,7 @@ def pydoe3_generate_design(factors, design_type=None, **opts):  # noqa: C901
 def _blocked(factors, design_type, opts):  # noqa: ANN202
     """Pydoe's blocked designs: block_full_factorial (generators given), block_ccdesign (two blocks, full cube)."""
     names, k = [f.name for f in factors], len(factors)
-    nc = int(opts.get("n_center_points") or 0)
+    nc = _center_total(opts)
     if design_type == "full_factorial" and opts.get("block_generators") and hasattr(pyDOE3, "block_full_factorial"):
         m, labels = pyDOE3.block_full_factorial(k, [tuple(names.index(c) for c in g) for g in opts["block_generators"]])
     elif design_type == "full_factorial":
@@ -231,7 +253,7 @@ def _blocked(factors, design_type, opts):  # noqa: ANN202
         and opts.get("alpha") in (None, "orthogonal")
         and hasattr(pyDOE3, "block_ccdesign")
     ):
-        m, labels = pyDOE3.block_ccdesign(k, center=(nc // 2, nc - nc // 2))
+        m, labels = pyDOE3.block_ccdesign(k, center=tuple(_center_split(opts, nc)))
         nc = 0
     else:
         raise Unsupported(f"no blocking for a {design_type} design with these options")
@@ -257,7 +279,7 @@ def other_generate_design(factors, design_type=None, **opts):
     _BUILT[0] = True
     if opts.get("n_blocks") or opts.get("block_generators"):
         raise Unsupported(f"{LIB} has no blocking")
-    k, nc = len(factors), int(opts.get("n_center_points") or 0)
+    k, nc = len(factors), _center_total(opts)
     deadline = time.monotonic() + TIMEOUT_S - 5
     if LIB == "dsdpkg" and design_type == "dsd":
         import definitive_screening_design as dsdp  # noqa: PLC0415
@@ -315,7 +337,7 @@ def dexpy_generate_design(factors, design_type=None, **opts):  # noqa: C901
     _BUILT[0] = True
     if opts.get("n_blocks") or opts.get("block_generators"):
         raise Unsupported("dexpy has no blocking")
-    names, k, nc = [f.name for f in factors], len(factors), int(opts.get("n_center_points") or 0)
+    names, k, nc = [f.name for f in factors], len(factors), _center_total(opts)
     gens = rel = res = alpha = None
     inside = False
     if any(f.levels for f in factors):
@@ -462,10 +484,12 @@ def _r_ccd(k: int, opts: dict, names: list[str], nc: int) -> tuple[np.ndarray, f
     n_blocks = opts.get("n_blocks")
     alpha = opts.get("alpha", "orthogonal" if n_blocks else "rotatable")  # as process-improve, when blocked
     cube_blocks = (n_blocks or 2) - 1
-    if nc % (cube_blocks + 1) == 0:  # rsm takes center runs per block: equal counts when they divide
+    if isinstance(opts.get("n_center_points"), (list, tuple)):  # given block by block, as rsm takes them
+        n0 = _center_split(opts, nc)
+    elif nc % (cube_blocks + 1) == 0:  # rsm takes center runs per block: equal counts when they divide
         n0 = [nc // (cube_blocks + 1)] * 2
     else:  # else process-improve's split: half to the cube portion, the rest to the star
-        n0 = [(nc // 2) // cube_blocks, nc - ((nc // 2) // cube_blocks) * cube_blocks]
+        n0 = _center_split(opts, nc, cube_blocks)
     req = {"kind": "ccd", "k": k, "n0": n0, "inscribed": alpha == "inscribed"}
     req["alpha"] = (
         alpha if not isinstance(alpha, str) else {"face_centered": "faces", "inscribed": "rotatable"}.get(alpha, alpha)
@@ -492,6 +516,7 @@ def _r_ccd(k: int, opts: dict, names: list[str], nc: int) -> tuple[np.ndarray, f
         # rsm declines "rotatable" on a cube below resolution V. Build the same runs with the star on the faces,
         # so that run counts can still be read, and report no axial distance.
         out, declined = r({**req, "alpha": "faces"}), True
+        _DECLINED[0] = True
     m = np.array(out["matrix"], float)[:, order]
     blocks = np.array(out["blocks"]) if n_blocks and out.get("blocks") else None
     return m, float("nan") if declined else float(np.abs(m).max()), blocks
@@ -501,7 +526,7 @@ def r_generate_design(factors, design_type=None, **opts):  # noqa: C901, PLR0912
     """generate_design's signature, built with FrF2, DoE.base, rsm or daewr."""
     _BUILT[0] = True
     names, k = [f.name for f in factors], len(factors)
-    nc = int(opts.get("n_center_points") or 0)
+    nc = _center_total(opts)
     lv = [len(f.levels) if f.levels else 2 for f in factors]
     gens = rel = res = alpha = blocks = None
     inside = False
@@ -580,10 +605,16 @@ def r_min_aberration(n_runs: int, k: int) -> list[str]:
     return _relation_from_matrix(m, list(rc._LETTERS[:k]))[0]
 
 
+@functools.cache
+def _pydoe3_fraction(k: int, p: int) -> str:
+    """Return the generators of pydoe's search, once per size: it scores every set, for up to 4.9 hours (11 factors)."""
+    return pyDOE3.fracfact_opt(k, p)[0]
+
+
 def pydoe3_min_aberration(n_runs: int, k: int) -> list[str]:
     _BUILT[0] = True
     p = k - int(np.log2(n_runs))
-    gen = pyDOE3.fracfact_opt(k, p)[0]
+    gen = _pydoe3_fraction(k, p)
     letters = list(rc._LETTERS[:k])
     gens, _, _ = _relation_from_matrix(pyDOE3.fracfact(gen), letters)
     return gens
@@ -609,6 +640,7 @@ def built_by(engine: str):
 
         return inner
 
+    _SIDE[0] = engine
     if engine == "other":
         if LIB == "R":
             rc.generate_design, rc.minimum_aberration_generators = r_generate_design, r_min_aberration
@@ -635,13 +667,83 @@ def _alarm(*_):  # noqa: ANN202
     raise TimeoutError
 
 
+def _outside_scope(check: dict) -> str | None:
+    """Say why the other package was asked for an axial distance it does not offer, though it built the runs."""
+    design = check.get("design") or {}
+    opts = design.get("options") or {}
+    if _SIDE[0] != "other" or design.get("design_type") != "ccd" or check.get("property") != "alpha":
+        return None
+    if _DECLINED[0]:
+        return "rsm declines a rotatable axial distance on a cube below resolution V"
+    if opts.get("alpha") == "orthogonal" and not opts.get("n_blocks") and _ENGINE[0] in ("rsm", "pydoe", "pyDOE3"):
+        # Davies' orthogonal design, by process-improve's and dexpy's meaning of the word. rsm's and pydoe's
+        # "orthogonal" is the distance for orthogonal blocking, a different design (rsm's help, pydoe's docstring).
+        return f"{_ENGINE[0]}'s 'orthogonal' is the distance for orthogonal blocking, not Davies' orthogonal design"
+    return None
+
+
+def _relabel_levels(
+    first: np.ndarray, second: np.ndarray, *, signs: bool = True, most: int = 200_000
+) -> list[tuple[int, int]] | None:
+    """``relabelling`` for an orthogonal array: any one-to-one map of a column's levels, not only a change of sign.
+
+    An orthogonal array is the same array whatever the order of its runs and columns and the labels of each
+    column's levels, and packages print it in different layouts (Taguchi's tables, DoE.base's, OApackage's).
+    """
+    del signs  # any map of the levels is allowed, a change of sign among them
+    first, second = np.asarray(first, float), np.asarray(second, float)
+    if first.shape[0] != second.shape[0]:
+        return None
+    steps, chosen = [0], []
+
+    def search(j: int, left: list, right: list) -> bool:
+        if j == first.shape[1]:
+            return True
+        want = np.unique(first[:, j])
+        for c in range(second.shape[1]):
+            have = np.unique(second[:, c])
+            if c in chosen or len(have) != len(want):
+                continue
+            for labels in itertools.permutations(want):
+                steps[0] += 1
+                if steps[0] > most:
+                    return False
+                mapped = np.array([dict(zip(have, labels, strict=True))[v] for v in second[:, c]])
+                runs_left, runs_right = [*left, first[:, j]], [*right, mapped]
+                if Counter(map(tuple, np.column_stack(runs_left))) != Counter(map(tuple, np.column_stack(runs_right))):
+                    continue
+                chosen.append(c)
+                if search(j + 1, runs_left, runs_right):
+                    return True
+                chosen.pop()
+        return False
+
+    return [(c, 1) for c in chosen] if search(0, [], []) else None
+
+
+def _same_array(entry: dict, expected: dict, check: dict) -> tuple[str, bool]:
+    """Check an orthogonal array the other package built against the printed one, in any layout (_relabel_levels)."""
+    saved = rc.relabelling
+    rc.relabelling = _relabel_levels
+    try:
+        found, ok = rc._reproduce(entry, expected, {**check, "relabel": "columns and signs"}, rc._Fits())
+    finally:
+        rc.relabelling = saved
+    return f"the same array in another layout: {found}" if ok else found, ok
+
+
 def check_row(entry: dict, expected: dict, check: dict) -> tuple[bool, str, bool | None]:
     """Return (a design was built, value found, agrees) for one check."""
-    _BUILT[0], _ENGINE[0] = False, LIB
+    _BUILT[0], _ENGINE[0], _DECLINED[0] = False, LIB, False
     signal.signal(signal.SIGALRM, _alarm)
     signal.alarm(TIMEOUT_S)
     try:
         found, ok = rc._reproduce(entry, expected, check, rc._Fits())
+        if why := _outside_scope(check):
+            raise Unsupported(why)  # noqa: TRY301 - a request outside the package, as one it has no function for
+        array = (check.get("design") or {}).get("design_type") == "taguchi"
+        if not ok and _SIDE[0] == "other" and check.get("kind") == "same_runs" and array:
+            found, ok = _same_array(entry, expected, check)
     except Unsupported as exc:
         found, ok = f"unsupported: {exc}", None
     except TimeoutError:
@@ -672,6 +774,7 @@ def main() -> None:
     entries = [
         e for e in rc.reference_designs() if any(builds_a_design(c) for x in e["expected"] for c in rc._checks(x))
     ]
+    entries = [e for e in entries if not ONLY or e["name"] in ONLY]
     sample = entries if N_SAMPLE is None else random.Random(SEED).sample(entries, N_SAMPLE)  # noqa: S311
     rows = []
     for entry in sample:

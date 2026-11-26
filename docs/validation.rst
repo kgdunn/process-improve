@@ -6,7 +6,8 @@ Validation
 This page records how the numbers this package computes are checked against references that
 do not depend on it: what a source prints, and what other software computes. Each comparison
 names its reference, with its version and date, and gives its result and what it found. The
-last sections say what the comparisons do not show, and how to repeat them.
+last sections say what the comparisons do not show, and how to repeat them. The page
+`Is it accurate? <https://factori.al/validation.html>`__ sums it up on one screen.
 
 .. list-table:: The comparisons
    :header-rows: 1
@@ -20,7 +21,7 @@ last sections say what the comparisons do not show, and how to repeat them.
      - The test suite recomputes every printed number on every change
        (:ref:`validation-sources`).
    * - How a design is built
-     - Nine packages in R and Python
+     - Eight packages in R and Python
      - Each package builds the same designs, and one checker measures both
        (:ref:`validation-designs`).
    * - Mixed models, sensory analysis, latent variable models, control charts and regression
@@ -132,16 +133,20 @@ patterns, axial distances and block arrangements.
 checker: on the design process-improve builds, and on the design the other package builds.
 Only the construction changes, so a difference is a difference in the design.
 
-.. csv-table:: Design construction against other packages, 22 November 2026 (commit ``37f81b6``); pydoe 1.7.0 on 23 November (commit ``22f507f``)
+.. csv-table:: Design construction against other packages, 22 to 25 November 2026
    :file: validation/design_crosscheck.csv
    :header-rows: 1
-   :widths: 30 38 8 8 8 8
+   :widths: 30 42 8 12 8
 
 How to read the table:
 
-- **Checks** are the numbers of the kinds of design the package builds. **Agree** means both
-  packages give the number the source prints. **Differ** means they give different answers.
-  **Not built** means the package has no design for the request, or declines it.
+- **Checks** are the printed numbers measured on a design the package built. **As printed**
+  means the package gives the number the source prints. **Differ** means it gives another.
+  Each package is measured against the source, as process-improve is: a number that only
+  process-improve misses is process-improve's finding (:ref:`validation-findings`).
+- A request outside what a package offers, such as blocks or a kind of design it does not
+  build, is not counted: it is the package's scope, not a fault. Each package's section below
+  says what it does not offer.
 - The numbers that neither package gives as printed are left out: the catalog records their
   cause, most often a misprint in the source.
 - No package here builds OMARS designs, so their 47 checks are in no row.
@@ -150,11 +155,10 @@ How to read the table:
   block.
 
 **How independent is each package?** process-improve's two-level factorial, Plackett-Burman,
-Box-Behnken, central composite and Taguchi arrays began as copies of pyDOE3 1.6.2's
-(``experiments/_classical.py``), and a test still compares them element by element. Agreement
-with pyDOE3 and pydoe on those arrays is therefore expected, and is not evidence. The evidence
-from those two packages is where they differ, because each difference was traced to a printed
-source. The R packages, dexpy, OApackage and definitive-screening-design share no code with
+Box-Behnken, central composite and Taguchi arrays began as copies of those of pyDOE3 1.6.2,
+the package that pydoe continues (``experiments/_classical.py``), and a test still compares
+them element by element. Agreement with pydoe on those arrays is therefore expected, and is not
+evidence. The R packages, dexpy, OApackage and definitive-screening-design share no code with
 process-improve.
 
 .. _validation-frf2:
@@ -171,14 +175,17 @@ orthogonal arrays.
 - **Blocks.** FrF2's default blocking confounds interactions of the same orders as the sources
   for every blocked full factorial, and the same alias classes for the blocked fractions of Box
   and Draper (2007), Table 5.14.
-- **Minimum aberration.** For the 30 sizes from 8 to 128 runs that both packages build, the two
-  designs have the same word length pattern. For 69 larger sizes FrF2's catalog has a design
-  and process-improve's search stops at its limit (A12 in `issue 788 <https://github.com/kgdunn/process-improve/issues/788>`__).
-- **Orthogonal arrays.** DoE.base's arrays have the size and the levels of Taguchi's L8, L9,
-  L12, L16 and L27, but not the layout of the printed tables, so the checks that compare runs
-  differ. Their equivalence was not tested.
-- **Not built.** A Plackett-Burman design of 136 runs (Schmidt and Launsby, 2000) and a
-  factorial of one factor.
+- **Minimum aberration.** For all 128 sizes from 8 to 128 runs and up to 50 factors, the two
+  designs have the same word length pattern. Up to 32 runs, and to 11 factors in 64 and 128
+  runs, process-improve searches every generator set. Past that no search of every set ends, so
+  the 78 sizes of 12 to 50 factors in 64 and 128 runs come from a table that a heuristic search
+  wrote (``scripts/minimum_aberration_table.py``), and the tests hold each one to the pattern of
+  the published catalogs, which were searched in full.
+- **Orthogonal arrays.** DoE.base's arrays are Taguchi's L8, L9, L12, L16 and L27 in another
+  layout: the same runs once the order of the runs and columns and the labels of each column's
+  levels are changed. An array is the same array in any layout, so they agree.
+- **Not counted.** A factorial of one factor, which FrF2 does not offer, and a Plackett-Burman
+  design of 136 runs (Schmidt and Launsby, 2000), for the second reason below.
 
 Two observations on FrF2:
 
@@ -205,8 +212,6 @@ Two observations on FrF2:
       # Error in pb.list[[2]][[which(pb.list[[1]] == nruns)]] :
       #   attempt to select less than one element in get1index
 
-:download:`The checks on which DoE.base differs <validation/differences_DoE.base.csv>`.
-
 .. _validation-rsm:
 
 rsm (R)
@@ -215,19 +220,15 @@ rsm (R)
 rsm 2.10.6 built the central composite and Box-Behnken designs.
 
 - **Box-Behnken designs.** No difference.
-- **Central composite designs.** Run counts and axial distances agree: on full and fractional
-  cubes, for a rotatable, a spherical or a given distance, and in blocks.
-- **Center runs in each block.** rsm takes them block by block (``n0``), and so gives axial
-  distances of NIST 5.3.3.6.4 that process-improve does not, because it takes one total (A11 in
-  `issue 788 <https://github.com/kgdunn/process-improve/issues/788>`__).
-- **A rotatable distance on a small cube.** rsm declines ``alpha = "rotatable"`` when the cube is
-  below resolution V, where no distance makes the design rotatable. Box and Draper (2007) print
-  the fourth root of the cube's run count for such cubes, and process-improve gives that number.
-- **The word "orthogonal".** rsm's ``alpha = "orthogonal"`` is the distance for orthogonal
-  blocking. Davies (1956) uses the word for the distance that makes the quadratic terms
-  orthogonal, which is the one process-improve gives for his designs.
-
-:download:`The checks on which rsm differs <validation/differences_rsm.csv>`.
+- **Central composite designs.** No difference. Run counts and axial distances are as printed:
+  on full and fractional cubes, for a rotatable, a spherical or a given distance, and in
+  blocks.
+- **Center runs in each block.** rsm takes them block by block (``n0``), as process-improve does
+  (``n_center_points=[2, 2, 2]``), and both give the axial distances that NIST 5.3.3.6.4 prints.
+- **Outside what rsm offers.** A rotatable distance on a cube below resolution V, where no
+  distance makes the design rotatable: rsm declines it, and Box and Draper (2007) print the
+  fourth root of the cube's run count. Davies' (1956) orthogonal design: rsm's
+  ``alpha = "orthogonal"`` is the distance for orthogonal blocking, a different design.
 
 .. _validation-daewr:
 
@@ -238,11 +239,11 @@ daewr 1.2-11 built the definitive screening designs, with ``DefScreen``.
 
 - **4, 6, 8 and 10 factors.** No difference.
 - **5, 7, 9, 11 and 12 factors.** ``DefScreen`` returns the designs of Jones and Nachtsheim
-  (2011) run for run, which process-improve does not. process-improve builds these sizes from a
-  conference matrix (Xiao, Lin and Bai, 2012): 2m + 3 runs for an odd number of factors m, the
-  run count later sources print, and 25 runs for 12 factors. The checks of run counts, and of
-  the measures that follow from them, therefore differ.
-- **Not built.** Designs for 3 factors, and for more than 12.
+  (2011) run for run, and gives the numbers that paper prints. Later sources print the designs
+  built from a conference matrix (Xiao, Lin and Bai, 2012): 2m + 3 runs for an odd number of
+  factors m, and 25 runs for 12 factors. process-improve builds those, and daewr differs on the
+  20 checks of these later sources: run counts, and the measures that follow from them.
+- **Outside what DefScreen offers.** Designs for 3 factors, and for more than 12.
 
 :download:`The checks on which daewr differs <validation/differences_daewr.csv>`.
 
@@ -267,69 +268,18 @@ correlated, where the conference-matrix designs are orthogonal.
 
 .. _validation-pydoe:
 
-pydoe and pyDOE3 (Python)
-~~~~~~~~~~~~~~~~~~~~~~~~~
+pydoe (Python)
+~~~~~~~~~~~~~~
 
-pyDOE3 1.6.2 is the release process-improve's basic arrays were copied from; it is archived.
-pydoe continues it. The comparison with pydoe 1.6.0 found the six differences below. Each was
-traced to a printed source and reported to pydoe with an example that reproduces it and a
-proposed fix. pydoe merged the six fixes and released them in 1.7.0, the version in the table
-above: the 54 checks on which pydoe 1.6.0 differed now agree.
+pydoe 1.7.0 built every kind of design in the table. No difference.
 
-.. list-table::
-   :header-rows: 1
-   :widths: 58 12 15 15
-
-   * - Difference in pydoe 1.6.0
-     - Checks
-     - Issue
-     - Fixed in 1.7.0 by
-   * - ``bbdesign``: from 6 factors on, not the designs Box and Behnken published
-     - 21
-     - `186 <https://github.com/pydoe/pydoe/issues/186>`__
-     - `190 <https://github.com/pydoe/pydoe/pull/190>`__
-   * - ``small_composite_design``: from 5 factors on, the full quadratic model cannot be fitted
-     - none
-     - `187 <https://github.com/pydoe/pydoe/issues/187>`__
-     - `191 <https://github.com/pydoe/pydoe/pull/191>`__
-   * - ``ccdesign`` and ``star``: the axial distance on a fractional cube uses the run count of
-       the full cube
-     - 17
-     - `188 <https://github.com/pydoe/pydoe/issues/188>`__
-     - `189 <https://github.com/pydoe/pydoe/pull/189>`__
-   * - ``pbdesign``: no design for 28, 36, 44 and other run counts, and a 24-run design that
-       is the 12-run design doubled
-     - 13
-     - `192 <https://github.com/pydoe/pydoe/issues/192>`__
-     - `196 <https://github.com/pydoe/pydoe/pull/196>`__
-   * - Orthogonal arrays: two names that do not describe their arrays, an L64 that is not
-       orthogonal, and no L18 with one two-level column
-     - 1
-     - `193 <https://github.com/pydoe/pydoe/issues/193>`__
-     - `195 <https://github.com/pydoe/pydoe/pull/195>`__
-   * - ``fracfact_by_res``: resolution V returned where the same runs give resolution VI or VII
-     - 2
-     - `194 <https://github.com/pydoe/pydoe/issues/194>`__
-     - `197 <https://github.com/pydoe/pydoe/pull/197>`__
-
-The checks counted are those on which pydoe 1.6.0 differed, 54 in all. Issue 187 was found by
-reading the code, because the comparison built a central composite design from its own cube.
-With pydoe 1.7.0 the comparison uses ``ccdesign(generators=...)``, the fractional cube that
-release added.
-
-- **The word "orthogonal".** Four checks still differ in pydoe 1.7.0, on the axial distances of
-  Davies (1956): ``alpha="orthogonal"`` is the distance for orthogonal blocking, as in rsm. This
-  is a difference of definition, not of the design.
-- **Not built by pydoe.** A blocked factorial without the block generators given, a blocked
-  fraction, a spherical axial distance, and OMARS designs. ``fracfact_opt`` gave no answer in
-  60 seconds for 17 checks.
-- **pyDOE3 1.6.2** differs on 151 checks, 147 more than pydoe 1.7.0. It has none of the six
-  fixes, and it also differs on fractional factorials chosen by resolution or by aberration and
-  on central composite designs with such a cube.
-
-:download:`The four checks on which pydoe 1.7.0 differs <validation/differences_pydoe.csv>`,
-:download:`the 58 on which pydoe 1.6.0 differed <validation/differences_pydoe_1.6.0.csv>`, and
-:download:`those of pyDOE3 <validation/differences_pyDOE3.csv>`.
+- **Outside what pydoe offers.** A blocked factorial whose block generators the source does not
+  give, a blocked fraction, and a spherical axial distance. Davies' (1956) orthogonal design:
+  pydoe's ``alpha="orthogonal"`` is the distance for orthogonal blocking, as in rsm.
+- **Slow searches.** ``fracfact_opt`` searches every generator set, so a fraction of 10 or 11
+  factors takes minutes to hours: 7 minutes for a 2\ :sup:`10-4` fraction and 4.9 hours for a
+  2\ :sup:`11-4` fraction. The 14 checks of these sizes were run with each search done once, and
+  all agree.
 
 .. _validation-dexpy:
 
@@ -340,9 +290,10 @@ dexpy 0.12, from Stat-Ease, built two-level factorials, Box-Behnken designs and 
 composite designs on a full cube.
 
 - **What it builds agrees.** No difference.
-- **Not built.** dexpy chooses a fraction from its run count: it takes no generators, no
-  resolution and no blocks, so most of the catalog's fractions cannot be asked of it. It has
-  no central composite design on a fractional cube, and no factor with more than two levels.
+- **Outside what dexpy offers.** dexpy chooses a fraction from its run count: it takes no
+  generators, no resolution and no blocks, so most of the catalog's fractions cannot be asked of
+  it. It has no central composite design on a fractional cube, and no factor with more than two
+  levels.
 
 .. _validation-oapackage:
 
@@ -353,20 +304,17 @@ OApackage 2.7.21 built the definitive screening designs, from the conference des
 enumerates, and the orthogonal arrays, by extending an array one column at a time.
 
 - **Definitive screening designs.** No difference, for an even or an odd number of factors.
-- **Orthogonal arrays.** The 12-run array has the size and the levels of Taguchi's L12 but not
-  the layout of the printed table, so the one check that compares its runs differs. The others
-  agree.
-- **Not built.** The search for a 24-factor design did not end in 60 seconds.
-
-:download:`The check on which OApackage differs <validation/differences_oapackage.csv>`.
+- **Orthogonal arrays.** No difference. The 12-run array is Taguchi's L12 in another layout,
+  as DoE.base's arrays are (:ref:`validation-frf2`).
+- **Not counted.** The search for a 24-factor design did not end in 3 minutes.
 
 .. _validation-dsd-package:
 
 definitive-screening-design (Python)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-definitive-screening-design 0.5.1 built the definitive screening designs. No difference, and
-nothing not built.
+definitive-screening-design 0.5.1 built every definitive screening design asked of it. No
+difference.
 
 Three packages therefore build these designs alike, from a conference matrix: process-improve,
 OApackage and definitive-screening-design. daewr returns the earlier designs.
@@ -466,9 +414,8 @@ What the comparisons found
        its own data give.
      - `Reproduced from the books <https://factori.al/catalog/reproduced/>`__
    * - pydoe
-     - Six differences from the printed sources in pydoe 1.6.0, in ``bbdesign``,
-       ``small_composite_design``, ``ccdesign``, ``pbdesign``, the orthogonal arrays and
-       ``fracfact_by_res``. All six are fixed in pydoe 1.7.0.
+     - Six differences from the printed sources, each reported with a fix. pydoe 1.7.0, the
+       release compared here, has all six fixes.
      - :ref:`validation-pydoe`
    * - FrF2
      - A blocking that confounds a two-factor interaction where the default confounds none,
@@ -479,8 +426,9 @@ What the comparisons found
        factors.
      - :ref:`validation-daewr`
    * - process-improve
-     - No way to give the center runs of each block of a central composite design, and a
-       minimum-aberration search that stops where published designs exist.
+     - Two gaps, both closed: minimum-aberration designs that the search did not reach, in 32,
+       64 and 128 runs, and no way to give the center runs of each block of a central composite
+       design.
      - A11 and A12 in `issue 788 <https://github.com/kgdunn/process-improve/issues/788>`__
    * - process-improve
      - 1,555 printed numbers that need a function the library does not have yet, 275 that
@@ -497,10 +445,10 @@ What this page does not show
   checks the criteria of the designs a source prints.
 - **OMARS designs have no second implementation here.** They are checked against the papers
   that define them only.
-- **Equal numbers, not equal layouts.** A design passes when it gives the printed numbers. Two
-  orthogonal arrays that differ in the order of their rows and columns were not tested for
-  equivalence.
-- **Agreement with pyDOE3 on the basic arrays is by construction**, as said above.
+- **Equal numbers, and equal arrays.** A design passes when it gives the printed numbers. An
+  orthogonal array that another package lays out differently passes when a change of the order
+  of its runs and columns and of its level labels gives the printed array.
+- **Agreement with pydoe on the basic arrays is by construction**, as said above.
 - **A result is one run.** The versions and dates are those named in each table. A later
   release of a package can change its row.
 - **The references have limits too.** The SIMCA-P values are from version 14.1, recorded in

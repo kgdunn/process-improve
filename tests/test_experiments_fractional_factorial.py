@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 
 from process_improve.experiments import Factor, generate_design
-from process_improve.experiments.designs_screening import _MIN_ABERRATION, _TABLE_LETTERS
+from process_improve.experiments.designs_screening import _MAX_TABULATED_FACTORS, _MIN_ABERRATION, _TABLE_LETTERS
 from process_improve.experiments.evaluate import evaluate_design
 
 NAMES = "ABCDEFGHJKLMN"
@@ -178,13 +178,18 @@ class TestTable:
     """Every entry of the table is a minimum-aberration fraction."""
 
     def test_every_run_count_is_listed(self) -> None:
-        """Each k lists every fraction from the smallest (resolution III) to the quarter fraction.
+        """Each k up to 11 lists every fraction from the smallest (resolution III) to the quarter fraction.
 
         The selection returns the half fraction when no entry reaches a resolution; that
-        is only right if no smaller fraction is missing.
+        is only right if no smaller fraction is missing. From 12 factors on the table lists
+        the fractions of 32, 64 and 128 runs that the search reads when it is too slow to run
+        (tests/test_experiments_trade_off.py pins them).
         """
-        assert set(_MIN_WLP) == {(k, n) for k, cells in _MIN_ABERRATION.items() for n in cells}
-        for k, cells in _MIN_ABERRATION.items():
+        listed = {k: cells for k, cells in _MIN_ABERRATION.items() if k <= _MAX_TABULATED_FACTORS}
+        assert set(_MIN_WLP) == {(k, n) for k, cells in listed.items() for n in cells}
+        larger = {k: set(cells) for k, cells in _MIN_ABERRATION.items() if k > _MAX_TABULATED_FACTORS}
+        assert larger == {k: ({32} if k <= 25 else set()) | {64, 128} for k in range(12, 51)}
+        for k, cells in listed.items():
             smallest = math.ceil(math.log2(k + 1))  # 2^m runs hold at most 2^m - 1 factors
             assert sorted(cells) == [2**m for m in range(smallest, k - 1)], k
 
@@ -392,15 +397,15 @@ class TestBudgetSizesTheFraction:
             generate_design(
                 [Factor(name=f"X{i}", low=-1, high=1) for i in range(12)],
                 design_type="fractional_factorial",
-                budget=64,
+                budget=256,
                 n_center_points=0,
             )
 
     def test_more_factors_than_the_search_names_raises(self) -> None:
-        """The generator search names 25 factors; a fraction of 26 other than the half needs generators."""
-        with pytest.raises(ValueError, match="No minimum-aberration fraction of 26 factors"):
+        """The generator search names 50 factors; a fraction of 51 other than the half needs generators."""
+        with pytest.raises(ValueError, match="No minimum-aberration fraction of 51 factors"):
             generate_design(
-                [Factor(name=f"X{i}", low=-1, high=1) for i in range(26)],
+                [Factor(name=f"X{i}", low=-1, high=1) for i in range(51)],
                 design_type="fractional_factorial",
                 budget=64,
                 n_center_points=0,

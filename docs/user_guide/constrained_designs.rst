@@ -120,7 +120,9 @@ Combining with other options
 * ``fixed_runs`` keeps runs already performed (continuous factors in coded units,
   categorical as labels) and fills the rest of the budget around them. A fixed run
   outside the region is kept and a warning is logged.
-* ``hard_to_change`` (split-plot) is not available together with constraints; it is
+* ``hard_to_change`` (split-plot) keeps to the constraints too, on the grid of levels
+  inside them, and keeps ``fixed_runs`` as the design's first runs: a whole plot that
+  holds one keeps its hard-to-change settings. With a candidate set or blocks it is
   ignored and recorded as ``metadata["hard_to_change_ignored"]``.
 * Other design types do not enforce constraints. They log a warning and set
   ``metadata["constraints_enforced"] = False``. A constraint that names a categorical
@@ -603,7 +605,8 @@ at the boundary.
 These designs come from the built-in exchange, which is the default for every optimal
 design, so the same call gives the same design whether or not the optional pyoptex
 package is installed. A split-plot design (``hard_to_change``) comes from the built-in
-coordinate exchange; pyoptex is used only when asked for with ``backend="pyoptex"``.
+coordinate exchange. pyoptex is used only when asked for with ``backend="pyoptex"``,
+which is deprecated since 2.7.0 and will be removed in 3.0.
 
 Choosing runs from a list: candidate sets
 -----------------------------------------

@@ -30,15 +30,16 @@ import itertools
 import math
 from dataclasses import dataclass, field
 from functools import lru_cache
-from string import ascii_uppercase
+from string import ascii_lowercase, ascii_uppercase
 from typing import TYPE_CHECKING
 
+import numpy as np
 import pandas as pd
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-from process_improve.experiments.designs_screening import _MIN_ABERRATION
+from process_improve.experiments.designs_screening import _MAX_LISTED_WORDS, _MIN_ABERRATION
 from process_improve.experiments.evaluate import (
     _defining_relation_from_generators,
     _multiply_words,
@@ -47,12 +48,16 @@ from process_improve.experiments.evaluate import (
 
 _ROMAN = {3: "III", 4: "IV", 5: "V", 6: "VI", 7: "VII", 8: "VIII", 9: "IX", 10: "X"}
 
-# "I" is the identity column in a defining relation, so it is never a factor name.
-_FACTOR_NAMES = tuple(letter for letter in ascii_uppercase if letter != "I")
+# "I" is the identity column in a defining relation, so it is never a factor name. After Z come the lower-case
+# letters, as FrF2 names factors, so 50 factors have single-letter names.
+_FACTOR_NAMES = tuple(letter for letter in ascii_uppercase + ascii_lowercase if letter not in "Ii")
 
 # Above this many candidate generator sets the exhaustive minimum-aberration
 # search stops being interactive, so it refuses rather than hanging.
 _MAX_CANDIDATE_SETS = 500_000
+
+# The most generator sets scored at once, times the number of codewords: bounds the memory of one step.
+_SCORED_AT_ONCE = 4_000_000
 
 
 @dataclass
@@ -80,10 +85,11 @@ class TradeOffTableEntry:
         complementary fraction, which is equally valid.
     defining_relation : list[str]
         The full defining relation, e.g. ``["I=ABD", "I=ACE", "I=BCDE"]``.
-        Empty for a full factorial.
+        Empty for a full factorial, and for a design of more than ten
+        generators, whose ``2^p - 1`` words are too many to list.
     aliases : list[str]
         Alias chains for the main effects and the two-factor interactions,
-        e.g. ``"A = BD + CE + ..."``. Empty for a full factorial.
+        e.g. ``"A = BD + CE + ..."``. Empty when the defining relation is.
     n_replicates : int
         How many times the full factorial fits into the run budget. ``1`` in
         the usual case; ``2`` means the budget pays for the full factorial
@@ -106,7 +112,7 @@ class TradeOffTableEntry:
 
 
 def _factor_names(k: int) -> list[str]:
-    """Return the first *k* single-letter factor names, skipping ``I``."""
+    """Return the first *k* single-letter factor names: ``A`` to ``Z``, then ``a`` to ``z``, without ``I`` and ``i``."""
     if k > len(_FACTOR_NAMES):
         raise ValueError(f"At most {len(_FACTOR_NAMES)} factors can be given single-letter names; {k} were requested.")
     return list(_FACTOR_NAMES[:k])
@@ -217,19 +223,80 @@ def minimum_aberration_generators(n_runs: int, n_factors: int) -> tuple[str, ...
             "yourself, via the `generators` argument of `generate_design`."
         )
 
-    names = _factor_names(n_factors)
-    extra_names = names[n_base:]
+    return _search_minimum_aberration(n_base, n_factors)
 
-    best_pattern: tuple[int, ...] | None = None
-    best_generators: tuple[str, ...] = ()
-    for combo in itertools.combinations(candidates, n_extra):
-        generators = tuple(f"{name}={word}" for name, word in zip(extra_names, combo, strict=True))
-        pattern = _word_length_pattern(generators, names, n_factors)
-        if best_pattern is None or pattern < best_pattern:
-            best_pattern = pattern
-            best_generators = generators
 
-    return best_generators
+def _krawtchouk(n_factors: int) -> np.ndarray:
+    """Return ``K[w, j]``, the Krawtchouk polynomial of degree ``j`` at ``w`` for length ``n_factors``.
+
+    ``K[w, j]`` is the sum over ``i`` of ``(-1)**i * C(w, i) * C(n_factors - w, j - i)``.
+    """
+    return np.array(
+        [
+            [
+                sum((-1) ** i * math.comb(w, i) * math.comb(n_factors - w, j - i) for i in range(min(w, j) + 1))
+                for j in range(n_factors + 1)
+            ]
+            for w in range(n_factors + 1)
+        ],
+        dtype=np.int64,
+    )
+
+
+def _word_counts(n_base: int, generators: Sequence[str]) -> list[int]:
+    """Return the number of defining words of each length ``0, 1, ..., k`` of a ``2^(k-p)`` design.
+
+    Counted from the ``2**n_base`` weights of the code its columns span, by the MacWilliams identities (see
+    :func:`_search_minimum_aberration`), so a defining relation of millions of words is never listed.
+    """
+    letters = _factor_names(n_base)
+    masks = [1 << i for i in range(n_base)] + [sum(1 << letters.index(c) for c in g.split("=")[1]) for g in generators]
+    kraw = _krawtchouk(len(masks))
+    weights = [sum((u & m).bit_count() & 1 for m in masks) for u in range(2**n_base)]
+    return [sum(int(kraw[w, j]) for w in weights) >> n_base for j in range(len(masks) + 1)]
+
+
+def _search_minimum_aberration(n_base: int, n_factors: int) -> tuple[str, ...]:
+    """Score every generator set of ``2^(k-p)`` with ``k = n_factors`` and ``k - p = n_base``; return the best.
+
+    The columns of the design are vectors of ``n_base`` bits, one per base factor, and its defining words are the
+    words of the dual of the code they span. By the MacWilliams identities the number of words of each length
+    follows from the ``2**n_base`` weights of that code: for each vector ``u``, the number ``w`` of columns with
+    an odd number of bits in common with it. Words of length ``j`` number ``sum(K[w, j]) / 2**n_base``, over the
+    ``u`` (see :func:`_krawtchouk`). A set is then scored from ``2**n_base`` weights, not from its ``2**p`` words,
+    which makes a search of millions of sets take seconds. The sets are scored in the order of
+    ``itertools.combinations`` over :func:`_candidate_words`, and the first set with the smallest word-length
+    pattern is kept, so ties go to the shorter, alphabetically earlier generators.
+    """
+    candidates = _candidate_words(n_base)
+    letters = _factor_names(n_base)
+    n_extra = n_factors - n_base
+    vectors = np.arange(1, 2**n_base)
+    masks = [sum(1 << letters.index(c) for c in word) for word in candidates]
+    odd = np.array([[(u & m).bit_count() & 1 for m in masks] for u in vectors.tolist()], dtype=np.int16)
+    base_weight = np.array([u.bit_count() for u in vectors.tolist()], dtype=np.int16)  # each base factor's column
+    kraw = _krawtchouk(n_factors)
+    lengths = range(3, n_factors + 1)
+    at_once = max(1, _SCORED_AT_ONCE // (len(vectors) * n_extra))
+
+    best: tuple[tuple[int, ...], int] | None = None
+    combos = itertools.combinations(range(len(candidates)), n_extra)
+    start = 0
+    while (chunk := np.array(list(itertools.islice(combos, at_once)), dtype=np.int16)).size:
+        weights = base_weight[:, None] + odd[:, chunk].sum(axis=2)  # (codewords, sets)
+        kept = np.arange(len(chunk))
+        pattern = []
+        for j in lengths:  # lexicographic: keep the sets with the fewest words of each length in turn
+            counts = kraw[weights[:, kept], j].sum(axis=0)
+            fewest = counts.min()
+            pattern.append(int(fewest + kraw[0, j]) >> n_base)
+            kept = kept[counts == fewest]
+        if best is None or tuple(pattern) < best[0]:
+            best = (tuple(pattern), start + int(kept[0]))
+        start += len(chunk)
+
+    chosen = next(itertools.islice(itertools.combinations(candidates, n_extra), best[1], None))  # type: ignore[index]
+    return tuple(f"{name}={word}" for name, word in zip(_factor_names(n_factors)[n_base:], chosen, strict=True))
 
 
 def _check_runs(n_runs: int) -> int:
@@ -341,8 +408,9 @@ def get_trade_off_table_entry(n_runs: int = 8, n_factors: int = 7, display: bool
         # one. So the unsigned `_word_to_str` below is exact; a signed generator would need `_signed_defining_relation`.
         # TestDefiningWordsArePositive fails if one ever arrives.
         generators = list(minimum_aberration_generators(n_runs, n_factors))
-        words = _defining_relation_from_generators(generators, names)
-        resolution = min(len(word) for word in words)
+        listed = 2 ** len(generators) - 1 <= _MAX_LISTED_WORDS  # 2^20 words of 25 factors in 32 runs take hours
+        words = _defining_relation_from_generators(generators, names) if listed else []
+        resolution = next(j for j, count in enumerate(_word_counts(n_base, generators)) if j and count)
         roman = _ROMAN.get(resolution, str(resolution))
         result = TradeOffTableEntry(
             n_runs=n_runs,
@@ -352,7 +420,7 @@ def get_trade_off_table_entry(n_runs: int = 8, n_factors: int = 7, display: bool
             roman=roman,
             generators=generators,
             defining_relation=[f"I={_word_to_str(word, names)}" for word in words],
-            aliases=_alias_chains(generators, names),
+            aliases=_alias_chains(generators, names) if listed else [],
             label=f"2^({n_factors}-{n_factors - n_base}) {roman}",
         )
 
@@ -379,6 +447,8 @@ def _format_entry(result: TradeOffTableEntry) -> str:
     if result.resolution is not None and result.resolution > 3:
         lines.append("      Main effects are not aliased with 2-factor interactions.")
     lines.extend(f"      {chain}" for chain in result.aliases)
+    if not result.aliases:
+        lines.append(f"      Not listed: the defining relation has {2**result.n_generators - 1:,} words.")
     return "\n".join(lines) + "\n"
 
 

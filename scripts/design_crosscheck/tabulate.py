@@ -30,12 +30,11 @@ PACKAGES = {
     "oapackage": "OApackage 2.7.21 (Python)",
     "dsdpkg": "definitive-screening-design 0.5.1 (Python)",
     "pydoe": "pydoe 1.7.0 (Python)",
-    "pyDOE3": "pyDOE3 1.6.2 (Python)",
 }
 WEB = Path(__file__).resolve().parents[2] / "web"
 
-#: A package as the app names it, and its language. pyDOE3 is named but is in no design's list: pydoe is its
-#: successor, so the one line of code is listed once.
+#: A package as the app names it, and its language. Each is reported at its latest release; pyDOE3, which pydoe
+#: continues, has no row.
 SHOWN = {
     "FrF2": ("FrF2", "R"),
     "DoE.base": ("DoE.base", "R"),
@@ -45,7 +44,6 @@ SHOWN = {
     "oapackage": ("OApackage", "Python"),
     "dsdpkg": ("definitive-screening-design", "Python"),
     "pydoe": ("pydoe", "Python"),
-    "pyDOE3": ("pyDOE3", "Python"),
 }
 DIFFERS = ["other differs", "process-improve differs"]
 DESIGNS = {
@@ -69,25 +67,30 @@ def main() -> None:
         mine = mine[
             ~mine["other"].str.contains("harness does not map", na=False)
         ]  # a limit of compare.py, not the package
-        # A package is compared on the kinds of design it builds at least once. A number that neither library
-        # gives as printed is the catalog's subject, not this comparison's.
+        # A package is measured on the designs it built, against the number the source prints, as process-improve
+        # is. A request it does not offer (blocks, a kind of design, an option) or did not finish in time is its
+        # scope, not a fault, and is not counted. A number that neither library gives as printed is the catalog's
+        # subject, not this comparison's; one that only process-improve misses is process-improve's.
         built = mine["outcome"].isin(["agree", "other differs", "process-improve differs"])
         builds = mine.loc[built, "design_type"].unique()
-        mine = mine[mine["design_type"].isin(builds) & (mine["outcome"] != "neither gives the printed number")]
+        mine = mine[built]
         count = mine["outcome"].value_counts()
+        as_printed = count.get("agree", 0) + count.get("process-improve differs", 0)
         table.append(
             {
                 "Package": label,
                 "Designs compared": ", ".join(text for kind, text in DESIGNS.items() if kind in builds),
                 "Checks": f"{len(mine):,}",
-                "Agree": f"{count.get('agree', 0):,}",
-                "Differ": f"{count.get('other differs', 0) + count.get('process-improve differs', 0):,}",
-                "Not built": f"{count.get('other cannot build', 0):,}",
+                "As printed": f"{as_printed:,}",
+                "Differ": f"{count.get('other differs', 0):,}",
             }
         )
-        differs = mine[mine["outcome"].isin(["other differs", "process-improve differs"])]
+        differs = mine[mine["outcome"] == "other differs"]
+        kept = DOCS / f"differences_{name}.csv"
         if len(differs):
-            differs.drop(columns=["design_type", "built_by"]).to_csv(DOCS / f"differences_{name}.csv", index=False)
+            differs.drop(columns=["design_type", "built_by"]).to_csv(kept, index=False)
+        else:
+            kept.unlink(missing_ok=True)
     pd.DataFrame(table).to_csv(DOCS / "design_crosscheck.csv", index=False)
     print(pd.DataFrame(table).to_string(index=False))
     write_checked(rows)
@@ -107,7 +110,7 @@ def write_checked(rows: pd.DataFrame) -> None:
     lists a package only when no check of that size differs, so a design's own note in the app names no package
     that builds that design another way.
     """
-    rows = rows[rows["built_by"].isin(set(SHOWN) - {"pyDOE3"}) & rows["design_type"].isin(DESIGNS)]
+    rows = rows[rows["built_by"].isin(set(SHOWN)) & rows["design_type"].isin(DESIGNS)]
     rows = rows[~rows["other"].str.contains("harness does not map", na=False)]
     rows = rows.assign(factors=rows["design"].str.extract(r"k=(\d+)$", expand=False))
     designs = {}

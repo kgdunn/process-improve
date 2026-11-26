@@ -359,7 +359,7 @@ export function confirmationSentences(group, factors, { label, units }, where = 
     const bounded = group.interval && group.interval.every((end) => end !== null);
     const between = group.interval ? (bounded ? `between ${rangeWords(group.interval, units, "and")}` : rangeWords(group.interval, units)) : null;
     const expect = between ? ` When their average is ${between}, the model holds there.` : "";
-    return [`${head} Enter their results in Run.${expect}`];
+    return [`${head} Enter their results in [Run].${expect}`];
   }
   const some = group.done < group.runs ? ` ${group.done} of ${group.runs} results are in.` : "";
   if (!range) {
@@ -751,7 +751,7 @@ export function balanceConfirmation(group, factors, responses) {
   for (const v of group.responses) {
     const { label, units } = words[v.name];
     if (!v.done) {
-      said.push(`${label}: no result yet; enter it in Run.`);
+      said.push(`${label}: no result yet; enter it in [Run].`);
       continue;
     }
     if (!v.interval) {
@@ -1105,7 +1105,7 @@ export function sliderStep(f) {
 export function whatIfRows(responses) {
   const range = (pair, units) => (pair ? rangeWords(pair, units) : "none");
   return responses.map((r) => {
-    if (r.waiting) return [r.label, "No results yet: enter them in Run.", "", "", ""];
+    if (r.waiting) return [r.label, "No results yet: enter them in [Run].", "", "", ""];
     if (r.error) return [r.label, r.error, "", "", ""];
     const { at } = r;
     const leverage = `${lev(at.leverage)}, ${at.extrapolating ? "above" : "within"} ${lev(at.max_leverage)}`;

@@ -11,8 +11,10 @@ from __future__ import annotations
 
 import contextlib
 import itertools
+import json
 import math
 import warnings
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -28,13 +30,18 @@ if TYPE_CHECKING:
 
     from process_improve.experiments.factor import DesignResult, Factor
 
-# Minimum-aberration 2^(k-p) fractional factorials for 5 to 11 factors, keyed by the number of
-# factors and then by the run count 2^(k-p). Letters name factors by position, in the textbook
-# convention A, B, ..., H, J, K, L (I stands for the identity), and the derived factors are the
-# last p. The half fraction, with the last factor equal to the product of all the others, is
-# built for any k, so it is not listed. The designs are the standard ones (Montgomery, "Design
-# and Analysis of Experiments", Chapter 8); an exhaustive search over every generator set
-# confirmed that each has minimum aberration, and the tests pin its word-length pattern.
+# Minimum-aberration 2^(k-p) fractional factorials for 5 to 11 factors, and in 32 runs for 12 to 25
+# factors, keyed by the number of factors and then by the run count 2^(k-p). Letters name factors
+# by position, in the textbook convention A, B, ..., H, J, K, L, ... (I stands for the identity),
+# and the derived factors are the last p. The half fraction, with the last factor equal to the
+# product of all the others, is built for any k, so it is not listed. The designs for 5 to 11
+# factors are the standard ones (Montgomery, "Design and Analysis of Experiments", Chapter 8); an
+# exhaustive search over every generator set confirmed that each has minimum aberration, and the
+# tests pin its word-length pattern. Those in 32 runs for 12 to 25 factors are what that search
+# (trade_off._search_minimum_aberration) returns, over 0.66 to 10.4 million generator sets each;
+# they are listed because the search takes seconds, and their word-length patterns are those of
+# Chen, Sun and Wu (1993, International Statistical Review 61, 131-145). The fractions of 12 to 50
+# factors in 64 and 128 runs are read from a data file (_read_minimum_aberration_file).
 _MIN_ABERRATION: dict[int, dict[int, tuple[str, ...]]] = {
     5: {8: ("D=AB", "E=AC")},
     6: {16: ("E=ABC", "F=BCD"), 8: ("D=AB", "E=AC", "F=BC")},
@@ -69,8 +76,197 @@ _MIN_ABERRATION: dict[int, dict[int, tuple[str, ...]]] = {
         32: ("F=ABC", "G=BCD", "H=CDE", "J=ACD", "K=ADE", "L=BDE"),
         16: ("E=ABC", "F=BCD", "G=ACD", "H=ABD", "J=ABCD", "K=AB", "L=AC"),
     },
+    12: {32: ("F=ABC", "G=ABD", "H=ABE", "J=ACD", "K=ACE", "L=ADE", "M=BCD")},
+    13: {32: ("F=ABC", "G=ABD", "H=ABE", "J=ACD", "K=ACE", "L=ADE", "M=BCD", "N=BCE")},
+    14: {32: ("F=ABC", "G=ABD", "H=ABE", "J=ACD", "K=ACE", "L=ADE", "M=BCD", "N=BCE", "O=BDE")},
+    15: {32: ("F=ABC", "G=ABD", "H=ABE", "J=ACD", "K=ACE", "L=ADE", "M=BCD", "N=BCE", "O=BDE", "P=CDE")},
+    16: {32: ("F=ABC", "G=ABD", "H=ABE", "J=ACD", "K=ACE", "L=ADE", "M=BCD", "N=BCE", "O=BDE", "P=CDE", "Q=ABCDE")},
+    17: {
+        32: ("F=AB", "G=AC", "H=AD", "J=AE", "K=BCD", "L=BCE", "M=BDE", "N=CDE", "O=ABCD", "P=ABCE", "Q=ABDE", "R=ACDE")
+    },
+    18: {
+        32: (
+            "F=AB",
+            "G=AC",
+            "H=AD",
+            "J=AE",
+            "K=BC",
+            "L=BCD",
+            "M=BCE",
+            "N=BDE",
+            "O=CDE",
+            "P=ABCD",
+            "Q=ABCE",
+            "R=ABDE",
+            "S=ACDE",
+        )
+    },
+    19: {
+        32: (
+            "F=AB",
+            "G=AC",
+            "H=AD",
+            "J=AE",
+            "K=BC",
+            "L=BD",
+            "M=BCD",
+            "N=BCE",
+            "O=BDE",
+            "P=CDE",
+            "Q=ABCD",
+            "R=ABCE",
+            "S=ABDE",
+            "T=ACDE",
+        )
+    },
+    20: {
+        32: (
+            "F=AB",
+            "G=AC",
+            "H=AD",
+            "J=AE",
+            "K=BC",
+            "L=BD",
+            "M=BE",
+            "N=ACD",
+            "O=ACE",
+            "P=ADE",
+            "Q=BCD",
+            "R=BCE",
+            "S=BDE",
+            "T=ACDE",
+            "U=BCDE",
+        )
+    },
+    21: {
+        32: (
+            "F=AB",
+            "G=AC",
+            "H=AD",
+            "J=AE",
+            "K=BC",
+            "L=BD",
+            "M=BE",
+            "N=ACD",
+            "O=ACE",
+            "P=ADE",
+            "Q=BCD",
+            "R=BCE",
+            "S=BDE",
+            "T=ACDE",
+            "U=BCDE",
+            "V=ABCDE",
+        )
+    },
+    22: {
+        32: (
+            "F=AB",
+            "G=AC",
+            "H=AD",
+            "J=AE",
+            "K=BC",
+            "L=BD",
+            "M=BE",
+            "N=ACD",
+            "O=ACE",
+            "P=ADE",
+            "Q=BCD",
+            "R=BCE",
+            "S=BDE",
+            "T=CDE",
+            "U=ABCD",
+            "V=ACDE",
+            "W=BCDE",
+        )
+    },
+    23: {
+        32: (
+            "F=AB",
+            "G=AC",
+            "H=AD",
+            "J=AE",
+            "K=BC",
+            "L=BD",
+            "M=BE",
+            "N=ACD",
+            "O=ACE",
+            "P=ADE",
+            "Q=BCD",
+            "R=BCE",
+            "S=BDE",
+            "T=CDE",
+            "U=ABCD",
+            "V=ABCE",
+            "W=ABDE",
+            "X=ACDE",
+        )
+    },
+    24: {
+        32: (
+            "F=AB",
+            "G=AC",
+            "H=AD",
+            "J=AE",
+            "K=BC",
+            "L=BD",
+            "M=BE",
+            "N=ACD",
+            "O=ACE",
+            "P=ADE",
+            "Q=BCD",
+            "R=BCE",
+            "S=BDE",
+            "T=CDE",
+            "U=ABCD",
+            "V=ABCE",
+            "W=ABDE",
+            "X=ACDE",
+            "Y=BCDE",
+        )
+    },
+    25: {
+        32: (
+            "F=AB",
+            "G=AC",
+            "H=AD",
+            "J=AE",
+            "K=BC",
+            "L=BD",
+            "M=BE",
+            "N=CD",
+            "O=CE",
+            "P=ABC",
+            "Q=ABD",
+            "R=ABE",
+            "S=ACD",
+            "T=ACE",
+            "U=BDE",
+            "V=CDE",
+            "W=ABDE",
+            "X=ACDE",
+            "Y=BCDE",
+            "Z=ABCDE",
+        )
+    },
 }
-_TABLE_LETTERS = "ABCDEFGHJKL"
+_TABLE_LETTERS = "ABCDEFGHJKLMNOPQRSTUVWXYZabcdefghjklmnopqrstuvwxyz"  # without I and i, as trade_off._FACTOR_NAMES
+
+
+def _read_minimum_aberration_file() -> None:
+    """Add the fractions of 12 to 50 factors in 64 and 128 runs to the table.
+
+    No exhaustive search reaches them. ``scripts/minimum_aberration_table.py`` found them, and the tests check
+    that each has the word-length pattern of the published minimum-aberration design that the file's sources give.
+    """
+    path = Path(__file__).resolve().parents[1] / "datasets" / "experiments" / "minimum_aberration.json"
+    for runs, by_factors in json.loads(path.read_text(encoding="utf-8"))["designs"].items():
+        n_base = int(runs).bit_length() - 1
+        for k, words in by_factors.items():
+            named = zip(_TABLE_LETTERS[n_base : int(k)], words.split(), strict=True)
+            _MIN_ABERRATION.setdefault(int(k), {})[int(runs)] = tuple(f"{name}={word}" for name, word in named)
+
+
+_read_minimum_aberration_file()
 _MAX_TABULATED_FACTORS = 11
 
 # (derived factor index, base factor indices): one generator, e.g. D=ABC is (3, [0, 1, 2]).

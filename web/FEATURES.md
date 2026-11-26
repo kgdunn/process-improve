@@ -99,7 +99,9 @@ three mixture designs under a heading of their own.
   number of runs you can afford, inside any limits on the settings.
   - *Details:* For a model of up to 91 coefficients: any model in up to 12 factors, and the
     main effects in up to 40. The three optimal designs take a categorical factor of 2 to 8
-    levels beside the numeric ones, and choose each run's level with its settings.
+    levels beside the numeric ones, and choose each run's level with its settings. Such a
+    factor has no square, and one of L levels is L - 1 coefficients in its main effect and in
+    each of its interactions; the count under Runs, and the runs a design opens with, say so.
 - **I-optimal.** For 2 to 40 factors. The runs that predict best across the ranges, for the
   number of runs you can afford, inside any limits on the settings.
   - *Details:* For a model of up to 91 coefficients, as the D-optimal design is.
@@ -191,7 +193,9 @@ Also:
   precision. A switch sets a design aside.
   - *Details:* Nine measures of each design (precision of the coefficients and of the
     predictions, correlation between terms, power), fraction-of-design-space curves on one
-    chart, and a correlation map of each design.
+    chart, and a correlation map of each design. A categorical factor of two levels has no
+    square, and the predictions are made at its two levels only. With a categorical factor of
+    three levels or more, the designs are listed with their runs, spare runs and power only.
 - **What each factor can be set to.** A pressure cannot go below zero, nor a share past 100.
   Type a factor's lowest or highest possible setting under the factors, and the path of
   steepest ascent stops before it, and the next study's ranges stay inside it.
@@ -788,6 +792,10 @@ Also:
 
 - **Four stages, one page.** One bar at the top holds Design, Run, Learn and Next, each marked
   with how far it has got. It stays in view as the page scrolls.
+- **A stage named in a sentence leads to it.** Where the page says "enter them in Run" or "once
+  Learn has analyzed them", the stage's name is a link, with the dot of that stage, in its
+  color, before it. So is a stage named in the line under the bar, in what Learn says, and in
+  the Feedback dialog, which closes to show it.
 - **The study's name heads the page.** It is under the bar, with the page's width, so a long
   name is read whole on a phone and on a desk.
 - **A new study in one press.** The bar has a button for it, in words, on every stage.
@@ -950,9 +958,16 @@ What a careful reader, or an organization, asks before using a tool.
   - *Details:* One access-log line per request, with the address cut to its network before
     it is written, kept for 366 days to count visits. A usage report for the operator gives
     the visits to each page by day, week or month, from the access log, with nothing of a
-    reader's in it. A link someone posted may name the place it was posted
+    reader's in it, and how long Python took to start where the browser downloaded the
+    app's Python. A link someone posted may name the place it was posted
     (`?ref=newsletter`), so that its visits are counted apart: a word for the place, never
     for a person. The app drops it from the address once open.
+- **How many people used it, in the footer.** Under "Behind it", a line of the last 90 days
+  with a red dot on the last 24 hours, and their count: "30 users, last 24 hours".
+  - *Details:* A user is a network and a browser in a day, so the count is approximate. The
+    server writes the numbers, and nothing else, to a public file each hour, and the footer of
+    every page draws it. A copy of Factorial at another address has no such file and leaves
+    the line out.
 - **Feedback is the one thing sent.** It goes only when you press Send, and holds only what the
   form lists.
   - *Details:* The relay emails it and keeps nothing.
@@ -1004,11 +1019,11 @@ What a careful reader, or an organization, asks before using a tool.
     tests. The reproduction page reports how closely the library gives the numbers its
     sources print.
 - **Checked against other software.** The designs Factorial builds are compared with the
-  designs that nine open-source packages in R and Python build, and a page says where they
+  designs that eight open-source packages in R and Python build, and a page says where they
   differ.
   - *Details:* Each package builds the design a source prints, and the check that measures
     Factorial's design measures the package's too. The packages are FrF2, DoE.base, rsm and
-    daewr in R, and pydoe, pyDOE3, dexpy, OApackage and definitive-screening-design in
+    daewr in R, and pydoe, dexpy, OApackage and definitive-screening-design in
     Python.
 - **Tested before you see it.** Every change is checked by about 3,500 automated tests (Nov
   2026), and only a version that passes is published.
@@ -1028,10 +1043,25 @@ What a careful reader, or an organization, asks before using a tool.
 - **[The design catalog](catalog/).** More than 1,500 published experiments and designs
   (Nov 2026) to search, compare and open in Factorial with one click.
   - *Details:* Published experiments and designs from 22 sources, 1956 to 2026, and designs
-    the library makes. Search in words, filter by family, field, runs, factors and model, and
-    see them counted on a map of factors by runs: a row opens into its families of design,
-    each mark colored by what the design truly estimates, and a press on a cell or a mark
-    lists its designs. The filter for the years has a strip of bars over its two boxes: a
+    the library makes. The page opens on the search and on searches to try. Under them is a
+    table of the designs by size: a row for each number of factors, a column for each band of
+    the number of experiments. A cell's color is the most that a design of that size can tell
+    you: each factor's own effect, how factors act together, or curvature, in three colors of
+    the charts' own color map. A row's number is a button that opens the row into its families
+    of design, each mark colored the same way, and a press on a cell or a mark lists its
+    designs. Search in words, or filter by family, field, runs, factors and model. Where a
+    design is from, a book or paper or Factorial itself, is a filter that says what the two
+    kinds are. The lists by book and by field, and "Is it accurate?", are links at the foot of the page. The list has
+    one line for each design: its family and size, a mark for what it estimates in its cell's
+    color, a small picture of its runs with a key over the list, and a button that opens it in
+    Factorial. Entries that are the same runs are one line: a button under its name says in how
+    many places the design is printed, and opens onto them, each with its source and its own way
+    to open. The count over the list says how many designs it holds, and how many of them are
+    different. A list of one family has the family's card over it: what a design of the family
+    is, when it is used, what to watch for, the families it can lead to, the work that first
+    published it, and a link to it on the concept map. A family's name in an open row of the
+    table is a button that lists the family's designs of the row under that card. The filter
+    for the years has a strip of bars over its two boxes: a
     bar's height is the number of designs published in its five years, and a drag across the
     strip, or a press on a bar, fills the boxes. A design's page links to where its source
     prints it, projects its runs onto two or three factors, and draws its correlation map. A
@@ -1044,8 +1074,8 @@ What a careful reader, or an organization, asks before using a tool.
     feed, and forms to propose a published design or share a case study.
 - **[Is it accurate?](validation.html).** What Factorial is checked against, on one page: the
   books and papers that print its designs, and the other software that builds them.
-  - *Details:* The footer's link and the design catalog's door have the page's name, "Is it
-    accurate?", and both open it. The page counts the sources and the packages, and the differences found: the
+  - *Details:* The footer's link has the page's name, "Is it accurate?", on every page. The
+    page counts the sources and the packages, and the differences found: the
     misprints in the books, the differences reported to other packages, and the gaps in
     Factorial. A grid has a row for each kind of design, with the packages it was compared
     with: a point where a package gives the same design, and a ring where it differs in
@@ -1070,7 +1100,8 @@ What a careful reader, or an organization, asks before using a tool.
 - **[Learn experimental design](map/).** Three ways to learn, on one page with the concept
   map: read the chapter of *Process Improvement using Data*, take the Coursera course
   Experimentation for Improvement, or watch the course's videos on YouTube.
-  - *Details:* The videos are the course's own, without its quizzes and course material. The
+  - *Details:* The course is free to preview on Coursera; its certificate is paid. The videos
+    are the course's own, without its quizzes and course material. The
     book's DOI is under the chapter, as text: one press selects it, to copy. A press anywhere
     on a card follows its link. On a phone the three are one under the other, with the map's
     heading on the first screen.

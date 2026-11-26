@@ -2643,7 +2643,7 @@ def _model_type(spec: dict, design_type: str, k: int) -> str:
     model_type = spec.get("model_type", "quadratic")
     if model_type not in MODELS:
         raise ValueError(f"Unknown model {model_type!r}.")
-    if (n_terms := _n_terms(k, model_type)) > MAX_OPTIMAL_TERMS:
+    if (n_terms := _n_coefficients(model_type, spec)) > MAX_OPTIMAL_TERMS:
         raise ValueError(
             f"The {model_type.replace('_', ' ')} model in {k} factors has {n_terms} coefficients, and the "
             f"{DESIGNS[design_type]['label']} design is made for a model of up to {MAX_OPTIMAL_TERMS} on this page: "
@@ -2689,7 +2689,7 @@ def _budget(spec: dict, design_type: str, k: int, model_type: str | None) -> int
     if design_type == "omars":
         return _omars_runs(spec, k)
     budget = spec.get("budget")
-    n_terms = _n_terms(k, model_type)
+    n_terms = _n_coefficients(model_type, spec)
     if budget and int(budget) < n_terms:
         model = model_type.replace("_", " ")
         raise ValueError(
@@ -3238,7 +3238,7 @@ def _analysis(
     pending = runs.loc[~done, "Run order"].astype(int).tolist() if "Run order" in runs else []
 
     coded = _design_frame(runs, spec, columns)[done].reset_index(drop=True)
-    n_terms = _n_terms(len(columns), fitted)
+    n_terms = _n_coefficients(model, spec)
     if pending and done.sum() < n_terms:
         complete = int(done.sum())
         raise ValueError(
@@ -4794,12 +4794,20 @@ def _analysis_notes(chain_labels: list[str], not_estimable: list[str]) -> list[s
     return notes
 
 
-def _n_terms(k: int, model: str | list[str]) -> int:
-    """Count the coefficients, intercept included, in a named model or a model of chosen terms."""
-    if not isinstance(model, str):
-        return 1 + len(model)
+def _n_terms(k: int, model: str) -> int:
+    """Count the coefficients, intercept included, of a named model in k numeric factors."""
     interactions = k * (k - 1) // 2
     return 1 + k + {"main_effects": 0, "interactions": interactions, "quadratic": interactions + k}[model]
+
+
+def _n_coefficients(model: str | list[str], spec: dict) -> int:
+    """Count the coefficients, intercept included, of a named model or of chosen terms over a study's factors.
+
+    A categorical factor has no square, and one of three levels or more is a column per level but one, in its
+    main effect and in each interaction (logic.js's ``nCoefficients`` mirrors it for a named model).
+    """
+    names = [f["name"] for f in spec["factors"]]
+    return 1 + len(_expanded_terms(_model_terms(model, names, _categorical_names(spec)), spec))
 
 
 def _equation(response: str, coefficients: list[dict]) -> str:
@@ -7404,11 +7412,26 @@ def _effect_size(request: dict) -> float:
     return 1.0
 
 
-def _comparison_formula(model: str, names: list[str]) -> str:
-    """Write the comparison's model as ``evaluate_design`` takes it."""
+def _comparison_formula(model: str, names: list[str], categorical: list[str]) -> str:
+    """Write the comparison's model as ``evaluate_design`` takes it: a categorical factor has no square."""
     if model == "main_quadratic":
-        return " + ".join([*names, *(f"I({n} ** 2)" for n in names)])
+        return " + ".join([*names, *(f"I({n} ** 2)" for n in names if n not in categorical)])
+    if model == "quadratic" and categorical:
+        return " + ".join(_model_terms(model, names, tuple(categorical)))
     return model
+
+
+def _compared(runs: pd.DataFrame, factors: list[dict]) -> pd.DataFrame:
+    """Code the factors as :func:`_coded` does, a two-level categorical factor's labels kept as labels.
+
+    ``compare_designs`` and ``evaluate_design`` read a column of labels as a categorical factor: no
+    square, and its two levels the only settings a prediction is made at.
+    """
+    coded = _coded(runs, factors)
+    for f in factors:
+        if _categorical(f):
+            coded[f["name"]] = np.array(_levels_of(f), dtype=object)[_level_indices(runs, f)]
+    return coded
 
 
 def compare(request: dict) -> dict:
@@ -7429,7 +7452,7 @@ def compare(request: dict) -> dict:
     region = None
     for item in request.get("designs") or []:
         spec = _checked_spec(item.get("spec") or {})
-        designs[str(item["label"])] = _coded(_runs_frame(item, spec), spec["factors"])
+        designs[str(item["label"])] = _compared(_runs_frame(item, spec), spec["factors"])
         if region is None and spec.get("constraints"):
             region = _region(_factors(spec), [limit["expression"] for limit in spec["constraints"]])
     # shortcut: with a limit for some levels the designs are scored over the whole ranges, since the library scores
@@ -7445,8 +7468,9 @@ def compare(request: dict) -> dict:
     result["limits_by_level"] = by_level
     table = comparison.table
     result["display"] = {label: table[label].tolist() for label in comparison.designs}
-    names = list(next(iter(designs.values())).columns)
-    formula = _comparison_formula(model, names)
+    first = next(iter(designs.values()))
+    names = list(first.columns)
+    formula = _comparison_formula(model, names, [n for n in names if not pd.api.types.is_numeric_dtype(first[n])])
     fds = {}
     for coded, sized in zip(designs.values(), comparison.designs, strict=True):
         if not comparison.values[sized]["fits"]:
@@ -11628,7 +11652,7 @@ def next_runs(request: dict) -> dict:
             continue
         if not _runnable(spec, made["new"]):
             name = EXTENSIONS[kind]["name"]
-            notes.append(f"{name} would fall outside your limits on the settings, so Learn does not offer them.")
+            notes.append(f"{name} would fall outside your limits on the settings, so [Learn] does not offer them.")
             continue
         shown = {key: made[key] for key in ("kind", "label", "why", "model", "blocked")}
         runs = [{f["name"]: _setting(f, row[j]) for j, f in enumerate(spec["factors"])} for row in made["new"]]
@@ -11912,7 +11936,7 @@ def suggest_runs(request: dict) -> dict:
     if goal not in ("maximize", "minimize", "target") or (goal == "target" and target is None):
         raise ValueError(
             "Runs from a model of every run are suggested for a goal of making the response as large or as small as "
-            "it can be, or of bringing it to a target: choose that goal in Design."
+            "it can be, or of bringing it to a target: choose that goal in [Design]."
         )
     if _mixture(spec) or any(_categorical(f) for f in spec["factors"]):
         raise ValueError("Runs from a model of every run are suggested for numeric factors only on this page.")
@@ -11994,10 +12018,12 @@ def _suggested_made(request: dict, spec: dict, design: pd.DataFrame) -> dict[str
 #: What Learn says of a mixture, to which it offers to add no runs.
 #: Why a design with factors that are hard to change is offered no runs to add.
 WHOLE_PLOT_EXTENSIONS = (
-    "This design sets a factor once for each group of runs, and the runs Learn adds to a design are made one by one, "
+    "This design sets a factor once for each group of runs, and the runs [Learn] adds to a design are made one by one, "
     "so it offers none here."
 )
-MIXTURE_EXTENSIONS = "A mixture's runs are blends, and the runs Learn adds to a design are not, so it offers none here."
+MIXTURE_EXTENSIONS = (
+    "A mixture's runs are blends, and the runs [Learn] adds to a design are not, so it offers none here."
+)
 
 
 def add_runs(request: dict) -> dict:
@@ -12082,10 +12108,10 @@ def add_runs(request: dict) -> dict:
 def _made_for(request: dict, spec: dict, design: pd.DataFrame, kind: str) -> dict[str, Any]:
     """Make the runs ``add_runs`` adds of one kind, or refuse, saying why the study cannot take them."""
     if _mixture(spec):
-        raise ValueError("A mixture's runs are blends, and the runs Learn adds to a design are not.")
+        raise ValueError("A mixture's runs are blends, and the runs [Learn] adds to a design are not.")
     if (spec.get("options") or {}).get("hard_to_change"):
         raise ValueError(
-            "This design sets a factor once for each group of runs, and the runs Learn adds are made one by one."
+            "This design sets a factor once for each group of runs, and the runs [Learn] adds are made one by one."
         )
     if kind == RECOMMENDED:
         made = _recommended_runs(request, spec, design)
@@ -12279,7 +12305,7 @@ def _extension(spec: dict, design: pd.DataFrame, kind: str) -> dict[str, Any] | 
             return None
         if target == "quadratic" and _extension(spec, design, "axial") is not None:
             return None  # the axial runs fit it, and keep the runs on a few levels
-        formula = _comparison_formula(target, names) if target == MAIN_QUADRATIC else target
+        formula = _comparison_formula(target, names, []) if target == MAIN_QUADRATIC else target
         n_new = n_terms - rank + SPARE_RUNS
         with _listening():  # the exchange's own notes are about its budget, which the page sets
             result = augment_design(

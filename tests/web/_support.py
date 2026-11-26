@@ -54,6 +54,8 @@ APP_SOURCES = (
     "reproduced.js",
     "reproduced-logic.js",
     "site.js",
+    "usage.js",
+    "usage.json",
     "field-chart.js",
     "style.css",
     "app.js",

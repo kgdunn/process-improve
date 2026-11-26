@@ -11,6 +11,9 @@ answers are reached from that page, and lead back to it.
 
 from __future__ import annotations
 
+import json
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
 PAGES = [
@@ -128,3 +131,68 @@ def test_on_a_phone_the_top_line_and_the_footer_fit_the_screen(reproduced_contex
     page = opened(reproduced_context, site, where)
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
     assert page.is_visible("#mode")
+
+
+#: The dot's color, and the page's red (--error) as the browser resolves it.
+DOT_AND_RED = """(dot) => {
+  const probe = document.createElement('i');
+  probe.style.color = 'var(--error)';
+  dot.closest('footer').append(probe);
+  const red = getComputedStyle(probe).color;
+  probe.remove();
+  return [getComputedStyle(dot).fill, red];
+}"""
+
+
+def counts(recent: int, days: int = 90, *, hours_old: float = 0.25) -> str:
+    """Return usage.json as the server writes it: ``days`` finished days of readers, and ``recent`` in the last
+    24 hours, written ``hours_old`` hours ago.
+    """
+    updated = datetime.now(UTC) - timedelta(hours=hours_old)
+    end = updated.date() - timedelta(days=1)
+    series = [[(end - timedelta(days=days - 1 - i)).isoformat(), 40 + i % 7] for i in range(days)]
+    stamp = updated.strftime("%Y-%m-%dT%H:%M:%SZ")
+    return json.dumps({"updated": stamp, "days": series, "last_24_hours": recent})
+
+
+@pytest.mark.parametrize("where", ["", "features.html", "map/"])
+def test_the_footer_draws_how_many_people_used_factorial_each_day(reproduced_context, site, where):
+    """Under "Behind it": a line of the last 90 days, then a red dot on the last 24 hours, and that count beside it."""
+    reproduced_context.route(
+        f"{site}usage.json", lambda route: route.fulfill(body=counts(30), content_type="application/json")
+    )
+    page = reproduced_context.new_page()
+    page.goto(f"{site}{where}")
+    usage = page.locator("footer .foot__usage")
+    usage.wait_for(state="visible")
+    link = usage.locator("a.usage")
+    assert link.inner_text().split() == ["30", "users", "last", "24", "hours"]
+    assert link.get_attribute("href").endswith("technical-details-how-factorial-works.html#h-servers")
+    labelled = "(item) => document.getElementById(item.closest('ul').getAttribute('aria-labelledby')).textContent"
+    assert usage.evaluate(labelled) == "Behind it"
+    points = link.locator("polyline").get_attribute("points").split()
+    assert len(points) == 91, "90 finished days, then the last 24 hours"
+    dot, red = link.locator("circle").evaluate(DOT_AND_RED)
+    assert dot == red, "the dot is the page's red, in light and in dark"
+    cx, last_x = link.locator("circle").get_attribute("cx"), points[-1].split(",")[0]
+    assert float(cx) == float(last_x), "the dot is on the last 24 hours"
+
+
+@pytest.mark.parametrize(
+    ("body", "said"),
+    [
+        (None, "the build's own file, of no counts: a copy of Factorial elsewhere draws nothing"),
+        (counts(12, hours_old=25), "a file a day old is stale"),
+        (json.dumps({"updated": "2026-11-25T10:00:00Z", "days": [["2026-11-25", 9]]}), "an older server's file"),
+        ("not json", "a file that is no JSON"),
+    ],
+)
+def test_the_footer_leaves_the_line_out_when_there_are_no_counts_to_draw(reproduced_context, site, body, said):
+    if body is not None:
+        reproduced_context.route(
+            f"{site}usage.json", lambda route: route.fulfill(body=body, content_type="application/json")
+        )
+    page = opened(reproduced_context, site, "features.html")
+    page.wait_for_load_state("networkidle")
+    assert page.locator(".site-foot .foot__usage").is_hidden(), said
+    assert page.locator(".site-foot a").all_text_contents() == LINKS

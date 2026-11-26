@@ -200,10 +200,11 @@ export function drawTimeline(svg, bins, [from, to]) {
 
 // ---------------------------------------------------------------- the map of factors and runs
 /** The fewest designs of each step of the map's colors, when a cell's color says how many it holds. */
-export const COUNT_STEPS = [1, 5, 20, 50];
+/** The fill of a cell or a mark, as style.css names it: by the most that one of its designs estimates. */
+const fillOf = (item) => `fill-${item.step ? item.step + 1 : 0}`;
 
-/** The fill of a cell or a mark, as style.css names it: by what its designs estimate, or by how many they are. */
-const fillOf = (item, shade) => (shade === "count" ? `fill-${COUNT_STEPS.filter((least) => item.count >= least).length}` : `fill-${item.step ? item.step + 1 : 0}`);
+/** What a cell's or a mark's designs estimate at most, as a sentence. */
+const atMost = (item) => `${item.count > 1 ? "At most, they estimate" : "It estimates"} ${STEP_WORDS[item.step]}.`;
 
 const designs = (n) => `${n} design${n === 1 ? "" : "s"}`;
 
@@ -215,15 +216,15 @@ const drawnAt = new WeakMap();
  * has. A row is a button with its number of factors, then a cell for each band of runs with the designs it
  * holds; a cell with none in the list is pale. Over the cells run two lines: the fewest runs the main effects
  * need, and the fewest the full quadratic needs. A row in ``opened`` has a lane for each family under it, with a
- * mark for each run size, and the lines run straight down through them. ``shade`` says what a cell's color is:
- * what most of its designs estimate ("model"), or how many they are ("count"). The buttons, the cells and the
+ * mark for each run size, and the lines run straight down through them. A cell's color is the most that one of
+ * its designs estimates, which says what a design of that size can tell a reader. The buttons, the cells and the
  * marks name themselves (data-unfold, data-band, data-runs and data-family) for the page, which decides what a
  * press does.
  * ``moved`` is the row just opened or shut: the rows then slide from where they were.
  */
-export function drawSizeMap(holder, rows, { opened, shade, moved = null }) {
+export function drawSizeMap(holder, rows, { opened, moved = null }) {
   const width = holder.clientWidth;
-  const head = 38, top = 20, rowH = 32, nameH = 15, laneH = 24;
+  const head = 58, top = 20, rowH = 32, nameH = 15, laneH = 24;
   const colW = (width - head) / RUN_BANDS.length;
   const x = (runs) => head + bandPlace(runs) * colW;
   const svg = shape("svg");
@@ -250,13 +251,19 @@ export function drawSizeMap(holder, rows, { opened, shade, moved = null }) {
     const name = row.row > MAP_ROWS ? `${row.row}+` : String(row.row);
     const chip = shape("g", { class: "sizemap__row", role: "button", tabindex: "0", "aria-expanded": String(isOpen), "data-unfold": row.row });
     chip.setAttribute("aria-label", `${rowWords(row.row)}, ${designs(row.count)}: ${isOpen ? "close" : "open"} this row's families`);
-    chip.append(shape("rect", { x: 1, y: 2, width: head - 8, height: rowH - 4, rx: (rowH - 4) / 2 }), shape("text", { x: 1 + (head - 8) / 2, y: rowH / 2 + 4, "text-anchor": "middle" }, name));
+    // An arrow beside the number: to the right on a shut row, down on an open one, as a fold's own mark is.
+    const arrow = isOpen ? `M${head - 24} ${rowH / 2 - 2}l4.5 4.5 4.5 -4.5` : `M${head - 20} ${rowH / 2 - 4.5}l4.5 4.5 -4.5 4.5`;
+    chip.append(
+      shape("rect", { x: 1, y: 2, width: head - 8, height: rowH - 4, rx: (rowH - 4) / 2 }),
+      shape("text", { x: 11, y: rowH / 2 + 4, "text-anchor": "start" }, name),
+      shape("path", { class: "sizemap__arrow", d: arrow, "aria-hidden": "true" }),
+    );
     group.append(chip);
 
     row.cells.forEach((cell, band) => {
       if (!cell.count) return;
-      const state = `${fillOf(cell, shade)}${cell.listed ? "" : " out"}`;
-      const words = `${rowWords(row.row)}, ${bandWords(band)}: ${designs(cell.count)}. Most estimate ${STEP_WORDS[cell.step]}.`;
+      const state = `${fillOf(cell)}${cell.listed ? "" : " out"}`;
+      const words = `${rowWords(row.row)}, ${bandWords(band)}: ${designs(cell.count)}. ${atMost(cell)}`;
       const button = shape("g", { class: `sizemap__cell ${state}`, role: "button", tabindex: "-1", "data-row": row.row, "data-band": band });
       button.setAttribute("aria-label", `${words} Press to list ${cell.count === 1 ? "it" : "them"}.`);
       button.append(shape("rect", { x: head + band * colW + 1, y: 1, width: colW - 2, height: rowH - 2, rx: 3 }));
@@ -284,16 +291,19 @@ export function drawSizeMap(holder, rows, { opened, shade, moved = null }) {
         );
         // The largest first, so that a small mark sits on a large one.
         for (const mark of [...lane.marks].sort((a, b) => b.count - a.count)) {
-          const words = `${mark.runs} runs, ${lane.label}: ${designs(mark.count)} of ${rowWords(row.row)}. ${mark.count > 1 ? "Most estimate" : "It estimates"} ${STEP_WORDS[mark.step]}.`;
+          const words = `${mark.runs} runs, ${lane.label}: ${designs(mark.count)} of ${rowWords(row.row)}. ${atMost(mark)}`;
           const dot = shape("circle", {
-            class: `sizemap__mark ${fillOf(mark, "model")}${mark.listed ? "" : " out"}`,
+            class: `sizemap__mark ${fillOf(mark)}${mark.listed ? "" : " out"}`,
             cx: x(mark.runs), cy, r: Math.min(10, 3 + 1.4 * Math.sqrt(mark.count)),
             role: "button", tabindex: "-1", "data-row": row.row, "data-lane": index, "data-runs": mark.runs, "data-family": lane.family,
           });
           dot.setAttribute("aria-label", `${words} Press to list ${mark.count === 1 ? "it" : "them"}.`);
           block.append(titled(dot, words));
         }
-        block.append(shape("text", { class: "sizemap__family", x: head, y: ly + 11, "aria-hidden": "true" }, `${lane.label} · ${lane.count}`));
+        // The family's name is a button: a press lists the family's designs of this row, under its card.
+        const named = shape("text", { class: "sizemap__family", x: head, y: ly + 11, role: "button", tabindex: "-1", "data-row": row.row, "data-family": lane.family, "data-all": "1" }, `${lane.label} · ${lane.count}`);
+        named.setAttribute("aria-label", `${lane.label}: ${designs(lane.count)} of ${rowWords(row.row)}. Press to read what it is, and to list ${lane.count === 1 ? "it" : "them"}.`);
+        block.append(named);
         ly += nameH + laneH + 4;
       });
       tall = ly + 8;

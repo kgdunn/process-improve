@@ -42,6 +42,7 @@ SUITES = (
     "field-chart.test.mjs",
     "reproduced.test.mjs",
     "site.test.mjs",
+    "usage.test.mjs",
     "feedback.test.mjs",
     "comparison.test.mjs",
     "spread.test.mjs",

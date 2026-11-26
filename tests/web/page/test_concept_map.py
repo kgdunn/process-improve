@@ -152,6 +152,7 @@ def test_the_page_names_three_ways_to_learn_over_the_map_and_the_book_s_doi_as_t
     assert "index=" not in videos, "a place in the playlist moves when the playlist is reordered; the video does not"
     assert "The same videos as the course" in ways, "so a reader does not take the two for two courses"
     assert "no quizzes" in ways
+    assert "Free to preview; the certificate is paid." in ways, "what the course costs, as Coursera offers it"
     doi = re.search(r'<span class="learn__doi">Book DOI: (10\.5281/zenodo\.\d+)</span>', ways)
     assert doi, "the DOI of the book, to read and to copy"
     assert "doi.org" not in page, "and not a link"

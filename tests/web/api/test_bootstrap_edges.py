@@ -224,7 +224,8 @@ def test_designs_that_cannot_fit_the_aim_score_no_power(api):
     The intercept, the catalyst's 2 contrasts, T, P, their squares, T:P and the catalyst's 2 interactions with each
     of T and P. The Taguchi array's 9 runs are too few; the full factorial's two-level T and P, with center runs,
     give T squared and P squared the same column.
-    The optimal designs, which take a categorical factor too, are built for these 12 columns and fit them.
+    The optimal designs, which take a categorical factor too, are built for these 12 columns and fit them, with the
+    4 spare runs every optimal design opens with (#1468).
     """
     found = api.ok(
         "api_candidates",
@@ -238,7 +239,7 @@ def test_designs_that_cannot_fit_the_aim_score_no_power(api):
         if not values["fits"]:
             assert values["power_main"] is values["power_interaction"] is values["power_quadratic"] is None
     assert fits["Full factorial"] == fits["Taguchi"] == (False, 0)
-    assert fits["D-optimal"] == fits["I-optimal"] == (True, 2), "an optimal design is made for the model asked for"
+    assert fits["D-optimal"] == fits["I-optimal"] == (True, 4), "an optimal design is made for the model asked for"
 
 
 def test_eighteen_pairs_are_too_many_to_count_every_pattern_of_signs(api):

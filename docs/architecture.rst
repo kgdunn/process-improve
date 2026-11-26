@@ -45,7 +45,8 @@ Conventions every subpackage follows
   the batch and MCP layers are installed via ``[plotting]`` / ``[batch]`` /
   ``[mcp]`` extras (ENG-13); every design array, Taguchi and split-plot
   designs included, is in the core, and pyoptex, installed separately, is an
-  optional backend for the optimal designs. Modules
+  optional backend for the optimal designs, deprecated since 2.7.0 and removed
+  in 3.0. Modules
   import optional dependencies through a ``_MissingExtra``
   stand-in so a missing optional dependency only fails when the feature is
   actually used, not at import time.

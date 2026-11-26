@@ -30,32 +30,11 @@
 <main class="catalog">
   <p class="about__back"><a href="../"><img src="../favicon.svg" alt="" width="28" height="28"> Back to Factorial</a></p>
   <h1>Design catalog</h1>
-  <p class="lede">Experiments from textbooks and papers. See what others ran, and run it yourself in Factorial.</p>
+  <p class="lede">Over 1,400 experimental designs from more than 20 textbooks and papers. Find one that fits your
+    experiment.</p>
 
-  <form class="catalog__field" id="field-form" action="fields/">
-    <label for="field">What field are you in?</label>
-    <div class="catalog__field-row">
-      <select id="field" name="field"><option value="">Every field</option></select>
-      <button type="submit" class="button primary">Show</button>
-    </div>
-  </form>
-
-  <nav class="catalog__doors" aria-label="Other ways in">
-    <a class="door" href="books/"><span class="door__title">Browse by book</span>
-      <span class="door__note">Montgomery, Box, Hunter and Hunter, and more</span></a>
-    <a class="door" href="../validation.html"><span class="door__title">Is it accurate?</span>
-      <span class="door__note">Checked against the textbooks and other software</span></a>
-    <a class="door" href="../map/"><span class="door__title">How the ideas link</span>
-      <span class="door__note">The concepts behind the designs, on one map</span></a>
-  </nav>
-
-  <h2 class="catalog__or">Or search</h2>
+  <!-- The search, then searches to try: a press writes one in the box, for the reader to edit. -->
   <div class="catalog__search">
-    <div class="segmented" role="radiogroup" aria-label="Which designs to show" id="collection">
-      <button type="button" role="radio" data-value="published" aria-checked="false">Published</button>
-      <button type="button" role="radio" data-value="generated" aria-checked="false">Generated</button>
-      <button type="button" role="radio" data-value="both" aria-checked="true">Both</button>
-    </div>
     <label class="catalog__query">
       <span class="visually-hidden">Search</span>
       <input id="query" type="search" autocomplete="off" spellcheck="false"
@@ -64,25 +43,28 @@
     <p class="catalog__count" id="count" role="status" aria-live="polite">Loading the catalog...</p>
   </div>
   <div class="catalog__goals" role="group" aria-labelledby="goals-title">
-    <p class="hint" id="goals-title">What do you want to do?</p>
+    <p class="hint" id="goals-title">Try:</p>
     <button type="button" class="goal try" data-query="fractional, plackett, definitive screening, supersaturated">Screen many factors</button>
     <button type="button" class="goal try" data-query="response surface">Find an optimum</button>
     <button type="button" class="goal try" data-query="mixture">Blend ingredients</button>
     <button type="button" class="goal try" data-query="blocks">Run in blocks</button>
     <button type="button" class="goal try" data-query="survives a lost run">Survive a lost run</button>
   </div>
-  <p class="catalog__views">
-    <button type="button" class="link" id="errata-open">Errata: every printed number that does not reproduce</button>
-    <a href="https://github.com/kgdunn/process-improve/issues/new?template=catalog_entry.yml" target="_blank" rel="noopener">Propose a
-      design for the catalog</a>
-    <a href="https://github.com/kgdunn/process-improve/issues/new?template=case_study.yml" target="_blank" rel="noopener">Share a
-      case study of your own</a>
-  </p>
 
   <div class="catalog__body">
     <details class="facets" id="facets-box" open>
       <summary>Filters</summary>
       <form id="facets" class="facets__form">
+        <fieldset>
+          <legend>Where it is from</legend>
+          <div class="segmented" role="radiogroup" aria-label="Where the designs are from" id="collection">
+            <button type="button" role="radio" data-value="published" aria-checked="false">Books and papers</button>
+            <button type="button" role="radio" data-value="generated" aria-checked="false">Made by Factorial</button>
+            <button type="button" role="radio" data-value="both" aria-checked="true">Both</button>
+          </div>
+          <p class="hint facets__hint">A design from a book or paper comes with the experiment it was run in, often with
+            its results. Factorial makes the others itself, some in sizes that no source prints.</p>
+        </fieldset>
         <fieldset>
           <legend>Family</legend>
           <div id="families" class="facets__list"></div>
@@ -174,35 +156,46 @@
     </details>
 
     <div class="catalog__main">
-      <figure class="catalog__map">
+      <h2 class="catalog__step" id="map-title">Start with your number of factors</h2>
+      <p class="catalog__howto">Find your row, then go right as far as the number of experiments you can afford. The color
+        shows how much a design of that size can tell you. Press a cell to list its designs.</p>
+      <figure class="catalog__map" aria-labelledby="map-title">
         <div class="sizemap__tools">
-          <span class="views" role="group" aria-label="Color the cells by">
-            <button type="button" data-shade="model" aria-pressed="true">What they estimate</button>
-            <button type="button" data-shade="count" aria-pressed="false">How many</button>
-          </span>
-          <button type="button" class="link map__reset" id="map-reset">Reset the map</button>
+          <p class="sizemap__axis"><b>Factors</b>: press a number to open its design families</p>
+          <button type="button" class="link map__reset" id="map-reset">Reset the table</button>
         </div>
-        <ul class="sizemap__key" aria-label="What the map's colors and lines say">
-          <li data-key="model">Most designs of a cell estimate:</li>
-          <li data-key="model"><svg viewBox="0 0 12 12" aria-hidden="true"><rect class="fill-0" x="1" y="1" width="10" height="10" rx="2"></rect></svg>none of these, or none is stated</li>
-          <li data-key="model"><svg viewBox="0 0 12 12" aria-hidden="true"><rect class="fill-2" width="12" height="12" rx="2"></rect></svg>main effects</li>
-          <li data-key="model"><svg viewBox="0 0 12 12" aria-hidden="true"><rect class="fill-3" width="12" height="12" rx="2"></rect></svg>+ two-factor interactions</li>
-          <li data-key="model"><svg viewBox="0 0 12 12" aria-hidden="true"><rect class="fill-4" width="12" height="12" rx="2"></rect></svg>the full quadratic</li>
-          <li data-key="count" hidden><svg class="sizemap__ramp" viewBox="0 0 48 12" aria-hidden="true"><rect class="fill-1" width="12" height="12"></rect><rect class="fill-2" x="12" width="12" height="12"></rect><rect class="fill-3" x="24" width="12" height="12"></rect><rect class="fill-4" x="36" width="12" height="12"></rect></svg>1 to 4, 5 to 19, 20 to 49, and 50 or more designs</li>
-          <li><svg class="sizemap__stroke" viewBox="0 0 26 8" aria-hidden="true"><line class="sizemap__line sizemap__line--main" x1="2" x2="24" y1="4" y2="4"></line></svg>fewest runs for the main effects</li>
-          <li><svg class="sizemap__stroke" viewBox="0 0 26 8" aria-hidden="true"><line class="sizemap__line" x1="2" x2="24" y1="4" y2="4"></line></svg>fewest runs for the full quadratic</li>
+        <!-- The key, a few words a label so that it is one line on a wide page: the fold under the table says more. -->
+        <ul class="sizemap__key" aria-label="What the table's colors and lines say">
+          <li><svg viewBox="0 0 12 12" aria-hidden="true"><rect class="fill-2" width="12" height="12" rx="2"></rect></svg>main effects</li>
+          <li><svg viewBox="0 0 12 12" aria-hidden="true"><rect class="fill-3" width="12" height="12" rx="2"></rect></svg>+ interactions</li>
+          <li><svg viewBox="0 0 12 12" aria-hidden="true"><rect class="fill-4" width="12" height="12" rx="2"></rect></svg>+ quadratic</li>
+          <li><svg viewBox="0 0 12 12" aria-hidden="true"><rect class="fill-0" x="1" y="1" width="10" height="10" rx="2"></rect></svg>none stated</li>
+          <li><svg class="sizemap__stroke" viewBox="0 0 36 8" aria-hidden="true"><line class="sizemap__line sizemap__line--main" x1="2" x2="16" y1="4" y2="4"></line><line class="sizemap__line" x1="21" x2="34" y1="4" y2="4"></line></svg>fewest needed</li>
         </ul>
+        <p class="sizemap__axis sizemap__axis--runs"><b>Number of experiments</b> (scales with cost)</p>
         <div id="map" class="sizemap" role="group" aria-label="Designs by factors and runs"></div>
         <p class="sizemap__said" id="map-said" hidden><span id="map-said-text" role="status"></span>
           <button type="button" class="link" id="map-list">See them in the list</button></p>
-        <figcaption class="hint">A row is a number of factors, and a column a band of runs, named by its largest
-          size. A cell counts its designs; a pale one has none in the list. Press a row's number to open the row
-          into its families, where a mark is one run size. Press a cell or a mark to list its designs below, each
-          with its details and a button that opens it in Factorial. A design left of a line has too few runs for
-          that model; one right of it has enough, and may still not estimate it. The arrow keys move between the
-          cells.</figcaption>
+        <details class="sizemap__how">
+          <summary>How to read this table</summary>
+          <p class="hint">A row is a number of factors, and a column a band of experiments, or runs, named by its
+            largest size. The number in a cell is how many designs it holds; a pale cell has none in the list. A
+            cell's color is the most that one of its designs estimates: the main effects, which are each factor's
+            own effect; the two-factor interactions too, which are how factors act together; or the full quadratic,
+            which adds the curvature that finding an optimum needs. The dotted line is the fewest experiments the
+            main effects need, and the solid line the fewest the full quadratic needs: a design left of a line has
+            too few for that model; one right of it has enough, and may still not estimate it. Press a row's number
+            to open the row into its families, where a mark is one size of design. Press a cell or a mark to list
+            its designs below, each with its details and a button that opens it in Factorial. The arrow keys move
+            between the cells.</p>
+        </details>
       </figure>
+      <!-- A family's card, while the list holds one family: what a design of it is, for a reader new to it. -->
+      <section class="famcard" id="family" aria-labelledby="family-name" hidden></section>
       <div class="catalog__listhead">
+        <!-- What a design's picture is: its colors are the pictures' own, set by catalog.js. -->
+        <p class="results__key">A picture is the design: a row is a run, a column a factor.
+          <span><i data-setting="-1"></i>low</span> <span><i data-setting="0"></i>middle</span> <span><i data-setting="1"></i>high</span></p>
         <label>Order <select id="sort"></select></label>
       </div>
       <ol id="results" class="results"></ol>
@@ -242,6 +235,17 @@
       <button type="button" class="link" id="tray-clear">Clear</button>
     </div>
   </div>
+
+  <p class="catalog__views">
+    <a href="books/">Browse by book</a>
+    <a href="fields/">Browse by field</a>
+    <a href="../validation.html">Is it accurate?</a>
+    <button type="button" class="link" id="errata-open">Errata: every printed number that does not reproduce</button>
+    <a href="https://github.com/kgdunn/process-improve/issues/new?template=catalog_entry.yml" target="_blank" rel="noopener">Propose a
+      design for the catalog</a>
+    <a href="https://github.com/kgdunn/process-improve/issues/new?template=case_study.yml" target="_blank" rel="noopener">Share a
+      case study of your own</a>
+  </p>
 
   <div class="page-note">
     <p>The published designs are from the reference catalog of

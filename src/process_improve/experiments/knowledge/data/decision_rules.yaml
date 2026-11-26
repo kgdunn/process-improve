@@ -98,23 +98,24 @@
     - {key: sequential, op: "==", value: false}
   recommend:
     primary: box_behnken
-    rationale: "Fewer runs than CCD, avoids extreme corners"
+    rationale: "No more runs than a CCD, avoids extreme corners"
     alternatives:
       - design: ccd
         rationale: "Better if rotatability or sequential buildup might be needed later"
   explanation:
     novice: >
       Starting a new experiment to find optimal conditions? A Box-Behnken
-      design uses fewer runs than CCD and avoids extreme factor combinations.
+      design needs no more runs than a CCD and avoids extreme factor combinations.
     intermediate: >
       BBD is efficient for 3–7 factors when the experimental region corners are
       not meaningful or are hard to achieve. It provides near-rotatability and
       estimates all quadratic terms.
     expert: >
-      BBD requires fewer runs than CCD (e.g., 15 vs. 20 for k=3). The trade-off
-      is that BBD cannot be sequentially augmented from a factorial base, and
-      prediction variance at the vertices is higher. For k=4, BBD needs 27 runs
-      versus 30 for a CCD, a modest saving.
+      With three center points each, BBD needs 15 runs against 17 for a CCD at
+      k=3, the same 27 at k=4, and far fewer from k=6 (51 against 79), where the
+      CCD's full factorial grows. The trade-off is that BBD cannot be
+      sequentially augmented from a factorial base, and prediction variance at
+      the vertices is higher.
 
 - id: two_factor_study
   topic: design_selection

@@ -27,6 +27,12 @@ import {
   correlationMap,
   errataCounts,
   countSentence,
+  designLines,
+  usesWords,
+  alsoFamilies,
+  shortSource,
+  sizeLine,
+  STEP_NAMES,
   errataShown,
   isDesign,
   generatorsLine,
@@ -409,8 +415,25 @@ describe("the map of factors and runs", () => {
     };
     const [, , three] = sizeMap(more, state({ runs: [8, 8] }));
     assert.deepEqual(three.lanes.map((lane) => [lane.label, lane.count]), [["Full factorial", 3], ["Central composite", 1], ["other", 1]]);
-    assert.deepEqual(three.lanes[0].marks, [{ runs: 8, count: 3, step: 2, listed: 3 }], "what most of the three estimate");
+    assert.deepEqual(three.lanes[0].marks, [{ runs: 8, count: 3, step: 2, listed: 3 }], "the most that one of the three estimates");
     assert.deepEqual(three.lanes[1].marks, [{ runs: 17, count: 1, step: 3, listed: 0 }]);
+  });
+  test("a cell's step is the most that one of its designs estimates, not what most of them do", () => {
+    // Two screening designs and one that fits the full quadratic, all of 3 factors in 9 to 12 runs: a design of that
+    // size can fit the quadratic, and that is what the cell says, whichever kind the sources happen to print most.
+    const screen = { main_effects: true, interactions: false, quadratic: false };
+    const curved = { main_effects: true, interactions: true, quadratic: true };
+    const sized = {
+      ...CATALOG,
+      designs: [
+        design({ id: "screen-a", n_runs: 12, models: screen }),
+        design({ id: "screen-b", n_runs: 12, models: screen }),
+        design({ id: "curved", n_runs: 10, models: curved }),
+      ],
+    };
+    const map = sizeMap(sized, state());
+    assert.deepEqual(cellOf(map, 3, 12), { count: 3, step: 3, listed: 3 });
+    assert.deepEqual(map[2].lanes[0].marks.map((mark) => [mark.runs, mark.step]), [[10, 3], [12, 1]], "a mark is one size: its own most");
   });
 });
 
@@ -641,6 +664,50 @@ describe("what a design withstands, in words", () => {
     assert.equal(leverageWords([0.3, 1, 0.3]).text, "Run 2 carries the most weight, with leverage 1.00; the least is 0.30.");
     assert.match(leverageWords([...Array(6).fill(0.9), 0.1]).text, /^6 runs carry the most weight/);
     assert.deepEqual(leverageWords(null), { even: false, text: "" });
+  });
+
+  test("the list has a line for each design, with the entries that hold its runs", () => {
+    // The pilot plant and a second printing of the cube, the library's own cube, and a design with no class.
+    const printed = design({ id: "printed", collection: "published", design_class: "cube" });
+    const again = design({ id: "again", collection: "published", design_class: "cube", source: "jn" });
+    const made = design({ id: "made", collection: "generated", design_class: "cube", source: null });
+    const alone = design({ id: "alone", design_class: null });
+    const other = design({ id: "other", design_class: "ccd", family: "ccd" });
+    const lines = designLines([printed, other, again, alone, made]);
+    assert.deepEqual(lines.map((line) => [line.key, line.lead.id, ids(line.entries)]), [
+      ["cube", "made", ["printed", "again", "made"]],
+      ["ccd", "other", ["other"]],
+      ["entry:alone", "alone", ["alone"]],
+    ], "in the order of their first entries; the library's own leads, as the design alone");
+    assert.equal(designLines([printed, again])[0].lead.id, "printed", "with none the library makes, the first that opens");
+    const shut = designLines([design({ id: "shut", open: false }), design({ id: "opens" })])[0];
+    assert.equal(shut.lead.id, "opens", "an entry that opens leads one that does not");
+    assert.equal(designLines([design({ id: "shut", open: false })])[0].lead.id, "shut", "or the only one");
+  });
+
+  test("a line says where its entries are from, and names a design by its family and size", () => {
+    const printed = design({ id: "printed", collection: "published" });
+    const made = design({ id: "made", collection: "generated", source: null });
+    assert.equal(usesWords([printed, printed, made]), "printed in 2 places");
+    assert.equal(usesWords([printed]), "printed in 1 place");
+    assert.equal(usesWords([made, made]), "made by Factorial");
+    assert.equal(sizeLine(design({ blocked: true, n_blocks: 2 }), CATALOG), "Full factorial · 3 factors · 8 runs · 2 blocks", "what it estimates is the line's mark");
+    const split = { ...CATALOG, families: { ...CATALOG.families, split_plot: { label: "Split plot" } } };
+    assert.equal(sizeLine(design({ family: "split_plot", split_plot: true }), split), "Split plot · 3 factors · 8 runs", "said once");
+    assert.equal(sizeLine(design({ split_plot: true }), CATALOG), "Full factorial · 3 factors · 8 runs · split plot");
+    assert.equal(shortSource(printed, CATALOG), "Box, Hunter and Hunter (1978)", "with no page: the details have it");
+    assert.equal(shortSource(made, CATALOG), "Made by Factorial");
+    assert.deepEqual(STEP_NAMES.map((name) => name.split(" ").length <= 2), [true, true, true, true], "the table's key, word for word");
+  });
+
+  test("the families a design's runs also are", () => {
+    const array = design({ id: "l4", family: "orthogonal_array", design_class: "half" });
+    const fraction = design({ id: "half", family: "fractional_factorial", design_class: "half" });
+    const twin = design({ id: "half-again", family: "fractional_factorial", design_class: "half" });
+    const catalog = { ...CATALOG, designs: [array, fraction, twin] };
+    assert.deepEqual(alsoFamilies(catalog, array), [CATALOG.families.fractional_factorial?.label ?? "fractional_factorial"], "once, however many entries");
+    assert.deepEqual(alsoFamilies(catalog, design({ design_class: null })), []);
+    assert.deepEqual(alsoFamilies({ ...CATALOG, designs: [fraction, twin] }, fraction), [], "its own family is not another");
   });
 
   test("the same design elsewhere", () => {
@@ -963,9 +1030,28 @@ describe("the count of the designs listed", () => {
 
   test("facts about designs and a single sample are listed, but counted apart from the designs", () => {
     assert.deepEqual(designs.map(isDesign), [true, true, false, false]);
-    assert.equal(countSentence(designs, catalog), "2 of 2 designs: 1 published, 1 generated; and 2 entries of facts about designs or a single sample");
-    assert.equal(countSentence(designs.slice(0, 3), catalog), "2 of 2 designs: 1 published, 1 generated; and 1 entry of facts about designs or a single sample");
-    assert.equal(countSentence(designs.slice(0, 1), catalog), "1 of 2 designs: 1 published, 0 generated");
+    assert.equal(countSentence(designs, catalog), "2 designs", "the whole catalog: its designs, and no word on where they are from");
+    assert.equal(countSentence(designs.slice(0, 3), catalog), "2 of 2 designs, and 1 entry of facts about designs or a single sample");
+    assert.equal(countSentence(designs.slice(1), catalog), "1 of 2 designs, and 2 entries of facts about designs or a single sample");
+    assert.equal(countSentence(designs.slice(0, 1), catalog), "1 of 2 designs");
     assert.equal(countSentence([], catalog), "0 of 2 designs: change a filter or the search to see more");
+  });
+  test("where some designs are the same runs, the count says how many are different", () => {
+    const same = [
+      { id: "a", kind: "design", design_class: "cube" },
+      { id: "b", kind: "experiment", design_class: "cube" },
+      { id: "c", kind: "design", design_class: "ccd" },
+      { id: "d", kind: "design", design_class: null },
+      { id: "e", kind: "facts", design_class: null },
+    ];
+    const held = { designs: same };
+    assert.equal(countSentence(same, held), "4 designs, 3 different");
+    assert.equal(countSentence(same.slice(0, 3), held), "3 of 4 designs, 2 different");
+    assert.equal(countSentence(same.slice(2), held), "2 of 4 designs, and 1 entry of facts about designs or a single sample");
+  });
+  test("a count of a thousand or more is written with its comma", () => {
+    const many = { designs: Array.from({ length: 1404 }, (_, i) => ({ id: String(i), kind: "design" })) };
+    assert.equal(countSentence(many.designs, many), "1,404 designs");
+    assert.equal(countSentence(many.designs.slice(0, 1200), many), "1,200 of 1,404 designs");
   });
 });

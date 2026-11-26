@@ -256,7 +256,7 @@ import {
   levelValue,
   listNames,
   mixtureProblem,
-  nTerms,
+  nCoefficients,
   dayWords,
   momentWords,
   shortCommit,
@@ -314,6 +314,7 @@ import {
   showsVif,
   spacePoints,
   splitResults,
+  stageParts,
   spreadSentences,
   standouts,
   STANDOUT_TIE,
@@ -389,6 +390,7 @@ import { installImport, openedWords } from "./import.js";
 import { pythonLine } from "./worker-rpc.js";
 import { installOffline } from "./offline.js";
 import { REQUEST_PARAM, installFeedback, keepError, requestWords } from "./feedback.js";
+import { drawUsage } from "./usage.js";
 
 // Where Process Improvement using Data explains each design, method and measure the page uses.
 const BOOK = "https://learnche.org/pid/design-analysis-experiments";
@@ -540,7 +542,7 @@ let pythonSaid = 0;
 function setStatus(text, state = "ok") {
   statusTicket += 1;
   const box = $("#status");
-  box.querySelector(".status__text").textContent = text;
+  say(box.querySelector(".status__text"), text);
   box.dataset.state = state;
   clearTimeout(statusTimer);
   const show = () => {
@@ -1833,7 +1835,7 @@ function setDesignForm(spec) {
   const k = factorCount();
   resolutionEdited = Boolean(options.resolution) && options.resolution !== defaultResolution(k);
   if (options.resolution) $("#resolution").value = String(options.resolution);
-  budgetEdited = Boolean(options.budget) && options.budget !== defaultBudget(spec.design_type, k, options.model_type);
+  budgetEdited = Boolean(options.budget) && options.budget !== defaultBudget(spec.design_type, readFactors(), options.model_type);
   if (options.budget) $("#budget").value = options.budget;
   refreshDesign();
 }
@@ -1901,6 +1903,7 @@ function refreshDesign() {
   renderHard();
   renderPossible();
   const k = factorCount();
+  const factors = readFactors();
   const full = factorRows().length >= MAX_FACTORS; // the add buttons stop at the most factors a study has, and say so
   for (const id of ["#add-factor", "#add-categorical"]) $(id).disabled = full;
   $("#factors-full").hidden = !full;
@@ -1944,21 +1947,24 @@ function refreshDesign() {
 
   // An optimal design is made for a model of MAX_OPTIMAL_TERMS coefficients at most: a larger one is not offered.
   const modelType = $("#model_type");
-  for (const choice of modelType.options) choice.disabled = nTerms(k, choice.value) > MAX_OPTIMAL_TERMS;
+  for (const choice of modelType.options) choice.disabled = nCoefficients(factors, choice.value) > MAX_OPTIMAL_TERMS;
   if (modelType.selectedOptions[0].disabled) modelType.value = "main_effects";
   const tooLarge = [...modelType.options].some((choice) => choice.disabled);
 
   // A space-filling design is made for no model: its runs are so many a factor, and Learn fits the aim's model.
   const spread = SPACE_FILLING.includes(option.value);
-  const p = nTerms(k, spread ? OPTIMAL_MODEL[currentAim()] : $("#model_type").value);
-  if (!budgetEdited) $("#budget").value = defaultBudget(option.value, k, $("#model_type").value);
+  const p = nCoefficients(factors, spread ? OPTIMAL_MODEL[currentAim()] : $("#model_type").value);
+  if (!budgetEdited) $("#budget").value = defaultBudget(option.value, factors, $("#model_type").value);
   const omars = option.value === "omars";
-  $("#budget-hint").textContent = spread
-    ? `${SPACE_FILLING_RUNS} runs a factor is the usual start; Learn fits the model of your aim, which has ${p} coefficients.`
-    : omars
-      ? omarsHint(k)
-      : `The model has ${p} coefficients.` +
-        (tooLarge ? ` With ${k} factors a larger model has more than ${MAX_OPTIMAL_TERMS}, the most an optimal design is made for here.` : "");
+  say(
+    $("#budget-hint"),
+    spread
+      ? `${SPACE_FILLING_RUNS} runs a factor is the usual start; [Learn] fits the model of your aim, which has ${p} coefficients.`
+      : omars
+        ? omarsHint(k)
+        : `The model has ${p} coefficients.` +
+          (tooLarge ? ` With ${k} factors a larger model has more than ${MAX_OPTIMAL_TERMS}, the most an optimal design is made for here.` : ""),
+  );
 
   const hint = $("#design-hint");
   const one = labelled.length === 1;
@@ -2241,7 +2247,7 @@ function markStale() {
   const stale = planIsStale();
   $("#design-stale").hidden = !stale;
   $("#plan-note").hidden = !stale;
-  $("#plan-note").textContent = stale ? "The run sheet in Run is from an earlier design." : "";
+  say($("#plan-note"), stale ? "The run sheet in [Run] is from an earlier design." : "");
   renderBadges();
   redrawRuns(); // the picture of the limits draws the runs of the run sheet made for them
 }
@@ -2744,7 +2750,7 @@ function candidateList(c, current) {
     wrap.append(t);
     parts.push(wrap);
     if (stepped !== null) {
-      parts.push(el("p", "hint stepped", `Your design's row shows the ${stepped} runs of the step you chose above. The other designs are listed as Design first makes them, and the table has no power for your step.`));
+      parts.push(say(el("p", "hint stepped", ""), `Your design's row shows the ${stepped} runs of the step you chose above. The other designs are listed as [Design] first makes them, and the table has no power for your step.`));
     }
   }
   const picked = designChosen ? "" : pickSentence(rows, $("#design-type").value);
@@ -3451,23 +3457,6 @@ function setFailed(place, failed) {
 }
 
 /**
- * Set Learn's note for when it has nothing to show, with the stage it names as a way there: "enter them in Run".
- * The words are the note's own; "Run" in them becomes a button.
- */
-function sayLearnEmpty(text) {
-  const note = $("#analyse-empty");
-  const at = text.indexOf(" in Run");
-  if (at < 0) {
-    note.textContent = text;
-    return;
-  }
-  const run = el("button", "link", "Run");
-  run.type = "button";
-  run.dataset.go = "run";
-  note.replaceChildren(text.slice(0, at + 4), run, text.slice(at + 7));
-}
-
-/**
  * A practice round of the plan: make its run sheet, simulate its results from the process Run's practice panel holds,
  * and open Learn on them. The reader sees what the plan can and cannot tell before a run is spent. The study is then
  * as one practiced on: Learn says it is a practice round until a result is typed or the simulated ones are cleared.
@@ -3616,7 +3605,7 @@ function showChoicesFor(design) {
   // Past MAX_INTERACTION_FACTORS factors, Learn offers no model with every two-factor interaction, and says why.
   const k = design.spec.factors.length;
   for (const option of models.options) option.disabled = screensOnly(k) && INTERACTION_MODELS.includes(option.value);
-  $("#model-many").textContent = screeningSentence(k, "learn");
+  say($("#model-many"), screeningSentence(k, "learn"));
   $("#model-many").hidden = !screensOnly(k);
   const taken = (option) => option.value === "" || mixture === ("mixture" in option.dataset);
   // The reader's own terms are a model the run sheet takes, and never one the list offers: it is listed while chosen.
@@ -3931,7 +3920,7 @@ const NOT_ON_PAPER = new Set(["model-terms"]);
 
 function reportCopy(node) {
   const copy = node.cloneNode(true);
-  for (const word of copy.querySelectorAll("th button, .term")) {
+  for (const word of copy.querySelectorAll("th button, .term, .stage-link")) {
     const key = word.dataset.term;
     if (key && GLOSSARY[key] && !NOT_ON_PAPER.has(key) && !reportTerms.has(key)) reportTerms.set(key, word.textContent.trim());
     word.replaceWith(word.textContent);
@@ -4260,7 +4249,7 @@ function scheduleAnalysis() {
 }
 
 /** What Learn says while there is nothing to analyze. */
-const NOTHING_TO_LEARN = "No results yet: enter them in Run, or practice with simulated ones.";
+const NOTHING_TO_LEARN = "No results yet: enter them in [Run], or practice with simulated ones.";
 
 /** What Learn says of results that wait for Python to start: a study opened with its results is such a one. */
 const RESULTS_WAITING = "Your results are in. Their analysis follows once Python has started.";
@@ -4278,7 +4267,7 @@ function clearAnalysis() {
   $("#py-analyse").hidden = true;
   $("#charts").hidden = true;
   $("#charts").replaceChildren();
-  sayLearnEmpty(learnEmpty());
+  say($("#analyse-empty"), learnEmpty());
   $("#analyse-empty").hidden = false;
   $("#to-learn").hidden = true;
   $("#learn-report").hidden = true;
@@ -4339,8 +4328,8 @@ async function analyseRuns() {
     // Some other response has results, or only the curves are in: this one waits for its own.
     clearAnalysis();
     const curvesOnly = !anyResult(state.results);
-    const where = curvesOnly ? "the runs' curves are drawn under What if" : "enter them in Run";
-    sayLearnEmpty(`No results for ${wordsOf(state.shown).label} yet: ${where}.`);
+    const where = curvesOnly ? "the runs' curves are drawn under What if" : "enter them in [Run]";
+    say($("#analyse-empty"), `No results for ${wordsOf(state.shown).label} yet: ${where}.`);
     setStatus(`No results for ${wordsOf(state.shown).label} yet.`);
     await findBalance();
     await findCurve();
@@ -6104,7 +6093,7 @@ async function addConfirmationRuns(at = state.best?.confirm_at, where = "the bes
   setStatus(
     practice
       ? `${added} confirmation runs added at ${where}, their results simulated.`
-      : `${added} confirmation runs added at the end of the run sheet: enter their results in Run.`,
+      : `${added} confirmation runs added at the end of the run sheet: enter their results in [Run].`,
   );
 }
 
@@ -8010,7 +7999,7 @@ function suggestedPart(design) {
       return;
     }
     state.suggested = { design, n, result: reply.result };
-    setStatus("Runs suggested: see Next.");
+    setStatus("Runs suggested: see [Next].");
     renderNext();
   };
   const actions = el("p", "actions", "");
@@ -8223,7 +8212,7 @@ function calledFor(step) {
     actions.append(go);
     part.append(actions);
   } else if (step.outside_limits) {
-    part.append(said("hint", "Those runs would fall outside your limits on the settings, so Learn does not add them."));
+    part.append(said("hint", "Those runs would fall outside your limits on the settings, so [Learn] does not add them."));
   }
   const why = el("details", "next__why", "");
   why.append(el("summary", "", "Why, and what then"), ...noteList(step.reasons), said("hint", step.after), said("hint", `Judged by ${step.judged_by}.`));
@@ -8296,7 +8285,7 @@ function pathPart(path, stopped = false) {
 /** Where the path stands, in a sentence or two: the best run so far, the run that did worse, and the run to make next. */
 function pathWords(verdict, runOf, results, info) {
   const value = (i) => withUnit(results[i], info.units ?? "");
-  if (verdict.best === null) return "None of these runs has a result yet: enter each in Run as you make it.";
+  if (verdict.best === null) return "None of these runs has a result yet: enter each in [Run] as you make it.";
   const best = `Run ${runOf(verdict.best)} is the best of them so far (${value(verdict.best)}).`;
   if (verdict.worse !== null) return `Run ${runOf(verdict.worse)} did worse than run ${runOf(verdict.best)}: stop here. ${best}`;
   if (verdict.next !== null) return `${best} Make run ${runOf(verdict.next)} next.`;
@@ -8341,7 +8330,7 @@ async function addPathRuns(path) {
   setStatus(
     practice
       ? `${path.length} runs along the path added, their results simulated.`
-      : `${path.length} runs along the path added at the end of the run sheet: make them in order, and enter each result in Run.`,
+      : `${path.length} runs along the path added at the end of the run sheet: make them in order, and enter each result in [Run].`,
   );
 }
 
@@ -8483,7 +8472,7 @@ async function addRuns(kind, more = {}) {
     return;
   }
   showPhase("run");
-  setStatus(`${added} runs added at the end of the run sheet: enter their results in Run.`);
+  setStatus(`${added} runs added at the end of the run sheet: enter their results in [Run].`);
 }
 
 /**
@@ -9483,17 +9472,45 @@ function noteList(notes, cls = "facts") {
   const list = el("ul", cls, "");
   for (const note of notes) {
     const item = el("li", "", "");
-    item.append(...marked(note, MARKED));
+    item.append(...sentence(note));
     list.append(item);
   }
   return [list];
 }
 
-/** A paragraph of `text`, its glossary words marked. */
+/** A paragraph of `text`, its glossary words marked and each stage it names a link to it. */
 function said(cls, text) {
   const p = el("p", cls, "");
-  p.append(...marked(text, MARKED));
+  p.append(...sentence(text));
   return p;
+}
+
+/**
+ * A stage named in a sentence: its dot, in its color (style.css .stage-link), and its name, which is a way to it
+ * (the click on ``data-go``). A sentence names a stage in square brackets (logic.js stageParts), and the page writes
+ * its sentences through ``say``, ``said`` and ``setStatus``, so each stage named has its dot and is a link.
+ */
+function stageLink({ stage, name }) {
+  const go = el("button", `link stage-link stage-${stage}`, name);
+  go.type = "button";
+  go.dataset.go = stage;
+  return go;
+}
+
+/** A sentence's parts for ``append``, each stage it names a link to it. */
+function staged(text) {
+  return stageParts(text).map((part) => (typeof part === "string" ? part : stageLink(part)));
+}
+
+/** A sentence's parts for ``append``: its stages links, and the glossary's words in the rest marked. */
+function sentence(text) {
+  return staged(text).flatMap((part) => (typeof part === "string" ? marked(part, MARKED) : [part]));
+}
+
+/** Write a sentence as all that ``node`` holds, each stage it names a link to it. */
+function say(node, text) {
+  node.replaceChildren(...staged(text));
+  return node;
 }
 
 /** The library's warnings for a call, set apart from the result, or nothing. */
@@ -9548,7 +9565,7 @@ function builtTable(columns, rows) {
   const body = t.createTBody();
   for (const row of rows) {
     const tr = body.insertRow();
-    for (const cell of row) tr.insertCell().append(cell instanceof Node ? cell : String(cell ?? ""));
+    for (const cell of row) tr.insertCell().append(...(cell instanceof Node ? [cell] : staged(String(cell ?? ""))));
   }
   wrap.append(t);
   return wrap;
@@ -10257,7 +10274,9 @@ const feedback = installFeedback({
   context: feedbackContext,
   study: () => packCampaign(shareable(currentCampaign(), true)),
   hasStudy: () => Boolean(state.design),
+  writeSentence: say, // a stage the dialog names is a link to it, as on the page
 });
+drawUsage($("#foot-usage")); // the footer's line of use: left out when the counts cannot be had
 addFactor();
 addFactor();
 setAim(defaultAim(0));

@@ -490,16 +490,20 @@ class _Model:
     grid: np.ndarray  # (n_points, p) the model's columns at those points
     g_points: str
     region: DesignRegion | None = None  # the region over the designs' factors, None for the cube
+    categorical: np.ndarray | None = None  # (k,) True for a categorical factor, at -1 and +1 only
 
 
-def _model_exponents(k: int, model: str) -> np.ndarray:
-    """List a model's terms as exponent vectors over k factors, intercept first."""
+def _model_exponents(k: int, model: str, categorical: np.ndarray | None = None) -> np.ndarray:
+    """List a model's terms as exponent vectors over k factors, intercept first.
+
+    A categorical factor has no square: at -1 and +1, its square is the intercept.
+    """
     eye = np.eye(k, dtype=int)
     rows = [np.zeros(k, dtype=int), *eye]
     if model in {"interactions", "quadratic"}:
         rows += [eye[i] + eye[j] for i, j in itertools.combinations(range(k), 2)]
     if model in {"main_quadratic", "quadratic"}:
-        rows += [2 * eye[i] for i in range(k)]
+        rows += [2 * eye[i] for i in range(k) if categorical is None or not categorical[i]]
     return np.array(rows, dtype=int)
 
 
@@ -520,29 +524,52 @@ def _expand(points: np.ndarray, exponents: np.ndarray) -> np.ndarray:
     return np.prod(points[:, None, :] ** exponents[None, :, :], axis=2)
 
 
-def _moments(exponents: np.ndarray) -> np.ndarray:
+def _moments(exponents: np.ndarray, categorical: np.ndarray | None = None) -> np.ndarray:
     """Average every product of two model terms over the cube, exactly.
 
     Over :math:`[-1, 1]`, the average of :math:`x^a` is 0 for odd :math:`a` and
-    :math:`1/(a + 1)` for even :math:`a`; the factors are independent and uniform
-    over the cube, so the averages multiply.
+    :math:`1/(a + 1)` for even :math:`a`; a categorical factor, at -1 and +1 equally
+    often, averages 1 for even :math:`a`. The factors are independent, so the averages
+    multiply.
     """
     powers = exponents[:, None, :] + exponents[None, :, :]
     averages = np.where(powers % 2 == 1, 0.0, 1.0 / (powers + 1.0))
+    if categorical is not None:
+        averages = np.where(categorical & (powers % 2 == 0), 1.0, averages)
     return np.prod(averages, axis=2)
 
 
-def _g_points(k: int) -> tuple[np.ndarray, str]:
-    """Return the points of the cube over which G is searched, and how they were chosen."""
+def _g_points(k: int, categorical: np.ndarray | None = None) -> tuple[np.ndarray, str]:
+    """Return the points of the cube over which G is searched, and how they were chosen.
+
+    A categorical factor is at its two levels, -1 and +1, in every point.
+    """
+    mask = np.zeros(k, dtype=bool) if categorical is None else categorical
+    two = int(mask.sum())
     for levels in (7, 5, 3):
-        if levels**k <= _GRID_LIMIT:
-            grid = np.array(list(itertools.product(np.linspace(-1.0, 1.0, levels), repeat=k)))
+        if levels ** (k - two) * 2**two <= _GRID_LIMIT:
+            axes = [[-1.0, 1.0] if m else np.linspace(-1.0, 1.0, levels) for m in mask]
+            grid = np.array(list(itertools.product(*axes)))
             return grid, f"a {levels}-level grid of {len(grid)} points"
     corners = np.array(list(itertools.product([-1.0, 1.0], repeat=k)))
-    sampled = np.random.default_rng(0).uniform(-1.0, 1.0, size=(_SAMPLED_POINTS, k))
+    rng = np.random.default_rng(0)
+    sampled = rng.uniform(-1.0, 1.0, size=(_SAMPLED_POINTS, k))
+    sampled[:, mask] = rng.choice([-1.0, 1.0], size=(_SAMPLED_POINTS, two))
     return np.vstack([corners, sampled]), (
         f"the {len(corners)} corners and {_SAMPLED_POINTS} points drawn uniformly from the cube"
     )
+
+
+def _at_levels(points: np.ndarray, categorical: np.ndarray | None) -> np.ndarray:
+    """Return the points with their categorical factors at each combination of their two levels."""
+    if categorical is None or not categorical.any():
+        return points
+    copies = []
+    for levels in itertools.product([-1.0, 1.0], repeat=int(categorical.sum())):
+        copy = points.copy()
+        copy[:, categorical] = levels
+        copies.append(copy)
+    return np.vstack(copies)
 
 
 def _expand_in_chunks(points: np.ndarray, exponents: np.ndarray) -> np.ndarray:
@@ -550,7 +577,9 @@ def _expand_in_chunks(points: np.ndarray, exponents: np.ndarray) -> np.ndarray:
     return np.vstack([_expand(points[i : i + _CHUNK], exponents) for i in range(0, len(points), _CHUNK)])
 
 
-def _region_points(region: DesignRegion, k: int) -> tuple[np.ndarray, np.ndarray, str]:
+def _region_points(
+    region: DesignRegion, k: int, categorical: np.ndarray | None = None
+) -> tuple[np.ndarray, np.ndarray, str]:
     """Return a uniform sample of the region, the points G is searched over, and how they were chosen.
 
     The sample is :data:`_REGION_SAMPLES` points drawn with a generator seeded with
@@ -563,15 +592,19 @@ def _region_points(region: DesignRegion, k: int) -> tuple[np.ndarray, np.ndarray
     sits at a vertex, can then come out low; the description says so. With a curved
     limit, G is also searched on its boundary (see :func:`_curved_boundary`), and then by
     local searches from the points where each design's variance is largest (see
-    :func:`_ascent`).
+    :func:`_ascent`). A categorical factor, which no limit names, is drawn at -1 or +1 in the
+    sample, and every other point is taken at each of its two levels.
     """
     sample = region.sample(_REGION_SAMPLES, np.random.default_rng(_REGION_SEED))
-    grid, described = _g_points(k)
+    if categorical is not None and categorical.any():
+        draws = np.random.default_rng(_REGION_SEED + 2).choice([-1.0, 1.0], size=(len(sample), int(categorical.sum())))
+        sample[:, categorical] = draws
+    grid, described = _g_points(k, categorical)
     inside = grid[region.feasible(grid)]
     vertices = region._vertices_coded()  # None when there are too many to list
-    corners = np.empty((0, k)) if vertices is None else vertices[region.feasible(vertices)]
-    support = region.seed_points()  # none for a box too large for a boundary grid
-    boundary = _curved_boundary(region, sample)
+    corners = np.empty((0, k)) if vertices is None else _at_levels(vertices[region.feasible(vertices)], categorical)
+    support = _at_levels(region.seed_points(), categorical)  # none for a box too large for a boundary grid
+    boundary = _at_levels(_curved_boundary(region, sample), categorical)
     parts = [f"the {len(inside)} points of {described} that lie in the region"]
     if len(corners):
         parts.append(f"its {len(corners)} vertices")
@@ -635,15 +668,21 @@ def _curved_boundary(region: DesignRegion, sample: np.ndarray) -> np.ndarray:
     return near[region.feasible(near)]
 
 
-def _build_model(k: int, model: str, names: Sequence[str], region: DesignRegion | None = None) -> _Model:
+def _build_model(
+    k: int,
+    model: str,
+    names: Sequence[str],
+    region: DesignRegion | None = None,
+    categorical: np.ndarray | None = None,
+) -> _Model:
     """Set up a model once, for scoring every design on it, over the cube or over a region."""
-    exponents = _model_exponents(k, model)
+    exponents = _model_exponents(k, model, categorical)
     named = [_term_name(e, names) for e in exponents]
     if region is None:
-        points, description = _g_points(k)
-        moments = _moments(exponents)
+        points, description = _g_points(k, categorical)
+        moments = _moments(exponents, categorical)
     else:
-        sample, points, description = _region_points(region, k)
+        sample, points, description = _region_points(region, k, categorical)
         sampled = _expand_in_chunks(sample, exponents)
         moments = sampled.T @ sampled / len(sample)
     return _Model(
@@ -656,24 +695,61 @@ def _build_model(k: int, model: str, names: Sequence[str], region: DesignRegion 
         grid=_expand_in_chunks(points, exponents),
         g_points=description,
         region=region,
+        categorical=categorical,
     )
 
 
 # --------------------------------------------------------------------------- the designs
-def _coded_runs(design: object) -> tuple[np.ndarray, list[str] | None]:
-    """Return a design's runs in coded units, and its factor names when it has them.
+def _frame(design: object) -> pd.DataFrame | None:
+    """Return a design's factor columns as a table, or None for an array."""
+    if isinstance(design, DesignResult):
+        return design.design[list(design.factor_names)]
+    if isinstance(design, pd.DataFrame):
+        return design[[c for c in design.columns if c not in RESERVED_COLUMN_NAMES]]
+    return None
+
+
+def _categorical_levels(frames: list[pd.DataFrame | None]) -> dict[str, list[str]]:
+    """Find the categorical factors, the columns of labels, with their levels over every design, in sorted order.
 
     Raises
     ------
     ValueError
-        If the runs are not a two-dimensional table of numbers.
+        If a categorical factor has more than two levels.
     """
-    if isinstance(design, DesignResult):
-        frame: pd.DataFrame | None = design.design[list(design.factor_names)]
-    elif isinstance(design, pd.DataFrame):
-        frame = design[[c for c in design.columns if c not in RESERVED_COLUMN_NAMES]]
-    else:
-        frame = None
+    found: dict[str, set[str]] = {}
+    for frame in (f for f in frames if f is not None):
+        for name in frame.columns:
+            if not pd.api.types.is_numeric_dtype(frame[name]):
+                found.setdefault(str(name), set()).update(frame[name].astype(str))
+    many = [f"{name} has {len(levels)}" for name, levels in found.items() if len(levels) > 2]
+    if many:
+        raise ValueError(
+            "compare_designs takes a categorical factor of two levels, one column of the model, coded -1 and +1; "
+            f"{', '.join(many)}."
+        )
+    return {name: sorted(levels) for name, levels in found.items()}
+
+
+def _coded_runs(design: object, levels: Mapping[str, list[str]] | None = None) -> tuple[np.ndarray, list[str] | None]:
+    """Return a design's runs in coded units, and its factor names when it has them.
+
+    A categorical factor's two levels, in sorted order, are coded -1 and +1.
+
+    Raises
+    ------
+    ValueError
+        If the runs are not a two-dimensional table of numbers and labels, or a factor is a column of labels in one
+        design and of numbers in another.
+    """
+    frame = _frame(design)
+    if frame is not None:
+        levels = levels or {}
+        for name in [c for c in frame.columns if c in levels]:
+            if pd.api.types.is_numeric_dtype(frame[name]):
+                raise ValueError(f"{name} is a column of labels in one design and of numbers in another.")
+            coded = dict(zip(levels[name], (-1.0, 1.0), strict=False))
+            frame = frame.assign(**{name: frame[name].astype(str).map(coded)})
     try:
         runs = np.asarray(design if frame is None else frame, dtype=float)
     except (TypeError, ValueError) as exc:
@@ -757,12 +833,16 @@ def _factor_names(runs: list[tuple[np.ndarray, list[str] | None]]) -> list[str]:
 
 
 # --------------------------------------------------------------------------- the measures
-def _correlations(x: np.ndarray, names: Sequence[str]) -> pd.DataFrame:
-    """Return the correlation, from -1 to +1, between the main effects, squares and interactions."""
+def _correlations(x: np.ndarray, names: Sequence[str], categorical: np.ndarray | None = None) -> pd.DataFrame:
+    """Return the correlation, from -1 to +1, between the main effects, squares and interactions.
+
+    A categorical factor has no square.
+    """
     k = x.shape[1]
     pairs = list(itertools.combinations(range(k), 2))
-    columns = np.column_stack([x, x**2, *[x[:, i] * x[:, j] for i, j in pairs]]) if pairs else np.hstack([x, x**2])
-    labels = [*names, *[f"I({n} ** 2)" for n in names], *[f"{names[i]}:{names[j]}" for i, j in pairs]]
+    squared = [j for j in range(k) if categorical is None or not categorical[j]]
+    columns = np.column_stack([x, x[:, squared] ** 2, *[x[:, i] * x[:, j] for i, j in pairs]])
+    labels = [*names, *[f"I({names[j]} ** 2)" for j in squared], *[f"{names[i]}:{names[j]}" for i, j in pairs]]
     centred = columns - columns.mean(axis=0)
     norms = np.linalg.norm(centred, axis=0)
     varying = norms > _CONSTANT * math.sqrt(len(x))
@@ -848,7 +928,7 @@ def _ascent(inverse: np.ndarray, prediction: np.ndarray, model: _Model) -> float
                 args=(inverse, model.exponents, prediction[start]),
                 jac=True,
                 method="SLSQP",
-                bounds=[(-1.0, 1.0)] * k,
+                bounds=_bounds(model.points[start], model.categorical),
                 constraints=constraints,
                 options={"maxiter": _ASCENT_STEPS, "ftol": 1e-12},
             )
@@ -856,6 +936,12 @@ def _ascent(inverse: np.ndarray, prediction: np.ndarray, model: _Model) -> float
         terms = _expand(end[None, :], model.exponents)[0]
         largest = max(largest, float(terms @ inverse @ terms))
     return largest
+
+
+def _bounds(start: np.ndarray, categorical: np.ndarray | None) -> list[tuple[float, float]]:
+    """Bound a local search to the cube, a categorical factor held at its level where the search starts."""
+    held = np.zeros(len(start), dtype=bool) if categorical is None else categorical
+    return [(float(x), float(x)) if h else (-1.0, 1.0) for x, h in zip(start, held, strict=True)]
 
 
 def _within(region: DesignRegion, start: np.ndarray, end: np.ndarray) -> np.ndarray:
@@ -1161,7 +1247,9 @@ def compare_designs(
         DataFrame of factor columns (``RunOrder`` and ``Block`` are ignored), or an
         array with one column per factor. A mapping's keys label the designs; in a
         sequence each design is labeled with its ``design_type``. Every design has
-        the same factors, under the same names.
+        the same factors, under the same names. A column of labels is a categorical
+        factor of two levels, coded -1 and +1 in sorted order: it has no square, and
+        :math:`I`, :math:`G` and the FDS curves take it at its two levels only.
     model : {"main_quadratic", "main_effects", "interactions", "quadratic"}
         The model every design is scored on. ``"main_quadratic"``, the default and
         the book's model for the nine measures, has the intercept, the main effects
@@ -1191,7 +1279,8 @@ def compare_designs(
     ValueError
         If ``model`` is not one of :data:`MODELS`, ``effect_size`` is not positive,
         ``significance_level`` is not between 0 and 1, no design is given, the
-        designs differ in their factors, or ``region`` is a mixture region, has limits
+        designs differ in their factors, a categorical factor has more than two levels
+        or is labels in one design and numbers in another, or ``region`` is a mixture region, has limits
         that name a categorical level (compare over each ``region.given(...)`` instead),
         names a factor the designs do not have, or leaves no setting to run.
     TypeError
@@ -1215,10 +1304,14 @@ def compare_designs(
     labelled = _labelled(designs)
     if not labelled:
         raise ValueError("Give at least one design to compare.")
-    runs = [_coded_runs(design) for _, design in labelled]
+    levels = _categorical_levels([_frame(design) for _, design in labelled])
+    runs = [_coded_runs(design, levels) for _, design in labelled]
     names = _factor_names(runs)
+    categorical = np.array([name in levels for name in names]) if levels else None
     given = None if region is None else _as_region(region)
-    scored = _build_model(len(names), model, names, None if given is None else _region_over(given, names))
+    over = None if given is None else _region_over(given, names)
+    scored = _build_model(len(names), model, names, over, categorical)
+    squares = len(names) - (0 if categorical is None else int(categorical.sum()))
 
     labels: list[str] = []
     values: dict[str, Mapping[str, Any]] = {}
@@ -1234,9 +1327,9 @@ def compare_designs(
             inverses[sized] = inverse
         if whole_plot_note:
             design_notes.append(whole_plot_note)
-        correlations[sized] = _correlations(x, names)
+        correlations[sized] = _correlations(x, names, categorical)
         design_values["max_r"] = _largest_second_order_r(correlations[sized], len(names))
-        if np.isnan(correlations[sized].to_numpy()[len(names) : 2 * len(names)]).all():
+        if squares and np.isnan(correlations[sized].to_numpy()[len(names) : len(names) + squares]).all():
             design_notes.append("The squares do not vary in this design, so max |r| is over the interactions only.")
         values[sized] = MappingProxyType(design_values)
         notes[sized] = tuple(design_notes)
@@ -1261,6 +1354,8 @@ def _fds_rows(model: _Model, n_points: int, random_state: int | np.random.Genera
     rng = check_random_state(random_state)
     k = model.exponents.shape[1]
     points = rng.uniform(-1.0, 1.0, size=(n_points, k)) if model.region is None else model.region.sample(n_points, rng)
+    if model.categorical is not None and model.categorical.any():
+        points[:, model.categorical] = rng.choice([-1.0, 1.0], size=(n_points, int(model.categorical.sum())))
     return _expand_in_chunks(points, model.exponents)
 
 

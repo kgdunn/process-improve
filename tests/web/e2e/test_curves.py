@@ -152,7 +152,9 @@ def test_a_reader_who_says_the_response_is_a_curve_finds_the_curves_box_open_und
     if said:
         page.click("#response-curve summary")
         text = " ".join(page.text_content("#response-curve p").split())
-        assert text.startswith("Paste one curve per run under the run sheet.")
+        assert text.startswith("You can paste one curve per run under the Run sheet. In the Learn step it will predict")
+        ways = page.locator("#response-curve p .stage-link")
+        assert ways.all_text_contents() == ["Run", "Learn"], "each stage named is a way to it"
         label = page.locator("#response-curve svg[role=img]").get_attribute("aria-label")
         assert label.startswith("Three runs' curves")
     generate(page)

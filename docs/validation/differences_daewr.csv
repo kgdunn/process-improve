@@ -1,10 +1,4 @@
 source,entry,design,kind,printed,process_improve,other,outcome,catalogue_cause
-jones-nachtsheim-2011,jones-nachtsheim-2011-dsd-5-factors,dsd k=5,same_runs:,11,no relabelling of the library's columns ,"the library's columns 1, 2, 3, 4, 5",process-improve differs,method
-jones-nachtsheim-2011,jones-nachtsheim-2011-dsd-7-factors,dsd k=7,same_runs:,15,no relabelling of the library's columns ,"the library's columns 1, 2, 3, 4, 5, 6, 7",process-improve differs,method
-jones-nachtsheim-2011,jones-nachtsheim-2011-dsd-9-factors,dsd k=9,same_runs:,19,no relabelling of the library's columns ,"the library's columns 1, 2, 3, 4, 5, 6, 7, 8, 9",process-improve differs,method
-jones-nachtsheim-2011,jones-nachtsheim-2011-dsd-11-factors,dsd k=11,same_runs:,23,no relabelling of the library's columns ,"the library's columns 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11",process-improve differs,method
-jones-nachtsheim-2011,jones-nachtsheim-2011-dsd-12-factors,dsd k=12,same_runs:,25,no relabelling of the library's columns ,"the library's columns 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12",process-improve differs,method
-montgomery-2013,montgomery-dsd-12,dsd k=12,same_runs:,constructed from a conference matrix,no relabelling of the library's columns ,"the library's columns 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12",process-improve differs,source_error
 nunez-ares-goos-2019,nunez-ares-goos-design-sizes,dsd k=7,design_property:n_runs,17,17,15,other differs,
 nunez-ares-goos-2019,nunez-ares-goos-design-sizes,dsd k=9,design_property:n_runs,21,21,19,other differs,
 nunez-ares-goos-2019,nunez-ares-goos-design-sizes,dsd k=9,design_property:n_runs,21,21,19,other differs,
