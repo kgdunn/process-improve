@@ -420,9 +420,9 @@
       design, and L9, L27 and L81 are regular 3^(k-p) fractions. In a regular
       array the interaction of two columns falls in specific other columns, so
       it is kept clear by leaving those empty. In L12, L18, L36 and L54 an
-      interaction is spread over the other columns. The analysis of crossed
-      arrays by signal-to-noise ratios has been criticized (Box 1988; Nair
-      1992): a combined array often needs fewer runs.
+      interaction is spread over the other columns. Taguchi's signal-to-noise
+      ratios have been criticized (Box 1988; Nair 1992). A combined array often
+      needs fewer runs than a crossed array (Shoemaker, Tsui and Wu 1991).
   suitable_for:
     - "Many factors are studied, some of them at three or more levels"
     - "The main effect of each factor is wanted from few runs"

@@ -1,0 +1,1 @@
+- The knowledge base's Taguchi entry credits Box (1988) and Nair (1992) with criticizing signal-to-noise ratios, which is what they say, not the analysis of crossed arrays as such, and credits the run savings of a combined array to Shoemaker, Tsui and Wu (1991). Its 16 cited statements were checked against published sources (#1484).

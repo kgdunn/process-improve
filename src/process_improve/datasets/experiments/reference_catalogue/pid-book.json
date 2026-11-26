@@ -15758,7 +15758,7 @@
     }
    ],
    "design": {
-    "type": "other",
+    "type": "2^(4-1) fractional factorial (D = ABC in every printed row)",
     "details": "8 runs in 4 two-level factors; the book does not name the design. In every printed row the D sign equals the product of the A, B and C signs (an observation; the book does not state a generator).",
     "n_runs": 8
    },
@@ -26714,7 +26714,7 @@
    ],
    "responses": [],
    "design": {
-    "type": "other",
+    "type": "2^2 factorial with one corner replaced by two runs inside a constraint",
     "details": "2^2 factorial in temperature T and substrate concentration C with the (T+, C+) corner in a forbidden region (undesirable side-reaction at high T and high C); that corner is replaced by two other runs, giving 5 runs analysed by least squares. The location of the two replacement runs is shown only in the figure.",
     "n_runs": 5
    },
@@ -40631,7 +40631,7 @@
    ],
    "responses": [],
    "design": {
-    "type": "other",
+    "type": "fold-over: a half design, its mirror image and a center run",
     "details": "Foldover D = [H; -H; 0], N = 2h + 1: a two-row half-design H, its sign-flipped copy -H, and one centre run (math at lines 136-139).",
     "n_runs": 5
    },
@@ -48238,7 +48238,7 @@
    ],
    "responses": [],
    "design": {
-    "type": "other",
+    "type": "split-plot case study augmented with a four-run resolution III fraction",
     "details": "augmentation: the 60 existing runs held fixed plus 4 runs of compound G at centre concentration (0.0) in a four-run resolution-III fraction in (co_solvent, pH, temperature): res3 = [(-1, -1, 1), (1, -1, -1), (-1, 1, -1), (1, 1, 1)]; scored with evaluate_design on the seven-level interaction model rhs (28 terms)",
     "n_runs": 64
    },
@@ -48554,7 +48554,7 @@
    ],
    "responses": [],
    "design": {
-    "type": "other",
+    "type": "split-plot case study augmented with an eight-run 2^3 factorial",
     "details": "augmentation: the 60 existing runs held fixed plus 8 runs of compound G at centre concentration (0.0), a 2^3 full factorial in (co_solvent, pH, temperature) from itertools.product([-1, 1], repeat=3); scored with evaluate_design on the seven-level interaction model rhs (28 terms)",
     "n_runs": 68
    },
