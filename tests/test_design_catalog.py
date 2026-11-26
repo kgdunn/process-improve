@@ -137,12 +137,12 @@ def test_every_published_entry_has_a_family_and_few_have_none(records):
     assert len(published) == sum(len(design_catalog._arrangements(e)) for e in entries), "each blocking a record"
     assert {r["family"] for r in records} <= set(FAMILIES)
     unknown = [r["design_text"] for r in published if r["family"] == "other"]
-    # pid-book's 7 "other", designs that work a calculation (#1483), two projections, and four designs of
-    # Montgomery's that no family holds: an equiradial hexagon, a hybrid design, a sphere-packing design and a simplex design of first order. Box and
-    # Draper's 42: 13 entries that print no design (an exercise in algebra, a table of values, a response
-    # function that is not fitted), five Koshal designs, and 24 response surface designs no family holds (a
-    # hexagon, a dodecahedron, an all-bias design, regular simplex, third-order and three-level designs).
-    # McMullen and Jurica's 1: runs chosen round by round by SNOBFIT, an optimizer, not by a design
+    # pid-book's 7 "other", designs that work a calculation (#1483), two projections, and four designs of Montgomery's
+    # that no family holds: an equiradial hexagon, a hybrid design, a sphere-packing design and a simplex design of
+    # first order. Box and Draper's 42: 13 entries that print no design (an exercise in algebra, a table of values, a
+    # response function that is not fitted), five Koshal designs, and 24 response surface designs no family holds (a
+    # hexagon, a dodecahedron, an all-bias design, regular simplex, third-order and three-level designs). McMullen and
+    # Jurica's 1: runs chosen round by round by SNOBFIT, an optimizer, not by a design
     assert len(unknown) <= 56, f"a rule is needed for: {sorted(set(unknown))}"
 
 
