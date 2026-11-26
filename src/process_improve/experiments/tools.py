@@ -49,6 +49,7 @@ from process_improve.experiments._tools.variance_components import variance_comp
 from process_improve.experiments._tools.multistratum_anova import multistratum_anova_tool
 from process_improve.experiments._tools.yates_table import yates_table_tool
 from process_improve.experiments._tools.interaction_components import interaction_components_tool
+from process_improve.experiments._tools.query_concept_graph import query_concept_graph_tool
 
 __all__ = [
     "analyze_experiment_tool",
@@ -65,6 +66,7 @@ __all__ = [
     "interaction_components_tool",
     "multistratum_anova_tool",
     "optimize_responses_tool",
+    "query_concept_graph_tool",
     "read_run_sheet_tool",
     "recommend_next_step_tool",
     "recommend_strategy_tool",

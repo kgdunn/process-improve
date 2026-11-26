@@ -465,6 +465,9 @@ jobs:
     # cp1252 on Windows (#994); tests/conftest.py fails the run when the call is ours.
     env:
       PYTHONWARNDEFAULTENCODING: "1"
+      # relate-db, the one package of this group, has no wheel for the free-threaded build, and
+      # uv would build it from source. Its tests skip without it (tests/test_concept_graph.py).
+      UV_NO_GROUP: concept-graph
     strategy:
       fail-fast: false
       matrix:

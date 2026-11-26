@@ -28,6 +28,12 @@ skipping, because those tests exercise the extras. Use uv rather than pip: the
 group holds `pyoptex`, which resolves beside the extras only through the
 `[tool.uv]` overrides, and pip does not apply them.
 
+`uv sync` also installs the `concept-graph` group: `relate-db`, the graph
+database behind `experiments.knowledge.ConceptGraph`. It is a group of its own,
+and not an extra, because it has no wheel for free-threaded Python: `[all]`
+would not install there, and the free-threaded CI job leaves the group out
+(`UV_NO_GROUP`). The tests that need it skip without it.
+
 ## Running tests
 
 The full suite:
