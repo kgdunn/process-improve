@@ -47,7 +47,13 @@ from process_improve.multivariate._cv_criteria import _CompareSettings, _PseudoV
 from process_improve.multivariate._diagnostics import cumulative_block_t2, t2_precision
 from process_improve.multivariate._impute import impute_low_rank
 from process_improve.multivariate._pca import _leverage_corrected_press, _low_rank_reconstruction, _pca_ekf_press
-from process_improve.multivariate._pls import MAX_BOOTSTRAP_DRAWS, _bootstrap_rows, _direct_weights, _held_out_scores
+from process_improve.multivariate._pls import (
+    MAX_BOOTSTRAP_DRAWS,
+    _bootstrap_rows,
+    _direct_weights,
+    _held_out_scores,
+    _varies,
+)
 from process_improve.multivariate._projection import operator_for_pattern, project_rows
 from process_improve.multivariate.methods import (
     ASCA,
@@ -5410,6 +5416,14 @@ def test_a_bootstrap_with_no_rows_that_vary_is_refused_in_words() -> None:
     plain = [draws.choice(4, size=4) for _ in range(3)]
     assert all(len(set(r)) > 1 for r in plain)
     assert [list(r) for r in _bootstrap_rows(np.random.default_rng(1), X, Y, 3)] == [list(r) for r in plain]
+
+
+def test_a_nullable_column_varies_when_two_of_its_observed_values_differ() -> None:
+    """A nullable frame's ``pd.NA`` is a missing cell, as NaN is: it is read as a number, not compared (#1491)."""
+    block = pd.DataFrame({"y": pd.array([1.0, None, 2.0], dtype="Float64"), "flat": pd.array([3.0, 3.0, None])})
+    assert _varies(block)
+    assert not _varies(block[["flat"]]), "one observed value, 3.0, twice"
+    assert not _varies(block.iloc[[1]]), "a single row varies in nothing"
 
 
 def test_pls_cross_validate_significance() -> None:

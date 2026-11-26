@@ -242,7 +242,8 @@ def _varies(block: pd.DataFrame) -> bool:
     """Say whether a column of ``block`` takes two observed values or more over its rows."""
     values = block.to_numpy(dtype=float)
     # fmax and fmin pass over a missing cell, and give NaN for a column with none observed, which is not > NaN.
-    return bool((np.fmax.reduce(values, axis=0) > np.fmin.reduce(values, axis=0)).any())
+    # A ufunc's reduce runs down the rows by default, so it is given no axis.
+    return bool((np.fmax.reduce(values) > np.fmin.reduce(values)).any())
 
 
 def _bootstrap_rows(rng: np.random.Generator, X: pd.DataFrame, Y: pd.DataFrame, n_bootstrap: int) -> list[np.ndarray]:

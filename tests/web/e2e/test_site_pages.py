@@ -178,15 +178,17 @@ def test_the_footer_draws_how_many_people_used_factorial_each_day(reproduced_con
     assert float(cx) == float(last_x), "the dot is on the last 24 hours"
 
 
-@pytest.mark.parametrize(
-    ("body", "said"),
-    [
-        (None, "the build's own file, of no counts: a copy of Factorial elsewhere draws nothing"),
-        (counts(12, hours_old=25), "a file a day old is stale"),
-        (json.dumps({"updated": "2026-11-25T10:00:00Z", "days": [["2026-11-25", 9]]}), "an older server's file"),
-        ("not json", "a file that is no JSON"),
-    ],
-)
+NO_COUNTS = [
+    (None, "the build's own file, of no counts: a copy of Factorial elsewhere draws nothing"),
+    (counts(12, hours_old=25), "a file a day old is stale"),
+    (json.dumps({"updated": "2026-11-25T10:00:00Z", "days": [["2026-11-25", 9]]}), "an older server's file"),
+    ("not json", "a file that is no JSON"),
+]
+
+
+# Each case is named by what it says, not by its body: the stale file's body holds the clock's second, so two
+# xdist workers that collect a second apart would name it differently and the run would stop.
+@pytest.mark.parametrize(("body", "said"), NO_COUNTS, ids=[said for _, said in NO_COUNTS])
 def test_the_footer_leaves_the_line_out_when_there_are_no_counts_to_draw(reproduced_context, site, body, said):
     if body is not None:
         reproduced_context.route(
