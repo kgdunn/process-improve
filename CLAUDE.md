@@ -371,6 +371,11 @@ item goes to the omnibus issue, #1149, as a comment under its aspect, when no
 more specific issue holds it), or open a new issue for it. The PR body links
 those issues; it does not list the items for the maintainer to triage.
 
+Take the first that fits: fix it in the same PR when it is small; add it to the
+open issue that already holds its subject; put a choice for the maintainer on the
+tracking issue (#1358), not in a new issue. Open a new issue only when none of
+these fits. A PR that opens more issues than it closes says so in its report.
+
 ## Communication style
 
 - Lead with the result. Your first sentence answers "what happened" or "what's
@@ -385,8 +390,9 @@ those issues; it does not list the items for the maintainer to triage.
   Avoid unnecessary synonyms: use one term for one thing.
 - End a report with one or two lines: what you skipped or did not check, and any
   risk the user must know.
-- Every PR named in chat carries its full link, in this repository or another,
-  never a bare number:
+- Every PR and issue named in chat carries its full link, in this repository or
+  another, never a bare number. This holds in tables, lists, questions and
+  reminders too:
   [process-improve #958](https://github.com/kgdunn/process-improve/pull/958).
 
 ## Updating this file (CLAUDE.md)
