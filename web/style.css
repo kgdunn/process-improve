@@ -1394,7 +1394,7 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 .what-if-row { display: flex; flex-direction: column; gap: 4px; border-top: 2px solid var(--fg); border-bottom: none; background: var(--bg); }
 .what-if-row__name { font-family: "Outfit", system-ui, -apple-system, "Segoe UI", sans-serif; font-weight: 500; }
 .what-if-factor input[type="number"] { width: 100%; color: var(--ink); font-weight: 600; }
-.what-if-factor input[type="range"] { width: 100%; min-height: 44px; margin: 0; accent-color: var(--accent); }
+.what-if-factor input[type="range"] { width: 100%; margin: 0; accent-color: var(--accent); }
 .what-if-levels { display: flex; flex-wrap: wrap; gap: 2px; }
 .what-if-level {
   flex: 1 1 0; min-height: 44px; padding: 2px 6px; border: 1px solid var(--accent); border-radius: var(--corner);
