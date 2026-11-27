@@ -671,31 +671,34 @@
           <!-- The run sheet (app.js renderRuns). Over its runs, in a body of their own, the What-if rows
                (app.js renderWhatIfControls): a row of pictures for each response, the What-if row and its presets,
                which the rows take in when they are built. -->
-          <div class="scroll"><table id="design-table" class="data runs"><tbody id="what-if-settings" class="what-if-body"><tr><td>
-            <span id="what-if-presets" class="what-if-presets">
-              <span class="hint">Set the What-if row to</span>
-              <button type="button" id="what-if-back" class="button"></button>
-              <button type="button" id="what-if-run" class="button" hidden></button>
-              <button type="button" id="what-if-middle" class="button" hidden></button>
-            </span>
-          </td></tr></tbody></table></div>
-          <p id="sheet-legend" class="hint" hidden><span aria-hidden="true">†</span> misses its goal.</p>
-          <!-- A run made at other settings than planned (app.js settingTyped, renderOffPlan): which runs, and the way
-               back to the plan. -->
-          <p id="off-plan" class="hint off-plan" tabindex="-1" hidden><span id="off-plan-says"></span>
-            <button type="button" id="off-plan-back" class="link" hidden>Put the planned settings back</button></p>
-          <!-- The rest of What if, under the run sheet: the map, the numbers behind the What-if row, the curve, and the
-               settings kept with the study. -->
-          <section id="what-if" class="best what-if" aria-labelledby="h-what-if" hidden>
-            <h3 id="h-what-if">What if</h3>
+          <div class="sheet-and-map">
+            <div class="scroll"><table id="design-table" class="data runs"><tbody id="what-if-settings" class="what-if-body"><tr><td>
+              <span id="what-if-presets" class="what-if-presets">
+                <span class="hint">Set the What-if row to</span>
+                <button type="button" id="what-if-back" class="button"></button>
+                <button type="button" id="what-if-run" class="button" hidden></button>
+                <button type="button" id="what-if-middle" class="button" hidden></button>
+              </span>
+            </td></tr></tbody></table></div>
             <!-- The map (app.js drawMap, charts.js mapFigure): the response over two factors, the others where the
                  What-if row has them. It marks the What-if row's settings and the best settings, and takes a press or
-                 a drag. -->
+                 a drag. On a wide screen it is beside the run sheet, in view with the What-if row it sets, and stays
+                 in view as the runs scroll; on a narrow one, under the sheet. -->
             <figure id="what-if-map" class="chart what-if-map" hidden>
               <h4 id="what-if-map-title"></h4>
               <div class="plot" id="what-if-map-plot"></div>
               <figcaption class="hint">Press or drag to set both.</figcaption>
             </figure>
+          </div>
+          <p id="sheet-legend" class="hint" hidden><span aria-hidden="true">†</span> misses its goal.</p>
+          <!-- A run made at other settings than planned (app.js settingTyped, renderOffPlan): which runs, and the way
+               back to the plan. -->
+          <p id="off-plan" class="hint off-plan" tabindex="-1" hidden><span id="off-plan-says"></span>
+            <button type="button" id="off-plan-back" class="link" hidden>Put the planned settings back</button></p>
+          <!-- The rest of What if, under the run sheet: the numbers behind the What-if row, the curve, and the settings
+               kept with the study. -->
+          <section id="what-if" class="best what-if" aria-labelledby="h-what-if" hidden>
+            <h3 id="h-what-if">What if</h3>
             <!-- The numbers behind the What-if row (app.js renderWhatIf): each response's prediction, its two intervals
                  and the leverage, a press away; and, in view, the limits the settings break and the models they lean on. -->
             <div id="what-if-out">
