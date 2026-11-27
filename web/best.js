@@ -908,12 +908,13 @@ export function dotPiles(runs, [low, high], columns) {
 }
 
 /**
- * The runs in words: how far they reach, and how many are inside the reader's window when one is typed. ``words`` is
- * the response's ``label`` and ``units``; ``inside`` is insideWindow's answer.
+ * The runs in words: how far they reach, and how many are inside what they are judged against, ``within`` ("your
+ * window", "its goal"), when they are judged. ``words`` is the response's ``label`` and ``units``; ``inside`` is
+ * insideWindow's answer.
  */
-export function runsWords(runs, inside, { label, units }, windowed = false) {
+export function runsWords(runs, inside, { label, units }, within = null) {
   const reach = `${label} as ${runs.length} runs you might get: ${rangeWords([runs[0], runs.at(-1)], units)}.`;
-  return windowed ? `${reach} ${inside.filter(Boolean).length} of them are inside your window.` : reach;
+  return within ? `${reach} ${inside.filter(Boolean).length} of them are inside ${within}.` : reach;
 }
 
 /** A prediction and its intervals on a transform's scale, put back in the response's units; the leverage as it is. */

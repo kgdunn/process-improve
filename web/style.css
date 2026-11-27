@@ -1375,6 +1375,13 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
   border: 1px solid var(--line); border-radius: var(--corner); background: var(--panel);
 }
 .what-if-column { grid-row: 1 / -1; display: grid; grid-template-rows: subgrid; min-width: 0; }
+/* On a phone each response's verdict comes first, beside its name: the pictures and the What-if row are a sideways
+   scroll away. */
+@media (max-width: 700px) {
+  .what-if-settings { grid-template-columns: minmax(7em, max-content) minmax(200px, 250px) repeat(var(--factors, 1), minmax(104px, 1fr)); }
+  .what-if-goals { order: 1; }
+  .what-if-factor { order: 2; }
+}
 .what-if-cell { min-width: 0; padding: 4px 8px; border-bottom: 1px solid var(--line); }
 .what-if-head { display: flex; flex-direction: column; justify-content: flex-end; border-bottom: 2px solid var(--fg); }
 .what-if-names { position: sticky; left: 0; z-index: 1; background: var(--panel); }

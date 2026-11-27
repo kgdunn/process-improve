@@ -1005,8 +1005,8 @@ describe("what if", () => {
     const runs = [58.21, 60, 62, 64, 66.14];
     const words = { label: "Yield", units: "%" };
     assert.equal(runsWords(runs, insideWindow(runs), words), "Yield as 5 runs you might get: 58.21 to 66.14%.");
-    assert.equal(runsWords(runs, insideWindow(runs, [60, null]), words, true), "Yield as 5 runs you might get: 58.21 to 66.14%. 4 of them are inside your window.");
-    assert.equal(runsWords([1, 3], [false, false], { label: "Cost", units: "$/kg" }, true), "Cost as 2 runs you might get: 1 to 3 $/kg. 0 of them are inside your window.");
+    assert.equal(runsWords(runs, insideWindow(runs, [60, null]), words, "your window"), "Yield as 5 runs you might get: 58.21 to 66.14%. 4 of them are inside your window.");
+    assert.equal(runsWords([1, 3], [false, false], { label: "Cost", units: "$/kg" }, "its goal"), "Cost as 2 runs you might get: 1 to 3 $/kg. 0 of them are inside its goal.");
   });
 
   test("a factor's profile is the prediction as it alone moves, the others where they are set", () => {

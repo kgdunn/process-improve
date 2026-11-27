@@ -109,7 +109,7 @@ def test_the_card_opens_on_what_the_study_asks(blank_page, context, site):
     generate(page)
     practise(page)
     reveal(page, "#where")
-    page.wait_for_selector("#where:not([hidden]) #what-if-out table")
+    page.wait_for_selector("#where:not([hidden]) #what-if-out table", state="attached")
     assert page.get_attribute("#goal-target", "aria-selected") == "false"
     predicted = page.locator("#what-if-out tbody td").nth(1).text_content().split()[0].rstrip("%")
     page.click("#goal-target")

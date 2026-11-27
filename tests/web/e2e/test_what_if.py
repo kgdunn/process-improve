@@ -79,7 +79,7 @@ def test_the_worked_example_opens_at_its_best_settings_and_follows_each_move(pag
         ".map((row) => [row.dataset.factor, row.querySelector('input[name=number]').value]))"
     )
     assert boxes == shown
-    assert page.is_hidden("#what-if-back"), "at the best settings there is nowhere to come back to"
+    assert page.get_attribute("#what-if-back", "aria-pressed") == "true", "the What-if row is at the best settings"
 
     before = predictions(page)
     set_number(page, "Temperature", 160)
@@ -88,11 +88,12 @@ def test_the_worked_example_opens_at_its_best_settings_and_follows_each_move(pag
     expected = predicted_by_hand(fit, first_paint["predictors"]["factors"], moved)
     assert rows(page)[0][1] == f"{num(expected)}%"
     assert predictions(page) == before, "the page predicts in its own JavaScript, without asking Python"
-    assert page.text_content("#what-if-back") == "Back to the best settings"
+    assert page.text_content("#what-if-back") == "the best settings"
+    assert page.get_attribute("#what-if-back", "aria-pressed") == "false"
 
     page.click("#what-if-back")
     assert rows(page)[0][1] == f"{num(best['predicted'])}%"
-    assert page.is_hidden("#what-if-back")
+    assert page.get_attribute("#what-if-back", "aria-pressed") == "true"
     assert "new_points=at" in page.text_content("#py-what-if code"), "the code that makes the same predictions"
 
 
@@ -114,7 +115,7 @@ def test_with_three_responses_the_panel_opens_at_the_balanced_settings(three):
     units = {"Yield": "%", "Cost": " $/kg", "Purity": "%"}
     assert [row[1] for row in table] == [f"{num(r['predicted'])}{units[r['name']]}" for r in balanced["responses"]]
     set_number(page, "P", 2.5)
-    assert page.text_content("#what-if-back") == "Back to the balanced settings"
+    assert page.text_content("#what-if-back") == "the best for every goal"
 
 
 def test_settings_past_a_limit_name_it(fresh_page):

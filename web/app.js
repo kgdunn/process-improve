@@ -7160,12 +7160,12 @@ const balancedOf = (name) => state.balance?.responses?.find((r) => r.name === na
 /** A response as the study describes it: its goal, and its target when it has one. */
 const describedOf = (name) => studyResponses().find((r) => r.name === name) ?? {};
 
-/** Each fitted response's goal band by its name (best.js goalBand), for each that has one. */
-function goalBands(w) {
+/** Each fitted response's goal by its name (best.js goalBand): its band and where it comes from, for each that has one. */
+function goalsOf(w) {
   return Object.fromEntries(
     profiledResponses(w).flatMap((fit) => {
       const goal = goalBand(state.window.windows[fit.name], balancedOf(fit.name));
-      return goal ? [[fit.name, goal.band]] : [];
+      return goal ? [[fit.name, goal]] : [];
     }),
   );
 }
@@ -7202,7 +7202,8 @@ function drawGoals() {
   const w = state.whatIf;
   if (!w) return;
   const at = columnsAt(w.factors, w.settings);
-  const bands = goalBands(w);
+  const goals = goalsOf(w);
+  const bands = Object.fromEntries(Object.entries(goals).map(([name, goal]) => [name, goal.band]));
   const box = $("#what-if-settings");
   let met = 0;
   for (const fit of profiledResponses(w)) {
@@ -7234,7 +7235,8 @@ function drawGoals() {
     bar.append(svgPart("circle", { class: "goal-bar__predicted", cx: across(predicted), cy: 21, r: 4.5 }));
     const interval = prediction ? `${num(prediction[0])} to ${withUnit(prediction[1], units)}` : null;
     const word = verdict ? verdict.word : goalWords;
-    const runsSaid = runs ? ` ${runsWords(runs, inside, { label: fit.label, units }, Boolean(band))}` : "";
+    const within = band && (goals[fit.name].from === "window" ? "your window" : "its goal");
+    const runsSaid = runs ? ` ${runsWords(runs, inside, { label: fit.label, units }, within)}` : "";
     bar.setAttribute(
       "aria-label",
       `${fit.label} at the what-if settings: ${withUnit(predicted, units)}` +

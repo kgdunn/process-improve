@@ -18,10 +18,10 @@ from tests.web.e2e.test_responses import three_responses
 from tests.web.e2e.test_what_if import rows, set_number
 
 PROFILES = "#what-if-settings svg.profile"
-PAD = 10  # app.js PROFILE.pad: the room about a profile's plot
+PAD = 6  # app.js PROFILE.pad: the room about a profile's plot
 
-#: Each profile as the page draws it: what it says, its size inside its border, the ends of its scale, its mark, and
-#: its line's pieces.
+#: Each profile as the page draws it: what it says, its size, the ends of its scale (said beside its response's name,
+#: the foot first), its mark, and its line's pieces.
 DRAWN = """(profiles) => profiles.map((one) => {
   const mark = one.querySelector('.profile__set');
   const points = (line) => line.getAttribute('points').split(' ').map((point) => point.split(',').map(Number));
@@ -30,7 +30,9 @@ DRAWN = """(profiles) => profiles.map((one) => {
     response: one.dataset.response,
     says: one.getAttribute('aria-label'),
     width: one.clientWidth, height: one.clientHeight,
-    ends: [...one.querySelectorAll('.profile__end')].map((end) => end.textContent),
+    ends: [...one.closest('#what-if-settings').querySelectorAll(
+      `.what-if-response[data-response="${CSS.escape(one.dataset.response)}"] .profile__end`)]
+      .map((end) => end.textContent),
     mark: mark && ['cx', 'cy'].map((at) => Number(mark.getAttribute(at))),
     band: one.querySelectorAll('.profile__band').length,
     pieces: [...one.querySelectorAll('.profile__line')].map((line) => (
@@ -60,7 +62,7 @@ def setting(page: Any, factor: str) -> float:  # noqa: ANN401
 def press_at(page: Any, factor: str, share: float, to: float | None = None) -> None:  # noqa: ANN401
     """Press on a factor's profile at a share of its plot's width, and drag to another share when ``to`` is given."""
     box = page.locator(f'#what-if-settings [data-factor="{factor}"] svg.profile').bounding_box()
-    across = lambda at: box["x"] + 1 + PAD + at * (box["width"] - 2 - 2 * PAD)  # noqa: E731 - inside its 1 px border
+    across = lambda at: box["x"] + PAD + at * (box["width"] - 2 * PAD)  # noqa: E731
     middle = box["y"] + box["height"] / 2
     page.mouse.move(across(share), middle)
     page.mouse.down()
@@ -88,11 +90,11 @@ def test_each_factor_has_a_profile_of_the_response_on_show(what_if):
     assert " at 150 degC, " in profiles["Temperature"]["says"]
     assert "highest at 68.25% at " in profiles["Flow"]["says"], "the best settings are a turn of the curve over Flow"
     assert all(one["band"] == 1 for one in profiles.values()), "each with its 95% band"
-    assert page.text_content("#what-if-about").startswith("Each picture is Yield against one factor")
+    assert page.text_content("#what-if-about").startswith("Each picture is a response against one factor")
     # One scale for the row: every profile has the same two ends, and the best prediction lies between them.
     ends = {tuple(one["ends"]) for one in profiles.values()}
     assert len(ends) == 1
-    top, bottom = (number(end) for end in ends.pop())
+    bottom, top = (number(end) for end in ends.pop())
     assert bottom < number(rows(page)[0][1]) < top
 
 
@@ -106,7 +108,7 @@ def test_a_profile_s_mark_stands_at_the_setting_and_at_the_table_s_prediction(wh
         across, up = one["mark"]
         share = (setting(page, factor) - low) / (high - low)
         assert across == pytest.approx(PAD + share * (one["width"] - 2 * PAD), abs=0.6), factor
-        top, bottom = (number(end) for end in one["ends"])
+        bottom, top = (number(end) for end in one["ends"])
         predicted = bottom + (one["height"] - PAD - up) / (one["height"] - 2 * PAD) * (top - bottom)
         assert predicted == pytest.approx(number(rows(page)[0][1]), abs=0.08), f"{factor}: the table's prediction"
 
@@ -123,7 +125,7 @@ def test_a_drag_on_a_profile_sets_its_factor_and_every_profile_follows(what_if):
     # Temperature and Pressure act together, so Pressure's profile is another line now; the table follows too.
     assert after["Pressure"]["pieces"] != before["Pressure"]["pieces"]
     assert rows(page)[0][1] != "68.25%"
-    assert page.is_visible("#what-if-back")
+    assert page.get_attribute("#what-if-back", "aria-pressed") == "false", "off the best settings"
     assert page.evaluate("window.__pi.count('api_predictors')") == calls, (
         "in the page's own JavaScript: no call to Python"
     )
@@ -185,17 +187,17 @@ def test_the_line_is_dashed_where_the_settings_lie_beyond_the_runs(what_if):
 
 def test_the_scale_holds_still_while_the_reader_drags_and_fits_again_after(what_if):
     page = what_if
-    top, bottom = (number(end) for end in drawn(page)["Temperature"]["ends"])
+    bottom, top = (number(end) for end in drawn(page)["Temperature"]["ends"])
     box = page.locator('#what-if-settings [data-factor="Pressure"] svg.profile').bounding_box()
     middle = box["y"] + box["height"] / 2
     page.mouse.move(box["x"] + PAD, middle)
     page.mouse.down()
     page.mouse.move(box["x"] + box["width"] - PAD, middle, steps=8)
-    held_top, held_bottom = (number(end) for end in drawn(page)["Temperature"]["ends"])
+    held_bottom, held_top = (number(end) for end in drawn(page)["Temperature"]["ends"])
     assert held_top >= top, "the scale only grows while the pointer is down"
     assert held_bottom <= bottom
     page.mouse.up()
-    fresh_top, fresh_bottom = (number(end) for end in drawn(page)["Temperature"]["ends"])
+    fresh_bottom, fresh_top = (number(end) for end in drawn(page)["Temperature"]["ends"])
     assert setting(page, "Pressure") == 3
     assert fresh_top < top, "at 3 bar the yield is lower everywhere: the scale now fits the profiles as they are"
     assert (fresh_top, fresh_bottom) != (held_top, held_bottom)
@@ -213,14 +215,17 @@ def test_a_factor_with_levels_has_a_dot_for_each_and_a_press_chooses_one(blank_p
     one = drawn(page)["Catalyst"]
     assert len(one["levels"]) == 2
     assert one["says"].startswith("y at each level of Catalyst: ")
-    chosen = page.input_value('#what-if-settings [data-factor="Catalyst"] select')
-    assert one["levels"] == [chosen == "Old", chosen == "New"], "the level the list holds is the one marked"
+    pressed = '#what-if-settings [data-factor="Catalyst"] button[aria-pressed="true"]'
+    chosen = page.get_attribute(pressed, "value")
+    assert one["levels"] == [chosen == "Old", chosen == "New"], "the level pressed in the What-if row is the one marked"
     press_at(page, "Catalyst", 0.0 if chosen == "New" else 1.0)
     other = "Old" if chosen == "New" else "New"
-    assert page.input_value('#what-if-settings [data-factor="Catalyst"] select') == other
+    assert page.get_attribute(pressed, "value") == other
     assert drawn(page)["Catalyst"]["levels"] == [other == "Old", other == "New"]
-    page.select_option('#what-if-settings [data-factor="Catalyst"] select', chosen)
-    assert drawn(page)["Catalyst"]["levels"] == [chosen == "Old", chosen == "New"], "the list moves the mark too"
+    page.click(f'#what-if-settings [data-factor="Catalyst"] button[value="{chosen}"]')
+    assert drawn(page)["Catalyst"]["levels"] == [chosen == "Old", chosen == "New"], (
+        "a level's button moves the mark too"
+    )
 
 
 def test_with_several_responses_each_has_its_row_of_profiles_on_its_own_scale(fresh_page):
@@ -240,9 +245,9 @@ def test_with_several_responses_each_has_its_row_of_profiles_on_its_own_scale(fr
         assert len(ends) == 1, f"{response}: one scale for its row"
         scales[response] = ends.pop()
     assert len(set(scales.values())) == 3, "each response has a scale of its own"
-    # Each picture says which response it is of; the three of a factor stand one under another, over its slider.
-    names = page.locator('#what-if-settings [data-factor="T"] svg.profile .profile__name').all_text_contents()
-    assert names == ["Yield", "Cost", "Purity"]
+    # Each row is named once, beside its pictures; the three of a factor stand one under another, over its slider.
+    names = page.locator("#what-if-settings .what-if-names .what-if-label").all_text_contents()
+    assert names == ["Yield (%)", "Cost ($/kg)", "Purity (%)"]
     tops = page.locator('#what-if-settings [data-factor="T"] svg.profile').evaluate_all(
         "(all) => all.map((one) => one.getBoundingClientRect().top)"
     )
@@ -265,23 +270,27 @@ def test_with_several_responses_each_has_its_row_of_profiles_on_its_own_scale(fr
     assert marks != before, "and every row's mark has moved"
 
 
-def test_one_response_s_pictures_do_not_name_it(what_if):
-    assert what_if.locator("#what-if-settings .profile__name").count() == 0
-    assert what_if.locator(PROFILES).first.evaluate("(one) => one.clientHeight") > 120
+def test_a_response_is_named_once_beside_its_pictures(what_if):
+    assert what_if.locator("#what-if-settings .profile__name").count() == 0, "a picture does not name its response"
+    labels = what_if.locator("#what-if-settings .what-if-names .what-if-label").all_text_contents()
+    assert labels == ["Yield (%)"]
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
-def test_on_a_phone_the_dials_are_one_under_another_and_a_swipe_still_scrolls(what_if):
+def test_on_a_phone_the_table_scrolls_in_its_own_box_and_a_swipe_still_scrolls_the_page(what_if):
     page = what_if
     profiles = drawn(page)
     tops = page.locator(PROFILES).evaluate_all("(all) => all.map((one) => one.getBoundingClientRect().top)")
-    assert tops == sorted(tops)
-    assert len(set(tops)) == 3, "one dial a row"
-    assert all(one["width"] <= 390 for one in profiles.values())
+    assert len(set(tops)) == 1, "one row of pictures for the one response, a picture under each factor"
+    table = page.locator("#what-if-settings")
+    assert table.evaluate("(box) => box.scrollWidth > box.clientWidth"), "wider than a phone: it scrolls sideways"
+    assert table.evaluate("(box) => getComputedStyle(box).overflowX") == "auto"
+    names = page.locator("#what-if-settings .what-if-names")
+    assert names.evaluate("(column) => getComputedStyle(column).position") == "sticky", "the names held in place"
     assert page.locator(PROFILES).first.evaluate("(one) => getComputedStyle(one).touchAction") == "pan-y"
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
     for one in profiles.values():
-        assert one["mark"][0] <= one["width"], "drawn to the dial's own width"
+        assert one["mark"][0] <= one["width"], "drawn to the picture's own width"
 
 
 PHONE = {"viewport": {"width": 390, "height": 844}, "is_mobile": True, "has_touch": True}
