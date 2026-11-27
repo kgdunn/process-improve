@@ -24,7 +24,7 @@ PASTE = """(box, text) => {
 def paste(page: Any, text: str, row: int = 0) -> None:  # noqa: ANN401 - a Playwright Page
     """Paste ``text`` into the result box of the run sheet's ``row``-th row as shown, and let the page settle."""
     reveal(page, "#design-table")
-    page.locator("#design-table tbody tr").nth(row).locator("input[data-response]").first.evaluate(PASTE, text)
+    page.locator("#design-table tr[data-run]").nth(row).locator("input[data-response]").first.evaluate(PASTE, text)
     settled(page)
 
 

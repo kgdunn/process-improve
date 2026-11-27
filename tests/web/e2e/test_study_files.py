@@ -140,7 +140,7 @@ def test_a_study_s_own_file_opens_it_on_the_page_in_another_browser(page, open_c
     assert other.text_content(BANNER) == (
         f"Opened {titles[0]} from shared.factorial.json. It is saved in this browser now, under Your studies."
     )
-    assert other.locator("#design-table tbody tr").count() == 8
+    assert other.locator("#design-table tr[data-run]").count() == 8
     assert other.text_content("#library-count") == "1"
 
 

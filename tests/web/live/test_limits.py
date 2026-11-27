@@ -39,7 +39,7 @@ def test_a_limit_typed_proposed_and_kept_to_under_pyodide(own_context, app_url):
 
     reveal(page, "#generate")
     page.click("#generate")
-    page.wait_for_function("document.querySelectorAll('#design-table tbody tr').length > 0", timeout=120_000)
+    page.wait_for_function("document.querySelectorAll('#design-table tr[data-run]').length > 0", timeout=120_000)
     for run in run_sheet(page):
         t, p, f = (float(v) for v in run[2:5])
         assert t + 25 * p <= 250 + 1e-9, run

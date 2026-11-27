@@ -384,7 +384,7 @@ def test_a_mixture_has_the_blend_for_a_target_and_the_blends_that_meet_a_specifi
     assert "feasible_region(models, windows, tried" in page.text_content("#py-window code"), "judged as the page does"
     before = len(run_sheet(page))
     page.click("#window-confirm")
-    page.wait_for_function(f"document.querySelectorAll('#design-table tbody tr').length === {before + 3}")
+    page.wait_for_function(f"document.querySelectorAll('#design-table tr[data-run]').length === {before + 3}")
     settled(page)
     added = dict(zip(headers(page), run_sheet(page)[-1], strict=False))
     assert sum(float(added[f["name"]]) for f in BLEND) == pytest.approx(1.0, abs=1e-9), "weighed out to sum to 1"

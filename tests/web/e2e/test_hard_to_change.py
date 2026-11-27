@@ -94,7 +94,7 @@ def test_a_study_opened_again_keeps_its_ticks_and_a_renamed_factor_keeps_its_own
     practise(page)
     saved_studies(page, bool)  # the study is kept in the browser before the page is opened again
     page.reload()
-    page.wait_for_selector("#design-table tbody tr", state="attached")
+    page.wait_for_selector("#design-table tr[data-run]", state="attached")
     settled(page)
     reveal(page, "#hard-to-change")
     assert tick(page, "T").is_checked()

@@ -24,10 +24,10 @@ def test_the_runs_suggested_are_listed_with_why_and_added_to_the_run_sheet(page)
     )
     assert [row[0] for row in rows] == ["1", "2"]
     assert all(row[5] in ("it looks better than the best so far", "little is known there") for row in rows)
-    before = page.locator("#design-table tbody tr").count()
+    before = page.locator("#design-table tr[data-run]").count()
     page.click("#add-suggested")
     settled(page)
-    assert page.locator("#design-table tbody tr").count() == before + 2
+    assert page.locator("#design-table tr[data-run]").count() == before + 2
     assert calls(page, "api_add_runs")[-1]["payload"]["kind"] == "suggested"
 
 

@@ -106,6 +106,45 @@ def test_a_result_outside_its_window_is_marked_and_the_best_run_is_picked_out(pa
     assert missed.locator(".visually-hidden").text_content() == " misses its goal", "said to a screen reader too"
 
 
+#: Where the What-if rows sit in the run sheet: whether they come before the runs, and the left edge of each cell of
+#: the What-if row and of each heading over the runs, by the column's name.
+PLACED = """(t) => {
+  const body = t.querySelector('#what-if-settings');
+  const left = (cell) => Math.round(cell.getBoundingClientRect().left);
+  const heads = [...t.querySelectorAll('thead th[aria-sort]')];
+  const row = t.querySelector('#what-if-settings tr.what-if-row');
+  return {
+    first: body.compareDocumentPosition(t.querySelector('tr[data-run]')) === Node.DOCUMENT_POSITION_FOLLOWING,
+    heads: Object.fromEntries(heads.map((th) => [th.querySelector('button.sort').textContent, left(th)])),
+    cells: Object.fromEntries([...row.querySelectorAll('[data-factor], [data-response]')]
+      .map((cell) => [cell.dataset.factor ?? cell.dataset.response, left(cell)])),
+    predicted: row.querySelector('[data-response]').textContent,
+  };
+}"""
+
+
+def test_what_if_sits_over_the_runs_in_their_columns_whatever_the_sort(page):
+    reveal(page, "#design-table")
+    page.wait_for_selector("#what-if-settings .goal-bar")
+    placed = page.eval_on_selector("#design-table", PLACED)
+    assert placed["first"], "the What-if rows come before the runs"
+    assert placed["cells"] == {name: placed["heads"][name] for name in ("Temperature", "Pressure", "Flow", "Yield")}
+    assert placed["predicted"] == page.text_content("#what-if-settings .what-if-value strong").rstrip("%")
+    sort_by(page, "Yield")
+    assert page.eval_on_selector("#design-table", PLACED)["first"], "and stay on top when a heading sorts the runs"
+
+
+def test_learn_points_to_the_what_if_row_over_the_runs(page):
+    reveal(page, "#where")
+    assert page.is_visible("#what-if-link"), "Where to run has the way to it"
+    page.click("#to-what-if")
+    assert page.get_attribute("#workspace", "data-phase") == "run"
+    page.wait_for_function(
+        "(() => { const box = document.querySelector('#what-if-settings').getBoundingClientRect();"
+        " return box.top < innerHeight && box.bottom > 0; })()"
+    )
+
+
 def test_a_typed_result_survives_a_sort(page):
     type_results(page, {3: "123.5"})
     sort_by(page, "Yield")

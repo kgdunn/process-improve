@@ -20,7 +20,7 @@ from tests.web.e2e.test_what_if import predictions, rows, set_number
 RUNS = "#what-if-settings .goal-bar"
 
 #: Each response against its goal as the page draws it: what the drawing says, the interval written beside it, how
-#: many runs there are and how many are filled, whether a goal is shaded, and how far right it reaches.
+#: many runs there are and how many are filled, and whether a goal is shaded.
 DRAWN = """(bars) => bars.map((bar) => ({
   response: bar.closest('.what-if-goal').dataset.response,
   says: bar.getAttribute('aria-label'),
@@ -28,7 +28,6 @@ DRAWN = """(bars) => bars.map((bar) => ({
   dots: bar.querySelectorAll('.goal-bar__run').length,
   filled: bar.querySelectorAll('.goal-bar__run--inside').length,
   band: bar.querySelectorAll('.goal-bar__band').length,
-  right: bar.getBoundingClientRect().right,
 }))"""
 
 
@@ -41,7 +40,7 @@ def drawn(page: Any) -> list[dict]:  # noqa: ANN401 - a Playwright Page
 def shown(page: Any) -> Any:  # noqa: ANN401
     """Return the worked example with What if on show."""
     reveal(page, "#what-if")
-    page.wait_for_selector("#what-if:not([hidden]) .goal-bar")
+    page.wait_for_selector("#what-if-settings .goal-bar")
     return page
 
 
@@ -74,7 +73,7 @@ def test_a_run_inside_the_response_s_goal_is_filled_and_one_outside_is_a_ring(fr
     three_responses(page)
     practise(page)
     reveal(page, "#what-if")
-    page.wait_for_selector("#what-if:not([hidden]) .goal-bar")
+    page.wait_for_selector("#what-if-settings .goal-bar")
     table = rows(page)
     assert [one["response"] for one in drawn(page)] == [row[0] for row in table], "a drawing for each response"
     assert all(
@@ -119,7 +118,13 @@ def test_a_model_with_no_run_left_to_estimate_the_noise_has_no_runs_to_draw(blan
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
-def test_on_a_phone_the_runs_fit_the_screen(shown):
+def test_on_a_phone_the_runs_scroll_with_the_run_sheet_in_its_own_box(shown):
     page = shown
-    assert drawn(page)[0]["right"] <= 390
+    sheet = page.locator(".scroll:has(> #design-table)")
+    bar = page.locator(RUNS).first
+    bar.scroll_into_view_if_needed()
+    left, right = bar.evaluate("(one) => [one.getBoundingClientRect().left, one.getBoundingClientRect().right]")
+    assert left >= 0, "a sideways scroll of the run sheet brings the drawing whole into view"
+    assert right <= 390
+    assert sheet.evaluate("(box) => box.scrollLeft > 0")
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")

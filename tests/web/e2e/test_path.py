@@ -77,7 +77,7 @@ def test_the_path_s_runs_join_the_run_sheet_in_order_and_stay_out_of_the_fit(pag
     assert "is the best of them so far" in page.text_content(PATH)
     assert all(row[-1].endswith("%") for row in rows), "each with its result"
     page.click("#go-run")
-    assert page.locator("#design-table tbody tr").count() == 19
+    assert page.locator("#design-table tr[data-run]").count() == 19
 
 
 def test_the_path_is_followed_to_the_first_run_that_does_worse_and_a_study_is_centred_on_the_best(page):
@@ -105,7 +105,7 @@ def test_the_path_s_runs_come_off_the_run_sheet_in_one_press(page):
     settled(page)
     assert page.is_visible("#path-add"), "offered again"
     page.click("#go-run")
-    assert page.locator("#design-table tbody tr").count() == 15
+    assert page.locator("#design-table tr[data-run]").count() == 15
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])

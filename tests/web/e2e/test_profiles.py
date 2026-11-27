@@ -31,7 +31,7 @@ DRAWN = """(profiles) => profiles.map((one) => {
     says: one.getAttribute('aria-label'),
     width: one.clientWidth, height: one.clientHeight,
     ends: [...one.closest('#what-if-settings').querySelectorAll(
-      `.what-if-response[data-response="${CSS.escape(one.dataset.response)}"] .profile__end`)]
+      `tr.what-if-pictures[data-response="${CSS.escape(one.dataset.response)}"] .profile__end`)]
       .map((end) => end.textContent),
     mark: mark && ['cx', 'cy'].map((at) => Number(mark.getAttribute(at))),
     band: one.querySelectorAll('.profile__band').length,
@@ -76,7 +76,7 @@ def what_if(page: Any) -> Any:  # noqa: ANN401
     """Return the worked example with its What if panel on show, at the best settings."""
     reveal(page, "#what-if")
     page.wait_for_selector("#what-if:not([hidden])")
-    page.locator("#what-if").scroll_into_view_if_needed()
+    page.locator("#what-if-settings").scroll_into_view_if_needed()  # the pictures, over the runs
     return page
 
 
@@ -211,7 +211,7 @@ def test_a_factor_with_levels_has_a_dot_for_each_and_a_press_chooses_one(blank_p
     practise(page)
     reveal(page, "#what-if")
     page.wait_for_selector("#what-if:not([hidden])")
-    page.locator("#what-if").scroll_into_view_if_needed()
+    page.locator("#what-if-settings").scroll_into_view_if_needed()
     one = drawn(page)["Catalyst"]
     assert len(one["levels"]) == 2
     assert one["says"].startswith("y at each level of Catalyst: ")
@@ -246,7 +246,7 @@ def test_with_several_responses_each_has_its_row_of_profiles_on_its_own_scale(fr
         scales[response] = ends.pop()
     assert len(set(scales.values())) == 3, "each response has a scale of its own"
     # Each row is named once, beside its pictures; the three of a factor stand one under another, over its slider.
-    names = page.locator("#what-if-settings .what-if-names .what-if-label").all_text_contents()
+    names = page.locator("#what-if-settings .what-if-label").all_text_contents()
     assert names == ["Yield (%)", "Cost ($/kg)", "Purity (%)"]
     tops = page.locator('#what-if-settings [data-factor="T"] svg.profile').evaluate_all(
         "(all) => all.map((one) => one.getBoundingClientRect().top)"
@@ -272,7 +272,7 @@ def test_with_several_responses_each_has_its_row_of_profiles_on_its_own_scale(fr
 
 def test_a_response_is_named_once_beside_its_pictures(what_if):
     assert what_if.locator("#what-if-settings .profile__name").count() == 0, "a picture does not name its response"
-    labels = what_if.locator("#what-if-settings .what-if-names .what-if-label").all_text_contents()
+    labels = what_if.locator("#what-if-settings .what-if-label").all_text_contents()
     assert labels == ["Yield (%)"]
 
 
@@ -282,11 +282,11 @@ def test_on_a_phone_the_table_scrolls_in_its_own_box_and_a_swipe_still_scrolls_t
     profiles = drawn(page)
     tops = page.locator(PROFILES).evaluate_all("(all) => all.map((one) => one.getBoundingClientRect().top)")
     assert len(set(tops)) == 1, "one row of pictures for the one response, a picture under each factor"
-    table = page.locator("#what-if-settings")
-    assert table.evaluate("(box) => box.scrollWidth > box.clientWidth"), "wider than a phone: it scrolls sideways"
-    assert table.evaluate("(box) => getComputedStyle(box).overflowX") == "auto"
-    names = page.locator("#what-if-settings .what-if-names")
-    assert names.evaluate("(column) => getComputedStyle(column).position") == "sticky", "the names held in place"
+    sheet = page.locator(".scroll:has(> #design-table)")
+    assert sheet.evaluate("(box) => box.scrollWidth > box.clientWidth"), "wider than a phone: it scrolls sideways"
+    assert sheet.evaluate("(box) => getComputedStyle(box).overflowX") == "auto"
+    names = page.locator("#what-if-settings th.what-if-name").first
+    assert names.evaluate("(cell) => getComputedStyle(cell).position") == "sticky", "the names held in place"
     assert page.locator(PROFILES).first.evaluate("(one) => getComputedStyle(one).touchAction") == "pan-y"
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
     for one in profiles.values():

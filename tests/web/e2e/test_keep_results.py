@@ -23,7 +23,7 @@ def results(page) -> list[str]:
 
 def settings(page) -> list[str]:
     """Each run's settings, in the sheet's order: the sheet is the same sheet when these are as they were."""
-    return page.locator("#design-table tbody tr").evaluate_all(
+    return page.locator("#design-table tr[data-run]").evaluate_all(
         """(rows) => rows.map((row) => [...row.cells].filter((cell) => !cell.querySelector('input'))
              .map((cell) => cell.textContent).join('|'))"""
     )
@@ -172,7 +172,7 @@ def test_entered_results_are_still_there_after_a_reload(blank_page):
     typed, runs = a_sheet_with_typed_results(page)
     page.wait_for_function("async () => (await (await import('./store.js')).savedCampaigns()).length > 0")
     page.reload()
-    page.wait_for_selector("#design-table tbody tr", state="attached")
+    page.wait_for_selector("#design-table tr[data-run]", state="attached")
     settled(page)
     page.click("#go-run")
     assert results(page) == typed

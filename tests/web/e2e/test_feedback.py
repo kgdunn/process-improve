@@ -180,7 +180,7 @@ def test_the_study_goes_when_ticked_as_a_link_that_opens_it(page, relay):
     [report] = relay.reports
     assert PACKED.fullmatch(report["study"])
     opened = page.evaluate("async (packed) => (await import('./campaign.js')).unpackCampaign(packed)", report["study"])
-    shown = page.evaluate("[...document.querySelectorAll('#design-table tbody tr')].length")
+    shown = page.evaluate("[...document.querySelectorAll('#design-table tr[data-run]')].length")
     assert len(opened["design"]["rows"]) == shown == 15
     assert opened["responses"], "with its results, so the result can be reproduced"
 

@@ -267,7 +267,7 @@ def run_sheet(page: Any) -> list[list[str]]:  # noqa: ANN401
     The words "best so far" under the best run's number are left out, so the number reads as the number it is.
     """
     return page.evaluate(
-        """() => [...document.querySelectorAll('#design-table tbody tr')].map((tr) =>
+        """() => [...document.querySelectorAll('#design-table tr[data-run]')].map((tr) =>
              [...tr.cells].map((td) => td.querySelector('input')?.value ?? [...td.childNodes]
                .filter((n) => !n.classList?.contains('best-so-far')).map((n) => n.textContent).join('')))"""
     )

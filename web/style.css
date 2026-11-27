@@ -1364,37 +1364,31 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 .price { margin: 2px 0 6px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .next .offer p { margin: 2px 0 6px; font-size: 0.95rem; }
 
-/* What if: one table (app.js renderWhatIfControls). Its first column names each response, then a column for each factor,
-   then each response against its goal. Each column is a grid of its own on the table's rows (subgrid), so a row lines
-   up across them: the factors' names, a row of pictures for each response, and the What-if row, which sets the
-   factors. On a narrow screen the table scrolls sideways, the responses' names held in place. */
-.what-if-settings {
-  display: grid; overflow-x: auto; margin: 8px 0 4px; font-size: 0.95rem;
-  grid-template-columns: minmax(8.5em, max-content) repeat(var(--factors, 1), minmax(104px, 1fr)) minmax(230px, 300px);
-  grid-template-rows: auto repeat(var(--responses, 0), auto) auto;
-  border: 1px solid var(--line); border-radius: var(--corner); background: var(--panel);
+/* What if, over the runs (app.js whatIfSheetRows): in the run sheet's own columns, a heading over the pictures and one
+   over the goals, a row of pictures for each response, the What-if row, which sets the factors, and its presets. The
+   sheet scrolls sideways in its own box on a narrow screen, the names of the rows held in place. */
+table.runs .what-if-body > tr > * { vertical-align: middle; }
+table.runs tr > :first-child { position: sticky; left: 0; z-index: 1; background: var(--panel); }
+table.runs .what-if-head {
+  padding: 12px 10px 4px; border-bottom: 2px solid var(--fg); text-align: left;
+  font-family: "Outfit", system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 0.95rem; font-weight: 600;
 }
-.what-if-column { grid-row: 1 / -1; display: grid; grid-template-rows: subgrid; min-width: 0; }
-/* On a phone each response's verdict comes first, beside its name: the pictures and the What-if row are a sideways
-   scroll away. */
-@media (max-width: 700px) {
-  .what-if-settings { grid-template-columns: minmax(7em, max-content) minmax(200px, 250px) repeat(var(--factors, 1), minmax(104px, 1fr)); }
-  .what-if-goals { order: 1; }
-  .what-if-factor { order: 2; }
-}
-.what-if-cell { min-width: 0; padding: 4px 8px; border-bottom: 1px solid var(--line); }
-.what-if-head { display: flex; flex-direction: column; justify-content: flex-end; border-bottom: 2px solid var(--fg); }
-.what-if-names { position: sticky; left: 0; z-index: 1; background: var(--panel); }
-.what-if-response { display: flex; flex-direction: column; justify-content: center; line-height: 1.25; }
-.what-if-label, .what-if-name { font-weight: 600; overflow-wrap: anywhere; }
-.what-if-goal-words { color: var(--ink); font-size: 0.85rem; }
-.what-if-scale, .what-if-range { color: var(--muted); font-size: 0.8rem; }
-.what-if-picture { display: flex; align-items: center; padding: 2px 4px; }
-/* The What-if row: a run not made yet. It sets the factors: a number box over a slider, or a button for each level. */
-.what-if-row { display: flex; flex-direction: column; gap: 4px; border-top: 2px solid var(--fg); border-bottom: none; background: var(--bg); }
-.what-if-row__name { font-family: "Outfit", system-ui, -apple-system, "Segoe UI", sans-serif; font-weight: 500; }
-.what-if-factor input[type="number"] { width: 100%; color: var(--ink); font-weight: 600; }
-.what-if-factor input[type="range"] { width: 100%; margin: 0; accent-color: var(--accent); }
+table.runs .what-if-name { padding: 4px 10px; font-weight: 400; line-height: 1.25; text-align: left; }
+.what-if-label { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.what-if-scale { display: block; color: var(--muted); font-size: 0.8rem; white-space: nowrap; }
+table.runs td.what-if-picture { min-width: 104px; padding: 2px 4px; }
+table.runs td.what-if-goal { min-width: 230px; text-align: left; }
+/* The What-if row: a run not made yet. It sets the factors: a number box over a slider, or a button for each level;
+   and each response's prediction there is in its own column. */
+table.runs .what-if-row > * { border-top: 2px solid var(--fg); background: var(--bg); }
+table.runs .what-if-row > :first-child { background: var(--bg); }
+.what-if-row__name { display: block; font-family: "Outfit", system-ui, -apple-system, "Segoe UI", sans-serif; font-weight: 500; }
+.what-if-row .hint { display: block; font-size: 0.8rem; }
+table.runs td.what-if-factor { min-width: 104px; }
+table.runs .what-if-factor input[type="number"] { display: block; width: 100%; color: var(--ink); font-weight: 600; }
+.what-if-factor input[type="range"] { display: block; width: 100%; margin: 0; accent-color: var(--accent); }
+table.runs td.what-if-predicted { font-weight: 700; color: var(--fg); }
+table.runs .what-if-presets-row > td { padding: 8px 10px 12px; text-align: left; border-bottom: 2px solid var(--fg); }
 .what-if-levels { display: flex; flex-wrap: wrap; gap: 2px; }
 .what-if-level {
   flex: 1 1 0; min-height: 44px; padding: 2px 6px; border: 1px solid var(--accent); border-radius: var(--corner);
@@ -1415,7 +1409,7 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 .profile__level { fill: var(--panel); stroke: var(--fg); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .profile__level--set { fill: var(--fg); }
 /* Each response against its goal: its prediction and interval, the drawing, and the word for how it stands. */
-.what-if-goal { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0 8px; }
+.what-if-against { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0 8px; }
 .what-if-value { grid-column: 1 / -1; white-space: nowrap; }
 .what-if-interval { color: var(--muted); font-size: 0.85rem; }
 .what-if-verdict { font-size: 0.9rem; white-space: nowrap; }
@@ -1427,21 +1421,17 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 .goal-bar__predicted { fill: var(--fg); stroke: var(--panel); stroke-width: 1.5; }
 .goal-bar__run { fill: var(--panel); stroke: var(--accent); stroke-width: 1; }
 .goal-bar__run--inside { fill: var(--accent); }
-/* The two headlines over the table: the best run so far, and the goals the What-if row's settings meet. */
+/* The two headlines over the run sheet: the best run so far, and the goals the What-if row's settings meet. */
 .what-if-headlines { display: flex; flex-wrap: wrap; gap: 8px 40px; margin: 4px 0 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
 .what-if-headlines > div { flex: 1 1 320px; min-width: 0; }
 .what-if-headlines p { margin: 0; }
 .what-if-headline { font-family: "Outfit", system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 1.35rem; line-height: 1.25; }
 .what-if-numbers { margin: 8px 0 0; }
-/* The table beside the map it moves, where there is room for both: in view together on a wide laptop. */
-.what-if-dials { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px 22px; align-items: start; }
 .what-if-map { margin: 8px 0 0; }
 .what-if-map h4 { margin: 0 0 4px; font-size: 0.95rem; }
 /* A sideways drag is the map's; an up or down swipe still scrolls the page on a phone. */
 .what-if-map .plot { min-height: 300px; cursor: crosshair; touch-action: pan-y; }
-@media (min-width: 1100px) {
-  .what-if-dials:has(.what-if-map:not([hidden])) { grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr); }
-}
+.what-if-map .plot { max-width: 640px; }
 .what-if table.data td:nth-child(n + 3) { text-align: left; }
 /* The settings kept with the study: their name and settings, each response there, and what to do with them. */
 .what-if-keep input[type="text"] { flex: 1 1 12rem; min-width: 0; }

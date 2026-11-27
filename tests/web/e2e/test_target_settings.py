@@ -133,7 +133,7 @@ def test_the_settings_found_go_to_what_if_are_confirmed_and_one_factor_is_solved
     assert [page.input_value("#target-across"), page.input_value("#target-up")] == ["T", "F"]
     before = len(run_sheet(page))
     page.click("#target-confirm")
-    page.wait_for_function(f"document.querySelectorAll('#design-table tbody tr').length === {before + 3}")
+    page.wait_for_function(f"document.querySelectorAll('#design-table tr[data-run]').length === {before + 3}")
     settled(page)
     assert page.locator("#target-confirm").is_hidden(), "the runs are there: their results are what is wanted"
     assert page.text_content("#target-out .lead") == "These settings give the target, by the models."

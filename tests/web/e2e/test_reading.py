@@ -54,9 +54,9 @@ BUDGET = {
     # meet a specification add 4 words, the label of the run to match: their headings and their boxes' labels say
     # what to type, so neither has a hint. The what-if panel's hint says what its pictures are, some 13 words more.
     # A prediction as 20 runs has a sentence of 10 words: it says what the drawing shows, to a reader who does not
-    # see the drawing too, so it is not cut. What if as one table moved that sentence into the drawing's own label and
-    # added the best run so far, some 12 words, the name of the What-if row, 6, and the label of its presets, 5.
-    "the worked example's analysis": 440,
+    # see the drawing too, so it is not cut. What if then moved to Run, over the runs, with its hint, its headline and
+    # its warnings, some 50 words, and Learn keeps a link to it, 12.
+    "the worked example's analysis": 415,
     "the comparison in detail": 175,
 }
 

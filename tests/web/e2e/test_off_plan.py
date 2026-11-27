@@ -72,7 +72,7 @@ def test_escape_or_a_blank_box_leaves_the_planned_setting(page, typed, key):
 def test_the_results_boxes_are_still_the_sheet_s_only_boxes_until_a_setting_is_pressed(page):
     page.click("#go-run")
     reveal(page, "#design-table")
-    rows = page.locator("#design-table tbody tr").count()
+    rows = page.locator("#design-table tr[data-run]").count()
     assert page.locator("#design-table input").count() == rows, "one box a run: its result"
     assert page.locator("#design-table button.setting").count() == 3 * rows, "three numeric factors a run"
 

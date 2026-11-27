@@ -113,7 +113,7 @@ def test_the_surest_settings_go_to_what_if_and_are_confirmed(studied):
     assert what_if == pytest.approx([surest["settings"][name] for name in ("T", "P", "F")], rel=1e-3)
     before = len(run_sheet(page))
     page.click("#window-confirm")
-    page.wait_for_function(f"document.querySelectorAll('#design-table tbody tr').length === {before + 3}")
+    page.wait_for_function(f"document.querySelectorAll('#design-table tr[data-run]').length === {before + 3}")
     settled(page)
     assert page.locator("#window-confirm").is_hidden(), "the runs are there: their results are what is wanted"
     assert page.text_content("#window-out .lead").startswith("By the models, ")

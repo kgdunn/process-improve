@@ -51,7 +51,7 @@ def test_a_refused_python_download_is_reported_and_nothing_waits_for_it(context,
     assert page.is_disabled("#run-example")
     for control in ("#generate", "#simulate", "#upload"):
         assert page.is_disabled(control), control
-    assert page.locator("#design-table tbody tr").count() == 15, "the worked example drawn at first paint stays"
+    assert page.locator("#design-table tr[data-run]").count() == 15, "the worked example drawn at first paint stays"
     page.click("#go-plan")
     # The six that fit the main effects and squares: the DSD, Box-Behnken, CCD, D- and I-optimal designs and the L9.
     assert page.locator("#candidates tbody tr").count() == 6, "the designs the build compared stay listed"
