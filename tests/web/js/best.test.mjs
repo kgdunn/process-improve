@@ -63,7 +63,7 @@ import {
   withConfirmationRuns,
   withUnit,
   withoutConfirmationRuns,
-  WHAT_IF_BACK,
+  WHAT_IF_PRESET,
   columnsAt,
   keptAs,
   predictAt,
@@ -82,6 +82,10 @@ import {
   profileOf,
   runsAt,
   insideWindow,
+  goalBand,
+  goalBandWords,
+  goalVerdict,
+  bestRun,
   dotPiles,
   runsWords,
   profilePieces,
@@ -919,6 +923,48 @@ describe("what if", () => {
     assert.equal(predictAt(FIT, { T: 0 }).extrapolating, false, "the center's 0.25 is within");
   });
 
+  test("a response's goal in the what-if table: the window typed first, else the balance's range by the goal", () => {
+    const balanced = { goal: "maximize", low: 52.66, high: 67.89 };
+    assert.deepEqual(goalBand([60, null], balanced), { band: [60, null], from: "window" }, "a window typed wins");
+    assert.deepEqual(goalBand([null, null], balanced), { band: [52.66, null], from: "balance" }, "no window: at least the low end");
+    assert.deepEqual(goalBand(undefined, { ...balanced, goal: "minimize" }).band, [null, 67.89], "to minimize: at most the high end");
+    assert.deepEqual(goalBand(undefined, { ...balanced, goal: "target", target: 63 }).band, [52.66, 67.89], "a target: the whole range");
+    assert.equal(goalBand(undefined, undefined), null, "one response, no window: no goal to judge it by");
+    assert.equal(goalBandWords([52.66, 67.89], "%"), "52.66 to 67.89%");
+    assert.equal(goalBandWords([52.66, null], "%"), "at least 52.66%");
+    assert.equal(goalBandWords([null, 66.5], "$/kg"), "at most 66.5 $/kg");
+  });
+
+  test("a prediction against its goal, read off its interval: inside, likely inside, probably outside, outside", () => {
+    const words = (predicted, interval, band) => goalVerdict(predicted, interval, band).word;
+    assert.equal(words(12, [11, 13], [10, 14]), "inside", "the whole interval inside");
+    assert.equal(words(13, [11.5, 14.5], [10, 14]), "likely inside", "the prediction inside, the interval crossing an end");
+    assert.equal(words(14.5, [13.5, 15.5], [10, 14]), "probably outside", "the prediction outside, the interval reaching the band");
+    assert.equal(words(16, [15, 17], [10, 14]), "outside", "the whole interval outside");
+    // A band with one end says it in words of meeting a goal.
+    assert.equal(words(1.1, [0.8, 1.4], [null, 2]), "meets");
+    assert.equal(words(1.9, [1.6, 2.2], [null, 2]), "likely meets");
+    assert.equal(words(2.1, [1.8, 2.4], [null, 2]), "probably misses");
+    assert.equal(words(3, [2.5, 3.5], [null, 2]), "misses");
+    assert.equal(words(60, [55, 65], [52.66, null]), "meets", "at least an end: the whole interval above it");
+    // A model with no runs left to estimate the noise has no interval: the prediction alone is judged.
+    assert.deepEqual(goalVerdict(12, null, [10, 14]), { level: 0, met: true, word: "inside" });
+    assert.deepEqual(goalVerdict(15, null, [10, 14]), { level: 3, met: false, word: "outside" });
+    assert.equal(goalVerdict(14, [12, 16], [10, 14]).met, true, "on the end is inside: likely inside counts as met");
+    assert.equal(goalVerdict(14.5, [13.5, 15.5], [10, 14]).met, false, "probably outside is not met");
+  });
+
+  test("the best run so far: inside the most goals, then the best for the goal of the response Learn shows", () => {
+    const results = { Y: [60, 68, 66, null], C: [55, 66, 54, 50] };
+    const lead = { name: "Y", goal: "maximize" };
+    // Run 2 has the highest yield, but run 3 meets both goals; run 4 has no yield yet.
+    assert.deepEqual(bestRun(results, { Y: [52, null], C: [null, 60] }, lead), { place: 2, met: 2, judged: 2 });
+    assert.deepEqual(bestRun(results, {}, lead), { place: 1, met: 0, judged: 0 }, "no goal band: the highest yield");
+    assert.equal(bestRun(results, {}, { name: "C", goal: "minimize" }).place, 3, "the lowest cost, run 4 among them");
+    assert.equal(bestRun(results, {}, { name: "Y", goal: "target", target: 65 }).place, 2, "the closest to the target");
+    assert.equal(bestRun({ Y: [null, null] }, {}, lead), null, "no run measured yet");
+  });
+
   test("a prediction as runs: one for each t value Python sent, the outer two at the ends of the prediction interval", () => {
     // Five equally likely runs here: the t values at the middle of five equal shares, the outer two the interval's own.
     const fit = { ...FIT, run_quantiles: [-2.447, -0.8, 0, 0.8, 2.447] };
@@ -959,8 +1005,8 @@ describe("what if", () => {
     const runs = [58.21, 60, 62, 64, 66.14];
     const words = { label: "Yield", units: "%" };
     assert.equal(runsWords(runs, insideWindow(runs), words), "Yield as 5 runs you might get: 58.21 to 66.14%.");
-    assert.equal(runsWords(runs, insideWindow(runs, [60, null]), words, true), "Yield as 5 runs you might get: 58.21 to 66.14%. 4 of them are inside your window.");
-    assert.equal(runsWords([1, 3], [false, false], { label: "Cost", units: "$/kg" }, true), "Cost as 2 runs you might get: 1 to 3 $/kg. 0 of them are inside your window.");
+    assert.equal(runsWords(runs, insideWindow(runs, [60, null]), words, "your window"), "Yield as 5 runs you might get: 58.21 to 66.14%. 4 of them are inside your window.");
+    assert.equal(runsWords([1, 3], [false, false], { label: "Cost", units: "$/kg" }, "its goal"), "Cost as 2 runs you might get: 1 to 3 $/kg. 0 of them are inside its goal.");
   });
 
   test("a factor's profile is the prediction as it alone moves, the others where they are set", () => {
@@ -1088,7 +1134,7 @@ describe("what if", () => {
     assert.deepEqual(whatIfStart(PREDICTED, balance, best), { from: "balanced", settings: { T: 160, Catalyst: "B" } });
     assert.deepEqual(whatIfStart(PREDICTED, null, best), { from: "best", settings: { T: 190, Catalyst: "A" } });
     assert.deepEqual(whatIfStart(PREDICTED, null, { goal: "learn" }), { from: "center", settings: { T: 175, Catalyst: "A" } });
-    assert.equal(WHAT_IF_BACK.center, "Back to the center of the ranges");
+    assert.equal(WHAT_IF_PRESET.center, "the middle");
   });
 
   test("settings are kept while they fit the factors", () => {

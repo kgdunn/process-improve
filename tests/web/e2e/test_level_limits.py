@@ -95,7 +95,7 @@ def test_the_run_sheet_keeps_each_level_inside_its_own_limit(blank_page):
 def what_if_at(page: Any, level: str, conc: float) -> list[str]:  # noqa: ANN401 - a Playwright Page
     """Set the raw material and its concentration in What if, and return the warnings the panel then gives."""
     before = page.evaluate("window.__pi.count('api_outside_limits')")
-    page.select_option('#what-if-settings [data-factor="RM"] select[name="level"]', level)
+    page.click(f'#what-if-settings [data-factor="RM"] button[name="level"][value="{level}"]')
     box = page.locator('#what-if-settings [data-factor="conc"] input[name="number"]')
     box.fill(str(conc))
     box.press("Tab")

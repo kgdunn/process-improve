@@ -1886,7 +1886,7 @@ export const CURVE_LINES = {
 };
 
 /** The names of what the what-if map marks, as its legend lists them. */
-export const MAP_MARKS = { set: "Where the dials are", best: "The best settings", beyond: "Beyond the runs" };
+export const MAP_MARKS = { set: "The What-if row", best: "The best settings", beyond: "Beyond the runs" };
 
 /**
  * The what-if map: a response's fitted surface over two factors, the others where the dials have them

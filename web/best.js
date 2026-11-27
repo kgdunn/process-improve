@@ -833,6 +833,68 @@ export function runsAt(fit, columns) {
 export const insideWindow = (runs, [least, most] = [null, null]) => runs.map((run) => (least === null || run >= least) && (most === null || run <= most));
 
 /**
+ * The goal a response is judged against in the what-if table, ``{ band: [least, most], from }`` with null for an end
+ * left open, or null when it has none. The window the reader typed for it under a specification comes first
+ * (``window``, as state.window.windows holds it); else its acceptable range in the balance (``balanced``, its entry in
+ * bootstrap.balance's responses), by its goal: at least the low end to maximize, at most the high end to minimize,
+ * the whole range for a target.
+ */
+export function goalBand(window, balanced) {
+  if (window && window.some((end) => end !== null)) return { band: [window[0], window[1]], from: "window" };
+  if (!balanced || !Number.isFinite(balanced.low) || !Number.isFinite(balanced.high)) return null;
+  const band = { maximize: [balanced.low, null], minimize: [null, balanced.high] }[balanced.goal] ?? [balanced.low, balanced.high];
+  return { band, from: "balance" };
+}
+
+/** A goal band in words, as the what-if table's head writes it: "52.7 to 67.9%", "at least 52.7%", "at most 66.5 $/kg". */
+export function goalBandWords([least, most], units = "") {
+  if (least !== null && most !== null) return `${num(least)} to ${withUnit(most, units)}`;
+  return least !== null ? `at least ${withUnit(least, units)}` : `at most ${withUnit(most, units)}`;
+}
+
+/**
+ * How a prediction stands against its goal band, read off ``interval`` (the 95% prediction interval for one new run;
+ * null for a model with no runs left to estimate the noise, judged by the prediction alone): ``level`` 0 when the
+ * whole interval is inside, 1 when the prediction is and the interval crosses an end, 2 when the prediction is outside
+ * and the interval reaches the band, 3 when the whole interval is outside. ``met`` is whether the goal is met or likely
+ * met (levels 0 and 1). The word is "inside" and so on for a band with two ends, "meets" and so on for one with one.
+ */
+export function goalVerdict(predicted, interval, [least, most]) {
+  const inside = (v) => (least === null || v >= least) && (most === null || v <= most);
+  const [lo, hi] = interval ?? [predicted, predicted];
+  const reaches = (least === null || hi >= least) && (most === null || lo <= most);
+  const level = inside(lo) && inside(hi) ? 0 : inside(predicted) ? 1 : reaches ? 2 : 3;
+  const words = least !== null && most !== null ? VERDICT_TWO_ENDS : VERDICT_ONE_END;
+  return { level, met: level <= 1, word: words[level] };
+}
+
+/**
+ * The best run so far, as the what-if table's headline names it. Of the runs measured for every response judged (those
+ * with a band in ``bands``, by name; with none, ``lead`` alone), the one inside the most goals, then the best for the
+ * goal of ``lead``, the response Learn shows: the highest to maximize, the lowest to minimize, the closest to a target.
+ * ``results`` holds each response's results by name, one per run, null where not measured. Returns the run's ``place``
+ * on the run sheet, how many goals it ``met`` and how many are ``judged``; or null when no run is measured.
+ */
+export function bestRun(results, bands, lead) {
+  const judged = Object.keys(bands).length ? Object.keys(bands) : [lead.name];
+  const toward = { maximize: (v) => v, minimize: (v) => -v }[lead.goal] ?? ((v) => -Math.abs(v - lead.target));
+  const runs = (results[lead.name] ?? []).map((_, place) => place);
+  let best = null;
+  for (const place of runs) {
+    const values = [...new Set([...judged, lead.name])].map((name) => results[name]?.[place]);
+    if (!values.every(Number.isFinite)) continue;
+    const met = judged.filter((name) => bands[name] && insideWindow([results[name][place]], bands[name])[0]).length;
+    const score = toward(results[lead.name][place]);
+    if (!best || met > best.met || (met === best.met && score > best.score)) best = { place, met, score };
+  }
+  return best && { place: best.place, met: best.met, judged: Object.keys(bands).length };
+}
+
+/** The words of goalVerdict's levels, for a band with two ends and for one with one. */
+export const VERDICT_TWO_ENDS = ["inside", "likely inside", "probably outside", "outside"];
+export const VERDICT_ONE_END = ["meets", "likely meets", "probably misses", "misses"];
+
+/**
  * Where to draw runs as dots that pile up where the runs are close: each run's column of ``columns`` across
  * ``[low, high]``, and its place in that column's pile, 0 at the foot.
  */
@@ -846,12 +908,13 @@ export function dotPiles(runs, [low, high], columns) {
 }
 
 /**
- * The runs in words: how far they reach, and how many are inside the reader's window when one is typed. ``words`` is
- * the response's ``label`` and ``units``; ``inside`` is insideWindow's answer.
+ * The runs in words: how far they reach, and how many are inside what they are judged against, ``within`` ("your
+ * window", "its goal"), when they are judged. ``words`` is the response's ``label`` and ``units``; ``inside`` is
+ * insideWindow's answer.
  */
-export function runsWords(runs, inside, { label, units }, windowed = false) {
+export function runsWords(runs, inside, { label, units }, within = null) {
   const reach = `${label} as ${runs.length} runs you might get: ${rangeWords([runs[0], runs.at(-1)], units)}.`;
-  return windowed ? `${reach} ${inside.filter(Boolean).length} of them are inside your window.` : reach;
+  return within ? `${reach} ${inside.filter(Boolean).length} of them are inside ${within}.` : reach;
 }
 
 /** A prediction and its intervals on a transform's scale, put back in the response's units; the leverage as it is. */
@@ -906,11 +969,11 @@ export function whatIfStart(factors, balance, best) {
   return { from, settings: Object.fromEntries(factors.map((f) => [f.name, given[f.name] ?? middle(f)])) };
 }
 
-/** The button that brings the what-if panel back to where it started, by whatIfStart's ``from``. */
-export const WHAT_IF_BACK = {
-  balanced: "Back to the balanced settings",
-  best: "Back to the best settings",
-  center: "Back to the center of the ranges",
+/** The What-if row's preset of where it starts, by whatIfStart's ``from``, and of the middle of the ranges. */
+export const WHAT_IF_PRESET = {
+  balanced: "the best for every goal",
+  best: "the best settings",
+  center: "the middle",
 };
 
 /**

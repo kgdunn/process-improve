@@ -71,7 +71,7 @@ import {
   IMPORTANCES,
   GOOD_END,
   unclearSaid,
-  WHAT_IF_BACK,
+  WHAT_IF_PRESET,
   balanceConfirmation,
   balanceLead,
   balanceLeverage,
@@ -137,8 +137,11 @@ import {
   rangeWords as intervalWords, // this file's own rangeWords writes a factor's range
   runsAt,
   insideWindow,
-  dotPiles,
   runsWords,
+  goalBand,
+  goalBandWords,
+  goalVerdict,
+  bestRun,
   solveSentences,
   surestSentence,
   targetCaption,
@@ -6790,52 +6793,106 @@ function showWhatIf(result) {
 }
 
 /**
- * Build a control for each factor, once a study and again when a factor's label or range changes: a slider and a
- * number box over a numeric factor's range, a list of a categorical one's levels.
+ * Build the what-if table, once a study and again when a factor or a response changes: its first column names each
+ * response (whatIfNames), then a column for each factor (whatIfControl), then a column of each response against its
+ * goal (whatIfGoals). Each column runs the table's full height, its cells on the table's rows (CSS subgrid): the
+ * factors' names, a row for each fitted response, and the What-if row, which sets the factors.
  */
 function renderWhatIfControls() {
   const box = $("#what-if-settings");
   const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
-  const fitted = profiledResponses(state.whatIf).map((r) => r.name);
-  const key = JSON.stringify([fitted, state.whatIf.factors.map((f) => [f.name, f.low, f.high, f.levels, units[f.name]])]);
+  const fits = profiledResponses(state.whatIf);
+  const key = JSON.stringify([fits.map((r) => [r.name, r.label, r.units]), state.whatIf.factors.map((f) => [f.name, f.low, f.high, f.levels, units[f.name]])]);
   if (box.dataset.key === key) return;
   box.dataset.key = key;
-  box.replaceChildren(...state.whatIf.factors.map((f) => whatIfControl(f, units[f.name], fitted)));
+  box.style.setProperty("--factors", String(state.whatIf.factors.length));
+  box.style.setProperty("--responses", String(fits.length));
+  const fitted = fits.map((r) => r.name);
+  box.replaceChildren(whatIfNames(fits), ...state.whatIf.factors.map((f) => whatIfControl(f, units[f.name], fitted)), whatIfGoals(fits));
+}
+
+/** A cell of the what-if table: one row of a column. */
+const whatIfCell = (cls, ...parts) => {
+  const cell = el("div", `what-if-cell ${cls}`.trim(), "");
+  cell.append(...parts);
+  return cell;
+};
+
+/**
+ * The what-if table's first column: a cell for each fitted response, its name over its goal in words and the scale
+ * its pictures share (drawProfiles fills both), then the What-if row's name.
+ */
+function whatIfNames(fits) {
+  const column = el("div", "what-if-column what-if-names", "");
+  column.append(
+    whatIfCell("what-if-head"),  // the hint above says what the pictures are
+    ...fits.map((r) => {
+      const cell = whatIfCell("what-if-response", el("span", "what-if-label", withUnits(r.label, r.units)), el("span", "what-if-goal-words", ""));
+      const scale = el("span", "what-if-scale", "");
+      scale.append("scale ", el("span", "profile__end", ""), " to ", el("span", "profile__end", ""));
+      cell.append(scale);
+      cell.dataset.response = r.name;
+      return cell;
+    }),
+    whatIfCell("what-if-row", el("span", "what-if-row__name", "What if"), el("span", "hint", "a run you have not made")),
+  );
+  return column;
 }
 
 /**
- * One factor's dial in the what-if panel, named by the factor: a profile for each of the ``fitted`` responses
- * (drawProfiles), one under another, each of which takes a drag, over the slider and the number box that set the
- * factor from the keyboard.
+ * One factor's column of the what-if table, named by the factor over its range: a picture of each fitted response
+ * against it (drawProfiles), each of which takes a drag, then its cell of the What-if row, which sets it from the
+ * keyboard: a number box over a slider, or a button for each of a categorical factor's levels.
  */
 function whatIfControl(f, units, fitted) {
-  const row = el("div", "what-if-factor", "");
-  row.dataset.factor = f.name;
-  const name = el("span", "what-if-name", withUnits(f.name, units));
+  const column = el("div", "what-if-column what-if-factor", "");
+  column.dataset.factor = f.name;
+  const numeric = f.kind !== "categorical";
+  const [low, high] = numeric ? [Math.min(f.low, f.high), Math.max(f.low, f.high)] : [];
+  const span = numeric ? `${num(low)} to ${withUnit(high, units)}` : f.levels.join(", ");
+  const head = whatIfCell("what-if-head", el("span", "what-if-name", withUnits(f.name, units)), el("span", "what-if-range", span));
   const profiles = fitted.map((response) => {
     const profile = svgPart("svg", { class: "profile", role: "img" });
     profile.dataset.response = response;
     takeDrag(profile, (e) => dragProfile(e, f));
-    return profile;
+    return whatIfCell("what-if-picture", profile);
   });
-  if (f.kind === "categorical") {
-    const select = el("select", "", "");
-    select.name = "level";
-    select.setAttribute("aria-label", f.name);
-    for (const level of f.levels) select.append(new Option(level, level));
-    row.append(name, ...profiles, select);
-    return row;
+  if (!numeric) {
+    const group = el("span", "what-if-levels", "");
+    group.setAttribute("role", "group");
+    group.setAttribute("aria-label", `${f.name} in the what-if row`);
+    for (const level of f.levels) {
+      const button = el("button", "what-if-level", level);
+      Object.assign(button, { type: "button", name: "level", value: level });
+      group.append(button);
+    }
+    column.append(head, ...profiles, whatIfCell("what-if-row", group));
+    return column;
   }
-  const [low, high] = [Math.min(f.low, f.high), Math.max(f.low, f.high)];
-  const span = `${num(low)} to ${withUnit(high, units)}`;
   const slider = el("input", "", "");
   Object.assign(slider, { type: "range", name: "slider", min: String(low), max: String(high), step: String(sliderStep(f)) });
   slider.setAttribute("aria-label", `${f.name}, from ${span}`);
   const box = el("input", "", "");
   Object.assign(box, { type: "number", name: "number", min: String(low), max: String(high), step: "any" });
   box.setAttribute("aria-label", withUnits(f.name, units));
-  row.append(name, ...profiles, slider, box, el("span", "what-if-range", span));
-  return row;
+  column.append(head, ...profiles, whatIfCell("what-if-row", box, slider));
+  return column;
+}
+
+/**
+ * The what-if table's last column: each fitted response at the What-if row's settings against its goal (renderGoals
+ * fills it), then the buttons that set the What-if row at once.
+ */
+function whatIfGoals(fits) {
+  const column = el("div", "what-if-column what-if-goals", "");
+  const head = whatIfCell("what-if-head", el("span", "what-if-name", "Against its goal"), el("span", "what-if-range", `${confidencePercent()} prediction interval, and 20 runs you might get`));
+  const cells = fits.map((r) => {
+    const cell = whatIfCell("what-if-goal");
+    cell.dataset.response = r.name;
+    return cell;
+  });
+  column.append(head, ...cells, whatIfCell("what-if-row", $("#what-if-presets")));
+  return column;
 }
 
 /**
@@ -6867,7 +6924,7 @@ function takeDrag(drawing, moved) {
  * A profile's drawing, in the page's pixels: as wide as its dial (``width`` until the dial is on show), ``height``
  * tall, with ``pad`` of room about the plot, which puts its two ends over the ends of the slider's travel.
  */
-const PROFILE = { width: 240, height: 132, pad: 10 };
+const PROFILE = { width: 120, height: 44, pad: 6 };
 
 /** A part of an SVG drawing, with its attributes. */
 function svgPart(tag, attributes = {}, text = "") {
@@ -6893,49 +6950,50 @@ function drawProfiles(w) {
   const fits = profiledResponses(w);
   const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
   const box = $("#what-if-settings");
-  box.classList.toggle("what-if-settings--rows", fits.length > 1);
   $("#what-if-about").textContent = fits.length
-    ? `Each picture is ${fits.length > 1 ? "a response" : fits[0].label} against one factor, the others as set; dashed beyond the runs. Drag it, or type a value.`
+    ? "Each picture is a response against one factor, the others as in the What-if row; dashed beyond the runs."
     : "Move a setting, and each response's prediction follows.";
   w.ranges ??= {};
   for (const fit of fits) {
     const profiles = w.factors.map((f) => profileOf(fit, w.factors, w.settings, f.name));
     const range = profileRange(profiles, w.dragging ? w.ranges[fit.name] : null);
     w.ranges[fit.name] = range;
-    const words = { label: fit.label, units: fit.units ?? "", named: fits.length > 1 };
+    const words = { label: fit.label, units: fit.units ?? "" };
+    // The scale a response's pictures share, said once beside its name, from its foot to its top.
+    const [foot, top] = box.querySelectorAll(`.what-if-response[data-response="${CSS.escape(fit.name)}"] .profile__end`);
+    foot.textContent = num(range[0]);
+    top.textContent = withUnit(range[1], words.units);
     w.factors.forEach((f, i) => {
-      const profile = [...box.children[i].querySelectorAll("svg.profile")].find((one) => one.dataset.response === fit.name);
+      const profile = box.querySelector(`[data-factor="${CSS.escape(f.name)}"] svg.profile[data-response="${CSS.escape(fit.name)}"]`);
       const size = { width: profile.clientWidth || PROFILE.width, height: profile.clientHeight || PROFILE.height };
       profile.setAttribute("viewBox", `0 0 ${size.width} ${size.height}`);
       profile.setAttribute("aria-label", profileWords(f, profiles[i], words, units[f.name]));
-      profile.replaceChildren(...profileParts(f, profiles[i], range, w.settings[f.name], words, size));
+      profile.replaceChildren(...profileParts(f, profiles[i], range, w.settings[f.name], size));
     });
   }
 }
 
 /**
- * The parts of one profile's drawing: the scale's two ends, the response's name where the panel draws several, the
- * band, the line in its pieces, and the mark.
+ * The parts of one profile's drawing, a cell of the what-if table: the band, the line in its pieces, and the mark, a
+ * dotted line down the cell at the setting with a dot where the response is there. A categorical factor has a dot for
+ * each level, over its band, the level set filled. The scale's two ends are said beside the response's name.
  */
-function profileParts(f, points, range, value, { label, units, named }, { width, height }) {
+function profileParts(f, points, range, value, { width, height }) {
   const { pad } = PROFILE;
   const numeric = f.kind === "numeric";
   const [low, high] = numeric ? [points[0].value, points.at(-1).value] : [0, points.length - 1];
   const across = (v) => pad + (high > low ? ((width - 2 * pad) * (v - low)) / (high - low) : (width - 2 * pad) / 2);
   const up = (v) => height - pad - ((height - 2 * pad) * (v - range[0])) / (range[1] - range[0]);
-  const x = (point) => across(numeric ? point.value : points.indexOf(point));
+  // A level sits at the middle of its share of the drawing's width, where a press (dragProfile) reads it.
+  const x = (point) => (numeric ? across(point.value) : (width * (points.indexOf(point) + 0.5)) / points.length);
   const at = (point, v = point.predicted) => `${x(point).toFixed(1)},${up(v).toFixed(1)}`;
-  const parts = [
-    svgPart("text", { class: "profile__end", x: 4, y: 12 }, withUnit(range[1], units)),
-    svgPart("text", { class: "profile__end", x: 4, y: height - 4 }, withUnit(range[0], units)),
-    ...(named ? [svgPart("text", { class: "profile__name", x: width - 4, y: 12, "text-anchor": "end" }, label)] : []),
-  ];
+  const parts = [];
   const banded = points.every((point) => point.confidence);
   if (!numeric) {
     for (const point of points) {
       if (banded) parts.push(svgPart("line", { class: "profile__bar", x1: x(point), x2: x(point), y1: up(point.confidence[0]), y2: up(point.confidence[1]) })); // prettier-ignore
       const chosen = point.value === value;
-      parts.push(svgPart("circle", { class: `profile__level${chosen ? " profile__level--set" : ""}`, cx: x(point), cy: up(point.predicted), r: chosen ? 6 : 4 })); // prettier-ignore
+      parts.push(svgPart("circle", { class: `profile__level${chosen ? " profile__level--set" : ""}`, cx: x(point), cy: up(point.predicted), r: 3.5 })); // prettier-ignore
     }
     return parts;
   }
@@ -6954,7 +7012,7 @@ function profileParts(f, points, range, value, { label, units, named }, { width,
   const predicted = before.predicted + share * (next.predicted - before.predicted);
   parts.push(
     svgPart("line", { class: "profile__at", x1: across(value), x2: across(value), y1: pad, y2: height - pad }),
-    svgPart("circle", { class: "profile__set", cx: across(value), cy: up(predicted), r: 6 }),
+    svgPart("circle", { class: "profile__set", cx: across(value), cy: up(predicted), r: 3.5 }),
   );
   return parts;
 }
@@ -7008,13 +7066,16 @@ function dragMap(e) {
 
 /** The reader pressed or dragged on a profile: its factor is set where the pointer is, to the slider's step. */
 function dragProfile(e, f) {
-  const drawing = e.currentTarget; // the plot is inside the drawing's border, PROFILE.pad from each side
-  const left = drawing.getBoundingClientRect().left + drawing.clientLeft + PROFILE.pad;
-  const share = Math.min(1, Math.max(0, (e.clientX - left) / (drawing.clientWidth - 2 * PROFILE.pad)));
+  const drawing = e.currentTarget; // the plot is PROFILE.pad in from each side of the drawing
+  const edge = drawing.getBoundingClientRect().left + drawing.clientLeft;
   if (f.kind === "categorical") {
-    setWhatIf({ [f.name]: f.levels[Math.round(share * (f.levels.length - 1))] });
+    // Each level has an equal share of the drawing's width (profileParts): the press is in one of them.
+    const share = (e.clientX - edge) / drawing.clientWidth;
+    setWhatIf({ [f.name]: f.levels[Math.min(f.levels.length - 1, Math.max(0, Math.floor(share * f.levels.length)))] });
     return;
   }
+  const left = edge + PROFILE.pad;
+  const share = Math.min(1, Math.max(0, (e.clientX - left) / (drawing.clientWidth - 2 * PROFILE.pad)));
   const [low, high] = [Math.min(f.low, f.high), Math.max(f.low, f.high)];
   const step = sliderStep(f);
   const stepped = low + Math.round((share * (high - low)) / step) * step;
@@ -7033,14 +7094,15 @@ function setWhatIf(changes) {
   whatIfLimitsTimer = setTimeout(checkWhatIfLimits, 150);
 }
 
-/** Show the settings the panel holds in its controls; a number box the reader is typing in keeps what is typed. */
+/** Show the settings the panel holds in the What-if row; a number box the reader is typing in keeps what is typed. */
 function showWhatIfSettings() {
-  for (const row of $("#what-if-settings").children) {
-    const value = state.whatIf.settings[row.dataset.factor];
-    for (const input of row.querySelectorAll("input, select")) {
+  for (const column of $("#what-if-settings").querySelectorAll(".what-if-factor")) {
+    const value = state.whatIf.settings[column.dataset.factor];
+    for (const input of column.querySelectorAll("input")) {
       if (input.name === "number" && input === document.activeElement) continue;
       input.value = input.name === "number" ? numPlain(value) : String(value);
     }
+    for (const button of column.querySelectorAll("button.what-if-level")) button.setAttribute("aria-pressed", String(button.value === String(value)));
   }
 }
 
@@ -7069,15 +7131,12 @@ function renderWhatIf() {
   showWhatIfSettings();
   drawProfiles(w);
   drawMap(w);
-  $("#what-if-back").textContent = WHAT_IF_BACK[start.from];
-  $("#what-if-back").hidden = w.factors.every((f) => start.settings[f.name] === w.settings[f.name]);
   // a study whose only results so far are its curves has no response to list: the curve below is the prediction
   const fitted = w.responses.some((r) => r.terms);
-  $("#what-if-out").replaceChildren(
-    ...(fitted ? [table(whatIfColumns(), whatIfRows(responses), whatIfTerms())] : []),
-    ...noteList(whatIfSentences(fitted ? responses : [], w.broken), "warnings"),
-  );
-  drawRuns();
+  $("#what-if-numbers").hidden = !fitted;
+  $("#what-if-table").replaceChildren(...(fitted ? [table(whatIfColumns(), whatIfRows(responses), whatIfTerms())] : []));
+  $("#what-if-said").replaceChildren(...noteList(whatIfSentences(fitted ? responses : [], w.broken), "warnings"));
+  drawGoals();
   const formulas = Object.fromEntries(w.responses.filter((r) => r.terms).map((r) => [r.name, r.formula]));
   const kept = state.scenarios.filter((s) => !keptProblem(w, s)).map((s) => ({ name: s.name, at: columnsAt(w.factors, s.settings) }));
   const profiled = profiledResponse(w);
@@ -7088,53 +7147,198 @@ function renderWhatIf() {
   scheduleWindow(); // and the windows are judged through these settings
 }
 
-// ---------------------------------------------------------------- what if: a prediction as runs
-/** A drawing of runs, in the page's pixels: ``width`` across with ``pad`` at each side, a dot ``dot`` across, and ``foot`` under the dots for the two ends' numbers. */
-const RUNS = { width: 240, pad: 10, dot: 10, foot: 16 };
+// ---------------------------------------------------------------- what if: each response against its goal
+/** The drawing of a response against its goal, in its own units: ``width`` across with ``pad`` at each side. */
+const GOAL_BAR = { width: 200, height: 30, pad: 6 };
+
+/** A response's entry in the balance, when two responses or more are balanced. */
+const balancedOf = (name) => state.balance?.responses?.find((r) => r.name === name);
+
+/** A response as the study describes it: its goal, and its target when it has one. */
+const describedOf = (name) => studyResponses().find((r) => r.name === name) ?? {};
+
+/** Each fitted response's goal by its name (best.js goalBand): its band and where it comes from, for each that has one. */
+function goalsOf(w) {
+  return Object.fromEntries(
+    profiledResponses(w).flatMap((fit) => {
+      const goal = goalBand(state.window.windows[fit.name], balancedOf(fit.name));
+      return goal ? [[fit.name, goal]] : [];
+    }),
+  );
+}
+
+/** What a response with no goal band is judged by, in words: the way its goal points, or none. */
+function noBandWords(name, units) {
+  const { goal, target } = describedOf(name);
+  if (goal === "maximize") return "higher is better";
+  if (goal === "minimize") return "lower is better";
+  return goal === "target" && Number.isFinite(target) ? `closest to ${withUnit(target, units)}` : "no goal set";
+}
+
+/** A response's goal as the table writes it under its name, when it has no band: "highest", "lowest", "target 63%", or nothing. */
+function noBandGoal(name, units) {
+  const { goal, target } = describedOf(name);
+  if (goal === "maximize") return "highest";
+  if (goal === "minimize") return "lowest";
+  return goal === "target" && Number.isFinite(target) ? `target ${withUnit(target, units)}` : "";
+}
+
+/** Whether a response's goal points somewhere a run can be best for: higher, lower, or toward a target. */
+const pointed = ({ goal, target }) => goal === "maximize" || goal === "minimize" || (goal === "target" && Number.isFinite(target));
 
 /**
- * Draw each fitted response's prediction as the runs a reader might get at the panel's settings (best.js runsAt), each
- * as likely as the next: dots that pile up where a run is likelier, the outer two at the ends of the 95% prediction
- * interval in the table above, and those inside the response's window filled. A response whose model has no interval
- * has no runs to draw.
+ * The scale a response's drawing against its goal has: its pictures' scale (drawProfiles), widened to take in
+ * ``values`` (the goal's ends, the interval, the runs), with a little room past each end; held still while the reader
+ * drags, as the pictures' is.
  */
-function drawRuns() {
+function barScale(w, name, values) {
+  if (w.dragging && w.bars?.[name]) return w.bars[name];
+  const all = [...(w.ranges?.[name] ?? []), ...values].filter(Number.isFinite);
+  const [low, high] = [Math.min(...all), Math.max(...all)];
+  const room = (high - low) * 0.05 || 1;
+  w.bars = { ...w.bars, [name]: [low - room, high + room] };
+  return w.bars[name];
+}
+
+/**
+ * Draw each fitted response against its goal at the What-if row's settings: the prediction and its 95% prediction
+ * interval as a line over the goal shaded, with the 20 runs a reader might get there (best.js runsAt) above it, those
+ * inside the goal filled; and a word for how it stands (best.js goalVerdict), the interval judged. Then the headlines
+ * and the presets, which follow the goals.
+ */
+function drawGoals() {
   const w = state.whatIf;
   if (!w) return;
   const at = columnsAt(w.factors, w.settings);
-  const drawn = profiledResponses(w).flatMap((fit) => {
+  const goals = goalsOf(w);
+  const bands = Object.fromEntries(Object.entries(goals).map(([name, goal]) => [name, goal.band]));
+  const box = $("#what-if-settings");
+  let met = 0;
+  for (const fit of profiledResponses(w)) {
+    const cell = box.querySelector(`.what-if-goal[data-response="${CSS.escape(fit.name)}"]`);
+    if (!cell) continue;
+    const units = fit.units ?? "";
+    const { predicted, prediction } = predictAt(fit, at);
     const runs = runsAt(fit, at);
-    return runs ? [runsFigure(fit, runs, state.window.windows[fit.name])] : [];
-  });
-  $("#what-if-runs").hidden = !drawn.length;
-  $("#what-if-runs").replaceChildren(...drawn);
+    const band = bands[fit.name] ?? null;
+    const verdict = band && goalVerdict(predicted, prediction, band);
+    if (verdict?.met) met += 1;
+    const goalWords = band ? goalBandWords(band, units) : noBandWords(fit.name, units);
+    box.querySelector(`.what-if-response[data-response="${CSS.escape(fit.name)}"] .what-if-goal-words`).textContent = band ? goalWords : noBandGoal(fit.name, units);
+    const ends = (band ?? []).filter((end) => end !== null);
+    const [low, high] = barScale(w, fit.name, [predicted, ...(prediction ?? []), ...(runs ?? []), ...ends]);
+    const { width, height, pad } = GOAL_BAR;
+    const across = (v) => (pad + ((Math.min(high, Math.max(low, v)) - low) / (high - low)) * (width - 2 * pad)).toFixed(1);
+    const bar = svgPart("svg", { class: "goal-bar", viewBox: `0 0 ${width} ${height}`, role: "img" });
+    bar.append(svgPart("line", { class: "goal-bar__axis", x1: pad, x2: width - pad, y1: 21, y2: 21 }));
+    if (band) {
+      const [from, to] = [across(band[0] ?? low), across(band[1] ?? high)];
+      bar.append(svgPart("rect", { class: "goal-bar__band", x: from, y: 3, width: Math.max(0, to - from).toFixed(1), height: 25 }));
+    }
+    const inside = runs && insideWindow(runs, band ?? [null, null]);
+    for (const [i, run] of (runs ?? []).entries()) {
+      bar.append(svgPart("circle", { class: `goal-bar__run${inside[i] ? " goal-bar__run--inside" : ""}`, cx: across(run), cy: 10, r: 2.2 }));
+    }
+    if (prediction) bar.append(svgPart("line", { class: "goal-bar__interval", x1: across(prediction[0]), x2: across(prediction[1]), y1: 21, y2: 21 }));
+    bar.append(svgPart("circle", { class: "goal-bar__predicted", cx: across(predicted), cy: 21, r: 4.5 }));
+    const interval = prediction ? `${num(prediction[0])} to ${withUnit(prediction[1], units)}` : null;
+    const word = verdict ? verdict.word : goalWords;
+    const within = band && (goals[fit.name].from === "window" ? "your window" : "its goal");
+    const runsSaid = runs ? ` ${runsWords(runs, inside, { label: fit.label, units }, within)}` : "";
+    bar.setAttribute(
+      "aria-label",
+      `${fit.label} at the what-if settings: ${withUnit(predicted, units)}` +
+        (interval ? `, ${confidencePercent()} prediction interval ${interval}` : ", with no interval: no run is left to estimate the noise") +
+        (band ? `; against its goal of ${goalWords}, ${word}.` : `; ${word}.`) +
+        runsSaid,
+    );
+    const value = el("span", "what-if-value", "");
+    value.append(el("strong", "", withUnit(predicted, units)), " ", el("span", "what-if-interval", interval ? `(${num(prediction[0])} to ${num(prediction[1])})` : ""));
+    const said = el("span", `what-if-verdict${verdict && !verdict.met ? " what-if-verdict--off" : ""}`, word);
+    if (verdict) said.dataset.level = String(verdict.level);
+    cell.replaceChildren(value, bar, said);
+  }
+  renderHeadlines(w, bands, met);
+  renderPresets(w);
 }
 
-/** One response's runs: the dots over a line, the window they are judged by shaded behind them, and what they say in words. */
-function runsFigure(fit, runs, ends = [null, null]) {
-  const windowed = ends.some((end) => end !== null);
-  const inside = insideWindow(runs, ends);
-  const { width, pad, dot, foot } = RUNS;
-  const [least, most] = [runs[0], runs.at(-1)];
-  const room = (most - least) * 0.1 || 1; // a little past the two ends, so the outer dots are whole
-  const [low, high] = [least - room, most + room];
-  const piles = dotPiles(runs, [low, high], Math.floor((width - 2 * pad) / dot));
-  const tall = (Math.max(...piles.map((pile) => pile.level)) + 1) * dot;
-  const across = (value) => pad + ((value - low) / (high - low)) * (width - 2 * pad);
-  const drawing = svgPart("svg", { class: "runs", viewBox: `0 0 ${width} ${tall + foot}`, width, height: tall + foot, "aria-hidden": "true" });
-  const [from, to] = [Math.max(low, ends[0] ?? low), Math.min(high, ends[1] ?? high)];
-  if (windowed && to > from) drawing.append(svgPart("rect", { class: "runs__window", x: across(from), y: 0, width: across(to) - across(from), height: tall }));
-  drawing.append(svgPart("line", { class: "runs__foot", x1: pad, x2: width - pad, y1: tall, y2: tall }));
-  piles.forEach(({ column, level }, i) => {
-    const run = svgPart("circle", { class: `runs__run${inside[i] ? " runs__run--inside" : ""}`, cx: pad + (column + 0.5) * dot, cy: tall - (level + 0.5) * dot, r: dot / 2 - 1.5 });
-    drawing.append(run);
-  });
-  for (const end of [least, most]) drawing.append(svgPart("text", { class: "runs__end", x: across(end), y: tall + foot - 3, "text-anchor": "middle" }, num(end)));
-  const figure = el("figure", "runs-figure", "");
-  figure.dataset.response = fit.name;
-  // The words say what the drawing shows, so a reader who does not see it loses nothing: the drawing is not read out.
-  figure.append(drawing, el("figcaption", "hint", runsWords(runs, inside, { label: fit.label, units: fit.units ?? "" }, windowed)));
-  return figure;
+/** What the best run so far did for a response with no goal band, by its goal: the highest, the lowest, the closest. */
+const BEST_SO_FAR = { maximize: "the highest", minimize: "the lowest" };
+
+/**
+ * Lead the what-if table with two headlines: the best run so far (best.js bestRun), with its results and how many of
+ * the goals it met; and how many goals the What-if row's settings meet or likely meet, ``met`` of the ``bands``.
+ */
+function renderHeadlines(w, bands, met) {
+  const fits = profiledResponses(w);
+  const judged = Object.keys(bands).length;
+  const shown = profiledResponse(w);
+  const lead = shown && describedOf(shown.name);
+  // A run is best only for a goal: with no band to judge, the goal of the response Learn shows must point somewhere.
+  const best = lead && (judged || pointed(lead)) ? bestRun(state.results, bands, { name: shown.name, goal: lead.goal, target: lead.target }) : null;
+  w.bestPlace = best?.place ?? null;
+  $("#what-if-headlines").hidden = !best && !judged;
+  $("#what-if-best").hidden = !best;
+  if (best) {
+    const values = fits
+      .filter((fit) => Number.isFinite(state.results[fit.name]?.[best.place]))
+      .map((fit) => `${fit.label} ${withUnit(state.results[fit.name][best.place], fit.units ?? "")}`);
+    const toward = BEST_SO_FAR[lead.goal] ? `${BEST_SO_FAR[lead.goal]} ${shown.label} so far` : `the closest to its target so far`;
+    const outcome = !judged ? toward : best.met === judged ? "every goal met" : `${best.met} of ${judged} goals met`;
+    $("#what-if-best-run").textContent = `Run ${runOrderOf(best.place)}: ${values.join(", ")}, ${outcome}`;
+  }
+  $("#what-if-met").hidden = !judged;
+  $("#what-if-goals-met").textContent = `${met} of ${judged} goal${judged === 1 ? "" : "s"} met or likely met`;
+}
+
+/** The settings of a run on the run sheet, by its place, for the What-if row: each factor's, as the run had it. */
+function runSettings(w, place) {
+  if (place === null || place === undefined) return null;
+  const { columns, rows } = state.design;
+  const settings = Object.fromEntries(w.factors.map((f) => [f.name, rows[place][columns.indexOf(f.name)]]));
+  return settingsFit(w.factors, settings) ? settings : null;
+}
+
+/** The What-if row's presets, by their buttons: where it starts (whatIfStart), the best run so far, and the middle of the ranges. */
+function presetSettings(w, id) {
+  if (id === "what-if-run") return runSettings(w, w.bestPlace);
+  if (id === "what-if-middle") return whatIfStart(w.factors, null, null).settings;
+  return whatIfStart(w.factors, state.balance, state.best).settings;
+}
+
+/** Name the presets, offer the ones there are, and press the one the What-if row is at. */
+function renderPresets(w) {
+  const at = (settings) => Boolean(settings) && w.factors.every((f) => settings[f.name] === w.settings[f.name]);
+  const start = whatIfStart(w.factors, state.balance, state.best);
+  const offered = {
+    "what-if-back": WHAT_IF_PRESET[start.from],
+    "what-if-run": w.bestPlace === null ? null : `run ${runOrderOf(w.bestPlace)}`,
+    "what-if-middle": start.from === "center" ? null : WHAT_IF_PRESET.center,
+  };
+  for (const [id, text] of Object.entries(offered)) {
+    const button = $(`#${id}`);
+    const settings = text && presetSettings(w, id);
+    button.hidden = !settings;
+    button.textContent = text ?? "";
+    button.setAttribute("aria-pressed", String(at(settings)));
+  }
+}
+
+/** The reader pressed a level of a categorical factor in the What-if row, or a preset: the row moves there. */
+function whatIfPressed(e) {
+  const w = state.whatIf;
+  if (!w) return;
+  const level = e.target.closest("button.what-if-level");
+  if (level) {
+    setWhatIf({ [level.closest("[data-factor]").dataset.factor]: level.value });
+    return;
+  }
+  const preset = e.target.closest("#what-if-back, #what-if-run, #what-if-middle");
+  const settings = preset && presetSettings(w, preset.id);
+  if (!settings) return;
+  w.settings = { ...settings };
+  renderWhatIf();
+  checkWhatIfLimits();
 }
 
 // ---------------------------------------------------------------- the curve at the what-if settings
@@ -7238,14 +7442,6 @@ async function checkWhatIfLimits() {
   if (mine !== whatIfTicket || state.whatIf?.settings !== settings) return; // the reader has moved on
   w.broken = reply.ok ? reply.result.broken : [];
   renderWhatIf();
-}
-
-/** Bring the panel back to where it starts: the balanced settings, the best settings, or the center of the ranges. */
-function whatIfBack() {
-  if (!state.whatIf) return;
-  state.whatIf.settings = whatIfStart(state.whatIf.factors, state.balance, state.best).settings;
-  renderWhatIf();
-  checkWhatIfLimits();
 }
 
 // ---------------------------------------------------------------- what if: settings kept with the study
@@ -7742,7 +7938,7 @@ function showWindow() {
   const windows = Object.fromEntries(Object.entries(state.window.windows).filter(([name]) => names.includes(name)));
   const pair = state.window.pair?.every((name) => ranged.includes(name)) ? state.window.pair : null;
   state.window = { ...state.window, windows, pair };
-  drawRuns(); // a window that came with the study, or left with its response
+  drawGoals(); // a window that came with the study, or left with its response
   $("#window").hidden = false;
   const t = $("#window-limits");
   const key = JSON.stringify(responses);
@@ -7785,7 +7981,7 @@ function windowTyped(e) {
   state.window = { ...state.window, windows: { ...state.window.windows, [tr.dataset.response]: ends } };
   scheduleSave(); // the windows go with the study
   scheduleWindow();
-  drawRuns(); // the runs inside the window are the filled ones
+  drawGoals(); // the window is the goal its response is judged against
 }
 
 /** Judge the windows again a moment from now: an end was typed, or the what-if panel's settings moved. */
@@ -7803,7 +7999,7 @@ function windowCleared() {
   showWindows();
   scheduleSave();
   findWindow();
-  drawRuns();
+  drawGoals();
 }
 
 /** Judge the windows typed (bootstrap.specification), and show what they give; with none typed, nothing. */
@@ -10144,7 +10340,7 @@ new ResizeObserver(() => {
   if (state.whatIf && !$("#what-if").hidden) drawProfiles(state.whatIf);
 }).observe($("#what-if-settings"));
 takeDrag($("#what-if-map-plot"), dragMap);
-$("#what-if-back").onclick = whatIfBack;
+$("#what-if-settings").addEventListener("click", whatIfPressed);
 $("#what-if-keep").addEventListener("submit", keepWhatIf);
 $("#what-if-kept-list").addEventListener("click", keptPressed);
 $("#balance-reset").onclick = () => {

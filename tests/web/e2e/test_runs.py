@@ -1,9 +1,9 @@
-"""A prediction as 20 runs, in What if: what a reader might get at the settings the dials hold.
+"""A prediction as 20 runs, in What if: what a reader might get at the settings the What-if row holds.
 
-Under the table of What if, each fitted response's prediction is drawn as 20 runs, each as likely as the next, piled
-up where a run is likelier. The least and the greatest of them are the two ends of the 95% prediction interval the
-table gives, so the drawing and the table cannot disagree. A run inside the response's window is filled and one
-outside it is a ring, so the reader sees how many of 20 runs the window would pass.
+Each fitted response's prediction is drawn against its goal: its 95% prediction interval as a line, and above it 20
+runs, each as likely as the next. The least and the greatest of them are the two ends of that interval, so the runs
+and the interval cannot disagree. A run inside the response's goal is filled and one outside it is a ring, so the
+reader sees how many of 20 runs the goal would pass.
 """
 
 from __future__ import annotations
@@ -17,24 +17,23 @@ from tests.web.e2e._page import generate, practise, reveal, set_factors, settled
 from tests.web.e2e.test_responses import three_responses
 from tests.web.e2e.test_what_if import predictions, rows, set_number
 
-RUNS = "#what-if-runs figure"
+RUNS = "#what-if-settings .goal-bar"
 
-#: Each response's runs as the page draws them: what the words say, the two numbers under the line, how many dots
-#: there are and how many are filled, whether a window is shaded, and whether a screen reader is read the drawing.
-DRAWN = """(figures) => figures.map((figure) => ({
-  response: figure.dataset.response,
-  says: figure.querySelector('figcaption').textContent,
-  ends: [...figure.querySelectorAll('.runs__end')].map((end) => end.textContent),
-  dots: figure.querySelectorAll('.runs__run').length,
-  filled: figure.querySelectorAll('.runs__run--inside').length,
-  window: figure.querySelectorAll('.runs__window').length,
-  hidden: figure.querySelector('svg').getAttribute('aria-hidden'),
-  right: figure.getBoundingClientRect().right,
+#: Each response against its goal as the page draws it: what the drawing says, the interval written beside it, how
+#: many runs there are and how many are filled, whether a goal is shaded, and how far right it reaches.
+DRAWN = """(bars) => bars.map((bar) => ({
+  response: bar.closest('.what-if-goal').dataset.response,
+  says: bar.getAttribute('aria-label'),
+  interval: bar.closest('.what-if-goal').querySelector('.what-if-interval').textContent,
+  dots: bar.querySelectorAll('.goal-bar__run').length,
+  filled: bar.querySelectorAll('.goal-bar__run--inside').length,
+  band: bar.querySelectorAll('.goal-bar__band').length,
+  right: bar.getBoundingClientRect().right,
 }))"""
 
 
 def drawn(page: Any) -> list[dict]:  # noqa: ANN401 - a Playwright Page
-    """Return each response's runs as the page draws them, in the page's order."""
+    """Return each response against its goal as the page draws it, in the page's order."""
     return page.locator(RUNS).evaluate_all(DRAWN)
 
 
@@ -42,7 +41,7 @@ def drawn(page: Any) -> list[dict]:  # noqa: ANN401 - a Playwright Page
 def shown(page: Any) -> Any:  # noqa: ANN401
     """Return the worked example with What if on show."""
     reveal(page, "#what-if")
-    page.wait_for_selector("#what-if-runs:not([hidden]) figure")
+    page.wait_for_selector("#what-if:not([hidden]) .goal-bar")
     return page
 
 
@@ -51,12 +50,12 @@ def test_the_runs_reach_as_far_as_the_prediction_interval_beside_them(shown):
     [row] = rows(page)
     [runs] = drawn(page)
     interval = row[3]  # the 95% prediction interval, as the table writes it: "61.2 to 68.4%"
-    assert runs["says"] == f"Yield as 20 runs you might get: {interval}."
-    assert runs["ends"] == [end.rstrip("%") for end in interval.split(" to ")], "the least and the greatest, under them"
+    assert f" Yield as 20 runs you might get: {interval}." in runs["says"]
+    assert runs["interval"] == f"({interval.rstrip('%')})", "the least and the greatest, beside the prediction"
     assert runs["dots"] == 20
-    assert runs["filled"] == 20, "with no window typed, no run is outside one"
-    assert runs["window"] == 0
-    assert runs["hidden"] == "true", "the words say what the drawing shows"
+    assert runs["filled"] == 20, "with no goal to judge them by, no run is outside one"
+    assert runs["band"] == 0
+    assert "higher is better" in runs["says"], "the worked example maximizes Yield, with no window typed"
 
 
 def test_the_runs_follow_the_dials_without_a_call_to_python(shown):
@@ -66,38 +65,41 @@ def test_the_runs_follow_the_dials_without_a_call_to_python(shown):
     set_number(page, "Temperature", 160)
     [runs] = drawn(page)
     assert runs["says"] != before
-    assert runs["says"] == f"Yield as 20 runs you might get: {rows(page)[0][3]}."
+    assert f" Yield as 20 runs you might get: {rows(page)[0][3]}." in runs["says"]
     assert predictions(page) == calls, "in the page's own JavaScript"
 
 
-def test_a_run_inside_the_response_s_window_is_filled_and_one_outside_is_a_ring(fresh_page):
+def test_a_run_inside_the_response_s_goal_is_filled_and_one_outside_is_a_ring(fresh_page):
     page = fresh_page
     three_responses(page)
     practise(page)
     reveal(page, "#what-if")
-    page.wait_for_selector("#what-if-runs:not([hidden]) figure")
+    page.wait_for_selector("#what-if:not([hidden]) .goal-bar")
     table = rows(page)
     assert [one["response"] for one in drawn(page)] == [row[0] for row in table], "a drawing for each response"
     assert all(
-        one["says"].startswith(f"{row[0]} as 20 runs you might get: ")
-        for one, row in zip(drawn(page), table, strict=True)
+        f" {row[0]} as 20 runs you might get: " in one["says"] for one, row in zip(drawn(page), table, strict=True)
     )
+    assert all(one["band"] == 1 for one in drawn(page)), "each has its acceptable range in the balance as its goal"
+    assert all(" of them are inside its goal." in one["says"] for one in drawn(page))
 
     # A window that starts at the prediction passes the half of the runs above it: the runs are spread evenly about it.
     predicted = table[0][1].rstrip("%")
     reveal(page, "#window")
     page.fill('#window-limits tr[data-response="Yield"] [name="low"]', predicted)
-    page.wait_for_function("document.querySelector('#what-if-runs figure .runs__window') !== null")
-    first, *others = drawn(page)
+    page.wait_for_function(
+        "document.querySelector('#what-if-settings .goal-bar')?.getAttribute('aria-label').includes('your window')"
+    )
+    first = drawn(page)[0]
     assert first["filled"] in (10, 11), "ten above the prediction, and one more when the page rounded it down"
     assert first["dots"] == 20
     assert first["says"].endswith(f" {first['filled']} of them are inside your window.")
-    assert all(one["filled"] == 20 and one["window"] == 0 for one in others), "a response with no window loses none"
 
     page.click("#window-clear")
-    page.wait_for_function("document.querySelector('#what-if-runs figure .runs__window') === null")
-    assert drawn(page)[0]["filled"] == 20
-    assert "window" not in drawn(page)[0]["says"]
+    page.wait_for_function(
+        "!document.querySelector('#what-if-settings .goal-bar').getAttribute('aria-label').includes('your window')"
+    )
+    assert "inside its goal" in drawn(page)[0]["says"], "the balance's range is its goal again"
 
 
 def test_a_model_with_no_run_left_to_estimate_the_noise_has_no_runs_to_draw(blank_page):
@@ -109,9 +111,11 @@ def test_a_model_with_no_run_left_to_estimate_the_noise_has_no_runs_to_draw(blan
     page.select_option("#model", "interactions")  # four terms from four runs
     settled(page)
     reveal(page, "#what-if")
-    page.wait_for_selector("#what-if-out table")
+    page.wait_for_selector("#what-if-out table", state="attached")
     assert rows(page)[0][3] == "none", "no prediction interval"
-    assert page.is_hidden("#what-if-runs")
+    [one] = drawn(page)
+    assert one["dots"] == 0, "no runs to draw"
+    assert "with no interval: no run is left to estimate the noise" in one["says"]
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
