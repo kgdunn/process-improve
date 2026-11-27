@@ -921,13 +921,13 @@ function simulateSettings(value) {
 }
 
 // ---------------------------------------------------------------- links
-function toBase64Url(bytes) {
+export function toBase64Url(bytes) {
   let binary = "";
   for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-function fromBase64Url(text) {
+export function fromBase64Url(text) {
   if (!/^[A-Za-z0-9_-]*$/.test(text)) refuse("the link has been cut or changed");
   const binary = atob(text.replace(/-/g, "+").replace(/_/g, "/"));
   return Uint8Array.from(binary, (c) => c.charCodeAt(0));
@@ -957,18 +957,34 @@ async function readAll(stream, most) {
   return out;
 }
 
+/** A campaign as JSON, deflated: what a link carries in URL-safe base64, and a room (room.js) sealed. */
+export async function deflateCampaign(campaign) {
+  const json = new Blob([JSON.stringify(campaign)]);
+  return readAll(json.stream().pipeThrough(new CompressionStream("deflate-raw")), MAX_BYTES);
+}
+
 /** Pack a campaign into the text a link carries after LINK_KEY: JSON, deflated, in URL-safe base64. */
 export async function packCampaign(campaign) {
-  const json = new Blob([JSON.stringify(campaign)]);
-  const zipped = await readAll(json.stream().pipeThrough(new CompressionStream("deflate-raw")), MAX_BYTES);
-  return toBase64Url(zipped);
+  return toBase64Url(await deflateCampaign(campaign));
 }
 
 /** Unpack and check the campaign a link carries; throws an Error with a sentence for the page. */
 export async function unpackCampaign(text) {
+  let bytes;
+  try {
+    bytes = fromBase64Url(text);
+  } catch (err) {
+    if (err.message.startsWith("This design could not be opened")) throw err;
+    refuse("the link has been cut or changed"); // atob's own error, for text of no length base64 can have
+  }
+  return inflateCampaign(bytes);
+}
+
+/** Inflate and check a deflated campaign, a link's or a room's; throws an Error with a sentence for the page. */
+export async function inflateCampaign(deflated) {
   let json;
   try {
-    const bytes = new Blob([fromBase64Url(text)]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+    const bytes = new Blob([deflated]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
     json = new TextDecoder("utf-8", { fatal: true }).decode(await readAll(bytes, MAX_BYTES));
   } catch (err) {
     if (err.message.startsWith("This design could not be opened")) throw err;
