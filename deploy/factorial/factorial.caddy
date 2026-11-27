@@ -32,6 +32,21 @@ factori.al {
 		}
 	}
 
+	# Rooms: a study that two or more people keep in step, sealed in the browser with a key that only the room's
+	# link holds, after its "#". The relay (room_relay.py) keeps one sealed blob for each room, of one of three sizes,
+	# and cannot read it. A blob is at most 64 KiB and a little more; Caddy holds the body before it passes it on. The
+	# room's id and its write token travel in the Authorization header, which the log below leaves out, with the
+	# versions a browser names, so no line of the log says which room a request was for.
+	handle /api/room {
+		request_body {
+			max_size 70KiB
+		}
+		reverse_proxy 127.0.0.1:8791 {
+			request_buffers 70KiB
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
 	# How many readers each of the last 90 days had, numbers alone: usage.py --public writes it each hour, and the
 	# footer of every page draws it. A build carries a usage.json of no days, which this file takes the place of.
 	handle /usage.json {
@@ -88,6 +103,8 @@ factori.al {
 			request>remote_port delete
 			request>headers>Cookie delete
 			request>headers>Authorization delete
+			request>headers>If-Match delete
+			request>headers>If-None-Match delete
 			request>tls delete
 			resp_headers delete
 		}
