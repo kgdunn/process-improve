@@ -117,7 +117,7 @@ def test_the_design_s_notes_name_the_factor_anew(blank_page, api):
 
 def test_units_are_taken_as_names_are(page):
     rename(page, 0, "K", key="units")
-    assert page.locator("#design-table thead th").nth(2).locator(".col-unit").text_content() == "K"
+    assert page.locator("#design-table thead th[aria-sort]").nth(2).locator(".col-unit").text_content() == "K"
     assert 'units="K"' in page.text_content("#py-design code")
     assert chart(page, 1, "d => d.layout.xaxis.title.text") == "Temperature (K)"
     assert page.is_hidden("#design-stale")

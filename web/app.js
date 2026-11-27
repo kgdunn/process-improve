@@ -3246,9 +3246,12 @@ function renderRuns() {
     [WHOLE_PLOT]: "whole-plot",
     [CONFIRMATION]: "confirmation-run",
   };
+  t._filled = markGoals; // and again each time a heading sorts the rows
   renderTable(t, headings, rows, "Run order", colUnits, terms);
+  sheetHead(t, d);
+  markGoals();
   // On the body, which each drawing of the table makes anew: the table's own presses sort it by a heading.
-  t.tBodies[0].onclick = (e) => {
+  t._body.onclick = (e) => {
     const button = e.target.closest("button.setting");
     if (button) editSetting(button);
   };
@@ -3270,6 +3273,89 @@ function renderRuns() {
   describeSource();
   renderBadges();
   renderCurves();
+}
+
+/** What each column of the run sheet holds: a factor's setting, a response's result, or another (an order, a block). */
+function columnKinds(d) {
+  const factors = new Set(d.spec.factors.map((f) => f.name));
+  const responses = new Set(resultNames());
+  return d.columns.map((c) => (factors.has(c) ? "factor" : responses.has(c) ? "response" : "other"));
+}
+
+/** The run sheet's column groups: the factors, and the responses, over their names. */
+const SHEET_GROUPS = { factor: "Factors: what we set", response: "Responses", other: "" };
+
+/**
+ * Head the run sheet as the study reads: over the names, a row of column groups, each over the run of columns of one
+ * kind; under them, a row of each factor's range (rangeWords) and each response's goal in words (markGoals fills the goals).
+ */
+function sheetHead(t, d) {
+  const kinds = columnKinds(d);
+  const cell = (tag, cls, text = "") => Object.assign(document.createElement(tag), { className: cls, textContent: text });
+  const groups = t.tHead.insertRow(0);
+  groups.className = "sheet-groups";
+  kinds.forEach((kind, i) => {
+    if (kinds[i - 1] === kind) {
+      groups.lastElementChild.colSpan += 1;
+      return;
+    }
+    const group = cell(kind === "other" ? "td" : "th", `sheet-group sheet-group--${kind}`, SHEET_GROUPS[kind]);
+    if (kind !== "other") group.scope = "colgroup";
+    groups.append(group);
+  });
+  const goals = t.tHead.insertRow();
+  goals.className = "sheet-goals";
+  const factors = Object.fromEntries(d.spec.factors.map((f) => [f.name, f]));
+  d.columns.forEach((c, i) => {
+    const goal = cell(i === 0 && kinds[0] === "other" ? "th" : "td", "", kinds[i] === "factor" ? rangeWords({ ...factors[c], units: "" }) : ""); // the units are under the name
+    if (goal.tagName === "TH") Object.assign(goal, { scope: "row", textContent: "Range or goal" });
+    if (kinds[i] === "response") goal.dataset.response = c;
+    goals.append(goal);
+  });
+}
+
+/** A response's goal on the run sheet: its band (best.js goalBand), from its window or its acceptable range, or null. */
+const sheetBand = (name) => goalBand(state.window.windows[name], balancedOf(name))?.band ?? null;
+
+/** The mark of a result that misses its goal: a dagger, said in words to a screen reader. */
+function missMark() {
+  const mark = el("span", "miss", "");
+  mark.append(el("span", "", "†"), el("span", "visually-hidden", " misses its goal"));
+  mark.firstChild.setAttribute("aria-hidden", "true");
+  return mark;
+}
+
+/**
+ * Mark the run sheet against the goals: each response's goal under its name, its band in words, else the way its goal
+ * points; a dagger on each result outside its band; and the best run so far, the one What if's headline names
+ * (renderHeadlines), in bold. Run as the goals, the results or the rows' order change.
+ */
+function markGoals() {
+  const t = $("#design-table");
+  if (!state.design || !t.tHead) return;
+  const bands = Object.fromEntries(resultNames().map((name) => [name, sheetBand(name)]));
+  for (const cell of t.querySelectorAll(".sheet-goals td[data-response]")) {
+    const band = bands[cell.dataset.response];
+    cell.textContent = band ? goalBandWords(band) : noBandGoal(cell.dataset.response, "");
+  }
+  for (const input of t.querySelectorAll("input[data-response][data-index]")) {
+    const band = bands[input.dataset.response];
+    const value = state.results[input.dataset.response]?.[Number(input.dataset.index)];
+    const misses = Boolean(band) && Number.isFinite(value) && !insideWindow([value], band)[0];
+    const cell = input.closest("td");
+    cell.classList.toggle("misses", misses);
+    cell.querySelector(".miss")?.remove();
+    if (misses) cell.append(missMark());
+  }
+  $("#sheet-legend").hidden = !Object.values(bands).some(Boolean);
+  const best = state.whatIf?.bestPlace ?? null;
+  const at = Math.max(0, state.design.columns.indexOf("Run order"));
+  for (const row of t.querySelectorAll("tr[data-run]")) {
+    const picked = best !== null && Number(row.dataset.run) === Number(runOrderOf(best));
+    row.classList.toggle("run-best", picked);
+    row.querySelector(".best-so-far")?.remove();
+    if (picked) row.cells[at].append(el("span", "best-so-far", " best so far"));
+  }
 }
 
 /** Follow results typed or pasted into the run sheet: where they came from, the code, the badges, the analysis. */
@@ -3352,6 +3438,7 @@ function renderOffPlan() {
 }
 
 function resultsChanged() {
+  markGoals();
   renderBench();
   renderRunDone();
   renderPracticeRound();
@@ -3562,7 +3649,7 @@ function setCurve(curve, curves) {
 
 /** The run sheet as a pasted block is placed on it (logic.js placePasted): its run numbers, rows as shown, responses. */
 function pasteSheet() {
-  const shown = [...$("#design-table").querySelectorAll("tbody tr")].map((tr) => tr.querySelector("input[data-index]"));
+  const shown = [...$("#design-table").querySelectorAll("tr[data-run]")].map((tr) => tr.querySelector("input[data-index]"));
   return {
     runs: runNumbers(),
     order: shown.filter(Boolean).map((input) => Number(input.dataset.index)),
@@ -7260,6 +7347,7 @@ function drawGoals() {
   }
   renderHeadlines(w, bands, met);
   renderPresets(w);
+  markGoals(); // the run sheet's goals are these
 }
 
 /** What the best run so far did for a response with no goal band, by its goal: the highest, the lowest, the closest. */
@@ -9838,6 +9926,7 @@ function renderTable(t, columns, rows, sortedBy = null, units = [], terms = {}) 
     })
     .join("");
   t.innerHTML = `<thead><tr>${head}</tr></thead><tbody></tbody>`;
+  t._body = t.tBodies[0]; // the rows: the run sheet puts other rows over them (the What-if row), in a body of their own
   t._rows = rows;
   fillBody(t, rows);
   t.onclick = (e) => {
@@ -9845,7 +9934,7 @@ function renderTable(t, columns, rows, sortedBy = null, units = [], terms = {}) 
     if (!button) return;
     const th = button.parentElement;
     const ascending = th.getAttribute("aria-sort") !== "ascending";
-    for (const other of t.querySelectorAll("th")) other.setAttribute("aria-sort", "none");
+    for (const other of t.querySelectorAll("th[aria-sort]")) other.setAttribute("aria-sort", "none");
     th.setAttribute("aria-sort", ascending ? "ascending" : "descending");
     const col = Number(button.dataset.col);
     const sign = ascending ? 1 : -1;
@@ -9870,9 +9959,10 @@ function fillBody(t, rows) {
     return ` data-run="${t._run(row)}"${t._run(row) === markedRun() ? ' class="run-marked"' : ""}`;
   };
   t._shown = rows;
-  t.tBodies[0].innerHTML = rows
+  (t._body ?? t.tBodies[0]).innerHTML = rows
     .map((row) => `<tr${run(row)}>${row.map((v, c) => `<td${lookOf(t, c)}>${cell(row, v, c)}</td>`).join("")}</tr>`)
     .join("");
+  t._filled?.();
 }
 
 // ---------------------------------------------------------------- one run, marked wherever it is shown

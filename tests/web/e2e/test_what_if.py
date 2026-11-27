@@ -286,7 +286,7 @@ def test_kept_settings_become_confirmation_runs(studied):
     sheet = run_sheet(page)
     assert len(sheet) == before + 3
     reveal(page, "#design-table")
-    columns = page.eval_on_selector_all("#design-table thead th", "ths => ths.map((th) => th.textContent)")
+    columns = page.eval_on_selector_all("#design-table thead th[aria-sort]", "ths => ths.map((th) => th.textContent)")
     at = {name: next(i for i, c in enumerate(columns) if c.startswith(name)) for name in settings}
     confirming = next(i for i, c in enumerate(columns) if c.startswith("Confirmation run"))
     for run in sheet[before:]:

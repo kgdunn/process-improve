@@ -78,7 +78,7 @@ def test_a_result_typed_on_the_run_sheet_shows_on_the_card(blank_page):
     place = page.evaluate(
         """() => { const run = document.querySelector('#bench-run').textContent.replace('Run ', '');
         const rows = [...document.querySelectorAll('#design-table tbody tr')];
-        const heads = [...document.querySelectorAll('#design-table thead th')];
+        const heads = [...document.querySelectorAll('#design-table thead th[aria-sort]')];
         const head = heads.findIndex((th) => th.textContent.includes('Run order'));
         return rows.findIndex((row) => row.cells[head].textContent.trim() === run); }"""
     )

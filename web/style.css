@@ -2647,3 +2647,17 @@ main.validation section { margin: 0 0 40px; padding: 28px 32px; }
   .studybar__new { padding: 4px 9px; }
   .studybar__new-words { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
+
+/* The run sheet's head (app.js sheetHead): its columns in groups, the factors' then the responses', over their names,
+   and under the names a row of each factor's range and each response's goal, in words. */
+table.runs .sheet-group { padding: 6px 10px 4px; border-bottom: 2px solid var(--fg); font-family: "Outfit", system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 1rem; font-weight: 600; text-align: left; }
+table.runs td.sheet-group { border-bottom: none; }
+table.runs .sheet-group--response { border-left: 10px solid var(--panel); }
+table.runs .sheet-goals > * { color: var(--ink); font-size: 0.85rem; white-space: nowrap; }
+table.runs .sheet-goals > th { padding: 4px 10px; color: var(--muted); font-weight: 400; }
+/* A result that misses its goal (app.js markGoals) is in the error colour, with a dagger; the best run so far, bold. */
+table.runs td.misses input { color: var(--error); }
+table.runs .miss { margin-left: 2px; color: var(--error); font-weight: 700; }
+table.runs tr.run-best > td { font-weight: 700; }
+table.runs tr.run-best input { font-weight: 700; }
+table.runs .best-so-far { display: block; color: var(--muted); font-size: 0.7rem; font-weight: 400; }
