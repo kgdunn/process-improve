@@ -82,6 +82,9 @@ import {
   profileOf,
   runsAt,
   insideWindow,
+  goalBand,
+  goalBandWords,
+  goalVerdict,
   dotPiles,
   runsWords,
   profilePieces,
@@ -917,6 +920,37 @@ describe("what if", () => {
     assert.deepEqual(at.prediction, [15 - single, 15 + single]);
     assert.equal(at.extrapolating, true, "0.75 is above the runs' 0.5");
     assert.equal(predictAt(FIT, { T: 0 }).extrapolating, false, "the center's 0.25 is within");
+  });
+
+  test("a response's goal in the what-if table: the window typed first, else the balance's range by the goal", () => {
+    const balanced = { goal: "maximize", low: 52.66, high: 67.89 };
+    assert.deepEqual(goalBand([60, null], balanced), { band: [60, null], from: "window" }, "a window typed wins");
+    assert.deepEqual(goalBand([null, null], balanced), { band: [52.66, null], from: "balance" }, "no window: at least the low end");
+    assert.deepEqual(goalBand(undefined, { ...balanced, goal: "minimize" }).band, [null, 67.89], "to minimize: at most the high end");
+    assert.deepEqual(goalBand(undefined, { ...balanced, goal: "target", target: 63 }).band, [52.66, 67.89], "a target: the whole range");
+    assert.equal(goalBand(undefined, undefined), null, "one response, no window: no goal to judge it by");
+    assert.equal(goalBandWords([52.66, 67.89], "%"), "52.66 to 67.89%");
+    assert.equal(goalBandWords([52.66, null], "%"), "at least 52.66%");
+    assert.equal(goalBandWords([null, 66.5], "$/kg"), "at most 66.5 $/kg");
+  });
+
+  test("a prediction against its goal, read off its interval: inside, likely inside, probably outside, outside", () => {
+    const words = (predicted, interval, band) => goalVerdict(predicted, interval, band).word;
+    assert.equal(words(12, [11, 13], [10, 14]), "inside", "the whole interval inside");
+    assert.equal(words(13, [11.5, 14.5], [10, 14]), "likely inside", "the prediction inside, the interval crossing an end");
+    assert.equal(words(14.5, [13.5, 15.5], [10, 14]), "probably outside", "the prediction outside, the interval reaching the band");
+    assert.equal(words(16, [15, 17], [10, 14]), "outside", "the whole interval outside");
+    // A band with one end says it in words of meeting a goal.
+    assert.equal(words(1.1, [0.8, 1.4], [null, 2]), "meets");
+    assert.equal(words(1.9, [1.6, 2.2], [null, 2]), "likely meets");
+    assert.equal(words(2.1, [1.8, 2.4], [null, 2]), "probably misses");
+    assert.equal(words(3, [2.5, 3.5], [null, 2]), "misses");
+    assert.equal(words(60, [55, 65], [52.66, null]), "meets", "at least an end: the whole interval above it");
+    // A model with no runs left to estimate the noise has no interval: the prediction alone is judged.
+    assert.deepEqual(goalVerdict(12, null, [10, 14]), { level: 0, met: true, word: "inside" });
+    assert.deepEqual(goalVerdict(15, null, [10, 14]), { level: 3, met: false, word: "outside" });
+    assert.equal(goalVerdict(14, [12, 16], [10, 14]).met, true, "on the end is inside: likely inside counts as met");
+    assert.equal(goalVerdict(14.5, [13.5, 15.5], [10, 14]).met, false, "probably outside is not met");
   });
 
   test("a prediction as runs: one for each t value Python sent, the outer two at the ends of the prediction interval", () => {

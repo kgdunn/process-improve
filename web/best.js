@@ -833,6 +833,46 @@ export function runsAt(fit, columns) {
 export const insideWindow = (runs, [least, most] = [null, null]) => runs.map((run) => (least === null || run >= least) && (most === null || run <= most));
 
 /**
+ * The goal a response is judged against in the what-if table, ``{ band: [least, most], from }`` with null for an end
+ * left open, or null when it has none. The window the reader typed for it under a specification comes first
+ * (``window``, as state.window.windows holds it); else its acceptable range in the balance (``balanced``, its entry in
+ * bootstrap.balance's responses), by its goal: at least the low end to maximize, at most the high end to minimize,
+ * the whole range for a target.
+ */
+export function goalBand(window, balanced) {
+  if (window && window.some((end) => end !== null)) return { band: [window[0], window[1]], from: "window" };
+  if (!balanced || !Number.isFinite(balanced.low) || !Number.isFinite(balanced.high)) return null;
+  const band = { maximize: [balanced.low, null], minimize: [null, balanced.high] }[balanced.goal] ?? [balanced.low, balanced.high];
+  return { band, from: "balance" };
+}
+
+/** A goal band in words, as the what-if table's head writes it: "52.7 to 67.9%", "at least 52.7%", "at most 66.5 $/kg". */
+export function goalBandWords([least, most], units = "") {
+  if (least !== null && most !== null) return `${num(least)} to ${withUnit(most, units)}`;
+  return least !== null ? `at least ${withUnit(least, units)}` : `at most ${withUnit(most, units)}`;
+}
+
+/**
+ * How a prediction stands against its goal band, read off ``interval`` (the 95% prediction interval for one new run;
+ * null for a model with no runs left to estimate the noise, judged by the prediction alone): ``level`` 0 when the
+ * whole interval is inside, 1 when the prediction is and the interval crosses an end, 2 when the prediction is outside
+ * and the interval reaches the band, 3 when the whole interval is outside. ``met`` is whether the goal is met or likely
+ * met (levels 0 and 1). The word is "inside" and so on for a band with two ends, "meets" and so on for one with one.
+ */
+export function goalVerdict(predicted, interval, [least, most]) {
+  const inside = (v) => (least === null || v >= least) && (most === null || v <= most);
+  const [lo, hi] = interval ?? [predicted, predicted];
+  const reaches = (least === null || hi >= least) && (most === null || lo <= most);
+  const level = inside(lo) && inside(hi) ? 0 : inside(predicted) ? 1 : reaches ? 2 : 3;
+  const words = least !== null && most !== null ? VERDICT_TWO_ENDS : VERDICT_ONE_END;
+  return { level, met: level <= 1, word: words[level] };
+}
+
+/** The words of goalVerdict's levels, for a band with two ends and for one with one. */
+export const VERDICT_TWO_ENDS = ["inside", "likely inside", "probably outside", "outside"];
+export const VERDICT_ONE_END = ["meets", "likely meets", "probably misses", "misses"];
+
+/**
  * Where to draw runs as dots that pile up where the runs are close: each run's column of ``columns`` across
  * ``[low, high]``, and its place in that column's pile, 0 at the foot.
  */
