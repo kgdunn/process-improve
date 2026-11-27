@@ -6825,7 +6825,7 @@ const whatIfCell = (cls, ...parts) => {
 function whatIfNames(fits) {
   const column = el("div", "what-if-column what-if-names", "");
   column.append(
-    whatIfCell("what-if-head", el("span", "hint", fits.length ? "Each response against each factor" : "")),
+    whatIfCell("what-if-head"),  // the hint above says what the pictures are
     ...fits.map((r) => {
       const cell = whatIfCell("what-if-response", el("span", "what-if-label", withUnits(r.label, r.units)), el("span", "what-if-goal-words", ""));
       const scale = el("span", "what-if-scale", "");
@@ -6951,7 +6951,7 @@ function drawProfiles(w) {
   const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
   const box = $("#what-if-settings");
   $("#what-if-about").textContent = fits.length
-    ? "Each picture is a response against one factor, the others as the What-if row sets them; dashed beyond the runs. Drag one, or set the row."
+    ? "Each picture is a response against one factor, the others as in the What-if row; dashed beyond the runs."
     : "Move a setting, and each response's prediction follows.";
   w.ranges ??= {};
   for (const fit of fits) {
