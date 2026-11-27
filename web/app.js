@@ -238,6 +238,7 @@ import {
   escape,
   factorType,
   boxCoxSentence,
+  boxWithin,
   bySignificance,
   fitStatistics,
   fittedFormula,
@@ -251,6 +252,7 @@ import {
   isCategorical,
   isMixture,
   isSeveral,
+  keptBox,
   SEVERAL_LEVEL_DESIGNS,
   LABEL_MOST,
   levelsOf,
@@ -7174,7 +7176,99 @@ function drawMap(w) {
   const at = columnsAt(w.factors, w.settings);
   const python = figureAfter("run", () => mapCode(state.design.spec, fit.name, fit.formula, at, w.settings, pair, MAP_POINTS));
   const { surface } = w.map;
-  draw($("#what-if-map-plot"), () => mapFigure(surface, words), state.plotlyJs, 300, { python });
+  // In its place the map is 300 pixels tall; detached, it fills the box the reader gave it (floatMap).
+  draw($("#what-if-map-plot"), () => mapFigure(surface, words), state.plotlyJs, mapFloats ? null : 300, { python });
+}
+
+// ---------------------------------------------------------------- what if: the map, detached from the page
+// A press on Detach floats the map over the page, where it stays as the page scrolls: the reader moves it by its
+// head and resizes it by its corner, with a pointer or the arrow keys, and Put back returns it to its place. The box
+// it floats in is kept in this browser, so it floats there again at the next press, and on the next visit.
+const MAP_KEY = "factorial-map";
+/** The smallest the floating map is, in pixels, and how far one press of an arrow key moves or resizes it. */
+const MAP_LEAST = { width: 260, height: 260 };
+const MAP_STEP = 24;
+let mapPlace = null; // the box the map last floated in: {left, top, width, height}, in the window's pixels
+let mapFloats = false;
+
+/** The room the floating map has: the window, under the study's bar, which it never covers. */
+function mapRoom() {
+  const top = Math.max(0, Math.round($("#studybar").getBoundingClientRect().bottom));
+  return { left: 0, top, width: document.documentElement.clientWidth, height: window.innerHeight - top };
+}
+
+/** Float the map in ``box``, held inside the window (logic.js boxWithin); with no box, put it back in its place. */
+function floatMap(box) {
+  const map = $("#what-if-map");
+  const turned = mapFloats !== Boolean(box);
+  mapFloats = Boolean(box);
+  if (box) mapPlace = boxWithin(box, mapRoom(), MAP_LEAST);
+  map.classList.toggle("floating", mapFloats);
+  for (const side of ["left", "top", "width", "height"]) map.style[side] = mapFloats ? `${mapPlace[side]}px` : "";
+  $("#what-if-map-move").hidden = !mapFloats;
+  $("#what-if-map-grip").hidden = !mapFloats;
+  const detach = $("#what-if-map-detach");
+  detach.textContent = mapFloats ? "Put back" : "Detach";
+  detach.setAttribute("aria-label", mapFloats ? "Put the map back in its place on the page" : "Detach the map: float it over the page, to move and resize it");
+  // The chart follows its box as it is resized (charts.js watches its room); between its place and a box of the
+  // reader's it is drawn anew, to the height each has.
+  if (turned && state.whatIf) drawMap(state.whatIf);
+}
+
+/** Keep the map's box, and whether it floats, for the next visit; a browser that refuses storage keeps them for this one. */
+function keepMap() {
+  try {
+    localStorage.setItem(MAP_KEY, JSON.stringify({ ...mapPlace, floating: mapFloats }));
+  } catch {
+    // storage refused
+  }
+}
+
+/** Detach the map where it last floated, or where it stands on the page the first time; or put it back. */
+function detachMap() {
+  const here = $("#what-if-map").getBoundingClientRect();
+  floatMap(mapFloats ? null : (mapPlace ?? { left: here.left, top: here.top, width: here.width, height: here.height }));
+  keepMap();
+}
+
+/** The floating map's box moved by ``across`` and ``down`` pixels, or resized by them from its corner, which stays in the window. */
+const mapMoved = (box, across, down) => ({ ...box, left: box.left + across, top: box.top + down });
+function mapSized(box, across, down) {
+  const room = mapRoom();
+  const width = Math.min(box.width + across, room.left + room.width - box.left);
+  return { ...box, width, height: Math.min(box.height + down, room.top + room.height - box.top) };
+}
+
+/**
+ * Let a part of the floating map change its box: dragged with a mouse, a finger or a pen, from the box it had and
+ * how far the pointer has gone; and, where the part is a button, by the arrow keys, a step a press. A press on a
+ * button inside the part is that button's own.
+ */
+function mapHandle(part, changed) {
+  let from = null;
+  part.addEventListener("pointerdown", (event) => {
+    if (!mapFloats || (event.target.closest("button") ?? part) !== part) return;
+    from = { x: event.clientX, y: event.clientY, box: mapPlace };
+    part.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  });
+  part.addEventListener("pointermove", (event) => {
+    if (from) floatMap(changed(from.box, event.clientX - from.x, event.clientY - from.y));
+  });
+  for (const end of ["pointerup", "pointercancel"]) {
+    part.addEventListener(end, () => {
+      if (from) keepMap();
+      from = null;
+    });
+  }
+  const KEYS = { ArrowRight: [MAP_STEP, 0], ArrowLeft: [-MAP_STEP, 0], ArrowDown: [0, MAP_STEP], ArrowUp: [0, -MAP_STEP] };
+  part.addEventListener("keydown", (event) => {
+    const by = part.matches("button") && mapFloats ? KEYS[event.key] : null;
+    if (!by) return;
+    event.preventDefault(); // the arrows move the map here, not the page
+    floatMap(changed(mapPlace, ...by));
+    keepMap();
+  });
 }
 
 /** The reader pressed or dragged on the map: its two factors are set where the pointer is, each to its slider's step. */
@@ -10473,6 +10567,25 @@ new ResizeObserver(() => {
   if (state.whatIf && whatIfBody.isConnected) drawProfiles(state.whatIf);
 }).observe(whatIfBody);
 takeDrag($("#what-if-map-plot"), dragMap);
+$("#what-if-map-detach").onclick = detachMap;
+mapHandle($("#what-if-map-head"), mapMoved);
+mapHandle($("#what-if-map-move"), mapMoved);
+mapHandle($("#what-if-map-grip"), mapSized);
+window.addEventListener("resize", () => mapFloats && floatMap(mapPlace)); // held inside the window it has now
+{
+  // The map floats where the reader left it floating; put back since, it keeps that box for the next press of Detach.
+  let kept = null;
+  try {
+    kept = keptBox(localStorage.getItem(MAP_KEY));
+  } catch {
+    // no storage: the map starts in its place
+  }
+  if (kept) {
+    const { floating, ...box } = kept;
+    mapPlace = box;
+    if (floating) floatMap(box);
+  }
+}
 whatIfBody.addEventListener("click", whatIfPressed);
 $("#to-what-if").onclick = goToWhatIf;
 $("#what-if-keep").addEventListener("submit", keepWhatIf);
