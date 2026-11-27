@@ -2434,3 +2434,29 @@ export function spacePoints(runs, factors) {
   }
   return [...points.values()];
 }
+
+/**
+ * A box the reader moved or resized over the page, held inside the ``room`` it has: ``{left, top, width, height}`` in
+ * pixels, each side no smaller than ``least`` (or than the room, when that is smaller), no larger than the room, and
+ * the whole box inside it. The What-if map floats so (app.js floatMap).
+ */
+export function boxWithin(box, room, least) {
+  const side = (size, most, floor) => Math.round(Math.min(most, Math.max(Math.min(floor, most), size)));
+  const [width, height] = [side(box.width, room.width, least.width), side(box.height, room.height, least.height)];
+  const along = (at, from, span, size) => Math.round(Math.min(from + span - size, Math.max(from, at)));
+  return { left: along(box.left, room.left, room.width, width), top: along(box.top, room.top, room.height, height), width, height };
+}
+
+/**
+ * A box kept as text (JSON of its left, top, width and height, and whether it was floating when it was kept), or null
+ * for none kept, or one not kept as a box.
+ */
+export function keptBox(text) {
+  try {
+    const { left, top, width, height, floating } = JSON.parse(text);
+    if (![left, top, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return null;
+    return { left, top, width, height, floating: floating === true };
+  } catch {
+    return null; // nothing kept, or not as this page keeps it
+  }
+}
