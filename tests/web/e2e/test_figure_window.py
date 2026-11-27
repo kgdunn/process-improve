@@ -388,7 +388,12 @@ def test_a_chart_with_no_card_has_the_button_above_it(page):
     assert 'compared = compare_designs({"runs": X[["Temperature", "Pressure", "Flow"]]})' in code, (
         "from the runs of step 2"
     )
-    assert page.is_hidden("dialog.figure .figure__steps"), "the one chart on show: there is none to step to"
+    assert place(page) == ["Which terms these runs tell apart", "1 of 2"], "and the map under the run sheet"
+    page.click("dialog.figure [data-do=after]")
+    page.wait_for_function(SHOWN)
+    assert place(page) == ["Yield over Temperature and Pressure", "2 of 2"]
+    code = page.locator("dialog.figure code")
+    assert "# The map: Yield over Temperature and Pressure" in code.text_content(), "each figure with its own code"
 
 
 def test_a_figure_s_window_shows_the_python_that_draws_it(page):
@@ -462,44 +467,38 @@ def place(page) -> list[str]:
 def test_the_window_steps_through_the_figures_beside_the_one_opened(page):
     """A reader looks at each figure large without closing the window between them: by its arrows, or the keys."""
     expand(page, "contour")
-    assert place(page) == ["Fitted response surface", "2 of 6"], "the charts on show: More charts is shut"
+    assert place(page) == ["Fitted response surface", "2 of 5"], "the charts on show: More charts is shut"
     page.click("dialog.figure [data-do=after]")
     page.wait_for_function(SHOWN)
-    assert place(page) == ["True response surface", "3 of 6"]
+    assert place(page) == ["True response surface", "3 of 5"]
     assert page.locator("dialog.figure .figure__caption").text_content().startswith("The process the results were")
     page.keyboard.press("ArrowRight")
     page.wait_for_function("document.querySelector('#figure-title').textContent.startsWith('Residuals')")
     page.wait_for_function(SHOWN)
-    assert place(page) == ["Residuals against fitted values", "4 of 6"]
+    assert place(page) == ["Residuals against fitted values", "4 of 5"]
     assert page.locator("dialog.figure .plot").evaluate("(plot) => plot.data[0].name") == "Residuals"
 
     page.click("dialog.figure [data-do=after]")
     page.wait_for_function(SHOWN)
-    assert place(page) == ["Yield over Temperature and Pressure", "5 of 6"], "the map beside the dials, further down"
+    assert place(page) == ["How tightly to hold each factor", "5 of 5"], "the chart of the best settings"
     code = page.locator("dialog.figure code")
-    assert "# The map: Yield over Temperature and Pressure" in code.text_content(), "each figure with its own code"
+    assert '# The figure "How tightly to hold each factor"' in code.text_content(), "each figure with its own code"
     page.click("dialog.figure [data-do=after]")
     page.wait_for_function(SHOWN)
-    assert place(page) == ["How tightly to hold each factor", "6 of 6"], (
-        "the chart of the best settings, under the dials"
-    )
-    assert '# The figure "How tightly to hold each factor"' in code.text_content()
-    page.click("dialog.figure [data-do=after]")
-    page.wait_for_function(SHOWN)
-    assert place(page) == ["Coefficients", "1 of 6"], "after the last, the first"
+    assert place(page) == ["Coefficients", "1 of 5"], "after the last, the first"
     assert '# The figure "Coefficients"' in code.text_content()
     page.keyboard.press("ArrowLeft")
     page.wait_for_function("document.querySelector('#figure-title').textContent.startsWith('How tightly')")
-    assert place(page)[1] == "6 of 6"
+    assert place(page)[1] == "5 of 5"
 
 
 def test_the_window_steps_through_the_further_charts_once_they_are_open(page):
     open_more(page)
     expand(page, "residuals")
-    assert place(page) == ["Residuals against fitted values", "4 of 14"]
+    assert place(page) == ["Residuals against fitted values", "4 of 13"]
     page.click("dialog.figure [data-do=after]")
     page.wait_for_function(SHOWN)
-    assert place(page) == ["Each factor's effect on the prediction", "5 of 14"]
+    assert place(page) == ["Each factor's effect on the prediction", "5 of 13"]
 
 
 def test_the_arrow_keys_on_the_corner_resize_the_figure_and_do_not_step(page):
@@ -507,7 +506,7 @@ def test_the_arrow_keys_on_the_corner_resize_the_figure_and_do_not_step(page):
     page.focus("dialog.figure .figure__grip")
     page.keyboard.press("ArrowLeft")
     page.wait_for_function(SHOWN)
-    assert place(page) == ["Fitted response surface", "2 of 6"]
+    assert place(page) == ["Fitted response surface", "2 of 5"]
 
 
 def test_the_shape_a_reader_gave_a_figure_is_kept_for_the_next_visit(page):

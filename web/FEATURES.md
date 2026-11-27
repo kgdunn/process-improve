@@ -308,7 +308,7 @@ Also:
   you have not made: a box and a slider for each factor, a button for each level, and each
   response's prediction in its own column. Beside each response, its prediction against its
   goal, drawn and said in a word: inside, likely inside, probably outside or outside. Settings
-  can be kept with the study under a name. [Show me](https://factori.al/?example=worked&show=what-if-settings)
+  can be kept with the study under a name. [Show me](https://factori.al/?example=worked&show=design-table)
   - *Details:* Two lines lead the run sheet: the best run so far, with its results and how many
     goals it met, and how many goals the What-if row's settings meet or likely meet. A
     response's goal is the window typed for it, else its acceptable range in the balance:

@@ -158,7 +158,7 @@ def test_what_the_reader_typed_is_in_ink_and_a_simulated_result_is_pencil(blank_
     assert simulated.evaluate(STYLE.format("color")) == page.evaluate(COLOUR_OF, "--muted"), "pencil, until typed over"
     assert simulated.evaluate(STYLE.format("fontStyle")) == "italic"
     enter_results(page, {0: 61.5})
-    typed = page.locator("table.runs tbody tr").first.locator("input")
+    typed = page.locator("table.runs tr[data-run]").first.locator("input")
     assert typed.evaluate(STYLE.format("color")) == ink, "a result the reader typed is theirs"
 
 

@@ -6970,7 +6970,11 @@ function whatIfSheetRows(d, fits, units) {
         const profile = svgPart("svg", { class: "profile", role: "img" });
         profile.dataset.response = r.name;
         takeDrag(profile, (e) => dragProfile(e, factors[name]));
-        return [whatIfCell("td", "what-if-picture", 1, [profile], { factor: name }), 1];
+        // In a box of its own, so the width it is drawn to (drawProfiles) is never the width it asks of its column:
+        // a table would else widen the column for the drawing, and draw it again wider, without end.
+        const box = el("div", "what-if-picture__box", "");
+        box.append(profile);
+        return [whatIfCell("td", "what-if-picture", 1, [box], { factor: name }), 1];
       }
       return kind === "response" ? [whatIfCell("td", "what-if-goal", across, [], { response: r.name }), across] : empty();
     });

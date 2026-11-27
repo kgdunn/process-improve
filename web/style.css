@@ -1377,6 +1377,8 @@ table.runs .what-if-name { padding: 4px 10px; font-weight: 400; line-height: 1.2
 .what-if-label { display: block; font-weight: 600; overflow-wrap: anywhere; }
 .what-if-scale { display: block; color: var(--muted); font-size: 0.8rem; white-space: nowrap; }
 table.runs td.what-if-picture { min-width: 104px; padding: 2px 4px; }
+.what-if-picture__box { position: relative; height: 44px; }
+.what-if-picture__box > .profile { position: absolute; inset: 0; }
 table.runs td.what-if-goal { min-width: 230px; text-align: left; }
 /* The What-if row: a run not made yet. It sets the factors: a number box over a slider, or a button for each level;
    and each response's prediction there is in its own column. */
@@ -1386,7 +1388,7 @@ table.runs .what-if-row > :first-child { background: var(--bg); }
 .what-if-row .hint { display: block; font-size: 0.8rem; }
 table.runs td.what-if-factor { min-width: 104px; }
 table.runs .what-if-factor input[type="number"] { display: block; width: 100%; color: var(--ink); font-weight: 600; }
-.what-if-factor input[type="range"] { display: block; width: 100%; margin: 0; accent-color: var(--accent); }
+table.runs .what-if-factor input[type="range"] { display: block; width: 100%; margin: 0; padding: 0; accent-color: var(--accent); }
 table.runs td.what-if-predicted { font-weight: 700; color: var(--fg); }
 table.runs .what-if-presets-row > td { padding: 8px 10px 12px; text-align: left; border-bottom: 2px solid var(--fg); }
 .what-if-levels { display: flex; flex-wrap: wrap; gap: 2px; }
