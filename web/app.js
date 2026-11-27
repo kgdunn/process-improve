@@ -6891,14 +6891,7 @@ function whatIfGoals(fits) {
     cell.dataset.response = r.name;
     return cell;
   });
-  const presets = el("span", "what-if-presets", "");
-  presets.append(el("span", "hint", "Set the What-if row to"));
-  for (const [id, cls] of [["what-if-back", "button"], ["what-if-run", "button"], ["what-if-middle", "button"]]) {
-    const button = el("button", cls, "");
-    Object.assign(button, { type: "button", id });
-    presets.append(button);
-  }
-  column.append(head, ...cells, whatIfCell("what-if-row", presets));
+  column.append(head, ...cells, whatIfCell("what-if-row", $("#what-if-presets")));
   return column;
 }
 
@@ -7308,7 +7301,6 @@ function renderPresets(w) {
   };
   for (const [id, text] of Object.entries(offered)) {
     const button = $(`#${id}`);
-    if (!button) continue;
     const settings = text && presetSettings(w, id);
     button.hidden = !settings;
     button.textContent = text ?? "";

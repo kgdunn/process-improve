@@ -814,6 +814,14 @@
             <p class="hint" id="what-if-about">Move a setting, and each response's prediction follows.</p>
             <div class="what-if-dials">
               <div id="what-if-settings" class="what-if-settings scroll"></div>
+              <!-- The What-if row's presets (app.js renderPresets): where the panel starts, the best run so far and the
+                   middle of the ranges. The table moves them into its last cell when it is built. -->
+              <span id="what-if-presets" class="what-if-presets">
+                <span class="hint">Set the What-if row to</span>
+                <button type="button" id="what-if-back" class="button"></button>
+                <button type="button" id="what-if-run" class="button" hidden></button>
+                <button type="button" id="what-if-middle" class="button" hidden></button>
+              </span>
               <!-- The map (app.js drawMap, charts.js mapFigure): the response over two factors, the others where the
                    dials have them. It marks where the dials are and the best settings, and takes a press or a drag. -->
               <figure id="what-if-map" class="chart what-if-map" hidden>

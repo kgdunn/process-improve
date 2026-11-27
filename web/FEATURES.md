@@ -421,9 +421,9 @@ Also:
 
 #### From the results to a decision
 
-- **One card answers where to run.** The dials and the map of What if set the factors. Under
+- **One card answers where to run.** The What-if row and the map set the factors. Under
   them you choose what the settings are for: the best for your goal, a target to hit, or a
-  window to stay in. That goal's settings are found under the dials.
+  window to stay in. That goal's settings are found under the table.
   [Show me](https://factori.al/?example=worked&show=where)
   - *Details:* A goal is offered when the study has what it needs: a response with no goal
     has no best settings. A link to a part of a goal chooses that goal. The report holds
@@ -453,35 +453,43 @@ Also:
     The chart shows its Python, but a mixture's. The study keeps the chart's axes, color, limits,
     levels and the settings chosen, in study format 14, and the report holds the chart and
     the settings chosen.
-- **What if.** A dial for each factor: a picture of the response against that factor, with
-  the others where you set them, over a slider and a box for its value. Drag on a picture,
-  move the slider or type a value, and each response's prediction follows at once. Settings
-  can be kept with the study under a name.
-  [Show me](https://factori.al/?example=worked&show=what-if)
-  - *Details:* Each picture has the 95% confidence band, and its line is dashed where the
-    settings lie beyond the runs. The pictures share one scale, so a steeper line is a larger
-    effect, and the scale holds still while you drag. A factor with levels has a dot for each.
-    With several responses each has its row of pictures, on its own scale, and the table
-    under them has every response with its intervals and its leverage. The Python gives the
-    profiles of the response Learn shows.
-- **A map beside the dials.** The response over two factors, with the others where the dials
-  have them. Press or drag on it to set both factors at once. It marks where the dials are,
-  stars the best settings, and fades where the settings lie beyond the runs.
-  - *Details:* On a laptop the dials and the map are in view together. The two factors are
+- **What if, one table.** A row for each response and a column for each factor: in each cell a
+  small picture of what that factor does to that response, the others where the What-if row
+  sets them. Under the factors, the What-if row: a box and a slider for each factor, a button
+  for each level. Beside each response, its prediction there against its goal, drawn and said
+  in a word: inside, likely inside, probably outside or outside. Settings can be kept with the
+  study under a name. [Show me](https://factori.al/?example=worked&show=what-if)
+  - *Details:* Two lines lead the table: the best run so far, with its results and how many
+    goals it met, and how many goals the What-if row's settings meet or likely meet. A
+    response's goal is the window typed for it, else its acceptable range in the balance:
+    at least its low end to maximize, at most its high end to minimize. The word reads the
+    95% prediction interval for one new run against the goal shaded. Each picture has the 95%
+    confidence band, and its line is dashed where the settings lie beyond the runs; a
+    response's pictures share one scale, said beside its name, and it holds still while you
+    drag. A factor with levels has a dot for each, the level set filled. Buttons set the
+    What-if row to where it starts (the best for every goal, or the best settings), the best
+    run so far, or the middle of the ranges. The prediction, both intervals and the leverage
+    are a press away. On a phone each verdict sits beside its response's name, and the table
+    scrolls sideways to the pictures and the What-if row. The Python gives the profiles of the
+    response Learn shows.
+- **A map beside the table.** The response over two factors, with the others where the
+  What-if row has them. Press or drag on it to set both factors at once. It marks where the
+  row is, stars the best settings, and fades where the settings lie beyond the runs.
+  - *Details:* On a wide laptop the table and the map are in view together. The two factors are
     those you gave the response surface among the charts, else the first two numeric ones.
     The star is drawn when the map passes through the best settings. On a phone a tap sets
     both factors, and an up or down swipe still scrolls the page. Its window shows the Python
     that draws the same surface.
-- **A prediction as 20 runs.** Under the dials, each response is drawn as 20 runs you might
-  get at those settings, each as likely as the next. A run inside the response's window is
-  filled, and one outside it is a ring.
+- **A prediction as 20 runs.** On each response's goal, 20 runs you might get at those
+  settings, each as likely as the next. A run inside the goal is filled, and one outside it
+  is a ring.
   - *Details:* The least and the greatest of the 20 are the two ends of the 95% prediction
-    interval in the table beside them. The dots pile up where a run is likelier. A model
-    with no run left to estimate the noise has no runs to draw.
+    interval drawn under them. A model with no run left to estimate the noise has no runs
+    to draw, and its goal is judged by the prediction alone.
 - **Kept settings, side by side.** Settings kept under a name sit in one table: a row each,
   with every factor's setting and every response as predicted there, over its 95%
   prediction interval.
-  - *Details:* A row puts its settings back on the dials, which then give every number of
+  - *Details:* A row puts its settings back in the What-if row, which then gives every number of
     them, adds confirmation runs there, or is deleted. Settings past a limit, or outside a
     range edited since, say so in their row. The report holds the table.
 - **A target curve.** For a curve response, the settings whose predicted curve comes closest.
@@ -780,7 +788,7 @@ Also:
   over two factors, with each round's model drawn inside that round's own ranges. Beside it,
   every run in the order they were made, with the best result so far.
   - *Details:* A box marks each round's ranges, and one scale of color serves every round.
-    The two factors are those of the map beside the dials. A choice shows the campaign as it
+    The two factors are those of the map beside the What-if table. A choice shows the campaign as it
     stood after an earlier round. A target is a level line. Each chart opens large and shows
     Python that draws it.
 
