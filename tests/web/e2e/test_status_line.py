@@ -53,6 +53,8 @@ def answered(page) -> dict:
     """Let Python answer: the results are analyzed and the line says so, for five seconds. Return where the page is."""
     page.evaluate("window.__pi.release('api_simulate')")
     settled(page)
+    # Once the models are fitted, What if comes over the runs: the rows of the run sheet move down for it, once.
+    page.wait_for_selector("#what-if-settings .goal-bar", state="attached")
     where = page.evaluate(WHERE)
     assert where["line"], "the line says the analysis is complete"
     return where

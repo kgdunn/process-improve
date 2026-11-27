@@ -3246,9 +3246,13 @@ function renderRuns() {
     [WHOLE_PLOT]: "whole-plot",
     [CONFIRMATION]: "confirmation-run",
   };
+  t._filled = markGoals; // and again each time a heading sorts the rows
   renderTable(t, headings, rows, "Run order", colUnits, terms);
+  sheetHead(t, d);
+  placeWhatIf();
+  markGoals();
   // On the body, which each drawing of the table makes anew: the table's own presses sort it by a heading.
-  t.tBodies[0].onclick = (e) => {
+  t._body.onclick = (e) => {
     const button = e.target.closest("button.setting");
     if (button) editSetting(button);
   };
@@ -3270,6 +3274,89 @@ function renderRuns() {
   describeSource();
   renderBadges();
   renderCurves();
+}
+
+/** What each column of the run sheet holds: a factor's setting, a response's result, or another (an order, a block). */
+function columnKinds(d) {
+  const factors = new Set(d.spec.factors.map((f) => f.name));
+  const responses = new Set(resultNames());
+  return d.columns.map((c) => (factors.has(c) ? "factor" : responses.has(c) ? "response" : "other"));
+}
+
+/** The run sheet's column groups: the factors, and the responses, over their names. */
+const SHEET_GROUPS = { factor: "Factors: what we set", response: "Responses", other: "" };
+
+/**
+ * Head the run sheet as the study reads: over the names, a row of column groups, each over the run of columns of one
+ * kind; under them, a row of each factor's range (rangeWords) and each response's goal in words (markGoals fills the goals).
+ */
+function sheetHead(t, d) {
+  const kinds = columnKinds(d);
+  const cell = (tag, cls, text = "") => Object.assign(document.createElement(tag), { className: cls, textContent: text });
+  const groups = t.tHead.insertRow(0);
+  groups.className = "sheet-groups";
+  kinds.forEach((kind, i) => {
+    if (kinds[i - 1] === kind) {
+      groups.lastElementChild.colSpan += 1;
+      return;
+    }
+    const group = cell(kind === "other" ? "td" : "th", `sheet-group sheet-group--${kind}`, SHEET_GROUPS[kind]);
+    if (kind !== "other") group.scope = "colgroup";
+    groups.append(group);
+  });
+  const goals = t.tHead.insertRow();
+  goals.className = "sheet-goals";
+  const factors = Object.fromEntries(d.spec.factors.map((f) => [f.name, f]));
+  d.columns.forEach((c, i) => {
+    const goal = cell(i === 0 && kinds[0] === "other" ? "th" : "td", "", kinds[i] === "factor" ? rangeWords({ ...factors[c], units: "" }) : ""); // the units are under the name
+    if (goal.tagName === "TH") Object.assign(goal, { scope: "row", textContent: "Range or goal" });
+    if (kinds[i] === "response") goal.dataset.response = c;
+    goals.append(goal);
+  });
+}
+
+/** A response's goal on the run sheet: its band (best.js goalBand), from its window or its acceptable range, or null. */
+const sheetBand = (name) => goalBand(state.window.windows[name], balancedOf(name))?.band ?? null;
+
+/** The mark of a result that misses its goal: a dagger, said in words to a screen reader. */
+function missMark() {
+  const mark = el("span", "miss", "");
+  mark.append(el("span", "", "†"), el("span", "visually-hidden", " misses its goal"));
+  mark.firstChild.setAttribute("aria-hidden", "true");
+  return mark;
+}
+
+/**
+ * Mark the run sheet against the goals: each response's goal under its name, its band in words, else the way its goal
+ * points; a dagger on each result outside its band; and the best run so far, the one What if's headline names
+ * (renderHeadlines), in bold. Run as the goals, the results or the rows' order change.
+ */
+function markGoals() {
+  const t = $("#design-table");
+  if (!state.design || !t.tHead) return;
+  const bands = Object.fromEntries(resultNames().map((name) => [name, sheetBand(name)]));
+  for (const cell of t.querySelectorAll(".sheet-goals td[data-response]")) {
+    const band = bands[cell.dataset.response];
+    cell.textContent = band ? goalBandWords(band) : noBandGoal(cell.dataset.response, "");
+  }
+  for (const input of t.querySelectorAll("input[data-response][data-index]")) {
+    const band = bands[input.dataset.response];
+    const value = state.results[input.dataset.response]?.[Number(input.dataset.index)];
+    const misses = Boolean(band) && Number.isFinite(value) && !insideWindow([value], band)[0];
+    const cell = input.closest("td");
+    cell.classList.toggle("misses", misses);
+    cell.querySelector(".miss")?.remove();
+    if (misses) cell.append(missMark());
+  }
+  $("#sheet-legend").hidden = !Object.values(bands).some(Boolean);
+  const best = state.whatIf?.bestPlace ?? null;
+  const at = Math.max(0, state.design.columns.indexOf("Run order"));
+  for (const row of t.querySelectorAll("tr[data-run]")) {
+    const picked = best !== null && Number(row.dataset.run) === Number(runOrderOf(best));
+    row.classList.toggle("run-best", picked);
+    row.querySelector(".best-so-far")?.remove();
+    if (picked) row.cells[at].append(el("span", "best-so-far", " best so far"));
+  }
 }
 
 /** Follow results typed or pasted into the run sheet: where they came from, the code, the badges, the analysis. */
@@ -3352,6 +3439,7 @@ function renderOffPlan() {
 }
 
 function resultsChanged() {
+  markGoals();
   renderBench();
   renderRunDone();
   renderPracticeRound();
@@ -3562,7 +3650,7 @@ function setCurve(curve, curves) {
 
 /** The run sheet as a pasted block is placed on it (logic.js placePasted): its run numbers, rows as shown, responses. */
 function pasteSheet() {
-  const shown = [...$("#design-table").querySelectorAll("tbody tr")].map((tr) => tr.querySelector("input[data-index]"));
+  const shown = [...$("#design-table").querySelectorAll("tr[data-run]")].map((tr) => tr.querySelector("input[data-index]"));
   return {
     runs: runNumbers(),
     order: shown.filter(Boolean).map((input) => Number(input.dataset.index)),
@@ -3765,6 +3853,7 @@ function renderWhere() {
     document.getElementById(`goal-panel-${goal}`).hidden = goal !== shown;
   }
   $("#goals").hidden = offered.length < 2; // one goal is no choice: its panel stands under the dials
+  $("#what-if-link").hidden = $("#what-if").hidden;
   $("#where").hidden = $("#what-if").hidden && !offered.length;
 }
 
@@ -6460,7 +6549,7 @@ function tradeChosenPressed(e) {
   const chosen = state.trade.chosen;
   if (!act || !chosen) return;
   if (act === "confirm") addConfirmationRuns(chosen.settings, "the settings chosen");
-  if (act === "what-if") $("#what-if").scrollIntoView({ behavior: "smooth", block: "start" });
+  if (act === "what-if") goToWhatIf();
   if (act === "back") {
     chooseSettings(null);
     if (state.whatIf) {
@@ -6753,6 +6842,12 @@ function clearWhatIf() {
   state.curve.target = null; // a target belongs to the panel it was matched in
   $("#curve-target-said").textContent = "";
   $("#what-if").hidden = true;
+  $("#what-if-headlines").hidden = true;
+  $("#what-if-about").hidden = true;
+  delete whatIfBody.dataset.key;
+  whatIfBody.replaceChildren();
+  placeWhatIf();
+  markGoals(); // no best run without What if's headline
   hidePython("what-if");
 }
 
@@ -6792,107 +6887,137 @@ function showWhatIf(result) {
   checkKeptLimits();
 }
 
+/** The What-if rows (index.html, in the run sheet), kept while the run sheet is drawn anew, and the presets they hold. */
+const whatIfBody = $("#what-if-settings");
+const whatIfPresets = $("#what-if-presets");
+
+/** Put the What-if rows over the run sheet's runs while there is a What if to show, else take them out. */
+function placeWhatIf() {
+  const t = $("#design-table");
+  if (state.whatIf && whatIfBody.rows.length && t._body) t.insertBefore(whatIfBody, t._body);
+  else whatIfBody.remove();
+}
+
+/** Go to the What-if row, over the runs in Run: from Learn, which points to it. */
+function goToWhatIf() {
+  showPhase("run");
+  whatIfBody.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
 /**
- * Build the what-if table, once a study and again when a factor or a response changes: its first column names each
- * response (whatIfNames), then a column for each factor (whatIfControl), then a column of each response against its
- * goal (whatIfGoals). Each column runs the table's full height, its cells on the table's rows (CSS subgrid): the
- * factors' names, a row for each fitted response, and the What-if row, which sets the factors.
+ * Build the What-if rows of the run sheet, once a study and again when its columns, a factor or a response change
+ * (whatIfSheetRows), and put them over the runs.
  */
 function renderWhatIfControls() {
-  const box = $("#what-if-settings");
-  const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
+  const d = state.design;
+  const units = Object.fromEntries(d.spec.factors.map((f) => [f.name, f.units ?? ""]));
   const fits = profiledResponses(state.whatIf);
-  const key = JSON.stringify([fits.map((r) => [r.name, r.label, r.units]), state.whatIf.factors.map((f) => [f.name, f.low, f.high, f.levels, units[f.name]])]);
-  if (box.dataset.key === key) return;
-  box.dataset.key = key;
-  box.style.setProperty("--factors", String(state.whatIf.factors.length));
-  box.style.setProperty("--responses", String(fits.length));
-  const fitted = fits.map((r) => r.name);
-  box.replaceChildren(whatIfNames(fits), ...state.whatIf.factors.map((f) => whatIfControl(f, units[f.name], fitted)), whatIfGoals(fits));
+  const key = JSON.stringify([d.columns, fits.map((r) => [r.name, r.label, r.units]), state.whatIf.factors.map((f) => [f.name, f.low, f.high, f.levels, units[f.name]])]);
+  if (whatIfBody.dataset.key !== key) {
+    whatIfBody.dataset.key = key;
+    whatIfBody.replaceChildren(...whatIfSheetRows(d, fits, units));
+  }
+  placeWhatIf();
 }
 
-/** A cell of the what-if table: one row of a column. */
-const whatIfCell = (cls, ...parts) => {
-  const cell = el("div", `what-if-cell ${cls}`.trim(), "");
+/** A cell of the What-if rows: a ``tag`` of the class ``cls`` across ``span`` columns, holding ``parts``, with ``data``. */
+function whatIfCell(tag, cls, span, parts = [], data = {}) {
+  const cell = document.createElement(tag);
+  if (cls) cell.className = cls;
+  if (span > 1) cell.colSpan = span;
+  Object.assign(cell.dataset, data);
   cell.append(...parts);
   return cell;
-};
-
-/**
- * The what-if table's first column: a cell for each fitted response, its name over its goal in words and the scale
- * its pictures share (drawProfiles fills both), then the What-if row's name.
- */
-function whatIfNames(fits) {
-  const column = el("div", "what-if-column what-if-names", "");
-  column.append(
-    whatIfCell("what-if-head"),  // the hint above says what the pictures are
-    ...fits.map((r) => {
-      const cell = whatIfCell("what-if-response", el("span", "what-if-label", withUnits(r.label, r.units)), el("span", "what-if-goal-words", ""));
-      const scale = el("span", "what-if-scale", "");
-      scale.append("scale ", el("span", "profile__end", ""), " to ", el("span", "profile__end", ""));
-      cell.append(scale);
-      cell.dataset.response = r.name;
-      return cell;
-    }),
-    whatIfCell("what-if-row", el("span", "what-if-row__name", "What if"), el("span", "hint", "a run you have not made")),
-  );
-  return column;
 }
 
 /**
- * One factor's column of the what-if table, named by the factor over its range: a picture of each fitted response
- * against it (drawProfiles), each of which takes a drag, then its cell of the What-if row, which sets it from the
- * keyboard: a number box over a slider, or a button for each of a categorical factor's levels.
+ * The What-if rows, in the run sheet's columns (columnKinds): a heading over the pictures and one over the goals; a
+ * row for each fitted response, named in the columns before the factors, with a picture against each factor in that
+ * factor's column (drawProfiles) and the response against its goal across the responses' columns (drawGoals); then
+ * the What-if row, which sets each factor in its column and predicts each response in its own (drawGoals); then its
+ * presets. shortcut: a sheet with no column before its factors (none the app makes) has no cell to name the rows in;
+ * give it one if an imported sheet needs it.
  */
-function whatIfControl(f, units, fitted) {
-  const column = el("div", "what-if-column what-if-factor", "");
-  column.dataset.factor = f.name;
-  const numeric = f.kind !== "categorical";
-  const [low, high] = numeric ? [Math.min(f.low, f.high), Math.max(f.low, f.high)] : [];
-  const span = numeric ? `${num(low)} to ${withUnit(high, units)}` : f.levels.join(", ");
-  const head = whatIfCell("what-if-head", el("span", "what-if-name", withUnits(f.name, units)), el("span", "what-if-range", span));
-  const profiles = fitted.map((response) => {
-    const profile = svgPart("svg", { class: "profile", role: "img" });
-    profile.dataset.response = response;
-    takeDrag(profile, (e) => dragProfile(e, f));
-    return whatIfCell("what-if-picture", profile);
+function whatIfSheetRows(d, fits, units) {
+  const kinds = columnKinds(d);
+  const lead = Math.max(0, kinds.findIndex((kind) => kind !== "other"));
+  const [first, last] = [kinds.indexOf("response"), kinds.lastIndexOf("response")];
+  const factors = Object.fromEntries(state.whatIf.factors.map((f) => [f.name, f]));
+  // A row: its name before the factors, then a cell for each column after them, ``at`` giving each its cell and span.
+  const row = (cls, name, at) => {
+    const tr = document.createElement("tr");
+    tr.className = cls;
+    if (lead) tr.append(Object.assign(whatIfCell("th", "what-if-name", lead, name), { scope: "row" }));
+    for (let i = lead; i < kinds.length; ) {
+      const [cell, span] = at(kinds[i], d.columns[i]);
+      tr.append(cell);
+      i += span;
+    }
+    return tr;
+  };
+  const empty = () => [whatIfCell("td", "", 1), 1];
+  const across = last - first + 1; // the responses' columns, side by side
+  const head = (text, span) => Object.assign(whatIfCell("th", "what-if-head", span, [text]), { scope: "colgroup" });
+  const heads = document.createElement("tr");
+  heads.className = "what-if-heads";
+  heads.append(head("What each factor does to each response", first), head("At the what-if settings, against its goal", across));
+  for (let i = last + 1; i < kinds.length; i += 1) heads.append(whatIfCell("td", "", 1));
+  const pictures = fits.map((r) => {
+    const scale = el("span", "what-if-scale", "");
+    scale.append("scale ", el("span", "profile__end", ""), " to ", el("span", "profile__end", ""));
+    const tr = row("what-if-pictures", [el("span", "what-if-label", withUnits(r.label, r.units)), scale], (kind, name) => {
+      if (kind === "factor") {
+        const profile = svgPart("svg", { class: "profile", role: "img" });
+        profile.dataset.response = r.name;
+        takeDrag(profile, (e) => dragProfile(e, factors[name]));
+        // In a box of its own, so the width it is drawn to (drawProfiles) is never the width it asks of its column:
+        // a table would else widen the column for the drawing, and draw it again wider, without end.
+        const box = el("div", "what-if-picture__box", "");
+        box.append(profile);
+        return [whatIfCell("td", "what-if-picture", 1, [box], { factor: name }), 1];
+      }
+      return kind === "response" ? [whatIfCell("td", "what-if-goal", across, [], { response: r.name }), across] : empty();
+    });
+    tr.dataset.response = r.name;
+    return tr;
   });
-  if (!numeric) {
+  const setting = row("what-if-row", [el("span", "what-if-row__name", "What if"), el("span", "hint", "a run you have not made")], (kind, name) => {
+    if (kind === "factor") return [whatIfSetting(factors[name], units[name]), 1];
+    return kind === "response" ? [whatIfCell("td", "what-if-predicted", 1, [], { response: name }), 1] : empty();
+  });
+  const presets = document.createElement("tr");
+  presets.className = "what-if-presets-row";
+  presets.append(whatIfCell("td", "", kinds.length, [whatIfPresets]));
+  return [...(fits.length && first >= 0 ? [heads] : []), ...pictures, setting, presets];
+}
+
+/**
+ * A factor's cell of the What-if row, which sets it from the keyboard: a number box over a slider, or a button for
+ * each of a categorical factor's levels. Its column's pictures (whatIfSheetRows) take a drag too.
+ */
+function whatIfSetting(f, units) {
+  const cell = whatIfCell("td", "what-if-factor", 1, [], { factor: f.name });
+  if (f.kind === "categorical") {
     const group = el("span", "what-if-levels", "");
     group.setAttribute("role", "group");
-    group.setAttribute("aria-label", `${f.name} in the what-if row`);
+    group.setAttribute("aria-label", `${f.name} in the What-if row`);
     for (const level of f.levels) {
       const button = el("button", "what-if-level", level);
       Object.assign(button, { type: "button", name: "level", value: level });
       group.append(button);
     }
-    column.append(head, ...profiles, whatIfCell("what-if-row", group));
-    return column;
+    cell.append(group);
+    return cell;
   }
+  const [low, high] = [Math.min(f.low, f.high), Math.max(f.low, f.high)];
   const slider = el("input", "", "");
   Object.assign(slider, { type: "range", name: "slider", min: String(low), max: String(high), step: String(sliderStep(f)) });
-  slider.setAttribute("aria-label", `${f.name}, from ${span}`);
+  slider.setAttribute("aria-label", `${f.name}, from ${num(low)} to ${withUnit(high, units)}`);
   const box = el("input", "", "");
   Object.assign(box, { type: "number", name: "number", min: String(low), max: String(high), step: "any" });
   box.setAttribute("aria-label", withUnits(f.name, units));
-  column.append(head, ...profiles, whatIfCell("what-if-row", box, slider));
-  return column;
-}
-
-/**
- * The what-if table's last column: each fitted response at the What-if row's settings against its goal (renderGoals
- * fills it), then the buttons that set the What-if row at once.
- */
-function whatIfGoals(fits) {
-  const column = el("div", "what-if-column what-if-goals", "");
-  const head = whatIfCell("what-if-head", el("span", "what-if-name", "Against its goal"), el("span", "what-if-range", `${confidencePercent()} prediction interval, and 20 runs you might get`));
-  const cells = fits.map((r) => {
-    const cell = whatIfCell("what-if-goal");
-    cell.dataset.response = r.name;
-    return cell;
-  });
-  column.append(head, ...cells, whatIfCell("what-if-row", $("#what-if-presets")));
-  return column;
+  cell.append(box, slider);
+  return cell;
 }
 
 /**
@@ -6949,7 +7074,8 @@ const profiledResponse = (w) => profiledResponses(w).find((r) => r.name === stat
 function drawProfiles(w) {
   const fits = profiledResponses(w);
   const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
-  const box = $("#what-if-settings");
+  const box = whatIfBody;
+  $("#what-if-about").hidden = false;
   $("#what-if-about").textContent = fits.length
     ? "Each picture is a response against one factor, the others as in the What-if row; dashed beyond the runs."
     : "Move a setting, and each response's prediction follows.";
@@ -6960,7 +7086,7 @@ function drawProfiles(w) {
     w.ranges[fit.name] = range;
     const words = { label: fit.label, units: fit.units ?? "" };
     // The scale a response's pictures share, said once beside its name, from its foot to its top.
-    const [foot, top] = box.querySelectorAll(`.what-if-response[data-response="${CSS.escape(fit.name)}"] .profile__end`);
+    const [foot, top] = box.querySelectorAll(`tr.what-if-pictures[data-response="${CSS.escape(fit.name)}"] .profile__end`);
     foot.textContent = num(range[0]);
     top.textContent = withUnit(range[1], words.units);
     w.factors.forEach((f, i) => {
@@ -7096,7 +7222,7 @@ function setWhatIf(changes) {
 
 /** Show the settings the panel holds in the What-if row; a number box the reader is typing in keeps what is typed. */
 function showWhatIfSettings() {
-  for (const column of $("#what-if-settings").querySelectorAll(".what-if-factor")) {
+  for (const column of whatIfBody.querySelectorAll(".what-if-factor")) {
     const value = state.whatIf.settings[column.dataset.factor];
     for (const input of column.querySelectorAll("input")) {
       if (input.name === "number" && input === document.activeElement) continue;
@@ -7212,7 +7338,7 @@ function drawGoals() {
   const at = columnsAt(w.factors, w.settings);
   const goals = goalsOf(w);
   const bands = Object.fromEntries(Object.entries(goals).map(([name, goal]) => [name, goal.band]));
-  const box = $("#what-if-settings");
+  const box = whatIfBody;
   let met = 0;
   for (const fit of profiledResponses(w)) {
     const cell = box.querySelector(`.what-if-goal[data-response="${CSS.escape(fit.name)}"]`);
@@ -7224,7 +7350,8 @@ function drawGoals() {
     const verdict = band && goalVerdict(predicted, prediction, band);
     if (verdict?.met) met += 1;
     const goalWords = band ? goalBandWords(band, units) : noBandWords(fit.name, units);
-    box.querySelector(`.what-if-response[data-response="${CSS.escape(fit.name)}"] .what-if-goal-words`).textContent = band ? goalWords : noBandGoal(fit.name, units);
+    const said = box.querySelector(`.what-if-predicted[data-response="${CSS.escape(fit.name)}"]`);
+    if (said) said.textContent = num(predicted);
     const ends = (band ?? []).filter((end) => end !== null);
     const [low, high] = barScale(w, fit.name, [predicted, ...(prediction ?? []), ...(runs ?? []), ...ends]);
     const { width, height, pad } = GOAL_BAR;
@@ -7254,12 +7381,15 @@ function drawGoals() {
     );
     const value = el("span", "what-if-value", "");
     value.append(el("strong", "", withUnit(predicted, units)), " ", el("span", "what-if-interval", interval ? `(${num(prediction[0])} to ${num(prediction[1])})` : ""));
-    const said = el("span", `what-if-verdict${verdict && !verdict.met ? " what-if-verdict--off" : ""}`, word);
-    if (verdict) said.dataset.level = String(verdict.level);
-    cell.replaceChildren(value, bar, said);
+    const stands = el("span", `what-if-verdict${verdict && !verdict.met ? " what-if-verdict--off" : ""}`, word);
+    if (verdict) stands.dataset.level = String(verdict.level);
+    const against = el("div", "what-if-against", "");
+    against.append(value, bar, stands);
+    cell.replaceChildren(against);
   }
   renderHeadlines(w, bands, met);
   renderPresets(w);
+  markGoals(); // the run sheet's goals are these
 }
 
 /** What the best run so far did for a response with no goal band, by its goal: the highest, the lowest, the closest. */
@@ -7837,7 +7967,7 @@ function toWhatIf(settings) {
   w.settings = { ...settings };
   renderWhatIf();
   checkWhatIfLimits();
-  $("#what-if").scrollIntoView({ behavior: "smooth", block: "start" });
+  goToWhatIf();
 }
 
 /** Move the what-if panel to the settings found. */
@@ -9838,6 +9968,7 @@ function renderTable(t, columns, rows, sortedBy = null, units = [], terms = {}) 
     })
     .join("");
   t.innerHTML = `<thead><tr>${head}</tr></thead><tbody></tbody>`;
+  t._body = t.tBodies[0]; // the rows: the run sheet puts other rows over them (the What-if row), in a body of their own
   t._rows = rows;
   fillBody(t, rows);
   t.onclick = (e) => {
@@ -9845,7 +9976,7 @@ function renderTable(t, columns, rows, sortedBy = null, units = [], terms = {}) 
     if (!button) return;
     const th = button.parentElement;
     const ascending = th.getAttribute("aria-sort") !== "ascending";
-    for (const other of t.querySelectorAll("th")) other.setAttribute("aria-sort", "none");
+    for (const other of t.querySelectorAll("th[aria-sort]")) other.setAttribute("aria-sort", "none");
     th.setAttribute("aria-sort", ascending ? "ascending" : "descending");
     const col = Number(button.dataset.col);
     const sign = ascending ? 1 : -1;
@@ -9870,9 +10001,10 @@ function fillBody(t, rows) {
     return ` data-run="${t._run(row)}"${t._run(row) === markedRun() ? ' class="run-marked"' : ""}`;
   };
   t._shown = rows;
-  t.tBodies[0].innerHTML = rows
+  (t._body ?? t.tBodies[0]).innerHTML = rows
     .map((row) => `<tr${run(row)}>${row.map((v, c) => `<td${lookOf(t, c)}>${cell(row, v, c)}</td>`).join("")}</tr>`)
     .join("");
+  t._filled?.();
 }
 
 // ---------------------------------------------------------------- one run, marked wherever it is shown
@@ -10329,18 +10461,19 @@ $("#add-confirmation").onclick = () => addConfirmationRuns(state.best?.confirm_a
 $("#add-balance-confirmation").onclick = () => addConfirmationRuns(state.balance?.confirm_at, blendStudy() ? "the balanced blend" : "the balanced settings");
 $("#remove-balance-confirmation").onclick = removeConfirmationRuns;
 $("#balance-goals").addEventListener("input", goalChanged);
-// The what-if panel follows each setting as it moves; a number box shows the setting kept once the reader leaves it.
-$("#what-if-settings").addEventListener("input", whatIfChanged);
-$("#what-if-settings").addEventListener("change", (e) => {
+// The What-if rows follow each setting as it moves; a number box shows the setting kept once the reader leaves it.
+whatIfBody.addEventListener("input", whatIfChanged);
+whatIfBody.addEventListener("change", (e) => {
   const row = e.target.closest("[data-factor]");
   if (e.target.name === "number" && row && state.whatIf) e.target.value = numPlain(state.whatIf.settings[row.dataset.factor]);
 });
 // A profile is drawn to its dial's width, which the page knows once the panel is on show, and again when it changes.
 new ResizeObserver(() => {
-  if (state.whatIf && !$("#what-if").hidden) drawProfiles(state.whatIf);
-}).observe($("#what-if-settings"));
+  if (state.whatIf && whatIfBody.isConnected) drawProfiles(state.whatIf);
+}).observe(whatIfBody);
 takeDrag($("#what-if-map-plot"), dragMap);
-$("#what-if-settings").addEventListener("click", whatIfPressed);
+whatIfBody.addEventListener("click", whatIfPressed);
+$("#to-what-if").onclick = goToWhatIf;
 $("#what-if-keep").addEventListener("submit", keepWhatIf);
 $("#what-if-kept-list").addEventListener("click", keptPressed);
 $("#balance-reset").onclick = () => {

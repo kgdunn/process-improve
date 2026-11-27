@@ -106,7 +106,7 @@ def test_a_study_by_hand_from_the_brief_to_the_best_settings_shared_and_opened_a
     again = context.new_page()
     again.goto(site)
     # The study comes back from the browser's storage after the page's first call to Python: wait for its runs.
-    again.wait_for_function(f"document.querySelectorAll('#design-table tbody tr').length === {len(kept)}")
+    again.wait_for_function(f"document.querySelectorAll('#design-table tr[data-run]').length === {len(kept)}")
     settled(again)
     assert run_sheet(again) == kept
 

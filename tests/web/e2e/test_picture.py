@@ -57,7 +57,7 @@ def test_the_picture_draws_the_run_sheet_s_runs(blank_page):
     candidates_done(page)
     generate(page)
     reveal(page, "#limits")
-    runs = page.evaluate("document.querySelectorAll('#design-table tbody tr').length")
+    runs = page.evaluate("document.querySelectorAll('#design-table tr[data-run]').length")
     assert [p["runs"] for p in panels(page)] == [runs] * 3
     assert page.text_content("#region-legend").endswith(f"a run of the run sheet ({runs}).")
 

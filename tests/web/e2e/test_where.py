@@ -37,23 +37,24 @@ def panels(page: Any) -> list[bool]:  # noqa: ANN401 - a Playwright Page
 def where(page: Any) -> Any:  # noqa: ANN401
     """Return the worked example with the card that answers where to run on show."""
     reveal(page, "#where")
-    page.wait_for_selector("#where:not([hidden]) #what-if:not([hidden])")
+    page.wait_for_selector("#where:not([hidden]) #what-if-link:not([hidden])")
     page.wait_for_selector("#best:not([hidden])")
     return page
 
 
-def test_one_card_holds_the_dials_and_a_goal_to_choose(where):
+def test_one_card_holds_a_goal_to_choose_and_the_way_to_the_what_if_row(where):
     page = where
     assert page.text_content("#h-where") == "Where to run"
     inside = page.locator("#where").evaluate(
-        "(card) => ['what-if', 'best', 'target', 'window'].every((id) => card.contains(document.getElementById(id)))"
+        "(card) => ['what-if-link', 'best', 'target', 'window']"
+        ".every((id) => card.contains(document.getElementById(id)))"
     )
-    assert inside, "the four cards are parts of the one"
+    assert inside, "the goals are parts of the one, and so is the way to What if, which is in Run"
     assert page.locator(TABS).all_text_contents() == ["The best for your goal", "Hit a target", "Stay in a window"]
     assert page.locator(f"{TABS}[aria-selected=true]").all_text_contents() == ["The best for your goal"]
-    assert panels(page) == [True, False, False], "one goal's panel at a time, under the dials"
-    dials, tabs = page.locator("#what-if-settings").bounding_box(), page.locator("#goals").bounding_box()
-    assert dials["y"] + dials["height"] <= tabs["y"], "the dials first, then the goal"
+    assert panels(page) == [True, False, False], "one goal's panel at a time"
+    link, tabs = page.locator("#what-if-link").bounding_box(), page.locator("#goals").bounding_box()
+    assert link["y"] + link["height"] <= tabs["y"], "the way to the What-if row first, then the goal"
 
 
 def test_a_goal_is_chosen_by_a_press_or_by_the_arrow_keys(where):
@@ -109,7 +110,8 @@ def test_the_card_opens_on_what_the_study_asks(blank_page, context, site):
     generate(page)
     practise(page)
     reveal(page, "#where")
-    page.wait_for_selector("#where:not([hidden]) #what-if-out table", state="attached")
+    page.wait_for_selector("#where:not([hidden]) #what-if-link:not([hidden])")
+    page.wait_for_selector("#what-if-out table", state="attached")
     assert page.get_attribute("#goal-target", "aria-selected") == "false"
     predicted = page.locator("#what-if-out tbody td").nth(1).text_content().split()[0].rstrip("%")
     page.click("#goal-target")

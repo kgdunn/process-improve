@@ -39,7 +39,7 @@ def test_on_a_phone_the_card_shows_the_first_run_to_make_with_its_settings_in_la
     page.click("#go-run")
     assert page.evaluate("document.querySelector('#bench').open")
     assert page.text_content("#bench-run") == "Run 1"
-    runs = page.locator("#design-table tbody tr").count()
+    runs = page.locator("#design-table tr[data-run]").count()
     assert page.text_content("#bench-of") == f"1 of {runs}, to make. {runs} still to make."
     names = page.locator("#bench-settings dt").all_text_contents()
     assert len(names) >= 2
@@ -57,7 +57,7 @@ def test_a_result_typed_on_the_card_is_the_run_sheet_s_and_next_run_moves_on(bla
     page.fill("#bench-results input", "61.5")
     settled(page)
     first = page.evaluate(
-        """() => { const rows = [...document.querySelectorAll('#design-table tbody tr')];
+        """() => { const rows = [...document.querySelectorAll('#design-table tr[data-run]')];
         const one = rows.find((row) => row.querySelector('input[data-response]').value !== '');
         return one.querySelector('input[data-response]').value; }"""
     )
@@ -77,12 +77,12 @@ def test_a_result_typed_on_the_run_sheet_shows_on_the_card(blank_page):
     a_run_sheet(page)
     place = page.evaluate(
         """() => { const run = document.querySelector('#bench-run').textContent.replace('Run ', '');
-        const rows = [...document.querySelectorAll('#design-table tbody tr')];
-        const heads = [...document.querySelectorAll('#design-table thead th')];
+        const rows = [...document.querySelectorAll('#design-table tr[data-run]')];
+        const heads = [...document.querySelectorAll('#design-table thead th[aria-sort]')];
         const head = heads.findIndex((th) => th.textContent.includes('Run order'));
         return rows.findIndex((row) => row.cells[head].textContent.trim() === run); }"""
     )
-    page.locator("#design-table tbody tr").nth(place).locator("input[data-response]").first.fill("58")
+    page.locator("#design-table tr[data-run]").nth(place).locator("input[data-response]").first.fill("58")
     settled(page)
     assert page.input_value("#bench-results input") == "58"
 
@@ -107,7 +107,7 @@ def test_a_run_that_failed_stays_on_the_sheet_with_no_result_and_is_not_waited_f
     assert ", failed." in page.text_content("#bench-of")
     assert page.text_content("#badge-run") == f"{runs - 1} of {runs - 1}", "the count goes without it"
     assert page.is_visible("#run-done"), "every other run has its result"
-    assert page.locator("#design-table tbody tr").count() == runs, "it stays on the sheet"
+    assert page.locator("#design-table tr[data-run]").count() == runs, "it stays on the sheet"
     page.click("#go-learn")
     page.wait_for_selector("#answer:not([hidden])")
     reveal(page, "#next")

@@ -262,10 +262,14 @@ def practise(page: Any) -> None:  # noqa: ANN401
 
 
 def run_sheet(page: Any) -> list[list[str]]:  # noqa: ANN401
-    """Read the run sheet as the reader sees it: each cell's text, or the result typed into it."""
+    """Read the run sheet as the reader sees it: each cell's text, or the result typed into it.
+
+    The words "best so far" under the best run's number are left out, so the number reads as the number it is.
+    """
     return page.evaluate(
-        """() => [...document.querySelectorAll('#design-table tbody tr')].map((tr) =>
-             [...tr.cells].map((td) => td.querySelector('input')?.value ?? td.textContent))"""
+        """() => [...document.querySelectorAll('#design-table tr[data-run]')].map((tr) =>
+             [...tr.cells].map((td) => td.querySelector('input')?.value ?? [...td.childNodes]
+               .filter((n) => !n.classList?.contains('best-so-far')).map((n) => n.textContent).join('')))"""
     )
 
 

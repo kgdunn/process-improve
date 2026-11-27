@@ -121,6 +121,8 @@ def test_the_settings_found_go_to_what_if_are_confirmed_and_one_factor_is_solved
         "[...document.querySelectorAll('#what-if-settings input[type=number]')].map((box) => Number(box.value))"
     )
     assert what_if == pytest.approx([s["value"] for s in found["settings"]], rel=1e-3)
+    assert page.get_attribute("#workspace", "data-phase") == "run", "the What-if row is over the runs, in Run"
+    reveal(page, "#solve-factor")
     page.select_option("#solve-factor", "P")
     page.wait_for_function("document.querySelector('#solve-out').textContent.includes('P = ')")
     solved = last_reply(page, "api_solve_for")["result"]
@@ -133,7 +135,7 @@ def test_the_settings_found_go_to_what_if_are_confirmed_and_one_factor_is_solved
     assert [page.input_value("#target-across"), page.input_value("#target-up")] == ["T", "F"]
     before = len(run_sheet(page))
     page.click("#target-confirm")
-    page.wait_for_function(f"document.querySelectorAll('#design-table tbody tr').length === {before + 3}")
+    page.wait_for_function(f"document.querySelectorAll('#design-table tr[data-run]').length === {before + 3}")
     settled(page)
     assert page.locator("#target-confirm").is_hidden(), "the runs are there: their results are what is wanted"
     assert page.text_content("#target-out .lead") == "These settings give the target, by the models."

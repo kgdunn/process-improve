@@ -117,7 +117,7 @@ def test_the_design_s_notes_name_the_factor_anew(blank_page, api):
 
 def test_units_are_taken_as_names_are(page):
     rename(page, 0, "K", key="units")
-    assert page.locator("#design-table thead th").nth(2).locator(".col-unit").text_content() == "K"
+    assert page.locator("#design-table thead th[aria-sort]").nth(2).locator(".col-unit").text_content() == "K"
     assert 'units="K"' in page.text_content("#py-design code")
     assert chart(page, 1, "d => d.layout.xaxis.title.text") == "Temperature (K)"
     assert page.is_hidden("#design-stale")
@@ -130,9 +130,7 @@ def test_units_changed_alone_reach_the_what_if_panel(page):
     page.wait_for_function(f"window.__pi.count('api_predictors') > {asked}")
     settled(page)
     reveal(page, "#what-if")
-    row = page.locator('#what-if-settings [data-factor="Temperature"]')
-    assert row.locator(".what-if-name").text_content() == "Temperature (K)"
-    assert row.locator(".what-if-range").text_content() == "150 to 200 K"
+    row = page.locator('#what-if-settings td.what-if-factor[data-factor="Temperature"]')
     assert row.locator("[name=slider]").get_attribute("aria-label") == "Temperature, from 150 to 200 K"
     assert row.locator("[name=number]").get_attribute("aria-label") == "Temperature (K)"
 
@@ -261,13 +259,13 @@ def test_the_what_if_fits_asked_for_before_a_rename_are_dropped(page):
     before = page.evaluate(replied)
     page.evaluate("window.__pi.release('api_predictors')")
     page.wait_for_function(f"{replied} > {before}")
-    old = page.locator('#what-if:not([hidden]) [data-factor="Temperature"]')
+    old = page.locator('#what-if-settings [data-factor="Temperature"]')
     assert old.count() == 0, "no factor by its old name"
 
     page.evaluate("window.__pi.release('api_analyze_runs')")
     settled(page)
     reveal(page, "#what-if")
-    named = page.locator("#what-if-settings [data-factor]").evaluate_all("rows => rows.map((r) => r.dataset.factor)")
+    named = page.locator("#what-if-settings td.what-if-factor").evaluate_all("all => all.map((r) => r.dataset.factor)")
     assert named == ["Heat", "Pressure", "Flow"]
     assert "Heat" in words(page.text_content("#py-what-if code"))
     assert "Temperature" not in words(page.text_content("#py-what-if code"))

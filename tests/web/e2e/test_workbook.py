@@ -124,7 +124,7 @@ def test_a_workbook_with_no_results_yet_is_read_and_the_page_waits_for_them(page
     page.wait_for_function("window.__pi.count('api_read_workbook') === 1 && window.__pi.idle()")
     assert status(page) == ("No results to analyze yet.", "ok")
     assert page.is_hidden("#analysis")
-    assert page.locator("#design-table tbody tr").count() == design["n_runs"]
+    assert page.locator("#design-table tr[data-run]").count() == design["n_runs"]
 
 
 def upload_design(page, api, tmp_path, request: dict) -> dict:
@@ -148,7 +148,7 @@ def test_an_uploaded_optimal_design_keeps_its_runs_in_the_form(page, api, tmp_pa
     reveal(page, "#generate")
     page.click("#generate")
     settled(page)
-    assert page.locator("#design-table tbody tr").count() == 20, "generating again makes the same design"
+    assert page.locator("#design-table tr[data-run]").count() == 20, "generating again makes the same design"
 
 
 def test_an_uploaded_fraction_keeps_its_resolution_in_the_form(page, api, tmp_path):

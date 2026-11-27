@@ -75,7 +75,7 @@ def test_the_worked_example_opens_at_its_best_settings_and_follows_each_move(pag
     assert rows(page)[0][:2] == ["Yield", f"{num(best['predicted'])}%"], "the prediction the best settings show"
     shown = {s["name"]: num(s["value"]) for s in best["settings"]}
     boxes = page.evaluate(
-        "() => Object.fromEntries([...document.querySelectorAll('#what-if-settings [data-factor]')]"
+        "() => Object.fromEntries([...document.querySelectorAll('#what-if-settings td.what-if-factor')]"
         ".map((row) => [row.dataset.factor, row.querySelector('input[name=number]').value]))"
     )
     assert boxes == shown
@@ -167,7 +167,7 @@ def kept(page: Any) -> list[dict]:  # noqa: ANN401
     return page.evaluate(
         """() => { const table = document.querySelector('#what-if-kept-list table');
             const heads = [...table.tHead.rows[0].cells].map((th) => th.textContent);
-            const factors = document.querySelectorAll('#what-if-settings [data-factor]').length;
+            const factors = document.querySelectorAll('#what-if-settings td.what-if-factor').length;
             return [...table.tBodies[0].rows].map((tr) => ({
                 name: tr.cells[0].textContent,
                 settings: Object.fromEntries([...tr.cells].slice(1, 1 + factors)
@@ -278,7 +278,7 @@ def test_kept_settings_become_confirmation_runs(studied):
     page.wait_for_selector("#what-if-kept:not([hidden])")
     before = len(run_sheet(page))
     settings = page.evaluate(
-        "() => Object.fromEntries([...document.querySelectorAll('#what-if-settings [data-factor]')]"
+        "() => Object.fromEntries([...document.querySelectorAll('#what-if-settings td.what-if-factor')]"
         ".map((row) => [row.dataset.factor, row.querySelector('input[name=number]').value]))"
     )
     page.click('[aria-label="Add 3 confirmation runs at the settings kept as Cooler"]')
@@ -286,7 +286,7 @@ def test_kept_settings_become_confirmation_runs(studied):
     sheet = run_sheet(page)
     assert len(sheet) == before + 3
     reveal(page, "#design-table")
-    columns = page.eval_on_selector_all("#design-table thead th", "ths => ths.map((th) => th.textContent)")
+    columns = page.eval_on_selector_all("#design-table thead th[aria-sort]", "ths => ths.map((th) => th.textContent)")
     at = {name: next(i for i, c in enumerate(columns) if c.startswith(name)) for name in settings}
     confirming = next(i for i, c in enumerate(columns) if c.startswith("Confirmation run"))
     for run in sheet[before:]:

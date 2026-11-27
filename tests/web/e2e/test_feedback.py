@@ -137,9 +137,8 @@ def test_the_header_s_button_sends_the_report_and_what_goes_with_it(page, relay,
         "Fitted response surface",
         "True response surface",
         "Residuals against fitted values",
-        "Yield over Temperature and Pressure",
         "How tightly to hold each factor",
-    ]
+    ], "Learn's charts: the map is under the run sheet, in Run"
     assert context["plotly_js"]
     assert "HeadlessChrome" in context["browser"]
     stamp = dict(row.split(": ", 1) for row in context["stamp"])
@@ -180,7 +179,7 @@ def test_the_study_goes_when_ticked_as_a_link_that_opens_it(page, relay):
     [report] = relay.reports
     assert PACKED.fullmatch(report["study"])
     opened = page.evaluate("async (packed) => (await import('./campaign.js')).unpackCampaign(packed)", report["study"])
-    shown = page.evaluate("[...document.querySelectorAll('#design-table tbody tr')].length")
+    shown = page.evaluate("[...document.querySelectorAll('#design-table tr[data-run]')].length")
     assert len(opened["design"]["rows"]) == shown == 15
     assert opened["responses"], "with its results, so the result can be reproduced"
 

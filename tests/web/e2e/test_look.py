@@ -158,7 +158,7 @@ def test_what_the_reader_typed_is_in_ink_and_a_simulated_result_is_pencil(blank_
     assert simulated.evaluate(STYLE.format("color")) == page.evaluate(COLOUR_OF, "--muted"), "pencil, until typed over"
     assert simulated.evaluate(STYLE.format("fontStyle")) == "italic"
     enter_results(page, {0: 61.5})
-    typed = page.locator("table.runs tbody tr").first.locator("input")
+    typed = page.locator("table.runs tr[data-run]").first.locator("input")
     assert typed.evaluate(STYLE.format("color")) == ink, "a result the reader typed is theirs"
 
 
@@ -188,7 +188,7 @@ def test_a_chosen_point_is_drawn_in_forced_colours(page):
 def test_a_slider_is_drawn_by_the_page_a_thin_line_and_a_round_handle_in_the_accent_colour(page):
     """The browser's own slider was two thick pale bars on the dark page, with no handle to be seen."""
     reveal(page, "#what-if")
-    slider = page.locator('#what-if input[type="range"]').first
+    slider = page.locator('#what-if-settings input[type="range"]').first
     drawn = slider.evaluate(
         """(one) => { const own = getComputedStyle(one);
           return { appearance: own.appearance, edge: own.borderTopWidth, padding: own.paddingLeft,

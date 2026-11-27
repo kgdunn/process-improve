@@ -167,7 +167,7 @@ def test_escape_lets_go_of_a_run_a_press_marked(page):
 
 def test_a_row_of_the_run_sheet_marks_its_run_on_the_charts(page):
     reveal(page, "#design-table")
-    row = page.locator("#design-table tbody tr").nth(5)
+    row = page.locator("#design-table tr[data-run]").nth(5)
     run = int(row.get_attribute("data-run"))
     rest_on(page, row.locator("td").first)
     page.wait_for_function(marks_run(run))
@@ -198,7 +198,7 @@ def test_a_row_of_the_table_of_each_run_is_pressed_to_mark_it_and_stays_marked_a
 def test_a_result_typed_in_the_run_sheet_marks_no_run_for_good(page):
     """A press on a box to type in is the box's own: the run is marked only while the pointer rests on its row."""
     reveal(page, "#design-table")
-    page.locator("#design-table tbody tr").nth(2).locator("input").first.click()
+    page.locator("#design-table tr[data-run]").nth(2).locator("input").first.click()
     page.mouse.move(2, 2)
     page.wait_for_timeout(300)
     assert marked_rows(page) == {"sheet": [], "each run": []}
@@ -206,7 +206,7 @@ def test_a_result_typed_in_the_run_sheet_marks_no_run_for_good(page):
 
 def test_a_new_design_lets_go_of_the_run_marked_in_the_one_before(page):
     reveal(page, "#design-table")
-    page.locator("#design-table tbody tr").nth(4).locator("td").first.click()
+    page.locator("#design-table tr[data-run]").nth(4).locator("td").first.click()
     page.wait_for_function("document.querySelectorAll('#design-table tr.run-marked').length === 1")
     generate(page, design_type="full_factorial")
     settled(page)

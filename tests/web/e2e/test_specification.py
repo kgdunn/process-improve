@@ -91,9 +91,11 @@ def test_the_chart_is_drawn_through_the_what_if_settings_and_follows_them(studie
     held = found["overlay"]["held"]
     assert [h["name"] for h in held] == ["F"], "the chart is over T and P, the two factors that matter most"
     before = page.evaluate(ANSWERED)
+    reveal(page, "#what-if-settings")  # the What-if row, over the runs in Run
     box = page.locator('#what-if-settings [data-factor="F"] input[type=number]')
     box.fill("12")
     page.wait_for_function(f"{ANSWERED} > {before}")
+    reveal(page, "#window-chart")
     moved = last_reply(page, "api_specification")["result"]
     assert moved["overlay"]["held"] == [{"name": "F", "value": 12}]
     assert moved["share"] == pytest.approx(found["share"]), "the share is over every setting, wherever What if is"
@@ -111,9 +113,11 @@ def test_the_surest_settings_go_to_what_if_and_are_confirmed(studied):
         "[...document.querySelectorAll('#what-if-settings input[type=number]')].map((box) => Number(box.value))"
     )
     assert what_if == pytest.approx([surest["settings"][name] for name in ("T", "P", "F")], rel=1e-3)
+    assert page.get_attribute("#workspace", "data-phase") == "run", "the What-if row is over the runs, in Run"
     before = len(run_sheet(page))
+    reveal(page, "#window-confirm")
     page.click("#window-confirm")
-    page.wait_for_function(f"document.querySelectorAll('#design-table tbody tr').length === {before + 3}")
+    page.wait_for_function(f"document.querySelectorAll('#design-table tr[data-run]').length === {before + 3}")
     settled(page)
     assert page.locator("#window-confirm").is_hidden(), "the runs are there: their results are what is wanted"
     assert page.text_content("#window-out .lead").startswith("By the models, ")

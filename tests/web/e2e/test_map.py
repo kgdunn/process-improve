@@ -32,7 +32,7 @@ MAP = """() => { const plot = document.querySelector('#what-if-map-plot');
 AGREES = """() => { const plot = document.querySelector('#what-if-map-plot');
   const set = plot.data?.at(-1);
   if (!set || !plot._fullLayout) return false;
-  const boxes = Object.fromEntries([...document.querySelectorAll('#what-if-settings [data-factor]')]
+  const boxes = Object.fromEntries([...document.querySelectorAll('#what-if-settings td.what-if-factor')]
     .map((row) => [row.dataset.factor, Number(row.querySelector('input[name=number]')?.value)]));
   return [plot._fullLayout.xaxis, plot._fullLayout.yaxis].every((axis, i) => {
     const name = Object.keys(boxes).find((factor) => axis.title.text.startsWith(factor));
@@ -63,20 +63,17 @@ def mapped(page: Any) -> Any:  # noqa: ANN401
     """Return the worked example with What if on show and its map drawn, at the best settings."""
     reveal(page, "#what-if")
     page.wait_for_selector(f"#what-if-map:not([hidden]) {PLOT}.js-plotly-plot")
-    page.locator("#what-if").scroll_into_view_if_needed()
+    page.locator("#what-if-map").scroll_into_view_if_needed()
     return page
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 1440, "height": 900}}])
-def test_the_dials_and_the_map_are_in_view_together_on_a_laptop(mapped):
+def test_the_map_is_under_the_run_sheet_over_two_factors(mapped):
     page = mapped
     assert page.text_content("#what-if-map-title") == "Yield over Temperature and Pressure"
-    dials = page.locator("#what-if-settings").bounding_box()
+    sheet = page.locator("#design-table").bounding_box()
     chart = page.locator("#what-if-map").bounding_box()
-    assert dials["x"] + dials["width"] <= chart["x"], "side by side"
-    top = min(dials["y"], chart["y"])
-    bottom = max(dials["y"] + dials["height"], chart["y"] + chart["height"])
-    assert bottom - top <= 900 - 56, "both under the bar at once, on one screen"
+    assert sheet["y"] + sheet["height"] <= chart["y"], "under the run sheet, whose What-if row it sets"
     drawn = shown_map(page)
     assert [axis["title"] for axis in drawn["axes"]] == ["Temperature (degC)", "Pressure (bar)"]
     assert [axis["range"] for axis in drawn["axes"]] == [[150, 200], [1, 3]]
@@ -114,7 +111,7 @@ def test_a_press_and_a_drag_on_the_map_set_both_dials(mapped):
     page.mouse.move(*point_at(page, 160.2, 2.61), steps=6)
     page.mouse.up()
     assert setting(page, "Temperature") == pytest.approx(160, abs=0.5), "to the slider's step of 0.5"
-    assert setting(page, "Pressure") == pytest.approx(2.6, abs=0.02), "and of 0.02"
+    assert setting(page, "Pressure") == pytest.approx(2.61, abs=0.011), "and of 0.02: 2.60 or 2.62, a pixel decides"
     assert shown_map(page)["marks"]["The What-if row"] == [setting(page, "Temperature"), setting(page, "Pressure")]
     assert page.evaluate("window.__pi.count('api_predictors')") == calls, "in the page's own JavaScript"
 

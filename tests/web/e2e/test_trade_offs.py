@@ -118,7 +118,7 @@ def test_a_point_pressed_is_chosen_and_the_what_if_panel_moves_to_its_settings(t
     assert what_if == pytest.approx([tried["settings"][name][7] for name in ("T", "P", "F")], rel=1e-3)
     before = len(run_sheet(page))
     page.click("#trade-chosen button[data-act=confirm]")
-    page.wait_for_function(f"document.querySelectorAll('#design-table tbody tr').length === {before + 3}")
+    page.wait_for_function(f"document.querySelectorAll('#design-table tr[data-run]').length === {before + 3}")
     settled(page)
     page.click("#trade-chosen button[data-act=back]")
     assert page.locator("#trade-chosen table").count() == 0

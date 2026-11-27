@@ -424,7 +424,7 @@ def test_a_design_taken_from_the_detailed_comparison_reaches_the_run_sheet_as_ma
     page.click("#generate")
     settled(page)
     assert calls(page, "api_make_design") == [], "the comparison made it already"
-    assert page.locator("#design-table tbody tr").count() == chosen["design"]["n_runs"]
+    assert page.locator("#design-table tr[data-run]").count() == chosen["design"]["n_runs"]
     assert calls(page, "api_simulate"), "practicing: the same process, noise and seed, on the new runs"
     assert page.locator("#design-table input.sim").count() == chosen["design"]["n_runs"]
 
