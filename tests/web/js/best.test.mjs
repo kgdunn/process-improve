@@ -63,7 +63,7 @@ import {
   withConfirmationRuns,
   withUnit,
   withoutConfirmationRuns,
-  WHAT_IF_BACK,
+  WHAT_IF_PRESET,
   columnsAt,
   keptAs,
   predictAt,
@@ -85,6 +85,7 @@ import {
   goalBand,
   goalBandWords,
   goalVerdict,
+  bestRun,
   dotPiles,
   runsWords,
   profilePieces,
@@ -953,6 +954,17 @@ describe("what if", () => {
     assert.equal(goalVerdict(14.5, [13.5, 15.5], [10, 14]).met, false, "probably outside is not met");
   });
 
+  test("the best run so far: inside the most goals, then the best for the goal of the response Learn shows", () => {
+    const results = { Y: [60, 68, 66, null], C: [55, 66, 54, 50] };
+    const lead = { name: "Y", goal: "maximize" };
+    // Run 2 has the highest yield, but run 3 meets both goals; run 4 has no yield yet.
+    assert.deepEqual(bestRun(results, { Y: [52, null], C: [null, 60] }, lead), { place: 2, met: 2, judged: 2 });
+    assert.deepEqual(bestRun(results, {}, lead), { place: 1, met: 0, judged: 0 }, "no goal band: the highest yield");
+    assert.equal(bestRun(results, {}, { name: "C", goal: "minimize" }).place, 3, "the lowest cost, run 4 among them");
+    assert.equal(bestRun(results, {}, { name: "Y", goal: "target", target: 65 }).place, 2, "the closest to the target");
+    assert.equal(bestRun({ Y: [null, null] }, {}, lead), null, "no run measured yet");
+  });
+
   test("a prediction as runs: one for each t value Python sent, the outer two at the ends of the prediction interval", () => {
     // Five equally likely runs here: the t values at the middle of five equal shares, the outer two the interval's own.
     const fit = { ...FIT, run_quantiles: [-2.447, -0.8, 0, 0.8, 2.447] };
@@ -1122,7 +1134,7 @@ describe("what if", () => {
     assert.deepEqual(whatIfStart(PREDICTED, balance, best), { from: "balanced", settings: { T: 160, Catalyst: "B" } });
     assert.deepEqual(whatIfStart(PREDICTED, null, best), { from: "best", settings: { T: 190, Catalyst: "A" } });
     assert.deepEqual(whatIfStart(PREDICTED, null, { goal: "learn" }), { from: "center", settings: { T: 175, Catalyst: "A" } });
-    assert.equal(WHAT_IF_BACK.center, "Back to the center of the ranges");
+    assert.equal(WHAT_IF_PRESET.center, "the middle");
   });
 
   test("settings are kept while they fit the factors", () => {

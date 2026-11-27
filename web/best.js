@@ -868,6 +868,28 @@ export function goalVerdict(predicted, interval, [least, most]) {
   return { level, met: level <= 1, word: words[level] };
 }
 
+/**
+ * The best run so far, as the what-if table's headline names it. Of the runs measured for every response judged (those
+ * with a band in ``bands``, by name; with none, ``lead`` alone), the one inside the most goals, then the best for the
+ * goal of ``lead``, the response Learn shows: the highest to maximize, the lowest to minimize, the closest to a target.
+ * ``results`` holds each response's results by name, one per run, null where not measured. Returns the run's ``place``
+ * on the run sheet, how many goals it ``met`` and how many are ``judged``; or null when no run is measured.
+ */
+export function bestRun(results, bands, lead) {
+  const judged = Object.keys(bands).length ? Object.keys(bands) : [lead.name];
+  const toward = { maximize: (v) => v, minimize: (v) => -v }[lead.goal] ?? ((v) => -Math.abs(v - lead.target));
+  const runs = (results[lead.name] ?? []).map((_, place) => place);
+  let best = null;
+  for (const place of runs) {
+    const values = [...new Set([...judged, lead.name])].map((name) => results[name]?.[place]);
+    if (!values.every(Number.isFinite)) continue;
+    const met = judged.filter((name) => bands[name] && insideWindow([results[name][place]], bands[name])[0]).length;
+    const score = toward(results[lead.name][place]);
+    if (!best || met > best.met || (met === best.met && score > best.score)) best = { place, met, score };
+  }
+  return best && { place: best.place, met: best.met, judged: Object.keys(bands).length };
+}
+
 /** The words of goalVerdict's levels, for a band with two ends and for one with one. */
 export const VERDICT_TWO_ENDS = ["inside", "likely inside", "probably outside", "outside"];
 export const VERDICT_ONE_END = ["meets", "likely meets", "probably misses", "misses"];
@@ -946,11 +968,11 @@ export function whatIfStart(factors, balance, best) {
   return { from, settings: Object.fromEntries(factors.map((f) => [f.name, given[f.name] ?? middle(f)])) };
 }
 
-/** The button that brings the what-if panel back to where it started, by whatIfStart's ``from``. */
-export const WHAT_IF_BACK = {
-  balanced: "Back to the balanced settings",
-  best: "Back to the best settings",
-  center: "Back to the center of the ranges",
+/** The What-if row's preset of where it starts, by whatIfStart's ``from``, and of the middle of the ranges. */
+export const WHAT_IF_PRESET = {
+  balanced: "the best for every goal",
+  best: "the best settings",
+  center: "the middle",
 };
 
 /**

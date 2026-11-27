@@ -805,6 +805,12 @@
                predicts there, with its intervals and its leverage, in the page's own JavaScript, so it follows each move. -->
           <section id="what-if" class="best what-if" aria-labelledby="h-what-if" hidden>
             <h3 id="h-what-if">What if</h3>
+            <!-- The two headlines (app.js renderHeadlines): the best run so far, and how many goals the What-if row's
+                 settings meet or likely meet. -->
+            <div id="what-if-headlines" class="what-if-headlines" hidden>
+              <div id="what-if-best"><p class="hint">Best so far</p><p id="what-if-best-run" class="what-if-headline"></p></div>
+              <div id="what-if-met"><p class="hint">At the what-if settings</p><p id="what-if-goals-met" class="what-if-headline" role="status"></p></div>
+            </div>
             <p class="hint" id="what-if-about">Move a setting, and each response's prediction follows.</p>
             <div class="what-if-dials">
               <div id="what-if-settings" class="what-if-settings"></div>
@@ -816,12 +822,15 @@
                 <figcaption class="hint">Press or drag to set both.</figcaption>
               </figure>
             </div>
-            <p class="actions"><button type="button" id="what-if-back" class="link" hidden>Back to the best settings</button></p>
-            <div id="what-if-out"></div>
-            <!-- A prediction as runs (app.js drawRuns, best.js runsAt): for each response, the runs a reader might get
-                 at these settings (20 at 95%), each as likely as the next. The outer two are the ends of the prediction interval
-                 in the table above, and those inside the response's window are filled. -->
-            <div id="what-if-runs" class="what-if-runs" hidden></div>
+            <!-- The numbers behind the table (app.js renderWhatIf): each response's prediction, its two intervals and the
+                 leverage, a press away; and, in view, the limits the settings break and the models they lean on. -->
+            <div id="what-if-out">
+              <details id="what-if-numbers" class="what-if-numbers" hidden>
+                <summary>Show the intervals and the leverage</summary>
+                <div id="what-if-table" class="scroll"></div>
+              </details>
+              <div id="what-if-said"></div>
+            </div>
             <!-- The curve each run gives, predicted at these settings in the page's own JavaScript (best.js curveAt). -->
             <div id="what-if-curve" hidden>
               <div class="plot" id="what-if-curve-plot" role="img" aria-label="The curve predicted at these settings, with its bands"></div>

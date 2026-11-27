@@ -1364,46 +1364,77 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 .price { margin: 2px 0 6px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .next .offer p { margin: 2px 0 6px; font-size: 0.95rem; }
 
-/* What if: a dial per factor, side by side. Each is the factor's name, its profile (the response against it, which
-   takes a drag), a slider and a number box over its range (a list of its levels for a categorical one). Under
-   them, each response predicted there. */
+/* What if: one table (app.js renderWhatIfControls). Its first column names each response, then a column for each factor,
+   then each response against its goal. Each column is a grid of its own on the table's rows (subgrid), so a row lines
+   up across them: the factors' names, a row of pictures for each response, and the What-if row, which sets the
+   factors. On a narrow screen the table scrolls sideways, the responses' names held in place. */
 .what-if-settings {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); align-items: start;
-  gap: 14px 18px; margin: 8px 0 4px; font-size: 0.95rem;
+  display: grid; overflow-x: auto; margin: 8px 0 4px; font-size: 0.95rem;
+  grid-template-columns: minmax(8.5em, max-content) repeat(var(--factors, 1), minmax(104px, 1fr)) minmax(230px, 300px);
+  grid-template-rows: auto repeat(var(--responses, 0), auto) auto;
+  border: 1px solid var(--line); border-radius: var(--corner); background: var(--panel);
 }
-/* The dials beside the map they move, where there is room for both: in view together on a laptop. */
+.what-if-column { grid-row: 1 / -1; display: grid; grid-template-rows: subgrid; min-width: 0; }
+.what-if-cell { min-width: 0; padding: 4px 8px; border-bottom: 1px solid var(--line); }
+.what-if-head { display: flex; flex-direction: column; justify-content: flex-end; border-bottom: 2px solid var(--fg); }
+.what-if-names { position: sticky; left: 0; z-index: 1; background: var(--panel); }
+.what-if-response { display: flex; flex-direction: column; justify-content: center; line-height: 1.25; }
+.what-if-label, .what-if-name { font-weight: 600; overflow-wrap: anywhere; }
+.what-if-goal-words { color: var(--ink); font-size: 0.85rem; }
+.what-if-scale, .what-if-range { color: var(--muted); font-size: 0.8rem; }
+.what-if-picture { display: flex; align-items: center; padding: 2px 4px; }
+/* The What-if row: a run not made yet. It sets the factors: a number box over a slider, or a button for each level. */
+.what-if-row { display: flex; flex-direction: column; gap: 4px; border-top: 2px solid var(--fg); border-bottom: none; background: var(--bg); }
+.what-if-row__name { font-family: "Outfit", system-ui, -apple-system, "Segoe UI", sans-serif; font-weight: 500; }
+.what-if-factor input[type="number"] { width: 100%; color: var(--ink); font-weight: 600; }
+.what-if-factor input[type="range"] { width: 100%; min-height: 44px; margin: 0; accent-color: var(--accent); }
+.what-if-levels { display: flex; flex-wrap: wrap; gap: 2px; }
+.what-if-level {
+  flex: 1 1 0; min-height: 44px; padding: 2px 6px; border: 1px solid var(--accent); border-radius: var(--corner);
+  background: var(--panel); color: var(--accent); font-size: 0.85rem; cursor: pointer;
+}
+.what-if-level[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+.what-if-presets { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.what-if-presets .button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+/* A profile, a cell of the table: the response against the factor, the others as set (app.js PROFILE has its size). A
+   sideways drag sets the factor; an up or down swipe still scrolls the page on a phone. */
+.profile { display: block; width: 100%; height: 44px; cursor: ew-resize; touch-action: pan-y; }
+.profile__band { fill: var(--accent); fill-opacity: 0.18; stroke: none; }
+.profile__line { fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.profile__line--beyond { stroke-dasharray: 5 4; }
+.profile__at { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; vector-effect: non-scaling-stroke; }
+.profile__set { fill: var(--fg); }
+.profile__bar { stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.profile__level { fill: var(--panel); stroke: var(--fg); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.profile__level--set { fill: var(--fg); }
+/* Each response against its goal: its prediction and interval, the drawing, and the word for how it stands. */
+.what-if-goal { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0 8px; }
+.what-if-value { grid-column: 1 / -1; white-space: nowrap; }
+.what-if-interval { color: var(--muted); font-size: 0.85rem; }
+.what-if-verdict { font-size: 0.9rem; white-space: nowrap; }
+.what-if-verdict--off { color: var(--error); }
+.goal-bar { display: block; width: 100%; max-width: 200px; height: 30px; }
+.goal-bar__axis { stroke: var(--line); stroke-width: 1; }
+.goal-bar__band { fill: var(--ink); fill-opacity: 0.14; }
+.goal-bar__interval { stroke: var(--accent); stroke-width: 3; stroke-linecap: round; }
+.goal-bar__predicted { fill: var(--fg); stroke: var(--panel); stroke-width: 1.5; }
+.goal-bar__run { fill: var(--panel); stroke: var(--accent); stroke-width: 1; }
+.goal-bar__run--inside { fill: var(--accent); }
+/* The two headlines over the table: the best run so far, and the goals the What-if row's settings meet. */
+.what-if-headlines { display: flex; flex-wrap: wrap; gap: 8px 40px; margin: 4px 0 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.what-if-headlines > div { flex: 1 1 320px; min-width: 0; }
+.what-if-headlines p { margin: 0; }
+.what-if-headline { font-family: "Outfit", system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 1.35rem; line-height: 1.25; }
+.what-if-numbers { margin: 8px 0 0; }
+/* The table beside the map it moves, where there is room for both: in view together on a wide laptop. */
 .what-if-dials { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px 22px; align-items: start; }
 .what-if-map { margin: 8px 0 0; }
 .what-if-map h4 { margin: 0 0 4px; font-size: 0.95rem; }
 /* A sideways drag is the map's; an up or down swipe still scrolls the page on a phone. */
 .what-if-map .plot { min-height: 300px; cursor: crosshair; touch-action: pan-y; }
 @media (min-width: 1100px) {
-  .what-if-dials:has(.what-if-map:not([hidden])) { grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr); }
+  .what-if-dials:has(.what-if-map:not([hidden])) { grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr); }
 }
-.what-if-factor { display: grid; grid-template-columns: 7em minmax(0, 1fr); align-items: center; gap: 4px 8px; min-width: 0; }
-.what-if-name { grid-column: 1 / -1; font-weight: 600; overflow-wrap: anywhere; }
-.what-if-factor input[type="range"] { grid-column: 1 / -1; width: 100%; margin: 0; accent-color: var(--accent); }
-.what-if-factor input[type="number"] { width: 100%; }
-.what-if-factor select { grid-column: 1 / -1; justify-self: start; max-width: 100%; }
-.what-if-range { color: var(--muted); font-size: 0.9rem; }
-/* A profile: drawn to its dial's width (app.js PROFILE has its height). A sideways drag sets the factor; an up or
-   down swipe still scrolls the page on a phone. */
-.profile {
-  grid-column: 1 / -1; display: block; width: 100%; height: 132px; cursor: ew-resize;
-  touch-action: pan-y; border: 1px solid var(--line); border-radius: var(--corner); background: var(--panel);
-}
-/* With a row of profiles for each response, each is shorter, and says which response it is of. */
-.what-if-settings--rows .profile { height: 96px; }
-.profile__name { fill: var(--fg); font-size: 11px; font-weight: 600; }
-.profile__band { fill: var(--accent); fill-opacity: 0.16; stroke: none; }
-.profile__line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-.profile__line--beyond { stroke-dasharray: 5 4; }
-.profile__at { stroke: var(--fg); stroke-width: 1; stroke-dasharray: 2 3; vector-effect: non-scaling-stroke; }
-.profile__set { fill: var(--panel); stroke: var(--fg); stroke-width: 2; vector-effect: non-scaling-stroke; }
-.profile__bar { stroke: var(--accent); stroke-width: 2; stroke-opacity: 0.45; vector-effect: non-scaling-stroke; }
-.profile__level { fill: var(--accent); }
-.profile__level--set { fill: var(--panel); stroke: var(--fg); stroke-width: 2; vector-effect: non-scaling-stroke; }
-.profile__end { fill: var(--muted); font-size: 11px; }
 .what-if table.data td:nth-child(n + 3) { text-align: left; }
 /* The settings kept with the study: their name and settings, each response there, and what to do with them. */
 .what-if-keep input[type="text"] { flex: 1 1 12rem; min-width: 0; }
@@ -1420,17 +1451,6 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 /* The campaign's two charts, side by side where there is room for both. */
 .campaign-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 16px; margin: 12px 0 0; }
 .campaign-charts .chart { margin: 0; min-width: 0; }
-/* A prediction as runs: for each response, dots that pile up where a run is likelier (app.js RUNS has the sizes). A
-   run inside the response's window is filled, one outside is a ring, and the window is shaded behind them. */
-.what-if-runs { display: flex; flex-wrap: wrap; gap: 6px 28px; margin: 10px 0 4px; }
-.runs-figure { margin: 0; max-width: 100%; }
-.runs-figure figcaption { max-width: 240px; margin: 2px 0 0; }
-.runs { display: block; max-width: 100%; height: auto; overflow: visible; }
-.runs__window { fill: var(--accent); fill-opacity: 0.14; }
-.runs__foot { stroke: var(--line); stroke-width: 1; }
-.runs__run { fill: var(--panel); stroke: var(--accent); stroke-width: 1.5; }
-.runs__run--inside { fill: var(--accent); }
-.runs__end { fill: var(--muted); font-size: 11px; }
 
 /* The balance of the responses: each response's goal in a compact table of boxes and choices, then the balance as the
    best settings show theirs, and the overlay of the acceptable ranges. */
