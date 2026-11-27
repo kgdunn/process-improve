@@ -1,0 +1,1 @@
+- factori.al's What-if map is beside the run sheet on a wide screen, in view with the What-if row it sets, and stays in view as the runs scroll past. On a narrower screen it is under the run sheet. The rule under a run's number is drawn again when the sheet scrolls sideways.

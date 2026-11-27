@@ -1368,7 +1368,10 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
    over the goals, a row of pictures for each response, the What-if row, which sets the factors, and its presets. The
    sheet scrolls sideways in its own box on a narrow screen, the names of the rows held in place. */
 table.runs .what-if-body > tr > * { vertical-align: middle; }
+/* Each cell has its own rule under it (not one the table shares out), so the rule moves with a cell held in place. */
+table.runs { border-collapse: separate; border-spacing: 0; }
 table.runs tr > :first-child { position: sticky; left: 0; z-index: 1; background: var(--panel); }
+table.runs tr:has(+ tr.what-if-row) > * { border-bottom: none; } /* the What-if row's own rule is over it */
 table.runs .what-if-head {
   padding: 12px 10px 4px; border-bottom: 2px solid var(--fg); text-align: left;
   font-family: "Outfit", system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 0.95rem; font-weight: 600;
@@ -1429,6 +1432,14 @@ table.runs .what-if-presets-row > td { padding: 8px 10px 12px; text-align: left;
 .what-if-headlines p { margin: 0; }
 .what-if-headline { font-family: "Outfit", system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 1.35rem; line-height: 1.25; }
 .what-if-numbers { margin: 8px 0 0; }
+/* The run sheet and the map that sets its What-if row: one under the other, and side by side where there is room for
+   both, so a drag on the map and the predictions it moves are in view together. The map then stays under the study's
+   bar as the runs scroll past. */
+.sheet-and-map { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 22px; align-items: start; }
+@media (min-width: 1200px) {
+  .sheet-and-map:has(.what-if-map:not([hidden])) { grid-template-columns: minmax(0, 1fr) clamp(300px, 26%, 400px); }
+  .sheet-and-map > .what-if-map { position: sticky; top: 62px; margin-top: 12px; }
+}
 .what-if-map { margin: 8px 0 0; }
 .what-if-map h4 { margin: 0 0 4px; font-size: 0.95rem; }
 /* A sideways drag is the map's; an up or down swipe still scrolls the page on a phone. */

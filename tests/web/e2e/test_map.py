@@ -67,16 +67,48 @@ def mapped(page: Any) -> Any:  # noqa: ANN401
     return page
 
 
-@pytest.mark.parametrize("context_options", [{"viewport": {"width": 1440, "height": 900}}])
-def test_the_map_is_under_the_run_sheet_over_two_factors(mapped):
+#: Where the map, the run sheet's box and the What-if row are in the window: each as its left, top, right and bottom.
+PLACES = """() => Object.fromEntries(Object.entries(
+  { map: '#what-if-map', sheet: '.sheet-and-map > .scroll', row: '#what-if-settings tr.what-if-row' })
+  .map(([name, part]) => { const box = document.querySelector(part).getBoundingClientRect();
+    return [name, { left: box.left, top: box.top, right: box.right, bottom: box.bottom }]; }))"""
+
+
+@pytest.mark.parametrize(
+    "context_options",
+    [{"viewport": {"width": 1440, "height": 900}}, {"viewport": {"width": 1200, "height": 800}}],
+    ids=["a wide laptop", "a laptop"],
+)
+def test_on_a_wide_screen_the_map_is_beside_the_run_sheet_in_view_with_the_what_if_row(mapped):
     page = mapped
     assert page.text_content("#what-if-map-title") == "Yield over Temperature and Pressure"
-    sheet = page.locator("#design-table").bounding_box()
-    chart = page.locator("#what-if-map").bounding_box()
-    assert sheet["y"] + sheet["height"] <= chart["y"], "under the run sheet, whose What-if row it sets"
+    high = page.viewport_size["height"]
+    page.locator("#what-if-settings tr.what-if-row").evaluate("(row) => row.scrollIntoView({ block: 'center' })")
+    at = page.evaluate(PLACES)
+    assert at["sheet"]["right"] <= at["map"]["left"], "side by side"
+    for part in ("map", "row"):
+        assert at[part]["top"] >= 0, f"the {part} is in view: a drag on the map and the row it sets, together"
+        assert at[part]["bottom"] <= high
+    sheet = page.locator(".sheet-and-map > .scroll")
+    assert sheet.evaluate("(box) => box.scrollWidth <= box.clientWidth"), "and the run sheet still fits its box"
     drawn = shown_map(page)
     assert [axis["title"] for axis in drawn["axes"]] == ["Temperature (degC)", "Pressure (bar)"]
     assert [axis["range"] for axis in drawn["axes"]] == [[150, 200], [1, 3]]
+
+    # The runs scroll past, and the map stays under the study's bar while the run sheet is in view.
+    page.locator("#design-table tr[data-run]").nth(10).evaluate("(row) => row.scrollIntoView({ block: 'center' })")
+    later = page.evaluate(PLACES)
+    assert later["row"]["top"] < at["row"]["top"], "the What-if row has gone up with the page"
+    bar = page.locator("#studybar").bounding_box()
+    assert bar["y"] + bar["height"] <= later["map"]["top"] <= 100, "the map is held under the bar"
+    assert later["map"]["bottom"] <= high
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 1000, "height": 800}}])
+def test_on_a_narrower_screen_the_map_is_under_the_run_sheet(mapped):
+    at = mapped.evaluate(PLACES)
+    assert at["sheet"]["bottom"] <= at["map"]["top"], "under the run sheet, whose What-if row it sets"
+    assert at["map"]["left"] == at["sheet"]["left"]
 
 
 def test_the_map_marks_where_the_dials_are_and_stars_the_best_settings(mapped):

@@ -6842,6 +6842,7 @@ function clearWhatIf() {
   state.curve.target = null; // a target belongs to the panel it was matched in
   $("#curve-target-said").textContent = "";
   $("#what-if").hidden = true;
+  $("#what-if-map").hidden = true;
   $("#what-if-headlines").hidden = true;
   $("#what-if-about").hidden = true;
   delete whatIfBody.dataset.key;

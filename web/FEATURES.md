@@ -322,10 +322,13 @@ Also:
     are a press away, under the run sheet. On a phone the run sheet scrolls sideways, the names
     of its rows held in place. Learn has a link to the What-if row. The Python gives the
     profiles of the response Learn shows.
-- **A map under the run sheet.** The response over two factors, with the others where the
+- **A map beside the run sheet.** The response over two factors, with the others where the
   What-if row has them. Press or drag on it to set both factors at once. It marks where the
   row is, stars the best settings, and fades where the settings lie beyond the runs.
-  - *Details:* The two factors are those you gave the response surface among the charts, else the first two numeric ones.
+  - *Details:* On a wide screen the map is beside the run sheet, in view with the What-if row it
+    sets, and it stays in view as the runs scroll past; on a narrower one it is under the run
+    sheet. The two factors are those you gave the response surface among the charts, else the
+    first two numeric ones.
     The star is drawn when the map passes through the best settings. On a phone a tap sets
     both factors, and an up or down swipe still scrolls the page. Its window shows the Python
     that draws the same surface.
@@ -795,7 +798,7 @@ Also:
   over two factors, with each round's model drawn inside that round's own ranges. Beside it,
   every run in the order they were made, with the best result so far.
   - *Details:* A box marks each round's ranges, and one scale of color serves every round.
-    The two factors are those of the map under the run sheet. A choice shows the campaign as it
+    The two factors are those of the map beside the run sheet. A choice shows the campaign as it
     stood after an earlier round. A target is a level line. Each chart opens large and shows
     Python that draws it.
 
