@@ -1541,6 +1541,9 @@ dialog.library { width: min(760px, 100vw - 32px); font-size: 0.92rem; }
 .check input:not([type="radio"]) { width: auto; }
 .share input { width: 100%; font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 0.82rem; }
 .share .hint { margin: 6px 0 0; }
+/* A room's box: its link, what it means, how it stands, and the two ways out of it, side by side. */
+.room { margin-top: 12px; }
+.room__leave { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 8px 0 0; }
 
 
 /* How Factorial works (technical-details-how-factorial-works.html): a page of prose, in a column a reader's eye can follow, with a

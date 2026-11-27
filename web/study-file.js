@@ -45,8 +45,11 @@ export const FILE_FORMAT = "factorial-studies";
 /** The file's own version: it goes up only for a change an earlier Factorial would misread. */
 export const FILE_VERSION = 1;
 
-/** A study's fields that are this browser's bookkeeping, not the study: the file holds them beside it. */
-const BOOKKEEPING = ["id", "created", "updated"];
+/**
+ * A study's fields that are this browser's bookkeeping, not the study: the file holds the first three beside it. The
+ * room a study is kept in step through (room.js) stays out: its secret opens the room, and a file is not a room's link.
+ */
+const BOOKKEEPING = ["id", "created", "updated", "room"];
 
 const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 

@@ -370,6 +370,7 @@ import {
   unpackCampaign,
 } from "./campaign.js";
 import { fileStem, readStudyFile, runsDigest, studyFile } from "./study-file.js";
+import { ROOM_KEY, RoomError, mergeRoom, newSecret, openStudy, readRoom, removeRoom, resultsOf, roomOf, sealStudy, secretOf, writeRoom } from "./room.js";
 import {
   adoptLimits,
   currentLimits,
@@ -685,6 +686,9 @@ const state = {
   commit: null, // the commit the app was built from, as its manifest names it
   committed: null, // the day of that commit, as 2026-11-13, when the build could tell
   campaign: null, // this browser's record of the study on the page, {id, created, title}; null for the worked example
+  // The room the study is kept in step through, with other browsers (room.js): its secret, keys, the version this
+  // browser last saw and the results it held then, and the id of the study it is of; null outside a room.
+  room: null,
   example: false, // the worked example is on the page, as the build made it or as run again here
   exampleBrief: null, // the worked example's brief, as briefKey gives it
   version: null, // the process-improve release Python runs, once it has started
@@ -907,6 +911,7 @@ function renderStudyBar() {
   $("#study-about").textContent = about ? `· ${about}` : "";
   renderQuestion();
   renderBadges();
+  renderRoom();
 }
 
 /** The question in one line, which Run and Learn show in place of the brief: the response, the factors and the aim. */
@@ -3452,6 +3457,7 @@ function resultsChanged() {
   renderBadges();
   scheduleAnalysis();
   scheduleSave();
+  roomSoon();
 }
 
 /** Run says so at its top once every run has a result for every response: the next step is Learn. */
@@ -9331,7 +9337,9 @@ function flushSave() {
 async function saveNow() {
   if (!state.campaign || !state.design) return;
   const { id, created } = state.campaign;
-  await saveCampaign({ ...currentCampaign(), id, created, updated: Date.now() });
+  const room = currentRoom();
+  const kept = room ? { room: { secret: room.secret, version: room.version, base: room.base } } : {};
+  await saveCampaign({ ...currentCampaign(), id, created, updated: Date.now(), ...kept });
   await refreshLibrary();
 }
 
@@ -9538,7 +9546,7 @@ async function openSaved(record) {
     setStatus(err.message, "error");
     return;
   }
-  await openCampaign(campaign, { id: record.id, created: record.created }, `Opened ${campaign.title}.`, true);
+  await openCampaign(campaign, { id: record.id, created: record.created, room: record.room }, `Opened ${campaign.title}.`, true);
 }
 
 /** Say what was opened, or why a link could not be: a sentence, or a list of text and links. */
@@ -9577,7 +9585,9 @@ async function openCampaign(c, record, message, resume = false) {
   setForm(c.design.spec);
   const left = stageLeft(record.id);
   state.practiceRound = false;
-  state.campaign = { ...record, title: c.title || titleOf(c.design.spec), ...(c.source ? { source: c.source } : {}) };
+  const { room, ...bookkeeping } = record;
+  state.campaign = { ...bookkeeping, title: c.title || titleOf(c.design.spec), ...(c.source ? { source: c.source } : {}) };
+  state.room = null;
   state.design = { ...c.design, ...(c.planned ? { planned: structuredClone(c.planned) } : {}) };
   state.planKey = planKey();
   const names = resultNames();
@@ -9629,6 +9639,7 @@ async function openCampaign(c, record, message, resume = false) {
   // results call for. Read before the page is drawn, which keeps the stage it shows.
   showPhase((resume && left) || (done ? "learn" : "run"));
   scheduleSave(); // the study opened most recently is the one a later visit picks up
+  if (room?.secret) enterRoom(room);
   if (!done) return;
   const mine = state.campaign.id;
   await whenReady.then(
@@ -9655,6 +9666,16 @@ const savedSoon = () => Promise.race([savedCampaigns(), new Promise((resolve) =>
 async function start() {
   const { hash } = location;
   const params = new URLSearchParams(location.search);
+  if (hash.startsWith(ROOM_KEY)) {
+    // The secret leaves the address at once: a reload opens the study this browser now keeps in step with the room.
+    history.replaceState(null, "", `${location.pathname}${location.search}`);
+    try {
+      await openRoom(secretOf(hash));
+      return;
+    } catch (err) {
+      showBanner(err.message, true);
+    }
+  }
   const book = params.get(BOOK_PARAM) ?? params.get(EXAMPLE_PARAM); // the book's examples and the published ones share one index
   if (book === WORKED) {
     await refreshLibrary();
@@ -9692,7 +9713,7 @@ async function start() {
       const c = checkCampaign(last);
       await openCampaign(
         c,
-        { id: last.id, created: last.created },
+        { id: last.id, created: last.created, room: last.room },
         `Picked up where you left off: ${c.title}, saved ${timeAgo(last.updated)}.`,
         true,
       );
@@ -9775,7 +9796,7 @@ async function resultsCameBack(c) {
     ? `Added ${plural(added, "result")} from a link to ${here.title}, kept in this browser.`
     : `The link's results are already in ${here.title}, kept in this browser.`;
   if (kept) message += ` ${plural(kept, "run")} already had a different result here, which ${kept === 1 ? "was" : "were"} kept.`;
-  await openCampaign({ ...here, ...merged }, { id: match.id, created: match.created }, message);
+  await openCampaign({ ...here, ...merged }, { id: match.id, created: match.created, room: match.room }, message);
   return true;
 }
 
@@ -9805,6 +9826,296 @@ async function shareLink() {
     (url.length > 8000 ? ` At ${url.length} characters, some chat apps cut it: the workbook is the surer way to send it.` : "");
   $("#share-out").hidden = false;
   $("#share-url").select();
+}
+
+// ---------------------------------------------------------------- rooms
+// A room keeps the study on the page in step with other browsers (room.js): each keeps the whole study, and the
+// site's relay keeps one copy, sealed with a key only the room's link holds. A page in a room looks at it when it
+// opens, when the reader comes back to it, every ROOM_EVERY while in view, and soon after a result changes.
+
+/** How often, in milliseconds, a page in view asks whether its room changed; how long after a result it writes. */
+const ROOM_EVERY = 15000;
+const ROOM_SOON = 1500;
+let roomTimer = null; // the next look at the room
+let roomBusy = null; // the look under way, which a look asked for meanwhile waits behind
+let roomAgain = false;
+let roomSaid = "";
+let roomTroubled = null; // the status line's ticket when the room last put trouble on it
+
+/** The room of the study on the page, or null: a room belongs to the study it was entered with. */
+const currentRoom = () => (state.room && state.room.of === state.campaign?.id ? state.room : null);
+
+/** The room's link, which carries its secret after the "#". */
+const roomLink = (room) => `${location.origin}${location.pathname}${ROOM_KEY}${room.secret}`;
+
+/** Put the study on the page in the room ``kept`` names, as its record keeps it ({secret, version, base}), and look. */
+function enterRoom(kept) {
+  const room = { secret: kept.secret, version: kept.version ?? null, base: kept.base ?? null, design: null, of: state.campaign?.id };
+  room.ready = roomOf(kept.secret).then((keys) => Object.assign(room, keys));
+  state.room = room;
+  roomSaid = "";
+  renderRoom();
+  lookAtRoom();
+}
+
+/** Show whether the study is in a room: the button that shares it in one or copies its link, and the room's box. */
+function renderRoom() {
+  const room = currentRoom();
+  const button = $("#room-share");
+  button.hidden = !state.campaign; // the worked example is not kept in this browser, so it cannot keep in step
+  button.textContent = room ? "Copy the room's link" : "Work on it together";
+  $("#room-out").hidden = !room;
+  if (!room) return;
+  $("#room-url").value = roomLink(room);
+  $("#room-says").textContent = roomSaid;
+}
+
+/**
+ * Say how the room is, under the room's link; ``trouble`` also on the status line, which the room clears again once
+ * it is in step, if nothing was said there since.
+ */
+function roomSays(words, trouble = false) {
+  if (words === roomSaid) return;
+  roomSaid = words;
+  $("#room-says").textContent = words;
+  $("#room-says").classList.toggle("error", trouble);
+  if (trouble) {
+    setStatus(words, "error");
+    roomTroubled = statusTicket;
+  } else if (roomTroubled === statusTicket) {
+    clearStatus();
+    roomTroubled = null;
+  }
+}
+
+/** Share the study in a new room, sealed with a new secret, or copy the link of the room it is in. */
+async function shareRoom() {
+  if (!state.design || !state.campaign) return;
+  if (!currentRoom()) {
+    const keys = await roomOf(newSecret());
+    try {
+      const wrote = await writeRoom(keys, await sealStudy(keys, shareable(currentCampaign(), true)), null);
+      if (wrote.moved) throw new RoomError(412, "A room was made with this secret already: try again."); // not with a new secret
+      const base = resultsOf(currentCampaign());
+      state.room = { ...keys, ready: Promise.resolve(keys), version: wrote.version, base, design: designKey(state.design), of: state.campaign.id };
+    } catch (err) {
+      toast(err.message, "error");
+      return;
+    }
+    roomSaid = "";
+    flushSave();
+    await saveNow();
+    roomSays(`In step with the room, ${clockTime()}.`);
+    nextLook();
+  }
+  renderRoom();
+  const url = roomLink(currentRoom());
+  let copied = true;
+  try {
+    await navigator.clipboard.writeText(url);
+  } catch {
+    copied = false;
+  }
+  toast(copied ? "The room's link is copied: send it to whoever works on this study with you." : "Copy the room's link from the box.", copied ? "ok" : "error");
+  $("#room-url").select();
+}
+
+/** The time of day, as hours and minutes. */
+const clockTime = () => new Date().toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" });
+
+/**
+ * Open a room's link: the study this browser keeps in step with it already, or the same design kept here before
+ * (a run sheet shared by link, say), which its results join, or else the room's study, saved here as a new one.
+ */
+async function openRoom(secret) {
+  const saved = await savedSoon();
+  const readable = (record) => {
+    try {
+      return checkCampaign(record);
+    } catch {
+      return null;
+    }
+  };
+  const mine = saved.find((record) => record.room?.secret === secret && readable(record));
+  if (mine) {
+    const c = readable(mine);
+    await openCampaign(c, { id: mine.id, created: mine.created, room: mine.room }, `Opened ${c.title}, which this browser keeps in step with its room.`, true);
+    return;
+  }
+  const keys = await roomOf(secret);
+  const read = await readRoom(keys);
+  if (read.gone) throw new RoomError(404, `This room could not be opened: it is gone. ${GONE}`);
+  const there = await openStudy(keys, read.blob);
+  const key = designKey(there.design);
+  const same = saved.find((record) => readable(record) && designKey(readable(record).design) === key);
+  const title = there.title || titleOf(there.design.spec);
+  const joined = "Results typed here reach the others in the room, and theirs reach you.";
+  if (same) {
+    // Its base is unknown: the first look merges the two, a result here kept where the room has none.
+    const c = readable(same);
+    await openCampaign(c, { id: same.id, created: same.created, room: { secret } }, `Joined the room of ${c.title}, kept in this browser. ${joined}`, true);
+    return;
+  }
+  const room = { secret, version: read.version, base: resultsOf(there) };
+  await openCampaign(there, { ...newCampaign(false), room }, `Opened a study shared in a room: ${title}. ${joined} It is saved in this browser, under Your studies.`);
+}
+
+/** What a reader is told of a room that is gone, and what is left of it. */
+const GONE = "Someone in it removed it, or nobody changed it for 30 days. Each browser that was in it keeps its own copy of the study.";
+
+/** Look at the room soon, after a result changed here: a few changes in a row go together. */
+function roomSoon() {
+  if (!currentRoom()) return;
+  clearTimeout(roomTimer);
+  roomTimer = setTimeout(lookAtRoom, ROOM_SOON);
+}
+
+/** Look at the room now, and once that is done, again in ROOM_EVERY while the page is in view. */
+function lookAtRoom() {
+  clearTimeout(roomTimer);
+  roomTimer = null;
+  if (!currentRoom()) return;
+  keepInStep().finally(nextLook);
+}
+
+function nextLook() {
+  if (currentRoom() && roomTimer === null && document.visibilityState === "visible") roomTimer = setTimeout(lookAtRoom, ROOM_EVERY);
+}
+
+/** One look at the room at a time: a look asked for during one follows it. */
+function keepInStep() {
+  if (roomBusy) {
+    roomAgain = true;
+    return roomBusy;
+  }
+  roomBusy = stepWithRoom().finally(() => {
+    roomBusy = null;
+    if (roomAgain) {
+      roomAgain = false;
+      keepInStep();
+    }
+  });
+  return roomBusy;
+}
+
+/**
+ * Read what changed in the room and merge it in, then write what is new here. A write that finds someone wrote
+ * first reads again and merges again. The room holds one design: a study whose runs changed after it was shared
+ * stops keeping in step, and says so.
+ */
+async function stepWithRoom() {
+  const room = currentRoom();
+  if (!room) return;
+  const left = () => currentRoom() !== room;
+  const changed = `The runs of this study changed after it was shared in its room, so it no longer keeps in step: the room keeps the runs it had. Share it in a new room to go on together.`;
+  try {
+    await room.ready;
+    for (let tries = 0; tries < 3; tries += 1) {
+      if (room.design && room.design !== designKey(state.design)) return roomSays(changed, true);
+      const read = await readRoom(room, room.design ? room.version : null);
+      if (left()) return;
+      if (read.gone) return roomGone(room);
+      if (!read.same) {
+        const there = await openStudy(room, read.blob);
+        if (left()) return;
+        room.design = designKey(there.design);
+        if (room.design !== designKey(state.design)) return roomSays(changed, true);
+        room.version = read.version;
+        takeFromRoom(room, resultsOf(there));
+      }
+      const here = resultsOf(currentCampaign());
+      if (JSON.stringify(here) === JSON.stringify(room.base)) {
+        roomSays(`In step with the room, ${clockTime()}.`);
+        scheduleSave();
+        return;
+      }
+      const wrote = await writeRoom(room, await sealStudy(room, shareable(currentCampaign(), true)), room.version);
+      if (left()) return;
+      if (wrote.moved) {
+        room.design = null; // read it whole again: someone wrote first
+        continue;
+      }
+      Object.assign(room, { version: wrote.version, base: here });
+      roomSays(`In step with the room, ${clockTime()}.`);
+      scheduleSave();
+      return;
+    }
+    roomSays("Others in the room are changing it fast: Factorial tries again in a moment.");
+  } catch (err) {
+    // No answer, a busy relay or a server's failure passes: the next look tries again, and the changes are kept here.
+    const passing = err instanceof RoomError && (err.status === 0 || err.status === 429 || err.status >= 500);
+    if (!left()) roomSays(err.message, !passing);
+  }
+}
+
+/**
+ * Merge the room's results into the page's (room.js mergeRoom), and show those that came: in their boxes, and in a
+ * word on what came and what was replaced. The analysis follows, as for a result typed.
+ */
+function takeFromRoom(room, there) {
+  const names = resultNames();
+  const merged = mergeRoom(resultsOf(currentCampaign()), room.base, there, names[0]);
+  room.base = there;
+  const { results: r, took, replaced } = merged;
+  if (!took.length && !replaced.length) return;
+  state.results = joinResults(names, [...r.responses], structuredClone(r.more_responses ?? {}));
+  state.marks = joinResults(names, [...r.sources], structuredClone(r.more_sources ?? {}));
+  if (r.curves) state.curves = structuredClone(r.curves);
+  // Each box shows its result as the study now holds it, the one being typed in too: every key typed is in the study
+  // already, so the box and the study never differ. The table is not drawn again, so the reader's place in it stays.
+  for (const { name, run } of [...took, ...replaced]) {
+    if (name === "curve") continue;
+    const box = $("#design-table").querySelector(`input[data-index="${run}"][data-response="${CSS.escape(name)}"]`);
+    if (!box) continue;
+    box.value = state.results[name][run] ?? "";
+    box.classList.toggle("sim", state.marks[name][run] === "simulated");
+  }
+  if ([...took, ...replaced].some(({ name }) => name === "curve")) renderCurves();
+  resultsChanged();
+  const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  const count = took.length + replaced.length;
+  toast(`${plural(count, "result")} came from the room.`);
+  if (replaced.length) {
+    const each = replaced.map(({ name, run, mine, theirs }) => `${wordsOf(name === "curve" ? names[0] : name).label}, run ${runOrderOf(run)}: ${mine === null ? "blank" : JSON.stringify(mine)} here, ${theirs === null ? "blank" : JSON.stringify(theirs)} in the room`);
+    showBanner(`Someone in the room changed ${plural(replaced.length, "result")} you changed here too, and theirs reached the room first, so it is kept: ${each.join("; ")}. Type yours again to change it back.`);
+  }
+}
+
+/** The room is gone from the relay: this browser keeps the study, out of the room. */
+function roomGone(room) {
+  if (currentRoom() !== room) return;
+  state.room = null;
+  clearTimeout(roomTimer);
+  roomTimer = null;
+  renderRoom();
+  scheduleSave();
+  showBanner(`The room of this study is gone. ${GONE} Share it again to go on together.`, true);
+}
+
+/** Leave the room, here only; or, with ``remove``, remove it from the relay for everyone. The study stays here. */
+async function leaveRoom(remove) {
+  const room = currentRoom();
+  if (!room) return;
+  if (remove) {
+    try {
+      await room.ready;
+      await removeRoom(room);
+    } catch (err) {
+      roomSays(err.message, true);
+      return;
+    }
+  }
+  state.room = null;
+  clearTimeout(roomTimer);
+  roomTimer = null;
+  renderRoom();
+  flushSave();
+  await saveNow();
+  toast(
+    remove
+      ? "The room is removed from the server. Each browser that was in it keeps its own copy of the study."
+      : "This browser left the room. The study stays here; the others in the room go on without it.",
+  );
 }
 
 // ---------------------------------------------------------------- show the Python code
@@ -10625,6 +10936,11 @@ $("#learn-report-button").onclick = downloadReport;
 $("#report-view").onclick = viewReport;
 $("#learn-report-view").onclick = viewReport;
 $("#share").onclick = shareLink;
+$("#room-share").onclick = shareRoom;
+$("#room-leave").onclick = () => leaveRoom(false);
+$("#room-remove").onclick = () => leaveRoom(true);
+// A page in a room looks at it as the reader comes back to it.
+window.addEventListener("focus", lookAtRoom);
 $("#model").onchange = () => {
   if ($("#model").value === CHOSEN_TERMS && state.design) startTermList();
   else modelBefore = $("#model").value;
@@ -10707,9 +11023,13 @@ for (const type of ["dragover", "drop"]) {
 $("#download-all").onclick = downloadAll;
 // A reader who closes the tab, reloads it, or puts the phone away, straight after typing a result or a brief keeps it.
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState !== "hidden") return;
+  if (document.visibilityState !== "hidden") {
+    lookAtRoom();
+    return;
+  }
   flushSave();
   flushDraft();
+  if (currentRoom() && roomTimer !== null) lookAtRoom(); // a result typed just before goes to the room
 });
 installLimits({ call, factors: readFactors, changed: limitsChanged, runs: picturedRuns });
 // A report of a problem: the study goes only when the reader ticks it, with its results, packed as a link carries it.

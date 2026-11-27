@@ -49,6 +49,7 @@
   <link rel="modulepreload" href="numbers.js">
   <link rel="modulepreload" href="campaign.js">
   <link rel="modulepreload" href="study-file.js">
+  <link rel="modulepreload" href="room.js">
   <link rel="modulepreload" href="report.js">
   <link rel="modulepreload" href="limits.js">
   <link rel="modulepreload" href="corners.js">
@@ -779,10 +780,24 @@
             <button type="button" id="report" class="button">Download report (.html)</button>
             <button type="button" id="share" class="button">Copy a link to this study</button>
             <label class="check"><input type="checkbox" id="share-results" checked> with its results</label>
+            <button type="button" id="room-share" class="button">Work on it together</button>
           </div>
           <div id="share-out" class="share" hidden>
             <input id="share-url" readonly aria-label="A link to this study" aria-describedby="share-note">
             <p id="share-note" class="hint"></p>
+          </div>
+          <!-- A room (app.js, room.js): this study kept in step with other browsers, through a server that keeps it
+               sealed with a key only the link holds. -->
+          <div id="room-out" class="share room" hidden>
+            <input id="room-url" readonly aria-label="The room's link" aria-describedby="room-note">
+            <p id="room-note" class="hint">Whoever opens this link sees this study, and their results and yours reach
+              each other. The study is sealed in this browser with a key that only the link holds, after its "#": the
+              server keeps it sealed and cannot read it. Send the link only to those who should see the study.</p>
+            <p id="room-says" class="hint" role="status"></p>
+            <p class="room__leave">
+              <button type="button" id="room-leave" class="link">Leave the room</button>
+              <button type="button" id="room-remove" class="link">Remove the room for everyone</button>
+            </p>
           </div>
         </div>
         <details class="python" id="py-run" hidden>
