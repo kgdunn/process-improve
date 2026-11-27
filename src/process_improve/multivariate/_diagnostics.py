@@ -53,8 +53,8 @@ def vip(model: BaseEstimator, n_components: int | None = None) -> pd.Series:
 
     .. math::
 
-        \\text{VIP}_j = \\sqrt{K \\cdot
-            \\frac{\\sum_{a=1}^{A} r2_a \\cdot w_{ja}^2}{\\sum_{a=1}^{A} r2_a}}
+        \text{VIP}_j = \sqrt{K \cdot
+            \frac{\sum_{a=1}^{A} r2_a \cdot w_{ja}^2}{\sum_{a=1}^{A} r2_a}}
 
     where :math:`K` is the number of features, :math:`A` the number of
     components, :math:`r2_a` the model's ``r2_per_component_`` at component
@@ -437,10 +437,10 @@ def squared_cosine(model: BaseEstimator, n_components: int | None = None) -> pd.
 
     .. math::
 
-        \\cos^2_{ia} = \\frac{t_{ia}^2}
-            {\\sum_{a=1}^{A} t_{ia}^2 + \\text{SPE}_i^2}
+        \cos^2_{ia} = \frac{t_{ia}^2}
+            {\sum_{a=1}^{A} t_{ia}^2 + \text{SPE}_i^2}
 
-    where :math:`t_{ia}` is the score and :math:`\\text{SPE}_i` the residual
+    where :math:`t_{ia}` is the score and :math:`\text{SPE}_i` the residual
     (squared prediction error) of the observation. Across all components the
     cos2 values plus the residual fraction sum to 1. A value close to 1 means
     the observation is well represented on that component. For :class:`PCA`,
@@ -504,7 +504,7 @@ def observation_contributions(model: BaseEstimator, n_components: int | None = N
 
     .. math::
 
-        \\text{contribution}_{ia} = \\frac{t_{ia}^2}{\\sum_{i=1}^{N} t_{ia}^2}
+        \text{contribution}_{ia} = \frac{t_{ia}^2}{\sum_{i=1}^{N} t_{ia}^2}
 
     Values lie between 0 and 1 and each column sums to 1, so a contribution
     well above the average :math:`1/N` flags an observation that strongly

@@ -66,7 +66,7 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | 
     def calculate_line_length(x1: float, y1: float, x2: np.ndarray, y2: np.ndarray) -> float | np.ndarray:
         r"""Return the length of the line between 2 points (x1, y1) and (x2, y2).
 
-        Defined as :math:`\\sqrt{(x2 - x1)^2 + (y2 - y1)^2}`.
+        Defined as :math:`\sqrt{(x2 - x1)^2 + (y2 - y1)^2}`.
         """
         return np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
