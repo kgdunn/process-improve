@@ -4,6 +4,9 @@ The map is the fitted surface of the response Learn shows, with the other factor
 where the dials are, stars the best settings when it passes through them, and fades where the settings lie beyond the
 runs. The dials and the map always agree: a drag on the map moves two dials, and a dial moves the mark or, for a
 factor the map is not drawn over, the surface.
+
+The map can be detached from the page: it then floats where the reader puts it, at the size they give it, and is put
+back at a press. The browser keeps where it floated.
 """
 
 from __future__ import annotations
@@ -13,7 +16,7 @@ from typing import Any
 import pytest
 
 from tests.web._support import FACTORS
-from tests.web.e2e._page import generate, practise, reveal, set_factors, settled
+from tests.web.e2e._page import first_paint_done, generate, overflowing, practise, reveal, set_factors, settled
 from tests.web.e2e.test_profiles import setting
 from tests.web.e2e.test_what_if import rows, set_number
 
@@ -212,3 +215,187 @@ def test_on_a_phone_the_map_is_under_the_dials_and_a_tap_sets_both(mapped):
     page.wait_for_function("Number(document.querySelector('#what-if-settings input[name=number]').value) === 175")
     assert (setting(page, "Temperature"), setting(page, "Pressure")) == (175, 2)
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+
+
+# --------------------------------------------------------------------------- the map, detached from the page
+DETACH, MOVE, GRIP = "#what-if-map-detach", "#what-if-map-move", "#what-if-map-grip"
+STEP = 24  # app.js MAP_STEP: how far a press of an arrow key moves or resizes the floating map
+
+#: The map's box in the window and whether it floats there, the run sheet's width, the room its chart has and the
+#: size the chart is drawn at, the foot of the study's bar, and what the browser keeps of it.
+FLOATS = """() => { const map = document.querySelector('#what-if-map');
+  const plot = document.querySelector('#what-if-map-plot');
+  const box = map.getBoundingClientRect();
+  return { floats: getComputedStyle(map).position === 'fixed',
+    box: { left: box.left, top: box.top, width: box.width, height: box.height },
+    sheet: document.querySelector('.sheet-and-map > .scroll').getBoundingClientRect().width,
+    room: [plot.clientWidth, plot.clientHeight],
+    drawn: [Math.round(plot._fullLayout.width), Math.round(plot._fullLayout.height)],
+    bar: document.querySelector('#studybar').getBoundingClientRect().bottom,
+    kept: JSON.parse(localStorage.getItem('factorial-map')) }; }"""
+
+LAPTOP = pytest.mark.parametrize("context_options", [{"viewport": {"width": 1440, "height": 900}}])
+
+
+def floats(page: Any) -> dict:  # noqa: ANN401
+    """Return where the map is, once its chart is drawn to the room it has."""
+    page.wait_for_function(
+        "(() => { const plot = document.querySelector('#what-if-map-plot'); return plot._fullLayout"
+        " && Math.round(plot._fullLayout.width) === plot.clientWidth"
+        " && Math.round(plot._fullLayout.height) === plot.clientHeight; })()"
+    )
+    return page.evaluate(FLOATS)
+
+
+def drag(page: Any, part: str, across: float, down: float) -> None:  # noqa: ANN401
+    """Drag a part of the map by its middle, ``across`` and ``down`` pixels."""
+    box = page.locator(part).bounding_box()
+    x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+    page.mouse.move(x, y)
+    page.mouse.down()
+    page.mouse.move(x + across, y + down, steps=4)
+    page.mouse.up()
+
+
+@pytest.fixture
+def detached(mapped: Any) -> Any:  # noqa: ANN401
+    """Return the worked example with its map detached where it stood, beside the run sheet."""
+    mapped.locator("#what-if-settings tr.what-if-row").evaluate("(row) => row.scrollIntoView({ block: 'center' })")
+    mapped.click(DETACH)
+    return mapped
+
+
+@LAPTOP
+def test_the_map_detaches_where_it_stands_and_is_put_back_at_a_press(mapped):
+    page = mapped
+    page.locator("#what-if-settings tr.what-if-row").evaluate("(row) => row.scrollIntoView({ block: 'center' })")
+    docked = floats(page)
+    assert not docked["floats"]
+    assert docked["kept"] is None
+    assert page.is_hidden(MOVE), "a map in its place has nothing to move it by"
+    assert page.is_hidden(GRIP)
+    assert page.text_content(DETACH) == "Detach"
+
+    page.click(DETACH)
+    now = floats(page)
+    assert now["floats"]
+    assert now["box"] == pytest.approx(docked["box"], abs=0.5), "it floats where it stood, to a whole pixel"
+    assert now["sheet"] > docked["sheet"], "and the run sheet has the page's whole width"
+    assert (page.text_content(DETACH), page.is_visible(MOVE), page.is_visible(GRIP)) == ("Put back", True, True)
+    assert page.get_attribute(DETACH, "aria-label") == "Put the map back in its place on the page"
+    assert now["kept"] == {**now["box"], "floating": True}
+
+    # It stays where it is as the page scrolls, and a press on it still sets both factors.
+    page.evaluate("scrollBy(0, 300)")
+    assert floats(page)["box"] == now["box"]
+    page.mouse.click(*point_at(page, 175, 2))
+    assert (setting(page, "Temperature"), setting(page, "Pressure")) == (175, 2)
+
+    page.click(DETACH)
+    back = floats(page)
+    assert not back["floats"]
+    assert back["sheet"] == docked["sheet"]
+    assert (page.text_content(DETACH), page.is_hidden(MOVE), page.is_hidden(GRIP)) == ("Detach", True, True)
+    assert back["kept"] == {**now["box"], "floating": False}, "its box is kept for the next press of Detach"
+    assert back["room"][1] == 300, "in its place it is as tall as it was"
+
+
+@LAPTOP
+def test_a_detached_map_is_moved_by_its_head_and_resized_by_its_corner(detached):
+    page = detached
+    start = floats(page)["box"]
+    drag(page, "#what-if-map-title", -400, 120)
+    moved = floats(page)
+    assert moved["box"] == {**start, "left": start["left"] - 400, "top": start["top"] + 120}
+    drag(page, MOVE, 60, -40)
+    assert floats(page)["box"] == {**start, "left": start["left"] - 340, "top": start["top"] + 80}, "or by Move"
+
+    drag(page, GRIP, 150, 90)
+    sized = floats(page)
+    assert (sized["box"]["width"], sized["box"]["height"]) == (start["width"] + 150, start["height"] + 90)
+    assert (sized["box"]["left"], sized["box"]["top"]) == (start["left"] - 340, start["top"] + 80), "its corner alone"
+    assert sized["drawn"] == sized["room"], "the chart is drawn again to the room it has"
+    assert sized["room"][1] > moved["room"][1]
+    assert sized["kept"] == {**sized["box"], "floating": True}
+    page.mouse.click(*point_at(page, 160, 2.5))
+    assert (setting(page, "Temperature"), setting(page, "Pressure")) == (160, 2.5), "and still sets both factors"
+
+
+@LAPTOP
+def test_a_detached_map_stays_inside_the_window_and_under_the_bar(detached):
+    page = detached
+    drag(page, "#what-if-map-title", -3000, -3000)
+    held = floats(page)
+    assert (held["box"]["left"], held["box"]["top"]) == (0, round(held["bar"])), "under the study's bar, never over it"
+    drag(page, GRIP, 3000, 3000)
+    full = floats(page)["box"]
+    assert (full["left"] + full["width"], full["top"] + full["height"]) == (1440, 900), "as large as the window"
+    drag(page, GRIP, -3000, -3000)
+    small = floats(page)["box"]
+    assert (small["width"], small["height"]) == (260, 260), "and no smaller than it can be read at"
+    drag(page, "#what-if-map-title", 3000, 3000)
+    cornered = floats(page)["box"]
+    assert (cornered["left"], cornered["top"]) == (1440 - 260, 900 - 260)
+
+    page.set_viewport_size({"width": 1000, "height": 700})
+    inside = floats(page)["box"]
+    foot = (inside["left"] + inside["width"], inside["top"] + inside["height"])
+    assert foot == (1000, 700), "a smaller window keeps it"
+
+
+@LAPTOP
+def test_the_arrow_keys_move_and_resize_a_detached_map(detached):
+    page = detached
+    start = floats(page)["box"]
+    page.focus(MOVE)
+    for key in ("ArrowLeft", "ArrowLeft", "ArrowDown"):
+        page.keyboard.press(key)
+    assert floats(page)["box"] == {**start, "left": start["left"] - 2 * STEP, "top": start["top"] + STEP}
+    scrolled = page.evaluate("scrollY")
+    page.focus(GRIP)
+    for key in ("ArrowRight", "ArrowUp"):
+        page.keyboard.press(key)
+    sized = floats(page)
+    assert (sized["box"]["width"], sized["box"]["height"]) == (start["width"] + STEP, start["height"] - STEP)
+    assert page.evaluate("scrollY") == scrolled, "the arrows are the map's: the page is not scrolled"
+    assert sized["kept"] == {**sized["box"], "floating": True}
+    for part, label in ((MOVE, "Move the map: drag it, or press the arrow keys"), (GRIP, "Resize the map: ")):
+        assert page.get_attribute(part, "aria-label").startswith(label)
+
+
+@LAPTOP
+def test_a_map_left_floating_floats_there_on_the_next_visit(detached):
+    page = detached
+    drag(page, "#what-if-map-title", -300, 60)
+    drag(page, GRIP, 100, 40)
+    left = floats(page)["box"]
+    for _ in range(2):  # opened again in Learn, where the map is out of sight, then shown in Run
+        page.reload()
+        first_paint_done(page)
+        reveal(page, "#design-table")
+        page.wait_for_selector(f"#what-if-map:not([hidden]) {PLOT}.js-plotly-plot")
+        again = floats(page)
+        assert again["floats"]
+        assert again["box"] == left
+        assert again["drawn"] == again["room"]
+    page.click(DETACH)
+    page.reload()
+    first_paint_done(page)
+    reveal(page, "#design-table")
+    page.wait_for_selector(f"#what-if-map:not([hidden]) {PLOT}.js-plotly-plot")
+    assert not floats(page)["floats"], "put back, it opens in its place"
+    page.click(DETACH)
+    assert floats(page)["box"] == left, "and Detach floats it where it last floated"
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
+def test_on_a_phone_a_detached_map_fits_the_window(mapped):
+    page = mapped
+    page.click(DETACH)
+    box = floats(page)["box"]
+    assert box["left"] >= 0
+    assert box["left"] + box["width"] <= 390
+    assert overflowing(page) == []
+    for part in (DETACH, MOVE):
+        side = page.locator(part).bounding_box()
+        assert min(side["width"], side["height"]) >= 24, "large enough for a finger"

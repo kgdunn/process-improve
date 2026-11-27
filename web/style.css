@@ -1437,9 +1437,22 @@ table.runs .what-if-presets-row > td { padding: 8px 10px 12px; text-align: left;
    bar as the runs scroll past. */
 .sheet-and-map { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 22px; align-items: start; }
 @media (min-width: 1200px) {
-  .sheet-and-map:has(.what-if-map:not([hidden])) { grid-template-columns: minmax(0, 1fr) clamp(300px, 26%, 400px); }
-  .sheet-and-map > .what-if-map { position: sticky; top: 62px; margin-top: 12px; }
+  .sheet-and-map:has(.what-if-map:not([hidden], .floating)) { grid-template-columns: minmax(0, 1fr) clamp(300px, 26%, 400px); }
+  .sheet-and-map > .what-if-map:not(.floating) { position: sticky; top: 62px; margin-top: 12px; }
 }
+/* The map detached from the page (app.js floatMap): a card that floats where the reader put it, at the size they gave
+   it, under the study's bar and over the rest. Its head moves it and its corner resizes it; the chart fills the room
+   between its head and its caption. The run sheet then has the page's whole width. */
+.what-if-map.floating {
+  position: fixed; z-index: 2; display: flex; flex-direction: column; margin: 0; box-sizing: border-box;
+  background: var(--panel); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.28);
+}
+.what-if-map.floating .chart__head { flex: none; cursor: move; touch-action: none; user-select: none; }
+.what-if-map.floating .plot { flex: 1 1 0; min-height: 0; max-width: none; }
+.what-if-map.floating figcaption { flex: none; padding-right: 20px; }
+.what-if-map .figure__grip { right: 0; bottom: 0; }
+.what-if-map__tool { font-size: 0.85rem; }
+#what-if-map-move { cursor: move; touch-action: none; }
 .what-if-map { margin: 8px 0 0; }
 .what-if-map h4 { margin: 0 0 4px; font-size: 0.95rem; }
 /* A sideways drag is the map's; an up or down swipe still scrolls the page on a phone. */

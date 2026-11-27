@@ -1,0 +1,1 @@
+- factori.al's What-if map can be detached from the page: Detach floats it over the page, where it is moved by its heading and resized by its corner, with a pointer or the arrow keys, and Put back returns it to its place. It stays in view as the page scrolls, still sets both factors at a press, and the browser keeps where it floated.

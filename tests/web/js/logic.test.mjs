@@ -6,6 +6,8 @@ import { describe, test } from "node:test";
 
 import {
   AXIAL_DISTANCE,
+  boxWithin,
+  keptBox,
   TRANSFORM_WORDS,
   boxCoxSentence,
   bySignificance,
@@ -2097,5 +2099,38 @@ describe("runs as points of the space their factors span", () => {
 
   test("a run with no number for a factor is left out", () => {
     assert.deepEqual(spacePoints([{ T: 150 }, { T: 200, P: NaN }, { T: 200, P: 3 }], [T, P]), [[1, 1]]);
+  });
+});
+
+describe("a box the reader moves over the page", () => {
+  const room = { left: 0, top: 50, width: 1000, height: 700 };
+  const least = { width: 260, height: 240 };
+
+  test("a box inside its room is left as it is, to whole pixels", () => {
+    assert.deepEqual(boxWithin({ left: 100.4, top: 80, width: 400, height: 300.6 }, room, least), { left: 100, top: 80, width: 400, height: 301 });
+  });
+
+  test("a box moved past an edge is held at it, whole", () => {
+    assert.deepEqual(boxWithin({ left: 900, top: 700, width: 400, height: 300 }, room, least), { left: 600, top: 450, width: 400, height: 300 });
+    assert.deepEqual(boxWithin({ left: -40, top: 0, width: 400, height: 300 }, room, least), { left: 0, top: 50, width: 400, height: 300 });
+  });
+
+  test("a box is no smaller than it can be read at, and no larger than its room", () => {
+    assert.deepEqual(boxWithin({ left: 10, top: 60, width: 50, height: 50 }, room, least), { left: 10, top: 60, width: 260, height: 240 });
+    assert.deepEqual(boxWithin({ left: 10, top: 60, width: 5000, height: 5000 }, room, least), { left: 0, top: 50, width: 1000, height: 700 });
+  });
+
+  test("a room smaller than the least takes the box at the room's size", () => {
+    const small = { left: 0, top: 50, width: 200, height: 180 };
+    assert.deepEqual(boxWithin({ left: 30, top: 90, width: 400, height: 300 }, small, least), { left: 0, top: 50, width: 200, height: 180 });
+  });
+
+  test("a box is read back as it was kept, and anything else is no box", () => {
+    const box = { left: 12, top: 60, width: 400, height: 300 };
+    assert.deepEqual(keptBox(JSON.stringify({ ...box, floating: true })), { ...box, floating: true });
+    assert.deepEqual(keptBox(JSON.stringify(box)), { ...box, floating: false }, "put back in its place, its box kept");
+    for (const text of [null, "", "open", "{}", '{"left":1,"top":2,"width":0,"height":3}', '{"left":"a","top":2,"width":3,"height":4}']) {
+      assert.equal(keptBox(text), null, String(text));
+    }
   });
 });
