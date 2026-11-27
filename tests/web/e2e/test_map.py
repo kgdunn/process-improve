@@ -85,13 +85,13 @@ def test_the_dials_and_the_map_are_in_view_together_on_a_laptop(mapped):
 def test_the_map_marks_where_the_dials_are_and_stars_the_best_settings(mapped):
     page = mapped
     drawn = shown_map(page)
-    assert drawn["marks"]["Where the dials are"] == [200, 1], "the panel opens at the best settings"
+    assert drawn["marks"]["The What-if row"] == [200, 1], "the panel opens at the best settings"
     assert drawn["marks"]["The best settings"] == [200, 1]
     # The surface under the mark is the table's prediction: the map's corner there is the grid's own point.
     assert f"{drawn['z'][0][-1]:.4g}%" == rows(page)[0][1]
 
     set_number(page, "Temperature", 160)
-    assert shown_map(page)["marks"]["Where the dials are"] == [160, 1], "a dial moves the mark"
+    assert shown_map(page)["marks"]["The What-if row"] == [160, 1], "a dial moves the mark"
     assert shown_map(page)["z"] == drawn["z"], "and not the surface, which is drawn over that factor"
 
     # Flow is not an axis of the map: moving it gives another surface, which no longer passes through the best.
@@ -107,7 +107,7 @@ def test_a_press_and_a_drag_on_the_map_set_both_dials(mapped):
     page.mouse.click(*point_at(page, 175, 2))
     assert (setting(page, "Temperature"), setting(page, "Pressure")) == (175, 2)
     assert setting(page, "Flow") == pytest.approx(18.04), "the third dial is where it was"
-    assert shown_map(page)["marks"]["Where the dials are"] == [175, 2]
+    assert shown_map(page)["marks"]["The What-if row"] == [175, 2]
 
     page.mouse.move(*point_at(page, 175, 2))
     page.mouse.down()
@@ -115,7 +115,7 @@ def test_a_press_and_a_drag_on_the_map_set_both_dials(mapped):
     page.mouse.up()
     assert setting(page, "Temperature") == pytest.approx(160, abs=0.5), "to the slider's step of 0.5"
     assert setting(page, "Pressure") == pytest.approx(2.6, abs=0.02), "and of 0.02"
-    assert shown_map(page)["marks"]["Where the dials are"] == [setting(page, "Temperature"), setting(page, "Pressure")]
+    assert shown_map(page)["marks"]["The What-if row"] == [setting(page, "Temperature"), setting(page, "Pressure")]
     assert page.evaluate("window.__pi.count('api_predictors')") == calls, "in the page's own JavaScript"
 
     page.mouse.move(*point_at(page, 175, 2))
@@ -150,7 +150,7 @@ def test_the_map_is_over_the_two_factors_the_surface_chart_was_given(mapped):
     )
     drawn = shown_map(page)
     assert [axis["title"] for axis in drawn["axes"]] == ["Temperature (degC)", "Flow (L/min)"]
-    assert drawn["marks"]["Where the dials are"] == pytest.approx(
+    assert drawn["marks"]["The What-if row"] == pytest.approx(
         [setting(page, "Temperature"), setting(page, "Flow")], rel=1e-3
     )
 

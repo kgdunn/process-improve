@@ -6984,7 +6984,8 @@ function profileParts(f, points, range, value, { width, height }) {
   const [low, high] = numeric ? [points[0].value, points.at(-1).value] : [0, points.length - 1];
   const across = (v) => pad + (high > low ? ((width - 2 * pad) * (v - low)) / (high - low) : (width - 2 * pad) / 2);
   const up = (v) => height - pad - ((height - 2 * pad) * (v - range[0])) / (range[1] - range[0]);
-  const x = (point) => across(numeric ? point.value : points.indexOf(point));
+  // A level sits at the middle of its share of the drawing's width, where a press (dragProfile) reads it.
+  const x = (point) => (numeric ? across(point.value) : (width * (points.indexOf(point) + 0.5)) / points.length);
   const at = (point, v = point.predicted) => `${x(point).toFixed(1)},${up(v).toFixed(1)}`;
   const parts = [];
   const banded = points.every((point) => point.confidence);
@@ -7065,13 +7066,16 @@ function dragMap(e) {
 
 /** The reader pressed or dragged on a profile: its factor is set where the pointer is, to the slider's step. */
 function dragProfile(e, f) {
-  const drawing = e.currentTarget; // the plot is inside the drawing's border, PROFILE.pad from each side
-  const left = drawing.getBoundingClientRect().left + drawing.clientLeft + PROFILE.pad;
-  const share = Math.min(1, Math.max(0, (e.clientX - left) / (drawing.clientWidth - 2 * PROFILE.pad)));
+  const drawing = e.currentTarget; // the plot is PROFILE.pad in from each side of the drawing
+  const edge = drawing.getBoundingClientRect().left + drawing.clientLeft;
   if (f.kind === "categorical") {
-    setWhatIf({ [f.name]: f.levels[Math.round(share * (f.levels.length - 1))] });
+    // Each level has an equal share of the drawing's width (profileParts): the press is in one of them.
+    const share = (e.clientX - edge) / drawing.clientWidth;
+    setWhatIf({ [f.name]: f.levels[Math.min(f.levels.length - 1, Math.max(0, Math.floor(share * f.levels.length)))] });
     return;
   }
+  const left = edge + PROFILE.pad;
+  const share = Math.min(1, Math.max(0, (e.clientX - left) / (drawing.clientWidth - 2 * PROFILE.pad)));
   const [low, high] = [Math.min(f.low, f.high), Math.max(f.low, f.high)];
   const step = sliderStep(f);
   const stepped = low + Math.round((share * (high - low)) / step) * step;
@@ -7168,8 +7172,19 @@ function noBandWords(name, units) {
   const { goal, target } = describedOf(name);
   if (goal === "maximize") return "higher is better";
   if (goal === "minimize") return "lower is better";
-  return Number.isFinite(target) ? `closest to ${withUnit(target, units)}` : "no goal set";
+  return goal === "target" && Number.isFinite(target) ? `closest to ${withUnit(target, units)}` : "no goal set";
 }
+
+/** A response's goal as the table writes it under its name, when it has no band: "highest", "lowest", "target 63%", or nothing. */
+function noBandGoal(name, units) {
+  const { goal, target } = describedOf(name);
+  if (goal === "maximize") return "highest";
+  if (goal === "minimize") return "lowest";
+  return goal === "target" && Number.isFinite(target) ? `target ${withUnit(target, units)}` : "";
+}
+
+/** Whether a response's goal points somewhere a run can be best for: higher, lower, or toward a target. */
+const pointed = ({ goal, target }) => goal === "maximize" || goal === "minimize" || (goal === "target" && Number.isFinite(target));
 
 /**
  * The scale a response's drawing against its goal has: its pictures' scale (drawProfiles), widened to take in
@@ -7209,7 +7224,7 @@ function drawGoals() {
     const verdict = band && goalVerdict(predicted, prediction, band);
     if (verdict?.met) met += 1;
     const goalWords = band ? goalBandWords(band, units) : noBandWords(fit.name, units);
-    box.querySelector(`.what-if-response[data-response="${CSS.escape(fit.name)}"] .what-if-goal-words`).textContent = goalWords;
+    box.querySelector(`.what-if-response[data-response="${CSS.escape(fit.name)}"] .what-if-goal-words`).textContent = band ? goalWords : noBandGoal(fit.name, units);
     const ends = (band ?? []).filter((end) => end !== null);
     const [low, high] = barScale(w, fit.name, [predicted, ...(prediction ?? []), ...(runs ?? []), ...ends]);
     const { width, height, pad } = GOAL_BAR;
@@ -7259,7 +7274,8 @@ function renderHeadlines(w, bands, met) {
   const judged = Object.keys(bands).length;
   const shown = profiledResponse(w);
   const lead = shown && describedOf(shown.name);
-  const best = lead ? bestRun(state.results, bands, { name: shown.name, goal: lead.goal, target: lead.target }) : null;
+  // A run is best only for a goal: with no band to judge, the goal of the response Learn shows must point somewhere.
+  const best = lead && (judged || pointed(lead)) ? bestRun(state.results, bands, { name: shown.name, goal: lead.goal, target: lead.target }) : null;
   w.bestPlace = best?.place ?? null;
   $("#what-if-headlines").hidden = !best && !judged;
   $("#what-if-best").hidden = !best;
