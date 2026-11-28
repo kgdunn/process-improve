@@ -685,7 +685,8 @@
                  What-if row has them. It marks the What-if row's settings and the best settings, and takes a press or
                  a drag. On a wide screen it is beside the run sheet, in view with the What-if row it sets, and stays
                  in view as the runs scroll; on a narrow one, under the sheet. Detached, it floats over the page
-                 where the reader puts it, at the size they give it. -->
+                 where the reader puts it, at the size they give it, over every stage of the study, and says
+                 what the What-if row predicts. -->
             <figure id="what-if-map" class="chart what-if-map" hidden>
               <!-- Its head: the title, then the buttons of a map detached from the page (app.js floatMap): the one
                    that detaches it and puts it back, and the one that moves it while it floats, by a drag or the
@@ -696,7 +697,7 @@
                 <button type="button" id="what-if-map-detach" class="link what-if-map__tool" aria-label="Detach the map: float it over the page, to move and resize it">Detach</button>
               </div>
               <div class="plot" id="what-if-map-plot"></div>
-              <figcaption class="hint">Press or drag to set both.</figcaption>
+              <figcaption class="hint"><span id="what-if-map-at"></span>Press or drag to set both.</figcaption>
               <!-- The corner that resizes the map while it floats, as the corner of a figure's own window does. -->
               <button type="button" id="what-if-map-grip" class="figure__grip" hidden aria-label="Resize the map: drag this corner, or press the arrow keys"></button>
             </figure>

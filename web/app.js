@@ -7180,6 +7180,9 @@ function drawMap(w) {
   };
   $("#what-if-map-title").textContent = `${fit.label} over ${pair[0]} and ${pair[1]}`;
   const at = columnsAt(w.factors, w.settings);
+  // Away from the What-if row, on another stage or with the row scrolled off, the floating map says what the row holds.
+  const set = pair.map((name) => `${name} ${withUnit(w.settings[name], units[name])}`);
+  $("#what-if-map-at").textContent = mapFloats ? `${fit.label} ${withUnit(predictAt(fit, at).predicted, fit.units ?? "")} at ${set.join(" and ")}. ` : "";
   const python = figureAfter("run", () => mapCode(state.design.spec, fit.name, fit.formula, at, w.settings, pair, MAP_POINTS));
   const { surface } = w.map;
   // In its place the map is 300 pixels tall; detached, it fills the box the reader gave it (floatMap).
@@ -7187,15 +7190,18 @@ function drawMap(w) {
 }
 
 // ---------------------------------------------------------------- what if: the map, detached from the page
-// A press on Detach floats the map over the page, where it stays as the page scrolls: the reader moves it by its
-// head and resizes it by its corner, with a pointer or the arrow keys, and Put back returns it to its place. The box
-// it floats in is kept in this browser, so it floats there again at the next press, and on the next visit.
+// A press on Detach floats the map over the page, where it stays as the page scrolls and over every stage of the
+// study: the reader moves it by its head and resizes it by its corner, with a pointer or the arrow keys, and Put back
+// returns it to its place. The box it floats in is kept in this browser, so it floats there again at the next press,
+// and on the next visit.
 const MAP_KEY = "factorial-map";
 /** The smallest the floating map is, in pixels, and how far one press of an arrow key moves or resizes it. */
 const MAP_LEAST = { width: 260, height: 260 };
 const MAP_STEP = 24;
 let mapPlace = null; // the box the map last floated in: {left, top, width, height}, in the window's pixels
 let mapFloats = false;
+/** The map's place on the page: beside the run sheet, in Run. While it floats it stands after the workspace, outside every stage, so no stage hides it. */
+const mapHome = $("#what-if-map").parentElement;
 
 /** The room the floating map has: the window, under the study's bar, which it never covers. */
 function mapRoom() {
@@ -7209,6 +7215,13 @@ function floatMap(box) {
   const turned = mapFloats !== Boolean(box);
   mapFloats = Boolean(box);
   if (box) mapPlace = boxWithin(box, mapRoom(), MAP_LEAST);
+  if (turned) {
+    // A part moved in the document loses the keyboard: the button pressed keeps it.
+    const pressed = map.contains(document.activeElement) ? document.activeElement : null;
+    if (mapFloats) $("#workspace").after(map);
+    else mapHome.append(map);
+    pressed?.focus();
+  }
   map.classList.toggle("floating", mapFloats);
   for (const side of ["left", "top", "width", "height"]) map.style[side] = mapFloats ? `${mapPlace[side]}px` : "";
   $("#what-if-map-move").hidden = !mapFloats;
