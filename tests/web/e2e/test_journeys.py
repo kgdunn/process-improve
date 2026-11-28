@@ -11,6 +11,7 @@ import pytest
 
 from tests.web.e2e._page import (
     candidates_done,
+    copy_link,
     first_paint_done,
     name_response,
     open_library,
@@ -92,10 +93,7 @@ def test_a_study_by_hand_from_the_brief_to_the_best_settings_shared_and_opened_a
     kept = run_sheet(page)
 
     # Shared: the colleague who opens the link sees the same study and the same best settings.
-    reveal(page, "#share")
-    page.click("#share")
-    page.wait_for_selector("#share-out", state="visible")
-    elsewhere = _opened_elsewhere(open_context, site, page.input_value("#share-url"))
+    elsewhere = _opened_elsewhere(open_context, site, copy_link(page))
     assert run_sheet(elsewhere) == kept
     elsewhere.click("#go-learn")
     settled(elsewhere)

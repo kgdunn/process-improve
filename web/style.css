@@ -432,6 +432,13 @@ button, .button {
   border: 1px solid var(--line); background: var(--bg); color: inherit; text-decoration: none; display: inline-block;
 }
 .primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+/* Two forms of one thing, kept together as the row wraps: the run sheet's download and its other format. */
+.actions__pair { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+/* A button that shares a study encrypted, in a room: a padlock before its words, in the accent on a plain button and
+   in the words' color on the accent's own. */
+.with-lock { display: inline-flex; align-items: center; gap: 7px; }
+.with-lock svg { width: 1.15em; height: 1.15em; flex: none; }
+.with-lock:not(.primary) svg { color: var(--accent); }
 button:disabled { opacity: 0.5; cursor: progress; }
 .link { border: none; background: none; color: var(--accent); padding: 4px; }
 /* A stage named in a sentence (app.js stageLink, and the page's own sentences): the stage's dot, in its color, and its
@@ -1541,6 +1548,15 @@ dialog.library { width: min(760px, 100vw - 32px); font-size: 0.92rem; }
 .check input:not([type="radio"]) { width: auto; }
 .share input { width: 100%; font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 0.82rem; }
 .share .hint { margin: 6px 0 0; }
+/* A room's box: its link, what it means, how it stands, and the two ways out of it, side by side. */
+.room { margin-top: 12px; }
+.room__leave { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 8px 0 0; }
+/* The questions asked before a room is made or removed: a short read, its points in a list that keeps its bullets. */
+dialog.room-ask { width: min(36rem, 100vw - 32px); }
+.room-ask ul { padding-left: 1.2em; margin: 0 0 12px; }
+.room-ask li { margin: 0 0 6px; }
+.room-ask__copy { margin: 12px 0 0; font-size: 0.9rem; color: var(--muted); }
+.room-ask__copy .link { padding: 0; font-size: inherit; }
 
 
 /* How Factorial works (technical-details-how-factorial-works.html): a page of prose, in a column a reader's eye can follow, with a
@@ -1555,6 +1571,40 @@ main.about { max-width: 780px; }
 .about__back { margin: 0; }
 .about__back a { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; font-weight: 600; }
 /* What only some readers ask, under an answer in plain words (technical-details-how-factorial-works.html): a fold that says what it holds. */
+/* The picture of a room on How Factorial works: what goes through factori.al, locked, and the key that goes around
+   it. In the look of the page's other drawing (.flow): thin boxes, names over muted words, and the accent for what is
+   the reader's own, their browser, the other browser and the key. */
+.room-picture { margin: 14px 0 10px; }
+.room-picture svg { display: block; width: 100%; max-width: 560px; height: auto; margin: 0 auto; color: var(--fg);
+  font-size: 13px; }
+.room-picture text { fill: var(--muted); }
+.room-picture .name { fill: var(--fg); font-size: 15px; font-weight: 700; }
+.room-picture .key-words { fill: var(--accent); font-weight: 600; }
+.room-picture .box { fill: var(--panel); stroke: var(--line); stroke-width: 1; }
+.room-picture .mine { stroke: var(--accent); stroke-width: 2; }
+.room-picture .server { fill: var(--bg); }
+.room-picture .wire { stroke: var(--muted); stroke-width: 1.5; }
+.room-picture .wire-head { fill: var(--muted); }
+.room-picture .key { fill: none; stroke: var(--accent); stroke-width: 2; stroke-dasharray: 6 4; }
+.room-picture .key-head { fill: var(--accent); }
+.room-picture .lock { fill: var(--muted); }
+.room-picture .lock-shackle { fill: none; stroke: var(--muted); stroke-width: 2; }
+.room-picture .room-picture__tall { display: none; max-width: 360px; }
+@media (max-width: 560px) {
+  .room-picture .room-picture__wide { display: none; }
+  .room-picture .room-picture__tall { display: block; }
+}
+.room-picture figcaption { max-width: 560px; margin: 6px auto 0; font-size: 0.9rem; color: var(--muted); text-align: center; }
+/* The picture done in front of the reader: the line, the bytes factori.al would keep, and the line opened again. */
+.room-proof { margin: 10px 0; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--corner);
+  background: var(--panel); }
+.room-proof p { margin: 0 0 6px; }
+.room-proof dl { margin: 0 0 10px; }
+.room-proof dt { margin-top: 6px; font-size: 0.85rem; color: var(--muted); }
+.room-proof dd { margin: 0; overflow-wrap: anywhere; }
+.room-proof code { font-size: 0.85rem; }
+.room-proof dd .hint { display: block; }
+
 details.fold { margin: 10px 0 0; border: 1px solid var(--line); border-radius: var(--corner); background: var(--panel); }
 details.fold > summary { padding: 10px 14px; border-radius: var(--corner); font-size: 0.95rem; font-weight: 600; color: var(--accent);
   cursor: pointer; }

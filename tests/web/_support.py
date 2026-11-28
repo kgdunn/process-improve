@@ -70,6 +70,7 @@ APP_SOURCES = (
     "report.js",
     "campaign.js",
     "study-file.js",
+    "room.js",
     "store.js",
     "glossary.js",
     "terms.js",

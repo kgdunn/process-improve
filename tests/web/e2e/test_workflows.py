@@ -21,6 +21,7 @@ from tests.web._support import FACTORS, fill_workbook, quadratic
 from tests.web.e2e._page import (
     calls,
     candidates_done,
+    copy_link,
     enter_results,
     generate,
     headers,
@@ -152,9 +153,7 @@ def test_a_study_is_kept_as_it_was_left_and_opens_the_same_from_a_link(open_cont
     assert again.text_content("#aside-runs").startswith("Run 4 is set aside: ")
     assert findings(again) == learned
 
-    reveal(again, "#share")
-    again.click("#share")
-    again.wait_for_selector("#share-out", state="visible")
+    copy_link(again)
     elsewhere = open_context().new_page()
     elsewhere.goto(again.input_value("#share-url"))
     elsewhere.wait_for_selector(BANNER, state="visible")

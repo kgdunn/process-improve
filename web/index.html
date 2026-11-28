@@ -49,6 +49,7 @@
   <link rel="modulepreload" href="numbers.js">
   <link rel="modulepreload" href="campaign.js">
   <link rel="modulepreload" href="study-file.js">
+  <link rel="modulepreload" href="room.js">
   <link rel="modulepreload" href="report.js">
   <link rel="modulepreload" href="limits.js">
   <link rel="modulepreload" href="corners.js">
@@ -772,17 +773,31 @@
           </details>
           <div class="actions">
             <button type="button" id="to-learn" class="primary" hidden>See what the results say</button>
-            <button type="button" id="download" class="button">Download workbook (.xlsx)</button>
-            <button type="button" id="csv" class="button">Download run sheet (.csv)</button>
-            <button type="button" id="notebook" class="button">Download notebook (.ipynb)</button>
-            <button type="button" id="report-view" class="button">View the report</button>
-            <button type="button" id="report" class="button">Download report (.html)</button>
-            <button type="button" id="share" class="button">Copy a link to this study</button>
-            <label class="check"><input type="checkbox" id="share-results" checked> with its results</label>
+            <!-- Run's job is getting the run sheet to the lab, so it is the one download here, in the format the app reads
+                 back; the report and the notebook are Learn's. One way to share: Share asks whether to work on the
+                 study together, encrypted, or to copy a plain link (app.js shareStudy). -->
+            <span class="actions__pair"><button type="button" id="download" class="button">Download the run sheet (.xlsx)</button>
+              <button type="button" id="csv" class="link">or as .csv</button></span>
+            <button type="button" id="room-share" class="button with-lock"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="5" y="10.5" width="14" height="10" rx="2" fill="currentColor"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2.2"/></svg><span class="room-share__words">Share this study</span></button>
           </div>
           <div id="share-out" class="share" hidden>
             <input id="share-url" readonly aria-label="A link to this study" aria-describedby="share-note">
             <p id="share-note" class="hint"></p>
+          </div>
+          <!-- A room (app.js, room.js): this study kept in step with other browsers, through a server that keeps it
+               encrypted with a key only the link holds. -->
+          <div id="room-out" class="share room" hidden>
+            <input id="room-url" readonly aria-label="The room's link" aria-describedby="room-note">
+            <p id="room-note" class="hint">Whoever opens this link can read this study and change its results. Send it
+              only to people who may see the study. The study is encrypted with a key that is part of the link:
+              factori.al keeps it and cannot read it.
+              <a href="technical-details-how-factorial-works.html#h-room" target="_blank" rel="noopener">How a room
+              keeps your study private</a></p>
+            <p id="room-says" class="hint" role="status"></p>
+            <p class="room__leave">
+              <button type="button" id="room-leave" class="link">Leave the room</button>
+              <button type="button" id="room-remove" class="link">Remove the room for everyone</button>
+            </p>
           </div>
         </div>
         <details class="python" id="py-run" hidden>
@@ -1063,6 +1078,7 @@
         <p id="learn-report" class="actions" hidden>
           <button type="button" id="learn-report-view" class="button">View a report of this study</button>
           <button type="button" id="learn-report-button" class="button">Download it (.html)</button>
+          <button type="button" id="notebook" class="button">Download the notebook (.ipynb)</button>
           <button type="button" id="learn-feedback" class="link" data-feedback="algorithm">Report this result</button>
         </p>
       </section>
@@ -1147,6 +1163,46 @@
     <p class="actions">
       <button type="button" id="replace-keep" class="primary">Keep working on this study</button>
       <button type="button" id="replace-go" class="button">Start the new study</button>
+    </p>
+  </dialog>
+
+  <!-- Asked each time a study is shared (app.js shareStudy), as this is when a study leaves the browser: a room,
+       encrypted, with who sees it, what the server keeps and how to stop, in the words of How Factorial works, #h-room;
+       or, quieter, a plain link, which says what it is. -->
+  <dialog id="room-dialog" class="sheet room-ask" aria-labelledby="h-room-ask">
+    <h2 id="h-room-ask">Share this study</h2>
+    <div id="room-why">
+      <p>Work on it together: Factorial makes a link to this study. Whoever opens the link has the same study, and the
+        results each of you types reach the others.</p>
+      <ul>
+        <li><strong>Only the link opens the study.</strong> This browser encrypts the study before it sends it, with a
+          key that is part of the link. factori.al keeps the encrypted study and cannot read it.</li>
+        <li><strong>Whoever has the link can read the study and change its results.</strong> Send it only to people who
+          may see the study.</li>
+        <li><strong>You can stop at any time.</strong> Leave the room, or remove it for everyone. Each browser keeps its
+          own copy of the study. A room nobody changes for 30 days is removed.</li>
+      </ul>
+      <p><a href="technical-details-how-factorial-works.html#h-room" target="_blank" rel="noopener">How a room keeps
+        your study private</a></p>
+    </div>
+    <p id="room-unkept" class="hint" hidden>The worked example is not kept in this browser, so it cannot be shared in a
+      room. Make a run sheet of your own to work on it with others.</p>
+    <p class="actions">
+      <button type="button" id="room-make" class="primary with-lock"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="5" y="10.5" width="14" height="10" rx="2" fill="currentColor"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2.2"/></svg><span>Work on it together</span></button>
+      <button type="button" id="room-not-now" class="button">Not now</button>
+    </p>
+    <p class="room-ask__copy">Or <button type="button" id="share" class="link">copy a link</button> instead: a copy of the
+      study as it is now, with its results. The link itself holds the study, not encrypted, and it cannot be taken
+      back.</p>
+  </dialog>
+  <!-- Asked before a room is removed for everyone (app.js leaveRoom): what the others lose, and what they keep. -->
+  <dialog id="room-remove-dialog" class="sheet room-ask" aria-labelledby="h-room-remove">
+    <h2 id="h-room-remove">Remove the room for everyone?</h2>
+    <p>The room's link stops working for everyone who has it. Each browser keeps its own copy of the study, but
+      results no longer travel between them. To go on together, share the study in a new room.</p>
+    <p class="actions">
+      <button type="button" id="room-remove-yes" class="primary">Remove the room</button>
+      <button type="button" id="room-remove-keep" class="button">Keep the room</button>
     </p>
   </dialog>
 

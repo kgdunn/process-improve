@@ -11,8 +11,10 @@ the page's own worker then runs, and finds Pyodide's download refused.
 
 from __future__ import annotations
 
+import base64
 import json
 import re
+from hashlib import sha384
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -217,7 +219,12 @@ def open_context(  # noqa: PLR0913 - a fixture's arguments are the fixtures it n
         context.route(
             re.compile(re.escape(f"{site}catalog/") + r".+\.json$"), lambda route: _catalog(route, catalog_files)
         )
-        context.route(f"{site}wheels/manifest.json", lambda route: route.fulfill(json={"plotly_js": version}))
+        # The digest the build pins Plotly.js to (scripts/build_web_app.py): each chart drawn checks the script by it.
+        pinned = {
+            "plotly_js": version,
+            "plotly_js_integrity": "sha384-" + base64.b64encode(sha384(script).digest()).decode(),
+        }
+        context.route(f"{site}wheels/manifest.json", lambda route: route.fulfill(json=pinned))
         context.route(
             re.compile(r"/plotly\.min\.js$"),
             lambda route: route.fulfill(

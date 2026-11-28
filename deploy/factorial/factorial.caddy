@@ -32,6 +32,21 @@ factori.al {
 		}
 	}
 
+	# Rooms: a study that two or more people keep in step, sealed in the browser with a key that only the room's
+	# link holds, after its "#". The encrypted study locker (encrypted_study_locker.py) keeps one sealed blob for each room, of one of three sizes,
+	# and cannot read it. A blob is at most 64 KiB and a little more; Caddy holds the body before it passes it on. The
+	# room's id and its write token travel in the Authorization header, which the log below leaves out, with the
+	# versions a browser names, so no line of the log says which room a request was for.
+	handle /api/room {
+		request_body {
+			max_size 70KiB
+		}
+		reverse_proxy 127.0.0.1:8791 {
+			request_buffers 70KiB
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
 	# How many readers each of the last 90 days had, numbers alone: usage.py --public writes it each hour, and the
 	# footer of every page draws it. A build carries a usage.json of no days, which this file takes the place of.
 	handle /usage.json {
@@ -50,7 +65,14 @@ factori.al {
 	header @images Cache-Control "public, max-age=86400"
 	header @rest Cache-Control "no-cache"
 
+	# The Content-Security-Policy names every place a page may load from or send to: the site itself, jsDelivr (Plotly.js,
+	# pinned by its digest in web/charts.js, and Pyodide with its packages) and PyPI (the packages micropip installs).
+	# A study, and a room's key, can reach no other host. Inline scripts are allowed: each page sets its theme before
+	# it is drawn, and a list of their digests here would go stale at the next deploy, which does not reinstall this
+	# file. Pyodide, in the page's worker, compiles WebAssembly and evaluates JavaScript ('wasm-unsafe-eval',
+	# 'unsafe-eval'). The browser tests (tests/web/_browser.py) serve every page with this same policy.
 	header {
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://cdn.jsdelivr.net https://pypi.org https://files.pythonhosted.org; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 		Strict-Transport-Security "max-age=31536000"
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "DENY"
@@ -88,6 +110,8 @@ factori.al {
 			request>remote_port delete
 			request>headers>Cookie delete
 			request>headers>Authorization delete
+			request>headers>If-Match delete
+			request>headers>If-None-Match delete
 			request>tls delete
 			resp_headers delete
 		}

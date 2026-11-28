@@ -189,7 +189,7 @@ def test_the_menu_shares_the_study_and_shows_its_report_once_there_is_a_run_shee
     page.click("#menu-share")
     assert page.get_attribute("#workspace", "data-phase") == "run", "where the study is downloaded and shared"
     assert page.evaluate("document.activeElement.id") == "download"
-    assert page.is_visible("#share")
+    assert page.is_visible("#room-share"), "Share, beside the run sheet's download"
 
     with page.expect_popup() as popup:
         study_menu(page, "#menu-report")

@@ -1,0 +1,45 @@
+# factori.al's encrypted study locker (encrypted_study_locker.py): it keeps one encrypted study for each room, which
+# Caddy passes on from /api/room, and hands it back. It never holds a room's key, so it cannot read what it keeps.
+#
+# Installed as /etc/systemd/system/factorial-study-locker.service by setup.sh, with the locker as
+# /usr/local/bin/factorial-study-locker. It needs no settings. It runs as an account systemd makes for it at each
+# start, which can write only to its own folder, /var/lib/factorial-study-locker (StateDirectory), where it keeps the
+# rooms, a file each.
+#
+# To remove a room someone reports, from its link:
+#     sudo env STATE_DIRECTORY=/var/lib/factorial-study-locker factorial-study-locker forget '<the room's link>'
+# To end every room at once: sudo systemctl stop factorial-study-locker
+
+[Unit]
+Description=Factorial encrypted study locker (factori.al/api/room)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/factorial-study-locker
+StateDirectory=factorial-study-locker
+StateDirectoryMode=0700
+Restart=on-failure
+RestartSec=5
+
+DynamicUser=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+SystemCallArchitectures=native
+UMask=0077
+TasksMax=64
+MemoryMax=128M
+
+[Install]
+WantedBy=multi-user.target

@@ -13,7 +13,7 @@ from typing import Any
 
 import pytest
 
-from tests.web.e2e._page import last_reply, practise, reveal, run_sheet, settled
+from tests.web.e2e._page import copy_link, last_reply, practise, reveal, run_sheet, settled
 from tests.web.e2e.test_rename import rename
 from tests.web.e2e.test_report import download_report, headings, opened
 from tests.web.e2e.test_responses import three_responses
@@ -166,9 +166,7 @@ def test_a_target_and_a_window_go_with_the_study_by_link_and_in_this_browser(ope
     found = aim(page, "Yield", "62")
     reveal(page, "#window")
     judged = window(page, "Yield", "low", "60")
-    reveal(page, "#share")
-    page.click("#share")
-    page.wait_for_selector("#share-out", state="visible")
+    copy_link(page)
     by_link, in_this_browser = open_context().new_page(), context.new_page()
     for again, address in ((by_link, page.input_value("#share-url")), (in_this_browser, page.url.split("#")[0])):
         again.goto(address)

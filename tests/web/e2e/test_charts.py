@@ -103,6 +103,18 @@ def test_without_plotly_the_tables_still_hold_the_numbers(context, site, console
     assert "The charts could not be drawn" in page.text_content("#compare-charts")
 
 
+def test_a_plotly_js_that_is_not_the_one_the_build_pinned_is_refused(context, site, console, plotly_js):
+    """A CDN that serves other bytes for the version gets no script into the page: the browser checks its digest."""
+    console.allow(r"integrity|plotly")
+    pinned = {"plotly_js": plotly_js[0], "plotly_js_integrity": "sha384-" + "A" * 64}
+    context.route(f"{site}wheels/manifest.json", lambda route: route.fulfill(json=pinned))
+    page = context.new_page()
+    page.goto(f"{site}?example=worked")
+    page.wait_for_function("document.querySelector('#charts p.hint')")
+    assert "The charts could not be drawn" in page.text_content("#charts")
+    assert page.evaluate("typeof window.Plotly") == "undefined"
+
+
 # --------------------------------------------------------------------------- the coefficients, two ways
 def coefficient_plot(page):
     return page.locator("#charts .chart.wide .js-plotly-plot").first

@@ -23,7 +23,7 @@ from tests.web.e2e._page import (
     settled,
     status,
 )
-from tests.web.e2e.test_report import download_report, opened, stamp
+from tests.web.e2e.test_report import download_report, opened, stamp, viewed_report
 from tests.web.live.test_live import started
 
 #: The statsmodels wheel of the Pyodide release; the cache of downloads is routed before it, so this route wins.
@@ -55,7 +55,7 @@ def test_the_page_is_ready_and_designs_without_what_a_model_is_fitted_with_and_a
     candidates_done(page)
     generate(page, design_type="full_factorial")
     assert len(run_sheet(page)) == 11, "a design is made, and compared with the others, without it"
-    on = stamp(opened(page, download_report(page)[1]))["On"]
+    on = stamp(viewed_report(page))["On"]  # no results yet: the study's menu opens its report
     assert "scipy" in on, on
     assert "statsmodels" not in on, "no model was fitted, and the report names nothing that is not there"
 

@@ -93,6 +93,7 @@ APP_FILES = (
     "report.js",
     "campaign.js",
     "study-file.js",
+    "room.js",
     "store.js",
     "glossary.js",
     "terms.js",
@@ -2257,6 +2258,7 @@ def assemble(out_dir: Path, dist: Path = ROOT / "dist" / "web", *, service_worke
         "committed_at": committed_at(commit()),
         "plotly": version("plotly"),
         "plotly_js": get_plotlyjs_version(),
+        "plotly_js_integrity": plotly_js_integrity(),
         "on_demand": exact_files(on_demand_pins(version("plotly")), python),
     }
     (out_dir / "wheels" / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
@@ -2265,6 +2267,18 @@ def assemble(out_dir: Path, dist: Path = ROOT / "dist" / "web", *, service_worke
     write_reproduction(out_dir)
     (out_dir / "demo.json").write_text(json.dumps(worked_example(), separators=(",", ":")) + "\n", encoding="utf-8")
     return wheel.name
+
+
+def plotly_js_integrity() -> str:
+    """Return the SHA-384 of the Plotly.js the Python plotly package ships, as a script's ``integrity`` takes it.
+
+    jsDelivr serves the same bytes for the same version, so the page (web/charts.js) loads Plotly.js from there
+    pinned to this digest, and the browser refuses any other copy.
+    """
+    import plotly  # noqa: PLC0415 - the docs environment has plotly
+
+    script = (Path(plotly.__file__).parent / "package_data" / "plotly.min.js").read_bytes()
+    return "sha384-" + base64.b64encode(hashlib.sha384(script).digest()).decode()
 
 
 def main() -> None:

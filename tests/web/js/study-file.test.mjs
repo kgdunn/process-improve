@@ -92,6 +92,14 @@ describe("the study file", () => {
     assert.equal(studies[0].sha256, await sha256(canonicalJson(study)));
   });
 
+  test("leaves out the room a study is kept in step through: its secret opens the room", async () => {
+    const inRoom = { ...record("a"), room: { secret: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8", version: "v1", base: null } };
+    const text = await asText([inRoom]);
+    assert.ok(!text.includes("AAECAwQF"), "no secret in the file");
+    const { studies } = JSON.parse(text);
+    assert.equal(studies[0].sha256, (await written([record("a")])).studies[0].sha256, "the same study as out of a room");
+  });
+
   test("reads back what it wrote: each study checked, with its id and times", async () => {
     const { studies, refused } = await readStudyFile(await asText([record("a"), record("b", "Another")]));
     assert.deepEqual(refused, []);

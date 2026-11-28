@@ -7,6 +7,7 @@ build time through ``web/bootstrap.py``, which the page draws at first paint whi
 
 from __future__ import annotations
 
+import base64
 import functools
 import hashlib
 import io
@@ -87,7 +88,7 @@ def _local(references: list[str]) -> set[str]:
     ``./``, the header's link home, is the page's own.
     """
     kept = [ref for ref in references if "://" not in ref and not ref.startswith(("data:", "#", "$"))]
-    local = {ref.removeprefix("./") for ref in kept}
+    local = {ref.split("#", 1)[0].removeprefix("./") for ref in kept}  # a place in a page is that page
     return {f"{ref}index.html" if ref.endswith("/") or not ref else ref for ref in local}
 
 
@@ -223,9 +224,18 @@ def test_assemble_lays_out_what_the_page_and_its_worker_read(build_script, tmp_p
         "committed_at": build_script.committed_at(build_script.commit()),
         "plotly": version("plotly"),
         "plotly_js": get_plotlyjs_version(),
+        "plotly_js_integrity": build_script.plotly_js_integrity(),
         "on_demand": None,
     }
     assert json.loads((out / "demo.json").read_text(encoding="utf-8")) == {"the": "worked example"}
+
+
+def test_plotly_js_is_pinned_to_the_digest_of_the_copy_plotly_ships(build_script):
+    """The page loads Plotly.js from jsDelivr only if it has these bytes (web/charts.js): the package's own copy."""
+    plotly = pytest.importorskip("plotly", reason="the build names plotly's versions")
+    script = (Path(plotly.__file__).parent / "package_data" / "plotly.min.js").read_bytes()
+    pinned = build_script.plotly_js_integrity()
+    assert pinned == "sha384-" + base64.b64encode(hashlib.sha384(script).digest()).decode()
 
 
 def _assemble_around(build_script, out: Path, wheel: bytes, monkeypatch) -> dict:

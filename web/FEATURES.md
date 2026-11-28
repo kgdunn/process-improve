@@ -726,13 +726,14 @@ Also:
     analysis, the best settings, the balance, the predictions and each figure. Tests run the
     code and compare.
 - **A workbook for the lab.** The run sheet as a spreadsheet to fill in, which the app reads
-  back.
+  back. It is Run's one download.
   - *Details:* An .xlsx file. Two downloads of one study are the same file. It also keeps the
     targets and the specification limits typed in Learn, so they come back with the workbook.
 - **Run sheet (.csv).** It opens in any spreadsheet or program.
+  - *Details:* "or as .csv", beside the workbook.
 - **A notebook.** It holds the study's code, with a cell that draws each figure of the
   analysis.
-  - *Details:* An .ipynb file.
+  - *Details:* An .ipynb file, from Learn, beside the report.
 - **A report to hand over.** One page that needs nothing else: the question, the design, the
   results, the analysis with its charts, the best settings, the next step and the code.
   - *Details:* An .html file. A stamp gives the seed, a fingerprint of the study (its
@@ -741,9 +742,12 @@ Also:
     The software versions are at its foot. A chart's image takes a shape that suits it: a
     surface with equal axes as wide as its square plot and its color bar, a figure in three
     dimensions about as wide as it is tall, the others 720 pixels wide.
-- **A link to a study.** It carries the results or leaves them out. Whoever opens it has the
-  same study, and the study in the link reaches no server.
-  - *Details:* The study is packed after the `#`, which a browser sends to no server.
+- **A link to a study.** It carries the study and its results. Whoever opens it has the same
+  study, and Factorial's server never sees it. It is the quieter choice under Share, beside
+  working on the study together, and it says what it is: not encrypted, and not to be taken back.
+  - *Details:* The study is packed after the `#`, which a browser sends to no server. The link
+    itself holds the study, so the email or chat that carries it can read it; a room's link
+    holds only a key, and removing the room ends it.
 - **Move your studies.** One study or all of them as a file, to take to another browser or
   another computer.
   - *Details:* The study file (.json) is plain JSON and carries a SHA-256 of each study. A
@@ -754,6 +758,26 @@ Also:
     it. From study format 12 on, a version keeps a setting it does not know and takes no
     notice of it, so a later setting that only changes how a study looks opens in it.
 - **Share.** It hands a study to the device's share sheet where the browser has one.
+- **Work on a study together.** Share a study in a room, and whoever opens the room's link has
+  the same study: results typed in any of your browsers reach the others. The server keeps the
+  study encrypted, and cannot read it. Before a room is made, the app says who will see the
+  study and how to stop.
+  - *Details:* "Share this study", in Run, asks first, in a few lines that say who sees the
+    study, what the server keeps and how to stop; How Factorial works answers the rest, under
+    "Can I work on a study with others?". There a picture shows the study going through the server
+    encrypted and the key going around it, in the link; under it, the page encrypts a line in front
+    of the reader with the app's own code, shows the bytes the server would keep, and opens the
+    line again, with links to that code and to the server's. The room's link carries a secret after the `#`,
+    which a browser sends to no server. From it the browser derives the key that encrypts the study
+    (AES-GCM, 256 bits), a token that lets a browser change the room, and the room's name, the
+    SHA-256 of the token. The server holds the name and the encrypted study, padded to 4, 16 or
+    64 KiB so that its size does not say how many runs it has. A page in a room looks at it when
+    it opens, when you come back to it, every 15 seconds while it is in view, and a moment after a
+    result changes. A result changed in two browsers keeps the one that reached the room first,
+    and the page says which it replaced. The room keeps the runs it was shared with: a study whose
+    runs change afterwards stops keeping in step, and can be shared in a new room. A room nobody
+    changes for 30 days is removed, and "Remove the room for everyone" removes it at once; each
+    browser keeps its own copy of the study. The study file leaves a room out.
 - **Examples by name.** The book's 19 examples and 3 published examples each open from a
   link.
   - *Details:* With `?book=<name>` and with `?example=<name>`.
@@ -975,11 +999,13 @@ What a careful reader, or an organization, asks before using a tool.
 
 #### Where your data goes
 
-- **Nowhere.** What you type, your results and your analyses stay in your browser. There is
-  no account to make, and nothing follows you around the web.
+- **Nowhere you do not send it.** What you type, your results and your analyses stay in your
+  browser. There is no account to make, and nothing follows you around the web.
   - *Details:* Python (CPython in WebAssembly) runs in the tab. The server sends the app's
-    files and nothing more: it has no database, no accounts, no cookies and no tracking
-    script.
+    files, keeps the encrypted study of each room, and nothing more: it has no database, no
+    accounts, no cookies and no tracking script. A Content-Security-Policy names every host a
+    page may load from or send to: the site, jsDelivr and PyPI. Plotly.js, which draws the
+    charts, runs only if its bytes are those the build checked (its SHA-384).
 - **We count visits, not people.** We see how often a page is opened. We do not see who
   opened it, or anything they did there.
   - *Details:* One access-log line per request, with the address cut to its network before
@@ -995,9 +1021,12 @@ What a careful reader, or an organization, asks before using a tool.
     server writes the numbers, and nothing else, to a public file each hour, and the footer of
     every page draws it. A copy of Factorial at another address has no such file and leaves
     the line out.
-- **Feedback is the one thing sent.** It goes only when you press Send, and holds only what the
-  form lists.
-  - *Details:* The relay emails it and keeps nothing.
+- **Two things are sent, and only when you ask.** Feedback goes when you press Send, and holds only
+  what the form lists. A study you share in a room goes encrypted, with a key that only the room's
+  link holds.
+  - *Details:* The feedback relay emails a report and keeps nothing. The encrypted study locker keeps one
+    encrypted copy of each room's study, and hands it to whoever names the room; its log names no
+    room. A network may make 20 rooms a day.
 
 #### With no network, or on your own server
 
