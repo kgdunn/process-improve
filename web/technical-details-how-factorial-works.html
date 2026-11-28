@@ -35,7 +35,7 @@
   <p class="about__back"><a href="./"><img src="favicon.svg" alt="" width="28" height="28"> Back to Factorial</a></p>
   <h1>How Factorial works</h1>
   <p class="lede">Factorial does all of its work in your browser. Your factors, results and analyses stay on your
-    device, unless you choose to send them: with Feedback, or encrypted, in a room you share.</p>
+    device, unless you choose to send them: with Feedback, or encrypted, in a locker you share.</p>
 
   <!-- Each part answers a question a reader asks, in plain words. What only some readers ask (the names of the
        files, the formats, what a server writes down) is under the answer, in a fold: tests/web/page/test_about.py
@@ -47,7 +47,7 @@
     <li><strong>Your studies stay in this browser.</strong> They are saved as you work. A study file keeps a copy
       elsewhere.</li>
     <li><strong>Nothing is sent unless you send it.</strong> Feedback leaves when you press Send. A study you share
-      in a room leaves encrypted, and the server cannot read it: <a href="#h-room">see how</a>.</li>
+      in a locker leaves encrypted, and the server cannot read it: <a href="#h-locker">see how</a>.</li>
     <li><strong>It works with no network.</strong> After a first visit, the page opens from a copy kept here.</li>
     <li><strong>Anyone can check it.</strong> The code is open, and this page says where to look.</li>
     <li><strong>You can run a copy of your own.</strong> Any web server can serve it.</li>
@@ -138,9 +138,9 @@
     <p>There are four ways, and each leaves the study in your hands:</p>
     <ul>
       <li><strong>A link.</strong> It holds the whole study, and it goes only where you paste it.</li>
-      <li><strong>A room.</strong> Share this study, in Run, then Work on it together, shares the study with whoever has the room's link, and
+      <li><strong>A locker.</strong> Share this study, in Run, then Work on it together, shares the study with whoever has the locker's link, and
         the results typed in any of their browsers reach the others: see
-        <a href="#h-room">Can I work on a study with others?</a></li>
+        <a href="#h-locker">Can I work on a study with others?</a></li>
       <li><strong>A file.</strong> The Download all button, under Your studies, saves every study as one file, and
         the Share button beside a study sends that study alone, as a file of its own (it reads Download in a
         browser that cannot share a file). Drop the file on Your studies, in any
@@ -192,27 +192,27 @@
     </details>
   </section>
 
-  <section aria-labelledby="h-room">
-    <h2 id="h-room">Can I work on a study with others?</h2>
-    <p>Yes, in a room. Press Share this study, in Run, then Work on it together, and Factorial makes a link to the
+  <section aria-labelledby="h-locker">
+    <h2 id="h-locker">Can I work on a study with others?</h2>
+    <p>Yes, in a locker. Press Share this study, in Run, then Work on it together, and Factorial makes a link to the
       study. Whoever opens the
       link has the same study, and the results each of you types reach the others.</p>
     <!-- The one claim the picture makes: the study goes through factori.al locked, and the key goes around it, in
-         the link you send yourself. Drawn in the look of the page's other drawing (style.css, .room-picture), the
+         the link you send yourself. Drawn in the look of the page's other drawing (style.css, .locker-picture), the
          accent for what is the reader's own, so it reads in both themes. Its words are the caption's and the
          aria-label's, which tests/web/page/test_about.py holds. -->
-    <figure class="room-picture">
-      <svg class="room-picture__wide" viewBox="0 0 480 340" role="img" aria-label="Your browser makes a key and encrypts the study with it. factori.al receives only the encrypted study, and has no key, so it cannot open it. The key travels in the link, which you send yourself, by email or chat. Their browser opens the study with the key from the link.">
+    <figure class="locker-picture">
+      <svg class="locker-picture__wide" viewBox="0 0 480 340" role="img" aria-label="Your browser makes a key and encrypts the study with it. factori.al receives only the encrypted study, and has no key, so it cannot open it. The key travels in the link, which you send yourself, by email or chat. Their browser opens the study with the key from the link.">
         <defs>
-          <marker id="room-picture-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <marker id="locker-picture-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <path d="M0 0 L10 5 L0 10 z" class="wire-head"/>
           </marker>
-          <marker id="room-picture-key-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <marker id="locker-picture-key-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <path d="M0 0 L10 5 L0 10 z" class="key-head"/>
           </marker>
         </defs>
         <!-- The link, with its key: from you to them, around factori.al. -->
-        <path class="key" d="M80 110 V52 Q80 40 92 40 H388 Q400 40 400 52 V106" marker-end="url(#room-picture-key-arrow)"/>
+        <path class="key" d="M80 110 V52 Q80 40 92 40 H388 Q400 40 400 52 V106" marker-end="url(#locker-picture-key-arrow)"/>
         <text x="240" y="28" text-anchor="middle" class="key-words">the link, with the key after #</text>
         <text x="240" y="60" text-anchor="middle">you send it yourself, by email or chat</text>
         <!-- The two browsers, and factori.al between them. -->
@@ -232,22 +232,22 @@
         <text x="240" y="296" text-anchor="middle">keeps the encrypted study</text>
         <text x="240" y="316" text-anchor="middle" class="key-words">has no key: cannot open it</text>
         <!-- What goes through factori.al: the study, encrypted. -->
-        <line x1="110" y1="194" x2="184" y2="242" class="wire" marker-end="url(#room-picture-arrow)"/>
+        <line x1="110" y1="194" x2="184" y2="242" class="wire" marker-end="url(#locker-picture-arrow)"/>
         <text x="132" y="232" text-anchor="end">encrypted study</text>
-        <line x1="296" y1="242" x2="370" y2="196" class="wire" marker-end="url(#room-picture-arrow)"/>
+        <line x1="296" y1="242" x2="370" y2="196" class="wire" marker-end="url(#locker-picture-arrow)"/>
         <text x="348" y="232" text-anchor="start">encrypted study</text>
       </svg>
       <!-- The same picture, top to bottom, for a narrow screen, where the one above would shrink past reading. -->
-      <svg class="room-picture__tall" viewBox="0 0 320 390" role="img" aria-label="Your browser makes a key and encrypts the study with it. factori.al receives only the encrypted study, and has no key, so it cannot open it. The key travels in the link, which you send yourself, by email or chat. Their browser opens the study with the key from the link.">
+      <svg class="locker-picture__tall" viewBox="0 0 320 390" role="img" aria-label="Your browser makes a key and encrypts the study with it. factori.al receives only the encrypted study, and has no key, so it cannot open it. The key travels in the link, which you send yourself, by email or chat. Their browser opens the study with the key from the link.">
         <defs>
-          <marker id="room-picture-arrow-tall" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <marker id="locker-picture-arrow-tall" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <path d="M0 0 L10 5 L0 10 z" class="wire-head"/>
           </marker>
-          <marker id="room-picture-key-arrow-tall" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <marker id="locker-picture-key-arrow-tall" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <path d="M0 0 L10 5 L0 10 z" class="key-head"/>
           </marker>
         </defs>
-        <path class="key" d="M110 47 H24 Q12 47 12 59 V329 Q12 341 24 341 H106" marker-end="url(#room-picture-key-arrow-tall)"/>
+        <path class="key" d="M110 47 H24 Q12 47 12 59 V329 Q12 341 24 341 H106" marker-end="url(#locker-picture-key-arrow-tall)"/>
         <text x="22" y="150" class="key-words">the link,</text>
         <text x="22" y="167" class="key-words">with the key</text>
         <text x="22" y="184" class="key-words">after #</text>
@@ -257,7 +257,7 @@
         <text x="210" y="36" text-anchor="middle" class="name">Your browser</text>
         <text x="210" y="56" text-anchor="middle">makes the key</text>
         <text x="210" y="74" text-anchor="middle">encrypts the study</text>
-        <line x1="210" y1="84" x2="210" y2="150" class="wire" marker-end="url(#room-picture-arrow-tall)"/>
+        <line x1="210" y1="84" x2="210" y2="150" class="wire" marker-end="url(#locker-picture-arrow-tall)"/>
         <text x="218" y="122">encrypted study</text>
         <rect x="110" y="152" width="200" height="84" rx="2" class="box server"/>
         <rect x="138" y="170" width="16" height="12" rx="2" class="lock"/>
@@ -265,7 +265,7 @@
         <text x="214" y="181" text-anchor="middle" class="name">factori.al</text>
         <text x="210" y="203" text-anchor="middle">keeps the encrypted study</text>
         <text x="210" y="223" text-anchor="middle" class="key-words">has no key: cannot open it</text>
-        <line x1="210" y1="236" x2="210" y2="302" class="wire" marker-end="url(#room-picture-arrow-tall)"/>
+        <line x1="210" y1="236" x2="210" y2="302" class="wire" marker-end="url(#locker-picture-arrow-tall)"/>
         <text x="218" y="274">encrypted study</text>
         <rect x="110" y="304" width="200" height="74" rx="2" class="box mine"/>
         <text x="210" y="330" text-anchor="middle" class="name">Their browser</text>
@@ -275,9 +275,9 @@
       <figcaption>The study goes through factori.al locked. The key goes around it, in the link you send yourself:
         a browser never sends the part of a link after its # to a server.</figcaption>
     </figure>
-    <!-- The picture, done in front of the reader by the app's own code (web/room.js), at the foot of this page. Shown
+    <!-- The picture, done in front of the reader by the app's own code (web/locker.js), at the foot of this page. Shown
          once it has run: a browser that cannot run it shows the picture alone. -->
-    <div id="room-proof" class="room-proof" hidden>
+    <div id="locker-proof" class="locker-proof" hidden>
       <p><strong>This page has just done it.</strong> With the code the app uses, your browser made a key and encrypted
         this line. Nothing left your browser.</p>
       <dl>
@@ -290,45 +290,45 @@
       </dl>
       <button type="button" id="proof-again" class="button">Encrypt it again, with a new key</button>
     </div>
-    <p class="room-audit"><strong>Check it yourself.</strong> The key is made, and used, only in
-      <a href="https://github.com/kgdunn/process-improve/blob/main/web/room.js" target="_blank" rel="noopener"><code>web/<wbr>room.js</code></a>, which
-      runs in your browser: <code>roomOf</code> makes it from the link, and <code>seal</code> encrypts with it. The
+    <p class="locker-audit"><strong>Check it yourself.</strong> The key is made, and used, only in
+      <a href="https://github.com/kgdunn/process-improve/blob/main/web/locker.js" target="_blank" rel="noopener"><code>web/<wbr>locker.js</code></a>, which
+      runs in your browser: <code>lockerOf</code> makes it from the link, and <code>seal</code> encrypts with it. The
       server's whole program is
       <a href="https://github.com/kgdunn/process-improve/blob/main/deploy/factorial/encrypted_study_locker.py" target="_blank" rel="noopener"><code>deploy/<wbr>factorial/<wbr>encrypted_study_locker.py</code></a>:
       it is never sent the key, and it keeps only the bytes it is sent. A test checks that what the server keeps holds
       nothing readable:
-      <a href="https://github.com/kgdunn/process-improve/blob/main/tests/web/e2e/test_rooms.py" target="_blank" rel="noopener"><code>tests/<wbr>web/<wbr>e2e/<wbr>test_rooms.py</code></a>.</p>
+      <a href="https://github.com/kgdunn/process-improve/blob/main/tests/web/e2e/test_lockers.py" target="_blank" rel="noopener"><code>tests/<wbr>web/<wbr>e2e/<wbr>test_lockers.py</code></a>.</p>
     <ul>
       <li><strong>Only the link opens the study.</strong> Your browser encrypts the study before it sends it, with a key
         that is part of the link. factori.al keeps the encrypted study and cannot read it, and neither can anyone who
         reads what factori.al keeps.</li>
       <li><strong>Whoever has the link can read the study and change its results.</strong> Send it only to people who
-        may see the study. A link cannot be taken back from one person: to stop someone, remove the room and share the
+        may see the study. A link cannot be taken back from one person: to stop someone, remove the locker and share the
         study in a new one.</li>
-      <li><strong>Each browser keeps its own copy.</strong> Leave the room, or remove it for everyone, and every copy
-        stays where it is. A room nobody changes for 30 days is removed from factori.al.</li>
+      <li><strong>Each browser keeps its own copy.</strong> Stop using the locker, or remove it for everyone, and every copy
+        stays where it is. A locker nobody changes for 30 days is removed from factori.al.</li>
       <li><strong>When two people change one result, the first change to arrive is kept.</strong> The page says which
         of yours it replaced, so you can type it again.</li>
-      <li><strong>A room keeps the runs it was shared with.</strong> Add runs to the study, and it stops keeping in
-        step with the room. Share it in a new room to go on together.</li>
+      <li><strong>A locker keeps the runs it was shared with.</strong> Add runs to the study, and it stops keeping in
+        step with the locker. Share it in a new locker to go on together.</li>
     </ul>
     <details class="fold">
       <summary>The details: how the key is made, and what factori.al holds</summary>
       <p><strong>The secret is after the link's <code>#</code>.</strong> A browser does not send that part of an
         address to any server. Your browser derives three things from the secret, each one way
-        (<code>web/room.js</code>): the key that encrypts the study (AES-GCM, 256 bits), which never leaves your
-        browser; a token, which a browser sends when it changes the room; and the room's name, the SHA-256 of the
-        token, which it sends to read the room. Neither the name nor the token leads back to the key.</p>
+        (<code>web/locker.js</code>): the key that encrypts the study (AES-GCM, 256 bits), which never leaves your
+        browser; a token, which a browser sends when it changes the locker; and the locker's name, the SHA-256 of the
+        token, which it sends to read the locker. Neither the name nor the token leads back to the key.</p>
       <p><strong>factori.al holds the name and the encrypted study.</strong> The study is padded to 4, 16 or 64 KiB
         before it is encrypted, so its size does not say how many runs it has. Each change replaces it: there is no
-        history of a room, and no list of rooms.</p>
-      <p><strong>Each browser keeps the whole study.</strong> A page in a room reads it when it opens, when you come
+        history of a locker, and no list of lockers.</p>
+      <p><strong>Each browser keeps the whole study.</strong> A page that uses a locker reads it when it opens, when you come
         back to it, every 15 seconds while it is in view, and a moment after a result changes. It merges what changed
-        in the room with what changed here, against the room as it last saw it, so a result corrected in one browser
+        in the locker with what changed here, against the locker as it last saw it, so a result corrected in one browser
         reaches the others.</p>
-      <p><strong>A study file leaves the room out.</strong> A file never opens a room, and never carries its key. A
-        copy of Factorial at another address has rooms only if its server runs the encrypted study locker too
-        (<code>deploy/factorial/README.md</code>, Rooms).</p>
+      <p><strong>A study file leaves the locker out.</strong> A file never opens a locker, and never carries its key. A
+        copy of Factorial at another address has lockers only if its server runs the encrypted study locker too
+        (<code>deploy/factorial/README.md</code>, Lockers).</p>
     </details>
   </section>
 
@@ -342,8 +342,8 @@
         see an ordinary download, and nothing of your study.</li>
       <li><strong>Feedback goes only when you send it.</strong> Before you press Send, the form lists everything it
         will send. Your study is in it only if you tick the box.</li>
-      <li><strong>A room's study is encrypted before it is sent.</strong> factori.al keeps it, and cannot read it: the
-        key is in the room's link, which your browser does not send.</li>
+      <li><strong>A locker's study is encrypted before it is sent.</strong> factori.al keeps it, and cannot read it: the
+        key is in the locker's link, which your browser does not send.</li>
     </ul>
     <details class="fold">
       <summary>The details: what is written down, and for how long</summary>
@@ -372,11 +372,11 @@
         holds a keyed hash of each address, in memory only, for a day. A copy of Factorial at another address sends
         nothing itself.
         <a href="https://github.com/kgdunn/process-improve/blob/main/deploy/factorial/feedback_relay.py" target="_blank" rel="noopener">Read the code</a>.</li>
-        <li><strong>A room is one file of encrypted bytes on factori.al.</strong> Each change replaces it: the server
-        keeps no history of a room and no list of them. A room nobody changes for 30 days is removed. The server takes
-        an encrypted study of the three padded sizes and nothing else, at most 20 new rooms a day from one network, and
-        stops taking new rooms when it holds 256 MiB in all. A room's name and token travel in a header that the web
-        server's log leaves out, so the log does not say which room a request was for.
+        <li><strong>A locker is one file of encrypted bytes on factori.al.</strong> Each change replaces it: the server
+        keeps no history of a locker and no list of them. A locker nobody changes for 30 days is removed. The server takes
+        an encrypted study of the three padded sizes and nothing else, at most 20 new lockers a day from one network, and
+        stops taking new lockers when it holds 256 MiB in all. A locker's name and token travel in a header that the web
+        server's log leaves out, so the log does not say which locker a request was for.
         <a href="https://github.com/kgdunn/process-improve/blob/main/deploy/factorial/encrypted_study_locker.py" target="_blank" rel="noopener">Read the code</a>.</li>
       </ul>
     </details>
@@ -420,7 +420,7 @@
         how this site is built from the repository;</li>
         <li><a href="https://github.com/kgdunn/process-improve/tree/main/deploy/factorial" target="_blank" rel="noopener"><code>deploy/factorial/</code></a>:
         the server at factori.al, its configuration and what it logs, the relay that emails a report sent with
-        Feedback, and the encrypted study locker, which keeps a room's encrypted study;</li>
+        Feedback, and the encrypted study locker, which keeps a locker's encrypted study;</li>
         <li><a href="https://github.com/kgdunn/process-improve/tree/main/tests/web" target="_blank" rel="noopener"><code>tests/web/</code></a>: the
         tests that check the page, in a real browser and under Pyodide, on every change.</li>
       </ul>
@@ -457,14 +457,14 @@ uv run python scripts/build_web_app.py --out site --serve</code></pre>
     KU Leuven, Minitab or Effex.</p>
 </main>
 <script type="module">
-  import { newSecret, pad, roomOf, seal, unpad, unseal } from "./room.js";
+  import { newSecret, pad, lockerOf, seal, unpad, unseal } from "./locker.js";
 
-  // A room, done here by the app's own code: a line of results encrypted with a new key, the first bytes of what
+  // A locker, done here by the app's own code: a line of results encrypted with a new key, the first bytes of what
   // factori.al would keep, and the line opened again with the key, as another browser opens it from the link.
   const LINE = "Temperature 175 °C, pressure 2.5 bar: yield 62.3 %";
   const show = (id, text) => (document.getElementById(id).textContent = text);
   async function prove() {
-    const { key } = await roomOf(newSecret());
+    const { key } = await lockerOf(newSecret());
     const held = await seal(key, pad(new TextEncoder().encode(LINE)));
     const opened = new TextDecoder().decode(unpad(await unseal(key, held)));
     show("proof-plain", LINE);
@@ -472,7 +472,7 @@ uv run python scripts/build_web_app.py --out site --serve</code></pre>
     show("proof-held", [...first].map((byte) => byte.toString(16).padStart(2, "0")).join(" "));
     show("proof-size", `the first ${first.length} of ${held.length.toLocaleString("en")} bytes`);
     show("proof-opened", opened);
-    document.getElementById("room-proof").hidden = false;
+    document.getElementById("locker-proof").hidden = false;
   }
   document.getElementById("proof-again").onclick = prove;
   prove().catch(() => {}); // a browser that cannot encrypt here shows the picture alone

@@ -203,12 +203,12 @@ const onDemand = (scope) => ["figure.js"].map((file) => scope + file);
 /**
  * The pages of the app this page never loads, which its footer leads to and which are small: the list of what
  * Factorial does (features.html), with the module that reads its document and the document; how Factorial works
- * (technical-details-how-factorial-works.html), with the module its picture of a room encrypts with (room.js), and how it is
+ * (technical-details-how-factorial-works.html), with the module its picture of a locker encrypts with (locker.js), and how it is
  * checked (validation.html), which read only files the copy holds; and the mark
  * beside their way back. A copy holds them all the same, so each opens without a network. The design catalog and the concept map are megabytes each: they are
  * kept once a visit with a network opens them, and until then the worker says they need one (sw.js).
  */
-const linked = (scope) => ["features.html", "features.js", "FEATURES.md", "technical-details-how-factorial-works.html", "validation.html", "favicon.svg", "site.js", "room.js"].map((file) => scope + file);
+const linked = (scope) => ["features.html", "features.js", "FEATURES.md", "technical-details-how-factorial-works.html", "validation.html", "favicon.svg", "site.js", "locker.js"].map((file) => scope + file);
 
 /**
  * What else this visit loaded of the app, as the browser's record of the visit has it: its modules, its styles,

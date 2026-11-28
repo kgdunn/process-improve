@@ -37,7 +37,7 @@ SUITES = (
     "report.test.mjs",
     "campaign.test.mjs",
     "study-file.test.mjs",
-    "room.test.mjs",
+    "locker.test.mjs",
     "picture.test.mjs",
     "catalog.test.mjs",
     "field-chart.test.mjs",
