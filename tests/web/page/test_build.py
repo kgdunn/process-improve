@@ -88,7 +88,7 @@ def _local(references: list[str]) -> set[str]:
     ``./``, the header's link home, is the page's own.
     """
     kept = [ref for ref in references if "://" not in ref and not ref.startswith(("data:", "#", "$"))]
-    local = {ref.removeprefix("./") for ref in kept}
+    local = {ref.split("#", 1)[0].removeprefix("./") for ref in kept}  # a place in a page is that page
     return {f"{ref}index.html" if ref.endswith("/") or not ref else ref for ref in local}
 
 

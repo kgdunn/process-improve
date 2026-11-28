@@ -35,7 +35,7 @@
   <p class="about__back"><a href="./"><img src="favicon.svg" alt="" width="28" height="28"> Back to Factorial</a></p>
   <h1>How Factorial works</h1>
   <p class="lede">Factorial does all of its work in your browser. Your factors, results and analyses stay on your
-    device, unless you choose to send them: with Feedback, or sealed, in a room you share.</p>
+    device, unless you choose to send them: with Feedback, or encrypted, in a room you share.</p>
 
   <!-- Each part answers a question a reader asks, in plain words. What only some readers ask (the names of the
        files, the formats, what a server writes down) is under the answer, in a fold: tests/web/page/test_about.py
@@ -47,7 +47,7 @@
     <li><strong>Your studies stay in this browser.</strong> They are saved as you work. A study file keeps a copy
       elsewhere.</li>
     <li><strong>Nothing is sent unless you send it.</strong> Feedback leaves when you press Send. A study you share
-      in a room leaves sealed, and the server cannot read it.</li>
+      in a room leaves encrypted, and the server cannot read it.</li>
     <li><strong>It works with no network.</strong> After a first visit, the page opens from a copy kept here.</li>
     <li><strong>Anyone can check it.</strong> The code is open, and this page says where to look.</li>
     <li><strong>You can run a copy of your own.</strong> Any web server can serve it.</li>
@@ -139,8 +139,8 @@
     <ul>
       <li><strong>A link.</strong> It holds the whole study, and it goes only where you paste it.</li>
       <li><strong>A room.</strong> Work on it together, in Run, shares the study with whoever has the room's link, and
-        the results typed in any of their browsers reach the others. factori.al keeps the study sealed, and cannot read
-        it. Leave the room, or remove it for everyone: each browser keeps its own copy.</li>
+        the results typed in any of their browsers reach the others: see
+        <a href="#h-room">Can I work on a study with others?</a></li>
       <li><strong>A file.</strong> The Download all button, under Your studies, saves every study as one file, and
         the Share button beside a study sends that study alone, as a file of its own (it reads Download in a
         browser that cannot share a file). Drop the file on Your studies, in any
@@ -150,18 +150,9 @@
         saves each as it does any download.</li>
     </ul>
     <details class="fold">
-      <summary>The details: the link, the room, and the file's format</summary>
+      <summary>The details: the link, and the file's format</summary>
       <p><strong>A link holds the study itself.</strong> It is there compressed, after the <code>#</code>. A browser
         does not send that part of an address to any server: the link travels only where you paste it.</p>
-      <p><strong>A room's link holds a secret, after its <code>#</code>.</strong> Your browser derives three things
-        from it, each one way (<code>web/room.js</code>): the key that seals the study (AES-GCM, 256 bits), which never
-        leaves your browser; a token, which a browser sends when it changes the room; and the room's name, the
-        SHA-256 of the token, which it sends to read the room. The server holds the name and the sealed study, padded
-        to 4, 16 or 64 KiB so that its size does not say how many runs it has. Neither the name nor the token leads back
-        to the key. Each browser keeps the whole study, and merges what changed in the room with what changed here: a
-        result changed in two browsers keeps the one that reached the room first, and the page says which it replaced.
-        The room keeps the runs it was shared with, and a study whose runs change afterwards stops keeping in step. The
-        study file leaves the room out, so a file never opens a room.</p>
       <p>The file is plain JSON, readable without Factorial (<code>web/study-file.js</code> writes and reads it):</p>
       <pre><code>{
   "format": "factorial-studies",
@@ -201,6 +192,44 @@
     </details>
   </section>
 
+  <section aria-labelledby="h-room">
+    <h2 id="h-room">Can I work on a study with others?</h2>
+    <p>Yes, in a room. Press Work on it together, in Run, and Factorial makes a link to the study. Whoever opens the
+      link has the same study, and the results each of you types reach the others.</p>
+    <ul>
+      <li><strong>Only the link opens the study.</strong> Your browser encrypts the study before it sends it, with a key
+        that is part of the link. factori.al keeps the encrypted study and cannot read it, and neither can anyone who
+        reads what factori.al keeps.</li>
+      <li><strong>Whoever has the link can read the study and change its results.</strong> Send it only to people who
+        may see the study. A link cannot be taken back from one person: to stop someone, remove the room and share the
+        study in a new one.</li>
+      <li><strong>Each browser keeps its own copy.</strong> Leave the room, or remove it for everyone, and every copy
+        stays where it is. A room nobody changes for 30 days is removed from factori.al.</li>
+      <li><strong>When two people change one result, the first change to arrive is kept.</strong> The page says which
+        of yours it replaced, so you can type it again.</li>
+      <li><strong>A room keeps the runs it was shared with.</strong> Add runs to the study, and it stops keeping in
+        step with the room. Share it in a new room to go on together.</li>
+    </ul>
+    <details class="fold">
+      <summary>The details: how the key is made, and what factori.al holds</summary>
+      <p><strong>The secret is after the link's <code>#</code>.</strong> A browser does not send that part of an
+        address to any server. Your browser derives three things from the secret, each one way
+        (<code>web/room.js</code>): the key that encrypts the study (AES-GCM, 256 bits), which never leaves your
+        browser; a token, which a browser sends when it changes the room; and the room's name, the SHA-256 of the
+        token, which it sends to read the room. Neither the name nor the token leads back to the key.</p>
+      <p><strong>factori.al holds the name and the encrypted study.</strong> The study is padded to 4, 16 or 64 KiB
+        before it is encrypted, so its size does not say how many runs it has. Each change replaces it: there is no
+        history of a room, and no list of rooms.</p>
+      <p><strong>Each browser keeps the whole study.</strong> A page in a room reads it when it opens, when you come
+        back to it, every 15 seconds while it is in view, and a moment after a result changes. It merges what changed
+        in the room with what changed here, against the room as it last saw it, so a result corrected in one browser
+        reaches the others.</p>
+      <p><strong>A study file leaves the room out.</strong> A file never opens a room, and never carries its key. A
+        copy of Factorial at another address has rooms only if its server runs the room relay too
+        (<code>deploy/factorial/README.md</code>, Rooms).</p>
+    </details>
+  </section>
+
   <section aria-labelledby="h-servers">
     <h2 id="h-servers">What does a server see?</h2>
     <p>Very little, and nothing of your work.</p>
@@ -211,7 +240,7 @@
         see an ordinary download, and nothing of your study.</li>
       <li><strong>Feedback goes only when you send it.</strong> Before you press Send, the form lists everything it
         will send. Your study is in it only if you tick the box.</li>
-      <li><strong>A room's study is sealed before it is sent.</strong> factori.al keeps it, and cannot read it: the
+      <li><strong>A room's study is encrypted before it is sent.</strong> factori.al keeps it, and cannot read it: the
         key is in the room's link, which your browser does not send.</li>
     </ul>
     <details class="fold">
@@ -241,9 +270,9 @@
         holds a keyed hash of each address, in memory only, for a day. A copy of Factorial at another address sends
         nothing itself.
         <a href="https://github.com/kgdunn/process-improve/blob/main/deploy/factorial/feedback_relay.py" target="_blank" rel="noopener">Read the code</a>.</li>
-        <li><strong>A room is one file of sealed bytes on factori.al.</strong> Each change replaces it: the server keeps
-        no history of a room and no list of them. A room nobody changes for 30 days is removed. The server takes a
-        sealed study of the three padded sizes and nothing else, at most 20 new rooms a day from one network, and
+        <li><strong>A room is one file of encrypted bytes on factori.al.</strong> Each change replaces it: the server
+        keeps no history of a room and no list of them. A room nobody changes for 30 days is removed. The server takes
+        an encrypted study of the three padded sizes and nothing else, at most 20 new rooms a day from one network, and
         stops taking new rooms when it holds 256 MiB in all. A room's name and token travel in a header that the web
         server's log leaves out, so the log does not say which room a request was for.
         <a href="https://github.com/kgdunn/process-improve/blob/main/deploy/factorial/room_relay.py" target="_blank" rel="noopener">Read the code</a>.</li>
@@ -289,7 +318,7 @@
         how this site is built from the repository;</li>
         <li><a href="https://github.com/kgdunn/process-improve/tree/main/deploy/factorial" target="_blank" rel="noopener"><code>deploy/factorial/</code></a>:
         the server at factori.al, its configuration and what it logs, the relay that emails a report sent with
-        Feedback, and the relay that keeps a room's sealed study;</li>
+        Feedback, and the relay that keeps a room's encrypted study;</li>
         <li><a href="https://github.com/kgdunn/process-improve/tree/main/tests/web" target="_blank" rel="noopener"><code>tests/web/</code></a>: the
         tests that check the page, in a real browser and under Pyodide, on every change.</li>
       </ul>

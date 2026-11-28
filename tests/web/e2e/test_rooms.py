@@ -135,6 +135,8 @@ def share_in_room(page: Any) -> str:  # noqa: ANN401 - a Playwright Page
     type_result(page, 0, "12.5")
     type_result(page, 1, "9.75")
     page.click("#room-share")
+    page.wait_for_selector("#room-dialog[open]")
+    page.click("#room-make")
     page.wait_for_selector("#room-out", state="visible")
     page.wait_for_function("document.querySelector('#room-says').textContent.startsWith('In step with the room')")
     return page.input_value("#room-url")
@@ -165,6 +167,8 @@ def test_a_study_shared_in_a_room_opens_in_another_browser(in_rooms, relay, site
 
     elsewhere = join(in_rooms(), link)
     assert elsewhere.text_content(BANNER).startswith("Opened a study shared in a room:")
+    assert "The results you type here reach everyone in the room" in elsewhere.text_content(BANNER)
+    assert elsewhere.get_attribute(f"{BANNER} a", "href") == "technical-details-how-factorial-works.html#h-room"
     assert results(elsewhere) == results(page)
     assert elsewhere.url == site, "the secret leaves the address"
     assert elsewhere.input_value("#room-url") == link, "the same room"
@@ -173,6 +177,49 @@ def test_a_study_shared_in_a_room_opens_in_another_browser(in_rooms, relay, site
         assert secret not in url
         assert secret not in str(headers)
         assert secret.encode() not in body
+
+
+def test_the_study_leaves_the_browser_only_once_the_reader_agrees(in_rooms, relay, site):
+    """The question says who will see the study, what the server keeps, and how to stop; Not now sends nothing."""
+    page = worked(in_rooms(), site)
+    generate(page, design_type="full_factorial", n_center_points=0)
+    page.click("#room-share")
+    page.wait_for_selector("#room-dialog[open]")
+    asked = " ".join(page.text_content("#room-dialog").split())
+    for words in (
+        "Whoever opens the link has the same study",
+        "with a key that is part of the link. factori.al keeps the encrypted study and cannot read it.",
+        "Whoever has the link can read the study and change its results.",
+        "Leave the room, or remove it for everyone. Each browser keeps its own copy of the study.",
+    ):
+        assert words in asked, words
+    explained = page.get_attribute("#room-dialog a", "href")
+    assert explained == "technical-details-how-factorial-works.html#h-room"
+    page.click("#room-not-now")
+    page.wait_for_selector("#room-dialog", state="hidden")
+    page.click("#room-share")
+    page.wait_for_selector("#room-dialog[open]")
+    page.keyboard.press("Escape")  # no, as Not now
+    page.wait_for_selector("#room-dialog", state="hidden")
+    assert relay.asked == [], "nothing sent"
+    assert page.is_hidden("#room-out")
+    assert page.text_content("#room-share") == "Work on it together"
+
+    explanation = in_rooms().new_page()
+    explanation.goto(f"{site}{explained}")
+    heading = explanation.text_content("#h-room")
+    assert heading == "Can I work on a study with others?"
+
+
+def test_a_room_stays_when_the_reader_keeps_it(in_rooms, relay, site):
+    page = worked(in_rooms(), site)
+    share_in_room(page)
+    page.click("#room-remove")
+    page.wait_for_selector("#room-remove-dialog[open]")
+    page.click("#room-remove-keep")
+    page.wait_for_selector("#room-remove-dialog", state="hidden")
+    assert len(relay.rooms()) == 1
+    assert page.is_visible("#room-out")
 
 
 def test_results_typed_in_either_browser_reach_the_other(in_rooms, relay, site):
@@ -220,6 +267,9 @@ def test_a_room_removed_for_everyone_leaves_each_browser_its_copy(in_rooms, rela
     kept = results(elsewhere)
 
     page.click("#room-remove")
+    page.wait_for_selector("#room-remove-dialog[open]")
+    assert "The room's link stops working for everyone" in page.text_content("#room-remove-dialog")
+    page.click("#room-remove-yes")
     page.wait_for_selector("#room-out", state="hidden")
     assert relay.rooms() == []
     assert page.text_content("#room-share") == "Work on it together"

@@ -787,12 +787,14 @@
             <p id="share-note" class="hint"></p>
           </div>
           <!-- A room (app.js, room.js): this study kept in step with other browsers, through a server that keeps it
-               sealed with a key only the link holds. -->
+               encrypted with a key only the link holds. -->
           <div id="room-out" class="share room" hidden>
             <input id="room-url" readonly aria-label="The room's link" aria-describedby="room-note">
-            <p id="room-note" class="hint">Whoever opens this link sees this study, and their results and yours reach
-              each other. The study is sealed in this browser with a key that only the link holds, after its "#": the
-              server keeps it sealed and cannot read it. Send the link only to those who should see the study.</p>
+            <p id="room-note" class="hint">Whoever opens this link can read this study and change its results. Send it
+              only to people who may see the study. The study is encrypted with a key that is part of the link:
+              factori.al keeps it and cannot read it.
+              <a href="technical-details-how-factorial-works.html#h-room" target="_blank" rel="noopener">How a room
+              keeps your study private</a></p>
             <p id="room-says" class="hint" role="status"></p>
             <p class="room__leave">
               <button type="button" id="room-leave" class="link">Leave the room</button>
@@ -1162,6 +1164,38 @@
     <p class="actions">
       <button type="button" id="replace-keep" class="primary">Keep working on this study</button>
       <button type="button" id="replace-go" class="button">Start the new study</button>
+    </p>
+  </dialog>
+
+  <!-- Asked each time a study is shared in a room (app.js shareRoom), as this is when a study leaves the browser:
+       who sees it, what the server keeps, and how to stop. The same words as How Factorial works, #h-room. -->
+  <dialog id="room-dialog" class="sheet room-ask" aria-labelledby="h-room-ask">
+    <h2 id="h-room-ask">Work on this study together?</h2>
+    <p>Factorial makes a link to this study. Whoever opens the link has the same study, and the results each of you
+      types reach the others.</p>
+    <ul>
+      <li><strong>Only the link opens the study.</strong> This browser encrypts the study before it sends it, with a
+        key that is part of the link. factori.al keeps the encrypted study and cannot read it.</li>
+      <li><strong>Whoever has the link can read the study and change its results.</strong> Send it only to people who
+        may see the study.</li>
+      <li><strong>You can stop at any time.</strong> Leave the room, or remove it for everyone. Each browser keeps its
+        own copy of the study. A room nobody changes for 30 days is removed.</li>
+    </ul>
+    <p><a href="technical-details-how-factorial-works.html#h-room" target="_blank" rel="noopener">How a room keeps
+      your study private</a></p>
+    <p class="actions">
+      <button type="button" id="room-make" class="primary">Make the link</button>
+      <button type="button" id="room-not-now" class="button">Not now</button>
+    </p>
+  </dialog>
+  <!-- Asked before a room is removed for everyone (app.js leaveRoom): what the others lose, and what they keep. -->
+  <dialog id="room-remove-dialog" class="sheet room-ask" aria-labelledby="h-room-remove">
+    <h2 id="h-room-remove">Remove the room for everyone?</h2>
+    <p>The room's link stops working for everyone who has it. Each browser keeps its own copy of the study, but
+      results no longer travel between them. To go on together, share the study in a new room.</p>
+    <p class="actions">
+      <button type="button" id="room-remove-yes" class="primary">Remove the room</button>
+      <button type="button" id="room-remove-keep" class="button">Keep the room</button>
     </p>
   </dialog>
 

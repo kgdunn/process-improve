@@ -1544,6 +1544,10 @@ dialog.library { width: min(760px, 100vw - 32px); font-size: 0.92rem; }
 /* A room's box: its link, what it means, how it stands, and the two ways out of it, side by side. */
 .room { margin-top: 12px; }
 .room__leave { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 8px 0 0; }
+/* The questions asked before a room is made or removed: a short read, its points in a list that keeps its bullets. */
+dialog.room-ask { width: min(36rem, 100vw - 32px); }
+.room-ask ul { padding-left: 1.2em; margin: 0 0 12px; }
+.room-ask li { margin: 0 0 6px; }
 
 
 /* How Factorial works (technical-details-how-factorial-works.html): a page of prose, in a column a reader's eye can follow, with a

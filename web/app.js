@@ -9830,7 +9830,7 @@ async function shareLink() {
 
 // ---------------------------------------------------------------- rooms
 // A room keeps the study on the page in step with other browsers (room.js): each keeps the whole study, and the
-// site's relay keeps one copy, sealed with a key only the room's link holds. A page in a room looks at it when it
+// site's relay keeps one copy, encrypted with a key only the room's link holds. A page in a room looks at it when it
 // opens, when the reader comes back to it, every ROOM_EVERY while in view, and soon after a result changes.
 
 /** How often, in milliseconds, a page in view asks whether its room changed; how long after a result it writes. */
@@ -9844,6 +9844,23 @@ let roomTroubled = null; // the status line's ticket when the room last put trou
 
 /** The room of the study on the page, or null: a room belongs to the study it was entered with. */
 const currentRoom = () => (state.room && state.room.of === state.campaign?.id ? state.room : null);
+
+/** Where the app explains a room in plain words: the section of How Factorial works the room's words link to. */
+const ROOM_EXPLAINED = "technical-details-how-factorial-works.html#h-room";
+let answerRoom = null; // the room's question on show, to be answered; null when none is
+
+/** Ask the room's question in ``dialog``: resolve to whether its first button was pressed. Escape answers no. */
+function askAboutRoom(dialog) {
+  answerRoom?.(false);
+  dialog.showModal();
+  return new Promise((resolve) => {
+    answerRoom = (yes) => {
+      answerRoom = null;
+      resolve(yes);
+      if (dialog.open) dialog.close();
+    };
+  });
+}
 
 /** The room's link, which carries its secret after the "#". */
 const roomLink = (room) => `${location.origin}${location.pathname}${ROOM_KEY}${room.secret}`;
@@ -9888,10 +9905,11 @@ function roomSays(words, trouble = false) {
   }
 }
 
-/** Share the study in a new room, sealed with a new secret, or copy the link of the room it is in. */
+/** Share the study in a new room, encrypted with a new secret, once the reader agrees; or copy the room's link. */
 async function shareRoom() {
   if (!state.design || !state.campaign) return;
   if (!currentRoom()) {
+    if (!(await askAboutRoom($("#room-dialog")))) return; // the study leaves this browser only once the reader agrees
     const button = $("#room-share");
     button.disabled = true; // one room for one press: a second press meanwhile would make a second
     try {
@@ -9956,15 +9974,16 @@ async function openRoom(secret) {
   const key = designKey(there.design);
   const same = saved.find((record) => readable(record) && designKey(readable(record).design) === key);
   const title = there.title || titleOf(there.design.spec);
-  const joined = "Results typed here reach the others in the room, and theirs reach you.";
+  const joined = "The results you type here reach everyone in the room, and theirs reach you.";
+  const explained = [" ", link(ROOM_EXPLAINED, "How a room keeps the study private", "_blank"), "."];
   if (same) {
     // Its base is unknown: the first look merges the two, a result here kept where the room has none.
     const c = readable(same);
-    await openCampaign(c, { id: same.id, created: same.created, room: { secret } }, `Joined the room of ${c.title}, kept in this browser. ${joined}`, true);
+    await openCampaign(c, { id: same.id, created: same.created, room: { secret } }, [`Joined the room of ${c.title}, kept in this browser. ${joined}`, ...explained], true);
     return;
   }
   const room = { secret, version: read.version, base: resultsOf(there) };
-  await openCampaign(there, { ...newCampaign(false), room }, `Opened a study shared in a room: ${title}. ${joined} It is saved in this browser, under Your studies.`);
+  await openCampaign(there, { ...newCampaign(false), room }, [`Opened a study shared in a room: ${title}. ${joined} It is saved in this browser, under Your studies.`, ...explained]);
 }
 
 /** What a reader is told of a room that is gone, and what is left of it. */
@@ -10108,6 +10127,7 @@ function roomGone(room) {
 async function leaveRoom(remove) {
   const room = currentRoom();
   if (!room) return;
+  if (remove && !(await askAboutRoom($("#room-remove-dialog")))) return;
   if (remove) {
     try {
       await room.ready;
@@ -10951,6 +10971,14 @@ $("#share").onclick = shareLink;
 $("#room-share").onclick = shareRoom;
 $("#room-leave").onclick = () => leaveRoom(false);
 $("#room-remove").onclick = () => leaveRoom(true);
+$("#room-make").onclick = () => answerRoom?.(true);
+$("#room-not-now").onclick = () => answerRoom?.(false);
+$("#room-remove-yes").onclick = () => answerRoom?.(true);
+$("#room-remove-keep").onclick = () => answerRoom?.(false);
+for (const id of ["#room-dialog", "#room-remove-dialog"]) {
+  $(id).addEventListener("close", () => answerRoom?.(false));
+  closeOnBackdrop($(id));
+}
 // A page in a room looks at it as the reader comes back to it.
 window.addEventListener("focus", lookAtRoom);
 $("#model").onchange = () => {

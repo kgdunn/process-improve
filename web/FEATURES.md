@@ -756,11 +756,14 @@ Also:
 - **Share.** It hands a study to the device's share sheet where the browser has one.
 - **Work on a study together.** Share a study in a room, and whoever opens the room's link has
   the same study: results typed in any of your browsers reach the others. The server keeps the
-  study sealed, and cannot read it.
-  - *Details:* "Work on it together", in Run. The room's link carries a secret after the `#`,
-    which a browser sends to no server. From it the browser derives the key that seals the study
+  study encrypted, and cannot read it. Before a room is made, the app says who will see the
+  study and how to stop.
+  - *Details:* "Work on it together", in Run, asks first, in a few lines that say who sees the
+    study, what the server keeps and how to stop; How Factorial works answers the rest, under
+    "Can I work on a study with others?". The room's link carries a secret after the `#`,
+    which a browser sends to no server. From it the browser derives the key that encrypts the study
     (AES-GCM, 256 bits), a token that lets a browser change the room, and the room's name, the
-    SHA-256 of the token. The server holds the name and the sealed study, padded to 4, 16 or
+    SHA-256 of the token. The server holds the name and the encrypted study, padded to 4, 16 or
     64 KiB so that its size does not say how many runs it has. A page in a room looks at it when
     it opens, when you come back to it, every 15 seconds while it is in view, and a moment after a
     result changes. A result changed in two browsers keeps the one that reached the room first,
@@ -992,7 +995,7 @@ What a careful reader, or an organization, asks before using a tool.
 - **Nowhere you do not send it.** What you type, your results and your analyses stay in your
   browser. There is no account to make, and nothing follows you around the web.
   - *Details:* Python (CPython in WebAssembly) runs in the tab. The server sends the app's
-    files, keeps the sealed study of each room, and nothing more: it has no database, no
+    files, keeps the encrypted study of each room, and nothing more: it has no database, no
     accounts, no cookies and no tracking script. A Content-Security-Policy names every host a
     page may load from or send to: the site, jsDelivr and PyPI. Plotly.js, which draws the
     charts, runs only if its bytes are those the build checked (its SHA-384).
@@ -1012,10 +1015,10 @@ What a careful reader, or an organization, asks before using a tool.
     every page draws it. A copy of Factorial at another address has no such file and leaves
     the line out.
 - **Two things are sent, and only when you ask.** Feedback goes when you press Send, and holds only
-  what the form lists. A study you share in a room goes sealed, with a key that only the room's
+  what the form lists. A study you share in a room goes encrypted, with a key that only the room's
   link holds.
   - *Details:* The feedback relay emails a report and keeps nothing. The room relay keeps one
-    sealed copy of each room's study, and hands it to whoever names the room; its log names no
+    encrypted copy of each room's study, and hands it to whoever names the room; its log names no
     room. A network may make 20 rooms a day.
 
 #### With no network, or on your own server

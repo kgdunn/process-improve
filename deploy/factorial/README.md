@@ -56,7 +56,7 @@ revalidated at each visit: run `setup.sh` again, and then the command it ends wi
 
 ## What the server keeps
 
-Usage, and the sealed study of each room, which it cannot read ([Rooms](#rooms)). Caddy writes one line per request to
+Usage, and the encrypted study of each room, which it cannot read ([Rooms](#rooms)). Caddy writes one line per request to
 `/var/log/caddy/factorial-access.log`: the time, the path, the status, the browser's
 `User-Agent`, and the page that linked here. The reader's address is cut to its network
 before the line is written (the first 24 bits of IPv4, 48 of IPv6), and lines are kept for
@@ -85,7 +85,7 @@ press Send: the relay emails it to the maintainer, and keeps no copy and no line
 an address gets a receipt of fixed text; to send an address at most one a day, the relay holds a
 keyed hash of it in memory for a day.
 
-The other exception is a study a reader shares in a room: the room relay keeps it, sealed in the
+The other exception is a study a reader shares in a room: the room relay keeps it, encrypted in the
 reader's browser with a key the server never holds ([Rooms](#rooms)). A room's requests are logged
 as any other, with neither their body nor the header that names the room.
 
@@ -287,9 +287,9 @@ Then send a report with the Feedback button: its email is written by the relay j
 ## Rooms
 
 The app's "Work on it together" shares a study in a room: a study that two or more browsers keep
-in step (`web/room.js`). Each browser seals the study with a key that only the room's link holds,
+in step (`web/room.js`). Each browser encrypts the study with a key that only the room's link holds,
 after its `#`, and sends it to `https://factori.al/api/room`. Caddy passes the request to
-[`room_relay.py`](room_relay.py), which keeps one file of sealed bytes for each room in
+[`room_relay.py`](room_relay.py), which keeps one file of encrypted bytes for each room in
 `/var/lib/factorial-rooms`, and hands it back. The relay never holds the key, so neither it, nor
 anyone who reads its folder, can read a study. It listens on `127.0.0.1:8791`, runs as an account
 systemd makes for it at each start, which can write only to that folder
@@ -297,7 +297,7 @@ systemd makes for it at each start, which can write only to that folder
 
 What it takes, and for how long it keeps it:
 
-- A sealed study of 4, 16 or 64 KiB once padded, and nothing else: an image or a file does not fit.
+- An encrypted study of 4, 16 or 64 KiB once padded, and nothing else: an image or a file does not fit.
 - One file for each room, which each change replaces: no history, and no list of rooms.
 - A room nobody changes for 30 days is removed.
 - At most 256 MiB in all: past that, a new room is refused until old ones expire.
@@ -366,7 +366,7 @@ The last line rolls back without GitHub, as the workflow would.
 | [`feedback_relay.py`](feedback_relay.py) | `/usr/local/bin/factorial-feedback` | The relay that emails a reader's report |
 | [`factorial-feedback.service`](factorial-feedback.service) | `/etc/systemd/system/factorial-feedback.service` | Runs the relay |
 | [`feedback.env.example`](feedback.env.example) | `/etc/factorial/feedback.env`, if missing | The relay's settings |
-| [`room_relay.py`](room_relay.py) | `/usr/local/bin/factorial-room` | The relay that keeps each room's sealed study |
+| [`room_relay.py`](room_relay.py) | `/usr/local/bin/factorial-room` | The relay that keeps each room's encrypted study |
 | [`factorial-room.service`](factorial-room.service) | `/etc/systemd/system/factorial-room.service` | Runs the room relay |
 | [`setup.sh`](setup.sh) | (run once) | Installs each file above |
 
