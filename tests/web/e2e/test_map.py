@@ -369,11 +369,11 @@ def test_a_map_left_floating_floats_there_on_the_next_visit(detached):
     drag(page, "#what-if-map-title", -300, 60)
     drag(page, GRIP, 100, 40)
     left = floats(page)["box"]
-    for _ in range(2):  # opened again in Learn, where the map is out of sight, then shown in Run
+    for _ in range(2):
         page.reload()
         first_paint_done(page)
-        reveal(page, "#design-table")
-        page.wait_for_selector(f"#what-if-map:not([hidden]) {PLOT}.js-plotly-plot")
+        assert page.get_attribute("#workspace", "data-phase") == "learn", "the worked example opens in Learn"
+        page.wait_for_selector(f"#what-if-map:not([hidden]) {PLOT}.js-plotly-plot", state="visible")
         again = floats(page)
         assert again["floats"]
         assert again["box"] == left
@@ -386,6 +386,48 @@ def test_a_map_left_floating_floats_there_on_the_next_visit(detached):
     assert not floats(page)["floats"], "put back, it opens in its place"
     page.click(DETACH)
     assert floats(page)["box"] == left, "and Detach floats it where it last floated"
+
+
+CAPTION = "#what-if-map figcaption"
+
+
+@LAPTOP
+def test_a_detached_map_floats_over_every_stage_and_says_what_the_row_predicts(mapped):
+    page = mapped
+    assert page.text_content(CAPTION) == "Press or drag to set both.", "in its place, the What-if row is beside it"
+    page.locator("#what-if-settings tr.what-if-row").evaluate("(row) => row.scrollIntoView({ block: 'center' })")
+    page.focus(DETACH)
+    page.keyboard.press("Enter")
+    assert page.evaluate("document.activeElement.id") == "what-if-map-detach", "the button pressed keeps the keyboard"
+    box = floats(page)["box"]
+    predicted = page.text_content("#what-if-settings .what-if-value strong")
+    said = f"Yield {predicted} at Temperature 200 degC and Pressure 1 bar. Press or drag to set both."
+    assert page.text_content(CAPTION) == said
+
+    for stage in ("learn", "plan", "next", "learn"):
+        page.click(f"#go-{stage}")
+        assert page.get_attribute("#workspace", "data-phase") == stage
+        assert page.is_visible("#what-if-map"), f"it floats over {stage} too"
+        assert floats(page)["box"] == box, "where the reader put it"
+    assert page.is_hidden("#design-table"), "Run, and its What-if row, are out of sight"
+
+    # In Learn a press on the map still sets the What-if row, and the map says what the row then predicts.
+    page.mouse.click(*point_at(page, 175, 2))
+    assert (setting(page, "Temperature"), setting(page, "Pressure")) == (175, 2)
+    page.wait_for_function(
+        "document.querySelector('#what-if-map figcaption').textContent"
+        ".includes('at Temperature 175 degC and Pressure 2 bar.')"
+    )
+    predicted = page.text_content("#what-if-settings .what-if-value strong")
+    assert page.text_content(CAPTION).startswith(f"Yield {predicted} at Temperature 175 degC and Pressure 2 bar. ")
+
+    page.click(DETACH)
+    assert page.is_hidden("#what-if-map"), "put back, it is in its place beside the run sheet, in Run"
+    page.click("#go-run")
+    back = floats(page)
+    assert not back["floats"]
+    assert page.locator(".sheet-and-map > #what-if-map").count() == 1
+    assert page.text_content(CAPTION) == "Press or drag to set both."
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])

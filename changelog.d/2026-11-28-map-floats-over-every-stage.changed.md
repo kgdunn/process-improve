@@ -1,0 +1,1 @@
+- factori.al's detached What-if map floats over every stage of the study (Design, Run, Learn and Next), not over Run alone, and says under its chart what the What-if row predicts at the two factors' settings.

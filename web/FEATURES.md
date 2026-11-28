@@ -333,10 +333,12 @@ Also:
     both factors, and an up or down swipe still scrolls the page. Its window shows the Python
     that draws the same surface.
 - **Detach the map.** A press on Detach floats the map over the page. Drag it by its heading to
-  where you want it, and drag its corner to the size you want. Put back returns it to its
-  place.
+  where you want it, and drag its corner to the size you want. It floats over Design, Run,
+  Learn and Next alike. Put back returns it to its place.
   - *Details:* The floating map stays where it is as the page scrolls, inside the window and
-    under the study's bar, and a press or a drag on it still sets both factors. Its chart is
+    under the study's bar, and a press or a drag on it still sets both factors. Under its
+    chart it says what the What-if row predicts at the two factors' settings, so it reads
+    alone on a stage where the row is out of sight. Its chart is
     drawn again to the size it is given. From the keyboard, the arrow keys on Move move it and
     on its corner resize it. The browser keeps where it floated and its size: it floats there
     on the next visit, or at the next press of Detach. The run sheet takes the page's whole
