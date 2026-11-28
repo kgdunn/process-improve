@@ -31,15 +31,25 @@ RUN_HINT = f"run the browser tests with `uv run --with {PLAYWRIGHT} pytest ...`"
 INSTALL_HINT = f"install Chromium with `uv run --with {PLAYWRIGHT} playwright install chromium`, or set PI_CHROMIUM"
 
 
+#: The Content-Security-Policy factori.al serves every page with (deploy/factorial/factorial.caddy): the browser tests
+#: serve the app under it too, so a page that loads from, or sends to, a place it does not name fails here first.
+POLICY = re.search(
+    r'^\s*Content-Security-Policy "([^"]+)"$',
+    (Path(__file__).resolve().parents[2] / "deploy" / "factorial" / "factorial.caddy").read_text(encoding="utf-8"),
+    flags=re.MULTILINE,
+)[1]
+
+
 class _Quiet(http.server.SimpleHTTPRequestHandler):
-    """Serve files without logging each request, and without letting the browser cache them."""
+    """Serve files without logging each request, without letting the browser cache them, and under the site's policy."""
 
     def log_message(self, *_: object) -> None:
         """Say nothing."""
 
     def end_headers(self) -> None:
-        """Ask the browser not to cache, so each test sees the files as they are on disk."""
+        """Ask the browser not to cache, so each test sees the files as they are on disk; send the site's policy."""
         self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Security-Policy", POLICY)
         super().end_headers()
 
 

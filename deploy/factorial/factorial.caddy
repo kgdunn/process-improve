@@ -65,7 +65,14 @@ factori.al {
 	header @images Cache-Control "public, max-age=86400"
 	header @rest Cache-Control "no-cache"
 
+	# The Content-Security-Policy names every place a page may load from or send to: the site itself, jsDelivr (Plotly.js,
+	# pinned by its digest in web/charts.js, and Pyodide with its packages) and PyPI (the packages micropip installs).
+	# A study, and a room's key, can reach no other host. Inline scripts are allowed: each page sets its theme before
+	# it is drawn, and a list of their digests here would go stale at the next deploy, which does not reinstall this
+	# file. Pyodide, in the page's worker, compiles WebAssembly and evaluates JavaScript ('wasm-unsafe-eval',
+	# 'unsafe-eval'). The browser tests (tests/web/_browser.py) serve every page with this same policy.
 	header {
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://cdn.jsdelivr.net https://pypi.org https://files.pythonhosted.org; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 		Strict-Transport-Security "max-age=31536000"
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "DENY"
