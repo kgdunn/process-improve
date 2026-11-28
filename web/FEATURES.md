@@ -1147,8 +1147,10 @@ What a careful reader, or an organization, asks before using a tool.
     the library's documentation, and gives the day of the last check.
 - **[Reproduced from the books](catalog/reproduced/).** How many of the numbers its sources
   print the library gives too, and the reason for each one that differs.
-  - *Details:* One bar holds every printed number that was worked again. The others are a
-    cascade of reasons: the book rounds sooner, a misprint or slip in the book, another
+  - *Details:* The page is headed "Factorial matches the major textbooks", over how many
+    printed numbers match and a sentence that the rest are explained below, which counts
+    those whose reason is not known yet. One bar holds every printed number that was worked
+    again. The others are a cascade of reasons: the book rounds sooner, a misprint or slip in the book, another
     method, a multiple-choice option that is wrong on purpose, a reason not known yet, and a
     method Factorial does not have yet. Each reason shows one number as an example, and "See
     another" shows the next; a number is named in plain words, such as "a sum of squares" or

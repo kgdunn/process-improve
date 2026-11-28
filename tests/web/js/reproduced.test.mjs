@@ -31,6 +31,7 @@ import {
   quantityName,
   sizes,
   tally,
+  tallyWords,
   tierOf,
   toHash,
 } from "../../../web/reproduced-logic.js";
@@ -84,6 +85,13 @@ describe("the states and the reasons", () => {
     assert.deepEqual(byState(tally(CASES)), { match: 95, known: 5, quiz: 0, open: 0, gap: 3 });
     assert.deepEqual(STATES.map((s) => s.key), ["match", "known", "quiz", "open", "gap"]);
     assert.deepEqual(REASONS.map((r) => r.state), ["known", "known", "known", "known", "quiz", "open", "gap"]);
+  });
+
+  test("the headline says the page explains each number that differs, but those it cannot yet", () => {
+    const said = "printed numbers match. And where they don't, we can explain why";
+    assert.equal(tallyWords(byState(tally(CASES))), `${said}. See below.`, "every reason is known");
+    assert.equal(tallyWords({ match: 34765, known: 2210, quiz: 92, open: 275, gap: 1549 }), `${said}, for all but 275. See below.`);
+    assert.equal(tallyWords({ match: 9, known: 0, quiz: 0, open: 1275, gap: 0 }), `${said}, for all but 1,275. See below.`);
   });
 
   test("a case is in the state of its number that comes last in the bar's order", () => {

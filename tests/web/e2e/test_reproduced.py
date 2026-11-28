@@ -92,7 +92,12 @@ def test_the_catalog_leads_to_the_page_and_its_bar_counts_every_number(reproduce
     page.wait_for_url("**/catalog/reproduced/")
     page.wait_for_selector("#shelf .shelf__row", state="attached")
     all_ = counts(reproduction)
+    assert page.text_content("h1") == "Factorial matches the major textbooks"
     assert page.text_content("#tally-value") == f"{all_['match']:,} of {all_['checked']:,}"
+    assert all_["causes"]["unexplained"] == 0, "the sample has a known reason for each number that differs"
+    assert page.text_content("#tally-words") == (
+        "printed numbers match. And where they don't, we can explain why. See below."
+    )
     assert all_["causes"]["source_error"] > 0, "the sample has a misprint"
     assert all_["causes"]["library_gap"] > 0, "and numbers the library cannot compute yet"
     states = page.eval_on_selector_all("#wholebar .wholebar__part", "parts => parts.map((p) => p.dataset.state)")

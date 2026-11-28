@@ -111,6 +111,16 @@ export function byState(counts) {
 }
 
 /**
+ * What the headline says after its count, "N of M": that those printed numbers match, and that the page explains each
+ * that does not. While some differ for a reason not known yet (``states.open``, by byState) it says how many, so the
+ * sentence claims no more than the bar under it shows.
+ */
+export function tallyWords(states) {
+  const but = states.open ? `, for all but ${states.open.toLocaleString("en-US")}` : "";
+  return `printed numbers match. And where they don't, we can explain why${but}. See below.`;
+}
+
+/**
  * The reasons a tally has numbers for, as a cascade: each with its count (``n``), where its bar starts
  * (``from``) and how long it is (``share``), as shares of all of them (``whole``), so a bar starts where
  * the one before it ended. ``differ`` counts those that differ, which leaves out those not in the library yet.
