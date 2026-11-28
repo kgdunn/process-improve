@@ -6,6 +6,7 @@ Each part answers a question in plain words; what only some readers ask is under
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 
@@ -68,3 +69,31 @@ def test_each_part_shows_its_answer_and_opens_its_fold_on_a_press_or_from_the_ke
     # The link to the study file leads to its part, from the part on where the studies are kept.
     page.click("section[aria-labelledby='h-kept'] >> text=the study file")
     assert page.url.endswith("#h-file")
+
+
+def test_the_picture_of_a_room_is_done_in_front_of_the_reader(context, site):
+    """The proof under the picture encrypts a line with a new key, by web/room.js, and opens it again; each press is a
+    new key, so new bytes. On a wide screen the picture reads left to right.
+    """
+    page = context.new_page()
+    page.goto(f"{site}technical-details-how-factorial-works.html#h-room")
+    page.wait_for_selector("#room-proof", state="visible")
+    plain = page.text_content("#proof-plain")
+    held = page.text_content("#proof-held")
+    assert plain == page.text_content("#proof-opened") == "Temperature 175 °C, pressure 2.5 bar: yield 62.3 %"
+    assert re.fullmatch(r"(?:[0-9a-f]{2} ){23}[0-9a-f]{2}", held), held
+    assert page.text_content("#proof-size") == "the first 24 of 4,124 bytes", "padded to the smallest size a room takes"
+    page.click("#proof-again")
+    page.wait_for_function(f"document.querySelector('#proof-held').textContent !== {held!r}")
+    assert page.is_visible(".room-picture__wide")
+    assert page.is_hidden(".room-picture__tall")
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
+def test_on_a_phone_the_picture_of_a_room_reads_top_to_bottom(context, site):
+    page = context.new_page()
+    page.goto(f"{site}technical-details-how-factorial-works.html#h-room")
+    assert page.is_hidden(".room-picture__wide")
+    assert page.is_visible(".room-picture__tall")
+    width = page.evaluate("document.querySelector('.room-picture__tall').getBoundingClientRect().width")
+    assert width >= 320, "its words drawn at about their own size"

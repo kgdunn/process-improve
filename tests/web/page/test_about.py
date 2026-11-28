@@ -79,6 +79,7 @@ def test_the_answers_have_none_of_the_words_kept_for_the_folds():
     """What a reader sees before opening a fold is in plain words: the words of files and servers are inside."""
     text = about()
     shown = text[text.index("<main") : text.index("</main>")]  # what the page says: its scripts are outside it
+    shown = re.sub(r"<svg\b.*?</svg>", "", shown)  # a drawing's markup is no words: its words are in its caption
     answers = re.sub(r'<details class="fold">.*?</details>', "", shown)
     assert len(answers) < len(shown) / 2, "most of the page's words are in its folds"
     for word in FOR_THE_FOLDS:
@@ -192,6 +193,35 @@ def test_what_it_says_of_rooms_is_what_the_relay_and_the_page_do():
     assert 'def log_message(self, *_: object) -> None:\n        """Say nothing' in relay, "no request line in the log"
     caddy = source_of("deploy/factorial/factorial.caddy")
     assert "request>headers>Authorization delete" in caddy, "the header a room's name and token travel in"
+
+
+def test_the_picture_of_a_room_says_one_thing_and_points_to_the_code_that_does_it():
+    """Both drawings, wide and tall, carry the same words for a reader who cannot see them; the key never reaches the
+    server in either; and the code it invites the reader to audit is the code that makes and uses the key.
+    """
+    text = about()
+    part = re.search(r'<section aria-labelledby="h-room">(.*?)<details class="fold">', text)[1]
+    labels = re.findall(
+        r'<svg class="room-picture__(?:wide|tall)" viewBox="[^"]+" role="img" aria-label="([^"]+)">', part
+    )
+    assert len(labels) == 2
+    assert labels[0] == labels[1], "the two drawings say the same"
+    assert "has no key, so it cannot open it" in labels[0]
+    assert "The key travels in the link, which you send yourself" in labels[0]
+    assert part.count('class="key-words">has no key: cannot open it</text>') == 2
+    assert "<figcaption>The study goes through factori.al locked." in part
+    audit = re.search(r'<p class="room-audit">(.+?)</p>', part)[1]
+    for path in ("web/room.js", "deploy/factorial/room_relay.py", "tests/web/e2e/test_rooms.py"):
+        assert f'href="{REPOSITORY}blob/main/{path}"' in audit, path
+    room = source("room.js")
+    for name in ("roomOf", "seal"):  # the functions the paragraph names, which make the key and encrypt with it
+        assert f"<code>{name}</code>" in audit
+        assert re.search(rf"^export (?:async )?function {name}\(", room, flags=re.MULTILINE), name
+    imported = re.search(r'import \{ ([^}]+) \} from "\./room\.js";', text)[1].split(", ")
+    for name in imported:  # the proof runs the app's own code, and only what room.js exports
+        assert re.search(rf"^export (?:async )?(?:function|const) {name}\b", room, flags=re.MULTILINE), name
+    relay = source_of("deploy/factorial/room_relay.py")
+    assert "factorial room: key" not in relay, "the relay derives no key: only the write token's label is there"
 
 
 def test_the_build_it_prints_is_the_build_script_s():

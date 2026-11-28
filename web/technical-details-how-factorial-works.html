@@ -47,7 +47,7 @@
     <li><strong>Your studies stay in this browser.</strong> They are saved as you work. A study file keeps a copy
       elsewhere.</li>
     <li><strong>Nothing is sent unless you send it.</strong> Feedback leaves when you press Send. A study you share
-      in a room leaves encrypted, and the server cannot read it.</li>
+      in a room leaves encrypted, and the server cannot read it: <a href="#h-room">see how</a>.</li>
     <li><strong>It works with no network.</strong> After a first visit, the page opens from a copy kept here.</li>
     <li><strong>Anyone can check it.</strong> The code is open, and this page says where to look.</li>
     <li><strong>You can run a copy of your own.</strong> Any web server can serve it.</li>
@@ -196,6 +196,107 @@
     <h2 id="h-room">Can I work on a study with others?</h2>
     <p>Yes, in a room. Press Work on it together, in Run, and Factorial makes a link to the study. Whoever opens the
       link has the same study, and the results each of you types reach the others.</p>
+    <!-- The one claim the picture makes: the study goes through factori.al locked, and the key goes around it, in
+         the link you send yourself. Drawn in the look of the page's other drawing (style.css, .room-picture), the
+         accent for what is the reader's own, so it reads in both themes. Its words are the caption's and the
+         aria-label's, which tests/web/page/test_about.py holds. -->
+    <figure class="room-picture">
+      <svg class="room-picture__wide" viewBox="0 0 480 340" role="img" aria-label="Your browser makes a key and encrypts the study with it. factori.al receives only the encrypted study, and has no key, so it cannot open it. The key travels in the link, which you send yourself, by email or chat. Their browser opens the study with the key from the link.">
+        <defs>
+          <marker id="room-picture-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" class="wire-head"/>
+          </marker>
+          <marker id="room-picture-key-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" class="key-head"/>
+          </marker>
+        </defs>
+        <!-- The link, with its key: from you to them, around factori.al. -->
+        <path class="key" d="M80 110 V52 Q80 40 92 40 H388 Q400 40 400 52 V106" marker-end="url(#room-picture-key-arrow)"/>
+        <text x="240" y="28" text-anchor="middle" class="key-words">the link, with the key after #</text>
+        <text x="240" y="60" text-anchor="middle">you send it yourself, by email or chat</text>
+        <!-- The two browsers, and factori.al between them. -->
+        <rect x="10" y="110" width="140" height="84" rx="2" class="box mine"/>
+        <text x="80" y="138" text-anchor="middle" class="name">Your browser</text>
+        <text x="80" y="160" text-anchor="middle">makes the key</text>
+        <text x="80" y="180" text-anchor="middle">encrypts the study</text>
+        <rect x="330" y="110" width="140" height="84" rx="2" class="box mine"/>
+        <text x="400" y="138" text-anchor="middle" class="name">Their browser</text>
+        <text x="400" y="160" text-anchor="middle">opens the study</text>
+        <text x="400" y="180" text-anchor="middle">with the key</text>
+        <rect x="150" y="244" width="180" height="84" rx="2" class="box server"/>
+        <!-- A padlock beside factori.al's name: what it holds is locked, and it holds no key. -->
+        <rect x="178" y="262" width="16" height="12" rx="2" class="lock"/>
+        <path d="M181 262 V258 A5 5 0 0 1 191 258 V262" class="lock-shackle"/>
+        <text x="252" y="273" text-anchor="middle" class="name">factori.al</text>
+        <text x="240" y="296" text-anchor="middle">keeps the encrypted study</text>
+        <text x="240" y="316" text-anchor="middle" class="key-words">has no key: cannot open it</text>
+        <!-- What goes through factori.al: the study, encrypted. -->
+        <line x1="110" y1="194" x2="184" y2="242" class="wire" marker-end="url(#room-picture-arrow)"/>
+        <text x="132" y="232" text-anchor="end">encrypted study</text>
+        <line x1="296" y1="242" x2="370" y2="196" class="wire" marker-end="url(#room-picture-arrow)"/>
+        <text x="348" y="232" text-anchor="start">encrypted study</text>
+      </svg>
+      <!-- The same picture, top to bottom, for a narrow screen, where the one above would shrink past reading. -->
+      <svg class="room-picture__tall" viewBox="0 0 320 390" role="img" aria-label="Your browser makes a key and encrypts the study with it. factori.al receives only the encrypted study, and has no key, so it cannot open it. The key travels in the link, which you send yourself, by email or chat. Their browser opens the study with the key from the link.">
+        <defs>
+          <marker id="room-picture-arrow-tall" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" class="wire-head"/>
+          </marker>
+          <marker id="room-picture-key-arrow-tall" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" class="key-head"/>
+          </marker>
+        </defs>
+        <path class="key" d="M110 47 H24 Q12 47 12 59 V329 Q12 341 24 341 H106" marker-end="url(#room-picture-key-arrow-tall)"/>
+        <text x="22" y="150" class="key-words">the link,</text>
+        <text x="22" y="167" class="key-words">with the key</text>
+        <text x="22" y="184" class="key-words">after #</text>
+        <text x="22" y="210">you send it</text>
+        <text x="22" y="227">yourself</text>
+        <rect x="110" y="10" width="200" height="74" rx="2" class="box mine"/>
+        <text x="210" y="36" text-anchor="middle" class="name">Your browser</text>
+        <text x="210" y="56" text-anchor="middle">makes the key</text>
+        <text x="210" y="74" text-anchor="middle">encrypts the study</text>
+        <line x1="210" y1="84" x2="210" y2="150" class="wire" marker-end="url(#room-picture-arrow-tall)"/>
+        <text x="218" y="122">encrypted study</text>
+        <rect x="110" y="152" width="200" height="84" rx="2" class="box server"/>
+        <rect x="138" y="170" width="16" height="12" rx="2" class="lock"/>
+        <path d="M141 170 V166 A5 5 0 0 1 151 166 V170" class="lock-shackle"/>
+        <text x="214" y="181" text-anchor="middle" class="name">factori.al</text>
+        <text x="210" y="203" text-anchor="middle">keeps the encrypted study</text>
+        <text x="210" y="223" text-anchor="middle" class="key-words">has no key: cannot open it</text>
+        <line x1="210" y1="236" x2="210" y2="302" class="wire" marker-end="url(#room-picture-arrow-tall)"/>
+        <text x="218" y="274">encrypted study</text>
+        <rect x="110" y="304" width="200" height="74" rx="2" class="box mine"/>
+        <text x="210" y="330" text-anchor="middle" class="name">Their browser</text>
+        <text x="210" y="350" text-anchor="middle">opens the study</text>
+        <text x="210" y="368" text-anchor="middle">with the key</text>
+      </svg>
+      <figcaption>The study goes through factori.al locked. The key goes around it, in the link you send yourself:
+        a browser never sends the part of a link after its # to a server.</figcaption>
+    </figure>
+    <!-- The picture, done in front of the reader by the app's own code (web/room.js), at the foot of this page. Shown
+         once it has run: a browser that cannot run it shows the picture alone. -->
+    <div id="room-proof" class="room-proof" hidden>
+      <p><strong>This page has just done it.</strong> With the code the app uses, your browser made a key and encrypted
+        this line. Nothing left your browser.</p>
+      <dl>
+        <dt>In your browser</dt>
+        <dd id="proof-plain"></dd>
+        <dt>What factori.al would keep</dt>
+        <dd><code id="proof-held"></code> <span id="proof-size" class="hint"></span></dd>
+        <dt>In their browser, with the key from the link</dt>
+        <dd id="proof-opened"></dd>
+      </dl>
+      <button type="button" id="proof-again" class="button">Encrypt it again, with a new key</button>
+    </div>
+    <p class="room-audit"><strong>Check it yourself.</strong> The key is made, and used, only in
+      <a href="https://github.com/kgdunn/process-improve/blob/main/web/room.js" target="_blank" rel="noopener"><code>web/room.js</code></a>, which
+      runs in your browser: <code>roomOf</code> makes it from the link, and <code>seal</code> encrypts with it. The
+      server's whole program is
+      <a href="https://github.com/kgdunn/process-improve/blob/main/deploy/factorial/room_relay.py" target="_blank" rel="noopener"><code>deploy/factorial/room_relay.py</code></a>:
+      it is never sent the key, and it keeps only the bytes it is sent. A test checks that what the server keeps holds
+      nothing readable:
+      <a href="https://github.com/kgdunn/process-improve/blob/main/tests/web/e2e/test_rooms.py" target="_blank" rel="noopener"><code>tests/web/e2e/test_rooms.py</code></a>.</p>
     <ul>
       <li><strong>Only the link opens the study.</strong> Your browser encrypts the study before it sends it, with a key
         that is part of the link. factori.al keeps the encrypted study and cannot read it, and neither can anyone who
@@ -355,6 +456,26 @@ uv run python scripts/build_web_app.py --out site --serve</code></pre>
     KU Leuven, Minitab or Effex.</p>
 </main>
 <script type="module">
+  import { newSecret, pad, roomOf, seal, unpad, unseal } from "./room.js";
+
+  // A room, done here by the app's own code: a line of results encrypted with a new key, the first bytes of what
+  // factori.al would keep, and the line opened again with the key, as another browser opens it from the link.
+  const LINE = "Temperature 175 °C, pressure 2.5 bar: yield 62.3 %";
+  const show = (id, text) => (document.getElementById(id).textContent = text);
+  async function prove() {
+    const { key } = await roomOf(newSecret());
+    const held = await seal(key, pad(new TextEncoder().encode(LINE)));
+    const opened = new TextDecoder().decode(unpad(await unseal(key, held)));
+    show("proof-plain", LINE);
+    const first = held.slice(0, 24);
+    show("proof-held", [...first].map((byte) => byte.toString(16).padStart(2, "0")).join(" "));
+    show("proof-size", `the first ${first.length} of ${held.length.toLocaleString("en")} bytes`);
+    show("proof-opened", opened);
+    document.getElementById("room-proof").hidden = false;
+  }
+  document.getElementById("proof-again").onclick = prove;
+  prove().catch(() => {}); // a browser that cannot encrypt here shows the picture alone
+
   // Fill in the versions this copy loads, from the two files the app reads them from.
   const read = async (path) => {
     try {

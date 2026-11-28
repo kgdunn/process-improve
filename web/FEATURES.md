@@ -760,7 +760,10 @@ Also:
   study and how to stop.
   - *Details:* "Work on it together", in Run, asks first, in a few lines that say who sees the
     study, what the server keeps and how to stop; How Factorial works answers the rest, under
-    "Can I work on a study with others?". The room's link carries a secret after the `#`,
+    "Can I work on a study with others?". There a picture shows the study going through the server
+    encrypted and the key going around it, in the link; under it, the page encrypts a line in front
+    of the reader with the app's own code, shows the bytes the server would keep, and opens the
+    line again, with links to that code and to the server's. The room's link carries a secret after the `#`,
     which a browser sends to no server. From it the browser derives the key that encrypts the study
     (AES-GCM, 256 bits), a token that lets a browser change the room, and the room's name, the
     SHA-256 of the token. The server holds the name and the encrypted study, padded to 4, 16 or
