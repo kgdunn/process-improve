@@ -1,38 +1,38 @@
 #!/usr/bin/python3 -I
-"""factori.al's room relay: a mailbox that keeps one sealed study for each room, and cannot read it.
+"""factori.al's encrypted study locker: it keeps one encrypted study for each room, and cannot open it.
 
-Two or more people work on one study through a room (``web/room.js``). Each browser seals the study with a key
-that only the room's link holds, after its ``#``, which a browser sends to no server. The relay keeps the sealed
+Two or more people work on one study through a room (``web/room.js``). Each browser encrypts the study with a key
+that only the room's link holds, after its ``#``, which a browser sends to no server. The locker keeps the encrypted
 bytes it is sent and hands them back. It never holds the key: it sees a room's id, how many bytes the room holds,
 and when they change.
 
-Caddy passes it ``/api/room`` (``factorial.caddy``), with the reader's address in ``X-Real-IP``. The relay
+Caddy passes it ``/api/room`` (``factorial.caddy``), with the reader's address in ``X-Real-IP``. The locker
 listens on ``127.0.0.1:8791`` and answers one request per connection. The room's id, or its write token, travels
 in the ``Authorization`` header, which the site's access log leaves out, so no room is named in the log::
 
-    GET    /api/room   Authorization: Room <id>       the room's sealed study and its ETag; 304 when it is the
+    GET    /api/room   Authorization: Room <id>       the room's encrypted study and its ETag; 304 when it is the
                        If-None-Match: "<etag>"        one the browser has; 404 when there is no such room
     PUT    /api/room   Authorization: Room <token>    keep these bytes as the room's study, if the room is still
                        If-Match: "<etag>"             at that version, or, with If-None-Match: *, if there is no
                     or If-None-Match: *               such room yet; else 412, and the browser reads it again
     DELETE /api/room   Authorization: Room <token>    remove the room
 
-The id is the first 16 bytes of the SHA-256 of the write token. So the relay checks a write without keeping
+The id is the first 16 bytes of the SHA-256 of the write token. So the locker checks a write without keeping
 anything to check it against, and the id it holds leads back to neither the token nor the key.
 
 What it keeps, and for how long:
 
 - One blob for each room, which each write replaces: no history, no list of rooms, no accounts.
-- A blob of one of ``BLOB_SIZES`` bytes exactly. The page pads a study to one of them before it seals it, so a
+- A blob of one of ``BLOB_SIZES`` bytes exactly. The page pads a study to one of them before it encrypts it, so a
   blob's size does not give away how many runs the study has, and an image or a file does not fit.
 - A room that nobody writes to for ``EXPIRY_DAYS`` days is deleted.
 - At most ``BUDGET`` bytes in all: past that, a new room is refused until old ones expire.
 
 Each network (a /24 of IPv4, a /48 of IPv6) may make ``NEW_ROOMS`` rooms a day, and write ``WRITES`` and read
-``READS`` times an hour, counted in memory: the relay is one process. Standard library only.
+``READS`` times an hour, counted in memory: the locker is one process. Standard library only.
 
 It keeps the rooms in the folder systemd gives it (``STATE_DIRECTORY``), or in ``ROOM_FOLDER``. Run as
-``factorial-room forget <link>``, it removes the room a link names, for a room reported to the operator.
+``factorial-study-locker forget <link>``, it removes the room a link names, for a room reported to the operator.
 """
 
 from __future__ import annotations
@@ -57,12 +57,12 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
-#: Where the relay listens: Caddy, on the same machine, is the only one that reaches it.
+#: Where the locker listens: Caddy, on the same machine, is the only one that reaches it.
 ADDRESS = ("127.0.0.1", 8791)
 #: The one path answered, and the one page a write may come from, unless ``ROOM_ORIGIN`` names another.
 PATH = "/api/room"
 ORIGIN = "https://factori.al"
-#: The sizes a study is padded to before it is sealed (``web/room.js``), and the sizes of the blob that holds one:
+#: The sizes a study is padded to before it is encrypted (``web/room.js``), and the sizes of the blob that holds one:
 #: a 12-byte nonce before it, and AES-GCM's 16-byte tag after it.
 PADDED = (4096, 16384, 65536)
 NONCE = 12
@@ -71,7 +71,7 @@ BLOB_SIZES = frozenset(NONCE + size + TAG for size in PADDED)
 #: A room's id (16 bytes) and its write token (32 bytes), in URL-safe base64 without padding.
 ROOM_ID = re.compile(r"[A-Za-z0-9_-]{22}")
 TOKEN = re.compile(r"[A-Za-z0-9_-]{43}")
-#: How long a room is kept after its last write, how often the relay looks for rooms past that, and the most bytes
+#: How long a room is kept after its last write, how often the locker looks for rooms past that, and the most bytes
 #: all rooms may hold together.
 EXPIRY_DAYS = 30
 SWEEP_SECONDS = 3600
@@ -93,14 +93,14 @@ BODY_SECONDS = 20
 REPLY_SECONDS = 10
 LINGER_SECONDS = 2
 LINGER_BYTES = 2**17
-#: What the page and the relay each derive from a room's secret: the label of the write token (``web/room.js``).
+#: What the page and the locker each derive from a room's secret: the label of the write token (``web/room.js``).
 WRITE_LABEL = b"factorial room: write"
 #: A room's link: its secret, 32 bytes in URL-safe base64, after ``#room=``.
 LINK = re.compile(r"(?:^|#room=)([A-Za-z0-9_-]{43})$")
 
 
 class RefusedError(Exception):
-    """A request the relay does not carry out: the HTTP status to answer with, and why, in the relay's own words."""
+    """A request the locker does not carry out: the HTTP status to answer with, and why, in the locker's own words."""
 
     def __init__(self, status: int, reason: str) -> None:
         super().__init__(reason)
@@ -108,7 +108,7 @@ class RefusedError(Exception):
 
 
 def log(line: str) -> None:
-    """Write one line to the journal (systemd keeps what the relay writes to stderr)."""
+    """Write one line to the journal (systemd keeps what the locker writes to stderr)."""
     print(line, file=sys.stderr, flush=True)
 
 
@@ -146,7 +146,7 @@ def room_of_link(link: str) -> str:
 
 
 def etag(blob: bytes) -> str:
-    """Return a blob's version: 12 bytes of its SHA-256, in URL-safe base64. A sealed blob never repeats."""
+    """Return a blob's version: 12 bytes of its SHA-256, in URL-safe base64. An encrypted blob never repeats."""
     return base64.urlsafe_b64encode(hashlib.sha256(blob).digest()[:12]).decode()
 
 
@@ -211,7 +211,7 @@ class Store:
         """Keep ``blob`` as the room's, if the room is at ``version``, or, for None, if there is no such room yet.
 
         Return the blob's version and whether the room is new. Raise ``RefusedError`` with 412 when the room is not as
-        the writer last saw it, and with 507 when a new room would take the relay past its ``BUDGET``.
+        the writer last saw it, and with 507 when a new room would take the locker past its ``BUDGET``.
         """
         with self.lock:
             now = self.clock()
@@ -223,7 +223,7 @@ class Store:
                 raise RefusedError(412, "the room has changed since it was read: read it again")
             grows = len(blob) - (len(held) if held else 0)
             if held is None and self.used + grows > BUDGET:
-                raise RefusedError(507, "the relay holds all the rooms it can: try again in a few days")
+                raise RefusedError(507, "the locker holds all the rooms it can: try again in a few days")
             path = self.folder / room
             part = path.with_name(f".{room}.part")
             part.write_bytes(blob)
@@ -290,11 +290,11 @@ class Limits:
 
 
 # --------------------------------------------------------------------------- the request
-class Relay(http.server.BaseHTTPRequestHandler):
+class Locker(http.server.BaseHTTPRequestHandler):
     """Answer one request: a room read, written or removed, or a refusal that says why, as JSON."""
 
     protocol_version = "HTTP/1.0"  # the connection closes after its one reply
-    server_version = "factorial-room"
+    server_version = "factorial-study-locker"
     sys_version = ""
     timeout = HEADER_SECONDS
     server: Server
@@ -314,7 +314,7 @@ class Relay(http.server.BaseHTTPRequestHandler):
     def handle_one(self, act: Callable[[str], None]) -> None:
         """Check the request, then ``act`` on it for the network it came from, answering whatever it raised."""
         if not self.server.slots.acquire(blocking=False):
-            self.reply(503, "the relay is busy: try again in a moment")
+            self.reply(503, "the locker is busy: try again in a moment")
             return
         try:
             act(self.sender())
@@ -323,7 +323,7 @@ class Relay(http.server.BaseHTTPRequestHandler):
         except OSError as error:
             self.reply(500, "the room could not be kept", cause=type(error).__name__)
         except Exception as error:  # noqa: BLE001 - whatever it was, its message could name the room
-            self.reply(500, "the relay failed", cause=type(error).__name__)
+            self.reply(500, "the locker failed", cause=type(error).__name__)
         finally:
             self.server.slots.release()
 
@@ -373,7 +373,7 @@ class Relay(http.server.BaseHTTPRequestHandler):
         size = self.length()
         if size not in BLOB_SIZES:
             sizes = ", ".join(str(size) for size in sorted(BLOB_SIZES))
-            raise RefusedError(413, f"a room holds a sealed study of {sizes} bytes, and nothing else")
+            raise RefusedError(413, f"a room holds an encrypted study of {sizes} bytes, and nothing else")
         if not self.server.limits.writes.admit(where):
             raise RefusedError(429, f"a network writes to rooms at most {WRITES} times an hour: try again later")
         if version is None and not self.server.limits.new.admit(where):
@@ -462,12 +462,12 @@ class Relay(http.server.BaseHTTPRequestHandler):
 
 
 class Server(http.server.ThreadingHTTPServer):
-    """The relay's listener: a thread per connection, sharing the rooms, the limits and the slots in flight."""
+    """The locker's listener: a thread per connection, sharing the rooms, the limits and the slots in flight."""
 
     daemon_threads = True
 
     def __init__(self, address: tuple[str, int], store: Store, limits: Limits | None = None, origin: str = ORIGIN):
-        super().__init__(address, Relay)
+        super().__init__(address, Locker)
         self.store = store
         self.limits = limits or Limits(store.clock)
         self.origin = origin
@@ -513,10 +513,10 @@ def main(argv: list[str] | None = None) -> int:
             print("Removed the room." if store.remove(room) else "There is no such room: it may have expired.")
             return 0
     except (ValueError, binascii.Error) as reason:
-        print(f"factorial-room: {reason}", file=sys.stderr)
+        print(f"factorial-study-locker: {reason}", file=sys.stderr)
         return 1
     if args:
-        print("usage: factorial-room, or factorial-room forget <a room's link>", file=sys.stderr)
+        print("usage: factorial-study-locker, or factorial-study-locker forget <a room's link>", file=sys.stderr)
         return 2
     with Server(ADDRESS, store, origin=os.environ.get("ROOM_ORIGIN") or ORIGIN) as server:
         log(f"keeping rooms on {ADDRESS[0]}:{ADDRESS[1]}{PATH}")

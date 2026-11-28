@@ -1,4 +1,4 @@
-// web/room.js: a room's keys from its secret, a study padded and sealed, the relay's answers, and results merged.
+// web/room.js: a room's keys from its secret, a study padded and sealed, the locker's answers, and results merged.
 
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
@@ -7,7 +7,7 @@ import { checkCampaign, designKey } from "../../../web/campaign.js";
 import {
   PADDED,
   ROOM_KEY,
-  NO_RELAY,
+  NO_LOCKER,
   ROOM_PATH,
   RoomError,
   mergeRoom,
@@ -26,11 +26,11 @@ import {
   writeRoom,
 } from "../../../web/room.js";
 
-/** Bytes 0 to 31 as a room's secret, and what the relay derives from it: tests/deploy/test_room_relay.py holds the same. */
+/** Bytes 0 to 31 as a room's secret, and what the locker derives from it: tests/deploy/test_encrypted_study_locker.py holds the same. */
 const SECRET = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8";
 const TOKEN = "-znuuYT_caimAH2REqvREL_BuEwrsp7hbDyTx3TI6pw";
 const ROOM = "GD5GAO3nLHTR_pA7bHTdvg";
-/** The sizes the relay takes (room_relay.py BLOB_SIZES): the nonce, the padded study, the tag. */
+/** The sizes the locker takes (encrypted_study_locker.py BLOB_SIZES): the nonce, the padded study, the tag. */
 const BLOB_SIZES = PADDED.map((size) => 12 + size + 16);
 
 /** A study as the page holds one: a 2^2 factorial in a temperature and a supplier, partly run. */
@@ -70,7 +70,7 @@ function study() {
 }
 
 describe("a room's secret", () => {
-  test("gives the write token and the room's id the relay derives", async () => {
+  test("gives the write token and the room's id the locker derives", async () => {
     const room = await roomOf(SECRET);
     assert.equal(room.token, TOKEN);
     assert.equal(room.id, ROOM);
@@ -121,7 +121,7 @@ describe("a study, padded and sealed", () => {
     assert.throws(() => unpad(lying), /not a study/);
   });
 
-  test("is sealed to one of the sizes the relay takes, never the same bytes twice", async () => {
+  test("is sealed to one of the sizes the locker takes, never the same bytes twice", async () => {
     const room = await roomOf(SECRET);
     const [a, b] = [await sealStudy(room, study()), await sealStudy(room, study())];
     assert.ok(BLOB_SIZES.includes(a.length), `${a.length} bytes`);
@@ -148,9 +148,9 @@ describe("a study, padded and sealed", () => {
   });
 });
 
-describe("the relay, as the page asks it", () => {
+describe("the locker, as the page asks it", () => {
   /** A stand-in for fetch that answers each call with ``answers``' next, and keeps what it was asked. */
-  function relay(...answers) {
+  function locker(...answers) {
     const asked = [];
     const ask = async (url, init) => {
       asked.push({ url, ...init });
@@ -163,7 +163,7 @@ describe("the relay, as the page asks it", () => {
 
   test("a read names the room by its id, and the version it has", async () => {
     const room = await roomOf(SECRET);
-    const { ask, asked } = relay({ status: 200, body: new Uint8Array([7, 8]), headers: { ETag: '"v1"' } }, { status: 304 });
+    const { ask, asked } = locker({ status: 200, body: new Uint8Array([7, 8]), headers: { ETag: '"v1"' } }, { status: 304 });
     assert.deepEqual(await readRoom(room, null, ask), { blob: new Uint8Array([7, 8]), version: "v1" });
     assert.deepEqual(await readRoom(room, "v1", ask), { same: true });
     assert.equal(asked[0].url, ROOM_PATH);
@@ -173,13 +173,13 @@ describe("the relay, as the page asks it", () => {
   });
 
   test("a room that is gone says so", async () => {
-    const { ask } = relay({ status: 404 });
+    const { ask } = locker({ status: 404 });
     assert.deepEqual(await readRoom(await roomOf(SECRET), null, ask), { gone: true });
   });
 
   test("a write carries the token and the version it replaces, or makes the room", async () => {
     const room = await roomOf(SECRET);
-    const { ask, asked } = relay({ status: 201, headers: { ETag: '"v1"' } }, { status: 200, headers: { ETag: '"v2"' } }, { status: 412 });
+    const { ask, asked } = locker({ status: 201, headers: { ETag: '"v1"' } }, { status: 200, headers: { ETag: '"v2"' } }, { status: 412 });
     const blob = new Uint8Array(BLOB_SIZES[0]);
     assert.deepEqual(await writeRoom(room, blob, null, ask), { version: "v1" });
     assert.deepEqual(await writeRoom(room, blob, "v1", ask), { version: "v2" });
@@ -194,24 +194,24 @@ describe("the relay, as the page asks it", () => {
 
   test("a refusal or no answer is a RoomError with a sentence for the page", async () => {
     const room = await roomOf(SECRET);
-    const { ask } = relay({ status: 429 }, new TypeError("Failed to fetch"), { status: 502 }, { status: 413 });
+    const { ask } = locker({ status: 429 }, new TypeError("Failed to fetch"), { status: 502 }, { status: 413 });
     await assert.rejects(readRoom(room, null, ask), (err) => err.status === 429 && /tries again later/.test(err.message));
     await assert.rejects(readRoom(room, null, ask), (err) => err.status === 0 && /could not be reached/.test(err.message));
     await assert.rejects(writeRoom(room, new Uint8Array(1), "v", ask), (err) => err.status === 502 && /kept here/.test(err.message));
     await assert.rejects(writeRoom(room, new Uint8Array(1), "v", ask), /too large for a room/);
   });
 
-  test("a server without the relay, as a copy of the app served elsewhere, says so", async () => {
+  test("a server without the locker, as a copy of the app served elsewhere, says so", async () => {
     const room = await roomOf(SECRET);
     for (const status of [404, 405, 501]) {
-      const { ask } = relay({ status });
-      await assert.rejects(writeRoom(room, new Uint8Array(1), null, ask), (err) => err.message === NO_RELAY, `${status}`);
+      const { ask } = locker({ status });
+      await assert.rejects(writeRoom(room, new Uint8Array(1), null, ask), (err) => err.message === NO_LOCKER, `${status}`);
     }
   });
 
   test("a room is removed with its token, and one already gone is no error", async () => {
     const room = await roomOf(SECRET);
-    const { ask, asked } = relay({ status: 204 }, { status: 404 }, { status: 403 });
+    const { ask, asked } = locker({ status: 204 }, { status: 404 }, { status: 403 });
     await removeRoom(room, ask);
     await removeRoom(room, ask);
     await assert.rejects(removeRoom(room, ask), RoomError);

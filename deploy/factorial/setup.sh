@@ -86,14 +86,14 @@ install -d -o root -g root -m 700 /etc/factorial
 [ -e /etc/factorial/feedback.env ] || install -o root -g root -m 600 "$here/feedback.env.example" /etc/factorial/feedback.env
 [ -e /etc/factorial/smtp-password ] || install -o root -g root -m 600 /dev/null /etc/factorial/smtp-password
 
-# The room relay and its unit. It needs no settings: systemd gives it /var/lib/factorial-rooms, where it keeps
-# the sealed rooms, and nothing else to write to.
-install -o root -g root -m 755 "$here/room_relay.py" /usr/local/bin/factorial-room
-install -o root -g root -m 644 "$here/factorial-room.service" /etc/systemd/system/factorial-room.service
+# The encrypted study locker and its unit. It needs no settings: systemd gives it /var/lib/factorial-study-locker,
+# where it keeps the encrypted rooms, and nothing else to write to.
+install -o root -g root -m 755 "$here/encrypted_study_locker.py" /usr/local/bin/factorial-study-locker
+install -o root -g root -m 644 "$here/factorial-study-locker.service" /etc/systemd/system/factorial-study-locker.service
 systemctl daemon-reload
-systemctl enable --quiet factorial-room
-systemctl restart factorial-room
-# A relay already set up is restarted, so it runs the copy just installed; one not yet set up waits for its settings.
+systemctl enable --quiet factorial-study-locker
+systemctl restart factorial-study-locker
+# The feedback relay, if already set up, is restarted, so it runs the copy just installed; else it waits for its settings.
 if grep -q '^FEEDBACK_TO=.' /etc/factorial/feedback.env; then
     systemctl enable --quiet factorial-feedback
     systemctl restart factorial-feedback
@@ -105,7 +105,7 @@ fi
 
 echo
 echo "$feedback"
-echo "The room relay runs the copy just installed."
+echo "The encrypted study locker runs the copy just installed."
 echo
 echo "Done."
 caddy_next /etc/caddy/Caddyfile "$block"

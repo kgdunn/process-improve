@@ -290,13 +290,13 @@
       <button type="button" id="proof-again" class="button">Encrypt it again, with a new key</button>
     </div>
     <p class="room-audit"><strong>Check it yourself.</strong> The key is made, and used, only in
-      <a href="https://github.com/kgdunn/process-improve/blob/main/web/room.js" target="_blank" rel="noopener"><code>web/room.js</code></a>, which
+      <a href="https://github.com/kgdunn/process-improve/blob/main/web/room.js" target="_blank" rel="noopener"><code>web/<wbr>room.js</code></a>, which
       runs in your browser: <code>roomOf</code> makes it from the link, and <code>seal</code> encrypts with it. The
       server's whole program is
-      <a href="https://github.com/kgdunn/process-improve/blob/main/deploy/factorial/room_relay.py" target="_blank" rel="noopener"><code>deploy/factorial/room_relay.py</code></a>:
+      <a href="https://github.com/kgdunn/process-improve/blob/main/deploy/factorial/encrypted_study_locker.py" target="_blank" rel="noopener"><code>deploy/<wbr>factorial/<wbr>encrypted_study_locker.py</code></a>:
       it is never sent the key, and it keeps only the bytes it is sent. A test checks that what the server keeps holds
       nothing readable:
-      <a href="https://github.com/kgdunn/process-improve/blob/main/tests/web/e2e/test_rooms.py" target="_blank" rel="noopener"><code>tests/web/e2e/test_rooms.py</code></a>.</p>
+      <a href="https://github.com/kgdunn/process-improve/blob/main/tests/web/e2e/test_rooms.py" target="_blank" rel="noopener"><code>tests/<wbr>web/<wbr>e2e/<wbr>test_rooms.py</code></a>.</p>
     <ul>
       <li><strong>Only the link opens the study.</strong> Your browser encrypts the study before it sends it, with a key
         that is part of the link. factori.al keeps the encrypted study and cannot read it, and neither can anyone who
@@ -326,7 +326,7 @@
         in the room with what changed here, against the room as it last saw it, so a result corrected in one browser
         reaches the others.</p>
       <p><strong>A study file leaves the room out.</strong> A file never opens a room, and never carries its key. A
-        copy of Factorial at another address has rooms only if its server runs the room relay too
+        copy of Factorial at another address has rooms only if its server runs the encrypted study locker too
         (<code>deploy/factorial/README.md</code>, Rooms).</p>
     </details>
   </section>
@@ -376,7 +376,7 @@
         an encrypted study of the three padded sizes and nothing else, at most 20 new rooms a day from one network, and
         stops taking new rooms when it holds 256 MiB in all. A room's name and token travel in a header that the web
         server's log leaves out, so the log does not say which room a request was for.
-        <a href="https://github.com/kgdunn/process-improve/blob/main/deploy/factorial/room_relay.py" target="_blank" rel="noopener">Read the code</a>.</li>
+        <a href="https://github.com/kgdunn/process-improve/blob/main/deploy/factorial/encrypted_study_locker.py" target="_blank" rel="noopener">Read the code</a>.</li>
       </ul>
     </details>
   </section>
@@ -419,7 +419,7 @@
         how this site is built from the repository;</li>
         <li><a href="https://github.com/kgdunn/process-improve/tree/main/deploy/factorial" target="_blank" rel="noopener"><code>deploy/factorial/</code></a>:
         the server at factori.al, its configuration and what it logs, the relay that emails a report sent with
-        Feedback, and the relay that keeps a room's encrypted study;</li>
+        Feedback, and the encrypted study locker, which keeps a room's encrypted study;</li>
         <li><a href="https://github.com/kgdunn/process-improve/tree/main/tests/web" target="_blank" rel="noopener"><code>tests/web/</code></a>: the
         tests that check the page, in a real browser and under Pyodide, on every change.</li>
       </ul>

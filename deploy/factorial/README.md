@@ -85,7 +85,7 @@ press Send: the relay emails it to the maintainer, and keeps no copy and no line
 an address gets a receipt of fixed text; to send an address at most one a day, the relay holds a
 keyed hash of it in memory for a day.
 
-The other exception is a study a reader shares in a room: the room relay keeps it, encrypted in the
+The other exception is a study a reader shares in a room: the encrypted study locker keeps it, encrypted in the
 reader's browser with a key the server never holds ([Rooms](#rooms)). A room's requests are logged
 as any other, with neither their body nor the header that names the room.
 
@@ -173,7 +173,7 @@ sudo sh factorial-setup/setup.sh factorial-setup/factorial_deploy.pub
 change it, and installs the SSH block ([`sshd.conf`](sshd.conf)) once `sshd -t` accepts it.
 It installs the site's Caddy block, [`factorial.caddy`](factorial.caddy), and makes its log
 owned by Caddy. It installs the feedback relay and its unit, and makes the relay's settings files
-once ([Feedback](#feedback)). It installs the room relay and its unit, and starts it ([Rooms](#rooms)). It ends by printing the value of `FACTORIAL_KNOWN_HOSTS` for step 5.
+once ([Feedback](#feedback)). It installs the encrypted study locker and its unit, and starts it ([Rooms](#rooms)). It ends by printing the value of `FACTORIAL_KNOWN_HOSTS` for step 5.
 It needs the server's Python to be 3.12 or later, as Ubuntu 24.04's is. Running it again is safe.
 
 **3. Check the key**, from your machine:
@@ -289,11 +289,12 @@ Then send a report with the Feedback button: its email is written by the relay j
 The app's "Work on it together" shares a study in a room: a study that two or more browsers keep
 in step (`web/room.js`). Each browser encrypts the study with a key that only the room's link holds,
 after its `#`, and sends it to `https://factori.al/api/room`. Caddy passes the request to
-[`room_relay.py`](room_relay.py), which keeps one file of encrypted bytes for each room in
-`/var/lib/factorial-rooms`, and hands it back. The relay never holds the key, so neither it, nor
+[`encrypted_study_locker.py`](encrypted_study_locker.py), the encrypted study locker, which keeps one file of
+encrypted bytes for each room in `/var/lib/factorial-study-locker`, and hands it back. The locker never holds
+the key, so neither it, nor
 anyone who reads its folder, can read a study. It listens on `127.0.0.1:8791`, runs as an account
 systemd makes for it at each start, which can write only to that folder
-([`factorial-room.service`](factorial-room.service)), and needs no settings.
+([`factorial-study-locker.service`](factorial-study-locker.service)), and needs no settings.
 
 What it takes, and for how long it keeps it:
 
@@ -305,26 +306,26 @@ What it takes, and for how long it keeps it:
   reads an hour.
 
 A room's name, or the token that changes it, travels in the `Authorization` header, which the
-access log leaves out, with the versions a browser names (`If-Match`, `If-None-Match`). The relay
+access log leaves out, with the versions a browser names (`If-Match`, `If-None-Match`). The locker
 logs the status of each request, and nothing that names a room.
 
 To remove one room, from its link (whoever reports a room gives the link, and with it the key):
 
 ```bash
-sudo env STATE_DIRECTORY=/var/lib/factorial-rooms factorial-room forget 'https://factori.al/#room=...'
+sudo env STATE_DIRECTORY=/var/lib/factorial-study-locker factorial-study-locker forget 'https://factori.al/#room=...'
 ```
 
-To stop every room at once, `sudo systemctl stop factorial-room`: the app then says the room
+To stop every room at once, `sudo systemctl stop factorial-study-locker`: the app then says the room
 cannot be reached, and each browser keeps its own copy of every study it was sharing.
 
-Check that Caddy reaches the relay:
+Check that Caddy reaches the locker:
 
 ```bash
 curl -s -H 'Authorization: Room AAAAAAAAAAAAAAAAAAAAAA' https://factori.al/api/room
 ```
 
-It prints the relay's refusal, `{"ok": false, "error": "there is no such room: ..."}`; an empty
-answer with status `502` means the relay is not running, and `sudo journalctl -u factorial-room`
+It prints the locker's refusal, `{"ok": false, "error": "there is no such room: ..."}`; an empty
+answer with status `502` means the locker is not running, and `sudo journalctl -u factorial-study-locker`
 says why.
 
 ## Retiring the old app
@@ -366,9 +367,9 @@ The last line rolls back without GitHub, as the workflow would.
 | [`feedback_relay.py`](feedback_relay.py) | `/usr/local/bin/factorial-feedback` | The relay that emails a reader's report |
 | [`factorial-feedback.service`](factorial-feedback.service) | `/etc/systemd/system/factorial-feedback.service` | Runs the relay |
 | [`feedback.env.example`](feedback.env.example) | `/etc/factorial/feedback.env`, if missing | The relay's settings |
-| [`room_relay.py`](room_relay.py) | `/usr/local/bin/factorial-room` | The relay that keeps each room's encrypted study |
-| [`factorial-room.service`](factorial-room.service) | `/etc/systemd/system/factorial-room.service` | Runs the room relay |
+| [`encrypted_study_locker.py`](encrypted_study_locker.py) | `/usr/local/bin/factorial-study-locker` | The locker that keeps each room's encrypted study |
+| [`factorial-study-locker.service`](factorial-study-locker.service) | `/etc/systemd/system/factorial-study-locker.service` | Runs the locker |
 | [`setup.sh`](setup.sh) | (run once) | Installs each file above |
 
-[`tests/deploy`](../../tests/deploy) tests the two commands and the two relays, including what a
-leaked key, or anyone who finds a relay's address, could send.
+[`tests/deploy`](../../tests/deploy) tests the two commands, the feedback relay and the locker, including
+what a leaked key, or anyone who finds their address, could send.

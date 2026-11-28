@@ -1,9 +1,9 @@
 """Rooms: two browsers keep one study in step through a server that holds it sealed and cannot read it.
 
-Each context is a browser of its own. ``/api/room`` is answered by factori.al's own relay
-(``deploy/factorial/room_relay.py``), run on a local port over a folder of the test's: each request
-the page makes is passed to it as Caddy would pass it, and the relay's answer back. So the page's
-sealing (``web/room.js``) meets the relay's checks, and the test reads what the server keeps.
+Each context is a browser of its own. ``/api/room`` is answered by factori.al's own encrypted study locker
+(``deploy/factorial/encrypted_study_locker.py``), run on a local port over a folder of the test's: each request
+the page makes is passed to it as Caddy would pass it, and the locker's answer back. So the page's
+sealing (``web/room.js``) meets the locker's checks, and the test reads what the server keeps.
 """
 
 from __future__ import annotations
@@ -29,8 +29,10 @@ BANNER = "#campaign-banner"
 BOXES = "#design-table input[data-index]"
 
 
-def load_relay():
-    spec = importlib.util.spec_from_file_location("room_relay", ROOT / "deploy" / "factorial" / "room_relay.py")
+def load_locker():
+    spec = importlib.util.spec_from_file_location(
+        "encrypted_study_locker", ROOT / "deploy" / "factorial" / "encrypted_study_locker.py"
+    )
     assert spec
     assert spec.loader
     module = importlib.util.module_from_spec(spec)
@@ -39,12 +41,12 @@ def load_relay():
     return module
 
 
-room_relay = load_relay()
+study_locker = load_locker()
 
 
 @dataclass
-class Relay:
-    """The relay the pages reach, the folder it keeps the rooms in, and each request passed to it."""
+class Locker:
+    """The locker the pages reach, the folder it keeps the rooms in, and each request passed to it."""
 
     server: Any
     folder: Path
@@ -59,30 +61,30 @@ class Relay:
 
 
 @pytest.fixture
-def relay(tmp_path: Path, site: str) -> Iterator[Relay]:
-    """Run factori.al's room relay on a free local port, its rooms in the test's folder, taking the test site's page."""
-    store = room_relay.Store(tmp_path)
-    with room_relay.Server(("127.0.0.1", 0), store, origin=site.rstrip("/")) as server:
+def locker(tmp_path: Path, site: str) -> Iterator[Locker]:
+    """Run factori.al's encrypted study locker on a free local port over the test's folder, for the test site's page."""
+    store = study_locker.Store(tmp_path)
+    with study_locker.Server(("127.0.0.1", 0), store, origin=site.rstrip("/")) as server:
         thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.02}, daemon=True)
         thread.start()
-        yield Relay(server, tmp_path)
+        yield Locker(server, tmp_path)
         server.shutdown()
 
 
 @pytest.fixture
-def in_rooms(open_context: Callable[[], Any], relay: Relay, site: str) -> Callable[[], Any]:
-    """Return a way to open a browser whose ``/api/room`` reaches the relay, as Caddy passes it on."""
+def in_rooms(open_context: Callable[[], Any], locker: Locker, site: str) -> Callable[[], Any]:
+    """Return a way to open a browser whose ``/api/room`` reaches the locker, as Caddy passes it on."""
     kept = {"authorization", "if-match", "if-none-match", "content-type", "origin"}
 
     def forward(route: Any) -> None:  # noqa: ANN401 - a Playwright Route
         request = route.request
-        if not relay.up:
+        if not locker.up:
             route.abort("connectionrefused")
             return
         headers = {name: value for name, value in request.all_headers().items() if name in kept}
         body = request.post_data_buffer or b""
-        relay.asked.append((request.method, request.url, headers, body))
-        connection = http.client.HTTPConnection(*relay.server.server_address, timeout=10)
+        locker.asked.append((request.method, request.url, headers, body))
+        connection = http.client.HTTPConnection(*locker.server.server_address, timeout=10)
         connection.request(request.method, "/api/room", body=body, headers={**headers, "X-Real-IP": "127.0.0.1"})
         answer = connection.getresponse()
         route.fulfill(status=answer.status, headers=dict(answer.getheaders()), body=answer.read())
@@ -151,7 +153,7 @@ def join(context: Any, link: str) -> Any:  # noqa: ANN401 - a Playwright Browser
     return page
 
 
-def test_a_study_shared_in_a_room_opens_in_another_browser(in_rooms, relay, site):
+def test_a_study_shared_in_a_room_opens_in_another_browser(in_rooms, locker, site):
     page = worked(in_rooms(), site)
     link = share_in_room(page)
     secret = link.removeprefix(f"{site}#room=")
@@ -159,9 +161,9 @@ def test_a_study_shared_in_a_room_opens_in_another_browser(in_rooms, relay, site
     assert page.get_attribute("#room-share", "hidden") is None
     assert page.text_content("#room-share") == "Copy the room's link"
 
-    [room] = relay.rooms()
+    [room] = locker.rooms()
     sealed = room.read_bytes()
-    assert len(sealed) in room_relay.BLOB_SIZES
+    assert len(sealed) in study_locker.BLOB_SIZES
     for word in (b"Temperature", b"12.5", b"full_factorial", secret.encode()):
         assert word not in sealed, "the server holds nothing it can read"
 
@@ -173,13 +175,13 @@ def test_a_study_shared_in_a_room_opens_in_another_browser(in_rooms, relay, site
     assert elsewhere.url == site, "the secret leaves the address"
     assert elsewhere.input_value("#room-url") == link, "the same room"
 
-    for _, url, headers, body in relay.asked:
+    for _, url, headers, body in locker.asked:
         assert secret not in url
         assert secret not in str(headers)
         assert secret.encode() not in body
 
 
-def test_the_study_leaves_the_browser_only_once_the_reader_agrees(in_rooms, relay, site):
+def test_the_study_leaves_the_browser_only_once_the_reader_agrees(in_rooms, locker, site):
     """The question says who will see the study, what the server keeps, and how to stop; Not now sends nothing."""
     page = worked(in_rooms(), site)
     generate(page, design_type="full_factorial", n_center_points=0)
@@ -201,7 +203,7 @@ def test_the_study_leaves_the_browser_only_once_the_reader_agrees(in_rooms, rela
     page.wait_for_selector("#room-dialog[open]")
     page.keyboard.press("Escape")  # no, as Not now
     page.wait_for_selector("#room-dialog", state="hidden")
-    assert relay.asked == [], "nothing sent"
+    assert locker.asked == [], "nothing sent"
     assert page.is_hidden("#room-out")
     assert page.text_content("#room-share") == "Work on it together"
 
@@ -211,55 +213,55 @@ def test_the_study_leaves_the_browser_only_once_the_reader_agrees(in_rooms, rela
     assert heading == "Can I work on a study with others?"
 
 
-def test_a_room_stays_when_the_reader_keeps_it(in_rooms, relay, site):
+def test_a_room_stays_when_the_reader_keeps_it(in_rooms, locker, site):
     page = worked(in_rooms(), site)
     share_in_room(page)
     page.click("#room-remove")
     page.wait_for_selector("#room-remove-dialog[open]")
     page.click("#room-remove-keep")
     page.wait_for_selector("#room-remove-dialog", state="hidden")
-    assert len(relay.rooms()) == 1
+    assert len(locker.rooms()) == 1
     assert page.is_visible("#room-out")
 
 
-def test_results_typed_in_either_browser_reach_the_other(in_rooms, relay, site):
+def test_results_typed_in_either_browser_reach_the_other(in_rooms, locker, site):
     page = worked(in_rooms(), site)
     link = share_in_room(page)
     elsewhere = join(in_rooms(), link)
 
-    writes = relay.writes()
+    writes = locker.writes()
     type_result(elsewhere, 2, "14")
-    until(elsewhere, lambda: relay.writes() > writes)
+    until(elsewhere, lambda: locker.writes() > writes)
     look(page)
     page.wait_for_function(f"document.querySelectorAll('{BOXES}')[2].value === '14'")
     page.wait_for_selector("#toast", state="visible")
     assert page.text_content("#toast") == "1 result came from the room."
 
     # A correction in the first browser replaces a result the second already had.
-    writes = relay.writes()
+    writes = locker.writes()
     type_result(page, 0, "13")
-    until(page, lambda: relay.writes() > writes)
+    until(page, lambda: locker.writes() > writes)
     look(elsewhere)
     elsewhere.wait_for_function(f"document.querySelectorAll('{BOXES}')[0].value === '13'")
     assert results(elsewhere) == results(page)
     settled(elsewhere)
 
 
-def test_a_result_changed_in_both_browsers_keeps_the_room_s_and_says_so(in_rooms, relay, site):
+def test_a_result_changed_in_both_browsers_keeps_the_room_s_and_says_so(in_rooms, locker, site):
     page = worked(in_rooms(), site)
     link = share_in_room(page)
     elsewhere = join(in_rooms(), link)
 
-    writes = relay.writes()
+    writes = locker.writes()
     type_result(page, 1, "10")
-    until(page, lambda: relay.writes() > writes)
+    until(page, lambda: locker.writes() > writes)
     type_result(elsewhere, 1, "11")
     elsewhere.wait_for_selector(f"{BANNER}:has-text('theirs reached the room first')")
     assert "run 2: 11 here, 10 in the room" in elsewhere.text_content(BANNER)
     assert results(elsewhere)[1] == "10"
 
 
-def test_a_room_removed_for_everyone_leaves_each_browser_its_copy(in_rooms, relay, site, console):
+def test_a_room_removed_for_everyone_leaves_each_browser_its_copy(in_rooms, locker, site, console):
     console.allow(r"status of 404")  # the browser reports the read of the room that is gone
     page = worked(in_rooms(), site)
     link = share_in_room(page)
@@ -271,7 +273,7 @@ def test_a_room_removed_for_everyone_leaves_each_browser_its_copy(in_rooms, rela
     assert "The room's link stops working for everyone" in page.text_content("#room-remove-dialog")
     page.click("#room-remove-yes")
     page.wait_for_selector("#room-out", state="hidden")
-    assert relay.rooms() == []
+    assert locker.rooms() == []
     assert page.text_content("#room-share") == "Work on it together"
 
     look(elsewhere)
@@ -285,7 +287,7 @@ def test_a_room_removed_for_everyone_leaves_each_browser_its_copy(in_rooms, rela
     assert gone.text_content(BANNER).startswith("This room could not be opened: it is gone.")
 
 
-def test_a_room_s_link_opened_again_opens_the_study_kept_here(in_rooms, relay, site):
+def test_a_room_s_link_opened_again_opens_the_study_kept_here(in_rooms, locker, site):
     context = in_rooms()
     page = worked(context, site)
     link = share_in_room(page)
@@ -294,16 +296,16 @@ def test_a_room_s_link_opened_again_opens_the_study_kept_here(in_rooms, relay, s
     assert again.text_content("#library-count") == "1", "no second copy"
 
 
-def test_a_relay_that_cannot_be_reached_keeps_the_changes_here(in_rooms, relay, site, console):
+def test_a_locker_that_cannot_be_reached_keeps_the_changes_here(in_rooms, locker, site, console):
     console.allow(r"ERR_CONNECTION_REFUSED")  # the browser reports the write it could not send
     page = worked(in_rooms(), site)
     link = share_in_room(page)
-    relay.up = False
+    locker.up = False
     type_result(page, 3, "15")
     page.wait_for_function(
         "document.querySelector('#room-says').textContent.startsWith('The room could not be reached')"
     )
-    relay.up = True
+    locker.up = True
     look(page)
     page.wait_for_function("document.querySelector('#room-says').textContent.startsWith('In step with the room')")
     elsewhere = join(in_rooms(), link)

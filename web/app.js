@@ -9830,7 +9830,7 @@ async function shareLink() {
 
 // ---------------------------------------------------------------- rooms
 // A room keeps the study on the page in step with other browsers (room.js): each keeps the whole study, and the
-// site's relay keeps one copy, encrypted with a key only the room's link holds. A page in a room looks at it when it
+// site's encrypted study locker keeps one copy, encrypted with a key only the room's link holds. A page in a room looks at it when it
 // opens, when the reader comes back to it, every ROOM_EVERY while in view, and soon after a result changes.
 
 /** How often, in milliseconds, a page in view asks whether its room changed; how long after a result it writes. */
@@ -10068,7 +10068,7 @@ async function stepWithRoom() {
     }
     roomSays("Others in the room are changing it fast: Factorial tries again in a moment.");
   } catch (err) {
-    // No answer, a busy relay or a server's failure passes: the next look tries again, and the changes are kept here.
+    // No answer, a busy locker or a server's failure passes: the next look tries again, and the changes are kept here.
     const passing = err instanceof RoomError && (err.status === 0 || err.status === 429 || err.status >= 500);
     if (!left()) roomSays(err.message, !passing);
   }
@@ -10112,7 +10112,7 @@ function takeFromRoom(room, there) {
   }
 }
 
-/** The room is gone from the relay: this browser keeps the study, out of the room. */
+/** The room is gone from the locker: this browser keeps the study, out of the room. */
 function roomGone(room) {
   if (currentRoom() !== room) return;
   state.room = null;
@@ -10123,7 +10123,7 @@ function roomGone(room) {
   showBanner(`The room of this study is gone. ${GONE} Share it again to go on together.`, true);
 }
 
-/** Leave the room, here only; or, with ``remove``, remove it from the relay for everyone. The study stays here. */
+/** Leave the room, here only; or, with ``remove``, remove it from the locker for everyone. The study stays here. */
 async function leaveRoom(remove) {
   const room = currentRoom();
   if (!room) return;

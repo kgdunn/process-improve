@@ -1,5 +1,5 @@
-// A room: one study that two or more browsers keep in step through the site's room relay
-// (deploy/factorial/room_relay.py), which keeps it sealed and cannot read it.
+// A room: one study that two or more browsers keep in step through the site's encrypted study locker
+// (deploy/factorial/encrypted_study_locker.py), which keeps it sealed and cannot read it.
 //
 // The room's link carries one secret after "#room=", which a browser sends to no server. The page derives three
 // things from it, each one way:
@@ -8,11 +8,11 @@
 //          └─HKDF──► the write token                            sent with a change
 //                      └─SHA-256──► the room's id               sent with a read
 //
-// The relay checks a change by hashing its token to the room's id. The id leads back to neither the token nor the
-// key, so the relay, and anyone who reads what it keeps, holds bytes it cannot open.
+// The locker checks a change by hashing its token to the room's id. The id leads back to neither the token nor the
+// key, so the locker, and anyone who reads what it keeps, holds bytes it cannot open.
 //
 // A study is deflated (campaign.js), padded to one of PADDED sizes, so its size does not say how many runs it has,
-// and sealed with a fresh nonce. The relay keeps the 12-byte nonce, the sealed study and AES-GCM's 16-byte tag.
+// and sealed with a fresh nonce. The locker keeps the 12-byte nonce, the sealed study and AES-GCM's 16-byte tag.
 //
 // Each browser keeps the whole study as it always has (store.js): the room is a mailbox. Results travel both ways,
 // merged three ways against the room's study as this browser last saw it (mergeRoom), so a result corrected in one
@@ -23,10 +23,10 @@ import { deflateCampaign, fromBase64Url, inflateCampaign, toBase64Url } from "./
 /** Where a room's link carries its secret: the address's fragment, after this. */
 export const ROOM_KEY = "#room=";
 
-/** The relay, from the app's own address, so a copy served elsewhere asks its own server. */
+/** The locker, from the app's own address, so a copy served elsewhere asks its own server. */
 export const ROOM_PATH = "api/room";
 
-/** The sizes a study is padded to, its length first; room_relay.py takes these, sealed, and nothing else. */
+/** The sizes a study is padded to, its length first; encrypted_study_locker.py takes these, sealed, and nothing else. */
 export const PADDED = [4096, 16384, 65536];
 
 const NONCE = 12;
@@ -36,7 +36,7 @@ const LABELS = { key: "factorial room: key", write: "factorial room: write" };
 /** What each seal is bound to besides the study: this format of a room, so a later one cannot be mistaken for it. */
 const BOUND = new TextEncoder().encode("factorial room 1");
 
-/** A room's error, with the relay's HTTP status, or 0 when the relay could not be reached. */
+/** A room's error, with the locker's HTTP status, or 0 when the locker could not be reached. */
 export class RoomError extends Error {
   constructor(status, message) {
     super(message);
@@ -102,7 +102,7 @@ export async function unseal(key, blob) {
   }
 }
 
-/** A study, deflated, padded and sealed, ready for the relay. */
+/** A study, deflated, padded and sealed, ready for the locker. */
 export async function sealStudy(room, campaign) {
   return seal(room.key, pad(await deflateCampaign(campaign)));
 }
@@ -112,11 +112,11 @@ export async function openStudy(room, blob) {
   return inflateCampaign(unpad(await unseal(room.key, blob)));
 }
 
-// ---------------------------------------------------------------- the relay
+// ---------------------------------------------------------------- the locker
 const credential = (value) => ({ Authorization: `Room ${value}` });
 const versionOf = (res) => (res.headers.get("ETag") ?? "").replace(/^"|"$/g, "") || null;
 
-/** What a reader is told when the relay refused, or could not be reached: ``status`` 0 for no answer. */
+/** What a reader is told when the locker refused, or could not be reached: ``status`` 0 for no answer. */
 export function roomTrouble(status) {
   if (status === 413) return tooLarge();
   if (status === 429) return "This network has changed or read rooms often in the last hour: Factorial tries again later, and keeps your changes here meanwhile.";
@@ -124,14 +124,14 @@ export function roomTrouble(status) {
   return `The room refused a change (${status}): your copy here is unchanged.`;
 }
 
-/** What a reader is told where the app is served without the room relay. */
-export const NO_RELAY = "This copy of Factorial has no server for rooms: a link or the study file shares the study.";
+/** What a reader is told where the app is served without the encrypted study locker. */
+export const NO_LOCKER = "This copy of Factorial has no server for rooms: a link or the study file shares the study.";
 
 function tooLarge() {
   return `This study is too large for a room, which holds ${PADDED.at(-1) / 1024} KiB of it once it is packed. A link or the study file carries it.`;
 }
 
-/** Call the relay; a failed fetch is status 0. */
+/** Call the locker; a failed fetch is status 0. */
 async function call(ask, init) {
   try {
     return await ask(ROOM_PATH, { cache: "no-store", ...init });
@@ -162,13 +162,13 @@ export async function writeRoom(room, blob, version, ask = fetch) {
   const headers = { ...credential(room.token), "Content-Type": "application/octet-stream", ...match };
   const res = await call(ask, { method: "PUT", headers, body: blob });
   if (res.status === 412) return { moved: true };
-  // The relay answers a write with none of these: a server without one does, as a copy of the app served elsewhere.
-  if ([404, 405, 501].includes(res.status)) throw new RoomError(res.status, NO_RELAY);
+  // The locker answers a write with none of these: a server without one does, as a copy of the app served elsewhere.
+  if ([404, 405, 501].includes(res.status)) throw new RoomError(res.status, NO_LOCKER);
   if (!res.ok) throw new RoomError(res.status, roomTrouble(res.status));
   return { version: versionOf(res) };
 }
 
-/** Remove the room from the relay; a room already gone is no error. */
+/** Remove the room from the locker; a room already gone is no error. */
 export async function removeRoom(room, ask = fetch) {
   const res = await call(ask, { method: "DELETE", headers: credential(room.token) });
   if (!res.ok && res.status !== 404) throw new RoomError(res.status, roomTrouble(res.status));

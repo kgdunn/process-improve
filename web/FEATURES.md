@@ -1020,7 +1020,7 @@ What a careful reader, or an organization, asks before using a tool.
 - **Two things are sent, and only when you ask.** Feedback goes when you press Send, and holds only
   what the form lists. A study you share in a room goes encrypted, with a key that only the room's
   link holds.
-  - *Details:* The feedback relay emails a report and keeps nothing. The room relay keeps one
+  - *Details:* The feedback relay emails a report and keeps nothing. The encrypted study locker keeps one
     encrypted copy of each room's study, and hands it to whoever names the room; its log names no
     room. A network may make 20 rooms a day.
 
