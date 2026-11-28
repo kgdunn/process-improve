@@ -8,7 +8,7 @@ in place of the response surface.
 from __future__ import annotations
 
 from tests.web.e2e._page import headers, name_response, practise, run_sheet, set_factors, settled
-from tests.web.e2e.test_report import download_report, opened
+from tests.web.e2e.test_report import opened, report_html
 
 SUPPLIER = {"name": "Supplier", "low": "A", "high": "B"}
 
@@ -163,7 +163,7 @@ def test_three_levels_are_checked_for_what_the_analysis_of_variance_assumes_in_l
     code = page.text_content("#py-analyse code")
     assert "spread = bartlett_test(" in code
     assert "ranks = kruskal_wallis_test(" in code, "the Python panel checks them too"
-    _, html = download_report(page, "#learn-report-button")
+    html = report_html(page)
     report = opened(page, html)
     assert "Checks of what the analysis of variance assumes" in report.locator("h4").all_text_contents()
     assert sentences[1] in report.text_content("body"), "the report holds the checks, as Learn shows them"

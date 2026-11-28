@@ -1,4 +1,4 @@
-// "Show the Python code": the process-improve code that does what the page just did, step by
+// "Show Python code": the process-improve code that does what the page just did, step by
 // step, written from the page's state. Each panel shows its step after the steps it builds on,
 // so the code copied from any one of them runs as it is, in a script or a notebook.
 

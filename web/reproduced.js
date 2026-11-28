@@ -28,6 +28,7 @@ import {
   quantity,
   sizes,
   tally,
+  tallyWords,
   toHash,
 } from "./reproduced-logic.js";
 
@@ -78,6 +79,7 @@ function drawWhole() {
   const all = tally(data.cases);
   const states = byState(all);
   $("#tally-value").textContent = `${count(all.match)} of ${count(all.checked)}`;
+  $("#tally-words").textContent = tallyWords(states);
   const held = STATES.filter((state) => states[state.key]);
   const bar = $("#wholebar");
   bar.replaceChildren(

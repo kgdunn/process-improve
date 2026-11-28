@@ -184,12 +184,13 @@ def test_the_study_goes_when_ticked_as_a_link_that_opens_it(page, relay):
     assert opened["responses"], "with its results, so the result can be reproduced"
 
 
-@pytest.mark.parametrize("opener", ["#learn-feedback", "footer [data-feedback]"])
-def test_report_this_result_opens_on_the_algorithm_and_the_footer_on_general(page, relay, opener):
-    open_feedback(page, opener)
-    assert topic(page) == ("algorithm" if opener == "#learn-feedback" else "general")
+def test_the_footer_s_link_opens_feedback_on_the_general_topic_as_the_header_s_button_does(page, relay):
+    """Learn has no link of its own to Feedback: the header's button is in reach on every stage."""
+    assert page.locator("#step-analyse [data-feedback]").count() == 0
+    open_feedback(page, "footer [data-feedback]")
+    assert topic(page) == "general"
     send(page)
-    assert relay.reports[0]["topic"] == topic(page)
+    assert relay.reports[0]["topic"] == "general"
 
 
 def test_an_analysis_that_fails_offers_report_this_result_with_its_error(page, relay):
@@ -338,7 +339,7 @@ def test_the_message_written_stays_until_it_is_sent(page, relay):
     page.fill("#feedback-message", MESSAGE)
     page.keyboard.press("Escape")
     assert page.is_hidden(DIALOG)
-    open_feedback(page, "#learn-feedback")
+    open_feedback(page, "footer [data-feedback]")
     assert page.input_value("#feedback-message") == MESSAGE
     page.click("#feedback-send")
     page.wait_for_selector(SENT, state="visible")

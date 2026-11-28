@@ -1,4 +1,4 @@
-// web/python.js: the code each "Show the Python code" panel writes, as text. That the code runs and
+// web/python.js: the code each "Show Python code" panel writes, as text. That the code runs and
 // reproduces the page is checked by tests/web/page/test_python_panels.py.
 
 import assert from "node:assert/strict";

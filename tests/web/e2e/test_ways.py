@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 
 from tests.web.e2e._page import generate, practise, reveal, settled, status, study_menu
-from tests.web.e2e.test_report import download_report
+from tests.web.e2e.test_report import report_html
 
 #: A stage named in a sentence, as the page shows it: the dot before its name, and the dot of its stage in the bar.
 DOTS = """(link) => [
@@ -97,7 +97,7 @@ def test_a_stage_named_in_a_message_or_in_learn_is_a_link_and_a_report_keeps_its
     assert "Enter their results in Run." in waiting.text_content()
     assert stage_links(page, "#confirm-out .verdict") == ["Run"]
     assert not MARK.search(page.inner_text("body"))
-    _, report = download_report(page)
+    report = report_html(page)
     assert "Enter their results in Run." in report, "a report has no link to press: the stage's name is its text"
     assert not MARK.search(report)
     assert "stage-link" not in report

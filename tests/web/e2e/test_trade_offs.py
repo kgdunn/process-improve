@@ -28,7 +28,7 @@ from tests.web.e2e._page import (
     settled,
 )
 from tests.web.e2e.test_rename import rename
-from tests.web.e2e.test_report import download_report, opened
+from tests.web.e2e.test_report import opened, report_html
 from tests.web.e2e.test_responses import add_response, three_responses
 
 PLOT = "document.querySelector('#trade-chart .plot')"
@@ -230,7 +230,7 @@ def test_the_report_holds_the_trade_off_chart_and_the_settings_chosen(traded):
     page.evaluate(f"{PLOT}.emit('plotly_click', {{ points: [{{ data: {{ meta: 'tried' }}, customdata: 7 }}] }})")
     page.wait_for_selector("#trade-chosen table")
     chosen = page.text_content("#trade-chosen .lead")
-    _, html = download_report(page)
+    html = report_html(page)
     report = opened(page, html)
     text = report.text_content("body")
     assert "What one response costs another" in text

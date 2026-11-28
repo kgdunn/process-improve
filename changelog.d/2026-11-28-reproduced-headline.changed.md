@@ -1,0 +1,1 @@
+- factori.al's page of the books' answers is headed "Factorial matches the major textbooks". Under its count, the headline reads "printed numbers match. And where they don't, we can explain why. See below.", and says for how many the reason is not known yet while there are any.

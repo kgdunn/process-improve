@@ -1,13 +1,15 @@
-"""The study as a report: one HTML page to keep or to send, with a stamp that says how to get its numbers again.
+"""The study as a report: one HTML page to read or to save as a PDF, stamped with how to get its numbers again.
 
-Run and Learn each download it. It holds the brief, the design and its run sheet with the results, what
-Learn makes of each response's results (the analysis, its charts as images, the best settings), the next
-step and the Python code, under a stamp: when and with which releases it was made, the run order's seed,
-where the results came from, the SHA-256 of the study's inputs, and a link that opens the study again.
+Learn views it in a tab of its own, and saves it as a PDF through the browser's own print. It holds the brief, the
+design and its run sheet with the results, what Learn makes of each response's results (the analysis, its charts as
+images, the best settings), the next step and the Python code, under a stamp: when and with which releases it was
+made, the run order's seed, where the results came from, the SHA-256 of the study's inputs, and a link that opens the
+study again.
 """
 
 from __future__ import annotations
 
+import itertools
 import platform
 from pathlib import Path
 from typing import Any
@@ -16,13 +18,20 @@ from tests.web.e2e._page import practise, reveal, settled, status, study_menu
 from tests.web.e2e.test_responses import pick, tabs, three_responses
 
 
-def download_report(page: Any, button: str = "#learn-report-button") -> tuple[str, str]:  # noqa: ANN401 - a Playwright Page
-    """Click a report button, as a reader would: Learn's, once there is an analysis. Return the file's name and text."""
-    reveal(page, button)
+def report_html(page: Any) -> str:  # noqa: ANN401 - a Playwright Page
+    """Take the study's report from Learn, once there is an analysis, as the file a reader gets: return its text.
+
+    The page gives the file where the browser opens no tab, which is how it is taken here. The report's own tab is at
+    a blob: address, which Playwright's WebKit will not open while the test answers the page's requests; the tab is
+    tested where it is the subject, below.
+    """
+    reveal(page, "#learn-report-view")
+    page.evaluate("window.opensTabs = window.open; window.open = () => null")
     with page.expect_download() as download:
-        page.click(button)
+        page.click("#learn-report-view")
+    page.evaluate("window.open = window.opensTabs")
     settled(page)
-    return download.value.suggested_filename, Path(download.value.path()).read_text(encoding="utf-8")
+    return Path(download.value.path()).read_text(encoding="utf-8")
 
 
 def viewed_report(page: Any) -> Any:  # noqa: ANN401 - a Playwright Page
@@ -66,14 +75,13 @@ def test_the_report_names_what_a_model_was_fitted_with_once_the_worker_has_fetch
     runtime = {"python": "3.14.2", "packages": {"numpy": "2.4.6", "statsmodels": "0.14.6"}, "pyodide": "314.0.7"}
     page.evaluate("(runtime) => window.__pi.warmed(runtime)", runtime)
     said = "Python 3.14.2 in Pyodide 314.0.7, with numpy 2.4.6 and statsmodels 0.14.6"
-    assert stamp(opened(page, download_report(page)[1]))["On"] == said
+    assert stamp(opened(page, report_html(page)))["On"] == said
     page.evaluate("window.__pi.warmed(false)")  # a worker started again that could not fetch it changes nothing
-    assert stamp(opened(page, download_report(page)[1]))["On"] == said
+    assert stamp(opened(page, report_html(page)))["On"] == said
 
 
 def test_the_worked_example_s_report_holds_the_study_and_what_learn_makes_of_it(page, first_paint):
-    name, html = download_report(page)
-    assert name == "box_behnken-15-runs-report.html"
+    html = report_html(page)
     report = opened(page, html)
     assert report.text_content("h1") == "Yield (%), maximize: Box-Behnken in Temperature, Pressure and Flow", (
         "the study's title"
@@ -138,8 +146,59 @@ def test_the_report_opens_in_a_tab_of_its_own_to_read(page):
         shown.close()
 
 
+def test_save_as_pdf_opens_the_report_with_the_browser_s_print_over_it(page):
+    """A page cannot write a PDF file: the browser's print can, so the button opens the report and asks for it."""
+    # In place of the print dialog, which no test can answer, each tab counts how often it was asked to print.
+    page.context.add_init_script("window.print = () => { window.printed = (window.printed ?? 0) + 1; };")
+    reveal(page, "#learn-report-pdf")
+    assert page.text_content("#learn-report-pdf") == "Save as PDF"
+    with page.expect_popup() as popup:
+        page.click("#learn-report-pdf")
+    report = popup.value
+    report.wait_for_url("blob:**")
+    report.wait_for_function("window.printed === 1")
+    assert report.title() == "Yield (%), maximize: Box-Behnken in Temperature, Pressure and Flow: report", (
+        "the name the browser gives the PDF"
+    )
+    assert "@media print" in report.text_content("style"), "laid out for paper by the report's own styles"
+    assert status(page)[0] == (
+        'The report is open in a tab of its own, with the print dialog over it: choose "Save as PDF" there.'
+    )
+    report.wait_for_timeout(400)
+    assert report.evaluate("window.printed") == 1, "asked once, and no more"
+    report.close()
+
+
+def test_where_the_browser_opens_no_tab_the_report_is_downloaded_as_a_file(page):
+    page.evaluate("window.open = () => null")  # as a browser that blocks a new tab answers
+    for button in ("#learn-report-view", "#learn-report-pdf"):
+        reveal(page, button)
+        with page.expect_download() as download:
+            page.click(button)
+        settled(page)
+        assert download.value.suggested_filename == "box_behnken-15-runs-report.html"
+        html = Path(download.value.path()).read_text(encoding="utf-8")
+        assert opened(page, html).text_content("h1").startswith("Yield (%), maximize: Box-Behnken")
+        assert status(page)[0].startswith("The browser opened no tab, so the report is downloaded")
+
+
+def test_the_three_ways_to_take_the_study_away_are_one_control_named_report(page):
+    reveal(page, "#learn-report")
+    group = page.locator("#learn-report [role=group]")
+    assert page.text_content("#learn-report-name") == "Report"
+    assert group.get_attribute("aria-labelledby") == "learn-report-name"
+    buttons = group.locator("button")
+    assert buttons.all_text_contents() == ["View", "Save as PDF", "Python notebook"]
+    for button in buttons.all():
+        assert button.text_content() in button.get_attribute("aria-label"), "its full name holds the word it shows"
+    boxes = [button.bounding_box() for button in buttons.all()]
+    assert len({box["y"] for box in boxes}) == 1, "one row"
+    for left, right in itertools.pairwise(boxes):
+        assert right["x"] - (left["x"] + left["width"]) <= 0, "each touches the next"
+
+
 def test_the_digest_is_of_what_the_link_carries(page):
-    _, html = download_report(page)
+    html = report_html(page)
     report = opened(page, html)
     digest = stamp(report)["Fingerprint (SHA-256)"]
     link = report.get_attribute("table.stamp a", "href")
@@ -156,15 +215,15 @@ def test_the_digest_is_of_what_the_link_carries(page):
 
 
 def test_a_report_is_the_same_study_until_the_study_changes(page):
-    _, first = download_report(page)
-    _, second = download_report(page, "#learn-report-button")
+    first = report_html(page)
+    second = report_html(page)
     digest = [stamp(opened(page, html))["Fingerprint (SHA-256)"] for html in (first, second)]
-    assert digest[0] == digest[1], "Run's button and Learn's make the same report"
+    assert digest[0] == digest[1], "made twice, it is the same report"
     reveal(page, "#design-table")
     box = page.locator("#design-table input[data-response]").first
     box.fill("99")
     box.press("Tab")
-    _, changed = download_report(page)
+    changed = report_html(page)
     assert stamp(opened(page, changed))["Fingerprint (SHA-256)"] != digest[0], "a result changed is another study"
     assert stamp(opened(page, changed))["Results"].startswith("15 of 15 runs, 1 entered and 14 simulated")
 
@@ -174,7 +233,7 @@ def test_a_report_holds_each_response_s_analysis_and_learn_keeps_the_one_it_show
     three_responses(page)
     practise(page)
     pick(page, "Cost")
-    _, html = download_report(page, "#learn-report-button")
+    html = report_html(page)
     report = opened(page, html)
     assert headings(report)[2:5] == [
         "What the results say of Yield",

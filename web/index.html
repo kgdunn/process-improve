@@ -566,7 +566,7 @@
           </div>
         </section>
         <details class="python" id="py-design" hidden>
-          <summary>Show the Python code</summary>
+          <summary>Show Python code<span class="python__for"> for this</span><span class="visually-hidden">: the design</span></summary>
           <p class="hint">The process-improve code for this design. Copy it and it runs as it is.</p>
           <pre><code></code></pre>
           <button type="button" class="link copy">Copy the code</button>
@@ -746,7 +746,7 @@
               <div id="what-if-kept-list"></div>
             </div>
             <details class="python" id="py-what-if" hidden>
-              <summary>Show the Python code of these predictions</summary>
+              <summary>Show Python code<span class="python__for"> for this</span><span class="visually-hidden">: the What-if predictions</span></summary>
               <p class="hint">The design, its results and each response's prediction at these settings together, so it runs as it is.</p>
               <pre><code></code></pre>
               <button type="button" class="link copy">Copy the code</button>
@@ -802,7 +802,7 @@
           </div>
         </div>
         <details class="python" id="py-run" hidden>
-          <summary>Show the Python code</summary>
+          <summary>Show Python code<span class="python__for"> for this</span><span class="visually-hidden">: the results</span></summary>
           <p class="hint">The design and its results together, so it runs as it is.</p>
           <pre><code></code></pre>
           <button type="button" class="link copy">Copy the code</button>
@@ -891,7 +891,7 @@
         </section>
         <div id="charts" class="charts" hidden></div>
         <details class="python" id="py-analyse" hidden>
-          <summary>Show the Python code of this analysis</summary>
+          <summary>Show Python code<span class="python__for"> for this</span><span class="visually-hidden">: the analysis</span></summary>
           <p class="hint">The design, its results and their analysis together, so it runs as it is.</p>
           <pre><code></code></pre>
           <button type="button" class="link copy">Copy the code</button>
@@ -931,7 +931,7 @@
                 </p>
               </div>
               <details class="python" id="py-best" hidden>
-                <summary>Show the Python code of these settings</summary>
+                <summary>Show Python code<span class="python__for"> for this</span><span class="visually-hidden">: the best settings</span></summary>
                 <p class="hint">The design, its results, their analysis and the best settings together, so it runs as it is.</p>
                 <pre><code></code></pre>
                 <button type="button" class="link copy">Copy the code</button>
@@ -976,7 +976,7 @@
                 <div id="solve-out" aria-live="polite"></div>
               </div>
               <details class="python" id="py-target" hidden>
-                <summary>Show the Python code of these settings</summary>
+                <summary>Show Python code<span class="python__for"> for this</span><span class="visually-hidden">: the settings that give a target</span></summary>
                 <p class="hint">The design, its results and the search for the settings that give the targets together, so it runs as it is.</p>
                 <pre><code></code></pre>
                 <button type="button" class="link copy">Copy the code</button>
@@ -1007,7 +1007,7 @@
                 <button type="button" id="window-what-if" class="link">See the surest settings under What if</button>
               </p>
               <details class="python" id="py-window" hidden>
-                <summary>Show the Python code of this specification</summary>
+                <summary>Show Python code<span class="python__for"> for this</span><span class="visually-hidden">: the specification</span></summary>
                 <p class="hint">The design, its results and the settings judged against the windows together, so it runs as it is.</p>
                 <pre><code></code></pre>
                 <button type="button" class="link copy">Copy the code</button>
@@ -1066,7 +1066,7 @@
             </p>
           </div>
           <details class="python" id="py-balance" hidden>
-            <summary>Show the Python code of the balance</summary>
+            <summary>Show Python code<span class="python__for"> for this</span><span class="visually-hidden">: the balance</span></summary>
             <p class="hint">The design, its results and the balance of the responses together, so it runs as it is.</p>
             <pre><code></code></pre>
             <button type="button" class="link copy">Copy the code</button>
@@ -1077,10 +1077,15 @@
         <!-- The study as a report (app.js, with report.js): what Learn shows, with the brief, the run sheet, the code
              and a stamp of the releases, seeds and inputs that give the same numbers again. -->
         <p id="learn-report" class="actions" hidden>
-          <button type="button" id="learn-report-view" class="button">View a report of this study</button>
-          <button type="button" id="learn-report-button" class="button">Download it (.html)</button>
-          <button type="button" id="notebook" class="button">Download the notebook (.ipynb)</button>
-          <button type="button" id="learn-feedback" class="link" data-feedback="algorithm">Report this result</button>
+          <span id="learn-report-name" class="actions__name">Report</span>
+          <!-- Three ways to take the study away, as one control: its buttons touch. Each says in full what it does
+               to a reader who hears it alone. The PDF is the browser's own: the report in a tab, with the print dialog
+               over it (app.js saveReportAsPdf). -->
+          <span class="joined" role="group" aria-labelledby="learn-report-name">
+            <button type="button" id="learn-report-view" class="button" aria-label="View the report of this study">View</button>
+            <button type="button" id="learn-report-pdf" class="button" aria-label="Save as PDF: the report, from the browser's print dialog">Save as PDF</button>
+            <button type="button" id="notebook" class="button" aria-label="Download the Python notebook (.ipynb)">Python notebook</button>
+          </span>
         </p>
       </section>
 
@@ -1281,7 +1286,7 @@
     </details>
     <div id="compare-charts" class="charts" hidden></div>
     <details class="python" id="py-compare" hidden>
-      <summary>Show the Python code</summary>
+      <summary>Show Python code<span class="python__for"> for this</span><span class="visually-hidden">: the comparison</span></summary>
       <p class="hint">The process-improve code for this comparison. Copy it and it runs as it is.</p>
       <pre><code></code></pre>
       <button type="button" class="link copy">Copy the code</button>

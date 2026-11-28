@@ -1,4 +1,4 @@
-"""The "Show the Python code" panels: the code each step of the page shows must do what the page did.
+"""The "Show Python code" panels: the code each step of the page shows must do what the page did.
 
 ``web/python.js`` writes the code from the page's state. It is run here under Node, as the
 page runs it, and the code it writes is run in Python, so the code a reader copies is checked

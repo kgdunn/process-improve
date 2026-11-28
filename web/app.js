@@ -3964,7 +3964,7 @@ async function eachAnalysis() {
 }
 
 /**
- * Download the study as a Jupyter notebook: each step's code, as its "Show the Python code"
+ * Download the study as a Jupyter notebook: each step's code, as its "Show Python code"
  * panel shows it, a cell a step, so it runs to the page's design, results and analysis. With
  * several responses, each response's analysis and best settings in turn.
  */
@@ -4197,32 +4197,49 @@ async function makeReport() {
   return { page, name: `${spec.design_type}-${rows.length}-runs-report.html` };
 }
 
-/** Download the study's report, to keep or to send. */
-async function downloadReport() {
-  if (!state.design) return;
-  const { page, name } = await makeReport();
-  download(new Blob([page], { type: "text/html" }), name);
-  setStatus("Report downloaded: open it in a browser, or print it to PDF.");
-}
-
 /**
- * Open the study's report in a tab of its own, to read, print or share from there. The tab is opened at the click, as
- * a browser allows a new tab only then, and shows the report once it is made; where the browser opens none, the report
- * is downloaded instead.
+ * Open the study's report in a tab of its own, and return the tab once it is sent the report. The tab is opened at the
+ * click, as a browser allows a new tab only then; where the browser opens none, the report is downloaded as a file
+ * instead, which opens in any browser, and null is returned.
  */
-async function viewReport() {
-  if (!state.design) return;
+async function openReport() {
+  if (!state.design) return null;
   const tab = window.open("", "_blank");
   if (tab) tab.document.title = "Making the report...";
   const { page, name } = await makeReport();
   if (!tab || tab.closed) {
     download(new Blob([page], { type: "text/html" }), name);
-    setStatus("The browser opened no tab, so the report is downloaded: open it in a browser, or print it to PDF.");
-    return;
+    setStatus("The browser opened no tab, so the report is downloaded: open it in a browser, and print it to PDF from there.");
+    return null;
   }
   // The address lasts while this page is open, so the report's tab can be reloaded.
   tab.location.href = URL.createObjectURL(new Blob([page], { type: "text/html" }));
-  setStatus("The report is open in a tab of its own: print it to PDF from there, or download it to keep.");
+  return tab;
+}
+
+/** View the study's report, in a tab of its own: to read, and to print or save from there. */
+async function viewReport() {
+  if (await openReport()) setStatus("The report is open in a tab of its own.");
+}
+
+/** How long the report's tab is waited for before its print dialog is given up, in milliseconds. */
+const PRINT_WAIT = 30_000;
+
+/**
+ * Save the study's report as a PDF. A page cannot write a PDF file itself, and the browser's own print can: the report
+ * opens in a tab of its own and the print dialog comes up over it once it has loaded, where "Save as PDF" writes the
+ * file, laid out by the report's print styles (report.js) and named by its title.
+ */
+async function saveReportAsPdf() {
+  const tab = await openReport();
+  if (!tab) return;
+  setStatus('The report is open in a tab of its own, with the print dialog over it: choose "Save as PDF" there.');
+  const started = Date.now();
+  const timer = setInterval(() => {
+    const loaded = !tab.closed && tab.location.href !== "about:blank" && tab.document.readyState === "complete";
+    if (loaded) tab.print();
+    if (loaded || tab.closed || Date.now() - started > PRINT_WAIT) clearInterval(timer);
+  }, 100);
 }
 
 // ---------------------------------------------------------------- feedback
@@ -10982,7 +10999,7 @@ $("#curve-target-find").onclick = findTarget;
 $("#curve-clear").onclick = () => setCurve(null, null);
 for (const id of ["#curve-label", "#curve-units", "#curve-along", "#curve-along-units"]) $(id).onchange = curveWordsChanged;
 $("#notebook").onclick = downloadNotebook;
-$("#learn-report-button").onclick = downloadReport;
+$("#learn-report-pdf").onclick = saveReportAsPdf;
 $("#learn-report-view").onclick = viewReport;
 // Share's plain choice closes the question, then copies the link: the press is what lets it reach the clipboard.
 $("#share").onclick = () => {

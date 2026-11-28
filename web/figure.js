@@ -80,7 +80,7 @@ const MARKUP = `
   </div>
   <p class="hint figure__caption"></p>
   <details class="python">
-    <summary>Show the Python code of this figure</summary>
+    <summary>Show Python code<span class="python__for"> for this</span><span class="visually-hidden">: the figure</span></summary>
     <p class="hint">The process-improve code that draws this figure, after the code of the analysis it draws:
       copy it and it runs as it is. The page then puts the axes in your own units and its own colors.</p>
     <pre><code></code></pre>

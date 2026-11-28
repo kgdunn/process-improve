@@ -936,7 +936,7 @@ function detailHead(design, detail, source) {
   actions.append(
     element("button", { type: "button", class: "button", "data-copy-link": design.id, text: "Copy a link to this design" }),
     element("button", { type: "button", class: "button", "data-csv": design.id, text: "Download the runs (CSV)" }),
-    element("button", { type: "button", class: "button", "data-show-code": design.id, text: "Show the Python" }),
+    element("button", { type: "button", class: "button", "data-show-code": design.id, text: "Show Python code" }),
   );
   return element("div", { class: "detail__head" }, what, where, headCell("Use it", actions, ...said));
 }

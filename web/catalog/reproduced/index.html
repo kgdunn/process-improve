@@ -29,11 +29,14 @@
 <body>
 <main class="reproduced">
   <p class="about__back"><a href="../../validation.html"><img src="../../favicon.svg" alt="" width="28" height="28"> Back to "Is it accurate?"</a></p>
-  <h1>Factorial gives the textbooks' answers</h1>
+  <h1>Factorial matches the major textbooks</h1>
   <p class="reproduced__status" id="status" role="status" aria-live="polite">Loading the cases...</p>
 
   <div id="summary" hidden>
-    <p class="tally"><strong class="tally__value" id="tally-value"></strong> <span>printed numbers match.</span></p>
+    <!-- The headline: how many printed numbers match, and that the page explains the rest (reproduced-logic.js
+         tallyWords, which counts those whose reason is not known yet). -->
+    <p class="tally"><strong class="tally__value" id="tally-value"></strong>
+      <span id="tally-words">printed numbers match. And where they don't, we can explain why. See below.</span></p>
     <div class="wholebar" id="wholebar" role="img"></div>
     <svg class="zoomin" id="zoomin" viewBox="0 0 1000 34" preserveAspectRatio="none" aria-hidden="true">
       <polygon points="1000,0 1000,0 1000,34 0,34"></polygon>
