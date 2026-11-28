@@ -19,17 +19,19 @@ from tests.web.e2e.test_responses import pick, tabs, three_responses
 
 
 def report_html(page: Any) -> str:  # noqa: ANN401 - a Playwright Page
-    """View the study's report from Learn, as a reader would once there is an analysis: return its page, as text."""
+    """Take the study's report from Learn, once there is an analysis, as the file a reader gets: return its text.
+
+    The page gives the file where the browser opens no tab, which is how it is taken here. The report's own tab is at
+    a blob: address, which Playwright's WebKit will not open while the test answers the page's requests; the tab is
+    tested where it is the subject, below.
+    """
     reveal(page, "#learn-report-view")
-    with page.expect_popup() as popup:
+    page.evaluate("window.opensTabs = window.open; window.open = () => null")
+    with page.expect_download() as download:
         page.click("#learn-report-view")
-    report = popup.value
-    report.wait_for_url("blob:**")
-    report.wait_for_load_state()
+    page.evaluate("window.open = window.opensTabs")
     settled(page)
-    html = report.content()
-    report.close()
-    return html
+    return Path(download.value.path()).read_text(encoding="utf-8")
 
 
 def viewed_report(page: Any) -> Any:  # noqa: ANN401 - a Playwright Page
