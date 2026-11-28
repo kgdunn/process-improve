@@ -1,9 +1,11 @@
-"""The "Show the Python code" panel of each step: the process-improve code that does what the step did, to copy."""
+"""The "Show Python code" panel of each step: the process-improve code that does what the step did, to copy."""
 
 from __future__ import annotations
 
 import base64
 import re
+
+import pytest
 
 from tests.web._support import FACTORS, fill_workbook, quadratic, workbook_of
 from tests.web.e2e._page import reveal, settled, type_results
@@ -17,16 +19,19 @@ def test_each_step_shows_the_python_that_does_the_same(page):
     assert 'generate_design(factors, design_type="box_behnken"' in code(page, "design")
     assert "TrueProcess(" in code(page, "run")
     assert "analyze_experiment(" in code(page, "analyse")
-    summaries = {
-        "design": "Show the Python code",
-        "run": "Show the Python code",
-        "analyse": "Show the Python code of this analysis",
-        "best": "Show the Python code of these settings",
-    }
-    for step, summary in summaries.items():
+    summaries = {"design": "the design", "run": "the results", "analyse": "the analysis", "best": "the best settings"}
+    for step, what in summaries.items():
         reveal(page, f"#py-{step}")
         assert page.is_visible(f"#py-{step}"), step
-        assert page.text_content(f"#py-{step} summary") == summary, "Learn's panels each say what they are the code of"
+        summary = page.locator(f"#py-{step} summary")
+        seen = summary.evaluate(
+            "(one) => [...one.childNodes].filter((part) => !part.classList?.contains('visually-hidden'))"
+            ".map((part) => part.textContent).join('')"
+        )
+        assert seen == "Show Python code for this", "one short line, the same on every panel"
+        # Heard alone, each panel still says what it is the code of.
+        assert summary.text_content() == f"Show Python code for this: {what}"
+        assert summary.locator(".visually-hidden").evaluate("(one) => one.getBoundingClientRect().width") <= 1
     placed = page.evaluate(
         "() => Boolean(document.querySelector('#py-analyse').compareDocumentPosition(document.querySelector('#best'))"
         " & Node.DOCUMENT_POSITION_FOLLOWING)"
@@ -36,6 +41,13 @@ def test_each_step_shows_the_python_that_does_the_same(page):
     page.click("#compare")
     assert 'compare_designs(designs, model="main_quadratic")' in code(page, "compare")
     assert page.is_visible("#py-compare"), "in the detailed comparison"
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 320, "height": 700}, "is_mobile": True}])
+def test_on_a_very_narrow_screen_the_panel_s_line_drops_its_last_two_words(page):
+    reveal(page, "#py-analyse")
+    assert page.locator("#py-analyse summary").is_visible()
+    assert page.locator("#py-analyse summary .python__for").is_hidden(), '"Show Python code", with no "for this"'
 
 
 def test_each_panel_holds_the_steps_before_it_so_its_code_runs_on_its_own(page):
