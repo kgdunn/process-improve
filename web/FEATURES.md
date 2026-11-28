@@ -754,6 +754,20 @@ Also:
     it. From study format 12 on, a version keeps a setting it does not know and takes no
     notice of it, so a later setting that only changes how a study looks opens in it.
 - **Share.** It hands a study to the device's share sheet where the browser has one.
+- **Work on a study together.** Share a study in a room, and whoever opens the room's link has
+  the same study: results typed in any of your browsers reach the others. The server keeps the
+  study sealed, and cannot read it.
+  - *Details:* "Work on it together", in Run. The room's link carries a secret after the `#`,
+    which a browser sends to no server. From it the browser derives the key that seals the study
+    (AES-GCM, 256 bits), a token that lets a browser change the room, and the room's name, the
+    SHA-256 of the token. The server holds the name and the sealed study, padded to 4, 16 or
+    64 KiB so that its size does not say how many runs it has. A page in a room looks at it when
+    it opens, when you come back to it, every 15 seconds while it is in view, and a moment after a
+    result changes. A result changed in two browsers keeps the one that reached the room first,
+    and the page says which it replaced. The room keeps the runs it was shared with: a study whose
+    runs change afterwards stops keeping in step, and can be shared in a new room. A room nobody
+    changes for 30 days is removed, and "Remove the room for everyone" removes it at once; each
+    browser keeps its own copy of the study. The study file leaves a room out.
 - **Examples by name.** The book's 19 examples and 3 published examples each open from a
   link.
   - *Details:* With `?book=<name>` and with `?example=<name>`.
@@ -975,11 +989,13 @@ What a careful reader, or an organization, asks before using a tool.
 
 #### Where your data goes
 
-- **Nowhere.** What you type, your results and your analyses stay in your browser. There is
-  no account to make, and nothing follows you around the web.
+- **Nowhere you do not send it.** What you type, your results and your analyses stay in your
+  browser. There is no account to make, and nothing follows you around the web.
   - *Details:* Python (CPython in WebAssembly) runs in the tab. The server sends the app's
-    files and nothing more: it has no database, no accounts, no cookies and no tracking
-    script.
+    files, keeps the sealed study of each room, and nothing more: it has no database, no
+    accounts, no cookies and no tracking script. A Content-Security-Policy names every host a
+    page may load from or send to: the site, jsDelivr and PyPI. Plotly.js, which draws the
+    charts, runs only if its bytes are those the build checked (its SHA-384).
 - **We count visits, not people.** We see how often a page is opened. We do not see who
   opened it, or anything they did there.
   - *Details:* One access-log line per request, with the address cut to its network before
@@ -995,9 +1011,12 @@ What a careful reader, or an organization, asks before using a tool.
     server writes the numbers, and nothing else, to a public file each hour, and the footer of
     every page draws it. A copy of Factorial at another address has no such file and leaves
     the line out.
-- **Feedback is the one thing sent.** It goes only when you press Send, and holds only what the
-  form lists.
-  - *Details:* The relay emails it and keeps nothing.
+- **Two things are sent, and only when you ask.** Feedback goes when you press Send, and holds only
+  what the form lists. A study you share in a room goes sealed, with a key that only the room's
+  link holds.
+  - *Details:* The feedback relay emails a report and keeps nothing. The room relay keeps one
+    sealed copy of each room's study, and hands it to whoever names the room; its log names no
+    room. A network may make 20 rooms a day.
 
 #### With no network, or on your own server
 

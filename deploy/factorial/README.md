@@ -56,7 +56,7 @@ revalidated at each visit: run `setup.sh` again, and then the command it ends wi
 
 ## What the server keeps
 
-Usage, and nothing else. Caddy writes one line per request to
+Usage, and the sealed study of each room, which it cannot read ([Rooms](#rooms)). Caddy writes one line per request to
 `/var/log/caddy/factorial-access.log`: the time, the path, the status, the browser's
 `User-Agent`, and the page that linked here. The reader's address is cut to its network
 before the line is written (the first 24 bits of IPv4, 48 of IPv6), and lines are kept for
@@ -84,6 +84,10 @@ press Send: the relay emails it to the maintainer, and keeps no copy and no line
 ([Feedback](#feedback)). Its request is logged as any other, without its body. A reader who gives
 an address gets a receipt of fixed text; to send an address at most one a day, the relay holds a
 keyed hash of it in memory for a day.
+
+The other exception is a study a reader shares in a room: the room relay keeps it, sealed in the
+reader's browser with a key the server never holds ([Rooms](#rooms)). A room's requests are logged
+as any other, with neither their body nor the header that names the room.
 
 ```bash
 sudo factorial-usage                        # the last 28 days, a row a day
@@ -169,7 +173,7 @@ sudo sh factorial-setup/setup.sh factorial-setup/factorial_deploy.pub
 change it, and installs the SSH block ([`sshd.conf`](sshd.conf)) once `sshd -t` accepts it.
 It installs the site's Caddy block, [`factorial.caddy`](factorial.caddy), and makes its log
 owned by Caddy. It installs the feedback relay and its unit, and makes the relay's settings files
-once ([Feedback](#feedback)). It ends by printing the value of `FACTORIAL_KNOWN_HOSTS` for step 5.
+once ([Feedback](#feedback)). It installs the room relay and its unit, and starts it ([Rooms](#rooms)). It ends by printing the value of `FACTORIAL_KNOWN_HOSTS` for step 5.
 It needs the server's Python to be 3.12 or later, as Ubuntu 24.04's is. Running it again is safe.
 
 **3. Check the key**, from your machine:
@@ -280,6 +284,49 @@ sudo sh factorial/setup.sh factorial/factorial_deploy.pub
 
 Then send a report with the Feedback button: its email is written by the relay just installed.
 
+## Rooms
+
+The app's "Work on it together" shares a study in a room: a study that two or more browsers keep
+in step (`web/room.js`). Each browser seals the study with a key that only the room's link holds,
+after its `#`, and sends it to `https://factori.al/api/room`. Caddy passes the request to
+[`room_relay.py`](room_relay.py), which keeps one file of sealed bytes for each room in
+`/var/lib/factorial-rooms`, and hands it back. The relay never holds the key, so neither it, nor
+anyone who reads its folder, can read a study. It listens on `127.0.0.1:8791`, runs as an account
+systemd makes for it at each start, which can write only to that folder
+([`factorial-room.service`](factorial-room.service)), and needs no settings.
+
+What it takes, and for how long it keeps it:
+
+- A sealed study of 4, 16 or 64 KiB once padded, and nothing else: an image or a file does not fit.
+- One file for each room, which each change replaces: no history, and no list of rooms.
+- A room nobody changes for 30 days is removed.
+- At most 256 MiB in all: past that, a new room is refused until old ones expire.
+- From one network (a /24 of IPv4, a /48 of IPv6): 20 new rooms a day, 600 changes and 3600
+  reads an hour.
+
+A room's name, or the token that changes it, travels in the `Authorization` header, which the
+access log leaves out, with the versions a browser names (`If-Match`, `If-None-Match`). The relay
+logs the status of each request, and nothing that names a room.
+
+To remove one room, from its link (whoever reports a room gives the link, and with it the key):
+
+```bash
+sudo env STATE_DIRECTORY=/var/lib/factorial-rooms factorial-room forget 'https://factori.al/#room=...'
+```
+
+To stop every room at once, `sudo systemctl stop factorial-room`: the app then says the room
+cannot be reached, and each browser keeps its own copy of every study it was sharing.
+
+Check that Caddy reaches the relay:
+
+```bash
+curl -s -H 'Authorization: Room AAAAAAAAAAAAAAAAAAAAAA' https://factori.al/api/room
+```
+
+It prints the relay's refusal, `{"ok": false, "error": "there is no such room: ..."}`; an empty
+answer with status `502` means the relay is not running, and `sudo journalctl -u factorial-room`
+says why.
+
 ## Retiring the old app
 
 The old app ran from `/home/deploy/factorial` under Docker Compose, with nightly backups to
@@ -319,7 +366,9 @@ The last line rolls back without GitHub, as the workflow would.
 | [`feedback_relay.py`](feedback_relay.py) | `/usr/local/bin/factorial-feedback` | The relay that emails a reader's report |
 | [`factorial-feedback.service`](factorial-feedback.service) | `/etc/systemd/system/factorial-feedback.service` | Runs the relay |
 | [`feedback.env.example`](feedback.env.example) | `/etc/factorial/feedback.env`, if missing | The relay's settings |
-| [`setup.sh`](setup.sh) | (run once) | Installs the seven above |
+| [`room_relay.py`](room_relay.py) | `/usr/local/bin/factorial-room` | The relay that keeps each room's sealed study |
+| [`factorial-room.service`](factorial-room.service) | `/etc/systemd/system/factorial-room.service` | Runs the room relay |
+| [`setup.sh`](setup.sh) | (run once) | Installs each file above |
 
-[`tests/deploy`](../../tests/deploy) tests the two commands and the relay, including what a
-leaked key, or anyone who finds the relay's address, could send.
+[`tests/deploy`](../../tests/deploy) tests the two commands and the two relays, including what a
+leaked key, or anyone who finds a relay's address, could send.

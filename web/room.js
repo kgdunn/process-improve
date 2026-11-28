@@ -124,6 +124,9 @@ export function roomTrouble(status) {
   return `The room refused a change (${status}): your copy here is unchanged.`;
 }
 
+/** What a reader is told where the app is served without the room relay. */
+export const NO_RELAY = "This copy of Factorial has no server for rooms: a link or the study file shares the study.";
+
 function tooLarge() {
   return `This study is too large for a room, which holds ${PADDED.at(-1) / 1024} KiB of it once it is packed. A link or the study file carries it.`;
 }
@@ -159,6 +162,8 @@ export async function writeRoom(room, blob, version, ask = fetch) {
   const headers = { ...credential(room.token), "Content-Type": "application/octet-stream", ...match };
   const res = await call(ask, { method: "PUT", headers, body: blob });
   if (res.status === 412) return { moved: true };
+  // The relay answers a write with none of these: a server without one does, as a copy of the app served elsewhere.
+  if ([404, 405, 501].includes(res.status)) throw new RoomError(res.status, NO_RELAY);
   if (!res.ok) throw new RoomError(res.status, roomTrouble(res.status));
   return { version: versionOf(res) };
 }

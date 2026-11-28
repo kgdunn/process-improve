@@ -7,6 +7,7 @@ import { checkCampaign, designKey } from "../../../web/campaign.js";
 import {
   PADDED,
   ROOM_KEY,
+  NO_RELAY,
   ROOM_PATH,
   RoomError,
   mergeRoom,
@@ -198,6 +199,14 @@ describe("the relay, as the page asks it", () => {
     await assert.rejects(readRoom(room, null, ask), (err) => err.status === 0 && /could not be reached/.test(err.message));
     await assert.rejects(writeRoom(room, new Uint8Array(1), "v", ask), (err) => err.status === 502 && /kept here/.test(err.message));
     await assert.rejects(writeRoom(room, new Uint8Array(1), "v", ask), /too large for a room/);
+  });
+
+  test("a server without the relay, as a copy of the app served elsewhere, says so", async () => {
+    const room = await roomOf(SECRET);
+    for (const status of [404, 405, 501]) {
+      const { ask } = relay({ status });
+      await assert.rejects(writeRoom(room, new Uint8Array(1), null, ask), (err) => err.message === NO_RELAY, `${status}`);
+    }
   });
 
   test("a room is removed with its token, and one already gone is no error", async () => {

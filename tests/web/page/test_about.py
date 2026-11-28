@@ -169,6 +169,31 @@ def test_what_it_says_of_feedback_is_what_the_dialog_and_the_relay_do():
     )
 
 
+def test_what_it_says_of_rooms_is_what_the_relay_and_the_page_do():
+    """The sizes, the days, the counts and the code it names are those of web/room.js and the relay."""
+    text = about()
+    relay = source_of("deploy/factorial/room_relay.py")
+    room = source("room.js")
+    padded = re.search(r"export const PADDED = \[(\d+), (\d+), (\d+)\];", room).groups()
+    assert re.search(r"^PADDED = \(" + ", ".join(padded) + r"\)$", relay, flags=re.MULTILINE), "the page's sizes"
+    kib = [str(int(size) // 1024) for size in padded]
+    assert f"padded to {kib[0]}, {kib[1]} or {kib[2]} KiB" in text
+
+    expiry, rooms, budget = (
+        re.search(rf"^{name} = (\d+)", relay, flags=re.MULTILINE)[1] for name in ("EXPIRY_DAYS", "NEW_ROOMS", "BUDGET")
+    )
+    assert re.search(r"^BUDGET = \d+ \* 2\*\*20$", relay, flags=re.MULTILINE), "the budget in MiB"
+    assert f"nobody changes for {expiry} days" in text
+    assert f"at most {rooms} new rooms a day" in text
+    assert f"when it holds {budget} MiB" in text
+    assert 'const LABELS = { key: "factorial room: key", write: "factorial room: write" };' in room
+    assert 'WRITE_LABEL = b"factorial room: write"' in relay, "the page and the relay derive the same token"
+    assert f'<a href="{REPOSITORY}blob/main/deploy/factorial/room_relay.py"' in text
+    assert 'def log_message(self, *_: object) -> None:\n        """Say nothing' in relay, "no request line in the log"
+    caddy = source_of("deploy/factorial/factorial.caddy")
+    assert "request>headers>Authorization delete" in caddy, "the header a room's name and token travel in"
+
+
 def test_the_build_it_prints_is_the_build_script_s():
     text = source("technical-details-how-factorial-works.html")
     command = re.search(r"uv run python (scripts/build_web_app\.py) (.+)\n", text)
