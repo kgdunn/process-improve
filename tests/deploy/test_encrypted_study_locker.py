@@ -1,9 +1,9 @@
-"""``deploy/factorial/encrypted_study_locker.py``: the mailbox that keeps one sealed study for each room.
+"""``deploy/factorial/encrypted_study_locker.py``: the mailbox that keeps one sealed study for each locker.
 
 Each test runs the locker on a free local port, over a folder of its own, and sends it what a reader's browser,
 behind Caddy, would send, or what anyone else could. The locker must keep a sealed blob of one of a few sizes and
-nothing else, hand it back only to whoever names the room, take a change only from whoever holds the room's write
-token and saw its latest version, forget a room after its time, and log nothing that names a room.
+nothing else, hand it back only to whoever names the locker, take a change only from whoever holds the locker's write
+token and saw its latest version, forget a locker after its time, and log nothing that names a locker.
 """
 
 from __future__ import annotations
@@ -37,11 +37,11 @@ def load():
 
 locker = load()
 
-#: A room's secret, as a link carries it after ``#room=``, and what the page derives from it (web/room.js): the
-#: same three values are asserted in tests/web/js/room.test.mjs, so the page and the locker agree on them.
+#: A locker's secret, as a link carries it after ``#locker=``, and what the page derives from it (web/locker.js): the
+#: same three values are asserted in tests/web/js/locker.test.mjs, so the page and the locker agree on them.
 SECRET = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"  # noqa: S105 - bytes 0 to 31, a test vector
 TOKEN = base64.urlsafe_b64encode(locker.hkdf(locker.unbase64(SECRET), locker.WRITE_LABEL)).rstrip(b"=").decode()
-ROOM = locker.room_of(locker.unbase64(TOKEN))
+LOCKER = locker.locker_of(locker.unbase64(TOKEN))
 SMALL = min(locker.BLOB_SIZES)
 ADDRESS = "203.0.113.7"
 #: What Caddy sends with a change from the app.
@@ -88,13 +88,13 @@ def ask(
     """Send one request as Caddy would, with ``headers`` changed (None takes one out); return the reply."""
     given: dict[str, str | None] = {"Host": "127.0.0.1", **APP}
     if credential is not None:
-        given["Authorization"] = f"Room {credential}"
+        given["Authorization"] = f"Locker {credential}"
     if method == "PUT":
         given |= {"Content-Type": "application/octet-stream", "Content-Length": str(len(body))}
     given |= headers or {}
     head = "".join(f"{name}: {value}\r\n" for name, value in given.items() if value is not None)
     with socket.create_connection(server.server_address, timeout=10) as connection:
-        connection.sendall(f"{method} /api/room HTTP/1.1\r\n{head}\r\n".encode() + body)
+        connection.sendall(f"{method} /api/locker HTTP/1.1\r\n{head}\r\n".encode() + body)
         connection.shutdown(socket.SHUT_WR)
         received = b""
         while chunk := connection.recv(2**16):
@@ -105,7 +105,7 @@ def ask(
 
 
 def make(server, data: bytes | None = None) -> str:
-    """Make the room, and return its first version."""
+    """Make the locker, and return its first version."""
     status, headers, _ = ask(server, "PUT", TOKEN, data or blob(), {"If-None-Match": "*"})
     assert status == 201
     return headers["ETag"].strip('"')
@@ -125,32 +125,32 @@ def test_hkdf_gives_rfc_5869_s_test_case_3():
     assert okm.hex() == expected
 
 
-def test_the_secret_s_token_and_room_are_those_the_page_derives():
-    """The same values are in tests/web/js/room.test.mjs: a change on one side fails both."""
-    assert TOKEN == "-znuuYT_caimAH2REqvREL_BuEwrsp7hbDyTx3TI6pw"  # noqa: S105 - the test vector's
-    assert ROOM == "GD5GAO3nLHTR_pA7bHTdvg"
-    assert locker.room_of_link(f"https://factori.al/#room={SECRET}") == ROOM
-    assert locker.room_of_link(SECRET) == ROOM
+def test_the_secret_s_token_and_locker_are_those_the_page_derives():
+    """The same values are in tests/web/js/locker.test.mjs: a change on one side fails both."""
+    assert TOKEN == "8glzShbpU-7NFa22xV5KQvoUGpN2GasFOk1dhjXpuIo"  # noqa: S105 - the test vector's
+    assert LOCKER == "okYwqhChw712sSZNAKte0g"
+    assert locker.locker_of_link(f"https://factori.al/#locker={SECRET}") == LOCKER
+    assert locker.locker_of_link(SECRET) == LOCKER
 
 
-@pytest.mark.parametrize("link", ["https://factori.al/#c=abc", "#room=short", "", f"{SECRET}x"])
-def test_anything_but_a_room_s_link_is_refused(link):
-    with pytest.raises(ValueError, match="not a room's link"):
-        locker.room_of_link(link)
+@pytest.mark.parametrize("link", ["https://factori.al/#c=abc", "#locker=short", "", f"{SECRET}x"])
+def test_anything_but_a_locker_s_link_is_refused(link):
+    with pytest.raises(ValueError, match="not a locker's link"):
+        locker.locker_of_link(link)
 
 
-# --------------------------------------------------------------------------- a room, made and read
-def test_a_room_is_made_read_and_read_again_as_unchanged(server, tmp_path):
+# --------------------------------------------------------------------------- a locker, made and read
+def test_a_locker_is_made_read_and_read_again_as_unchanged(server, tmp_path):
     version = make(server)
-    status, headers, data = ask(server, "GET", ROOM)
+    status, headers, data = ask(server, "GET", LOCKER)
     assert (status, data) == (200, blob())
     assert headers["Content-Type"] == "application/octet-stream"
     assert headers["ETag"] == f'"{version}"'
     assert headers["Cache-Control"] == "no-store"
-    status, headers, data = ask(server, "GET", ROOM, headers={"If-None-Match": f'"{version}"'})
+    status, headers, data = ask(server, "GET", LOCKER, headers={"If-None-Match": f'"{version}"'})
     assert (status, data) == (304, b"")
-    assert [path.name for path in tmp_path.iterdir()] == [ROOM], "one file, named by the room's id, and no token"
-    assert (tmp_path / ROOM).read_bytes() == blob(), "the sealed bytes as sent, and nothing else"
+    assert [path.name for path in tmp_path.iterdir()] == [LOCKER], "one file, named by the locker's id, and no token"
+    assert (tmp_path / LOCKER).read_bytes() == blob(), "the sealed bytes as sent, and nothing else"
 
 
 def test_reading_needs_no_origin_and_writing_needs_the_app_s(server):
@@ -158,30 +158,30 @@ def test_reading_needs_no_origin_and_writing_needs_the_app_s(server):
     assert status == 403
     assert "only from the app at https://factori.al" in refusal(data)
     make(server)
-    assert ask(server, "GET", ROOM, headers={"Origin": None})[0] == 200
+    assert ask(server, "GET", LOCKER, headers={"Origin": None})[0] == 200
 
 
-def test_a_room_that_does_not_exist_is_not_found(server):
-    status, _, data = ask(server, "GET", ROOM)
+def test_a_locker_that_does_not_exist_is_not_found(server):
+    status, _, data = ask(server, "GET", LOCKER)
     assert status == 404
-    assert "no such room" in refusal(data)
+    assert "no such locker" in refusal(data)
 
 
 # --------------------------------------------------------------------------- who may do what
 @pytest.mark.parametrize(
     ("method", "credential"),
-    [("GET", TOKEN), ("GET", None), ("GET", "x" * 22 + "!"), ("PUT", ROOM), ("PUT", None), ("DELETE", ROOM)],
+    [("GET", TOKEN), ("GET", None), ("GET", "x" * 22 + "!"), ("PUT", LOCKER), ("PUT", None), ("DELETE", LOCKER)],
 )
-def test_a_read_needs_the_room_s_id_and_a_change_its_token(server, method, credential):
-    """The id that reads a room is not the token that writes it: a reader who has only the id cannot change it."""
+def test_a_read_needs_the_locker_s_id_and_a_change_its_token(server, method, credential):
+    """The id that reads a locker is not the token that writes it: a reader who has only the id cannot change it."""
     status, _, data = ask(server, method, credential, blob() if method == "PUT" else b"", {"If-None-Match": "*"})
     assert status == 401, data
-    assert "does not carry a room's" in refusal(data)
+    assert "does not carry a locker's" in refusal(data)
 
 
 def test_another_authorization_scheme_is_refused(server):
     make(server)
-    assert ask(server, "GET", None, headers={"Authorization": f"Bearer {ROOM}"})[0] == 401
+    assert ask(server, "GET", None, headers={"Authorization": f"Bearer {LOCKER}"})[0] == 401
 
 
 def test_a_change_names_the_version_it_replaces(server):
@@ -190,7 +190,7 @@ def test_a_change_names_the_version_it_replaces(server):
     assert status == 200
     second = headers["ETag"].strip('"')
     assert second != first
-    assert ask(server, "GET", ROOM)[2] == blob(fill=8)
+    assert ask(server, "GET", LOCKER)[2] == blob(fill=8)
 
     status, _, data = ask(server, "PUT", TOKEN, blob(fill=9), {"If-Match": f'"{first}"'})
     assert status == 412, "a write from a browser that has not seen the second version"
@@ -198,7 +198,7 @@ def test_a_change_names_the_version_it_replaces(server):
     status, _, data = ask(server, "PUT", TOKEN, blob(fill=9), {"If-None-Match": "*"})
     assert status == 412
     assert "exists already" in refusal(data)
-    assert ask(server, "GET", ROOM)[2] == blob(fill=8), "neither refused write changed the room"
+    assert ask(server, "GET", LOCKER)[2] == blob(fill=8), "neither refused write changed the locker"
 
 
 @pytest.mark.parametrize(
@@ -210,14 +210,14 @@ def test_a_write_without_one_clear_precondition_is_refused(server, headers):
     assert "If-Match" in refusal(data)
 
 
-def test_a_write_to_a_room_that_is_gone_is_refused_and_can_make_it_again(server, clock):
+def test_a_write_to_a_locker_that_is_gone_is_refused_and_can_make_it_again(server, clock):
     first = make(server)
     clock.now += (locker.EXPIRY_DAYS + 1) * locker.DAY
     assert ask(server, "PUT", TOKEN, blob(), {"If-Match": f'"{first}"'})[0] == 412
     assert ask(server, "PUT", TOKEN, blob(), {"If-None-Match": "*"})[0] == 201
 
 
-# --------------------------------------------------------------------------- what a room may hold
+# --------------------------------------------------------------------------- what a locker may hold
 @pytest.mark.parametrize("size", sorted(locker.BLOB_SIZES))
 def test_each_sealed_size_is_taken(server, size):
     assert ask(server, "PUT", TOKEN, blob(size), {"If-None-Match": "*"})[0] == 201
@@ -246,33 +246,33 @@ def test_a_body_in_chunks_or_of_another_type_is_refused(server):
 
 
 def test_a_request_not_through_caddy_or_to_another_path_is_refused(server):
-    assert ask(server, "GET", ROOM, headers={"X-Real-IP": None})[0] == 403
+    assert ask(server, "GET", LOCKER, headers={"X-Real-IP": None})[0] == 403
     with socket.create_connection(server.server_address, timeout=10) as connection:
-        connection.sendall(f"GET /api/room/{ROOM} HTTP/1.1\r\nX-Real-IP: {ADDRESS}\r\n\r\n".encode())
+        connection.sendall(f"GET /api/locker/{LOCKER} HTTP/1.1\r\nX-Real-IP: {ADDRESS}\r\n\r\n".encode())
         connection.shutdown(socket.SHUT_WR)
         assert connection.recv(64).startswith(b"HTTP/1.0 404")
 
 
 # --------------------------------------------------------------------------- removed, and forgotten
-def test_whoever_holds_the_token_can_remove_the_room(server, tmp_path):
+def test_whoever_holds_the_token_can_remove_the_locker(server, tmp_path):
     make(server)
     assert ask(server, "DELETE", TOKEN)[0] == 204
-    assert ask(server, "GET", ROOM)[0] == 404
+    assert ask(server, "GET", LOCKER)[0] == 404
     assert list(tmp_path.iterdir()) == []
     assert ask(server, "DELETE", TOKEN)[0] == 404
 
 
-def test_a_room_nobody_writes_to_is_forgotten_after_its_days(server, store, clock, tmp_path):
+def test_a_locker_nobody_writes_to_is_forgotten_after_its_days(server, store, clock, tmp_path):
     make(server)
     clock.now += locker.EXPIRY_DAYS * locker.DAY - 60
-    assert ask(server, "GET", ROOM)[0] == 200, "reading it does not keep it longer, and it is still in its days"
+    assert ask(server, "GET", LOCKER)[0] == 200, "reading it does not keep it longer, and it is still in its days"
     clock.now += 120
-    assert ask(server, "GET", ROOM)[0] == 404
+    assert ask(server, "GET", LOCKER)[0] == 404
     assert list(tmp_path.iterdir()) == []
     assert store.used == 0
 
 
-def test_the_sweep_removes_every_room_past_its_days(store, clock, tmp_path):
+def test_the_sweep_removes_every_locker_past_its_days(store, clock, tmp_path):
     store.write("A" * 22, blob(), version=None)
     clock.now += locker.EXPIRY_DAYS * locker.DAY + 1
     store.write("B" * 22, blob(), version=None)  # a write sweeps first
@@ -280,42 +280,42 @@ def test_the_sweep_removes_every_room_past_its_days(store, clock, tmp_path):
     assert store.used == SMALL
 
 
-def test_a_new_room_past_the_budget_is_refused_and_an_old_one_still_written(server, monkeypatch):
+def test_a_new_locker_past_the_budget_is_refused_and_an_old_one_still_written(server, monkeypatch):
     monkeypatch.setattr(locker, "BUDGET", SMALL)
     first = make(server)
     other = base64.urlsafe_b64encode(bytes(32)).rstrip(b"=").decode()
     status, _, data = ask(server, "PUT", other, blob(), {"If-None-Match": "*"})
     assert status == 507
-    assert "all the rooms it can" in refusal(data)
+    assert "all the lockers it can" in refusal(data)
     assert ask(server, "PUT", TOKEN, blob(fill=1), {"If-Match": f'"{first}"'})[0] == 200
 
 
 def test_the_store_counts_what_its_folder_held_at_start(tmp_path, clock):
     (tmp_path / ("C" * 22)).write_bytes(blob())
-    (tmp_path / "notes.txt").write_text("not a room", encoding="utf-8")
+    (tmp_path / "notes.txt").write_text("not a locker", encoding="utf-8")
     assert locker.Store(tmp_path, clock).used == SMALL
 
 
 # --------------------------------------------------------------------------- the limits
-def test_a_network_makes_a_few_rooms_a_day(server, monkeypatch, clock):
-    monkeypatch.setattr(locker, "NEW_ROOMS", 2)
+def test_a_network_makes_a_few_lockers_a_day(server, monkeypatch, clock):
+    monkeypatch.setattr(locker, "NEW_LOCKERS", 2)
     server.limits = locker.Limits(clock)
     tokens = [base64.urlsafe_b64encode(bytes([n]) * 32).rstrip(b"=").decode() for n in range(3)]
     assert [ask(server, "PUT", t, blob(), {"If-None-Match": "*"})[0] for t in tokens] == [201, 201, 429]
     other = ask(server, "PUT", tokens[2], blob(), {"If-None-Match": "*", "X-Real-IP": "198.51.100.1"})
     assert other[0] == 201, "another network has its own count"
     clock.now += locker.DAY
-    assert ask(server, "PUT", tokens[2], blob(), {"If-None-Match": "*"})[0] == 412, "admitted: the room exists"
+    assert ask(server, "PUT", tokens[2], blob(), {"If-None-Match": "*"})[0] == 412, "admitted: the locker exists"
 
 
-def test_a_network_reads_a_room_so_many_times_an_hour(server, monkeypatch, clock):
+def test_a_network_reads_a_locker_so_many_times_an_hour(server, monkeypatch, clock):
     monkeypatch.setattr(locker, "READS", 3)
     server.limits = locker.Limits(clock)
     make(server)
-    statuses = [ask(server, "GET", ROOM)[0] for _ in range(4)]
+    statuses = [ask(server, "GET", LOCKER)[0] for _ in range(4)]
     assert statuses == [200, 200, 200, 429]
     clock.now += locker.HOUR
-    assert ask(server, "GET", ROOM)[0] == 200
+    assert ask(server, "GET", LOCKER)[0] == 200
 
 
 def test_a_full_table_of_networks_forgets_an_earlier_window(clock, monkeypatch):
@@ -329,34 +329,34 @@ def test_a_full_table_of_networks_forgets_an_earlier_window(clock, monkeypatch):
 
 
 # --------------------------------------------------------------------------- what is logged
-def test_the_log_names_no_room_and_no_token(server, capsys):
+def test_the_log_names_no_locker_and_no_token(server, capsys):
     version = make(server)
-    ask(server, "GET", ROOM)
+    ask(server, "GET", LOCKER)
     ask(server, "PUT", TOKEN, blob(), {"If-Match": '"stale"'})
     ask(server, "PUT", TOKEN, blob(), {"If-Match": f'"{version}"'})
     ask(server, "DELETE", TOKEN)
     logged = capsys.readouterr().err
     assert logged.splitlines()[:2] == ["201 PUT", "200 GET"]
-    for secret in (SECRET, TOKEN, ROOM, version):
+    for secret in (SECRET, TOKEN, LOCKER, version):
         assert secret not in logged
 
 
 # --------------------------------------------------------------------------- the command
-def test_forget_removes_the_room_a_link_names(tmp_path, monkeypatch, capsys, clock):
-    locker.Store(tmp_path, clock).write(ROOM, blob(), version=None)
-    monkeypatch.setenv("ROOM_FOLDER", str(tmp_path))
+def test_forget_removes_the_locker_a_link_names(tmp_path, monkeypatch, capsys, clock):
+    locker.Store(tmp_path, clock).write(LOCKER, blob(), version=None)
+    monkeypatch.setenv("LOCKER_FOLDER", str(tmp_path))
     monkeypatch.delenv("STATE_DIRECTORY", raising=False)
-    assert locker.main(["forget", f"https://factori.al/#room={SECRET}"]) == 0
-    assert capsys.readouterr().out == "Removed the room.\n"
+    assert locker.main(["forget", f"https://factori.al/#locker={SECRET}"]) == 0
+    assert capsys.readouterr().out == "Removed the locker.\n"
     assert list(tmp_path.iterdir()) == []
     assert locker.main(["forget", SECRET]) == 0
-    assert "no such room" in capsys.readouterr().out
+    assert "no such locker" in capsys.readouterr().out
     assert locker.main(["forget", "#c=abc"]) == 1
     assert locker.main(["anything"]) == 2
 
 
 def test_the_locker_needs_a_folder(monkeypatch, capsys):
     monkeypatch.delenv("STATE_DIRECTORY", raising=False)
-    monkeypatch.delenv("ROOM_FOLDER", raising=False)
+    monkeypatch.delenv("LOCKER_FOLDER", raising=False)
     assert locker.main([]) == 1
-    assert "names the folder for the rooms" in capsys.readouterr().err
+    assert "names the folder for the lockers" in capsys.readouterr().err

@@ -152,7 +152,7 @@ describe("what the footer says of the copy", () => {
   });
 
   test("each state says first whether Factorial works without internet here, and each button what it does", () => {
-    const first = (state) => copyWords(state, { reason: "no room left" }).said.split(/(?<=[.:]) /)[0];
+    const first = (state) => copyWords(state, { reason: "no locker left" }).said.split(/(?<=[.:]) /)[0];
     assert.deepEqual(
       ["none", "opens", "whole", "failed"].map(first),
       ["Needs internet.", "Works offline, except charts and Excel files.", `Works fully offline, ${WHERE}.`, "Not fully saved:"],
@@ -181,7 +181,7 @@ describe("what the footer says of the copy", () => {
  * opens, which this page never loads.
  */
 const LOADED = ["app.js", "style.css", "manifest.webmanifest", "book/absent.json", `wheels/${manifest.wheel}`, "api/feedback"].map((file) => SCOPE + file);
-const LISTED = ["features.html", "features.js", "FEATURES.md", "technical-details-how-factorial-works.html", "validation.html", "favicon.svg", "site.js", "room.js"];
+const LISTED = ["features.html", "features.js", "FEATURES.md", "technical-details-how-factorial-works.html", "validation.html", "favicon.svg", "site.js", "locker.js"];
 const SHELL = ["", "worker.js", "python-boot.js", "runtime.json", "wheels/manifest.json", "app.js", "style.css", "manifest.webmanifest", "figure.js", ...LISTED].map((file) => SCOPE + file);
 
 /** Every address a visit may ask for, each with some text; runtime.json and the lock file with their own. */

@@ -39,7 +39,7 @@ async function pinnedDigest(version) {
 
 /**
  * Load Plotly.js once; later calls get the copy already loading, whatever version they name. Pinned by its digest,
- * a copy the CDN changed is refused: the script runs in the page, which holds a room's key (room.js), and shares its
+ * a copy the CDN changed is refused: the script runs in the page, which holds a locker's key (locker.js), and shares its
  * storage with every page of the app.
  */
 export function loadPlotly(version) {

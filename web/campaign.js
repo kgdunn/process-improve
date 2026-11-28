@@ -957,7 +957,7 @@ async function readAll(stream, most) {
   return out;
 }
 
-/** A campaign as JSON, deflated: what a link carries in URL-safe base64, and a room (room.js) sealed. */
+/** A campaign as JSON, deflated: what a link carries in URL-safe base64, and a locker (locker.js) sealed. */
 export async function deflateCampaign(campaign) {
   const json = new Blob([JSON.stringify(campaign)]);
   return readAll(json.stream().pipeThrough(new CompressionStream("deflate-raw")), MAX_BYTES);
@@ -980,7 +980,7 @@ export async function unpackCampaign(text) {
   return inflateCampaign(bytes);
 }
 
-/** Inflate and check a deflated campaign, a link's or a room's; throws an Error with a sentence for the page. */
+/** Inflate and check a deflated campaign, a link's or a locker's; throws an Error with a sentence for the page. */
 export async function inflateCampaign(deflated) {
   let json;
   try {

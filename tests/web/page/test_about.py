@@ -170,39 +170,40 @@ def test_what_it_says_of_feedback_is_what_the_dialog_and_the_relay_do():
     )
 
 
-def test_what_it_says_of_rooms_is_what_the_locker_and_the_page_do():
-    """The sizes, the days, the counts and the code it names are those of web/room.js and the locker."""
+def test_what_it_says_of_lockers_is_what_the_locker_and_the_page_do():
+    """The sizes, the days, the counts and the code it names are those of web/locker.js and the locker."""
     text = about()
-    locker = source_of("deploy/factorial/encrypted_study_locker.py")
-    room = source("room.js")
-    padded = re.search(r"export const PADDED = \[(\d+), (\d+), (\d+)\];", room).groups()
-    assert re.search(r"^PADDED = \(" + ", ".join(padded) + r"\)$", locker, flags=re.MULTILINE), "the page's sizes"
+    server = source_of("deploy/factorial/encrypted_study_locker.py")
+    module = source("locker.js")
+    padded = re.search(r"export const PADDED = \[(\d+), (\d+), (\d+)\];", module).groups()
+    assert re.search(r"^PADDED = \(" + ", ".join(padded) + r"\)$", server, flags=re.MULTILINE), "the page's sizes"
     kib = [str(int(size) // 1024) for size in padded]
     assert f"padded to {kib[0]}, {kib[1]} or {kib[2]} KiB" in text
 
-    expiry, rooms, budget = (
-        re.search(rf"^{name} = (\d+)", locker, flags=re.MULTILINE)[1] for name in ("EXPIRY_DAYS", "NEW_ROOMS", "BUDGET")
+    expiry, lockers, budget = (
+        re.search(rf"^{name} = (\d+)", server, flags=re.MULTILINE)[1]
+        for name in ("EXPIRY_DAYS", "NEW_LOCKERS", "BUDGET")
     )
-    assert re.search(r"^BUDGET = \d+ \* 2\*\*20$", locker, flags=re.MULTILINE), "the budget in MiB"
+    assert re.search(r"^BUDGET = \d+ \* 2\*\*20$", server, flags=re.MULTILINE), "the budget in MiB"
     assert f"nobody changes for {expiry} days" in text
-    assert f"at most {rooms} new rooms a day" in text
+    assert f"at most {lockers} new lockers a day" in text
     assert f"when it holds {budget} MiB" in text
-    assert 'const LABELS = { key: "factorial room: key", write: "factorial room: write" };' in room
-    assert 'WRITE_LABEL = b"factorial room: write"' in locker, "the page and the locker derive the same token"
+    assert 'const LABELS = { key: "factorial locker: key", write: "factorial locker: write" };' in module
+    assert 'WRITE_LABEL = b"factorial locker: write"' in server, "the page and the locker derive the same token"
     assert f'<a href="{REPOSITORY}blob/main/deploy/factorial/encrypted_study_locker.py"' in text
-    assert 'def log_message(self, *_: object) -> None:\n        """Say nothing' in locker, "no request line in the log"
+    assert 'def log_message(self, *_: object) -> None:\n        """Say nothing' in server, "no request line in the log"
     caddy = source_of("deploy/factorial/factorial.caddy")
-    assert "request>headers>Authorization delete" in caddy, "the header a room's name and token travel in"
+    assert "request>headers>Authorization delete" in caddy, "the header a locker's name and token travel in"
 
 
-def test_the_picture_of_a_room_says_one_thing_and_points_to_the_code_that_does_it():
+def test_the_picture_of_a_locker_says_one_thing_and_points_to_the_code_that_does_it():
     """Both drawings, wide and tall, carry the same words for a reader who cannot see them; the key never reaches the
     server in either; and the code it invites the reader to audit is the code that makes and uses the key.
     """
     text = about()
-    part = re.search(r'<section aria-labelledby="h-room">(.*?)<details class="fold">', text)[1]
+    part = re.search(r'<section aria-labelledby="h-locker">(.*?)<details class="fold">', text)[1]
     labels = re.findall(
-        r'<svg class="room-picture__(?:wide|tall)" viewBox="[^"]+" role="img" aria-label="([^"]+)">', part
+        r'<svg class="locker-picture__(?:wide|tall)" viewBox="[^"]+" role="img" aria-label="([^"]+)">', part
     )
     assert len(labels) == 2
     assert labels[0] == labels[1], "the two drawings say the same"
@@ -210,18 +211,18 @@ def test_the_picture_of_a_room_says_one_thing_and_points_to_the_code_that_does_i
     assert "The key travels in the link, which you send yourself" in labels[0]
     assert part.count('class="key-words">has no key: cannot open it</text>') == 2
     assert "<figcaption>The study goes through factori.al locked." in part
-    audit = re.search(r'<p class="room-audit">(.+?)</p>', part)[1]
-    for path in ("web/room.js", "deploy/factorial/encrypted_study_locker.py", "tests/web/e2e/test_rooms.py"):
+    audit = re.search(r'<p class="locker-audit">(.+?)</p>', part)[1]
+    for path in ("web/locker.js", "deploy/factorial/encrypted_study_locker.py", "tests/web/e2e/test_lockers.py"):
         assert f'href="{REPOSITORY}blob/main/{path}"' in audit, path
-    room = source("room.js")
-    for name in ("roomOf", "seal"):  # the functions the paragraph names, which make the key and encrypt with it
+    module = source("locker.js")
+    for name in ("lockerOf", "seal"):  # the functions the paragraph names, which make the key and encrypt with it
         assert f"<code>{name}</code>" in audit
-        assert re.search(rf"^export (?:async )?function {name}\(", room, flags=re.MULTILINE), name
-    imported = re.search(r'import \{ ([^}]+) \} from "\./room\.js";', text)[1].split(", ")
-    for name in imported:  # the proof runs the app's own code, and only what room.js exports
-        assert re.search(rf"^export (?:async )?(?:function|const) {name}\b", room, flags=re.MULTILINE), name
-    locker = source_of("deploy/factorial/encrypted_study_locker.py")
-    assert "factorial room: key" not in locker, "the locker derives no key: only the write token's label is there"
+        assert re.search(rf"^export (?:async )?function {name}\(", module, flags=re.MULTILINE), name
+    imported = re.search(r'import \{ ([^}]+) \} from "\./locker\.js";', text)[1].split(", ")
+    for name in imported:  # the proof runs the app's own code, and only what locker.js exports
+        assert re.search(rf"^export (?:async )?(?:function|const) {name}\b", module, flags=re.MULTILINE), name
+    server = source_of("deploy/factorial/encrypted_study_locker.py")
+    assert "factorial locker: key" not in server, "the locker derives no key: only the write token's label is there"
 
 
 def test_the_build_it_prints_is_the_build_script_s():

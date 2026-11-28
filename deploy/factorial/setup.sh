@@ -87,7 +87,7 @@ install -d -o root -g root -m 700 /etc/factorial
 [ -e /etc/factorial/smtp-password ] || install -o root -g root -m 600 /dev/null /etc/factorial/smtp-password
 
 # The encrypted study locker and its unit. It needs no settings: systemd gives it /var/lib/factorial-study-locker,
-# where it keeps the encrypted rooms, and nothing else to write to.
+# where it keeps the encrypted lockers, and nothing else to write to.
 install -o root -g root -m 755 "$here/encrypted_study_locker.py" /usr/local/bin/factorial-study-locker
 install -o root -g root -m 644 "$here/factorial-study-locker.service" /etc/systemd/system/factorial-study-locker.service
 systemctl daemon-reload

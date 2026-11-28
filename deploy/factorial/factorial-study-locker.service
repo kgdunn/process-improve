@@ -1,17 +1,17 @@
-# factori.al's encrypted study locker (encrypted_study_locker.py): it keeps one encrypted study for each room, which
-# Caddy passes on from /api/room, and hands it back. It never holds a room's key, so it cannot read what it keeps.
+# factori.al's encrypted study locker (encrypted_study_locker.py): it keeps one encrypted study for each locker, which
+# Caddy passes on from /api/locker, and hands it back. It never holds a locker's key, so it cannot read what it keeps.
 #
-# Installed as /etc/systemd/system/factorial-study-locker.service by setup.sh, with the locker as
+# Installed as /etc/systemd/system/factorial-study-locker.service by setup.sh, with the program as
 # /usr/local/bin/factorial-study-locker. It needs no settings. It runs as an account systemd makes for it at each
 # start, which can write only to its own folder, /var/lib/factorial-study-locker (StateDirectory), where it keeps the
-# rooms, a file each.
+# lockers, a file each.
 #
-# To remove a room someone reports, from its link:
-#     sudo env STATE_DIRECTORY=/var/lib/factorial-study-locker factorial-study-locker forget '<the room's link>'
-# To end every room at once: sudo systemctl stop factorial-study-locker
+# To remove a locker someone reports, from its link:
+#     sudo env STATE_DIRECTORY=/var/lib/factorial-study-locker factorial-study-locker forget '<the locker's link>'
+# To end every locker at once: sudo systemctl stop factorial-study-locker
 
 [Unit]
-Description=Factorial encrypted study locker (factori.al/api/room)
+Description=Factorial encrypted study locker (factori.al/api/locker)
 After=network-online.target
 Wants=network-online.target
 

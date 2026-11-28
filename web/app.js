@@ -370,7 +370,7 @@ import {
   unpackCampaign,
 } from "./campaign.js";
 import { fileStem, readStudyFile, runsDigest, studyFile } from "./study-file.js";
-import { ROOM_KEY, RoomError, mergeRoom, newSecret, openStudy, readRoom, removeRoom, resultsOf, roomOf, sealStudy, secretOf, writeRoom } from "./room.js";
+import { LOCKER_KEY, LockerError, mergeLocker, newSecret, openStudy, readLocker, removeLocker, resultsOf, lockerOf, sealStudy, secretOf, writeLocker } from "./locker.js";
 import {
   adoptLimits,
   currentLimits,
@@ -686,9 +686,9 @@ const state = {
   commit: null, // the commit the app was built from, as its manifest names it
   committed: null, // the day of that commit, as 2026-11-13, when the build could tell
   campaign: null, // this browser's record of the study on the page, {id, created, title}; null for the worked example
-  // The room the study is kept in step through, with other browsers (room.js): its secret, keys, the version this
-  // browser last saw and the results it held then, and the id of the study it is of; null outside a room.
-  room: null,
+  // The locker the study is kept in step through, with other browsers (locker.js): its secret, keys, the version this
+  // browser last saw and the results it held then, and the id of the study it is of; null outside a locker.
+  locker: null,
   example: false, // the worked example is on the page, as the build made it or as run again here
   exampleBrief: null, // the worked example's brief, as briefKey gives it
   version: null, // the process-improve release Python runs, once it has started
@@ -911,7 +911,7 @@ function renderStudyBar() {
   $("#study-about").textContent = about ? `· ${about}` : "";
   renderQuestion();
   renderBadges();
-  renderRoom();
+  renderLocker();
 }
 
 /** The question in one line, which Run and Learn show in place of the brief: the response, the factors and the aim. */
@@ -3457,7 +3457,7 @@ function resultsChanged() {
   renderBadges();
   scheduleAnalysis();
   scheduleSave();
-  roomSoon();
+  lockerSoon();
 }
 
 /** Run says so at its top once every run has a result for every response: the next step is Learn. */
@@ -9337,8 +9337,8 @@ function flushSave() {
 async function saveNow() {
   if (!state.campaign || !state.design) return;
   const { id, created } = state.campaign;
-  const room = currentRoom();
-  const kept = room ? { room: { secret: room.secret, version: room.version, base: room.base } } : {};
+  const locker = currentLocker();
+  const kept = locker ? { locker: { secret: locker.secret, version: locker.version, base: locker.base } } : {};
   await saveCampaign({ ...currentCampaign(), id, created, updated: Date.now(), ...kept });
   await refreshLibrary();
 }
@@ -9546,7 +9546,7 @@ async function openSaved(record) {
     setStatus(err.message, "error");
     return;
   }
-  await openCampaign(campaign, { id: record.id, created: record.created, room: record.room }, `Opened ${campaign.title}.`, true);
+  await openCampaign(campaign, { id: record.id, created: record.created, locker: record.locker }, `Opened ${campaign.title}.`, true);
 }
 
 /** Say what was opened, or why a link could not be: a sentence, or a list of text and links. */
@@ -9585,9 +9585,9 @@ async function openCampaign(c, record, message, resume = false) {
   setForm(c.design.spec);
   const left = stageLeft(record.id);
   state.practiceRound = false;
-  const { room, ...bookkeeping } = record;
+  const { locker, ...bookkeeping } = record;
   state.campaign = { ...bookkeeping, title: c.title || titleOf(c.design.spec), ...(c.source ? { source: c.source } : {}) };
-  state.room = null;
+  state.locker = null;
   state.design = { ...c.design, ...(c.planned ? { planned: structuredClone(c.planned) } : {}) };
   state.planKey = planKey();
   const names = resultNames();
@@ -9639,7 +9639,7 @@ async function openCampaign(c, record, message, resume = false) {
   // results call for. Read before the page is drawn, which keeps the stage it shows.
   showPhase((resume && left) || (done ? "learn" : "run"));
   scheduleSave(); // the study opened most recently is the one a later visit picks up
-  if (room?.secret) enterRoom(room);
+  if (locker?.secret) enterLocker(locker);
   if (!done) return;
   const mine = state.campaign.id;
   await whenReady.then(
@@ -9666,11 +9666,11 @@ const savedSoon = () => Promise.race([savedCampaigns(), new Promise((resolve) =>
 async function start() {
   const { hash } = location;
   const params = new URLSearchParams(location.search);
-  if (hash.startsWith(ROOM_KEY)) {
-    // The secret leaves the address at once: a reload opens the study this browser now keeps in step with the room.
+  if (hash.startsWith(LOCKER_KEY)) {
+    // The secret leaves the address at once: a reload opens the study this browser now keeps in step with the locker.
     history.replaceState(null, "", `${location.pathname}${location.search}`);
     try {
-      await openRoom(secretOf(hash));
+      await openLocker(secretOf(hash));
       return;
     } catch (err) {
       showBanner(err.message, true);
@@ -9713,7 +9713,7 @@ async function start() {
       const c = checkCampaign(last);
       await openCampaign(
         c,
-        { id: last.id, created: last.created, room: last.room },
+        { id: last.id, created: last.created, locker: last.locker },
         `Picked up where you left off: ${c.title}, saved ${timeAgo(last.updated)}.`,
         true,
       );
@@ -9796,7 +9796,7 @@ async function resultsCameBack(c) {
     ? `Added ${plural(added, "result")} from a link to ${here.title}, kept in this browser.`
     : `The link's results are already in ${here.title}, kept in this browser.`;
   if (kept) message += ` ${plural(kept, "run")} already had a different result here, which ${kept === 1 ? "was" : "were"} kept.`;
-  await openCampaign({ ...here, ...merged }, { id: match.id, created: match.created, room: match.room }, message);
+  await openCampaign({ ...here, ...merged }, { id: match.id, created: match.created, locker: match.locker }, message);
   return true;
 }
 
@@ -9827,138 +9827,138 @@ async function shareLink() {
   $("#share-url").select();
 }
 
-// ---------------------------------------------------------------- rooms
-// A room keeps the study on the page in step with other browsers (room.js): each keeps the whole study, and the
-// site's encrypted study locker keeps one copy, encrypted with a key only the room's link holds. A page in a room looks at it when it
-// opens, when the reader comes back to it, every ROOM_EVERY while in view, and soon after a result changes.
+// ---------------------------------------------------------------- lockers
+// A locker keeps the study on the page in step with other browsers (locker.js): each keeps the whole study, and the
+// site's encrypted study locker keeps one copy, encrypted with a key only the locker's link holds. A page that uses a locker looks at it when it
+// opens, when the reader comes back to it, every LOCKER_EVERY while in view, and soon after a result changes.
 
-/** How often, in milliseconds, a page in view asks whether its room changed; how long after a result it writes. */
-const ROOM_EVERY = 15000;
-const ROOM_SOON = 1500;
-let roomTimer = null; // the next look at the room
-let roomBusy = null; // the look under way, which a look asked for meanwhile waits behind
-let roomAgain = false;
-let roomSaid = "";
-let roomTroubled = null; // the status line's ticket when the room last put trouble on it
+/** How often, in milliseconds, a page in view asks whether its locker changed; how long after a result it writes. */
+const LOCKER_EVERY = 15000;
+const LOCKER_SOON = 1500;
+let lockerTimer = null; // the next look at the locker
+let lockerBusy = null; // the look under way, which a look asked for meanwhile waits behind
+let lockerAgain = false;
+let lockerSaid = "";
+let lockerTroubled = null; // the status line's ticket when the locker last put trouble on it
 
-/** The room of the study on the page, or null: a room belongs to the study it was entered with. */
-const currentRoom = () => (state.room && state.room.of === state.campaign?.id ? state.room : null);
+/** The locker of the study on the page, or null: a locker belongs to the study it was entered with. */
+const currentLocker = () => (state.locker && state.locker.of === state.campaign?.id ? state.locker : null);
 
-/** Where the app explains a room in plain words: the section of How Factorial works the room's words link to. */
-const ROOM_EXPLAINED = "technical-details-how-factorial-works.html#h-room";
-let answerRoom = null; // the room's question on show, to be answered; null when none is
+/** Where the app explains a locker in plain words: the section of How Factorial works the locker's words link to. */
+const LOCKER_EXPLAINED = "technical-details-how-factorial-works.html#h-locker";
+let answerLocker = null; // the locker's question on show, to be answered; null when none is
 
-/** Ask the room's question in ``dialog``: resolve to whether its first button was pressed. Escape answers no. */
-function askAboutRoom(dialog) {
-  answerRoom?.(false);
+/** Ask the locker's question in ``dialog``: resolve to whether its first button was pressed. Escape answers no. */
+function askAboutLocker(dialog) {
+  answerLocker?.(false);
   dialog.showModal();
   return new Promise((resolve) => {
-    answerRoom = (yes) => {
-      answerRoom = null;
+    answerLocker = (yes) => {
+      answerLocker = null;
       resolve(yes);
       if (dialog.open) dialog.close();
     };
   });
 }
 
-/** The room's link, which carries its secret after the "#". */
-const roomLink = (room) => `${location.origin}${location.pathname}${ROOM_KEY}${room.secret}`;
+/** The locker's link, which carries its secret after the "#". */
+const lockerLink = (locker) => `${location.origin}${location.pathname}${LOCKER_KEY}${locker.secret}`;
 
-/** Put the study on the page in the room ``kept`` names, as its record keeps it ({secret, version, base}), and look. */
-function enterRoom(kept) {
-  const room = { secret: kept.secret, version: kept.version ?? null, base: kept.base ?? null, design: null, of: state.campaign?.id };
-  room.ready = roomOf(kept.secret).then((keys) => Object.assign(room, keys));
-  state.room = room;
-  roomSaid = "";
-  renderRoom();
-  lookAtRoom();
+/** Put the study on the page in the locker ``kept`` names, as its record keeps it ({secret, version, base}), and look. */
+function enterLocker(kept) {
+  const locker = { secret: kept.secret, version: kept.version ?? null, base: kept.base ?? null, design: null, of: state.campaign?.id };
+  locker.ready = lockerOf(kept.secret).then((keys) => Object.assign(locker, keys));
+  state.locker = locker;
+  lockerSaid = "";
+  renderLocker();
+  lookAtLocker();
 }
 
-/** Show whether the study is in a room: the button that shares it in one or copies its link, and the room's box. */
-function renderRoom() {
-  const room = currentRoom();
-  const button = $("#room-share");
+/** Show whether the study is in a locker: the button that shares it in one or copies its link, and the locker's box. */
+function renderLocker() {
+  const locker = currentLocker();
+  const button = $("#locker-share");
   button.hidden = !state.design;
-  button.querySelector(".room-share__words").textContent = room ? "Copy the room's link" : "Share this study";
-  $("#room-out").hidden = !room;
-  if (!room) return;
-  $("#room-url").value = roomLink(room);
-  $("#room-says").textContent = roomSaid;
+  button.querySelector(".locker-share__words").textContent = locker ? "Copy the locker's link" : "Share this study";
+  $("#locker-out").hidden = !locker;
+  if (!locker) return;
+  $("#locker-url").value = lockerLink(locker);
+  $("#locker-says").textContent = lockerSaid;
 }
 
 /**
- * Say how the room is, under the room's link; ``trouble`` also on the status line, which the room clears again once
+ * Say how the locker is, under the locker's link; ``trouble`` also on the status line, which the locker clears again once
  * it is in step, if nothing was said there since.
  */
-function roomSays(words, trouble = false) {
-  if (words === roomSaid) return;
-  roomSaid = words;
-  $("#room-says").textContent = words;
-  $("#room-says").classList.toggle("error", trouble);
+function lockerSays(words, trouble = false) {
+  if (words === lockerSaid) return;
+  lockerSaid = words;
+  $("#locker-says").textContent = words;
+  $("#locker-says").classList.toggle("error", trouble);
   if (trouble) {
     setStatus(words, "error");
-    roomTroubled = statusTicket;
-  } else if (roomTroubled === statusTicket) {
+    lockerTroubled = statusTicket;
+  } else if (lockerTroubled === statusTicket) {
     clearStatus();
-    roomTroubled = null;
+    lockerTroubled = null;
   }
 }
 
 /**
- * Share the study: in a room it is in already, by copying the room's link; else by asking how. Working on it together
- * makes a room, encrypted with a new secret; a plain link is the question's quieter choice (shareLink). The worked
+ * Share the study: in a locker it is in already, by copying the locker's link; else by asking how. Working on it together
+ * makes a locker, encrypted with a new secret; a plain link is the question's quieter choice (shareLink). The worked
  * example is not kept in this browser, so it is offered the plain link alone.
  */
 async function shareStudy() {
   if (!state.design) return;
-  if (!currentRoom()) {
+  if (!currentLocker()) {
     const kept = Boolean(state.campaign);
-    for (const id of ["#room-why", "#room-make"]) $(id).hidden = !kept;
-    $("#room-unkept").hidden = kept;
-    if (!(await askAboutRoom($("#room-dialog")))) return; // the study leaves this browser only once the reader agrees
-    const button = $("#room-share");
-    button.disabled = true; // one room for one press: a second press meanwhile would make a second
+    for (const id of ["#locker-why", "#locker-make"]) $(id).hidden = !kept;
+    $("#locker-unkept").hidden = kept;
+    if (!(await askAboutLocker($("#locker-dialog")))) return; // the study leaves this browser only once the reader agrees
+    const button = $("#locker-share");
+    button.disabled = true; // one locker for one press: a second press meanwhile would make a second
     try {
-      const keys = await roomOf(newSecret());
-      const wrote = await writeRoom(keys, await sealStudy(keys, shareable(currentCampaign(), true)), null);
-      if (wrote.moved) throw new RoomError(412, "A room was made with this secret already: try again."); // not with a new secret
+      const keys = await lockerOf(newSecret());
+      const wrote = await writeLocker(keys, await sealStudy(keys, shareable(currentCampaign(), true)), null);
+      if (wrote.moved) throw new LockerError(412, "A locker was made with this secret already: try again."); // not with a new secret
       const base = resultsOf(currentCampaign());
-      state.room = { ...keys, ready: Promise.resolve(keys), version: wrote.version, base, design: designKey(state.design), of: state.campaign.id };
+      state.locker = { ...keys, ready: Promise.resolve(keys), version: wrote.version, base, design: designKey(state.design), of: state.campaign.id };
     } catch (err) {
       toast(err.message, "error");
       return;
     } finally {
       button.disabled = false;
     }
-    roomSaid = "";
+    lockerSaid = "";
     flushSave();
     await saveNow();
-    roomSays(IN_STEP);
+    lockerSays(IN_STEP);
     nextLook();
   }
-  renderRoom();
-  const url = roomLink(currentRoom());
+  renderLocker();
+  const url = lockerLink(currentLocker());
   let copied = true;
   try {
     await navigator.clipboard.writeText(url);
   } catch {
     copied = false;
   }
-  toast(copied ? "The room's link is copied: send it to whoever works on this study with you." : "Copy the room's link from the box.", copied ? "ok" : "error");
-  $("#room-url").select();
+  toast(copied ? "The locker's link is copied: send it to whoever works on this study with you." : "Copy the locker's link from the box.", copied ? "ok" : "error");
+  $("#locker-url").select();
 }
 
 /**
- * What the room's line says while all is well: the same words each time, so the line, which a screen reader reads
+ * What the locker's line says while all is well: the same words each time, so the line, which a screen reader reads
  * out as it changes, speaks only when something does.
  */
-const IN_STEP = "In step with the room.";
+const IN_STEP = "In step with the locker.";
 
 /**
- * Open a room's link: the study this browser keeps in step with it already, or the same design kept here before
- * (a run sheet shared by link, say), which its results join, or else the room's study, saved here as a new one.
+ * Open a locker's link: the study this browser keeps in step with it already, or the same design kept here before
+ * (a run sheet shared by link, say), which its results join, or else the locker's study, saved here as a new one.
  */
-async function openRoom(secret) {
+async function openLocker(secret) {
   const saved = await savedSoon();
   const readable = (record) => {
     try {
@@ -9967,127 +9967,127 @@ async function openRoom(secret) {
       return null;
     }
   };
-  const mine = saved.find((record) => record.room?.secret === secret && readable(record));
+  const mine = saved.find((record) => record.locker?.secret === secret && readable(record));
   if (mine) {
     const c = readable(mine);
-    await openCampaign(c, { id: mine.id, created: mine.created, room: mine.room }, `Opened ${c.title}, which this browser keeps in step with its room.`, true);
+    await openCampaign(c, { id: mine.id, created: mine.created, locker: mine.locker }, `Opened ${c.title}, which this browser keeps in step with its locker.`, true);
     return;
   }
-  const keys = await roomOf(secret);
-  const read = await readRoom(keys);
-  if (read.gone) throw new RoomError(404, `This room could not be opened: it is gone. ${GONE}`);
+  const keys = await lockerOf(secret);
+  const read = await readLocker(keys);
+  if (read.gone) throw new LockerError(404, `This locker could not be opened: it is gone. ${GONE}`);
   const there = await openStudy(keys, read.blob);
   const key = designKey(there.design);
   const same = saved.find((record) => readable(record) && designKey(readable(record).design) === key);
   const title = there.title || titleOf(there.design.spec);
-  const joined = "The results you type here reach everyone in the room, and theirs reach you.";
-  const explained = [" ", link(ROOM_EXPLAINED, "How a room keeps the study private", "_blank"), "."];
+  const joined = "The results you type here reach everyone with the locker's link, and theirs reach you.";
+  const explained = [" ", link(LOCKER_EXPLAINED, "How a locker keeps the study private", "_blank"), "."];
   if (same) {
-    // Its base is unknown: the first look merges the two, a result here kept where the room has none.
+    // Its base is unknown: the first look merges the two, a result here kept where the locker has none.
     const c = readable(same);
-    await openCampaign(c, { id: same.id, created: same.created, room: { secret } }, [`Joined the room of ${c.title}, kept in this browser. ${joined}`, ...explained], true);
+    await openCampaign(c, { id: same.id, created: same.created, locker: { secret } }, [`Opened the locker of ${c.title}, kept in this browser. ${joined}`, ...explained], true);
     return;
   }
-  const room = { secret, version: read.version, base: resultsOf(there) };
-  await openCampaign(there, { ...newCampaign(false), room }, [`Opened a study shared in a room: ${title}. ${joined} It is saved in this browser, under Your studies.`, ...explained]);
+  const locker = { secret, version: read.version, base: resultsOf(there) };
+  await openCampaign(there, { ...newCampaign(false), locker }, [`Opened a study shared in a locker: ${title}. ${joined} It is saved in this browser, under Your studies.`, ...explained]);
 }
 
-/** What a reader is told of a room that is gone, and what is left of it. */
-const GONE = "Someone in it removed it, or nobody changed it for 30 days. Each browser that was in it keeps its own copy of the study.";
+/** What a reader is told of a locker that is gone, and what is left of it. */
+const GONE = "Someone with its link removed it, or nobody changed it for 30 days. Each browser that used it keeps its own copy of the study.";
 
-/** Look at the room soon, after a result changed here: a few changes in a row go together. */
-function roomSoon() {
-  if (!currentRoom()) return;
-  clearTimeout(roomTimer);
-  roomTimer = setTimeout(lookAtRoom, ROOM_SOON);
+/** Look at the locker soon, after a result changed here: a few changes in a row go together. */
+function lockerSoon() {
+  if (!currentLocker()) return;
+  clearTimeout(lockerTimer);
+  lockerTimer = setTimeout(lookAtLocker, LOCKER_SOON);
 }
 
-/** Look at the room now, and once that is done, again in ROOM_EVERY while the page is in view. */
-function lookAtRoom() {
-  clearTimeout(roomTimer);
-  roomTimer = null;
-  if (!currentRoom()) return;
+/** Look at the locker now, and once that is done, again in LOCKER_EVERY while the page is in view. */
+function lookAtLocker() {
+  clearTimeout(lockerTimer);
+  lockerTimer = null;
+  if (!currentLocker()) return;
   keepInStep().finally(nextLook);
 }
 
 function nextLook() {
-  if (currentRoom() && roomTimer === null && document.visibilityState === "visible") roomTimer = setTimeout(lookAtRoom, ROOM_EVERY);
+  if (currentLocker() && lockerTimer === null && document.visibilityState === "visible") lockerTimer = setTimeout(lookAtLocker, LOCKER_EVERY);
 }
 
-/** One look at the room at a time: a look asked for during one follows it. */
+/** One look at the locker at a time: a look asked for during one follows it. */
 function keepInStep() {
-  if (roomBusy) {
-    roomAgain = true;
-    return roomBusy;
+  if (lockerBusy) {
+    lockerAgain = true;
+    return lockerBusy;
   }
-  roomBusy = stepWithRoom().finally(() => {
-    roomBusy = null;
-    if (roomAgain) {
-      roomAgain = false;
+  lockerBusy = stepWithLocker().finally(() => {
+    lockerBusy = null;
+    if (lockerAgain) {
+      lockerAgain = false;
       keepInStep();
     }
   });
-  return roomBusy;
+  return lockerBusy;
 }
 
 /**
- * Read what changed in the room and merge it in, then write what is new here. A write that finds someone wrote
- * first reads again and merges again. The room holds one design: a study whose runs changed after it was shared
+ * Read what changed in the locker and merge it in, then write what is new here. A write that finds someone wrote
+ * first reads again and merges again. The locker holds one design: a study whose runs changed after it was shared
  * stops keeping in step, and says so.
  */
-async function stepWithRoom() {
-  const room = currentRoom();
-  if (!room) return;
-  const left = () => currentRoom() !== room;
-  const changed = `The runs of this study changed after it was shared in its room, so it no longer keeps in step: the room keeps the runs it had. Share it in a new room to go on together.`;
+async function stepWithLocker() {
+  const locker = currentLocker();
+  if (!locker) return;
+  const left = () => currentLocker() !== locker;
+  const changed = `The runs of this study changed after it was shared in its locker, so it no longer keeps in step: the locker keeps the runs it had. Share it in a new locker to go on together.`;
   try {
-    await room.ready;
+    await locker.ready;
     for (let tries = 0; tries < 3; tries += 1) {
-      if (room.design && room.design !== designKey(state.design)) return roomSays(changed, true);
-      const read = await readRoom(room, room.design ? room.version : null);
+      if (locker.design && locker.design !== designKey(state.design)) return lockerSays(changed, true);
+      const read = await readLocker(locker, locker.design ? locker.version : null);
       if (left()) return;
-      if (read.gone) return roomGone(room);
+      if (read.gone) return lockerGone(locker);
       if (!read.same) {
-        const there = await openStudy(room, read.blob);
+        const there = await openStudy(locker, read.blob);
         if (left()) return;
-        room.design = designKey(there.design);
-        if (room.design !== designKey(state.design)) return roomSays(changed, true);
-        room.version = read.version;
-        takeFromRoom(room, resultsOf(there));
+        locker.design = designKey(there.design);
+        if (locker.design !== designKey(state.design)) return lockerSays(changed, true);
+        locker.version = read.version;
+        takeFromLocker(locker, resultsOf(there));
       }
       const here = resultsOf(currentCampaign());
-      if (JSON.stringify(here) === JSON.stringify(room.base)) {
-        roomSays(IN_STEP);
+      if (JSON.stringify(here) === JSON.stringify(locker.base)) {
+        lockerSays(IN_STEP);
         scheduleSave();
         return;
       }
-      const wrote = await writeRoom(room, await sealStudy(room, shareable(currentCampaign(), true)), room.version);
+      const wrote = await writeLocker(locker, await sealStudy(locker, shareable(currentCampaign(), true)), locker.version);
       if (left()) return;
       if (wrote.moved) {
-        room.design = null; // read it whole again: someone wrote first
+        locker.design = null; // read it whole again: someone wrote first
         continue;
       }
-      Object.assign(room, { version: wrote.version, base: here });
-      roomSays(IN_STEP);
+      Object.assign(locker, { version: wrote.version, base: here });
+      lockerSays(IN_STEP);
       scheduleSave();
       return;
     }
-    roomSays("Others in the room are changing it fast: Factorial tries again in a moment.");
+    lockerSays("Others are changing the locker fast: Factorial tries again in a moment.");
   } catch (err) {
     // No answer, a busy locker or a server's failure passes: the next look tries again, and the changes are kept here.
-    const passing = err instanceof RoomError && (err.status === 0 || err.status === 429 || err.status >= 500);
-    if (!left()) roomSays(err.message, !passing);
+    const passing = err instanceof LockerError && (err.status === 0 || err.status === 429 || err.status >= 500);
+    if (!left()) lockerSays(err.message, !passing);
   }
 }
 
 /**
- * Merge the room's results into the page's (room.js mergeRoom), and show those that came: in their boxes, and in a
+ * Merge the locker's results into the page's (locker.js mergeLocker), and show those that came: in their boxes, and in a
  * word on what came and what was replaced. The analysis follows, as for a result typed.
  */
-function takeFromRoom(room, there) {
+function takeFromLocker(locker, there) {
   const names = resultNames();
-  const merged = mergeRoom(resultsOf(currentCampaign()), room.base, there, names[0]);
-  room.base = there;
+  const merged = mergeLocker(resultsOf(currentCampaign()), locker.base, there, names[0]);
+  locker.base = there;
   const { results: r, took, replaced } = merged;
   if (!took.length && !replaced.length) return;
   state.results = joinResults(names, [...r.responses], structuredClone(r.more_responses ?? {}));
@@ -10106,53 +10106,53 @@ function takeFromRoom(room, there) {
   resultsChanged();
   const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
   const count = took.length + replaced.length;
-  toast(`${plural(count, "result")} came from the room.`);
+  toast(`${plural(count, "result")} came from the locker.`);
   if (replaced.length) {
     const value = (v) => (v === null ? "blank" : String(v));
     const each = replaced.map(({ name, run, mine, theirs }) =>
       name === "curve"
         ? `the curve of run ${runOrderOf(run)}`
-        : `${wordsOf(name).label}, run ${runOrderOf(run)}: ${value(mine)} here, ${value(theirs)} in the room`,
+        : `${wordsOf(name).label}, run ${runOrderOf(run)}: ${value(mine)} here, ${value(theirs)} in the locker`,
     );
-    showBanner(`Someone in the room changed ${plural(replaced.length, "result")} you changed here too, and theirs reached the room first, so it is kept: ${each.join("; ")}. Type yours again to change it back.`);
+    showBanner(`Someone with the locker's link changed ${plural(replaced.length, "result")} you changed here too, and theirs reached the locker first, so it is kept: ${each.join("; ")}. Type yours again to change it back.`);
   }
 }
 
-/** The room is gone from the locker: this browser keeps the study, out of the room. */
-function roomGone(room) {
-  if (currentRoom() !== room) return;
-  state.room = null;
-  clearTimeout(roomTimer);
-  roomTimer = null;
-  renderRoom();
+/** The locker is gone from the server: this browser keeps the study, out of the locker. */
+function lockerGone(locker) {
+  if (currentLocker() !== locker) return;
+  state.locker = null;
+  clearTimeout(lockerTimer);
+  lockerTimer = null;
+  renderLocker();
   scheduleSave();
-  showBanner(`The room of this study is gone. ${GONE} Share it again to go on together.`, true);
+  showBanner(`The locker of this study is gone. ${GONE} Share it again to go on together.`, true);
 }
 
-/** Leave the room, here only; or, with ``remove``, remove it from the locker for everyone. The study stays here. */
-async function leaveRoom(remove) {
-  const room = currentRoom();
-  if (!room) return;
-  if (remove && !(await askAboutRoom($("#room-remove-dialog")))) return;
+/** Stop using the locker, here only; or, with ``remove``, remove it from the server for everyone. The study stays here. */
+async function leaveLocker(remove) {
+  const locker = currentLocker();
+  if (!locker) return;
+  if (remove && !(await askAboutLocker($("#locker-remove-dialog")))) return;
   if (remove) {
     try {
-      await room.ready;
-      await removeRoom(room);
+      await locker.ready;
+      await removeLocker(locker);
     } catch (err) {
-      roomSays(err.message, true);
+      lockerSays(err.message, true);
       return;
     }
   }
-  state.room = null;
-  clearTimeout(roomTimer);
-  roomTimer = null;
-  renderRoom();
+  state.locker = null;
+  clearTimeout(lockerTimer);
+  lockerTimer = null;
+  renderLocker();
   flushSave();
   await saveNow();
   toast(
     remove
-      ? "The room is removed from the server. Each browser that was in it keeps its own copy of the study."
-      : "This browser left the room. The study stays here; the others in the room go on without it.",
+      ? "The locker is removed from the server. Each browser that used it keeps its own copy of the study."
+      : "This browser stopped using the locker. The study stays here; the others go on without it.",
   );
 }
 
@@ -10973,22 +10973,22 @@ $("#learn-report-button").onclick = downloadReport;
 $("#learn-report-view").onclick = viewReport;
 // Share's plain choice closes the question, then copies the link: the press is what lets it reach the clipboard.
 $("#share").onclick = () => {
-  answerRoom?.(false);
+  answerLocker?.(false);
   shareLink();
 };
-$("#room-share").onclick = shareStudy;
-$("#room-leave").onclick = () => leaveRoom(false);
-$("#room-remove").onclick = () => leaveRoom(true);
-$("#room-make").onclick = () => answerRoom?.(true);
-$("#room-not-now").onclick = () => answerRoom?.(false);
-$("#room-remove-yes").onclick = () => answerRoom?.(true);
-$("#room-remove-keep").onclick = () => answerRoom?.(false);
-for (const id of ["#room-dialog", "#room-remove-dialog"]) {
-  $(id).addEventListener("close", () => answerRoom?.(false));
+$("#locker-share").onclick = shareStudy;
+$("#locker-leave").onclick = () => leaveLocker(false);
+$("#locker-remove").onclick = () => leaveLocker(true);
+$("#locker-make").onclick = () => answerLocker?.(true);
+$("#locker-not-now").onclick = () => answerLocker?.(false);
+$("#locker-remove-yes").onclick = () => answerLocker?.(true);
+$("#locker-remove-keep").onclick = () => answerLocker?.(false);
+for (const id of ["#locker-dialog", "#locker-remove-dialog"]) {
+  $(id).addEventListener("close", () => answerLocker?.(false));
   closeOnBackdrop($(id));
 }
-// A page in a room looks at it as the reader comes back to it.
-window.addEventListener("focus", lookAtRoom);
+// A page that uses a locker looks at it as the reader comes back to it.
+window.addEventListener("focus", lookAtLocker);
 $("#model").onchange = () => {
   if ($("#model").value === CHOSEN_TERMS && state.design) startTermList();
   else modelBefore = $("#model").value;
@@ -11072,12 +11072,12 @@ $("#download-all").onclick = downloadAll;
 // A reader who closes the tab, reloads it, or puts the phone away, straight after typing a result or a brief keeps it.
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "hidden") {
-    lookAtRoom();
+    lookAtLocker();
     return;
   }
   flushSave();
   flushDraft();
-  if (currentRoom() && roomTimer !== null) lookAtRoom(); // a result typed just before goes to the room
+  if (currentLocker() && lockerTimer !== null) lookAtLocker(); // a result typed just before goes to the locker
 });
 installLimits({ call, factors: readFactors, changed: limitsChanged, runs: picturedRuns });
 // A report of a problem: the study goes only when the reader ticks it, with its results, packed as a link carries it.

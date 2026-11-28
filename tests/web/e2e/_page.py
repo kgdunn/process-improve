@@ -59,9 +59,9 @@ def copy_link(page: Any) -> str:  # noqa: ANN401 - a Playwright Page
 
     Return the link, once the box under the row shows it.
     """
-    reveal(page, "#room-share")
-    page.click("#room-share")
-    page.wait_for_selector("#room-dialog[open]")
+    reveal(page, "#locker-share")
+    page.click("#locker-share")
+    page.wait_for_selector("#locker-dialog[open]")
     page.click("#share")
     page.wait_for_selector("#share-out", state="visible")
     return page.input_value("#share-url")
