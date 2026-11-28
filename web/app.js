@@ -9800,11 +9800,10 @@ async function resultsCameBack(c) {
   return true;
 }
 
-/** Copy a link that carries the study on the page, and its results when asked, after the address's "#". */
+/** Copy a link that carries the study on the page and its results, after the address's "#": Share's plain choice. */
 async function shareLink() {
   if (!state.design) return;
-  const withResults = $("#share-results").checked;
-  const packed = await packCampaign(shareable(currentCampaign(), withResults));
+  const packed = await packCampaign(shareable(currentCampaign(), true));
   const url = `${location.origin}${location.pathname}${LINK_KEY}${packed}`;
   $("#share-url").value = url;
   let copied = true;
@@ -9819,10 +9818,10 @@ async function shareLink() {
       : "The browser would not copy the link: it is selected in the box below, to copy by hand.",
     copied ? "ok" : "error",
   );
+  // What a plain link is, said plainly: the study is in the link itself, so wherever it is pasted can read it.
   $("#share-note").textContent =
-    `${copied ? "" : "Copy the link from the box. "}Whoever opens it gets ` +
-    `${withResults ? "this study and its results" : "this study, without its results"}. The link holds it all: ` +
-    "nothing is stored on a server." +
+    `${copied ? "" : "Copy the link from the box. "}Whoever opens it gets this study and its results. The link itself ` +
+    "holds them, not encrypted, so anyone who sees it can read the study, and it cannot be taken back." +
     (url.length > 8000 ? ` At ${url.length} characters, some chat apps cut it: the workbook is the surer way to send it.` : "");
   $("#share-out").hidden = false;
   $("#share-url").select();
@@ -9879,8 +9878,8 @@ function enterRoom(kept) {
 function renderRoom() {
   const room = currentRoom();
   const button = $("#room-share");
-  button.hidden = !state.campaign; // the worked example is not kept in this browser, so it cannot keep in step
-  button.querySelector(".room-share__words").textContent = room ? "Copy the room's link" : "Work on it together";
+  button.hidden = !state.design;
+  button.querySelector(".room-share__words").textContent = room ? "Copy the room's link" : "Share this study";
   $("#room-out").hidden = !room;
   if (!room) return;
   $("#room-url").value = roomLink(room);
@@ -9905,10 +9904,17 @@ function roomSays(words, trouble = false) {
   }
 }
 
-/** Share the study in a new room, encrypted with a new secret, once the reader agrees; or copy the room's link. */
-async function shareRoom() {
-  if (!state.design || !state.campaign) return;
+/**
+ * Share the study: in a room it is in already, by copying the room's link; else by asking how. Working on it together
+ * makes a room, encrypted with a new secret; a plain link is the question's quieter choice (shareLink). The worked
+ * example is not kept in this browser, so it is offered the plain link alone.
+ */
+async function shareStudy() {
+  if (!state.design) return;
   if (!currentRoom()) {
+    const kept = Boolean(state.campaign);
+    for (const id of ["#room-why", "#room-make"]) $(id).hidden = !kept;
+    $("#room-unkept").hidden = kept;
     if (!(await askAboutRoom($("#room-dialog")))) return; // the study leaves this browser only once the reader agrees
     const button = $("#room-share");
     button.disabled = true; // one room for one press: a second press meanwhile would make a second
@@ -10963,12 +10969,14 @@ $("#curve-target-find").onclick = findTarget;
 $("#curve-clear").onclick = () => setCurve(null, null);
 for (const id of ["#curve-label", "#curve-units", "#curve-along", "#curve-along-units"]) $(id).onchange = curveWordsChanged;
 $("#notebook").onclick = downloadNotebook;
-$("#report").onclick = downloadReport;
 $("#learn-report-button").onclick = downloadReport;
-$("#report-view").onclick = viewReport;
 $("#learn-report-view").onclick = viewReport;
-$("#share").onclick = shareLink;
-$("#room-share").onclick = shareRoom;
+// Share's plain choice closes the question, then copies the link: the press is what lets it reach the clipboard.
+$("#share").onclick = () => {
+  answerRoom?.(false);
+  shareLink();
+};
+$("#room-share").onclick = shareStudy;
 $("#room-leave").onclick = () => leaveRoom(false);
 $("#room-remove").onclick = () => leaveRoom(true);
 $("#room-make").onclick = () => answerRoom?.(true);

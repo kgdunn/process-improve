@@ -16,6 +16,7 @@ import pytest
 from tests.web._support import FACTORS
 from tests.web.e2e._page import (
     choose,
+    copy_link,
     factor_table,
     first_paint_done,
     generate,
@@ -263,11 +264,13 @@ def test_your_studies_lines_up_every_share_and_every_delete(page):
 def test_a_link_opens_the_design_and_its_results_in_another_browser(open_context, context, page, site):
     generate(page, design_type="full_factorial", n_center_points=2)
     practise(page)
-    page.click("#share")
-    page.wait_for_selector("#share-out", state="visible")
-    link = page.input_value("#share-url")
+    link = copy_link(page)
     assert link.startswith(f"{site}#c=")
-    assert "Whoever opens it gets this study and its results" in page.text_content("#share-note")
+    note = " ".join(page.text_content("#share-note").split())
+    assert "Whoever opens it gets this study and its results" in note
+    assert "not encrypted, so anyone who sees it can read the study, and it cannot be taken back" in note, (
+        "a plain link says what it is"
+    )
 
     elsewhere = open_context().new_page()
     elsewhere.goto(link)
@@ -288,7 +291,7 @@ def test_a_link_opens_the_design_and_its_results_in_another_browser(open_context
 def test_a_copied_link_says_so_where_the_reader_is_looking(context, page, site):
     context.grant_permissions(["clipboard-read", "clipboard-write"], origin=site.rstrip("/"))
     generate(page, design_type="full_factorial", n_center_points=0)
-    page.click("#share")
+    copy_link(page)
     page.wait_for_selector("#toast", state="visible")
     assert page.text_content("#toast") == "Link copied to the clipboard: paste it into an email or a chat."
     assert page.get_attribute("#toast", "data-state") == "ok"
@@ -303,22 +306,19 @@ def test_a_link_the_browser_will_not_copy_is_selected_to_copy_by_hand(page):
         " Promise.reject(new DOMException('Write permission denied.', 'NotAllowedError')); }"
     )
     generate(page, design_type="full_factorial", n_center_points=0)
-    page.click("#share")
+    copy_link(page)
     page.wait_for_selector("#toast", state="visible")
     assert page.get_attribute("#toast", "data-state") == "error"
     assert page.text_content("#toast").startswith("The browser would not copy the link")
     assert page.text_content("#share-note").startswith("Copy the link from the box.")
 
 
-def test_a_link_without_its_results_carries_the_design_only(open_context, page):
+def test_a_study_with_no_results_yet_goes_by_link_as_a_run_sheet_to_fill_in(open_context, blank_page):
+    """A link always carries the results, and a study with none yet opens elsewhere on its blank run sheet."""
+    page = blank_page
     generate(page, design_type="full_factorial", n_center_points=0)
-    practise(page)
-    page.uncheck("#share-results")
-    page.click("#share")
-    page.wait_for_selector("#share-out", state="visible")
-    assert "without its results" in page.text_content("#share-note")
     elsewhere = open_context().new_page()
-    elsewhere.goto(page.input_value("#share-url"))
+    elsewhere.goto(copy_link(page))
     elsewhere.wait_for_selector(BANNER, state="visible")
     settled(elsewhere)
     assert [row[:-1] for row in run_sheet(elsewhere)] == [row[:-1] for row in run_sheet(page)]
@@ -344,6 +344,7 @@ def test_the_notebook_holds_each_step_s_code_and_each_figure_s(page, tmp_path: P
     generate(page, design_type="full_factorial", n_center_points=2)
     practise(page)
     page.wait_for_function("document.querySelectorAll('#charts .js-plotly-plot').length >= 4")  # the figures are known
+    reveal(page, "#notebook")  # in Learn, beside the report
     with page.expect_download() as download:
         page.click("#notebook")
     assert download.value.suggested_filename == "full_factorial-10-runs.ipynb"
@@ -380,8 +381,7 @@ def test_the_notebook_holds_each_step_s_code_and_each_figure_s(page, tmp_path: P
 def test_on_a_phone_the_link_and_the_list_fit(page):
     generate(page, design_type="full_factorial", n_center_points=0)
     practise(page)
-    page.click("#share")
-    page.wait_for_selector("#share-out", state="visible")
+    copy_link(page)
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
 
 
@@ -390,8 +390,7 @@ def test_results_sent_back_by_link_fill_in_the_design_kept_here(open_context, bl
     engineer = blank_page
     generate(engineer, design_type="full_factorial", n_center_points=0)
     saved(engineer, 1)
-    engineer.click("#share")
-    engineer.wait_for_selector("#share-out", state="visible")
+    copy_link(engineer)
 
     operator = open_context().new_page()
     operator.goto(engineer.input_value("#share-url"))
@@ -401,8 +400,7 @@ def test_results_sent_back_by_link_fill_in_the_design_kept_here(open_context, bl
     for i, value in enumerate(typed):
         operator.fill(f"#design-table input[data-index='{i}']", value)
     settled(operator)
-    operator.click("#share")
-    operator.wait_for_selector("#share-out", state="visible")
+    copy_link(operator)
 
     back = engineer.context.new_page()
     back.goto(operator.input_value("#share-url"))

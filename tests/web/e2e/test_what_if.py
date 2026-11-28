@@ -17,6 +17,7 @@ import pytest
 from tests.web._support import FACTORS
 from tests.web.e2e._page import (
     candidates_done,
+    copy_link,
     generate,
     last_reply,
     practise,
@@ -248,9 +249,7 @@ def test_kept_settings_go_out_by_link_and_come_back_with_the_study(open_context,
     keep(page, "Cooler, more pressure")
     page.wait_for_selector("#what-if-kept:not([hidden])")
     listed = kept(page)
-    reveal(page, "#share")
-    page.click("#share")
-    page.wait_for_selector("#share-out", state="visible")
+    copy_link(page)
 
     elsewhere = open_context().new_page()
     elsewhere.goto(page.input_value("#share-url"))

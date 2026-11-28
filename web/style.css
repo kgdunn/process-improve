@@ -432,6 +432,8 @@ button, .button {
   border: 1px solid var(--line); background: var(--bg); color: inherit; text-decoration: none; display: inline-block;
 }
 .primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+/* Two forms of one thing, kept together as the row wraps: the run sheet's download and its other format. */
+.actions__pair { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 /* A button that shares a study encrypted, in a room: a padlock before its words, in the accent on a plain button and
    in the words' color on the accent's own. */
 .with-lock { display: inline-flex; align-items: center; gap: 7px; }
@@ -1553,6 +1555,8 @@ dialog.library { width: min(760px, 100vw - 32px); font-size: 0.92rem; }
 dialog.room-ask { width: min(36rem, 100vw - 32px); }
 .room-ask ul { padding-left: 1.2em; margin: 0 0 12px; }
 .room-ask li { margin: 0 0 6px; }
+.room-ask__copy { margin: 12px 0 0; font-size: 0.9rem; color: var(--muted); }
+.room-ask__copy .link { padding: 0; font-size: inherit; }
 
 
 /* How Factorial works (technical-details-how-factorial-works.html): a page of prose, in a column a reader's eye can follow, with a

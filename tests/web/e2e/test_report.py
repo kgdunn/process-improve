@@ -12,17 +12,28 @@ import platform
 from pathlib import Path
 from typing import Any
 
-from tests.web.e2e._page import practise, reveal, settled, status
+from tests.web.e2e._page import practise, reveal, settled, status, study_menu
 from tests.web.e2e.test_responses import pick, tabs, three_responses
 
 
-def download_report(page: Any, button: str = "#report") -> tuple[str, str]:  # noqa: ANN401 - a Playwright Page
-    """Click a report button, as a reader would; return the file's name and its text."""
+def download_report(page: Any, button: str = "#learn-report-button") -> tuple[str, str]:  # noqa: ANN401 - a Playwright Page
+    """Click a report button, as a reader would: Learn's, once there is an analysis. Return the file's name and text."""
     reveal(page, button)
     with page.expect_download() as download:
         page.click(button)
     settled(page)
     return download.value.suggested_filename, Path(download.value.path()).read_text(encoding="utf-8")
+
+
+def viewed_report(page: Any) -> Any:  # noqa: ANN401 - a Playwright Page
+    """Open the study's report from its menu, as a reader does at any stage, results or none: return its tab."""
+    with page.expect_popup() as popup:
+        study_menu(page, "#menu-report")
+    report = popup.value
+    report.wait_for_url("blob:**")
+    report.wait_for_load_state()
+    settled(page)
+    return report
 
 
 def opened(page: Any, html: str) -> Any:  # noqa: ANN401
@@ -113,18 +124,18 @@ def test_the_worked_example_s_report_holds_the_study_and_what_learn_makes_of_it(
 
 
 def test_the_report_opens_in_a_tab_of_its_own_to_read(page):
-    for button in ("#report-view", "#learn-report-view"):
-        reveal(page, button)
-        with page.expect_popup() as popup:
-            page.click(button)
-        report = popup.value
-        report.wait_for_url("blob:**")
-        report.wait_for_load_state()
-        assert report.text_content("h1") == "Yield (%), maximize: Box-Behnken in Temperature, Pressure and Flow", button
-        assert "The next step" in headings(report)
-        settled(page)
+    """From Learn, beside the analysis, and from the study's menu, at any stage."""
+    reveal(page, "#learn-report-view")
+    with page.expect_popup() as popup:
+        page.click("#learn-report-view")
+    report = popup.value
+    report.wait_for_url("blob:**")
+    report.wait_for_load_state()
+    for shown in (report, viewed_report(page)):
+        assert shown.text_content("h1") == "Yield (%), maximize: Box-Behnken in Temperature, Pressure and Flow"
+        assert "The next step" in headings(shown)
         assert status(page)[0].startswith("The report is open in a tab of its own")
-        report.close()
+        shown.close()
 
 
 def test_the_digest_is_of_what_the_link_carries(page):
@@ -181,8 +192,6 @@ def test_learn_offers_the_report_only_with_an_analysis(fresh_page):
     assert page.locator("#learn-report").is_hidden()
     three_responses(page)
     assert page.locator("#learn-report").is_hidden(), "a run sheet with no results has nothing for Learn to report"
-    name, html = download_report(page)
-    assert name == "box_behnken-15-runs-report.html"
-    report = opened(page, html)
+    report = viewed_report(page)  # the study's menu still opens one, of the brief and the design
     assert headings(report) == ["The brief", "The design: Box-Behnken, 15 runs", "The Python code"]
     assert stamp(report)["Results"] == "None yet."

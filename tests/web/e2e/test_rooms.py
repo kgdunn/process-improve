@@ -205,11 +205,12 @@ def test_the_study_leaves_the_browser_only_once_the_reader_agrees(in_rooms, lock
     page.wait_for_selector("#room-dialog", state="hidden")
     assert locker.asked == [], "nothing sent"
     assert page.is_hidden("#room-out")
-    assert page.text_content("#room-share .room-share__words") == "Work on it together"
+    assert page.text_content("#room-share .room-share__words") == "Share this study"
 
     # A padlock before the words, and a screen reader hears that the study goes encrypted.
     assert page.locator("#room-share svg[aria-hidden='true']").count() == 1
-    assert page.get_by_role("button", name="Work on it together (encrypted)", exact=True).is_visible()
+    assert page.get_by_role("button", name="Share this study", exact=True).is_visible()
+    assert page.text_content("#room-make") == "Work on it together", "in the question"
     assert page.locator("#room-make svg[aria-hidden='true']").count() == 1
 
     explanation = in_rooms().new_page()
@@ -279,7 +280,7 @@ def test_a_room_removed_for_everyone_leaves_each_browser_its_copy(in_rooms, lock
     page.click("#room-remove-yes")
     page.wait_for_selector("#room-out", state="hidden")
     assert locker.rooms() == []
-    assert page.text_content("#room-share .room-share__words") == "Work on it together"
+    assert page.text_content("#room-share .room-share__words") == "Share this study"
 
     look(elsewhere)
     elsewhere.wait_for_selector(f"{BANNER}:has-text('The room of this study is gone')")

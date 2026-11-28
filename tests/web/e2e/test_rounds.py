@@ -15,6 +15,7 @@ from typing import Any
 import pytest
 
 from tests.web.e2e._page import (
+    copy_link,
     enter_results,
     generate,
     open_library,
@@ -191,9 +192,7 @@ def test_a_study_s_own_file_carries_the_rounds_before_it_and_opens_the_study(two
 
 def test_a_link_carries_the_one_study_and_names_the_round_before(two_rounds, open_context):
     page = two_rounds
-    reveal(page, "#share")
-    page.click("#share")
-    page.wait_for_selector("#share-out", state="visible")
+    copy_link(page)
     elsewhere = open_context().new_page()
     elsewhere.goto(page.input_value("#share-url"))
     elsewhere.wait_for_selector("#campaign-banner", state="visible")

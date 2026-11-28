@@ -726,13 +726,14 @@ Also:
     analysis, the best settings, the balance, the predictions and each figure. Tests run the
     code and compare.
 - **A workbook for the lab.** The run sheet as a spreadsheet to fill in, which the app reads
-  back.
+  back. It is Run's one download.
   - *Details:* An .xlsx file. Two downloads of one study are the same file. It also keeps the
     targets and the specification limits typed in Learn, so they come back with the workbook.
 - **Run sheet (.csv).** It opens in any spreadsheet or program.
+  - *Details:* "or as .csv", beside the workbook.
 - **A notebook.** It holds the study's code, with a cell that draws each figure of the
   analysis.
-  - *Details:* An .ipynb file.
+  - *Details:* An .ipynb file, from Learn, beside the report.
 - **A report to hand over.** One page that needs nothing else: the question, the design, the
   results, the analysis with its charts, the best settings, the next step and the code.
   - *Details:* An .html file. A stamp gives the seed, a fingerprint of the study (its
@@ -741,9 +742,12 @@ Also:
     The software versions are at its foot. A chart's image takes a shape that suits it: a
     surface with equal axes as wide as its square plot and its color bar, a figure in three
     dimensions about as wide as it is tall, the others 720 pixels wide.
-- **A link to a study.** It carries the results or leaves them out. Whoever opens it has the
-  same study, and the study in the link reaches no server.
-  - *Details:* The study is packed after the `#`, which a browser sends to no server.
+- **A link to a study.** It carries the study and its results. Whoever opens it has the same
+  study, and Factorial's server never sees it. It is the quieter choice under Share, beside
+  working on the study together, and it says what it is: not encrypted, and not to be taken back.
+  - *Details:* The study is packed after the `#`, which a browser sends to no server. The link
+    itself holds the study, so the email or chat that carries it can read it; a room's link
+    holds only a key, and removing the room ends it.
 - **Move your studies.** One study or all of them as a file, to take to another browser or
   another computer.
   - *Details:* The study file (.json) is plain JSON and carries a SHA-256 of each study. A
@@ -758,7 +762,7 @@ Also:
   the same study: results typed in any of your browsers reach the others. The server keeps the
   study encrypted, and cannot read it. Before a room is made, the app says who will see the
   study and how to stop.
-  - *Details:* "Work on it together", in Run, asks first, in a few lines that say who sees the
+  - *Details:* "Share this study", in Run, asks first, in a few lines that say who sees the
     study, what the server keeps and how to stop; How Factorial works answers the rest, under
     "Can I work on a study with others?". There a picture shows the study going through the server
     encrypted and the key going around it, in the link; under it, the page encrypts a line in front

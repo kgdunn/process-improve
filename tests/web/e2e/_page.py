@@ -54,6 +54,19 @@ def reveal(page: Any, selector: str) -> None:  # noqa: ANN401 - a Playwright Pag
         page.click(tab)
 
 
+def copy_link(page: Any) -> str:  # noqa: ANN401 - a Playwright Page
+    """Share the study by a plain link, as a reader does: Share this study, then "copy a link" under the question.
+
+    Return the link, once the box under the row shows it.
+    """
+    reveal(page, "#room-share")
+    page.click("#room-share")
+    page.wait_for_selector("#room-dialog[open]")
+    page.click("#share")
+    page.wait_for_selector("#share-out", state="visible")
+    return page.input_value("#share-url")
+
+
 def open_question(page: Any) -> None:  # noqa: ANN401 - a Playwright Page
     """Show the question's form where the page is: Design has it, and over Run and Learn its one line opens to it."""
     if page.is_hidden("#brief"):
