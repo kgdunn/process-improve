@@ -23,7 +23,7 @@ from tests.web.e2e._page import (
     settled,
     status,
 )
-from tests.web.e2e.test_report import download_report, opened, stamp, viewed_report
+from tests.web.e2e.test_report import opened, report_html, stamp, viewed_report
 from tests.web.live.test_live import started
 
 #: The statsmodels wheel of the Pyodide release; the cache of downloads is routed before it, so this route wins.
@@ -75,6 +75,6 @@ def test_the_page_is_ready_and_designs_without_what_a_model_is_fitted_with_and_a
     page.wait_for_selector("#analysis .equation", timeout=120_000)
     settled(page, timeout=120_000)
     assert status(page)[1] == "ok", status(page)
-    on = stamp(opened(page, download_report(page)[1]))["On"]
+    on = stamp(opened(page, report_html(page)))["On"]
     assert re.search(r"statsmodels \d+\.\d+", on), f"the report names what the model was fitted with: {on}"
     assert not console.unexpected(), console.unexpected()

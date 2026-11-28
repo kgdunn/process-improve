@@ -735,10 +735,15 @@ Also:
   - *Details:* "or as .csv", beside the workbook.
 - **A notebook.** It holds the study's code, with a cell that draws each figure of the
   analysis.
-  - *Details:* An .ipynb file, from Learn, beside the report.
+  - *Details:* An .ipynb file: "Python notebook", the third button of Report, at Learn's foot.
 - **A report to hand over.** One page that needs nothing else: the question, the design, the
-  results, the analysis with its charts, the best settings, the next step and the code.
-  - *Details:* An .html file. A stamp gives the seed, a fingerprint of the study (its
+  results, the analysis with its charts, the best settings, the next step and the code. View
+  it in a tab of its own, or save it as a PDF.
+  - *Details:* At Learn's foot, the word Report and three buttons side by side: View, Save as
+    PDF and Python notebook. Save as PDF opens the report with the browser's print dialog over
+    it, where "Save as PDF" writes the file: a page cannot write a PDF itself, and the
+    browser's own print can, laid out by the report's print styles. Where the browser opens no
+    tab, the report is downloaded as an .html file instead. A stamp gives the seed, a fingerprint of the study (its
     SHA-256) and a link that opens the same study. It ends with "Terms used": each word the
     report used that the page defines, with its meaning, since paper has no word to press.
     The software versions are at its foot. A chart's image takes a shape that suits it: a
@@ -956,8 +961,8 @@ Also:
   question not yet finished. Your studies, in the study's menu, lists them, to open, share
   or delete.
   [Show me](https://factori.al/?example=worked&show=library)
-- **Feedback.** Send it from the bar, the footer or beside a result. A list shows what is
-  sent.
+- **Feedback.** Send it from the bar or the footer, or beside an analysis that failed. A list
+  shows what is sent.
   - *Details:* A link can open the form with a request written, as "Request it" does beside
     each design the app does not make yet. Nothing is sent until you press Send.
 - **A footer to scan.** What Factorial is in a sentence, a button to this list, links in named

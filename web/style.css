@@ -1220,6 +1220,15 @@ dialog.feedback { width: min(640px, 100vw - 32px); }
 .picker [role="tab"][aria-selected="true"] { color: var(--accent-fg); background: var(--accent); border-color: var(--accent); font-weight: 600; }
 .picker [role="tab"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
+/* What a row of actions is for, as one word before its buttons; and buttons that are the ways to take one thing,
+   side by side and touching, as one control. */
+.actions__name { font-weight: 600; }
+.joined { display: inline-flex; max-width: 100%; }
+.joined > .button { margin: 0; border-radius: 0; min-width: 0; }
+.joined > .button + .button { margin-left: -1px; }
+.joined > .button:first-child { border-radius: var(--corner) 0 0 var(--corner); }
+.joined > .button:last-child { border-radius: 0 var(--corner) var(--corner) 0; }
+.joined > .button:hover, .joined > .button:focus-visible { position: relative; z-index: 1; } /* its whole edge, over its neighbor's */
 details { margin: 10px 0; }
 details summary { cursor: pointer; color: var(--accent); }
 
@@ -1317,6 +1326,8 @@ details.curves textarea {
   background: var(--bg); color: inherit; font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
 }
 details.python { margin: 16px 0 0; border-top: 1px solid var(--line); padding-top: 8px; }
+/* "Show Python code for this": on a screen too narrow for the whole of it, the last two words go. */
+@media (max-width: 340px) { .python__for { display: none; } }
 details.python pre {
   overflow-x: auto; margin: 8px 0; padding: 10px 12px; border-radius: var(--corner); font-size: 0.85rem;
   background: var(--bg); border: 1px solid var(--line);

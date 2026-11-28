@@ -43,7 +43,7 @@ from tests.web.e2e.test_import import paste
 from tests.web.e2e.test_mixture import BLEND
 from tests.web.e2e.test_next_step import add, offered
 from tests.web.e2e.test_persistence import BANNER, come_back, results
-from tests.web.e2e.test_report import download_report, headings, opened
+from tests.web.e2e.test_report import headings, opened, report_html
 from tests.web.e2e.test_responses import pick, tabs, three_responses
 from tests.web.e2e.test_workbook import upload
 
@@ -124,8 +124,7 @@ def test_a_study_goes_from_its_brief_to_its_report(fresh_page):
     assert terms_fitted(page) == KEPT, "the model chosen is the one fitted without the run"
     assert page.text_content("#best .lead").startswith("These settings give the highest Strength the model predicts")
 
-    name, html = download_report(page)
-    assert name == "box_behnken-15-runs-report.html"
+    html = report_html(page)
     report = opened(page, html)
     assert report.text_content("h1").startswith("Strength (MPa), maximize: Box-Behnken in T, P and F")
     assert "What the results say" in headings(report)
@@ -318,7 +317,7 @@ def test_three_responses_are_analysed_balanced_reported_and_kept_together(contex
     assert [r["name"] for r in balance["responses"]] == ["Yield", "Cost", "Purity"]
     assert 0 < balance["composite"] <= 1
 
-    _, html = download_report(page)
+    html = report_html(page)
     report = opened(page, html)
     said = report.text_content("body")
     assert all(f"{name}" in said for name in ("Yield", "Cost", "Purity"))
@@ -347,8 +346,7 @@ def test_a_mixture_goes_from_its_components_to_its_best_blend(fresh_page):
     best = last_reply(page, "api_best_settings")["result"]
     assert sum(s["value"] for s in best["settings"]) == pytest.approx(1.0, abs=1e-6)
     assert page.text_content("#best .lead").startswith("This blend gives the highest Gloss the model predicts")
-    name, html = download_report(page)
-    assert name.endswith("-report.html")
+    html = report_html(page)
     assert "Gloss" in opened(page, html).text_content("h1")
 
 

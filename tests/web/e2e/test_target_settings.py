@@ -15,7 +15,7 @@ import pytest
 
 from tests.web.e2e._page import copy_link, last_reply, practise, reveal, run_sheet, settled
 from tests.web.e2e.test_rename import rename
-from tests.web.e2e.test_report import download_report, headings, opened
+from tests.web.e2e.test_report import headings, opened, report_html
 from tests.web.e2e.test_responses import three_responses
 from tests.web.e2e.test_specification import window
 
@@ -213,7 +213,7 @@ def test_the_report_holds_what_the_targets_and_the_windows_gave(studied):
     reveal(page, "#window")
     window(page, "Yield", "low", "60")
     page.wait_for_selector("#window-chart .js-plotly-plot")
-    _, html = download_report(page)
+    html = report_html(page)
     report = opened(page, html)
     asked = ["Settings that give a target", "Settings that meet a specification"]
     assert [heading for heading in headings(report) if heading in asked] == asked
