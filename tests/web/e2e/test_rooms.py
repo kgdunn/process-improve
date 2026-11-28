@@ -250,7 +250,9 @@ def test_a_relay_that_cannot_be_reached_keeps_the_changes_here(in_rooms, relay, 
     link = share_in_room(page)
     relay.up = False
     type_result(page, 3, "15")
-    page.wait_for_function("document.querySelector('#room-says').textContent.startsWith('The room could not be reached')")
+    page.wait_for_function(
+        "document.querySelector('#room-says').textContent.startsWith('The room could not be reached')"
+    )
     relay.up = True
     look(page)
     page.wait_for_function("document.querySelector('#room-says').textContent.startsWith('In step with the room')")

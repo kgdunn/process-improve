@@ -22,19 +22,42 @@ const plotConfig = (toolbar) => ({
 
 let loading = null;
 
-/** Load Plotly.js once; later calls get the copy already loading, whatever version they name. */
+/**
+ * The digest the build pinned Plotly.js to: its manifest's plotly_js_integrity, the SHA-384 of the copy the Python
+ * plotly package ships, which is jsDelivr's byte for byte. The manifest is beside this module, so every page of the
+ * app reads the same one. "" where there is none (web/ served as it is) or it names another version.
+ */
+async function pinnedDigest(version) {
+  try {
+    const res = await fetch(new URL("wheels/manifest.json", import.meta.url));
+    const manifest = res.ok ? await res.json() : {};
+    return manifest.plotly_js === version ? (manifest.plotly_js_integrity ?? "") : "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Load Plotly.js once; later calls get the copy already loading, whatever version they name. Pinned by its digest,
+ * a copy the CDN changed is refused: the script runs in the page, which holds a room's key (room.js), and shares its
+ * storage with every page of the app.
+ */
 export function loadPlotly(version) {
-  loading ??= new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.crossOrigin = "anonymous"; // a response the service worker can read, and so keep (sw.js)
-    script.src = CDN(version);
-    script.onload = () => resolve(window.Plotly);
-    script.onerror = () => {
-      loading = null;
-      reject(new Error(`Plotly.js ${version} could not be loaded from ${CDN(version)}`));
-    };
-    document.head.append(script);
-  });
+  loading ??= pinnedDigest(version).then(
+    (integrity) =>
+      new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.crossOrigin = "anonymous"; // a response the service worker can read, and so keep (sw.js); and checked
+        if (integrity) script.integrity = integrity;
+        script.src = CDN(version);
+        script.onload = () => resolve(window.Plotly);
+        script.onerror = () => {
+          loading = null;
+          reject(new Error(`Plotly.js ${version} could not be loaded from ${CDN(version)}`));
+        };
+        document.head.append(script);
+      }),
+  );
   return loading;
 }
 

@@ -223,9 +223,15 @@ def test_each_sealed_size_is_taken(server, size):
     assert ask(server, "PUT", TOKEN, blob(size), {"If-None-Match": "*"})[0] == 201
 
 
-@pytest.mark.parametrize("size", [0, 1, SMALL - 1, SMALL + 1, max(relay.BLOB_SIZES) + 1, 2**20])
+#: The most Caddy passes on to the relay (factorial.caddy's request_body max_size): the relay drains at least this much
+#: of a body it refused, so the client reads the refusal rather than a reset connection.
+CADDY_MOST = 70 * 1024
+
+
+@pytest.mark.parametrize("size", [0, 1, SMALL - 1, SMALL + 1, max(relay.BLOB_SIZES) + 1, CADDY_MOST])
 def test_any_other_size_is_refused_before_it_is_read(server, tmp_path, size):
     """A file or an image is not a padded study: it does not fit, whatever it holds."""
+    assert relay.LINGER_BYTES >= CADDY_MOST
     status, _, data = ask(server, "PUT", TOKEN, blob(size), {"If-None-Match": "*"})
     assert status == 413
     assert "and nothing else" in refusal(data)
