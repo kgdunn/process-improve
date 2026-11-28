@@ -9892,8 +9892,10 @@ function roomSays(words, trouble = false) {
 async function shareRoom() {
   if (!state.design || !state.campaign) return;
   if (!currentRoom()) {
-    const keys = await roomOf(newSecret());
+    const button = $("#room-share");
+    button.disabled = true; // one room for one press: a second press meanwhile would make a second
     try {
+      const keys = await roomOf(newSecret());
       const wrote = await writeRoom(keys, await sealStudy(keys, shareable(currentCampaign(), true)), null);
       if (wrote.moved) throw new RoomError(412, "A room was made with this secret already: try again."); // not with a new secret
       const base = resultsOf(currentCampaign());
@@ -9901,11 +9903,13 @@ async function shareRoom() {
     } catch (err) {
       toast(err.message, "error");
       return;
+    } finally {
+      button.disabled = false;
     }
     roomSaid = "";
     flushSave();
     await saveNow();
-    roomSays(`In step with the room, ${clockTime()}.`);
+    roomSays(IN_STEP);
     nextLook();
   }
   renderRoom();
@@ -9920,8 +9924,11 @@ async function shareRoom() {
   $("#room-url").select();
 }
 
-/** The time of day, as hours and minutes. */
-const clockTime = () => new Date().toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" });
+/**
+ * What the room's line says while all is well: the same words each time, so the line, which a screen reader reads
+ * out as it changes, speaks only when something does.
+ */
+const IN_STEP = "In step with the room.";
 
 /**
  * Open a room's link: the study this browser keeps in step with it already, or the same design kept here before
@@ -10025,7 +10032,7 @@ async function stepWithRoom() {
       }
       const here = resultsOf(currentCampaign());
       if (JSON.stringify(here) === JSON.stringify(room.base)) {
-        roomSays(`In step with the room, ${clockTime()}.`);
+        roomSays(IN_STEP);
         scheduleSave();
         return;
       }
@@ -10036,7 +10043,7 @@ async function stepWithRoom() {
         continue;
       }
       Object.assign(room, { version: wrote.version, base: here });
-      roomSays(`In step with the room, ${clockTime()}.`);
+      roomSays(IN_STEP);
       scheduleSave();
       return;
     }
@@ -10076,7 +10083,12 @@ function takeFromRoom(room, there) {
   const count = took.length + replaced.length;
   toast(`${plural(count, "result")} came from the room.`);
   if (replaced.length) {
-    const each = replaced.map(({ name, run, mine, theirs }) => `${wordsOf(name === "curve" ? names[0] : name).label}, run ${runOrderOf(run)}: ${mine === null ? "blank" : JSON.stringify(mine)} here, ${theirs === null ? "blank" : JSON.stringify(theirs)} in the room`);
+    const value = (v) => (v === null ? "blank" : String(v));
+    const each = replaced.map(({ name, run, mine, theirs }) =>
+      name === "curve"
+        ? `the curve of run ${runOrderOf(run)}`
+        : `${wordsOf(name).label}, run ${runOrderOf(run)}: ${value(mine)} here, ${value(theirs)} in the room`,
+    );
     showBanner(`Someone in the room changed ${plural(replaced.length, "result")} you changed here too, and theirs reached the room first, so it is kept: ${each.join("; ")}. Type yours again to change it back.`);
   }
 }
