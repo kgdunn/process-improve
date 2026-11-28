@@ -764,7 +764,8 @@ Also:
   study and how to stop.
   - *Details:* "Share this study", in Run, asks first, in a few lines that say who sees the
     study, what the server keeps and how to stop; How Factorial works answers the rest, under
-    "Can I work on a study with others?". There a picture shows the study going through the server
+    "Can I work on a study with others?". It names the method, end-to-end encryption as in Signal and
+    WhatsApp, and the one difference: there no key is sent, and here the key travels in the link. A picture shows the study going through the server
     encrypted and the key going around it, in the link; under it, the page encrypts a line in front
     of the reader with the app's own code, shows the bytes the server would keep, and opens the
     line again, with links to that code and to the server's. The locker's link carries a secret after the `#`,
