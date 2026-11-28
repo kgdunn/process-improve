@@ -432,6 +432,11 @@ button, .button {
   border: 1px solid var(--line); background: var(--bg); color: inherit; text-decoration: none; display: inline-block;
 }
 .primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+/* A button that shares a study encrypted, in a room: a padlock before its words, in the accent on a plain button and
+   in the words' color on the accent's own. */
+.with-lock { display: inline-flex; align-items: center; gap: 7px; }
+.with-lock svg { width: 1.15em; height: 1.15em; flex: none; }
+.with-lock:not(.primary) svg { color: var(--accent); }
 button:disabled { opacity: 0.5; cursor: progress; }
 .link { border: none; background: none; color: var(--accent); padding: 4px; }
 /* A stage named in a sentence (app.js stageLink, and the page's own sentences): the stage's dot, in its color, and its

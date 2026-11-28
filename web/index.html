@@ -780,7 +780,9 @@
             <button type="button" id="report" class="button">Download report (.html)</button>
             <button type="button" id="share" class="button">Copy a link to this study</button>
             <label class="check"><input type="checkbox" id="share-results" checked> with its results</label>
-            <button type="button" id="room-share" class="button">Work on it together</button>
+            <!-- The padlock says, before a word is read, that a study shared this way is encrypted; a screen reader
+                 hears it as the words after the button's own (app.js renderRoom sets those). -->
+            <button type="button" id="room-share" class="button with-lock"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="5" y="10.5" width="14" height="10" rx="2" fill="currentColor"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2.2"/></svg><span class="room-share__words">Work on it together</span><span class="visually-hidden"> (encrypted)</span></button>
           </div>
           <div id="share-out" class="share" hidden>
             <input id="share-url" readonly aria-label="A link to this study" aria-describedby="share-note">
@@ -1184,7 +1186,7 @@
     <p><a href="technical-details-how-factorial-works.html#h-room" target="_blank" rel="noopener">How a room keeps
       your study private</a></p>
     <p class="actions">
-      <button type="button" id="room-make" class="primary">Make the link</button>
+      <button type="button" id="room-make" class="primary with-lock"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="5" y="10.5" width="14" height="10" rx="2" fill="currentColor"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2.2"/></svg><span>Make the link</span></button>
       <button type="button" id="room-not-now" class="button">Not now</button>
     </p>
   </dialog>

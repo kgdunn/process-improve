@@ -9880,7 +9880,7 @@ function renderRoom() {
   const room = currentRoom();
   const button = $("#room-share");
   button.hidden = !state.campaign; // the worked example is not kept in this browser, so it cannot keep in step
-  button.textContent = room ? "Copy the room's link" : "Work on it together";
+  button.querySelector(".room-share__words").textContent = room ? "Copy the room's link" : "Work on it together";
   $("#room-out").hidden = !room;
   if (!room) return;
   $("#room-url").value = roomLink(room);
